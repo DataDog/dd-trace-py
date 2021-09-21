@@ -1,15 +1,17 @@
 from collections import namedtuple
 
-TAG_NAMES = [
-    "RESOURCE_NAME",
-    "SAMPLING_PRIORITY",
-    "SERVICE_NAME",
-    "SPAN_TYPE",
-    "TARGET_HOST",
-    "TARGET_PORT",
-]
 
-TagNames = namedtuple("TagNames", TAG_NAMES)
+TagNames = namedtuple(
+    "TagNames",
+    [
+        "RESOURCE_NAME",
+        "SAMPLING_PRIORITY",
+        "SERVICE_NAME",
+        "SPAN_TYPE",
+        "TARGET_HOST",
+        "TARGET_PORT",
+    ],
+)
 
 Tags = TagNames(
     RESOURCE_NAME="resource.name",

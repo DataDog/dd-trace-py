@@ -1,13 +1,18 @@
-from ... import compat
-from ...ext import SpanTypes, http, errors
-from ...internal.logger import get_logger
-from ...propagation.http import HTTPPropagator
-from ...utils.deprecation import deprecated
-from .. import trace_utils
+from flask import g
+from flask import request
+from flask import signals
+import flask.templating
+
 from ddtrace import config
 
-import flask.templating
-from flask import g, request, signals
+from .. import trace_utils
+from ...ext import SpanTypes
+from ...ext import errors
+from ...ext import http
+from ...internal import compat
+from ...internal.logger import get_logger
+from ...utils.cache import cached
+from ...utils.deprecation import deprecated
 
 
 log = get_logger(__name__)
@@ -16,9 +21,14 @@ log = get_logger(__name__)
 SPAN_NAME = "flask.request"
 
 
+@cached()
+def _normalize_resource(resource):
+    return compat.to_unicode(resource).lower()
+
+
 class TraceMiddleware(object):
     @deprecated(message="Use patching instead (see the docs).", version="1.0.0")
-    def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=False):
+    def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=None):
         self.app = app
         log.debug("flask: initializing trace middleware")
 
@@ -61,7 +71,7 @@ class TraceMiddleware(object):
         connected = True
         for name, handler in signal_to_handler.items():
             s = getattr(signals, name, None)
-            if not s:
+            if s is None:
                 connected = False
                 log.warning("trying to instrument missing signal %s", name)
                 continue
@@ -80,7 +90,7 @@ class TraceMiddleware(object):
         self._start_span()
 
     def _after_request(self, response):
-        """ Runs after the server can process a response. """
+        """Runs after the server can process a response."""
         try:
             self._process_response(response)
         except Exception:
@@ -92,9 +102,8 @@ class TraceMiddleware(object):
         will be passed in.
         """
         # when we teardown the span, ensure we have a clean slate.
-        span = getattr(g, "flask_datadog_span", None)
-        setattr(g, "flask_datadog_span", None)
-        if not span:
+        span = g.__dict__.pop("flask_datadog_span", None)
+        if span is None:
             return
 
         try:
@@ -103,12 +112,13 @@ class TraceMiddleware(object):
             log.debug("flask: error finishing span", exc_info=True)
 
     def _start_span(self):
-        if self.app._use_distributed_tracing:
-            propagator = HTTPPropagator()
-            context = propagator.extract(request.headers)
-            # Only need to active the new context if something was propagated
-            if context.trace_id:
-                self.app._tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(
+            self.app._tracer,
+            int_config=config.flask,
+            request_headers=request.headers,
+            override=self.app._use_distributed_tracing,
+        )
+
         try:
             g.flask_datadog_span = self.app._tracer.trace(
                 SPAN_NAME,
@@ -120,7 +130,7 @@ class TraceMiddleware(object):
 
     def _process_response(self, response):
         span = getattr(g, "flask_datadog_span", None)
-        if not (span and span.sampled):
+        if not span:
             return
 
         code = response.status_code if response else ""
@@ -133,7 +143,7 @@ class TraceMiddleware(object):
             _set_error_on_span(span, exception)
 
     def _finish_span(self, span, exception=None):
-        if not span or not span.sampled:
+        if not span:
             return
 
         code = span.get_tag(http.STATUS_CODE) or 0
@@ -169,7 +179,7 @@ class TraceMiddleware(object):
         # See case https://github.com/DataDog/dd-trace-py/issues/353
         if span.resource == SPAN_NAME:
             resource = endpoint or code
-            span.resource = compat.to_unicode(resource).lower()
+            span.resource = _normalize_resource(resource)
 
         trace_utils.set_http_meta(
             span,
@@ -196,7 +206,7 @@ def _set_error_on_span(span, exception):
 
 
 def _patch_render(tracer):
-    """ patch flask's render template methods with the given tracer. """
+    """patch flask's render template methods with the given tracer."""
     # fall back to patching  global method
     _render = flask.templating._render
 
@@ -207,7 +217,7 @@ def _patch_render(tracer):
 
     def _traced_render(template, context, app):
         with tracer.trace("flask.template", span_type=SpanTypes.TEMPLATE) as span:
-            span.set_tag("flask.template", template.name or "string")
+            span._set_str_tag("flask.template", compat.maybe_stringify(template.name) or "string")
             return _render(template, context, app)
 
     setattr(_traced_render, "__dd_orig", _render)

@@ -1,21 +1,21 @@
-# stdib
 import time
 
-# 3p
 import mongoengine
 import pymongo
 
-# project
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.mongoengine.patch import patch, unpatch
+from ddtrace.contrib.mongoengine.patch import patch
+from ddtrace.contrib.mongoengine.patch import unpatch
+from ddtrace.contrib.pymongo.client import TracedMongoClient
+from ddtrace.contrib.pymongo.client import TracedTopology
 from ddtrace.ext import mongo as mongox
-
-# testing
 from tests.opentracer.utils import init_tracer
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+
 from ..config import MONGO_CONFIG
-from ... import TracerTestCase, assert_is_measured
-from tests.tracer.test_tracer import get_dummy_tracer
 
 
 class Artist(mongoengine.Document):
@@ -41,7 +41,7 @@ class MongoEngineCore(object):
         end = time.time()
 
         # ensure we get a drop collection span
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
 
@@ -59,7 +59,7 @@ class MongoEngineCore(object):
         end = time.time()
 
         # ensure we get an insert span
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -79,7 +79,7 @@ class MongoEngineCore(object):
         # query names should be used in pymongo>3.1
         name = "find" if pymongo.version_tuple >= (3, 1, 0) else "query"
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -97,7 +97,7 @@ class MongoEngineCore(object):
         assert artists[0].first_name == "Joni"
         assert artists[0].last_name == "Mitchell"
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -112,7 +112,7 @@ class MongoEngineCore(object):
         joni.save()
         end = time.time()
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -126,7 +126,7 @@ class MongoEngineCore(object):
         joni.delete()
         end = time.time()
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -146,7 +146,7 @@ class MongoEngineCore(object):
             end = time.time()
 
         # ensure we get a drop collection span
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 2
         ot_span, dd_span = spans
 
@@ -167,7 +167,7 @@ class MongoEngineCore(object):
         tracer = self.get_tracer_and_connect()
         Artist.drop_collection()
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
@@ -176,7 +176,7 @@ class MongoEngineCore(object):
             tracer = self.get_tracer_and_connect()
             Artist.drop_collection()
 
-            spans = tracer.writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
@@ -185,7 +185,7 @@ class MongoEngineCore(object):
             tracer = self.get_tracer_and_connect()
             Artist.drop_collection()
 
-            spans = tracer.writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
@@ -202,7 +202,7 @@ class MongoEngineCore(object):
         tracer = self.get_tracer_and_connect()
         Artist.drop_collection()
 
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
@@ -221,7 +221,7 @@ class TestMongoEnginePatchConnectDefault(TracerTestCase, MongoEngineCore):
         mongoengine.connection.disconnect()
 
     def get_tracer_and_connect(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         Pin.get_from(mongoengine.connect).clone(tracer=tracer).onto(mongoengine.connect)
         mongoengine.connect(port=MONGO_CONFIG["port"])
 
@@ -255,7 +255,7 @@ class TestMongoEnginePatchClientDefault(TracerTestCase, MongoEngineCore):
         mongoengine.connection.disconnect()
 
     def get_tracer_and_connect(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
@@ -268,7 +268,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
     TEST_SERVICE = "test-mongo-patch-client"
 
     def get_tracer_and_connect(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
         # Set a connect-level service, to check that we properly override it
         Pin(service="not-%s" % self.TEST_SERVICE).onto(mongoengine.connect)
         client = mongoengine.connect(port=MONGO_CONFIG["port"])
@@ -277,7 +277,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         return tracer
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
+        tracer = DummyTracer()
 
         # Test patch idempotence
         patch()
@@ -287,12 +287,12 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
         Artist.drop_collection()
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
         mongoengine.connection.disconnect()
-        tracer.writer.pop()
+        tracer.pop()
 
         # Test unpatch
         unpatch()
@@ -300,7 +300,7 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         mongoengine.connect(port=MONGO_CONFIG["port"])
 
         Artist.drop_collection()
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -310,9 +310,28 @@ class TestMongoEnginePatchClient(TestMongoEnginePatchClientDefault):
         Pin.get_from(client).clone(tracer=tracer).onto(client)
 
         Artist.drop_collection()
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
+
+    def test_multiple_connect_no_double_patching(self):
+        """Ensure we do not double patch client._topology
+
+        Regression test for https://github.com/DataDog/dd-trace-py/issues/2474
+        """
+        client = mongoengine.connect(port=MONGO_CONFIG["port"])
+        assert isinstance(client, TracedMongoClient)
+        assert not isinstance(client.__wrapped__, TracedMongoClient)
+        assert isinstance(client._topology, TracedTopology)
+        assert not isinstance(client._topology.__wrapped__, TracedTopology)
+        client.close()
+
+        client = mongoengine.connect(port=MONGO_CONFIG["port"])
+        assert isinstance(client, TracedMongoClient)
+        assert not isinstance(client.__wrapped__, TracedMongoClient)
+        assert isinstance(client._topology, TracedTopology)
+        assert not isinstance(client._topology.__wrapped__, TracedTopology)
+        client.close()
 
 
 def _assert_timing(span, start, end):

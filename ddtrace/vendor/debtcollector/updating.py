@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from .. import six
+import six
 from .. import wrapt
 if six.PY3:
     import inspect

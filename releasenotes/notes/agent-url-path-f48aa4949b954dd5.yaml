@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    agent: support URL with a base path

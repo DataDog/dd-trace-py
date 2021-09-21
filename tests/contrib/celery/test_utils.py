@@ -1,12 +1,11 @@
 import gc
 
-from ddtrace.contrib.celery.utils import (
-    tags_from_context,
-    retrieve_task_id,
-    attach_span,
-    detach_span,
-    retrieve_span,
-)
+from ddtrace.contrib.celery.utils import attach_span
+from ddtrace.contrib.celery.utils import detach_span
+from ddtrace.contrib.celery.utils import retrieve_span
+from ddtrace.contrib.celery.utils import retrieve_task_id
+from ddtrace.contrib.celery.utils import set_tags_from_context
+from ddtrace.span import Span
 
 from .base import CeleryBaseTestCase
 
@@ -31,7 +30,11 @@ class CeleryTagsTest(CeleryBaseTestCase):
             "custom_meta": "custom_value",
         }
 
-        metas = tags_from_context(context)
+        span = Span(None, "test")
+        set_tags_from_context(span, context)
+        metas = span.meta
+        metrics = span.metrics
+        sentinel = object()
         assert metas["celery.correlation_id"] == "44b7f305"
         assert metas["celery.delivery_info"] == '{"eager": "True"}'
         assert metas["celery.eta"] == "soon"
@@ -39,27 +42,30 @@ class CeleryTagsTest(CeleryBaseTestCase):
         assert metas["celery.hostname"] == "localhost"
         assert metas["celery.id"] == "44b7f305"
         assert metas["celery.reply_to"] == "44b7f305"
-        assert metas["celery.retries"] == 4
-        assert metas["celery.timelimit"] == ("now", "later")
-        assert metas.get("custom_meta", None) is None
+        assert metrics["celery.retries"] == 4
+        assert metas["celery.timelimit"] == "('now', 'later')"
+        assert metas.get("custom_meta", sentinel) is sentinel
+        assert metrics.get("custom_metric", sentinel) is sentinel
 
     def test_tags_from_context_empty_keys(self):
         # it should not extract empty keys
+        span = Span(None, "test")
         context = {
             "correlation_id": None,
             "exchange": "",
             "timelimit": (None, None),
             "retries": 0,
         }
+        tags = span.meta
 
-        tags = tags_from_context(context)
+        set_tags_from_context(span, context)
         assert {} == tags
         # edge case: `timelimit` can also be a list of None values
         context = {
             "timelimit": [None, None],
         }
 
-        tags = tags_from_context(context)
+        set_tags_from_context(span, context)
         assert {} == tags
 
     def test_span_propagation(self):
@@ -122,8 +128,8 @@ class CeleryTagsTest(CeleryBaseTestCase):
         assert weak_dict.get(key)
         # flush data and force the GC
         weak_dict.get(key).finish()
-        self.tracer.writer.pop()
-        self.tracer.writer.pop_traces()
+        self.pop_spans()
+        self.pop_traces()
         gc.collect()
         assert weak_dict.get(key) is None
 

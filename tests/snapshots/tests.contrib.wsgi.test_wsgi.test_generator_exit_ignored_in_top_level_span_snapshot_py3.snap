@@ -1,0 +1,49 @@
+[[{"name" "wsgi.request"
+   "service" "wsgi"
+   "resource" "wsgi.request"
+   "type" "web"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1611783421311923000
+   "duration" 2750000
+   "meta" {"runtime-id" "4257130bb9d740c7a7f4e0419ed1e9d6"
+           "http.status_msg" "OK"
+           "http.status_code" "200"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "_dd.tracer_kr" 1.0
+              "system.pid" 20499}}
+      {"name" "wsgi.application"
+       "service" "wsgi"
+       "resource" "wsgi.application"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1611783421312123000
+       "duration" 17000}
+      {"name" "wsgi.response"
+       "service" "wsgi"
+       "resource" "wsgi.response"
+       "error" 1
+       "span_id" 2
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1611783421312156000
+       "duration" 2503000
+       "meta" {"result_class" "generator"
+               "error.msg" ""
+               "error.type" "builtins.GeneratorExit"
+               "error.stack" "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 134, in __call__\n    for chunk in result:\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 37, in chunked_response_generator_error\n    raise generatorExit()\nGeneratorExit\n"}}
+          {"name" "wsgi.start_response"
+           "service" "wsgi"
+           "resource" "wsgi.start_response"
+           "type" "web"
+           "error" 0
+           "span_id" 3
+           "trace_id" 0
+           "parent_id" 2
+           "start" 1611783421312256000
+           "duration" 42000}]]

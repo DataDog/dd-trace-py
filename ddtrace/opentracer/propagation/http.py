@@ -1,4 +1,8 @@
-from opentracing import InvalidCarrierException, SpanContextCorruptedException
+from typing import Dict
+
+from opentracing import InvalidCarrierException
+from opentracing import SpanContextCorruptedException
+
 from ddtrace.propagation.http import HTTPPropagator as DDHTTPPropagator
 
 from ...internal.logger import get_logger
@@ -20,12 +24,9 @@ class HTTPPropagator(Propagator):
     outstanding OpenTracing-defined functionality.
     """
 
-    __slots__ = ["_dd_propagator"]
-
-    def __init__(self):
-        self._dd_propagator = DDHTTPPropagator()
-
-    def inject(self, span_context, carrier):
+    @staticmethod
+    def inject(span_context, carrier):
+        # type: (SpanContext, Dict[str, str]) -> None
         """Inject a span context into a carrier.
 
         *span_context* is injected into the carrier by first using an
@@ -41,14 +42,16 @@ class HTTPPropagator(Propagator):
         if not isinstance(carrier, dict):
             raise InvalidCarrierException("propagator expects carrier to be a dict")
 
-        self._dd_propagator.inject(span_context._dd_context, carrier)
+        DDHTTPPropagator.inject(span_context._dd_context, carrier)
 
         # Add the baggage
         if span_context.baggage is not None:
             for key in span_context.baggage:
                 carrier[HTTP_BAGGAGE_PREFIX + key] = span_context.baggage[key]
 
-    def extract(self, carrier):
+    @staticmethod
+    def extract(carrier):
+        # type: (Dict[str, str]) -> SpanContext
         """Extract a span context from a carrier.
 
         :class:`ddtrace.propagation.http.HTTPPropagator` is used to extract
@@ -63,7 +66,7 @@ class HTTPPropagator(Propagator):
         if not isinstance(carrier, dict):
             raise InvalidCarrierException("propagator expects carrier to be a dict")
 
-        ddspan_ctx = self._dd_propagator.extract(carrier)
+        ddspan_ctx = DDHTTPPropagator.extract(carrier)
 
         # if the dd propagator fails then it will return a new empty span
         # context (with trace_id=None), we however want to raise an exception

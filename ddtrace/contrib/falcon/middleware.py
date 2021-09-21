@@ -1,30 +1,27 @@
 import sys
 
-from ddtrace.ext import SpanTypes, http as httpx
-from ddtrace.propagation.http import HTTPPropagator
+from ddtrace import config
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import http as httpx
 
-from ...compat import iteritems
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...settings import config
 from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...internal.compat import iteritems
 
 
 class TraceMiddleware(object):
-    def __init__(self, tracer, service="falcon", distributed_tracing=True):
+    def __init__(self, tracer, service="falcon", distributed_tracing=None):
         # store tracing references
         self.tracer = tracer
         self.service = service
-        self._distributed_tracing = distributed_tracing
+        if distributed_tracing is not None:
+            config.falcon["distributed_tracing"] = distributed_tracing
 
     def process_request(self, req, resp):
-        if self._distributed_tracing:
-            # Falcon uppercases all header names.
-            headers = dict((k.lower(), v) for k, v in iteritems(req.headers))
-            propagator = HTTPPropagator()
-            context = propagator.extract(headers)
-            # Only activate the new context if there was a trace id extracted
-            if context.trace_id:
-                self.tracer.context_provider.activate(context)
+        # Falcon uppercases all header names.
+        headers = dict((k.lower(), v) for k, v in iteritems(req.headers))
+        trace_utils.activate_distributed_headers(self.tracer, int_config=config.falcon, request_headers=headers)
 
         span = self.tracer.trace(
             "falcon.request",
@@ -53,7 +50,7 @@ class TraceMiddleware(object):
         if not span:
             return  # unexpected
 
-        status = httpx.normalize_status_code(resp.status)
+        status = resp.status.partition(" ")[0]
 
         # FIXME[matt] falcon does not map errors or unmatched routes
         # to proper status codes, so we we have to try to infer them

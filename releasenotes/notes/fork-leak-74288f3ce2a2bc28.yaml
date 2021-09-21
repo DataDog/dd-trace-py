@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    A possible memory leak that occurs when tracing across a fork has been
+    fixed. See https://github.com/DataDog/dd-trace-py/pull/2497 for more
+    information.

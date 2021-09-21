@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    The ddtrace pytest plugin can now label spans from test cases marked xfail with the tag "pytest.result"
+     and the reason for being marked xfail under the tag "pytest.xfail.reason".

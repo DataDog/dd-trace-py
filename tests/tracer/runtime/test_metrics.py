@@ -1,7 +1,7 @@
 import mock
-from ddtrace.internal.runtime.collector import ValueCollector
 
-from tests import BaseTestCase
+from ddtrace.internal.runtime.collector import ValueCollector
+from tests.utils import BaseTestCase
 
 
 def mocked_collector(mock_collect, **kwargs):

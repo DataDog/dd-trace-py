@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add new environment variables to configure the internal trace writer.
+
+    ``DD_TRACE_WRITER_MAX_BUFFER_SIZE``, ``DD_TRACE_WRITER_INTERVAL_SECONDS``,
+    ``DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES``

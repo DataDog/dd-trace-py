@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Support for MySQL-python has been removed.

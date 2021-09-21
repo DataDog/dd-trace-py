@@ -26,6 +26,14 @@ Global Configuration
 
    Default: ``"pyodbc"``
 
+.. py:data:: ddtrace.config.pyodbc["trace_fetch_methods"]
+
+   Whether or not to trace fetch methods.
+
+   Can also configured via the ``DD_PYODBC_TRACE_FETCH_METHODS`` environment variable.
+
+   Default: ``False``
+
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~

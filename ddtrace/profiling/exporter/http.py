@@ -1,26 +1,24 @@
 # -*- encoding: utf-8 -*-
 import binascii
 import datetime
-import itertools
 import gzip
+import itertools
 import os
 import platform
 
+import attr
+import six
+from six.moves import http_client
 import tenacity
 
-from ddtrace.internal.runtime import container
-from ddtrace.utils.formats import parse_tags_str
-from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import http_client
-
 import ddtrace
+from ddtrace.internal import agent
 from ddtrace.internal import runtime
-from ddtrace.internal import uds
-from ddtrace.profiling import _attr
+from ddtrace.internal.runtime import container
 from ddtrace.profiling import exporter
-from ddtrace.vendor import attr
-from ddtrace.vendor.six.moves.urllib import parse as urlparse
 from ddtrace.profiling.exporter import pprof
+from ddtrace.utils import attr as attr_utils
+from ddtrace.utils.formats import parse_tags_str
 
 
 HOSTNAME = platform.node()
@@ -41,14 +39,16 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
     endpoint = attr.ib()
     api_key = attr.ib(default=None)
-    timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
+    # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
+    # backend is not as fast as the tracer one.
+    timeout = attr.ib(factory=attr_utils.from_env("DD_PROFILING_API_TIMEOUT", 10.0, float), type=float)
     service = attr.ib(default=None)
     env = attr.ib(default=None)
     version = attr.ib(default=None)
     tags = attr.ib(factory=dict)
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
-    _retry_upload = attr.ib(init=None, default=None, eq=False)
+    _retry_upload = attr.ib(init=False, eq=False)
     endpoint_path = attr.ib(default="/profiling/v1/input")
 
     def __attrs_post_init__(self):
@@ -173,16 +173,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         )
         headers["Content-Type"] = content_type
 
-        parsed = urlparse.urlparse(self.endpoint)
-        if parsed.scheme == "https":
-            client = http_client.HTTPSConnection(parsed.hostname, parsed.port, timeout=self.timeout)
-        elif parsed.scheme == "http":
-            client = http_client.HTTPConnection(parsed.hostname, parsed.port, timeout=self.timeout)
-        elif parsed.scheme == "unix":
-            client = uds.UDSHTTPConnection(parsed.path, False, parsed.hostname, parsed.port, timeout=self.timeout)
-        else:
-            raise ValueError("Unknown connection scheme %s" % parsed.scheme)
-
+        client = agent.get_connection(self.endpoint, self.timeout)
         self._upload(client, self.endpoint_path, body, headers)
 
     def _upload(self, client, path, body, headers):

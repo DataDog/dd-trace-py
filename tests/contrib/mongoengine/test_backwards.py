@@ -3,8 +3,8 @@ ensure old interfaces exist and won't break things.
 """
 import mongoengine
 
-from tests.tracer.test_tracer import get_dummy_tracer
 from tests.contrib import config
+from tests.utils import DummyTracer
 
 
 class Singer(mongoengine.Document):
@@ -16,7 +16,7 @@ def test_less_than_v04():
     # interface from < v0.4
     from ddtrace.contrib.mongoengine import trace_mongoengine
 
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
 
     connect = trace_mongoengine(tracer, service="my-mongo-db", patch=False)
     connect(port=config.MONGO_CONFIG["port"])

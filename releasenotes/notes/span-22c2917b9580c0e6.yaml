@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    ``Span`` now accepts a ``on_finish`` argument used for specifying
+    functions to call when a span finishes.

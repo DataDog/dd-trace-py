@@ -1,6 +1,7 @@
 from itertools import chain
 import multiprocessing as mp
 
+
 try:
     from multiprocessing import SimpleQueue as MPQueue
 except ImportError:
@@ -9,9 +10,11 @@ except ImportError:
 import os
 import threading
 
-from ddtrace import tracer, Span
-from ddtrace.compat import PYTHON_VERSION_INFO, Queue
+from ddtrace import Span
+from ddtrace import tracer
 from ddtrace.internal import _rand
+from ddtrace.internal import forksafe
+from ddtrace.internal.compat import Queue
 
 
 def test_random():
@@ -32,22 +35,15 @@ def test_fork_no_pid_check():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rns = {_rand.rand64bits(check_pid=False) for _ in range(100)}
+        rns = {_rand.rand64bits() for _ in range(100)}
         child_rns = q.get()
 
-        if PYTHON_VERSION_INFO >= (3, 7):
-            # Python 3.7+ have fork hooks which should be used
-            # Hence we should not get any collisions
-            assert rns & child_rns == set()
-        else:
-            # Python < 3.7 we don't have any mechanism (other than the pid
-            # check) to reseed on so we expect there to be collisions.
-            assert rns == child_rns
+        assert rns & child_rns == set()
 
     else:
         # child
         try:
-            rngs = {_rand.rand64bits(check_pid=False) for _ in range(100)}
+            rngs = {_rand.rand64bits() for _ in range(100)}
             q.put(rngs)
         finally:
             # Kill the process so it doesn't continue running the rest of the
@@ -65,22 +61,15 @@ def test_fork_pid_check():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rns = {_rand.rand64bits(check_pid=True) for _ in range(100)}
+        rns = {_rand.rand64bits() for _ in range(100)}
         child_rns = q.get()
 
-        if PYTHON_VERSION_INFO >= (3, 7):
-            # Python 3.7+ have fork hooks which should be used
-            # Hence we should not get any collisions
-            assert rns & child_rns == set()
-        else:
-            # Python < 3.7 we have the pid check so there also
-            # should not be any collisions.
-            assert rns & child_rns == set()
+        assert rns & child_rns == set()
 
     else:
         # child
         try:
-            rngs = {_rand.rand64bits(check_pid=True) for _ in range(100)}
+            rngs = {_rand.rand64bits() for _ in range(100)}
             q.put(rngs)
         finally:
             # Kill the process so it doesn't continue running the rest of the
@@ -93,6 +82,7 @@ def test_multiprocess():
     q = MPQueue()
 
     def target(q):
+        assert sum((_ is _rand.seed for _ in forksafe._registry)) == 1
         q.put([_rand.rand64bits() for _ in range(100)])
 
     ps = [mp.Process(target=target, args=(q,)) for _ in range(30)]
@@ -101,6 +91,7 @@ def test_multiprocess():
 
     for p in ps:
         p.join()
+        assert p.exitcode == 0
 
     ids_list = [_rand.rand64bits() for _ in range(1000)]
     ids = set(ids_list)

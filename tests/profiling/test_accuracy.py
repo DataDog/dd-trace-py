@@ -5,9 +5,10 @@ import time
 
 import pytest
 
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.profiling import profiler
 from ddtrace.profiling.collector import stack
+
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
@@ -52,9 +53,9 @@ def spend_cpu_3():
         pass
 
 
-# We allow 3% error:
+# We allow 4% error:
 # The profiler might not be precise, but time.sleep is not either.
-TOLERANCE = 0.03
+TOLERANCE = 0.04
 # Use 5% accuracy for CPU usage, it's way less precise
 CPU_TOLERANCE = 0.05
 

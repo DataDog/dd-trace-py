@@ -1,0 +1,10 @@
+---
+upgrade:
+  - |
+    Support for deprecated `DD_PROFILING_API_URL` environment variable has been
+    removed. Use `DD_SITE` instead.
+  - |
+    Support for deprecated `DD_PROFILING_API_KEY` environment variable has been
+    removed. Use `DD_API_KEY` instead.
+  - |
+    Profiling support for agentless mode must now be explicitly enabled.

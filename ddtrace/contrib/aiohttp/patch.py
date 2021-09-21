@@ -1,18 +1,32 @@
 from ddtrace import config
+from ddtrace.internal.logger import get_logger
 from ddtrace.vendor import wrapt
 
 from ...pin import Pin
 from ...utils.wrappers import unwrap
 
 
+log = get_logger(__name__)
+
 try:
     # instrument external packages only if they're available
     import aiohttp_jinja2
+
     from .template import _trace_render_template
 
     template_module = True
 except ImportError:
     template_module = False
+except Exception:
+    log.warning("aiohttp_jinja2 could not be imported and will not be instrumented.", exc_info=True)
+    template_module = False
+
+config._add(
+    "aiohttp",
+    dict(
+        distributed_tracing=True,
+    ),
+)
 
 
 def patch():

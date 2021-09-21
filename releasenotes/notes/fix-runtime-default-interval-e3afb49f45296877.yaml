@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes an issue with enabling the runtime worker introduced in v0.49.0 where no runtime metrics were sent to the agent.

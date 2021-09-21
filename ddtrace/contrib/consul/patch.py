@@ -1,11 +1,14 @@
 import consul
 
+from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ddtrace import config
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, consul as consulx
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import consul as consulx
 from ...pin import Pin
+from ...utils import get_argument_value
 from ...utils.wrappers import unwrap as _u
 
 
@@ -43,7 +46,7 @@ def wrap_function(name):
         if not isinstance(instance.agent.http, consul.std.HTTPClient):
             return wrapped(*args, **kwargs)
 
-        path = kwargs.get("key") or args[0]
+        path = get_argument_value(args, kwargs, 0, "key")
         resource = name.upper()
 
         with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource, span_type=SpanTypes.HTTP) as span:

@@ -1,3 +1,6 @@
+from typing import Any
+
+
 class AttrDict(dict):
     """
     dict implementation that allows for item attribute access
@@ -18,11 +21,13 @@ class AttrDict(dict):
     """
 
     def __getattr__(self, key):
+        # type: (str) -> Any
         if key in self:
             return self[key]
         return object.__getattribute__(self, key)
 
     def __setattr__(self, key, value):
+        # type: (str, Any) -> None
         # 1) Ensure if the key exists from a dict key we always prefer that
         # 2) If we do not have an existing key but we do have an attr, set that
         # 3) No existing key or attr exists, so set a key

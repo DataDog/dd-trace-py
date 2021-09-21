@@ -1,16 +1,19 @@
 import importlib
 
+import ddtrace
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
-import ddtrace
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, db as dbx
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import db as dbx
 from ...ext import net
 from ...internal.logger import get_logger
 from ...pin import Pin
-from ...settings import config
+from ...utils import get_argument_value
 from ...utils.wrappers import unwrap
-from .. import trace_utils
 from .constants import APP
 
 
@@ -20,11 +23,11 @@ _PATCHED = False
 
 
 def copy_span_start(instance, span, conf, *args, **kwargs):
-    span.resource = args[0]
+    span.resource = get_argument_value(args, kwargs, 0, "sql")
 
 
 def execute_span_start(instance, span, conf, *args, **kwargs):
-    span.resource = args[0]
+    span.resource = get_argument_value(args, kwargs, 0, "operation")
 
 
 def execute_span_end(instance, result, span, conf, *args, **kwargs):

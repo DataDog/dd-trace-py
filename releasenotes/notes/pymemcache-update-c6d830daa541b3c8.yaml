@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix issue with missing traces when using ``pymemcache.client.hash.HashClient``.
+
+other:
+  - |
+    Update ``pymemcache`` test suite to test latest versions.

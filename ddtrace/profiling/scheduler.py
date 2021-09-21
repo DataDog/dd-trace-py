@@ -1,24 +1,26 @@
 # -*- encoding: utf-8 -*-
 import logging
 
-from ddtrace import compat
-from ddtrace.profiling import _attr
-from ddtrace.profiling import _periodic
+import attr
+
+from ddtrace.internal import compat
+from ddtrace.internal import periodic
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
-from ddtrace.vendor import attr
+from ddtrace.utils import attr as attr_utils
+
 
 LOG = logging.getLogger(__name__)
 
 
 @attr.s
-class Scheduler(_periodic.PeriodicService):
+class Scheduler(periodic.PeriodicService):
     """Schedule export of recorded data."""
 
     recorder = attr.ib()
     exporters = attr.ib()
     before_flush = attr.ib(default=None, eq=False)
-    _interval = attr.ib(factory=_attr.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60, float))
+    _interval = attr.ib(factory=attr_utils.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60.0, float))
     _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None, eq=False)
 
@@ -26,10 +28,11 @@ class Scheduler(_periodic.PeriodicService):
         # Copy the value to use it later since we're going to adjust the real interval
         self._configured_interval = self.interval
 
-    def start(self):
+    def _start_service(self):  # type: ignore[override]
+        # type: (...) -> None
         """Start the scheduler."""
         LOG.debug("Starting scheduler")
-        super(Scheduler, self).start()
+        super(Scheduler, self)._start_service()
         self._last_export = compat.time_ns()
         LOG.debug("Scheduler started")
 

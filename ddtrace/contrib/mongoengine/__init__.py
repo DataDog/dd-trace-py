@@ -24,6 +24,7 @@ required_modules = ["mongoengine"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, trace_mongoengine
+        from .patch import patch
+        from .patch import trace_mongoengine
 
         __all__ = ["patch", "trace_mongoengine"]

@@ -1,12 +1,15 @@
 import consul
+
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.contrib.consul.patch import patch
+from ddtrace.contrib.consul.patch import unpatch
 from ddtrace.ext import consul as consulx
 from ddtrace.vendor.wrapt import BoundFunctionWrapper
-from ddtrace.contrib.consul.patch import patch, unpatch
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
 
 from ..config import CONSUL_CONFIG
-from ... import TracerTestCase, assert_is_measured
 
 
 class TestConsulPatch(TracerTestCase):

@@ -1,6 +1,7 @@
 import pytest
+
 from ddtrace.opentracer.span import Span
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests.utils import DummyTracer
 
 
 @pytest.fixture
@@ -9,7 +10,7 @@ def nop_tracer():
 
     tracer = Tracer(service_name="mysvc", config={})
     # use the same test tracer used by the primary tests
-    tracer._tracer = get_dummy_tracer()
+    tracer._tracer = DummyTracer()
     return tracer
 
 
@@ -68,8 +69,9 @@ class TestSpan(object):
         nop_span.log_kv({"myval": 2})
 
     def test_log_dd_kv(self, nop_span):
-        """Ensure keys that can be handled by our impl. are indeed handled. """
+        """Ensure keys that can be handled by our impl. are indeed handled."""
         import traceback
+
         from ddtrace.ext import errors
 
         stack_trace = str(traceback.format_stack())
@@ -109,7 +111,7 @@ class TestSpan(object):
         assert nop_span.finished
 
         # there should be no traces (see above comment)
-        spans = nop_span.tracer._tracer.writer.pop()
+        spans = nop_span.tracer._tracer.pop()
         assert len(spans) == 0
 
     def test_immutable_span_context(self, nop_span):
@@ -154,4 +156,4 @@ class TestSpanCompatibility(object):
 
     def test_tag_sampling_priority(self, nop_span):
         nop_span.set_tag("sampling.priority", "2")
-        assert nop_span._dd_span.context._sampling_priority == "2"
+        assert nop_span._dd_span.context.sampling_priority == "2"

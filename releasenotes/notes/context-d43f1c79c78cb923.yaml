@@ -1,0 +1,48 @@
+---
+prelude: >
+  Major changes to context management. See the upgrade section for the
+  specifics. Note that only advanced users of the library should be affected
+  by these changes. For the details please refer to the Context section of the
+  docs: https://ddtrace.readthedocs.io/en/v0.50.0/advanced_usage.html
+fixes:
+  - |
+    The OpenTracing ``tracer.start_span`` method no longer activates spans.
+  - |
+    Datadog active spans will no longer take precedence over OpenTracing active spans.
+features:
+  - |
+    Automated context management should now work in all asynchronous frameworks that use ``contextvars``.
+  - |
+    ``tracer.start_span()`` now accepts an ``activate`` argument (default ``False``) to
+    allow manual context management.
+  - |
+    ``tracer.current_trace_context()`` has been added to be used to access the
+    trace context of the active trace.
+upgrade:
+  - |
+    ``ddtrace.contrib.asyncio``
+    - ``AsyncioContextProvider`` can now return and activate ``None``, ``Span`` or ``Context`` objects.
+  - |
+    ``ddtrace.contrib.gevent``
+    - ``GeventContextProvider`` can now return and activate ``None``, ``Span`` or ``Context`` objects.
+  - |
+    ``ddtrace.contrib.tornado``
+    - ``TracerStackContext`` can now return and activate ``None``, ``Span`` or ``Context`` objects.
+  - |
+    ``ddtrace.context.Context`` no longer maintains the active/current span state.
+
+    ``get_current_root_span()`` has been removed. Use ``tracer.current_root_span()`` instead.
+    ``get_current_span()`` has been removed. Use ``tracer.current_span()`` instead.
+    ``add_span()`` has been removed. To activate a span in an execution use ``tracer.context_provider.activate()`` instead.
+    ``close_span()`` has been removed. To deactivate a span in an execution use ``tracer.context_provider.activate()`` instead.
+  - |
+    ``ddtrace.provider.BaseContextProvider``
+    ``active()`` now returns ``None``, ``Span`` or ``Context`` objects.
+    ``activate()`` now accepts ``None``, ``Span`` or ``Context`` objects.
+  - |
+    ``ddtrace.span.Span``
+    - ``Span.context`` will now return a ``Context``
+  - |
+    ``ddtrace.tracer.Tracer``
+    ``tracer.get_call_context()`` will now return a one-off ``Context`` reference. This is to maintain backwards compatibility with the API but the functionality differs slightly.
+    ``tracer.start_span()`` passing a ``span.context`` for ``child_of`` no longer adds the strong ``_parent`` reference to the new span.

@@ -1,7 +1,9 @@
 """
 Some utils used by the dogtrace kombu integration
 """
-from ...ext import kombu as kombux, net
+from ...ext import kombu as kombux
+from ...ext import net
+
 
 PUBLISH_BODY_IDX = 0
 PUBLISH_ROUTING_KEY = 6
@@ -11,9 +13,9 @@ HEADER_POS = 4
 
 
 def extract_conn_tags(connection):
-    """ Transform kombu conn info into dogtrace metas """
+    """Transform kombu conn info into dogtrace metas"""
     try:
-        host, port = connection.host.split(':')
+        host, port = connection.host.split(":")
         return {
             net.TARGET_HOST: host,
             net.TARGET_PORT: port,

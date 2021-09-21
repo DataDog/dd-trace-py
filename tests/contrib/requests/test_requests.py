@@ -4,18 +4,25 @@ import sys
 import pytest
 import requests
 from requests import Session
+from requests.exceptions import InvalidURL
 from requests.exceptions import MissingSchema
-from ddtrace.vendor import six
+import six
 
-from ddtrace import config
 from ddtrace import Pin
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.requests import patch, unpatch
-from ddtrace.ext import errors, http
-
+from ddtrace.contrib.requests import patch
+from ddtrace.contrib.requests import unpatch
+from ddtrace.contrib.requests.connection import _extract_hostname
+from ddtrace.contrib.requests.connection import _extract_query_string
+from ddtrace.ext import errors
+from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
+from tests.utils import override_global_tracer
 
-from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code, override_global_tracer
 
 # socket name comes from https://english.stackexchange.com/a/44048
 SOCKET = "httpbin.org"
@@ -45,7 +52,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
     def test_resource_path(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.url") == URL_200
@@ -55,7 +62,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         self.tracer.enabled = False
         out = self.session.get(URL_200)
         assert out.status_code == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
     def test_args_kwargs(self):
@@ -73,7 +80,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = self.session.request(*args, **kwargs)
             assert out.status_code == 200
             # validation
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
             s = spans[0]
             assert s.get_tag(http.METHOD) == "GET"
@@ -87,7 +94,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = untraced.get(URL_200)
         assert out.status_code == 200
         # validation
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
     def test_double_patch(self):
@@ -98,14 +105,14 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
 
         out = session.get(URL_200)
         assert out.status_code == 200
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
     def test_200(self):
         out = self.session.get(URL_200)
         assert out.status_code == 200
         # validation
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -124,7 +131,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.send(req)
         assert out.status_code == 200
         # validation
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -141,14 +148,14 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = self.session.get(URL_200 + "?" + query_string)
         assert out.status_code == 200
         # validation
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.URL) == URL_200
+        assert s.get_tag(http.URL) == URL_200 + "?" + query_string
         assert s.error == 0
         assert s.span_type == "http"
         assert s.get_tag(http.QUERY_STRING) == query_string
@@ -160,7 +167,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = requests.get(URL_200)
             assert out.status_code == 200
             # validation
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
             s = spans[0]
 
@@ -174,7 +181,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.post(URL_500)
         # validation
         assert out.status_code == 500
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -191,7 +198,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         else:
             assert 0, "expected error"
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -207,7 +214,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get(URL_500)
         assert out.status_code == 500
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -221,7 +228,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get(URL_200)
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -233,26 +240,35 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         cfg["service_name"] = "clients"
         out = self.session.get(URL_200)
         assert out.status_code == 200
-
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
+        assert s.service == "clients"
 
+    def test_user_set_service(self):
+        # ensure a service name set by the user has precedence
+        cfg = config.get_from(self.session)
+        cfg["service"] = "clients"
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        s = spans[0]
         assert s.service == "clients"
 
     def test_parent_service_name_precedence(self):
-        # ensure the parent service name has precedence if the value
-        # is not set by the user
+        # span should not inherit the parent's service name
+        # as all outbound requests should go to a difference service
         with self.tracer.trace("parent.span", service="web"):
             out = self.session.get(URL_200)
             assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         s = spans[1]
 
         assert s.name == "requests.request"
-        assert s.service == "web"
+        assert s.service == "requests"
 
     def test_parent_without_service_name(self):
         # ensure the default value is used if the parent
@@ -261,7 +277,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = self.session.get(URL_200)
             assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         s = spans[1]
 
@@ -277,7 +293,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             out = self.session.get(URL_200)
             assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         s = spans[1]
 
@@ -292,7 +308,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get(URL_200)
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -306,7 +322,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get(URL_200)
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -317,11 +333,11 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         # in that case, no spans are created
         cfg = config.get_from(self.session)
         cfg["split_by_domain"] = True
-        with pytest.raises(MissingSchema):
+        with pytest.raises((MissingSchema, InvalidURL)):
             self.session.get("http:/some>thing")
 
         # We are wrapping `requests.Session.send` and this error gets thrown before that function
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 0
 
     def test_split_by_domain_remove_auth_in_url(self):
@@ -331,7 +347,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get("http://user:pass@httpbin.org")
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -344,7 +360,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get("http://httpbin.org:80")
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -357,11 +373,39 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         out = self.session.get("http://httpbin.org:80/anything/v1/foo")
         assert out.status_code == 200
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
         assert s.service == "httpbin.org:80"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REQUESTS_SERVICE="override"))
+    def test_global_config_service_env_precedence(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "override"
+
+        cfg = config.get_from(self.session)
+        cfg["service"] = "override2"
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "override2"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REQUESTS_SERVICE="override"))
+    def test_global_config_service_env(self):
+        out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "override"
+
+    def test_global_config_service(self):
+        with self.override_config("requests", dict(service="override")):
+            out = self.session.get(URL_200)
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert spans[0].service == "override"
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""
@@ -373,7 +417,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert out.status_code == 200
 
         # validation
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
 
         ot_span, dd_span = spans
@@ -394,7 +438,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
     def test_request_and_response_headers(self):
         # Disabled when not configured
         self.session.get(URL_200, headers={"my-header": "my_value"})
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.request.headers.my-header") is None
@@ -404,7 +448,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         with self.override_config("requests", {}):
             config.requests.http.trace_headers(["my-header", "access-control-allow-origin"])
             self.session.get(URL_200, headers={"my-header": "my_value"})
-            spans = self.tracer.writer.pop()
+            spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.get_tag("http.request.headers.my-header") == "my_value"
@@ -418,7 +462,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         """
         self.session.get(URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertIsNone(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
@@ -432,7 +476,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         with self.override_config("requests", dict(analytics_enabled=False, analytics_sample_rate=0.5)):
             self.session.get(URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertIsNone(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
@@ -446,7 +490,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         with self.override_config("requests", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             self.session.get(URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
@@ -471,7 +515,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         pin.onto(self.session)
         self.session.get(URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
@@ -495,7 +539,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         pin.onto(self.session)
         self.session.get(URL_200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         s = spans[0]
         self.assertEqual(s.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 1.0)
@@ -526,3 +570,43 @@ session.get("http://httpbin.org/status/200")
     assert p.stderr.read() == six.b("")
     assert p.stdout.read() == six.b("")
     assert p.returncode == 0
+
+
+@pytest.mark.parametrize(
+    "uri,hostname",
+    [
+        ("http://localhost:8080", "localhost:8080"),
+        ("http://localhost:8080/", "localhost:8080"),
+        ("http://localhost", "localhost"),
+        ("http://localhost/", "localhost"),
+        ("http://asd:wwefwf@localhost:8080", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path?query", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path?query#fragment", "localhost:8080"),
+        ("http://asd:wwefwf@localhost:8080/path#frag?ment", "localhost:8080"),
+        ("http://localhost:8080/path#frag?ment", "localhost:8080"),
+        ("http://localhost/path#frag?ment", "localhost"),
+    ],
+)
+def test_extract_hostname(uri, hostname):
+    assert _extract_hostname(uri) == hostname
+
+
+@pytest.mark.parametrize(
+    "uri,qs",
+    [
+        ("http://localhost:8080", None),
+        ("http://localhost", None),
+        ("http://asd:wwefwf@localhost:8080", None),
+        ("http://asd:wwefwf@localhost:8080/path", None),
+        ("http://asd:wwefwf@localhost:8080/path?query", "query"),
+        ("http://asd:wwefwf@localhost:8080/path?query#fragment", "query"),
+        ("http://asd:wwefwf@localhost:8080/path#frag?ment", None),
+        ("http://localhost:8080/path#frag?ment", None),
+        ("http://localhost/path#frag?ment", None),
+        ("http://localhost?query", "query"),
+    ],
+)
+def test_extract_query_string(uri, qs):
+    assert _extract_query_string(uri) == qs

@@ -1,13 +1,16 @@
-import pytest
 import MySQLdb
+import pytest
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.mysqldb.patch import patch, unpatch
-
+from ddtrace.contrib.mysqldb.patch import patch
+from ddtrace.contrib.mysqldb.patch import unpatch
 from tests.opentracer.utils import init_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_dict_issuperset
+from tests.utils import assert_is_measured
+
 from ..config import MYSQL_CONFIG
-from ... import TracerTestCase, assert_is_measured, assert_dict_issuperset
 
 
 class MySQLCore(object):
@@ -39,13 +42,13 @@ class MySQLCore(object):
 
     def test_simple_query(self):
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
+
         cursor = conn.cursor()
         rowcount = cursor.execute("SELECT 1")
         assert rowcount == 1
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
 
         span = spans[0]
@@ -65,14 +68,14 @@ class MySQLCore(object):
         )
 
     def test_simple_query_fetchall(self):
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("mysqldb", dict(trace_fetch_methods=True)):
             conn, tracer = self._get_conn_tracer()
-            writer = tracer.writer
+
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 2
 
             span = spans[0]
@@ -95,12 +98,12 @@ class MySQLCore(object):
 
     def test_simple_query_with_positional_args(self):
         conn, tracer = self._get_conn_tracer_with_positional_args()
-        writer = tracer.writer
+
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
 
         span = spans[0]
@@ -120,14 +123,14 @@ class MySQLCore(object):
         )
 
     def test_simple_query_with_positional_args_fetchall(self):
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("mysqldb", dict(trace_fetch_methods=True)):
             conn, tracer = self._get_conn_tracer_with_positional_args()
-            writer = tracer.writer
+
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 2
 
             span = spans[0]
@@ -150,27 +153,27 @@ class MySQLCore(object):
 
     def test_query_with_several_rows(self):
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
+
         cursor = conn.cursor()
         query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert span.get_tag("sql.query") is None
 
     def test_query_with_several_rows_fetchall(self):
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("mysqldb", dict(trace_fetch_methods=True)):
             conn, tracer = self._get_conn_tracer()
-            writer = tracer.writer
+
             cursor = conn.cursor()
             query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
-            spans = writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 2
             span = spans[0]
             assert span.get_tag("sql.query") is None
@@ -180,7 +183,7 @@ class MySQLCore(object):
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
+
         tracer.enabled = False
         cursor = conn.cursor()
 
@@ -207,17 +210,17 @@ class MySQLCore(object):
         assert rows[1][0] == "foo"
         assert rows[1][1] == "this is foo"
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 2
         span = spans[1]
         assert span.get_tag("sql.query") is None
         cursor.execute("drop table if exists dummy")
 
     def test_query_many_fetchall(self):
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("mysqldb", dict(trace_fetch_methods=True)):
             # tests that the executemany method is correctly wrapped.
             conn, tracer = self._get_conn_tracer()
-            writer = tracer.writer
+
             tracer.enabled = False
             cursor = conn.cursor()
 
@@ -244,7 +247,7 @@ class MySQLCore(object):
             assert rows[1][0] == "foo"
             assert rows[1][1] == "this is foo"
 
-            spans = writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 3
             span = spans[1]
             assert span.get_tag("sql.query") is None
@@ -254,7 +257,6 @@ class MySQLCore(object):
 
     def test_query_proc(self):
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
 
         # create a procedure
         tracer.enabled = False
@@ -278,7 +280,7 @@ class MySQLCore(object):
         cursor.execute("SELECT @_sp_sum_2;")
         assert cursor.fetchone()[0] == 42
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
 
         # number of spans depends on MySQL implementation details,
@@ -304,7 +306,7 @@ class MySQLCore(object):
     def test_simple_query_ot(self):
         """OpenTracing version of test_simple_query."""
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
+
         ot_tracer = init_tracer("mysql_svc", tracer)
         with ot_tracer.start_active_span("mysql_op"):
             cursor = conn.cursor()
@@ -312,7 +314,7 @@ class MySQLCore(object):
             rows = cursor.fetchall()
             assert len(rows) == 1
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 2
         ot_span, dd_span = spans
 
@@ -340,9 +342,9 @@ class MySQLCore(object):
 
     def test_simple_query_ot_fetchall(self):
         """OpenTracing version of test_simple_query."""
-        with self.override_config("dbapi2", dict(trace_fetch_methods=True)):
+        with self.override_config("mysqldb", dict(trace_fetch_methods=True)):
             conn, tracer = self._get_conn_tracer()
-            writer = tracer.writer
+
             ot_tracer = init_tracer("mysql_svc", tracer)
             with ot_tracer.start_active_span("mysql_op"):
                 cursor = conn.cursor()
@@ -350,7 +352,7 @@ class MySQLCore(object):
                 rows = cursor.fetchall()
                 assert len(rows) == 1
 
-            spans = writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 3
             ot_span, dd_span, fetch_span = spans
 
@@ -380,9 +382,9 @@ class MySQLCore(object):
 
     def test_commit(self):
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
+
         conn.commit()
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysql"
@@ -390,9 +392,9 @@ class MySQLCore(object):
 
     def test_rollback(self):
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
+
         conn.rollback()
-        spans = writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysql"
@@ -400,40 +402,40 @@ class MySQLCore(object):
 
     def test_analytics_default(self):
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
+
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = writer.pop()
+        spans = tracer.pop()
 
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_with_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+        with self.override_config("mysqldb", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             conn, tracer = self._get_conn_tracer()
-            writer = tracer.writer
+
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = writer.pop()
+            spans = tracer.pop()
 
             self.assertEqual(len(spans), 1)
             span = spans[0]
             self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_analytics_without_rate(self):
-        with self.override_config("dbapi2", dict(analytics_enabled=True)):
+        with self.override_config("mysqldb", dict(analytics_enabled=True)):
             conn, tracer = self._get_conn_tracer()
-            writer = tracer.writer
+
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = writer.pop()
+            spans = tracer.pop()
 
             self.assertEqual(len(spans), 1)
             span = spans[0]
@@ -451,19 +453,19 @@ class MySQLCore(object):
         assert config.service == "mysvc"
 
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
+
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = writer.pop()
+        spans = tracer.pop()
 
         assert spans[0].service != "mysvc"
 
     @pytest.mark.skipif((1, 4) < MySQLdb.version_info < (2, 0), reason="context manager interface not supported")
     def test_contextmanager_connection(self):
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
+
         with conn as c:
             if MySQLdb.version_info < (2, 0):
                 cursor = c
@@ -473,7 +475,7 @@ class MySQLCore(object):
             assert rowcount == 1
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = writer.pop()
+            spans = tracer.pop()
             assert len(spans) == 1
 
             span = spans[0]
@@ -548,7 +550,6 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
 
         patch()
         try:
-            writer = self.tracer.writer
             conn = self._connect_with_kwargs()
             pin = Pin.get_from(conn)
             assert pin
@@ -559,7 +560,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = writer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
 
             span = spans[0]
@@ -596,7 +597,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.writer.pop()
+        spans = tracer.pop()
         assert len(spans) == 1
 
         span = spans[0]
@@ -605,11 +606,11 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_MYSQLDB_SERVICE="mysvc"))
     def test_user_specified_service_integration(self):
         conn, tracer = self._get_conn_tracer()
-        writer = tracer.writer
+
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = writer.pop()
+        spans = tracer.pop()
 
         assert spans[0].service == "mysvc"

@@ -1,9 +1,15 @@
 import collections
 from copy import deepcopy
+from typing import Any
+from typing import Callable
+from typing import DefaultDict
+from typing import Optional
+from typing import Set
+
+import attr
 
 from .internal.logger import get_logger
 
-from .vendor import attr
 
 log = get_logger(__name__)
 
@@ -20,14 +26,19 @@ class Hooks(object):
             pass
     """
 
-    _hooks = attr.ib(init=False, factory=lambda: collections.defaultdict(set))
+    _hooks = attr.ib(init=False, factory=lambda: collections.defaultdict(set), type=DefaultDict[str, Set])
 
     def __deepcopy__(self, memodict=None):
         hooks = Hooks()
         hooks._hooks = deepcopy(self._hooks, memodict)
         return hooks
 
-    def register(self, hook, func=None):
+    def register(
+        self,
+        hook,  # type: Any
+        func=None,  # type: Optional[Callable]
+    ):
+        # type: (...) -> Optional[Callable[..., Any]]
         """
         Function used to register a hook for the provided name.
 
@@ -61,6 +72,7 @@ class Hooks(object):
 
             return wrapper
         self._hooks[hook].add(func)
+        return None
 
     # Provide shorthand `on` method for `register`
     # >>> @config.falcon.hooks.on('request')
@@ -68,7 +80,12 @@ class Hooks(object):
     #        pass
     on = register
 
-    def deregister(self, hook, func):
+    def deregister(
+        self,
+        hook,  # type: Any
+        func,  # type: Callable
+    ):
+        # type: (...) -> None
         """
         Function to deregister a function from a hook it was registered under
 
@@ -91,7 +108,13 @@ class Hooks(object):
             except KeyError:
                 pass
 
-    def emit(self, hook, *args, **kwargs):
+    def emit(
+        self,
+        hook,  # type: Any
+        *args,  # type: Any
+        **kwargs  # type: Any
+    ):
+        # type: (...) -> None
         """
         Function used to call registered hook functions.
 

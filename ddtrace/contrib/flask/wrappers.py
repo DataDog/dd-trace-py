@@ -1,9 +1,9 @@
-from ddtrace.vendor.wrapt import function_wrapper
 from ddtrace import config
+from ddtrace.vendor.wrapt import function_wrapper
 
+from .. import trace_utils
 from ...pin import Pin
 from ...utils.importlib import func_name
-from .. import trace_utils
 from .helpers import get_current_app
 
 

@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    The use of ``ddtrace.encoding`` has been deprecated and will be removed
+    in version 1.0.0.

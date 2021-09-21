@@ -7,13 +7,12 @@ import threading
 import time
 
 import pytest
-
-from ddtrace import compat
-from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import BaseHTTPServer
-from ddtrace.vendor.six.moves import http_client
+import six
+from six.moves import BaseHTTPServer
+from six.moves import http_client
 
 import ddtrace
+from ddtrace.internal import compat
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
 
@@ -26,6 +25,7 @@ _API_KEY = "my-api-key"
 class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
     error_message_format = "%(message)s\n"
     error_content_type = "text/plain"
+    path_prefix = "/profiling/v1"
 
     @staticmethod
     def log_message(format, *args):  # noqa: A002
@@ -46,6 +46,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
         )
 
     def do_POST(self):
+        assert self.path.startswith(self.path_prefix)
         api_key = self.headers["DD-API-KEY"]
         if api_key != _API_KEY:
             self.send_error(400, "Wrong API Key")
@@ -211,6 +212,20 @@ def test_export_404_agentless(endpoint_test_unknown_server):
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == "HTTP Error 404"
+
+
+def test_export_tracer_base_path(endpoint_test_server):
+    # Base path is prepended to the endpoint path because
+    # it does not start with a slash.
+    exp = http.PprofHTTPExporter(_ENDPOINT + "/profiling/", _API_KEY, endpoint_path="v1/input")
+    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
+
+
+def test_export_tracer_base_path_agent_less(endpoint_test_server):
+    # Base path is ignored by the profiling HTTP exporter
+    # because the endpoint path starts with a slash.
+    exp = http.PprofHTTPExporter(_ENDPOINT + "/profiling/", _API_KEY, endpoint_path="/profiling/v1/input")
+    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
 def _check_tags_types(tags):

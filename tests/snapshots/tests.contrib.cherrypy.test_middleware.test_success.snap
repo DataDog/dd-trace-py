@@ -1,0 +1,19 @@
+[[{"name" "cherrypy.request"
+   "service" "test.cherrypy.service"
+   "resource" "GET /"
+   "type" "web"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1612565277618230000
+   "duration" 1676000
+   "meta" {"runtime-id" "9ec4e861797b401289c15e82e1a86a76"
+           "http.method" "GET"
+           "http.url" "http://127.0.0.1:54583/"
+           "http.status_code" "200"
+           "http.request.headers.host" "127.0.0.1:54583"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "_dd.tracer_kr" 1.0
+              "system.pid" 12166}}]]

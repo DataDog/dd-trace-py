@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+      Fix a formatting issue on error exporting profiles.

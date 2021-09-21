@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    Query strings are stripped out from URLs by default when setting URL
+    metadata on a span. This change affects all integrations that store HTTP
+    metadata, like aiohttp, falcon, requests, urllib3.

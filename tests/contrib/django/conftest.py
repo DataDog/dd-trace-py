@@ -1,12 +1,14 @@
 import os
+
 import django
 from django.conf import settings
 import pytest
 
 from ddtrace import Pin
 from ddtrace.contrib.django import patch
+from tests.utils import DummyTracer
+from tests.utils import TracerSpanContainer
 
-from ... import DummyTracer, TracerSpanContainer
 
 # We manually designate which settings we will be using in an environment variable
 # This is similar to what occurs in the `manage.py`
@@ -34,7 +36,7 @@ def tracer():
 
     # Yield to our test
     yield tracer
-    tracer.writer.pop()
+    tracer.pop()
 
     # Reset the tracer pinned to Django and unpatch
     # DEV: unable to properly unpatch and reload django app with each test

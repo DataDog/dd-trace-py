@@ -1,7 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
 
-
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder

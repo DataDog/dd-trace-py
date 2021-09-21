@@ -1,4 +1,6 @@
-from ddtrace import tracer, monkey
+from ddtrace import monkey
+from ddtrace import tracer
+
 
 if __name__ == "__main__":
     assert not tracer.enabled

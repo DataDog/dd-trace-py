@@ -1,11 +1,19 @@
-import sys
 import os
+import sys
+import typing
 
 
 def get_application_name():
+    # type: () -> typing.Optional[str]
     """Attempts to find the application name using system arguments."""
-    if hasattr(sys, "argv") and sys.argv[0]:
-        app_name = os.path.basename(sys.argv[0])
-    else:
-        app_name = None
-    return app_name
+    try:
+        import __main__
+
+        name = __main__.__file__
+    except (ImportError, AttributeError):
+        try:
+            name = sys.argv[0]
+        except (AttributeError, IndexError):
+            return None
+
+    return os.path.basename(name)

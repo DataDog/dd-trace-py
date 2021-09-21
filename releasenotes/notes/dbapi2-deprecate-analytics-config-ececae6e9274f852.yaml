@@ -1,0 +1,12 @@
+---
+deprecations:
+  - |
+    Deprecate the configuration of the analytics through the generic dbapi2
+    configuration. This should now be configured via integration configurations,
+    for example::
+
+      # Before
+      export DD_TRACE_DBAPI2_ANALYTICS_ENABLED=1
+
+      # After
+      export DD_TRACE_SQLITE3_ANALYTICS_ENABLED=1

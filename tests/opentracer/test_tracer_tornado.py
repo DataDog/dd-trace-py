@@ -1,5 +1,5 @@
-import pytest
 from opentracing.scope_managers.tornado import TornadoScopeManager
+import pytest
 
 
 @pytest.fixture()
@@ -14,12 +14,12 @@ class TestTracerTornado(object):
     whether it exists and works for a very simple use-case.
     """
 
-    def test_sanity(self, ot_tracer, writer):
+    def test_sanity(self, ot_tracer, test_spans):
         with ot_tracer.start_active_span("one"):
             with ot_tracer.start_active_span("two"):
                 pass
 
-        traces = writer.pop_traces()
+        traces = test_spans.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 2
         assert traces[0][0].name == "one"

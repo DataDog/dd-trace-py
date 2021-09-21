@@ -163,3 +163,32 @@ memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size)
 
     return traceback;
 }
+
+PyObject*
+traceback_to_tuple(traceback_t* tb)
+{
+    /* Convert stack into a tuple of tuple */
+    PyObject* stack = PyTuple_New(tb->nframe);
+
+    for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
+        PyObject* frame_tuple = PyTuple_New(3);
+
+        frame_t* frame = &tb->frames[nframe];
+
+        PyTuple_SET_ITEM(frame_tuple, 0, frame->filename);
+        Py_INCREF(frame->filename);
+        PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
+        PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
+        Py_INCREF(frame->name);
+
+        PyTuple_SET_ITEM(stack, nframe, frame_tuple);
+    }
+
+    PyObject* tuple = PyTuple_New(3);
+
+    PyTuple_SET_ITEM(tuple, 0, stack);
+    PyTuple_SET_ITEM(tuple, 1, PyLong_FromUnsignedLong(tb->total_nframe));
+    PyTuple_SET_ITEM(tuple, 2, PyLong_FromUnsignedLong(tb->thread_id));
+
+    return tuple;
+}

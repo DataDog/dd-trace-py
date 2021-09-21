@@ -83,5 +83,5 @@ Code Style
 
 The code style is enforced by `flake8 <https://pypi.org/project/flake8>`_, its
 configuration, and possibly extensions. No code style review should be done by
-a human. All code style enforcement must be automatized to avoid bikeshedding
+a human. All code style enforcement must be automated to avoid bikeshedding
 and losing time.

@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-"""Bootstrapping code that is run when using the `pyddprofile`."""
+"""Bootstrapping code that is run when using `ddtrace.profiling.auto`."""
 from ddtrace.profiling import bootstrap
 from ddtrace.profiling import profiler
 

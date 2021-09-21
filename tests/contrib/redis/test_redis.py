@@ -2,26 +2,29 @@
 import redis
 
 import ddtrace
-from ddtrace import Pin, compat
+from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.redis import get_traced_redis
-from ddtrace.contrib.redis.patch import patch, unpatch
-
+from ddtrace.contrib.redis.patch import patch
+from ddtrace.contrib.redis.patch import unpatch
+from ddtrace.internal import compat
 from tests.opentracer.utils import init_tracer
+from tests.utils import DummyTracer
+from tests.utils import TracerTestCase
+from tests.utils import snapshot
+
 from ..config import REDIS_CONFIG
-from tests.tracer.test_tracer import get_dummy_tracer
-from tests import TracerTestCase, snapshot
 
 
 def test_redis_legacy():
     # ensure the old interface isn't broken, but doesn't trace
-    tracer = get_dummy_tracer()
+    tracer = DummyTracer()
     TracedRedisCache = get_traced_redis(tracer, "foo")
     r = TracedRedisCache(port=REDIS_CONFIG["port"])
     r.set("a", "b")
     got = r.get("a")
     assert compat.to_unicode(got) == "b"
-    assert not tracer.writer.pop()
+    assert not tracer.pop()
 
 
 class TestRedisPatch(TracerTestCase):
@@ -158,8 +161,7 @@ class TestRedisPatch(TracerTestCase):
         assert "cheese" in span.meta and span.meta["cheese"] == "camembert"
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
+        tracer = DummyTracer()
 
         # Test patch idempotence
         patch()
@@ -169,7 +171,7 @@ class TestRedisPatch(TracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -179,7 +181,7 @@ class TestRedisPatch(TracerTestCase):
         r = redis.Redis(port=REDIS_CONFIG["port"])
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -189,7 +191,7 @@ class TestRedisPatch(TracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -334,8 +336,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         r.get("cheese")
 
     def test_patch_unpatch(self):
-        tracer = get_dummy_tracer()
-        writer = tracer.writer
+        tracer = DummyTracer()
 
         # Test patch idempotence
         patch()
@@ -345,7 +346,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
@@ -355,7 +356,7 @@ class TestRedisPatchSnapshot(TracerTestCase):
         r = redis.Redis(port=REDIS_CONFIG["port"])
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert not spans, spans
 
         # Test patch again
@@ -365,14 +366,18 @@ class TestRedisPatchSnapshot(TracerTestCase):
         Pin.get_from(r).clone(tracer=tracer).onto(r)
         r.get("key")
 
-        spans = writer.pop()
+        spans = tracer.pop()
         assert spans, spans
         assert len(spans) == 1
 
     @snapshot()
     def test_opentracing(self):
         """Ensure OpenTracing works with redis."""
+        writer = ddtrace.tracer.writer
         ot_tracer = init_tracer("redis_svc", ddtrace.tracer)
+        # FIXME: OpenTracing always overrides the hostname/port and creates a new
+        #        writer so we have to reconfigure with the previous one
+        ddtrace.tracer.configure(writer=writer)
 
         with ot_tracer.start_active_span("redis_get"):
             us = self.r.get("cheese")

@@ -1,19 +1,22 @@
-from webob import Request, Response
+from webob import Request
+from webob import Response
 
 
 class ExceptionMiddleware(object):
     """A middleware which raises an exception."""
+
     def __init__(self, app):
         self.app = app
 
     def __call__(self, environ, start_response):
-        raise Exception('Middleware exception')
+        raise Exception("Middleware exception")
 
 
 class ExceptionToSuccessMiddleware(object):
     """A middleware which catches any exceptions that occur in a later
     middleware and returns a successful request.
     """
+
     def __init__(self, app):
         self.app = app
 
@@ -24,7 +27,7 @@ class ExceptionToSuccessMiddleware(object):
         except Exception:
             response = Response()
             response.status_int = 200
-            response.body = 'An error has been handled appropriately'
+            response.body = "An error has been handled appropriately"
         return response(environ, start_response)
 
 
@@ -39,5 +42,5 @@ class ExceptionToClientErrorMiddleware(object):
         except Exception:
             response = Response()
             response.status_int = 404
-            response.body = 'An error has occured with proper client error handling'
+            response.body = "An error has occurred with proper client error handling"
         return response(environ, start_response)

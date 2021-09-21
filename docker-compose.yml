@@ -25,6 +25,15 @@ services:
             - POSTGRES_DB=postgres
         ports:
             - "127.0.0.1:5432:5432"
+    mariadb:
+        image: mariadb
+        environment:
+            - MYSQL_ROOT_PASSWORD=example
+            - MYSQL_DATABASE=test
+            - MYSQL_USER=test
+            - MYSQL_PASSWORD=test
+        ports:
+            - "127.0.0.1:3306:3306"
     mysql:
         image: mysql:5.7
         environment:
@@ -39,7 +48,7 @@ services:
         ports:
             - "127.0.0.1:6379:6379"
     rediscluster:
-        image: grokzen/redis-cluster:4.0.9
+        image: grokzen/redis-cluster:6.2.0
         environment:
             - IP=0.0.0.0
         ports:
@@ -93,7 +102,7 @@ services:
     testagent:
         image: kyleverhoog/dd-trace-test-agent
         ports:
-            - "127.0.0.1:8126:8126"
+            - "127.0.0.1:9126:8126"
         volumes:
             - ./tests/snapshots:/snapshots
         environment:
@@ -109,7 +118,7 @@ services:
           - "127.0.0.1:5433:5433"
 
     testrunner:
-        image: datadog/dd-trace-py:latest
+        image: datadog/dd-trace-py:buster
         command: bash
         environment:
             - TOX_SKIP_DIST=True
@@ -140,6 +149,12 @@ services:
         volumes:
           - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
           - "/var/run/docker.sock:/var/run/docker.sock"
+
+    httpbin_local:
+      image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
+      ports:
+        - "127.0.0.1:8001:80"
+
 
 volumes:
     ddagent:

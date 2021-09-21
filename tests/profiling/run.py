@@ -2,6 +2,7 @@ import os
 import runpy
 import sys
 
+
 if "DD_PROFILE_TEST_GEVENT" in os.environ:
     from gevent import monkey
 

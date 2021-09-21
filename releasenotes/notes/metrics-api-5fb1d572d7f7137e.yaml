@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    The ``collect_metrics`` argument of the ``tracer.configure`` method has been
+    deprecated. Runtime metrics should be enabled only via the
+    ``DD_RUNTIME_METRICS_ENABLED`` environment variable.

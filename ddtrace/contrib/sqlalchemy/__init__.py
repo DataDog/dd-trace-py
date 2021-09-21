@@ -18,11 +18,12 @@ using the patch method that **must be called before** importing sqlalchemy::
 from ...utils.importlib import require_modules
 
 
-required_modules = ['sqlalchemy', 'sqlalchemy.event']
+required_modules = ["sqlalchemy", "sqlalchemy.event"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
         from .engine import trace_engine
+        from .patch import patch
+        from .patch import unpatch
 
-        __all__ = ['trace_engine', 'patch', 'unpatch']
+        __all__ = ["trace_engine", "patch", "unpatch"]

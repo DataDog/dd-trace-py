@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Added missing pymongo integration configuration, which allows overriding
+    the service name for all the emitted spans.

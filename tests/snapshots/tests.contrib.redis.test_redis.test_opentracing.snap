@@ -9,6 +9,7 @@
    "duration" 3061080
    "meta" {"runtime-id" "601815e8709646a9ac897c59376c80b6"}
    "metrics" {"_dd.agent_psr" 1.0
+              "_dd.tracer_kr" 1.0
               "_sampling_priority_v1" 1
               "system.pid" 76411}}
       {"name" "redis.command"

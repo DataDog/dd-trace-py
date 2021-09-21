@@ -1,21 +1,18 @@
 import sys
 import time
 
-import mysql.connector
-from psycopg2 import connect, OperationalError
-from cassandra.cluster import Cluster, NoHostAvailable
-import rediscluster
-import vertica_python
+from cassandra.cluster import Cluster
+from cassandra.cluster import NoHostAvailable
+from contrib.config import CASSANDRA_CONFIG
+from contrib.config import MYSQL_CONFIG
+from contrib.config import POSTGRES_CONFIG
+from contrib.config import RABBITMQ_CONFIG
+from contrib.config import VERTICA_CONFIG
 import kombu
-
-from contrib.config import (
-    POSTGRES_CONFIG,
-    CASSANDRA_CONFIG,
-    MYSQL_CONFIG,
-    REDISCLUSTER_CONFIG,
-    VERTICA_CONFIG,
-    RABBITMQ_CONFIG
-)
+import mysql.connector
+from psycopg2 import OperationalError
+from psycopg2 import connect
+import vertica_python
 
 
 def try_until_timeout(exception):
@@ -23,6 +20,7 @@ def try_until_timeout(exception):
     timeout.  The default timeout is about 20 seconds.
 
     """
+
     def wrap(fn):
         def wrapper(*args, **kwargs):
             err = None
@@ -38,7 +36,9 @@ def try_until_timeout(exception):
             else:
                 if err:
                     raise err
+
         return wrapper
+
     return wrap
 
 
@@ -46,7 +46,7 @@ def try_until_timeout(exception):
 def check_postgres():
     conn = connect(**POSTGRES_CONFIG)
     try:
-        conn.cursor().execute('SELECT 1;')
+        conn.cursor().execute("SELECT 1;")
     finally:
         conn.close()
 
@@ -54,42 +54,30 @@ def check_postgres():
 @try_until_timeout(NoHostAvailable)
 def check_cassandra():
     with Cluster(**CASSANDRA_CONFIG).connect() as conn:
-        conn.execute('SELECT now() FROM system.local')
+        conn.execute("SELECT now() FROM system.local")
 
 
 @try_until_timeout(Exception)
 def check_mysql():
     conn = mysql.connector.connect(**MYSQL_CONFIG)
     try:
-        conn.cursor().execute('SELECT 1;')
+        conn.cursor().execute("SELECT 1;")
     finally:
         conn.close()
-
-
-@try_until_timeout(Exception)
-def check_rediscluster():
-    test_host = REDISCLUSTER_CONFIG['host']
-    test_ports = REDISCLUSTER_CONFIG['ports']
-    startup_nodes = [
-        {'host': test_host, 'port': int(port)}
-        for port in test_ports.split(',')
-    ]
-    r = rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
-    r.flushall()
 
 
 @try_until_timeout(Exception)
 def check_vertica():
     conn = vertica_python.connect(**VERTICA_CONFIG)
     try:
-        conn.cursor().execute('SELECT 1;')
+        conn.cursor().execute("SELECT 1;")
     finally:
         conn.close()
 
 
 @try_until_timeout(Exception)
 def check_rabbitmq():
-    url = 'amqp://{user}:{password}@{host}:{port}//'.format(**RABBITMQ_CONFIG)
+    url = "amqp://{user}:{password}@{host}:{port}//".format(**RABBITMQ_CONFIG)
     conn = kombu.Connection(url)
     try:
         conn.connect()
@@ -97,18 +85,17 @@ def check_rabbitmq():
         conn.release()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     check_functions = {
-        'cassandra': check_cassandra,
-        'postgres': check_postgres,
-        'mysql': check_mysql,
-        'rediscluster': check_rediscluster,
-        'vertica': check_vertica,
-        'rabbitmq': check_rabbitmq,
+        "cassandra": check_cassandra,
+        "postgres": check_postgres,
+        "mysql": check_mysql,
+        "vertica": check_vertica,
+        "rabbitmq": check_rabbitmq,
     }
     if len(sys.argv) >= 2:
         for service in sys.argv[1:]:
             check_functions[service]()
     else:
-        print('usage: python {} SERVICE_NAME'.format(sys.argv[0]))
+        print("usage: python {} SERVICE_NAME".format(sys.argv[0]))
         sys.exit(1)

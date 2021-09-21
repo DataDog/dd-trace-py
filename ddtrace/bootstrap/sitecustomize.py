@@ -5,6 +5,9 @@ Add all monkey-patching that needs to run by default here
 import logging
 import os
 import sys
+from typing import Any
+from typing import Dict
+
 
 # Perform gevent patching as early as possible in the application before
 # importing more of the library internals.
@@ -14,10 +17,15 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
     gevent.monkey.patch_all()
 
 
-from ddtrace.utils.formats import asbool, get_env, parse_tags_str  # noqa
+from ddtrace import config  # noqa
+from ddtrace import constants
 from ddtrace.internal.logger import get_logger  # noqa
-from ddtrace import config, constants  # noqa
-from ddtrace.tracer import debug_mode, DD_LOG_FORMAT  # noqa
+from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+from ddtrace.tracer import DD_LOG_FORMAT  # noqa
+from ddtrace.tracer import debug_mode
+from ddtrace.utils.formats import asbool  # noqa
+from ddtrace.utils.formats import get_env
+from ddtrace.utils.formats import parse_tags_str
 
 
 if config.logs_injection:
@@ -32,7 +40,8 @@ if config.logs_injection:
 # upon initializing it the first time.
 # See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
 # Debug mode from the tracer will do a basicConfig so only need to do this otherwise
-if not debug_mode:
+call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "true"))
+if not debug_mode and call_basic_config:
     if config.logs_injection:
         logging.basicConfig(format=DD_LOG_FORMAT)
     else:
@@ -74,12 +83,15 @@ try:
     if profiling:
         import ddtrace.profiling.auto  # noqa: F401
 
-    opts = {}
+    if asbool(get_env("runtime_metrics", "enabled")):
+        RuntimeWorker.enable()
+
+    opts = {}  # type: Dict[str, Any]
 
     if asbool(os.environ.get("DATADOG_TRACE_ENABLED", True)):
-        patch = True
+        trace_enabled = True
     else:
-        patch = False
+        trace_enabled = False
         opts["enabled"] = False
 
     if hostname:
@@ -89,12 +101,9 @@ try:
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
 
-    opts["collect_metrics"] = asbool(get_env("runtime_metrics", "enabled"))
+    tracer.configure(**opts)
 
-    if opts:
-        tracer.configure(**opts)
-
-    if patch:
+    if trace_enabled:
         update_patched_modules()
         from ddtrace import patch_all
 

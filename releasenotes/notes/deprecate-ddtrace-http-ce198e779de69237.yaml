@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    The `ddtrace.http` module has been deprecated and will be removed in version 1.0.0,
+    with the `ddtrace.http.headers` module now merged into `ddtrace.trace_utils`.

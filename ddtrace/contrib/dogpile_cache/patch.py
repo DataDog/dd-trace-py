@@ -1,10 +1,14 @@
 import dogpile
 
-from ddtrace.pin import Pin, _DD_PIN_NAME, _DD_PIN_PROXY_NAME
+from ddtrace.pin import Pin
+from ddtrace.pin import _DD_PIN_NAME
+from ddtrace.pin import _DD_PIN_PROXY_NAME
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .lock import _wrap_lock_ctor
-from .region import _wrap_get_create, _wrap_get_create_multi
+from .region import _wrap_get_create
+from .region import _wrap_get_create_multi
+
 
 _get_or_create = dogpile.cache.region.CacheRegion.get_or_create
 _get_or_create_multi = dogpile.cache.region.CacheRegion.get_or_create_multi

@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 import argparse
 from distutils import spawn
+import logging
 import os
 import sys
-import logging
 
 import ddtrace
-from ddtrace.compat import PY2
-from ddtrace.utils.formats import asbool, get_env
+from ddtrace.internal.compat import PY2
+from ddtrace.utils.formats import asbool
+from ddtrace.utils.formats import get_env
 
 
 if PY2:
@@ -30,7 +31,6 @@ and profiles.
 
 Examples
 ddtrace-run python app.py
-ddtrace-run uwsgi app.py
 ddtrace-run gunicorn myproject.wsgi
 """
 
@@ -58,9 +58,18 @@ def main():
     )
     parser.add_argument("command", nargs=argparse.REMAINDER, type=str, help="Command string to execute.")
     parser.add_argument("-d", "--debug", help="enable debug mode (disabled by default)", action="store_true")
-    parser.add_argument("-i", "--info", help="print library info useful for debugging", action="store_true")
+    parser.add_argument(
+        "-i",
+        "--info",
+        help=(
+            "print library info useful for debugging. Only reflects configurations made via environment "
+            "variables, not those made in code."
+        ),
+        action="store_true",
+    )
     parser.add_argument("-p", "--profiling", help="enable profiling (disabled by default)", action="store_true")
     parser.add_argument("-v", "--version", action="version", version="%(prog)s " + ddtrace.__version__)
+    parser.add_argument("-nc", "--colorless", help="print output of command without color", action="store_true")
     args = parser.parse_args()
 
     if args.profiling:
@@ -74,10 +83,9 @@ def main():
 
     if args.info:
         # Inline imports for performance.
-        import pprint
-        from ddtrace.internal.debug import collect
+        from ddtrace.internal.debug import pretty_collect
 
-        pprint.pprint(collect(ddtrace.tracer))
+        print(pretty_collect(ddtrace.tracer, color=not args.colorless))
         sys.exit(0)
 
     root_dir = os.path.dirname(ddtrace.__file__)
@@ -102,6 +110,17 @@ def main():
         sys.exit(1)
 
     log.debug("program executable: %s", executable)
+
+    if os.path.basename(executable) == "uwsgi":
+        print(
+            (
+                "ddtrace-run has known compatibility issues with uWSGI where the "
+                "tracer is not started properly in uWSGI workers which can cause "
+                "broken behavior. It is recommended you remove ddtrace-run and "
+                "update your uWSGI configuration following "
+                "https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#uwsgi."
+            )
+        )
 
     try:
         # Raises OSError for permissions errors in Python 2

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    gRPC client spans are now marked as measured by default.

@@ -2,9 +2,13 @@ from django.conf.urls import url
 from django.contrib.auth import login
 from django.contrib.auth.models import User
 from django.http import HttpResponse
-from django.views.generic import TemplateView
+from django.urls import include
+from django.urls import path
+from django.urls import re_path
 from django.views.decorators.cache import cache_page
-from django.urls import include, path, re_path
+from django.views.generic import TemplateView
+
+from ddtrace import tracer
 
 from .. import views
 
@@ -27,6 +31,12 @@ def authenticated_view(request):
     user = User(username="Jane Doe")
     user.save()
     login(request, user)
+    return HttpResponse(status=200)
+
+
+def shutdown(request):
+    # Endpoint used to flush traces to the agent when doing snapshots.
+    tracer.shutdown()
     return HttpResponse(status=200)
 
 
@@ -57,4 +67,6 @@ urlpatterns = [
     url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
     url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
     url(r"^404-view/$", views.not_found_view, name="404-view"),
+    url(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
+    url(r"^alter-resource/$", views.alter_resource),
 ]

@@ -3,9 +3,11 @@ import sys
 
 import gevent.monkey
 
+
 gevent.monkey.patch_all()
 
 from ddtrace.profiling import profiler  # noqa
+
 
 p = profiler.Profiler().start(profile_children=True)
 

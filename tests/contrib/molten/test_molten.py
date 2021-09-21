@@ -1,14 +1,19 @@
 import molten
 from molten.testing import TestClient
 
-from ddtrace import Pin, config
+from ddtrace import Pin
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import errors, http
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID, HTTP_HEADER_PARENT_ID
-from ddtrace.contrib.molten import patch, unpatch
+from ddtrace.contrib.molten import patch
+from ddtrace.contrib.molten import unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
-
-from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
+from ddtrace.ext import errors
+from ddtrace.ext import http
+from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
@@ -24,7 +29,7 @@ def molten_client(headers=None, params=None):
 
 
 class TestMolten(TracerTestCase):
-    """"Ensures Molten is properly instrumented."""
+    """Ensures Molten is properly instrumented."""
 
     TEST_SERVICE = "molten-patch"
 
@@ -38,9 +43,9 @@ class TestMolten(TracerTestCase):
         unpatch()
 
     def test_route_success(self):
-        """ Tests request was a success with the expected span tags """
+        """Tests request was a success with the expected span tags"""
         response = molten_client()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(response.status_code, 200)
         # TestResponse from TestClient is wrapper around Response so we must
         # access data property
@@ -65,13 +70,13 @@ class TestMolten(TracerTestCase):
         # test override of service name
         Pin.override(molten, service=self.TEST_SERVICE)
         response = molten_client()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(spans[0].service, "molten-patch")
 
     def test_route_success_query_string(self):
         with self.override_http_config("molten", dict(trace_query_string=True)):
             response = molten_client(params={"foo": "bar"})
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(response.status_code, 200)
         # TestResponse from TestClient is wrapper around Response so we must
         # access data property
@@ -165,7 +170,7 @@ class TestMolten(TracerTestCase):
         app = molten.App(routes=[molten.Route("/hello/{name}/{age}", hello)])
         client = TestClient(app)
         response = client.get("/goodbye")
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(response.status_code, 404)
         span = spans[0]
         assert_is_measured(span)
@@ -183,7 +188,7 @@ class TestMolten(TracerTestCase):
         app = molten.App(routes=[molten.Route("/error", route_error)])
         client = TestClient(app)
         response = client.get("/error")
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(response.status_code, 500)
         span = spans[0]
         assert_is_measured(span)
@@ -197,9 +202,9 @@ class TestMolten(TracerTestCase):
         self.assertEqual(route_error_span.get_tag(errors.ERROR_MSG), "Error message")
 
     def test_resources(self):
-        """ Tests request has expected span resources """
+        """Tests request has expected span resources"""
         molten_client()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
 
         # `can_handle_parameter` appears twice since two parameters are in request
         # TODO[tahir]: missing ``resolve` method for components
@@ -233,7 +238,7 @@ class TestMolten(TracerTestCase):
         self.assertEqual([s.resource for s in spans], expected)
 
     def test_distributed_tracing(self):
-        """ Tests whether span IDs are propogated when distributed tracing is on """
+        """Tests whether span IDs are propagated when distributed tracing is on"""
         # Default: distributed tracing enabled
         response = molten_client(
             headers={
@@ -244,7 +249,7 @@ class TestMolten(TracerTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), "Hello 24 year old named Jim!")
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         span = spans[0]
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.trace_id, 100)
@@ -261,7 +266,7 @@ class TestMolten(TracerTestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json(), "Hello 24 year old named Jim!")
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         span = spans[0]
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.trace_id, 100)
@@ -278,18 +283,18 @@ class TestMolten(TracerTestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json(), "Hello 24 year old named Jim!")
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         span = spans[0]
         self.assertEqual(span.name, "molten.request")
         self.assertNotEqual(span.trace_id, 100)
         self.assertNotEqual(span.parent_id, 42)
 
     def test_unpatch_patch(self):
-        """ Tests unpatch-patch cycle """
+        """Tests unpatch-patch cycle"""
         unpatch()
         self.assertIsNone(Pin.get_from(molten))
         molten_client()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 0)
 
         patch()
@@ -297,30 +302,30 @@ class TestMolten(TracerTestCase):
         Pin.override(molten, tracer=self.tracer)
         self.assertTrue(Pin.get_from(molten) is not None)
         molten_client()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertTrue(len(spans) > 0)
 
     def test_patch_unpatch(self):
-        """ Tests repatch-unpatch cycle """
+        """Tests repatch-unpatch cycle"""
         # Already call patch in setUp
         self.assertTrue(Pin.get_from(molten) is not None)
         molten_client()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertTrue(len(spans) > 0)
 
         # Test unpatch
         unpatch()
         self.assertTrue(Pin.get_from(molten) is None)
         molten_client()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 0)
 
     def test_patch_idempotence(self):
-        """ Tests repatching """
+        """Tests repatching"""
         # Already call patch in setUp but patch again
         patch()
         molten_client()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertTrue(len(spans) > 0)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
@@ -330,7 +335,7 @@ class TestMolten(TracerTestCase):
             The molten integration should use it as the service name
         """
         molten_client()
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         for span in spans:
             assert span.service == "mysvc"
 
@@ -343,7 +348,7 @@ class TestMolten(TracerTestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         span = spans[0]
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.get_tag("http.request.headers.my-header"), "my_value")

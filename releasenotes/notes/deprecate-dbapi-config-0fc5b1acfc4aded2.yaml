@@ -1,0 +1,13 @@
+---
+deprecations:
+  - |
+    Deprecate `ddtrace.config.dbapi2` as default for `TracedCursor` and
+    `TracedConnection` as well as `DD_DBAPI2_TRACE_FETCH_METHODS`. Use
+    `IntegrationConfig` and `DD_<INTEGRATION>_TRACE_FETCH_METHODS` specific to
+    each dbapi-compliant library. For example::
+
+        # Before
+        config.dbapi2.trace_fetch_methods = True
+
+        # After
+        config.psycopg2.trace_fetch_methods = True

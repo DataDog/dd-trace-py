@@ -1,0 +1,10 @@
+name: startup-scenario
+run: "python run.py"
+iterations: 5
+variants:
+  none:
+    env:
+      DDTRACE: "0"
+  import:
+    env:
+      DDTRACE: "1"

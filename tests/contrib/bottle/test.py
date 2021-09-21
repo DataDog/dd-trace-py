@@ -1,14 +1,17 @@
 import bottle
-import ddtrace
 import webtest
 
-from tests.opentracer.utils import init_tracer
-from ... import TracerTestCase, assert_is_measured, assert_span_http_status_code
-
-from ddtrace import compat, config
+import ddtrace
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.bottle import TracePlugin
 from ddtrace.ext import http
+from ddtrace.internal import compat
+from tests.opentracer.utils import init_tracer
+from tests.utils import TracerTestCase
+from tests.utils import assert_is_measured
+from tests.utils import assert_span_http_status_code
+
 
 SERVICE = "bottle-app"
 
@@ -53,7 +56,7 @@ class TraceBottleTest(TracerTestCase):
         assert resp.status_int == 200
         assert compat.to_unicode(resp.body) == u"hi dougie"
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -69,9 +72,6 @@ class TraceBottleTest(TracerTestCase):
             assert s.get_tag(http.QUERY_STRING) == query_string
         else:
             assert http.QUERY_STRING not in s.meta
-
-        services = self.tracer.writer.pop_services()
-        assert services == {}
 
     def test_query_string(self):
         return self.test_200("foo=bar")
@@ -100,7 +100,7 @@ class TraceBottleTest(TracerTestCase):
         except webtest.AppError:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.resource == "GET /2xx"
@@ -120,7 +120,7 @@ class TraceBottleTest(TracerTestCase):
         except webtest.AppError:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -146,7 +146,7 @@ class TraceBottleTest(TracerTestCase):
         except webtest.AppError:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -172,7 +172,7 @@ class TraceBottleTest(TracerTestCase):
         except webtest.AppError:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -210,7 +210,7 @@ class TraceBottleTest(TracerTestCase):
             self.app.get("/5XX-1")
         except webtest.AppError:
             pass
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].error == 1
 
@@ -218,7 +218,7 @@ class TraceBottleTest(TracerTestCase):
             self.app.get("/5XX-2")
         except webtest.AppError:
             pass
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].error == 1
 
@@ -226,7 +226,7 @@ class TraceBottleTest(TracerTestCase):
             self.app.get("/5XX-3")
         except webtest.AppError:
             pass
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].error == 1
 
@@ -243,7 +243,7 @@ class TraceBottleTest(TracerTestCase):
         except webtest.AppError:
             pass
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -267,7 +267,7 @@ class TraceBottleTest(TracerTestCase):
         resp = self.app.get("/home/")
         assert resp.status_int == 200
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
         assert s.name == "bottle.request"
@@ -415,7 +415,7 @@ class TraceBottleTest(TracerTestCase):
         assert resp.status_int == 200
         assert compat.to_unicode(resp.body) == u"hi dougie"
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         ot_span, dd_span = spans
 
@@ -432,9 +432,6 @@ class TraceBottleTest(TracerTestCase):
         assert_span_http_status_code(dd_span, 200)
         assert dd_span.get_tag("http.method") == "GET"
         assert dd_span.get_tag(http.URL) == "http://localhost:80/hi/dougie"
-
-        services = self.tracer.writer.pop_services()
-        assert services == {}
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service(self):
@@ -475,7 +472,7 @@ class TraceBottleTest(TracerTestCase):
         )
         assert resp.status_int == 200
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 
@@ -498,7 +495,7 @@ class TraceBottleTest(TracerTestCase):
         )
         assert resp.status_int == 200
         # validate it's traced
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
 

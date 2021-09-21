@@ -3,12 +3,13 @@ import contextlib
 
 # Project
 from ddtrace import config
-from ddtrace.compat import httplib
+from ddtrace.internal.compat import httplib
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
+from tests.utils import TracerTestCase
 
-from ... import TracerTestCase
-from .test_httplib import SOCKET, HTTPLibBaseMixin
+from .test_httplib import HTTPLibBaseMixin
+from .test_httplib import SOCKET
 
 
 class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
@@ -44,13 +45,13 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
             conn.getresponse()
 
     def check_enabled(self):
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         span = spans[0]
         assert self.headers_here(self.tracer, span)
 
     def check_disabled(self):
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         assert self.headers_not_here(self.tracer)
 

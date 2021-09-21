@@ -4,14 +4,15 @@ import sys
 import unittest
 
 from ddtrace.vendor import wrapt
-
-from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
+from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 
 
 class PatchMixin(unittest.TestCase):
     """
     TestCase for testing the patch logic of an integration.
     """
+
     def module_imported(self, modname):
         """
         Returns whether a module is imported or not.
@@ -22,13 +23,13 @@ class PatchMixin(unittest.TestCase):
         """
         Asserts that the module, given its name is imported.
         """
-        assert self.module_imported(modname), '{} module not imported'.format(modname)
+        assert self.module_imported(modname), "{} module not imported".format(modname)
 
     def assert_not_module_imported(self, modname):
         """
         Asserts that the module, given its name is not imported.
         """
-        assert not self.module_imported(modname), '{} module is imported'.format(modname)
+        assert not self.module_imported(modname), "{} module is imported".format(modname)
 
     def is_wrapped(self, obj):
         return isinstance(obj, wrapt.ObjectProxy)
@@ -37,13 +38,13 @@ class PatchMixin(unittest.TestCase):
         """
         Helper to assert that a given object is properly wrapped by wrapt.
         """
-        self.assertTrue(self.is_wrapped(obj), '{} is not wrapped'.format(obj))
+        self.assertTrue(self.is_wrapped(obj), "{} is not wrapped".format(obj))
 
     def assert_not_wrapped(self, obj):
         """
         Helper to assert that a given object is not wrapped by wrapt.
         """
-        self.assertFalse(self.is_wrapped(obj), '{} is wrapped'.format(obj))
+        self.assertFalse(self.is_wrapped(obj), "{} is wrapped".format(obj))
 
     def assert_not_double_wrapped(self, obj):
         """
@@ -63,20 +64,21 @@ def raise_if_no_attrs(f):
     :param f: method to wrap with a check
     """
     required_attrs = [
-        '__module_name__',
-        '__integration_name__',
-        '__patch_func__',
+        "__module_name__",
+        "__integration_name__",
+        "__patch_func__",
     ]
 
     @functools.wraps(f)
     def checked_method(self, *args, **kwargs):
-        if getattr(self, '__unpatch_func__') is None:
+        if getattr(self, "__unpatch_func__") is None:
             return
 
         for attr in required_attrs:
             if not getattr(self, attr):
                 raise NotImplementedError(f.__doc__)
         return f(self, *args, **kwargs)
+
     return checked_method
 
 
@@ -85,11 +87,13 @@ def noop_if_no_unpatch(f):
     A helper for PatchTestCase test methods that will no-op the test if the
     __unpatch_func__ attribute is None
     """
+
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
-        if getattr(self, '__unpatch_func__') is None:
+        if getattr(self, "__unpatch_func__") is None:
             return
         return f(self, *args, **kwargs)
+
     return wrapper
 
 
@@ -99,6 +103,7 @@ class PatchTestCase(object):
     since it inherits from unittest.TestCase unless we wrap it with this empty
     parent class.
     """
+
     @run_in_subprocess
     class Base(SubprocessTestCase, PatchMixin):
         """Provides default test methods to be used for testing common integration patching logic.
@@ -142,6 +147,7 @@ class PatchTestCase(object):
 
                 # optionally override other test methods...
         """
+
         __integration_name__ = None
         __module_name__ = None
         __patch_func__ = None
@@ -158,6 +164,7 @@ class PatchTestCase(object):
 
                 def unpatch():
                     unpatch_func()
+
                 self.__unpatch_func__ = unpatch
 
             # Same for __patch_func__()
@@ -166,6 +173,7 @@ class PatchTestCase(object):
 
                 def patch():
                     patch_func()
+
                 self.__patch_func__ = patch
             super(PatchTestCase.Base, self).__init__(*args, **kwargs)
 
@@ -176,9 +184,8 @@ class PatchTestCase(object):
             :return:
             """
             from itertools import permutations
-            return [
-                'test_{}'.format('_'.join(c)) for c in permutations(ops, len(ops))
-            ]
+
+            return ["test_{}".format("_".join(c)) for c in permutations(ops, len(ops))]
 
         def test_verify_test_coverage(self):
             """
@@ -186,30 +193,32 @@ class PatchTestCase(object):
             patching and unpatching.
             """
             tests = []
-            tests += self._gen_test_attrs(['import', 'patch'])
-            tests += self._gen_test_attrs(['import', 'patch', 'patch'])
-            tests += self._gen_test_attrs(['import', 'patch', 'unpatch'])
-            tests += self._gen_test_attrs(['import', 'patch', 'unpatch', 'unpatch'])
+            tests += self._gen_test_attrs(["import", "patch"])
+            tests += self._gen_test_attrs(["import", "patch", "patch"])
+            tests += self._gen_test_attrs(["import", "patch", "unpatch"])
+            tests += self._gen_test_attrs(["import", "patch", "unpatch", "unpatch"])
 
             # TODO: it may be possible to generate test cases dynamically. For
             # now focus on the important ones.
-            test_ignore = set([
-                'test_unpatch_import_patch',
-                'test_import_unpatch_patch_unpatch',
-                'test_import_unpatch_unpatch_patch',
-                'test_patch_import_unpatch_unpatch',
-                'test_unpatch_import_patch_unpatch',
-                'test_unpatch_import_unpatch_patch',
-                'test_unpatch_patch_import_unpatch',
-                'test_unpatch_patch_unpatch_import',
-                'test_unpatch_unpatch_import_patch',
-                'test_unpatch_unpatch_patch_import',
-            ])
+            test_ignore = set(
+                [
+                    "test_unpatch_import_patch",
+                    "test_import_unpatch_patch_unpatch",
+                    "test_import_unpatch_unpatch_patch",
+                    "test_patch_import_unpatch_unpatch",
+                    "test_unpatch_import_patch_unpatch",
+                    "test_unpatch_import_unpatch_patch",
+                    "test_unpatch_patch_import_unpatch",
+                    "test_unpatch_patch_unpatch_import",
+                    "test_unpatch_unpatch_import_patch",
+                    "test_unpatch_unpatch_patch_import",
+                ]
+            )
 
             for test_attr in tests:
                 if test_attr in test_ignore:
                     continue
-                assert hasattr(self, test_attr), '{} not found in expected test attrs'.format(test_attr)
+                assert hasattr(self, test_attr), "{} not found in expected test attrs".format(test_attr)
 
         def assert_module_patched(self, module):
             """

@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    A `ValueError` will now be raised on tracer initialization if the Agent URL specified to the initializer or with
+    the environment variable `DD_TRACE_AGENT_URL` is malformed.

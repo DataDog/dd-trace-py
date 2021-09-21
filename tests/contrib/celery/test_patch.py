@@ -1,10 +1,12 @@
 import unittest
+
 from ddtrace import Pin
 
 
 class CeleryPatchTest(unittest.TestCase):
     def test_patch_after_import(self):
         import celery
+
         from ddtrace import patch
 
         patch(celery=True)

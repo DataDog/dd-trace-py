@@ -1,8 +1,8 @@
 import sys
 
-from .profiler import Profiler  # noqa:F401
-
 from ddtrace.profiling import _build
+
+from .profiler import Profiler  # noqa:F401
 
 
 def _not_compatible_abi():

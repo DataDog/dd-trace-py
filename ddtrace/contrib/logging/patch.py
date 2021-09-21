@@ -1,9 +1,13 @@
 import logging
 
+import attr
+
 import ddtrace
 
+from ...utils import get_argument_value
 from ...utils.wrappers import unwrap as _u
 from ...vendor.wrapt import wrap_function_wrapper as _w
+
 
 RECORD_ATTR_TRACE_ID = "dd.trace_id"
 RECORD_ATTR_SPAN_ID = "dd.span_id"
@@ -19,6 +23,15 @@ ddtrace.config._add(
         tracer=None,
     ),
 )  # by default, override here for custom tracer
+
+
+@attr.s(slots=True)
+class DDLogRecord(object):
+    trace_id = attr.ib(type=int)
+    span_id = attr.ib(type=int)
+    service = attr.ib(type=str)
+    version = attr.ib(type=str)
+    env = attr.ib(type=str)
 
 
 def _get_current_span(tracer=None):
@@ -58,6 +71,32 @@ def _w_makeRecord(func, instance, args, kwargs):
     return record
 
 
+def _w_StrFormatStyle_format(func, instance, args, kwargs):
+    # The format string "dd.service={dd.service}" expects
+    # the record to have a "dd" property which is an object that
+    # has a "service" property
+    # PercentStyle, and StringTemplateStyle both look for
+    # a "dd.service" property on the record
+    record = get_argument_value(args, kwargs, 0, "record")
+
+    record.dd = DDLogRecord(
+        trace_id=getattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO),
+        span_id=getattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO),
+        service=getattr(record, RECORD_ATTR_SERVICE, ""),
+        version=getattr(record, RECORD_ATTR_VERSION, ""),
+        env=getattr(record, RECORD_ATTR_ENV, ""),
+    )
+
+    try:
+        return func(*args, **kwargs)
+    finally:
+        # We need to remove this extra attribute so it does not pollute other formatters
+        # For example: if we format with StrFormatStyle and then  a JSON logger
+        # then the JSON logger will have `dd.{service,version,env,trace_id,span_id}` as
+        # well as the `record.dd` `DDLogRecord` instance
+        del record.dd
+
+
 def patch():
     """
     Patch ``logging`` module in the Python Standard Library for injection of
@@ -68,6 +107,11 @@ def patch():
     setattr(logging, "_datadog_patch", True)
 
     _w(logging.Logger, "makeRecord", _w_makeRecord)
+    if hasattr(logging, "StrFormatStyle"):
+        if hasattr(logging.StrFormatStyle, "_format"):
+            _w(logging.StrFormatStyle, "_format", _w_StrFormatStyle_format)
+        else:
+            _w(logging.StrFormatStyle, "format", _w_StrFormatStyle_format)
 
 
 def unpatch():
@@ -75,3 +119,8 @@ def unpatch():
         setattr(logging, "_datadog_patch", False)
 
         _u(logging.Logger, "makeRecord")
+        if hasattr(logging, "StrFormatStyle"):
+            if hasattr(logging.StrFormatStyle, "_format"):
+                _u(logging.StrFormatStyle, "_format")
+            else:
+                _u(logging.StrFormatStyle, "format")

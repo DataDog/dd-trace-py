@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Introduce support for the DD_SERVICE_MAPPING environment variable to allow
+    remapping service names on emitted spans.

@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The function ``ddtrace.utils.merge_dicts`` has been removed.

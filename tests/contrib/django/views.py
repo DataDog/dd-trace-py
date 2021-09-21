@@ -6,11 +6,16 @@ from functools import partial
 
 from django.contrib.auth.models import User
 from django.contrib.syndication.views import Feed
-from django.http import HttpResponse, Http404
+from django.http import Http404
+from django.http import HttpResponse
 from django.template import loader
 from django.template.response import TemplateResponse
-from django.views.generic import ListView, TemplateView, View
 from django.utils.safestring import mark_safe
+from django.views.generic import ListView
+from django.views.generic import TemplateView
+from django.views.generic import View
+
+from ddtrace import tracer
 
 
 class UserList(ListView):
@@ -90,6 +95,13 @@ def index(request):
     response = HttpResponse("Hello, test app.")
     response["my-response-header"] = "my_response_value"
     return response
+
+
+def alter_resource(request):
+    root = tracer.current_root_span()
+    root.resource = "custom django.request resource"
+
+    return HttpResponse("")
 
 
 def template_view(request):

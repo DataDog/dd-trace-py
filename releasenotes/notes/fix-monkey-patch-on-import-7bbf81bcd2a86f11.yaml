@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed a bug that prevented the right integration name to be used when
+    trying to patch a module on import that is already loaded.

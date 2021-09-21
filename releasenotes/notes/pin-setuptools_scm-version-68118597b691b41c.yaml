@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Pin ``setup_requires`` dependency ``setuptools_scm[toml]>=4,<6.1`` to avoid breaking changes.

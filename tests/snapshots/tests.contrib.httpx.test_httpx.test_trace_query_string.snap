@@ -1,0 +1,20 @@
+[[{"name" "http.request"
+   "service" nil
+   "resource" "http.request"
+   "type" "http"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1620689814716207000
+   "duration" 5294000
+   "meta" {"runtime-id" "74af514ffa45484fb8362f3272c66ff3"
+           "http.method" "GET"
+           "http.url" "http://localhost:8001/status/200?some=query&string=args"
+           "http.status_code" "200"
+           "http.query.string" "some=query&string=args"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 4820
+              "_dd.tracer_kr" 1.0}}]]

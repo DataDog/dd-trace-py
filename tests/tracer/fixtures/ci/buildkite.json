@@ -8,6 +8,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git"
@@ -22,6 +25,9 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -34,6 +40,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git"
@@ -48,6 +57,9 @@
       "ci.workspace_path": "foo/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -60,6 +72,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git"
@@ -74,6 +89,9 @@
       "ci.workspace_path": "/foo/bar~",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -86,6 +104,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git"
@@ -100,6 +121,9 @@
       "ci.workspace_path": "/foo/~/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -112,6 +136,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git",
@@ -128,6 +155,9 @@
       "ci.workspace_path": "/not-my-home/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -140,6 +170,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git",
@@ -156,6 +189,9 @@
       "ci.workspace_path": "~foo/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -168,6 +204,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git",
@@ -184,6 +223,9 @@
       "ci.workspace_path": "/not-my-home",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -196,6 +238,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://user@hostname.com/repo.git"
@@ -210,6 +255,9 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -222,6 +270,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://user%E2%82%AC@hostname.com/repo.git"
@@ -236,6 +287,9 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -248,6 +302,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://user:pwd@hostname.com/repo.git"
@@ -262,6 +319,9 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -274,6 +334,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "git@hostname.com:org/repo.git"
@@ -288,6 +351,9 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "git@hostname.com:org/repo.git"
     }
   ],
@@ -300,6 +366,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git"
@@ -314,6 +383,9 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -326,6 +398,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git"
@@ -340,6 +415,9 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "master",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -352,6 +430,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git"
@@ -366,6 +447,9 @@
       "ci.workspace_path": "/foo/bar",
       "git.branch": "feature/one",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git"
     }
   ],
@@ -377,6 +461,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git",
@@ -391,6 +478,9 @@
       "ci.provider.name": "buildkite",
       "ci.workspace_path": "/foo/bar",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git",
       "git.tag": "0.1.0"
     }
@@ -403,6 +493,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git",
@@ -417,6 +510,9 @@
       "ci.provider.name": "buildkite",
       "ci.workspace_path": "/foo/bar",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git",
       "git.tag": "0.1.0"
     }
@@ -429,6 +525,9 @@
       "BUILDKITE_BUILD_NUMBER": "buildkite-pipeline-number",
       "BUILDKITE_BUILD_URL": "buildkite-build-url",
       "BUILDKITE_COMMIT": "buildkite-git-commit",
+      "BUILDKITE_MESSAGE": "buildkite-git-commit-message",
+      "BUILDKITE_BUILD_AUTHOR": "buildkite-git-commit-author-name",
+      "BUILDKITE_BUILD_AUTHOR_EMAIL": "buildkite-git-commit-author-email@datadoghq.com",
       "BUILDKITE_JOB_ID": "buildkite-job-id",
       "BUILDKITE_PIPELINE_SLUG": "buildkite-pipeline-name",
       "BUILDKITE_REPO": "http://hostname.com/repo.git",
@@ -443,6 +542,9 @@
       "ci.provider.name": "buildkite",
       "ci.workspace_path": "/foo/bar",
       "git.commit.sha": "buildkite-git-commit",
+      "git.commit.message": "buildkite-git-commit-message",
+      "git.commit.author.name": "buildkite-git-commit-author-name",
+      "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.repository_url": "http://hostname.com/repo.git",
       "git.tag": "0.1.0"
     }

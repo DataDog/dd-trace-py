@@ -1,0 +1,40 @@
+[[{"name" "parent"
+   "service" nil
+   "resource" "parent"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1624045173599735000
+   "duration" 51650000
+   "meta" {"runtime-id" "120a8105b0c542d889b939d7c91d71fa"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 12266
+              "_dd.tracer_kr" 1.0}}
+      {"name" "child1"
+       "service" nil
+       "resource" "child1"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1624045173606288000
+       "duration" 32138000
+       "meta" {"runtime-id" "8fba36822c6846d895a13f5d043543be"}
+       "metrics" {"_sampling_priority_v1" 1
+                  "system.pid" 12294
+                  "_dd.tracer_kr" 1.0}}
+          {"name" "child2"
+           "service" nil
+           "resource" "child2"
+           "error" 0
+           "span_id" 2
+           "trace_id" 0
+           "parent_id" 1
+           "start" 1624045173612023000
+           "duration" 86000
+           "meta" {"runtime-id" "859c494affcb4933a1e15b6c4d2561b8"}
+           "metrics" {"_sampling_priority_v1" 1
+                      "system.pid" 12295
+                      "_dd.tracer_kr" 1.0}}]]

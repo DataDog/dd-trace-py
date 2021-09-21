@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Deprecate the DD_LOGGING_RATE_LIMIT variable in favor of the standard
+    DD_TRACE_LOGGING_RATE for configuring the logging rate limit.

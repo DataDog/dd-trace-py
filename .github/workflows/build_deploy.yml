@@ -5,15 +5,30 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      expectedVersion:
+        description: 'Expected version string'
+        required: true
+  schedule:
+    # Nightly builds after weekdays
+    - cron:  0 2 * * 2-6
 
 jobs:
   build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, windows-latest, macos-latest]
-
+        include:
+         - os: ubuntu-18.04
+           archs: x86_64 i686
+         - os: ubuntu-18.04
+           archs: aarch64
+         - os: windows-latest
+           archs: AMD64 x86
+         - os: macos-latest
+           archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v2
         # Include all history and tags
@@ -25,88 +40,29 @@ jobs:
         with:
           python-version: '3.8'
 
-      - name: Install cibuildwheel
-        run: |
-          python -m pip install cibuildwheel==1.6.4
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v1
+        with:
+          platforms: all
 
       - name: Build wheels
-        run: |
-          python -m cibuildwheel --output-dir wheelhouse
+        uses: joerick/cibuildwheel@v1.12.0
         env:
+          # configure cibuildwheel to build native archs ('auto'), and some
+          # emulated ones
+          CIBW_ARCHS: ${{ matrix.archs }}
+          # PyPY is not supported
+          # Windows 2.7 wheels no longer can be built https://github.com/DataDog/dd-trace-py/pull/2344
           CIBW_SKIP: pp* cp27-win*
+          # Run a smoke test on every supported platform
+          CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
+          # Testing arm on MacOS is currently not supported by Github
+          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
 
       - uses: actions/upload-artifact@v2
         with:
           path: ./wheelhouse/*.whl
-
-  build_wheels_aarch64:
-    name: Build wheels on linux ${{ matrix.arch }}
-    strategy:
-      matrix:
-        arch: [aarch64]
-      fail-fast: false
-    runs-on: ubuntu-18.04
-    env:
-      img: quay.io/pypa/manylinux2014_${{ matrix.arch }}
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-
-    - name: Set up QEMU
-      id: qemu
-      uses: docker/setup-qemu-action@v1
-
-    - name: Available platforms
-      run: echo ${{ steps.qemu.outputs.platforms }}
-
-    - name: Setup environment
-      run: |
-        docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
-        ${{ env.img }} bash -c \
-        '
-        for pyv in `which /opt/python/*/bin/python`; do
-          pyenv=.pyenv`echo $pyv | grep -o -E '[0-9]+' | head -1 | sed -e 's/^0\+//'`;
-          $pyv -m venv $pyenv;
-        done
-        '
-
-    - name: Install tools
-      run: |
-        docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
-        ${{ env.img }} bash -c \
-        '
-        for pyenv in `find . -name activate`; do
-          source $pyenv;
-          pip install -U setuptools wheel Cython;
-          deactivate;
-        done
-        '
-
-    - name: Make wheel
-      run: |
-        docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
-        ${{ env.img }} bash -c \
-        '
-        for pyenv in `find . -name activate`; do
-          source $pyenv;
-          python setup.py bdist_wheel;
-          deactivate;
-        done
-        '
-
-    - name: Repair wheel wheel
-      run: |
-        docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
-          ${{ env.img }} bash -c \
-        '
-        for whl in `find dist -name "*whl"`; do
-          auditwheel repair $whl --wheel-dir wheelhouse/
-        done
-        '
-
-    - uses: actions/upload-artifact@v2
-      with:
-        path: ./wheelhouse/*.whl
 
   build_sdist:
     name: Build source distribution
@@ -131,18 +87,63 @@ jobs:
         with:
           path: dist/*.tar.gz
 
-  upload_pypi:
-    needs: [build_wheels, build_sdist, build_wheels_aarch64]
+  test_alpine_sdist:
+    # alpine is the only environment not built/tested by cibuildwheel
+    name: Test source distribution on Alpine Linux
+    needs: [build_sdist]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
+    container:
+      image: python:3.9-alpine
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: artifact
+          path: dist
+
+      - name: Install build dependencies
+        # Rust + Cargo are needed for Cryptography
+        run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
+
+      - name: Check source package
+        run: |
+          pip install twine readme_renderer[md]
+          twine check dist/*.tar.gz
+
+      - name: Install source package
+        run: pip install dist/*.tar.gz
+
+      - name: Test the source package
+        run: python $GITHUB_WORKSPACE/tests/smoke_test.py
+        # Move out of the workspace to avoid importing ddtrace from the source
+        working-directory: /
+
+  upload_pypi:
+    needs: [build_wheels, test_alpine_sdist]
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/download-artifact@v2
         with:
           name: artifact
           path: dist
 
+      - uses: actions/checkout@v2
+        if: github.event_name == 'workflow_dispatch'
+        # Include all history and tags
+        with:
+          fetch-depth: 0
+      - name: Validate deploy version
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          ./scripts/validate-version "${{ github.event.inputs.expectedVersion }}"
+
       - uses: pypa/gh-action-pypi-publish@master
         with:
           user: __token__
           password: ${{ secrets.PYPI_TOKEN }}
           # To test: repository_url: https://test.pypi.org/legacy/
+          # Setting skip_existing will prevent the deploy from erring out early
+          # due to a duplicate wheel being present which will ensure that the rest
+          # of the wheels will be uploaded if some are uploaded manually.
+          skip_existing: true

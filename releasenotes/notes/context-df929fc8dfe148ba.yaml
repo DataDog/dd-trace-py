@@ -1,0 +1,19 @@
+---
+prelude: >
+    Several deprecations have been made to ``Context`` as we prepare to move
+    active span management out of this class.
+deprecations:
+  - |
+    ``Context.clone`` is deprecated. It will not be required in 0.50.
+  - |
+    ``Context.add_span`` is deprecated and will be removed in 0.50.
+  - |
+    ``Context.add_span`` is deprecated and will be removed in 0.50.
+  - |
+    ``Context.close_span`` is deprecated and will be removed in 0.50.
+  - |
+    ``Context.get_current_span`` is deprecated and will be removed in 0.50 please
+    use `Tracer.current_span` instead.
+  - |
+    ``Context.get_current_root_span`` is deprecated and will be removed in 0.50
+    please use ``Tracer.current_root_span`` instead.

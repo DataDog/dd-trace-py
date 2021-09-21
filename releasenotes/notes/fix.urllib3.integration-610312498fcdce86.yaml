@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix ``urllib3`` patching not properly activating the integration.

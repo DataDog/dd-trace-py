@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The ddtrace pytest plugin can now call ``ddtrace.patch_all`` via the
+    ``--ddtrace-patch-all`` option.

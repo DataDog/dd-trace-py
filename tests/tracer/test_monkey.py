@@ -1,5 +1,6 @@
 from ddtrace import monkey
-from tests.subprocesstest import SubprocessTestCase, run_in_subprocess
+from tests.subprocesstest import SubprocessTestCase
+from tests.subprocesstest import run_in_subprocess
 
 
 class TestPatching(SubprocessTestCase):
@@ -29,6 +30,18 @@ class TestPatching(SubprocessTestCase):
         # Manual patching should not be affected by the environment variable override.
         monkey.patch(sqlite3=True)
         assert "sqlite3" in monkey._PATCHED_MODULES
+
+    @run_in_subprocess()
+    def test_patch_raise_exception_manual_patch(self):
+        # Manual patching should not be affected by the environment variable override.
+        with self.assertRaises(monkey.ModuleNotFoundException) as me:
+            monkey.patch(module_dne=True)
+
+        assert (
+            "integration module ddtrace.contrib.module_dne does not exist, module will not have tracing available"
+            in str(me.exception)
+        )
+        assert "module_dne" not in monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict())
     def test_patch_all_env_override_httplib_none(self):

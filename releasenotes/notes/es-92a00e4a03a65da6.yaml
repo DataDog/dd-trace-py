@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    elasticsearch: add support for version 7.
+upgrade:
+  - |
+    elasticsearch: removed `get_traced_transport` method and `ddtrace.contrib.elasticsearch.transport` module.
+

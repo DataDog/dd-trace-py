@@ -1,1 +1,1 @@
-DEFAULT_SERVICE = 'kombu'
+DEFAULT_SERVICE = "kombu"

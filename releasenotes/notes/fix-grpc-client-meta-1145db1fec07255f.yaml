@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpc: handle None values for span tags.
