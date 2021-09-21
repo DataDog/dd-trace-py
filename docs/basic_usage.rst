@@ -69,7 +69,7 @@ Using the API
 -------------
 
 If the above methods are still not enough to satisfy your tracing needs, a
-manual API to provide complete control over starting and stopping spans.
+manual API to provide complete control over starting and stopping spans is available::
 
   span = tracer.trace('operations.of.interest')  # span is started once created
 

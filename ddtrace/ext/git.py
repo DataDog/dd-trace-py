@@ -1,8 +1,10 @@
 """
 tags for common git attributes
 """
+import os
 import subprocess
 from typing import Dict
+from typing import MutableMapping
 from typing import Optional
 from typing import Tuple
 
@@ -100,6 +102,20 @@ def extract_workspace_path(cwd=None):
     return workspace_path
 
 
+def extract_branch(cwd=None):
+    # type: (Optional[str]) -> str
+    """Extract git branch from the git repository in the current directory or one specified by ``cwd``."""
+    branch = _git_subprocess_cmd("rev-parse --abbrev-ref HEAD", cwd=cwd)
+    return branch
+
+
+def extract_commit_sha(cwd=None):
+    # type: (Optional[str]) -> str
+    """Extract git commit SHA from the git repository in the current directory or one specified by ``cwd``."""
+    commit_sha = _git_subprocess_cmd("rev-parse HEAD", cwd=cwd)
+    return commit_sha
+
+
 def extract_git_metadata(cwd=None):
     # type: (Optional[str]) -> Dict[str, Optional[str]]
     """Extract git commit metadata."""
@@ -114,9 +130,32 @@ def extract_git_metadata(cwd=None):
         tags[COMMIT_COMMITTER_NAME] = users["committer"][0]
         tags[COMMIT_COMMITTER_EMAIL] = users["committer"][1]
         tags[COMMIT_COMMITTER_DATE] = users["committer"][2]
+        tags[BRANCH] = extract_branch(cwd=cwd)
+        tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:
         log.error("Error extracting git metadata, received non-zero return code.", exc_info=True)
+
+    return tags
+
+
+def extract_user_git_metadata(env=None):
+    # type: (Optional[MutableMapping[str, str]]) -> Dict[str, Optional[str]]
+    """Extract git commit metadata from user-provided env vars."""
+    env = os.environ if env is None else env
+
+    tags = {}
+    tags[REPOSITORY_URL] = env.get("DD_GIT_REPOSITORY_URL")
+    tags[COMMIT_SHA] = env.get("DD_GIT_COMMIT_SHA")
+    tags[BRANCH] = env.get("DD_GIT_BRANCH")
+    tags[TAG] = env.get("DD_GIT_TAG")
+    tags[COMMIT_MESSAGE] = env.get("DD_GIT_COMMIT_MESSAGE")
+    tags[COMMIT_AUTHOR_DATE] = env.get("DD_GIT_COMMIT_AUTHOR_DATE")
+    tags[COMMIT_AUTHOR_EMAIL] = env.get("DD_GIT_COMMIT_AUTHOR_EMAIL")
+    tags[COMMIT_AUTHOR_NAME] = env.get("DD_GIT_COMMIT_AUTHOR_NAME")
+    tags[COMMIT_COMMITTER_DATE] = env.get("DD_GIT_COMMIT_COMMITTER_DATE")
+    tags[COMMIT_COMMITTER_EMAIL] = env.get("DD_GIT_COMMIT_COMMITTER_EMAIL")
+    tags[COMMIT_COMMITTER_NAME] = env.get("DD_GIT_COMMIT_COMMITTER_NAME")
 
     return tags

@@ -1,7 +1,7 @@
 [
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -25,7 +25,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -50,7 +50,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -75,7 +75,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -100,7 +100,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -125,7 +125,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -152,7 +152,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -179,7 +179,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -206,7 +206,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -231,7 +231,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -256,7 +256,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -282,7 +282,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -308,7 +308,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -333,7 +333,7 @@
   ],
   [
     {
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -359,7 +359,7 @@
   [
     {
       "BITRISEIO_GIT_BRANCH_DEST": "origin/master",
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",
@@ -384,7 +384,7 @@
   [
     {
       "BITRISEIO_GIT_BRANCH_DEST": "origin/notmaster",
-      "BITRISE_APP_TITLE": "bitrise-pipeline-name",
+      "BITRISE_TRIGGERED_WORKFLOW_ID": "bitrise-pipeline-name",
       "BITRISE_BUILD_NUMBER": "bitrise-pipeline-number",
       "BITRISE_BUILD_SLUG": "bitrise-pipeline-id",
       "BITRISE_BUILD_URL": "bitrise-build-url",

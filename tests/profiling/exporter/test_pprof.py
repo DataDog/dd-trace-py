@@ -455,6 +455,8 @@ TEST_EVENTS = {
                 ("foobar.py", 44, "func2"),
                 ("foobar.py", 19, "func5"),
             ],
+            task_id=12234,
+            task_name="mytask",
             trace_id=23435,
             span_id=345432,
             trace_resource="myresource",
@@ -685,7 +687,7 @@ def test_to_str_none():
 
 
 @mock.patch("ddtrace.utils.config.get_application_name")
-def test_ppprof_exporter(gan):
+def test_pprof_exporter(gan):
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
     exports = exp.export(TEST_EVENTS, 1, 7)

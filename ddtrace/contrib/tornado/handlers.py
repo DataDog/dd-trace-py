@@ -7,6 +7,8 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import http
+from ...utils import ArgumentError
+from ...utils import get_argument_value
 from .constants import CONFIG_KEY
 from .constants import REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
@@ -79,7 +81,11 @@ def log_exception(func, handler, args, kwargs):
     will not be called because ``Finish`` is not an exception.
     """
     # safe-guard: expected arguments -> log_exception(self, typ, value, tb)
-    value = args[1] if len(args) == 3 else None
+    try:
+        value = get_argument_value(args, kwargs, 1, "value")
+    except ArgumentError:
+        value = None
+
     if not value:
         return func(*args, **kwargs)
 

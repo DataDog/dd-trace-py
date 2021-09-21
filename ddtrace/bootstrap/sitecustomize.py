@@ -5,6 +5,8 @@ Add all monkey-patching that needs to run by default here
 import logging
 import os
 import sys
+from typing import Any
+from typing import Dict
 
 
 # Perform gevent patching as early as possible in the application before
@@ -84,12 +86,12 @@ try:
     if asbool(get_env("runtime_metrics", "enabled")):
         RuntimeWorker.enable()
 
-    opts = {}
+    opts = {}  # type: Dict[str, Any]
 
     if asbool(os.environ.get("DATADOG_TRACE_ENABLED", True)):
-        patch = True
+        trace_enabled = True
     else:
-        patch = False
+        trace_enabled = False
         opts["enabled"] = False
 
     if hostname:
@@ -99,13 +101,9 @@ try:
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
 
-    # FIXME: Remove as part of the deprecation of collect_metrics
-    opts["collect_metrics"] = asbool(get_env("runtime_metrics", "enabled"))
+    tracer.configure(**opts)
 
-    if opts:
-        tracer.configure(**opts)
-
-    if patch:
+    if trace_enabled:
         update_patched_modules()
         from ddtrace import patch_all
 

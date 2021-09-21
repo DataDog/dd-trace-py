@@ -17,6 +17,7 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.utils.deprecation import deprecation
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -143,10 +144,21 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
             )
         self.writer = writer  # type: TraceWriter
-        self._partial_flush_enabled = asbool(get_env("tracer", "partial_flush_enabled", default=False))
+
+        # DD_TRACER_... should be deprecated after version 1.0.0 is released
+        pfe_default_value = False
+        pfms_default_value = 500
+        if "DD_TRACER_PARTIAL_FLUSH_ENABLED" in os.environ or "DD_TRACER_PARTIAL_FLUSH_MIN_SPANS" in os.environ:
+            deprecation("DD_TRACER_... use DD_TRACE_... instead", version="1.0.0")
+            pfe_default_value = asbool(get_env("tracer", "partial_flush_enabled", default=pfe_default_value))
+            pfms_default_value = int(
+                get_env("tracer", "partial_flush_min_spans", default=pfms_default_value)  # type: ignore[arg-type]
+            )
+        self._partial_flush_enabled = asbool(get_env("trace", "partial_flush_enabled", default=pfe_default_value))
         self._partial_flush_min_spans = int(
-            get_env("tracer", "partial_flush_min_spans", default=500)  # type: ignore[arg-type]
+            get_env("trace", "partial_flush_min_spans", default=pfms_default_value)  # type: ignore[arg-type]
         )
+
         self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -234,20 +246,38 @@ class Tracer(object):
         return ctx
 
     def current_trace_context(self, *args, **kwargs):
-        # type (...) -> Optional[Context]
+        # type: (...) -> Optional[Context]
         """Return the context for the current trace.
 
         If there is no active trace then None is returned.
         """
-        active = self.context_provider.active(*args, **kwargs)
+        active = self.context_provider.active()
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
             return active.context
         return None
 
+    def get_log_correlation_context(self):
+        # type: () -> Dict[str, str]
+        """Retrieves the data used to correlate a log with the current active trace.
+        Generates a dictionary for custom logging instrumentation including the trace id and
+        span id of the current active span, as well as the configured service, version, and environment names.
+        If there is no active span, a dictionary with an empty string for each value will be returned.
+        """
+        span = None
+        if self.enabled:
+            span = self.current_span()
+
+        return {
+            "trace_id": str(span.trace_id) if span else "0",
+            "span_id": str(span.span_id) if span else "0",
+            "service": config.service or "",
+            "version": config.version or "",
+            "env": config.env or "",
+        }
+
     # TODO: deprecate this method and make sure users create a new tracer if they need different parameters
-    @debtcollector.removals.removed_kwarg("collect_metrics", removal_version="0.51")
     def configure(
         self,
         enabled=None,  # type: Optional[bool]
@@ -260,7 +290,6 @@ class Tracer(object):
         wrap_executor=None,  # type: Optional[Callable]
         priority_sampling=None,  # type: Optional[bool]
         settings=None,  # type: Optional[Dict[str, Any]]
-        collect_metrics=None,  # type: Optional[bool]
         dogstatsd_url=None,  # type: Optional[str]
         writer=None,  # type: Optional[TraceWriter]
         partial_flush_enabled=None,  # type: Optional[bool]
@@ -286,7 +315,6 @@ class Tracer(object):
             from the default value
         :param priority_sampling: enable priority sampling, this is required for
             complete distributed tracing support. Enabled by default.
-        :param collect_metrics: Whether to enable runtime metrics collection.
         :param str dogstatsd_url: URL for UDP or Unix socket connection to DogStatsD
         """
         if enabled is not None:
@@ -375,18 +403,6 @@ class Tracer(object):
 
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
-
-        runtime_metrics_was_running = False
-        # FIXME: Import RuntimeWorker here to avoid circular imports. This will
-        # be gone together with the collect_metrics attribute soon.
-        from .internal.runtime.runtime_metrics import RuntimeWorker
-
-        if RuntimeWorker._instance is not None:
-            runtime_metrics_was_running = True
-            RuntimeWorker.disable()
-
-        if (collect_metrics is None and runtime_metrics_was_running) or collect_metrics:
-            RuntimeWorker.enable(tracer=self, dogstatsd_url=self._dogstatsd_url)
 
         if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
             try:

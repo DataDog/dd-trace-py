@@ -6,6 +6,7 @@ import mock
 import pytest
 
 from ddtrace import Pin
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.ext import ci
 from ddtrace.ext import test
@@ -212,7 +213,7 @@ class TestPytest(TracerTestCase):
         assert json.loads(spans[0].meta[test.PARAMETERS]) == {"arguments": {"item": "Could not encode"}, "metadata": {}}
 
     def test_skip(self):
-        """Test parametrize case."""
+        """Test skip case."""
         py_file = self.testdir.makepyfile(
             """
             import pytest
@@ -236,6 +237,62 @@ class TestPytest(TracerTestCase):
         assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
         assert spans[1].get_tag(test.SKIP_REASON) == "body"
 
+    def test_skip_module_with_xfail_cases(self):
+        """Test Xfail test cases for a module that is skipped entirely, which should be treated as skip tests."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            pytestmark = pytest.mark.skip(reason="reason")
+
+            @pytest.mark.xfail(reason="XFail Case")
+            def test_xfail():
+                pass
+
+            @pytest.mark.xfail(condition=False, reason="XFail Case")
+            def test_xfail_conditional():
+                pass
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(skipped=2)
+        spans = self.pop_spans()
+
+        assert len(spans) == 2
+        assert spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
+        assert spans[0].get_tag(test.SKIP_REASON) == "reason"
+        assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
+        assert spans[1].get_tag(test.SKIP_REASON) == "reason"
+
+    def test_skipif_module(self):
+        """Test XFail test cases for a module that is skipped entirely with the skipif marker."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            pytestmark = pytest.mark.skipif(True, reason="reason")
+
+            @pytest.mark.xfail(reason="XFail")
+            def test_xfail():
+                pass
+
+            @pytest.mark.xfail(condition=False, reason="XFail Case")
+            def test_xfail_conditional():
+                pass
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(skipped=2)
+        spans = self.pop_spans()
+
+        assert len(spans) == 2
+        assert spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
+        assert spans[0].get_tag(test.SKIP_REASON) == "reason"
+        assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
+        assert spans[1].get_tag(test.SKIP_REASON) == "reason"
+
     def test_xfail_fails(self):
         """Test xfail (expected failure) which fails, should be marked as pass."""
         py_file = self.testdir.makepyfile(
@@ -245,18 +302,25 @@ class TestPytest(TracerTestCase):
             @pytest.mark.xfail(reason="test should fail")
             def test_should_fail():
                 assert 0
+
+            @pytest.mark.xfail(condition=True, reason="test should xfail")
+            def test_xfail_conditional():
+                assert 0
         """
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
         # pytest records xfail as skipped
-        rec.assertoutcome(skipped=1)
+        rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
 
-        assert len(spans) == 1
+        assert len(spans) == 2
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[0].get_tag(test.RESULT) == test.Status.XFAIL.value
         assert spans[0].get_tag(test.XFAIL_REASON) == "test should fail"
+        assert spans[1].get_tag(test.STATUS) == test.Status.PASS.value
+        assert spans[1].get_tag(test.RESULT) == test.Status.XFAIL.value
+        assert spans[1].get_tag(test.XFAIL_REASON) == "test should xfail"
 
     def test_xpass_not_strict(self):
         """Test xpass (unexpected passing) with strict=False, should be marked as pass."""
@@ -265,19 +329,26 @@ class TestPytest(TracerTestCase):
             import pytest
 
             @pytest.mark.xfail(reason="test should fail")
-            def test_should_fail():
+            def test_should_fail_but_passes():
+                pass
+
+            @pytest.mark.xfail(condition=True, reason="test should not xfail")
+            def test_should_not_fail():
                 pass
         """
         )
         file_name = os.path.basename(py_file.strpath)
         rec = self.inline_run("--ddtrace", file_name)
-        rec.assertoutcome(passed=1)
+        rec.assertoutcome(passed=2)
         spans = self.pop_spans()
 
-        assert len(spans) == 1
+        assert len(spans) == 2
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[0].get_tag(test.RESULT) == test.Status.XPASS.value
         assert spans[0].get_tag(test.XFAIL_REASON) == "test should fail"
+        assert spans[1].get_tag(test.STATUS) == test.Status.PASS.value
+        assert spans[1].get_tag(test.RESULT) == test.Status.XPASS.value
+        assert spans[1].get_tag(test.XFAIL_REASON) == "test should not xfail"
 
     def test_xpass_strict(self):
         """Test xpass (unexpected passing) with strict=True, should be marked as fail."""
@@ -298,8 +369,8 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
         assert spans[0].get_tag(test.RESULT) == test.Status.XPASS.value
-        # Note: xpass (strict=True) does not mark the reason with result.wasxfail but into result.longrepr,
-        # however this provides the entire traceback/error into longrepr.
+        # Note: XFail (strict=True) does not mark the reason with result.wasxfail but into result.longrepr,
+        # however it provides the entire traceback/error into longrepr.
         assert "test should fail" in spans[0].get_tag(test.XFAIL_REASON)
 
     def test_tags(self):
@@ -420,11 +491,153 @@ class TestPytest(TracerTestCase):
 
         spans = self.pop_spans()
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
-        trace = self.tracer.writer.msgpack_encoder.encode_trace(spans)
-        decoded_trace = self.tracer.writer.msgpack_encoder._decode(trace)
+        encoder = self.tracer.writer.msgpack_encoder
+        encoder.put(spans)
+        trace = encoder.encode()
+        (decoded_trace,) = self.tracer.writer.msgpack_encoder._decode(trace)
         assert len(decoded_trace) == 4
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
+
+    def test_pytest_doctest_module(self):
+        """Test that pytest with doctest works as expected."""
+        py_file = self.testdir.makepyfile(
+            """
+        '''
+        This module supplies one function foo(). For example,
+        >>> foo()
+        42
+        '''
+
+        def foo():
+            '''Returns the answer to life, the universe, and everything.
+            >>> foo()
+            42
+            '''
+            return 42
+
+        def test_foo():
+            assert foo() == 42
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", "--doctest-modules", file_name)
+        rec.assertoutcome(passed=3)
+        spans = self.pop_spans()
+
+        assert len(spans) == 3
+        for span in spans:
+            assert span.get_tag(test.SUITE) == file_name.partition(".py")[0]
+
+    def test_pytest_sets_sample_priority(self):
+        """Test sample priority tags."""
+        py_file = self.testdir.makepyfile(
+            """
+            def test_sample_priority():
+                assert True is True
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
+
+    def test_pytest_exception(self):
+        """Test that pytest sets exception information correctly."""
+        py_file = self.testdir.makepyfile(
+            """
+        def test_will_fail():
+            assert 2 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type").endswith("AssertionError") is True
+        assert test_span.get_tag("error.msg") == "assert 2 == 1"
+        assert test_span.get_tag("error.stack") is not None
+
+    def test_pytest_tests_with_internal_exceptions_get_test_status(self):
+        """Test that pytest sets a fail test status if it has an internal exception."""
+        py_file = self.testdir.makepyfile(
+            """
+        import pytest
+
+        # This is bad usage and results in a pytest internal exception
+        @pytest.mark.filterwarnings("ignore::pytest.ExceptionThatDoesNotExist")
+        def test_will_fail_internally():
+            assert 2 == 2
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type") is None
+
+    def test_pytest_broken_setup_will_be_reported_as_error(self):
+        """Test that pytest sets a fail test status if the setup fails."""
+        py_file = self.testdir.makepyfile(
+            """
+        import pytest
+
+        @pytest.fixture
+        def my_fixture():
+            raise Exception('will fail in setup')
+            yield
+
+        def test_will_fail_in_setup(my_fixture):
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type").endswith("Exception") is True
+        assert test_span.get_tag("error.msg") == "will fail in setup"
+        assert test_span.get_tag("error.stack") is not None
+
+    def test_pytest_broken_teardown_will_be_reported_as_error(self):
+        """Test that pytest sets a fail test status if the teardown fails."""
+        py_file = self.testdir.makepyfile(
+            """
+        import pytest
+
+        @pytest.fixture
+        def my_fixture():
+            yield
+            raise Exception('will fail in teardown')
+
+        def test_will_fail_in_teardown(my_fixture):
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+
+        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
+        assert test_span.get_tag("error.type").endswith("Exception") is True
+        assert test_span.get_tag("error.msg") == "will fail in teardown"
+        assert test_span.get_tag("error.stack") is not None
 
 
 @pytest.mark.parametrize(

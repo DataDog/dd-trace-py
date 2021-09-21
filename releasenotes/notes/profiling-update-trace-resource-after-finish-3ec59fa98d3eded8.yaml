@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The profiler now updates the trace resource when capturing span information
+    with the stack and lock collectors. That means that if the trace resource
+    changes after the profiling events are created, the profiler samples will
+    also be updated. This avoids having trace resource being empty when
+    profiling, e.g., WSGI middleware.

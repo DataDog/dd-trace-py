@@ -6,6 +6,8 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...pin import Pin
+from ...utils import ArgumentError
+from ...utils import get_argument_value
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
 from .constants import DEFAULT_TEMPLATE_NAME
@@ -66,10 +68,10 @@ def _wrap_compile(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    if len(args) > 1:
-        template_name = args[1]
-    else:
-        template_name = kwargs.get("name", DEFAULT_TEMPLATE_NAME)
+    try:
+        template_name = get_argument_value(args, kwargs, 1, "name")
+    except ArgumentError:
+        template_name = DEFAULT_TEMPLATE_NAME
 
     with pin.tracer.trace("jinja2.compile", pin.service, span_type=SpanTypes.TEMPLATE) as span:
         try:
@@ -84,7 +86,7 @@ def _wrap_load_template(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    template_name = kwargs.get("name", args[0])
+    template_name = get_argument_value(args, kwargs, 0, "name")
     with pin.tracer.trace("jinja2.load", pin.service, span_type=SpanTypes.TEMPLATE) as span:
         template = None
         try:

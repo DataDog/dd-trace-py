@@ -1,0 +1,249 @@
+name: Framework tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+  bottle-testsuite-0_12_19:
+    runs-on: ubuntu-latest
+    env:
+      DD_PROFILING_ENABLED: true
+      DD_TESTING_RAISE: true
+    defaults:
+      run:
+        working-directory: bottle
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: bottlepy/bottle
+          ref: master
+          path: bottle
+      - name: Install Dependencies
+        run: sudo apt-get install -y libev-dev
+      - name: Test dependencies (Server back-ends and template engines)
+      # Taken from install script inside of .github/workflows of test suite (https://github.com/bottlepy/bottle/blob/master/.github/workflows/run_tests.yml)
+        run: |
+          pip install -U pip pytest
+          pip install mako jinja2
+          for name in waitress "cherrypy<9" cheroot paste tornado twisted diesel meinheld\
+            gunicorn eventlet flup bjoern gevent aiohttp-wsgi uvloop; do
+            pip install $name || echo "Failed to install $name with $(python -V 2>&1)" 1>&2
+          done
+      - name: Inject ddtrace
+        run: pip install ../ddtrace
+        # Allows tests to continue through deprecation warnings for jinja2 and mako
+      - name: Run tests
+        # Disable TestServerAdapter_gunicorn.test_simple because it checks for
+        # log output and it contains the profiler failing to upload
+        run: ddtrace-run pytest test --continue-on-collection-errors -v -k 'not TestServerAdapter_gunicorn'
+
+  django-testsuite-3_1:
+    runs-on: ubuntu-latest
+    env:
+      DD_PROFILING_ENABLED: true
+      DD_TESTING_RAISE: true
+    defaults:
+      run:
+        working-directory: django
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: django/django
+          ref: stable/3.1.x
+          path: django
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+      - name: Install pylibmc libmemcached package
+        # Django-specific: pylibmc in Ubuntu requires libmemcached package
+        run: sudo apt install libmemcached-dev zlib1g
+      - name: Install dependencies
+        # Django-specific: separate dependencies for tests
+        run: pip install -r tests/requirements/py3.txt
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Install django
+        run: pip install ../django
+      - name: Set Pythonpath
+        run: echo "PYTHONPATH=." >> $GITHUB_ENV
+      - name: Disable unsupported tests
+        run: |
+          # Note: test_supports_json_field_operational_error will fail with the tracer
+          # DEV: Insert @skipUnless before the test definition
+          # DEV: We need to escape the space indenting
+          sed -i'' '/def test_supports_json_field_operational_error/i \ \ \ \ @skipUnless(False, "test not supported by dd-trace-py")' tests/backends/sqlite/test_features.py
+      - name: Run tests
+        # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
+        run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
+
+  fastapi-testsuite-0_63:
+    runs-on: ubuntu-latest
+    env:
+      DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: true
+    defaults:
+      run:
+        working-directory: fastapi
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: tiangolo/fastapi
+          ref: 0.63.0
+          path: fastapi
+      #This step installs Flit, a way to put Python packages and modules on PyPI (More info at https://flit.readthedocs.io/en/latest/)
+      - name: Install Flit
+        run: pip install flit
+      #Installs all dependencies needed for FastAPI
+      - name: Install Dependencies
+        run: flit install --symlink
+      #Reverts SQLalchemy to v1.3.24. Newest version breaks tests due to RowProxy module being deprecated in latest v1.4.11 More info: (https://docs.sqlalchemy.org/en/14/changelog/migration_14.html#rowproxy-is-no-longer-a-proxy-is-now-called-row-and-behaves-like-an-enhanced-named-tuple)
+      - name: Downgrade SQLalchemy
+        run: pip install --force-reinstall SQLAlchemy==1.3.24
+      - name: Inject ddtrace
+        run: pip install ../ddtrace
+      - name: Test
+        run: ddtrace-run pytest tests
+
+  flask-testsuite-1_1_4:
+    runs-on: ubuntu-latest
+    env:
+      TOX_TESTENV_PASSENV: DD_TESTING_RAISE DD_PROFILING_ENABLED
+      DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: true
+    defaults:
+      run:
+        working-directory: flask
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: pallets/flask
+          ref: 1.1.4
+          path: flask
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+      - name: Install tox
+        run: pip install tox
+      - name: Create tox env
+        run: tox -e py38 --notest
+      - name: Inject ddtrace
+        run: .tox/py38/bin/pip install ../ddtrace
+      - name: Add pytest configuration for ddtrace
+        run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
+      - name: Run tests
+        # test_exception_propagation is broken upstream
+        run: tox -e py38 -- -k 'not test_exception_propagation and not test_memory_consumption'
+
+  httpx-testsuite-0_18_1:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: httpx
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: encode/httpx
+          ref: 0.18.1
+          path: httpx
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Inject ddtrace
+        run: pip install ../ddtrace
+      - name: Add pytest configuration for ddtrace
+        run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
+      - name: Run tests
+        env:
+          # Disabled distributed tracing since there are a lot of tests that assert on headers
+          DD_HTTPX_DISTRIBUTED_TRACING: "false"
+        run: pytest
+
+  mako-testsuite-1_1_4:
+    runs-on: ubuntu-latest
+    env:
+      TOX_TESTENV_PASSENV: DD_TESTING_RAISE DD_PROFILING_ENABLED
+      DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: true
+    defaults:
+      run:
+        working-directory: mako
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: sqlalchemy/mako
+          ref: rel_1_1_4
+          path: mako
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+      - name: Install tox
+        run: pip install tox
+      - name: Create tox env
+        run: tox -e py --notest
+      - name: Inject ddtrace
+        run: .tox/py/bin/pip install ../ddtrace
+      - name: Add pytest configuration for ddtrace
+        run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
+      - name: Run tests
+        run: tox -e py
+
+  starlette-testsuite-0_14_2:
+    runs-on: "ubuntu-latest"
+    env:
+      DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: true
+    defaults:
+      run:
+        working-directory: starlette
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: encode/starlette
+          ref: 0.14.2
+          path: starlette
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Install dependencies
+        run: "scripts/install"
+      #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
+      - name: Run tests
+        run: pytest -p no:warnings --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers'

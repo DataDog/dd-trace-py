@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add tracing support for the ``httpx`` library. Supported versions ``>=0.14.0``.

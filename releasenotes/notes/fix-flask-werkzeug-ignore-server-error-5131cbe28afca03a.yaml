@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ``werkzeug.exceptions.NotFound`` 404 errors are no longer raised and logged as a server error
+    in the Flask integration.

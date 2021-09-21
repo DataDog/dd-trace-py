@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    Removed the ``collect_metrics`` argument from ``Tracer.configure``. See the
+    release notes for v0.49.0 for the migration instructions.

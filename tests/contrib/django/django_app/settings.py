@@ -1,8 +1,27 @@
 import os
 
+from ddtrace import tracer
+from ddtrace.filters import TraceFilter
+
+
+class PingFilter(TraceFilter):
+    def process_trace(self, trace):
+        # Filter out all traces with trace_id = 1
+        # This is done to prevent certain traces from being included in snapshots and
+        # accomplished by propagating an http trace id of 1 with the request to Django.
+        return None if trace and trace[0].trace_id == 1 else trace
+
+
+tracer.configure(
+    settings={
+        "FILTERS": [PingFilter()],
+    }
+)
+
 
 ALLOWED_HOSTS = [
     "testserver",
+    "localhost",
 ]
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

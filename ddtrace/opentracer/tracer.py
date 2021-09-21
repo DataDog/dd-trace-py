@@ -1,11 +1,20 @@
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
+
 import opentracing
 from opentracing import Format
+from opentracing import Scope
+from opentracing import ScopeManager
 from opentracing.scope_managers import ThreadLocalScopeManager
 
 import ddtrace
 from ddtrace import Span as DatadogSpan
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
+from ddtrace.context import Context as DatadogContext
 from ddtrace.settings import ConfigException
 from ddtrace.utils.config import get_application_name
 
@@ -21,11 +30,11 @@ from .utils import get_context_provider_for_scope_manager
 log = get_logger(__name__)
 
 DEFAULT_CONFIG = {
-    keys.AGENT_HOSTNAME: "localhost",
-    keys.AGENT_HTTPS: False,
-    keys.AGENT_PORT: 8126,
+    keys.AGENT_HOSTNAME: None,
+    keys.AGENT_HTTPS: None,
+    keys.AGENT_PORT: None,
     keys.DEBUG: False,
-    keys.ENABLED: True,
+    keys.ENABLED: None,
     keys.GLOBAL_TAGS: {},
     keys.SAMPLER: None,
     keys.PRIORITY_SAMPLING: None,
@@ -33,13 +42,20 @@ DEFAULT_CONFIG = {
     keys.SETTINGS: {
         FILTERS_KEY: [],
     },
-}
+}  # type: Dict[str, Any]
 
 
 class Tracer(opentracing.Tracer):
     """A wrapper providing an OpenTracing API for the Datadog tracer."""
 
-    def __init__(self, service_name=None, config=None, scope_manager=None, dd_tracer=None):
+    def __init__(
+        self,
+        service_name=None,  # type: Optional[str]
+        config=None,  # type: Optional[Dict[str, Any]]
+        scope_manager=None,  # type: Optional[ScopeManager]
+        dd_tracer=None,  # type: Optional[DatadogTracer]
+    ):
+        # type: (...) -> None
         """Initialize a new Datadog opentracer.
 
         :param service_name: (optional) the name of the service that this
@@ -63,7 +79,6 @@ class Tracer(opentracing.Tracer):
             self._config.update(config)
         # Pull out commonly used properties for performance
         self._service_name = service_name or get_application_name()
-        self._enabled = self._config.get(keys.ENABLED)
         self._debug = self._config.get(keys.DEBUG)
 
         if self._debug:
@@ -85,9 +100,9 @@ class Tracer(opentracing.Tracer):
         dd_context_provider = get_context_provider_for_scope_manager(self._scope_manager)
 
         self._dd_tracer = dd_tracer or ddtrace.tracer or DatadogTracer()
-        self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))
+        self._dd_tracer.set_tags(self._config.get(keys.GLOBAL_TAGS))  # type: ignore[arg-type]
         self._dd_tracer.configure(
-            enabled=self._enabled,
+            enabled=self._config.get(keys.ENABLED),
             hostname=self._config.get(keys.AGENT_HOSTNAME),
             https=self._config.get(keys.AGENT_HTTPS),
             port=self._config.get(keys.AGENT_PORT),
@@ -95,7 +110,7 @@ class Tracer(opentracing.Tracer):
             settings=self._config.get(keys.SETTINGS),
             priority_sampling=self._config.get(keys.PRIORITY_SAMPLING),
             uds_path=self._config.get(keys.UDS_PATH),
-            context_provider=dd_context_provider,
+            context_provider=dd_context_provider,  # type: ignore[arg-type]
         )
         self._propagators = {
             Format.HTTP_HEADERS: HTTPPropagator,
@@ -104,19 +119,21 @@ class Tracer(opentracing.Tracer):
 
     @property
     def scope_manager(self):
+        # type: () -> ScopeManager
         """Returns the scope manager being used by this tracer."""
         return self._scope_manager
 
     def start_active_span(
         self,
-        operation_name,
-        child_of=None,
-        references=None,
-        tags=None,
-        start_time=None,
-        ignore_active_span=False,
-        finish_on_close=True,
+        operation_name,  # type: str
+        child_of=None,  # type: Optional[Union[Span, SpanContext]]
+        references=None,  # type: Optional[List[Any]]
+        tags=None,  # type: Optional[Dict[str, str]]
+        start_time=None,  # type: Optional[int]
+        ignore_active_span=False,  # type: bool
+        finish_on_close=True,  # type: bool
     ):
+        # type: (...) -> Scope
         """Returns a newly started and activated `Scope`.
         The returned `Scope` supports with-statement contexts. For example::
 
@@ -170,8 +187,15 @@ class Tracer(opentracing.Tracer):
         return scope
 
     def start_span(
-        self, operation_name=None, child_of=None, references=None, tags=None, start_time=None, ignore_active_span=False
+        self,
+        operation_name=None,  # type: Optional[str]
+        child_of=None,  # type: Optional[Union[Span, SpanContext]]
+        references=None,  # type: Optional[List[Any]]
+        tags=None,  # type: Optional[Dict[str, str]]
+        start_time=None,  # type: Optional[int]
+        ignore_active_span=False,  # type: bool
     ):
+        # type: (...) -> Span
         """Starts and returns a new Span representing a unit of work.
 
         Starting a root Span (a Span with no causal references)::
@@ -217,7 +241,8 @@ class Tracer(opentracing.Tracer):
         """
         ot_parent = None  # 'ot_parent' is more readable than 'child_of'
         ot_parent_context = None  # the parent span's context
-        dd_parent = None  # the child_of to pass to the ddtracer
+        # dd_parent: the child_of to pass to the ddtracer
+        dd_parent = None  # type: Optional[Union[DatadogSpan, DatadogContext]]
 
         if child_of is not None:
             ot_parent = child_of  # 'ot_parent' is more readable than 'child_of'
@@ -266,7 +291,7 @@ class Tracer(opentracing.Tracer):
         # create a new otspan and ddspan using the ddtracer and associate it
         # with the new otspan
         ddspan = self._dd_tracer.start_span(
-            name=operation_name,
+            name=operation_name,  # type: ignore[arg-type]
             child_of=dd_parent,
             service=self._service_name,
             activate=False,
@@ -275,7 +300,7 @@ class Tracer(opentracing.Tracer):
         # set the start time if one is specified
         ddspan.start = start_time or ddspan.start
 
-        otspan = Span(self, ot_parent_context, operation_name)
+        otspan = Span(self, ot_parent_context, operation_name)  # type: ignore[arg-type]
         # sync up the OT span with the DD span
         otspan._associate_dd_span(ddspan)
 
@@ -289,6 +314,7 @@ class Tracer(opentracing.Tracer):
 
     @property
     def active_span(self):
+        # type: () -> Optional[Span]
         """Retrieves the active span from the opentracing scope manager
 
         Falls back to using the datadog active span if one is not found. This
@@ -299,14 +325,14 @@ class Tracer(opentracing.Tracer):
             return scope.span
         else:
             dd_span = self._dd_tracer.current_span()
+            ot_span = None  # type: Optional[Span]
             if dd_span:
                 ot_span = Span(self, None, dd_span.name)
                 ot_span._associate_dd_span(dd_span)
-            else:
-                ot_span = None
             return ot_span
 
     def inject(self, span_context, format, carrier):  # noqa: A002
+        # type: (SpanContext, str, Dict[str, str]) -> None
         """Injects a span context into a carrier.
 
         :param span_context: span context to inject.
@@ -321,6 +347,7 @@ class Tracer(opentracing.Tracer):
         propagator.inject(span_context, carrier)
 
     def extract(self, format, carrier):  # noqa: A002
+        # type: (str, Dict[str, str]) -> SpanContext
         """Extracts a span context from a carrier.
 
         :param format: format that the carrier is encoded with.
@@ -337,3 +364,12 @@ class Tracer(opentracing.Tracer):
         dd_span_ctx = ot_span_ctx._dd_context
         self._dd_tracer.context_provider.activate(dd_span_ctx)
         return ot_span_ctx
+
+    def get_log_correlation_context(self):
+        # type: () -> Dict[str, str]
+        """Retrieves the data used to correlate a log with the current active trace.
+        Generates a dictionary for custom logging instrumentation including the trace id and
+        span id of the current active span, as well as the configured service, version, and environment names.
+        If there is no active span, a dictionary with an empty string for each value will be returned.
+        """
+        return self._dd_tracer.get_log_correlation_context()

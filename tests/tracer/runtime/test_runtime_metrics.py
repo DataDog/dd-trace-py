@@ -1,7 +1,6 @@
 import contextlib
 import os
 import time
-import warnings
 
 import mock
 
@@ -131,21 +130,6 @@ class TestRuntimeWorker(TracerTestCase):
                         pass
                 assert root.get_tag("language") == "python"
                 assert child.get_tag("language") is None
-
-    def test_only_root_span_runtime_internal_span_types_with_tracer_config(self):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            self.tracer.configure(collect_metrics=True)
-            for span_type in ("custom", "template", "web", "worker"):
-                with self.start_span("root", span_type=span_type) as root:
-                    with self.start_span("child", child_of=root) as child:
-                        pass
-                assert root.get_tag("language") == "python"
-                assert child.get_tag("language") is None
-            self.tracer.configure(collect_metrics=False)
-
-            self.assertEqual(len(w), 2)
-            self.assertTrue(all(issubclass(_.category, DeprecationWarning) for _ in w))
 
     def test_span_no_runtime_tags(self):
         with self.start_span("root") as root:
