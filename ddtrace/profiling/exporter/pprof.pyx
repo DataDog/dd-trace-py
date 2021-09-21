@@ -383,12 +383,6 @@ class PprofExporter(exporter.Exporter):
         event,  # type: stack.StackSampleEvent
     ):
         # type: (...) -> _stack_event_group_key_T
-
-        trace_resource = None
-        # Do not export trace_resource for non Web spans for privacy concerns.
-        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
-            (trace_resource,) = event.trace_resource_container
-
         return (
             event.thread_id,
             event.thread_native_id,
@@ -397,7 +391,7 @@ class PprofExporter(exporter.Exporter):
             self._none_to_str(event.task_name),
             self._none_to_str(event.trace_id),
             self._none_to_str(event.span_id),
-            self._none_to_str(trace_resource),
+            self._none_to_str(self._get_event_trace_resource(event)),
             self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
@@ -416,10 +410,6 @@ class PprofExporter(exporter.Exporter):
     def _lock_event_group_key(
         self, event  # type: lock.LockEventBase
     ):
-        trace_resource = None
-        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
-            (trace_resource,) = event.trace_resource_container
-
         return (
             event.lock_name,
             event.thread_id,
@@ -428,7 +418,7 @@ class PprofExporter(exporter.Exporter):
             self._none_to_str(event.task_name),
             self._none_to_str(event.trace_id),
             self._none_to_str(event.span_id),
-            self._none_to_str(trace_resource),
+            self._none_to_str(self._get_event_trace_resource(event)),
             self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
@@ -444,17 +434,13 @@ class PprofExporter(exporter.Exporter):
         exc_type = event.exc_type
         exc_type_name = exc_type.__module__ + "." + exc_type.__name__
 
-        trace_resource = None
-        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
-            (trace_resource,) = event.trace_resource_container
-
         return (
             event.thread_id,
             event.thread_native_id,
             self._get_thread_name(event.thread_id, event.thread_name),
             self._none_to_str(event.trace_id),
             self._none_to_str(event.span_id),
-            self._none_to_str(trace_resource),
+            self._none_to_str(self._get_event_trace_resource(event)),
             self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
@@ -483,6 +469,13 @@ class PprofExporter(exporter.Exporter):
             sorted(events, key=self._exception_group_key),
             key=self._exception_group_key,
         )
+
+    def _get_event_trace_resource(self, event):
+        trace_resource = None
+        # Do not export trace_resource for non Web spans for privacy concerns.
+        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
+            (trace_resource,) = event.trace_resource_container
+        return trace_resource
 
     @staticmethod
     def min_none(a, b):

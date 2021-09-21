@@ -58,5 +58,5 @@ class StackBasedEvent(SampleEvent):
             self.trace_id = span.trace_id
             self.span_id = span.span_id
             if span._local_root is not None:
-                self.trace_type = span._local_root.span_type
+                self.trace_type = span._local_root._span_type
                 self.trace_resource_container = span._local_root._resource
