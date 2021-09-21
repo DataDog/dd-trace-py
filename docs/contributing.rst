@@ -147,7 +147,7 @@ Cross execution tracing
 
 Some integrations can propagate a trace across execution boundaries to other
 executions where the trace is continued (processes, threads, tasks, etc). Refer
-to the `Context`_ section of the documentation for more information.
+to the `context`_ section of the documentation for more information.
 
     - Propagating the trace example: `requests <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/requests/connection.py#L95-L97`_
     - Receiving and activating a propagated trace example: `Django <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/django/patch.py#L304`_

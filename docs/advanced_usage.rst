@@ -23,6 +23,9 @@ You can also use a Unix Domain Socket to connect to the agent::
     tracer.configure(uds_path="/path/to/socket")
 
 
+.. _context:
+
+
 Context
 -------
 
