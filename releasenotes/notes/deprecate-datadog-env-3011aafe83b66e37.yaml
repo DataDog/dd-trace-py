@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    Deprecate the DATADOG_ENV environment variable in favor of DD_ENV . 
+    The use of DD_ENV should follow Unified Service Tagging
+    recommendations.
