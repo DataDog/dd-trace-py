@@ -326,6 +326,13 @@ Requests
 .. automodule:: ddtrace.contrib.requests
 
 
+.. _rq:
+
+RQ
+^^^^^^^^
+.. automodule:: ddtrace.contrib.rq
+
+
 .. _sanic:
 
 Sanic
