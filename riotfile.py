@@ -1121,7 +1121,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiopg",
         ),
         Venv(
-            name="aiohttp_contrib",
+            name="aiohttp",
+            command="pytest {cmdargs} tests/contrib/aiohttp",
             venvs=[
                 Venv(
                     pys=["3.5","3.6"],
@@ -1148,7 +1149,6 @@ venv = Venv(
                     },
                 ),
             ],
-            command="pytest {cmdargs} tests/contrib/aiohttp",
         ),
         Venv(
             name="jinja2",
@@ -1158,9 +1158,7 @@ venv = Venv(
                     pkgs={"jinja2": [("~=2.%d.0" % m) for m in range(7, 12)]},
                 ),
                 Venv(
-                    pys=
-                    
-                    (min_version="3.6"),
+                    pys= select_pys(min_version="3.6"),
                     pkgs={"jinja2": ["~=3.0.0", latest]},
                 ),
             ],
