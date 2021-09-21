@@ -373,7 +373,7 @@ Examples::
 
     from ddtrace import config
 
-    # Global config
+    # Global config
     config.http.trace_query_string = True
 
     # Integration level config, e.g. 'falcon'
@@ -395,7 +395,7 @@ Examples::
 
     from ddtrace import config
 
-    # Global config
+    # Global config
     config.trace_headers([
         'user-agent',
         'transfer-encoding',
@@ -604,6 +604,8 @@ and database modules without the need for changing your code::
 
   Usage: ddtrace-run <my_program>
 
+`--info`: This argument prints an easily readable tracer health check and configurations. It does not reflect configuration changes made at the code level,
+only environment variable configurations.
 
 The environment variables for ``ddtrace-run`` used to configure the tracer are
 detailed in :ref:`Configuration`.
@@ -742,3 +744,4 @@ API
 
 .. toctree::
    :maxdepth: 2
+   
