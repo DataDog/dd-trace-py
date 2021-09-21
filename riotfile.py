@@ -1133,7 +1133,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.8"),
+                    pys=select_pys(min_version="3.5", max_version="3.8"),
                     pkgs={
                         "aiohttp": "~=2.3",
                         "aiohttp_jinja": "~=0.1.5",
@@ -1141,7 +1141,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(min_version="3.5"),
                     pkgs={
                         "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.4", "~=3.5", "~=3.6", latest],
                         "aiohttp_jinja": "~=0.1.5",
