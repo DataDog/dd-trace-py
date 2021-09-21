@@ -377,10 +377,12 @@ def test_executable_no_perms():
     )
     p.wait()
     assert p.returncode == 1
-    assert p.stdout.read() == six.b(
-        "ddtrace-run: executable '%s' does not have executable permissions.\n\n"
-        "usage: ddtrace-run <your usual python command>\n" % path
-    )
+
+    out = p.stdout.read()
+    if PY3:
+        assert out.startswith(six.b("ddtrace-run: permission error while launching '%s'" % path))
+    else:
+        assert out.startswith(six.b("ddtrace-run: error launching '%s'" % path))
 
 
 def test_command_flags():
