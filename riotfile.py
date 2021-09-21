@@ -1135,6 +1135,14 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/jinja2",
         ),
         Venv(
+            name="rediscluster",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/rediscluster",
+            pkgs={
+                "redis-py-cluster": [">=1.3,<1.4", ">=2.0,<2.1", ">=2.1,<2.2", latest],
+            },
+        ),
+        Venv(
             name="redis",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/redis",
