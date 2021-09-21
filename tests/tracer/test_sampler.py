@@ -285,6 +285,37 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[1].service == "my-service"
         assert sampling_rule[1].name == "my-name"
 
+    # Testing for only Sample rate being set
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0
+        assert sampling_rule[0].service == SamplingRule.NO_RULE
+        assert sampling_rule[0].name == SamplingRule.NO_RULE
+
+    # Testing for no name being set
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz"}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0
+        assert sampling_rule[0].service == "xyz"
+        assert sampling_rule[0].name == SamplingRule.NO_RULE
+
+    # Testing for no service being set
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"name":"abc"}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0
+        assert sampling_rule[0].service == SamplingRule.NO_RULE
+        assert sampling_rule[0].name == "abc"
+
+    # Testing for only Sample rate greater than 1.0
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":2.0,"service":"xyz","name":"abc"}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule == []
+
+    # Testing for no Sample rate
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"service":"xyz","name":"abc"}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule == []
+
 
 @pytest.mark.parametrize(
     "span,rule,expected",

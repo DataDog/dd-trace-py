@@ -3,7 +3,7 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 import abc
-from json import loads
+import json
 from typing import Any
 from typing import Dict
 from typing import List
@@ -176,19 +176,8 @@ class DatadogSampler(BasePrioritySampler):
             rate_limit = int(get_env("trace", "rate_limit", default=self.DEFAULT_RATE_LIMIT))  # type: ignore[arg-type]
 
         # Ensure rules is a list
-        if not rules:
-            rules = []
-
-        # DD_TRACE_SAMPLING_RULES = ['{"sample_rate": "1", "service": "b", "name": 0.1}', ....]
-        env_rules = get_env("trace", "sampling_rules")
-        if env_rules is not None:
-            json_rules = loads(env_rules)
-            for rule in json_rules:
-                rate = rule["sample_rate"]
-                service = rule["service"]
-                name = rule["name"]
-                sampling_rule = SamplingRule(sample_rate=rate, service=service, name=name)
-                rules.append(sampling_rule)
+        if rules is None:
+            rules = self.parse_from_env_variable()
 
         # Validate that the rules is a list of SampleRules
         for rule in rules:
@@ -210,6 +199,31 @@ class DatadogSampler(BasePrioritySampler):
                 rate_limit,
             )
             self.default_sampler = SamplingRule(sample_rate=default_sample_rate)
+
+    def parse_from_env_variable(self):
+        rules = []
+        # DD_TRACE_SAMPLING_RULES = ['{"sample_rate": "1", "service": "b", "name": 0.1}', ....]
+        env_rules = get_env("trace", "sampling_rules")
+        if env_rules is not None:
+            json_rules = []
+            try:
+                json_rules = json.loads(env_rules)
+            except json.decoder.JSONDecodeError:
+                log.debug(
+                    "Unable to set DD_TRACE_SAMPLING_RULES={%s} due to parsing configuration", env_rules, exc_info=True
+                )
+            # setting each rule from JSOB object
+            for rule in json_rules:
+                try:
+                    sample_rate = float(rule["sample_rate"])
+                    service = rule.get("service", SamplingRule.NO_RULE)
+                    name = rule.get("name", SamplingRule.NO_RULE)
+                    sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
+                except ValueError:
+                    log.debug("Invalid value while setting SamplingRule", exc_info=True)
+                    continue
+                rules.append(sampling_rule)
+        return rules
 
     def update_rate_by_service_sample_rates(self, sample_rates):
         # type: (Dict[str, float]) -> None
