@@ -1078,6 +1078,42 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiopg",
         ),
         Venv(
+            name="aiohttp_contrib",
+            # Python 3.7 needs at least aiohttp 2.3
+            #aiohttp_contrib-{py35,py36}-aiohttp{20,21,22}-aiohttp_jinja{012,013}-yarl-pytest3
+            #aiohttp_contrib-{py35,py36,py37,py38}-aiohttp23-aiohttp_jinja015-yarl10-pytest3
+
+            #aiohttp_contrib-{py35,py36,py37}-aiohttp{30,31,32,33,35,36}-aiohttp_jinja{015}-yarl10-pytest3
+            #aiohttp_contrib-py{38,39}       -aiohttp{30,31,32,33,36}-aiohttp_jinja015-yarl10-pytest3
+            venvs=[
+                Venv(
+                    pys=["3.5","3.6"],
+                    pkgs={
+                        "aiohttp": ["~=2.0", "~=2.1", "~=2.2"],
+                        "aiohttp_jinja": ["~=0.1.2", "~=0.1.3"],
+                        "yarl": "latest",
+                    },
+                ),
+                Venv(
+                    pys=["3.5","3.6", "3.7", "3.8"],
+                    pkgs={
+                        "aiohttp": "~=2.3",
+                        "aiohttp_jinja":"~=0.1.5",
+                        "yarl": "~=1.0",
+                    },
+                ),
+                Venv(
+                    pys=["3.5","3.6", "3.7", "3.8", "3.9"],
+                    pkgs={
+                        "aiohttp": ["~=3.0", "~=3.1", "~=3.2","~=3.3", "~=3.4", "~=3.5", "~=3.6"],
+                        "aiohttp_jinja": "0.1.5",
+                        "yarl": "~=1.0",
+                    },
+                ),
+            ],
+            command="pytest3 {cmdargs} tests/contrib/aiohttp",
+        ),
+        Venv(
             name="jinja2",
             venvs=[
                 Venv(
