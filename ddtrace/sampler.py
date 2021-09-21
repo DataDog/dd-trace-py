@@ -222,6 +222,9 @@ class DatadogSampler(BasePrioritySampler):
                 except ValueError:
                     log.debug("Invalid value while setting SamplingRule", exc_info=True)
                     continue
+                except KeyError:
+                    log.debug("No Sampling rate provided", exc_info=True)
+                    continue
                 rules.append(sampling_rule)
         return rules
 
