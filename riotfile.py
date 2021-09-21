@@ -932,12 +932,23 @@ venv = Venv(
         ),
         Venv(
             name="aiobotocore",
+            command="pytest {cmdargs} tests/contrib/aiobotocore",
             venvs=[
                 # aiobotocore dropped Python 3.5 support in 0.12
                 Venv(
                     pys=["3.5", "3.6"],
                     pkgs={
-                        "aiobotocore": ["~=0.2","~=0.3","~=0.4,", "~=0.5","~=0.7","~=0.8","~=0.9","~=0.10","~=0.11"],
+                        "aiobotocore": [
+                            "~=0.2",
+                            "~=0.3",
+                            "~=0.4,",
+                            "~=0.5",
+                            "~=0.7",
+                            "~=0.8",
+                            "~=0.9",
+                            "~=0.10",
+                            "~=0.11",
+                        ],
                     },
                 ),
                 Venv(
@@ -950,17 +961,16 @@ venv = Venv(
                 Venv(
                     pys=["3.7", "3.8"],
                     pkgs={
-                        "aiobotocore": ["~=0.3", "~=0.5","~=0.7","~=0.8","~=0.9","~=0.10","~=0.11", "~=0.12"],
+                        "aiobotocore": ["~=0.3", "~=0.5", "~=0.7", "~=0.8", "~=0.9", "~=0.10", "~=0.11", "~=0.12"],
                     },
                 ),
                 Venv(
                     pys=["3.9"],
                     pkgs={
-                        "aiobotocore": ["~=0.10","~=0.11", "~=0.12"],
+                        "aiobotocore": ["~=0.10", "~=0.11", "~=0.12"],
                     },
                 ),
             ],
-            command="pytest {cmdargs} tests/contrib/aiobotocore",
         ),
         Venv(
             name="fastapi",
