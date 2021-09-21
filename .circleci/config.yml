@@ -6,7 +6,6 @@ python39_image: &python39_image cimg/python:3.9
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
-rediscluster_image: &rediscluster_image grokzen/redis-cluster:6.2.0
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
@@ -506,6 +505,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
+      - image: *rabbitmq_image
     steps:
       - run_test:
           pattern: 'celery'
@@ -803,20 +803,27 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - run_tox_scenario_with_testagent:
-          pattern: '^redis_contrib-'
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'redis$'
+          snapshot: true
 
   rediscluster:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *rediscluster_image
-        environment:
-          - IP=0.0.0.0
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          wait: rediscluster
-          pattern: '^rediscluster_contrib-'
+      - run_test:
+          pattern: 'rediscluster'
+          docker_services: 'rediscluster'
+          snapshot: true
+
+  rq:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "rq"
+          snapshot: true
+          docker_services: "redis"
 
   urllib3:
     <<: *machine_executor
@@ -972,6 +979,7 @@ requires_tests: &requires_tests
     - redis
     - rediscluster
     - requests
+    - rq
     - sanic
     - sqlalchemy
     - sqlite3
@@ -1053,6 +1061,7 @@ workflows:
       - redis: *requires_base_venvs
       - rediscluster: *requires_base_venvs
       - requests: *requires_base_venvs
+      - rq: *requires_base_venvs
       - sanic: *requires_base_venvs
       - starlette: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs

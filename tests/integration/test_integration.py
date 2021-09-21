@@ -217,7 +217,7 @@ def test_single_trace_too_large():
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.log") as log:
         with t.trace("huge"):
-            for i in range(100000):
+            for i in range(200000):
                 with t.trace("operation") as s:
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()

@@ -12,6 +12,8 @@ from ddtrace.pin import Pin
 from ddtrace.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
 
+from ...utils import get_argument_value
+
 
 # Original boto client class
 _Boto_client = boto.connection.AWSQueryConnection
@@ -69,7 +71,7 @@ def patched_query_request(original_func, instance, args, kwargs):
 
         operation_name = None
         if args:
-            operation_name = args[0]
+            operation_name = get_argument_value(args, kwargs, 0, "action")
             span.resource = "%s.%s" % (endpoint_name, operation_name.lower())
         else:
             span.resource = endpoint_name
@@ -133,7 +135,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         if args:
-            http_method = args[0]
+            http_method = get_argument_value(args, kwargs, 0, "method")
             span.resource = "%s.%s" % (endpoint_name, http_method.lower())
         else:
             span.resource = endpoint_name
