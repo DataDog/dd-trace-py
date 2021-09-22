@@ -1,0 +1,15 @@
+{
+  "include": ["ddtrace"],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".git",
+    "ddtrace/vendor",
+    "ddtrace/contrib"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "ddtrace"
+    }
+  ]
+}

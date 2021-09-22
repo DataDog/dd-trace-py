@@ -134,6 +134,11 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            name="pyright",
+            command="pyright {cmdargs}",
+        ),
+        Venv(
+            pys=["3"],
             pkgs={"codespell": "==2.1.0"},
             venvs=[
                 Venv(

@@ -93,4 +93,6 @@ RUN \
 # https://www.npmjs.com/package/@datadog/datadog-ci
 RUN npm install -g @datadog/datadog-ci
 
+RUN npm install -g pyright
+
 CMD ["/bin/bash"]
