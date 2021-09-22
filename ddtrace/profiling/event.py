@@ -48,25 +48,15 @@ class StackBasedEvent(SampleEvent):
     trace_id = attr.ib(default=None, type=typing.Optional[int])
     span_id = attr.ib(default=None, type=typing.Optional[int])
     trace_type = attr.ib(default=None, type=typing.Optional[str])
-    trace_resource = attr.ib(default=None, type=typing.Optional[str])
+    trace_resource_container = attr.ib(default=None)
 
     def set_trace_info(
         self,
         span,  # type: typing.Optional[ddspan.Span]
     ):
-        # type: (...) -> None
-        if span is not None:
+        if span:
             self.trace_id = span.trace_id
             self.span_id = span.span_id
             if span._local_root is not None:
-                self.trace_resource = span._local_root.resource
-                self.trace_type = span._local_root.span_type
-            span._on_finish_callbacks.append(self._update_trace_resource)
-
-    def _update_trace_resource(
-        self,
-        span,  # type: ddspan.Span
-    ):
-        # type: (...) -> None
-        if span._local_root is not None:
-            self.trace_resource = span._local_root.resource
+                self.trace_type = span._local_root._span_type
+                self.trace_resource_container = span._local_root._resource
