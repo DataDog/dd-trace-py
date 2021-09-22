@@ -1126,7 +1126,7 @@ venv = Venv(
             pkgs={"pytest": [">=3"], "pytest-aiohttp": [latest]},
             venvs=[
                 Venv(
-                    pys=["3.5", "3.6"],
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
                         "aiohttp": ["~=2.0", "~=2.1", "~=2.2"],
                         "aiohttp_jinja": ["~=0.1.2", "~=0.1.3"],
@@ -1134,7 +1134,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=["3.5", "3.6", "3.7", "3.8"],
+                    pys=select_pys(min_version="3.5", max_version="3.8"),
                     pkgs={
                         "aiohttp": "~=2.3",
                         "aiohttp_jinja": "~=0.1.5",
@@ -1152,7 +1152,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "aiohttp": ["~=3.0.0", "~=3.1.0", "~=3.2.0", "~=3.3.0", "~=3.6.0", latest],
+                        "aiohttp": ["~=3.0.0", "~=3.1.0", "~=3.2.0", "~=3.3.0", "~=3.6.0"],
                         "aiohttp_jinja2": "~=0.15.0",
                         "yarl": "~=1.0",
                     },
