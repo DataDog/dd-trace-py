@@ -786,7 +786,6 @@ jobs:
       - image: *moto_image
     steps:
        - run_test:
-          wait: postgres
           pattern: 'aiobotocore'
 
   aiopg:
