@@ -1123,28 +1123,38 @@ venv = Venv(
         Venv(
             name="aiohttp",
             command="pytest {cmdargs} tests/contrib/aiohttp",
+            pkgs={"pytest": [">=3"], "pytest-aiohttp": [latest]},
             venvs=[
                 Venv(
                     pys=["3.5", "3.6"],
                     pkgs={
                         "aiohttp": ["~=2.0", "~=2.1", "~=2.2"],
                         "aiohttp_jinja": ["~=0.1.2", "~=0.1.3"],
-                        "yarl": latest,
+                        "yarl": "~=0.18.0",
                     },
                 ),
                 Venv(
                     pys=["3.5", "3.6", "3.7", "3.8"],
                     pkgs={
                         "aiohttp": "~=2.3",
-                        "aiohttp_jinja": "~=0.1.3",
+                        "aiohttp_jinja": "~=0.1.5",
+                        "yarl": "~=1.0",
+                    },
+                ),
+
+                Venv(
+                    pys=["3.5", "3.6", "3.7"],
+                    pkgs={
+                        "aiohttp": ["~=3.0.0", "~=3.1.0", "~=3.2.0", "~=3.3.0", "~=3.5.0", "~=3.6.0"],
+                        "aiohttp_jinja2": "~=0.15.0",
                         "yarl": "~=1.0",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.5"),
+                    pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.4", "~=3.5", "~=3.6", latest],
-                        "aiohttp_jinja": "~=0.1.3",
+                        "aiohttp": ["~=3.0.0", "~=3.1.0", "~=3.2.0", "~=3.3.0", "~=3.6.0", latest],
+                        "aiohttp_jinja2": "~=0.15.0",
                         "yarl": "~=1.0",
                     },
                 ),
