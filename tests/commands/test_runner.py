@@ -56,9 +56,13 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_env_name_passthrough(self):
         """
-        $DATADOG_ENV gets passed through to the global tracer as an 'env' tag
+        $DATADOG_ENV or $DD_ENV gets passed through to the global tracer as an 'env' tag
         """
         with self.override_env(dict(DATADOG_ENV="test")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_env.py"])
+            assert out.startswith(b"Test success")
+
+        with self.override_env(dict(DD_ENV="test")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_env.py"])
             assert out.startswith(b"Test success")
 
@@ -377,10 +381,12 @@ def test_executable_no_perms():
     )
     p.wait()
     assert p.returncode == 1
-    assert p.stdout.read() == six.b(
-        "ddtrace-run: executable '%s' does not have executable permissions.\n\n"
-        "usage: ddtrace-run <your usual python command>\n" % path
-    )
+
+    out = p.stdout.read()
+    if PY3:
+        assert out.startswith(six.b("ddtrace-run: permission error while launching '%s'" % path))
+    else:
+        assert out.startswith(six.b("ddtrace-run: error launching '%s'" % path))
 
 
 def test_command_flags():
