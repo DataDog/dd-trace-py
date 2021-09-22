@@ -147,10 +147,10 @@ Cross execution tracing
 
 Some integrations can propagate a trace across execution boundaries to other
 executions where the trace is continued (processes, threads, tasks, etc). Refer
-to the `context`_ section of the documentation for more information.
+to the :ref:`context` section of the documentation for more information.
 
-    - Propagating the trace example: `requests <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/requests/connection.py#L95-L97`_
-    - Receiving and activating a propagated trace example: `Django <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/django/patch.py#L304`_
+    - Propagating the trace example: `requests <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/requests/connection.py#L95-L97>`_
+    - Receiving and activating a propagated trace example: `django <https://github.com/DataDog/dd-trace-py/blob/46a2600/ddtrace/contrib/django/patch.py#L304>`__
 
 
 Web frameworks
@@ -163,14 +163,14 @@ A web framework integration must do the following if possible:
     - Trace the duration of the request.
     - Assign a resource name for a route.
     - Use ``trace_utils.set_http_meta`` to set the standard http tags.
-    - Have an :ref:`internal service` name.
+    - Have an internal service name.
     - Support distributed tracing (configurable).
     - Provide insight to middlewares and views.
     - Use the `SpanTypes.WEB` span type.
 
 Some example web framework integrations::
     - `flask <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/flask>`_
-    - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`_
+    - `django <https://github.com/DataDog/dd-trace-py/tree/46a2600/ddtrace/contrib/django>`__
 
 
 Database libraries
