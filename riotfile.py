@@ -942,14 +942,14 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiobotocore",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.6"),
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
                         "aiobotocore": ["~=0.2", "~=0.3", "~=0.4"],
                     },
                 ),
                 # aiobotocore 0.2 and 0.4 do not work because they use async as a reserved keyword
                 Venv(
-                    pys=select_pys(max_version="3.8"),
+                    pys=select_pys(min_version="3.5", max_version="3.8"),
                     pkgs={
                         "aiobotocore": ["~=0.5", "~=0.7", "~=0.8", "~=0.9"],
                     },
