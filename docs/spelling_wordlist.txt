@@ -126,6 +126,7 @@ runnable
 runtime
 runtime-id
 sanic
+screenshots
 serializable
 sql
 sqlalchemy
