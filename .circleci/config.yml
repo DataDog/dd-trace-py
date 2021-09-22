@@ -288,7 +288,7 @@ jobs:
           command: riot run -s flake8
       - run:
           name: "Mypy check"
-          command: riot run mypy
+          command: riot run -s mypy
       - run:
           name: "Codespell check"
           command: riot run -s codespell
