@@ -77,12 +77,10 @@ class TraceTopLevelSpanProcessor(TraceProcessor):
 
         if trace:
             chunk_root = trace[0]
-            if chunk_root is chunk_root._local_root:
+            if chunk_root is chunk_root._local_root or (
+                chunk_root._parent and chunk_root._parent.service != chunk_root.service
+            ):
                 chunk_root.set_metric("_dd.top_level", 1)
-            elif chunk_root._parent and chunk_root._parent.service != chunk_root.service:
-                chunk_root.set_metric("_dd.top_level", 1)
-            else:
-                chunk_root.set_metric("_dd.top_level", 0)
 
         return trace
 
