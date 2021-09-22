@@ -941,40 +941,31 @@ venv = Venv(
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
             venvs=[
-                # aiobotocore dropped Python 3.5 support in 0.12
                 Venv(
-                    pys=["3.5", "3.6"],
+                    pys=select_pys(max_version="3.6"),
                     pkgs={
-                        "aiobotocore": [
-                            "~=0.2",
-                            "~=0.3",
-                            "~=0.4",
-                            "~=0.5",
-                            "~=0.7",
-                            "~=0.8",
-                            "~=0.9",
-                            "~=0.10",
-                            "~=0.11",
-                        ],
+                        "aiobotocore": ["~=0.2", "~=0.3", "~=0.4"],
                     },
                 ),
-                Venv(
-                    pys=["3.6"],
-                    pkgs={
-                        "aiobotocore": "~=0.12",
-                    },
-                ),
+                
                 # aiobotocore 0.2 and 0.4 do not work because they use async as a reserved keyword
                 Venv(
-                    pys=["3.7", "3.8"],
+                    pys=select_pys(max_version="3.8"),
                     pkgs={
-                        "aiobotocore": ["~=0.5", "~=0.7", "~=0.8", "~=0.9", "~=0.10", "~=0.11", "~=0.12"],
+                        "aiobotocore": ["~=0.5", "~=0.7", "~=0.8", "~=0.9"],
                     },
                 ),
                 Venv(
-                    pys=["3.9"],
+                    pys=select_pys(min_version="3.5"),
                     pkgs={
-                        "aiobotocore": ["~=0.10", "~=0.11", "~=0.12"],
+                        "aiobotocore": ["~=0.10", "~=0.11"],
+                    },
+                ),
+                # aiobotocore dropped Python 3.5 support in 0.12
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "aiobotocore": "~=0.12",
                     },
                 ),
             ],
