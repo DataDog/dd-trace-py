@@ -300,6 +300,12 @@ sample {
     key: 29
   }
   label {
+    key: 30
+  }
+  label {
+    key: 31
+  }
+  label {
     key: 46
     str: 47
   }
@@ -336,6 +342,12 @@ sample {
   }
   label {
     key: 29
+  }
+  label {
+    key: 30
+  }
+  label {
+    key: 31
   }
   label {
     key: 46
@@ -502,6 +514,12 @@ sample {
     key: 29
   }
   label {
+    key: 30
+  }
+  label {
+    key: 31
+  }
+  label {
     key: 46
     str: 48
   }
@@ -660,6 +678,12 @@ sample {
   }
   label {
     key: 29
+  }
+  label {
+    key: 30
+  }
+  label {
+    key: 31
   }
   label {
     key: 46
@@ -824,6 +848,12 @@ sample {
     key: 29
   }
   label {
+    key: 30
+  }
+  label {
+    key: 31
+  }
+  label {
     key: 46
     str: 48
   }
@@ -905,9 +935,11 @@ sample {
   }
   label {
     key: 28
+    str: 36
   }
   label {
     key: 29
+    str: 37
   }
   label {
     key: 30
@@ -1030,6 +1062,12 @@ sample {
   }
   label {
     key: 29
+  }
+  label {
+    key: 30
+  }
+  label {
+    key: 31
   }
   label {
     key: 46
@@ -1190,6 +1228,12 @@ sample {
   label {
     key: 29
     str: 53
+  }
+  label {
+    key: 30
+  }
+  label {
+    key: 31
   }
   label {
     key: 46
