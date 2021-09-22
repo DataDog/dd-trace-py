@@ -125,7 +125,9 @@ commands:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
 
-                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                command: |
+                  mv .riot .ddriot
+                  echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'
       - unless:
           condition:
               << parameters.snapshot >>
@@ -286,7 +288,7 @@ jobs:
           command: riot run -s flake8
       - run:
           name: "Mypy check"
-          command: riot run mypy
+          command: riot run -s mypy
       - run:
           name: "Codespell check"
           command: riot run -s codespell
