@@ -268,6 +268,7 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[0].sample_rate == 1.0
         assert sampling_rule[0].service == "xyz"
         assert sampling_rule[0].name == "abc"
+        assert len(sampling_rule) == 1
 
     # Testing multiple sampling rules
     with override_env(
@@ -284,6 +285,7 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[1].sample_rate == 0.5
         assert sampling_rule[1].service == "my-service"
         assert sampling_rule[1].name == "my-name"
+        assert len(sampling_rule) == 2
 
     # Testing for only Sample rate being set
     with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0}]')):
@@ -291,6 +293,7 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[0].sample_rate == 1.0
         assert sampling_rule[0].service == SamplingRule.NO_RULE
         assert sampling_rule[0].name == SamplingRule.NO_RULE
+        assert len(sampling_rule) == 1
 
     # Testing for no name being set
     with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz"}]')):
@@ -298,23 +301,54 @@ def test_sampling_rule_init_via_env():
         assert sampling_rule[0].sample_rate == 1.0
         assert sampling_rule[0].service == "xyz"
         assert sampling_rule[0].name == SamplingRule.NO_RULE
+        assert len(sampling_rule) == 1
 
-    # Testing for no service being set
-    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"name":"abc"}]')):
-        sampling_rule = DatadogSampler().rules
-        assert sampling_rule[0].sample_rate == 1.0
-        assert sampling_rule[0].service == SamplingRule.NO_RULE
-        assert sampling_rule[0].name == "abc"
+        # Testing for no service being set
+        with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"name":"abc"}]')):
+            sampling_rule = DatadogSampler().rules
+            assert sampling_rule[0].sample_rate == 1.0
+            assert sampling_rule[0].service == SamplingRule.NO_RULE
+            assert sampling_rule[0].name == "abc"
+            assert len(sampling_rule) == 1
 
     # Testing for only Sample rate greater than 1.0
-    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":2.0,"service":"xyz","name":"abc"}]')):
-        sampling_rule = DatadogSampler().rules
-        assert sampling_rule == []
+    with pytest.raises(ValueError):
+        with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":2.0,"service":"xyz","name":"abc"}]')):
+            sampling_rule = DatadogSampler().rules
+            assert sampling_rule == []
+            assert len(sampling_rule) == 0
 
     # Testing for no Sample rate
-    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"service":"xyz","name":"abc"}]')):
-        sampling_rule = DatadogSampler().rules
-        assert sampling_rule == []
+    with pytest.raises(KeyError):
+        with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"service":"xyz","name":"abc"}]')):
+            sampling_rule = DatadogSampler().rules
+            assert sampling_rule == []
+            assert len(sampling_rule) == 0
+
+    # Testing for Invalid JSON
+    with pytest.raises(ValueError):
+        with override_env(dict(DD_TRACE_SAMPLING_RULES='["sample_rate":1.0,"service":"xyz","name":"abc"]')):
+            sampling_rule = DatadogSampler().rules
+            assert sampling_rule == []
+            assert len(sampling_rule) == 0
+
+    # Testing invalid rule with multiple rules defined
+    with pytest.raises(KeyError):
+        with override_env(
+            dict(
+                DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz","name":"abc"}, \
+                {"service":"my-service","name":"my-name"}]'
+            )
+        ):
+            sampling_rule = DatadogSampler().rules
+            assert sampling_rule[0].sample_rate == 1.0
+            assert sampling_rule[0].service == "xyz"
+            assert sampling_rule[0].name == "abc"
+
+            assert sampling_rule[1].sample_rate == 0.5
+            assert sampling_rule[1].service == "my-service"
+            assert sampling_rule[1].name == "my-name"
+            assert len(sampling_rule) == 2
 
 
 @pytest.mark.parametrize(
