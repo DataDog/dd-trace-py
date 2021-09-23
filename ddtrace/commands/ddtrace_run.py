@@ -13,8 +13,7 @@ from ddtrace.utils.formats import get_env
 
 if PY2:
     # Python 2 does not have PermissionError but Python 3 does.
-    class PermissionError(OSError):  # noqa
-        pass
+    PermissionError = None  # noqa: A001
 
 
 # Do not use `ddtrace.internal.logger.get_logger` here
@@ -58,9 +57,18 @@ def main():
     )
     parser.add_argument("command", nargs=argparse.REMAINDER, type=str, help="Command string to execute.")
     parser.add_argument("-d", "--debug", help="enable debug mode (disabled by default)", action="store_true")
-    parser.add_argument("-i", "--info", help="print library info useful for debugging", action="store_true")
+    parser.add_argument(
+        "-i",
+        "--info",
+        help=(
+            "print library info useful for debugging. Only reflects configurations made via environment "
+            "variables, not those made in code."
+        ),
+        action="store_true",
+    )
     parser.add_argument("-p", "--profiling", help="enable profiling (disabled by default)", action="store_true")
     parser.add_argument("-v", "--version", action="version", version="%(prog)s " + ddtrace.__version__)
+    parser.add_argument("-nc", "--colorless", help="print output of command without color", action="store_true")
     args = parser.parse_args()
 
     if args.profiling:
@@ -74,11 +82,9 @@ def main():
 
     if args.info:
         # Inline imports for performance.
-        import pprint
+        from ddtrace.internal.debug import pretty_collect
 
-        from ddtrace.internal.debug import collect
-
-        pprint.pprint(collect(ddtrace.tracer))
+        print(pretty_collect(ddtrace.tracer, color=not args.colorless))
         sys.exit(0)
 
     root_dir = os.path.dirname(ddtrace.__file__)
@@ -116,12 +122,13 @@ def main():
         )
 
     try:
-        # Raises OSError for permissions errors in Python 2
-        #        PermissionError for Python 3
         os.execl(executable, executable, *args.command[1:])
-    except (OSError, PermissionError):
-        print("ddtrace-run: executable '%s' does not have executable permissions.\n" % executable)
-        parser.print_usage()
+    except PermissionError:
+        print("ddtrace-run: permission error while launching '%s'" % executable)
+        print("Did you mean `ddtrace-run python %s`?" % executable)
         sys.exit(1)
+    except Exception:
+        print("ddtrace-run: error launching '%s'" % executable)
+        raise
 
     sys.exit(0)

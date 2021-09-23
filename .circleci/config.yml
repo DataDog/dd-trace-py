@@ -6,7 +6,6 @@ python39_image: &python39_image cimg/python:3.9
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
 datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
-rediscluster_image: &rediscluster_image grokzen/redis-cluster:6.2.0
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
@@ -126,7 +125,9 @@ commands:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
 
-                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                command: |
+                  mv .riot .ddriot
+                  echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'
       - unless:
           condition:
               << parameters.snapshot >>
@@ -287,7 +288,7 @@ jobs:
           command: riot run -s flake8
       - run:
           name: "Mypy check"
-          command: riot run mypy
+          command: riot run -s mypy
       - run:
           name: "Codespell check"
           command: riot run -s codespell
@@ -297,9 +298,9 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools cython3
+      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools python3-pip
       - run: scripts/cformat.sh
-      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 python3 setup.py build_ext
+      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 pip -vvv install .
 
   coverage_report:
     executor: python39
@@ -506,6 +507,7 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
+      - image: *rabbitmq_image
     steps:
       - run_test:
           pattern: 'celery'
@@ -785,8 +787,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *moto_image
     steps:
-      - run_tox_scenario:
-          pattern: '^aiobotocore_contrib'
+       - run_test:
+          pattern: 'aiobotocore'
 
   aiopg:
     <<: *contrib_job
@@ -802,20 +804,27 @@ jobs:
     <<: *machine_executor
     parallelism: 4
     steps:
-      - run_tox_scenario_with_testagent:
-          pattern: '^redis_contrib-'
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'redis$'
+          snapshot: true
 
   rediscluster:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *rediscluster_image
-        environment:
-          - IP=0.0.0.0
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          wait: rediscluster
-          pattern: '^rediscluster_contrib-'
+      - run_test:
+          pattern: 'rediscluster'
+          docker_services: 'rediscluster'
+          snapshot: true
+
+  rq:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "rq"
+          snapshot: true
+          docker_services: "redis"
 
   urllib3:
     <<: *machine_executor
@@ -971,6 +980,7 @@ requires_tests: &requires_tests
     - redis
     - rediscluster
     - requests
+    - rq
     - sanic
     - sqlalchemy
     - sqlite3
@@ -1052,6 +1062,7 @@ workflows:
       - redis: *requires_base_venvs
       - rediscluster: *requires_base_venvs
       - requests: *requires_base_venvs
+      - rq: *requires_base_venvs
       - sanic: *requires_base_venvs
       - starlette: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs

@@ -68,4 +68,5 @@ urlpatterns = [
     url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
     url(r"^404-view/$", views.not_found_view, name="404-view"),
     url(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
+    url(r"^alter-resource/$", views.alter_resource),
 ]

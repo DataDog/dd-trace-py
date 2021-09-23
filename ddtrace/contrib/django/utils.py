@@ -21,6 +21,8 @@ log = get_logger(__name__)
 Resolver404 = None
 DJANGO22 = None
 
+REQUEST_DEFAULT_RESOURCE = "__django_request"
+
 
 def resource_from_cache_prefix(resource, cache):
     """
@@ -139,6 +141,9 @@ def get_request_uri(request):
 
 
 def _set_resolver_tags(pin, span, request):
+    # Default to just the HTTP method when we cannot determine a reasonable resource
+    resource = request.method
+
     try:
         # Get resolver match result and build resource name pieces
         resolver_match = request.resolver_match
@@ -149,9 +154,9 @@ def _set_resolver_tags(pin, span, request):
         handler = func_name(resolver_match[0])
 
         if config.django.use_handler_resource_format:
-            span.resource = " ".join((span.resource, handler))
+            resource = " ".join((request.method, handler))
         elif config.django.use_legacy_resource_format:
-            span.resource = handler
+            resource = handler
         else:
             # In Django >= 2.2.0 we can access the original route or regex pattern
             # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
@@ -159,10 +164,10 @@ def _set_resolver_tags(pin, span, request):
                 # Determine the resolver and resource name for this request
                 route = get_django_2_route(request, resolver_match)
                 if route:
-                    span.resource = " ".join((request.method, route))
+                    resource = " ".join((request.method, route))
                     span._set_str_tag("http.route", route)
             else:
-                span.resource = " ".join((request.method, handler))
+                resource = " ".join((request.method, handler))
 
         span._set_str_tag("django.view", resolver_match.view_name)
         set_tag_array(span, "django.namespace", resolver_match.namespaces)
@@ -174,7 +179,7 @@ def _set_resolver_tags(pin, span, request):
     except Resolver404:
         # Normalize all 404 requests into a single resource name
         # DEV: This is for potential cardinality issues
-        span.resource = " ".join((request.method, "404"))
+        resource = " ".join((request.method, "404"))
     except Exception:
         log.debug(
             "Failed to resolve request path %r with path info %r",
@@ -182,10 +187,17 @@ def _set_resolver_tags(pin, span, request):
             getattr(request, "path_info", "not-set"),
             exc_info=True,
         )
+    finally:
+        # Only update the resource name if it was not explicitly set
+        # by anyone during the request lifetime
+        if span.resource == REQUEST_DEFAULT_RESOURCE:
+            span.resource = resource
 
 
 def _before_request_tags(pin, span, request):
-    span.resource = request.method
+    # DEV: Do not set `span.resource` here, leave it as `None`
+    #      until `_set_resolver_tags` so we can know if the user
+    #      has explicitly set it during the request lifetime
     span.service = trace_utils.int_service(pin, config.django)
     span.span_type = SpanTypes.WEB
     span.metrics[SPAN_MEASURED_KEY] = 1
@@ -202,79 +214,83 @@ def _after_request_tags(pin, span, request, response):
     # We still want to set additional request tags that are resolved
     # during the request.
 
-    user = getattr(request, "user", None)
-    if user is not None:
-        # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
-        # Django's get_user_model():
-        # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
-        try:
-            if hasattr(user, "is_authenticated"):
-                span._set_str_tag("django.user.is_authenticated", str(user_is_authenticated(user)))
+    try:
+        user = getattr(request, "user", None)
+        if user is not None:
+            # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
+            # Django's get_user_model():
+            # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
+            try:
+                if hasattr(user, "is_authenticated"):
+                    span._set_str_tag("django.user.is_authenticated", str(user_is_authenticated(user)))
 
-            uid = getattr(user, "pk", None)
-            if uid:
-                span._set_str_tag("django.user.id", str(uid))
+                uid = getattr(user, "pk", None)
+                if uid:
+                    span._set_str_tag("django.user.id", str(uid))
 
-            if config.django.include_user_name:
-                username = getattr(user, "username", None)
-                if username:
-                    span._set_str_tag("django.user.name", username)
-        except Exception:
-            log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
+                if config.django.include_user_name:
+                    username = getattr(user, "username", None)
+                    if username:
+                        span._set_str_tag("django.user.name", username)
+            except Exception:
+                log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
 
-    if response:
-        status = response.status_code
-        span._set_str_tag("django.response.class", func_name(response))
-        if hasattr(response, "template_name"):
-            # template_name is a bit of a misnomer, as it could be any of:
-            # a list of strings, a tuple of strings, a single string, or an instance of Template
-            # for more detail, see:
-            # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
-            template = response.template_name
+        if response:
+            status = response.status_code
+            span._set_str_tag("django.response.class", func_name(response))
+            if hasattr(response, "template_name"):
+                # template_name is a bit of a misnomer, as it could be any of:
+                # a list of strings, a tuple of strings, a single string, or an instance of Template
+                # for more detail, see:
+                # https://docs.djangoproject.com/en/3.0/ref/template-response/#django.template.response.SimpleTemplateResponse.template_name
+                template = response.template_name
 
-            if isinstance(template, six.string_types):
-                template_names = [template]
-            elif isinstance(
-                template,
-                (
-                    list,
-                    tuple,
-                ),
-            ):
-                template_names = template
-            elif hasattr(template, "template"):
-                # ^ checking by attribute here because
-                # django backend implementations don't have a common base
-                # `.template` is also the most consistent across django versions
-                template_names = [template.template.name]
+                if isinstance(template, six.string_types):
+                    template_names = [template]
+                elif isinstance(
+                    template,
+                    (
+                        list,
+                        tuple,
+                    ),
+                ):
+                    template_names = template
+                elif hasattr(template, "template"):
+                    # ^ checking by attribute here because
+                    # django backend implementations don't have a common base
+                    # `.template` is also the most consistent across django versions
+                    template_names = [template.template.name]
+                else:
+                    template_names = None
+
+                set_tag_array(span, "django.response.template", template_names)
+
+            url = get_request_uri(request)
+
+            if DJANGO22:
+                request_headers = request.headers
             else:
-                template_names = None
+                request_headers = {}
+                for header, value in request.META.items():
+                    name = from_wsgi_header(header)
+                    if name:
+                        request_headers[name] = value
 
-            set_tag_array(span, "django.response.template", template_names)
+            # DEV: Resolve the view and resource name at the end of the request in case
+            #      urlconf changes at any point during the request
+            _set_resolver_tags(pin, span, request)
 
-        url = get_request_uri(request)
-
-        if DJANGO22:
-            request_headers = request.headers
-        else:
-            request_headers = {}
-            for header, value in request.META.items():
-                name = from_wsgi_header(header)
-                if name:
-                    request_headers[name] = value
-
-        # DEV: Resolve the view and resource name at the end of the request in case
-        #      urlconf changes at any point during the request
-        _set_resolver_tags(pin, span, request)
-
-        response_headers = dict(response.items()) if response else {}
-        trace_utils.set_http_meta(
-            span,
-            config.django,
-            method=request.method,
-            url=url,
-            status_code=status,
-            query=request.META.get("QUERY_STRING", None),
-            request_headers=request_headers,
-            response_headers=response_headers,
-        )
+            response_headers = dict(response.items()) if response else {}
+            trace_utils.set_http_meta(
+                span,
+                config.django,
+                method=request.method,
+                url=url,
+                status_code=status,
+                query=request.META.get("QUERY_STRING", None),
+                request_headers=request_headers,
+                response_headers=response_headers,
+            )
+    finally:
+        if span.resource == REQUEST_DEFAULT_RESOURCE:
+            span.resource = request.method

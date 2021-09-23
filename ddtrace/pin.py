@@ -148,14 +148,9 @@ class Pin(object):
 
         pin = cls.get_from(obj)
         if pin is None:
-            pin = Pin(service)
-
-        pin.clone(
-            service=service,
-            app=app,
-            tags=tags,
-            tracer=tracer,
-        ).onto(obj)
+            Pin(service=service, app=app, tags=tags, tracer=tracer).onto(obj)
+        else:
+            pin.clone(service=service, app=app, tags=tags, tracer=tracer).onto(obj)
 
     def enabled(self):
         # type: () -> bool

@@ -1,0 +1,34 @@
+[[{"name" "rq.queue.enqueue_job"
+   "service" "rq"
+   "resource" "tests.contrib.rq.jobs.job_fail"
+   "type" "worker"
+   "error" 1
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1630333148384566000
+   "duration" 15223500
+   "meta" {"runtime-id" "db58ccbfef044eeab2b2670b8b124068"
+           "queue.name" "sync-q"
+           "job.id" "86f976b4-38db-44da-9d72-6507557fff33"
+           "job.func_name" "tests.contrib.rq.jobs.job_fail"
+           "error.msg" "error"
+           "error.type" "tests.contrib.rq.jobs.MyException"
+           "error.stack" "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 122, in traced_queue_enqueue_job\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/queue.py\", line 356, in enqueue_job\n    job = self.run_job(job)\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/queue.py\", line 282, in run_job\n    job.perform()\n  File \"/root/project/ddtrace/contrib/trace_utils.py\", line 161, in wrapper\n    return func(mod, pin, wrapped, instance, args, kwargs)\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 173, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 588, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 594, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/root/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 462
+              "_dd.tracer_kr" 1.0}}
+      {"name" "rq.job.perform"
+       "service" "rq"
+       "resource" "tests.contrib.rq.jobs.job_fail"
+       "error" 1
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1630333148386640400
+       "duration" 8034000
+       "meta" {"job.id" "86f976b4-38db-44da-9d72-6507557fff33"
+               "error.msg" "error"
+               "error.type" "tests.contrib.rq.jobs.MyException"
+               "error.stack" "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 173, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 588, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py387_rq~100_redis30/lib/python3.8/site-packages/rq/job.py\", line 594, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/root/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n"}}]]
