@@ -8,6 +8,7 @@ from ddtrace import Span
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import TraceProcessor
+from ddtrace.internal.processor.trace import TraceTopLevelSpanProcessor
 from tests.utils import DummyWriter
 
 
@@ -216,3 +217,30 @@ def test_aggregator_partial_flush_2_spans():
     assert writer.pop() == [child1, child2]
     parent.finish()
     assert writer.pop() == [parent]
+
+
+def test_trace_top_level_span_processor():
+    writer = DummyWriter()
+    aggr = SpanAggregator(
+        partial_flush_enabled=True,
+        partial_flush_min_spans=2,
+        trace_processors=[TraceTopLevelSpanProcessor()],
+        writer=writer,
+    )
+
+    # Normal usage
+    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(parent)
+    child = Span(None, "child", on_finish=[aggr.on_span_finish])
+    child.trace_id = parent.trace_id
+    child.parent_id = parent.span_id
+    aggr.on_span_start(child)
+
+    assert writer.pop() == []
+    child.finish()
+    assert writer.pop() == []
+    parent.finish()
+    assert writer.pop() == [parent, child]
+
+    assert parent.metrics["_dd.top_level"] == "1"
+    assert child.metrics["_dd.top_level"] is None
