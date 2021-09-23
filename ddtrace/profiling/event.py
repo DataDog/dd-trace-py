@@ -53,7 +53,7 @@ class StackBasedEvent(SampleEvent):
     def set_trace_info(
         self,
         span,  # type: typing.Optional[ddspan.Span]
-        endpoint_collection_enabled,
+        endpoint_collection_enabled,  # type: bool
     ):
         if span:
             self.span_id = span.span_id
