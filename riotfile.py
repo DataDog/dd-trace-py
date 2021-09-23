@@ -1204,5 +1204,42 @@ venv = Venv(
                 ],
             },
         ),
+        Venv(
+            name="snowflake",
+            command="pytest {cmdargs} tests/contrib/snowflake",
+            venvs=[
+                Venv(
+                    # 2.2.0 dropped 2.7 support
+                    pys=select_pys(),
+                    pkgs={
+                        "snowflake-connector-python": [
+                            "~=2.0.0",
+                            "~=2.1.0",
+                        ],
+                    },
+                ),
+                Venv(
+                    # 2.3.7 dropped 3.5 support
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "snowflake-connector-python": [
+                            "~=2.2.0",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "snowflake-connector-python": [
+                            "~=2.3.0",
+                            "~=2.4.0",
+                            "~=2.5.0",
+                            "~=2.6.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
     ],
 )
