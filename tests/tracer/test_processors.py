@@ -242,5 +242,5 @@ def test_trace_top_level_span_processor():
     parent.finish()
     assert writer.pop() == [parent, child]
 
-    assert parent.metrics["_dd.top_level"] == "1"
-    assert child.metrics["_dd.top_level"] is None
+    assert "_dd.top_level" not in child.metrics
+    assert parent.get_metric("_dd.top_level") == "1"
