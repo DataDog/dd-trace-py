@@ -355,7 +355,7 @@ def test_exception_collection_trace(tracer):
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
-    assert e.trace_id == span.trace_id
+    assert e.local_root_span_id == span._local_root.span_id
 
 
 @pytest.fixture
@@ -455,9 +455,10 @@ def test_collect_span_id(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if span.trace_id == event.trace_id and span.span_id == event.span_id:
+        if span.span_id == event.span_id:
             assert event.trace_resource_container[0] == resource
             assert event.trace_type == span_type
+            assert event.local_root_span_id == span._local_root.span_id
             break
 
 
@@ -473,7 +474,7 @@ def test_collect_span_resource_after_finish(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if span.trace_id == event.trace_id and span.span_id == event.span_id:
+        if span.span_id == event.span_id:
             assert event.trace_resource_container[0] == "foobar"
             assert event.trace_type == span_type
             break
@@ -495,7 +496,7 @@ def test_collect_multiple_span_id(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if child.trace_id == event.trace_id and child.span_id == event.span_id:
+        if child.span_id == event.span_id:
             assert event.trace_resource_container[0] == resource
             assert event.trace_type == span_type
             break
