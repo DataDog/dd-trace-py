@@ -198,7 +198,7 @@ def test_repr():
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
         "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, ignore_profiler=False, tracer=None)",
+        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=True, tracer=None)",
     )
 
 
@@ -481,6 +481,30 @@ def test_collect_span_resource_after_finish(tracer_and_collector):
     span.resource = resource
     span.finish()
     assert event.trace_resource_container[0] == resource
+
+
+def test_resource_not_collected(monkeypatch, tracer):
+    monkeypatch.setenv("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "false")
+    r = recorder.Recorder()
+    collector = stack.StackCollector(r, tracer=tracer)
+    collector.start()
+    try:
+        resource = str(uuid.uuid4())
+        span_type = str(uuid.uuid4())
+        span = tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type)
+        # This test will run forever if it fails. Don't make it fail.
+        while True:
+            try:
+                event = collector.recorder.events[stack.StackSampleEvent].pop()
+            except IndexError:
+                # No event left or no event yet
+                continue
+            if span.span_id == event.span_id:
+                assert event.trace_resource_container is None
+                assert event.trace_type == span_type
+                break
+    finally:
+        collector.stop()
 
 
 def test_collect_multiple_span_id(tracer_and_collector):
