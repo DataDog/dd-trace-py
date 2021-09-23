@@ -127,9 +127,13 @@ venv = Venv(
             pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
+            create=True,
             pkgs={
-                # TODO: https://mypy-lang.blogspot.com/2021/05/the-upcoming-switch-to-modular-typeshed.html
-                "mypy": "<0.900",
+                "mypy": latest,
+                "types-attrs": latest,
+                "types-protobuf": latest,
+                "types-setuptools": latest,
+                "types-six": latest,
             },
         ),
         Venv(
@@ -277,7 +281,9 @@ venv = Venv(
             venvs=[
                 # Non-4.x celery should be able to use the older redis lib, since it locks to an older kombu
                 Venv(
-                    pys=select_pys(max_version="3.6"),
+                    # Use <=3.5 to avoid setuptools >=58 which removed `use_2to3` which is needed by celery<4
+                    # https://github.com/pypa/setuptools/issues/2086
+                    pys=select_pys(max_version="3.5"),
                     pkgs={
                         "celery": "~=3.0",  # most recent 3.x.x release
                         "redis": "~=2.10.6",
@@ -380,36 +386,35 @@ venv = Venv(
         Venv(
             name="pymongo",
             command="pytest {cmdargs} tests/contrib/pymongo",
+            pkgs={
+                "mongoengine": latest,
+            },
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.7"),
+                    # Use <=3.5 to avoid setuptools >=58 which dropped `use_2to3` which is needed by pymongo>=3.4
+                    # https://github.com/pypa/setuptools/issues/2086
+                    pys=select_pys(max_version="3.5"),
                     pkgs={
                         "pymongo": [
                             ">=3.0,<3.1",
                             ">=3.1,<3.2",
                             ">=3.2,<3.3",
                             ">=3.3,<3.4",
-                            ">=3.4,<3.5",
-                            ">=3.5,<3.6",
-                            ">=3.6,<3.7",
-                            ">=3.7,<3.8",
-                            ">=3.8,<3.9",
-                            ">=3.9,<3.10",
-                            ">=3.10,<3.11",
-                            ">=3.12,<3.13",
-                            latest,
                         ],
-                        "mongoengine": latest,
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    # pymongo 3.4 is incompatible with Python>=3.8
+                    # AttributeError: module 'platform' has no attribute 'linux_distribution'
+                    pys=select_pys(max_version="3.7"),
+                    pkgs={
+                        "pymongo": ">=3.4,<3.5",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "pymongo": [
-                            ">=3.0,<3.1",
-                            ">=3.1,<3.2",
-                            ">=3.2,<3.3",
-                            ">=3.3,<3.4",
                             ">=3.5,<3.6",
                             ">=3.6,<3.7",
                             ">=3.7,<3.8",
@@ -419,7 +424,6 @@ venv = Venv(
                             ">=3.12,<3.13",
                             latest,
                         ],
-                        "mongoengine": latest,
                     },
                 ),
             ],
@@ -897,10 +901,12 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    # Use <=3.5 to avoid setuptools >=58 which dropped `use_2to3` which is needed by mongoengine<0.20
+                    # https://github.com/pypa/setuptools/issues/2086
+                    pys=select_pys(max_version="3.5"),
                     pkgs={
                         # 0.20 dropped support for Python 2.7
-                        "mongoengine": [">=0.15,<0.16", ">=0.16,<0.17", ">=0.17,<0.18", ">=0.18,<0.19"]
+                        "mongoengine": [">=0.15,<0.16", ">=0.16,<0.17", ">=0.17,<0.18", ">=0.18,<0.19"],
                     },
                 ),
                 Venv(
@@ -931,6 +937,39 @@ venv = Venv(
                             "~=1.0",
                             latest,
                         ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            # aiobotocore: aiobotocore>=1.0 not yet supported
+            name="aiobotocore",
+            command="pytest {cmdargs} tests/contrib/aiobotocore",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    pkgs={
+                        "aiobotocore": ["~=0.2", "~=0.3", "~=0.4"],
+                    },
+                ),
+                # aiobotocore 0.2 and 0.4 do not work because they use async as a reserved keyword
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.8"),
+                    pkgs={
+                        "aiobotocore": ["~=0.5", "~=0.7", "~=0.8", "~=0.9"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "aiobotocore": ["~=0.10", "~=0.11"],
+                    },
+                ),
+                # aiobotocore dropped Python 3.5 support in 0.12
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "aiobotocore": "~=0.12",
                     },
                 ),
             ],
@@ -1018,6 +1057,43 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="rq",
+            command="pytest tests/contrib/rq",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="2.7"),
+                    pkgs={
+                        "rq": [
+                            "~=1.0.0",
+                            "~=1.1.0",
+                            "~=1.2.0",
+                            "~=1.3.0",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "rq": [
+                            "~=1.0.0",
+                            "~=1.1.0",
+                            "~=1.2.0",
+                            "~=1.3.0",
+                            "~=1.4.0",
+                            "~=1.5.0",
+                            "~=1.6.0",
+                            "~=1.7.0",
+                            "~=1.8.0",
+                            "~=1.9.0",
+                            latest,
+                        ],
+                        # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
+                        "click": "==7.1.2",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="httpx",
             pys=select_pys(min_version="3.6"),
             command="pytest {cmdargs} tests/contrib/httpx",
@@ -1095,6 +1171,31 @@ venv = Venv(
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
+        ),
+        Venv(
+            name="rediscluster",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/rediscluster",
+            pkgs={
+                "redis-py-cluster": [">=1.3,<1.4", ">=2.0,<2.1", ">=2.1,<2.2", latest],
+            },
+        ),
+        Venv(
+            name="redis",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/redis",
+            pkgs={
+                "redis": [
+                    ">=2.10,<2.11",
+                    ">=3.0,<3.1",
+                    ">=3.1,<3.2",
+                    ">=3.2,<3.3",
+                    ">=3.3,<3.4",
+                    ">=3.4,<3.5",
+                    ">=3.5,<3.6",
+                    latest,
+                ]
+            },
         ),
     ],
 )
