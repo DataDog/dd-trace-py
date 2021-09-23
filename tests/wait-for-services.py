@@ -7,13 +7,11 @@ from contrib.config import CASSANDRA_CONFIG
 from contrib.config import MYSQL_CONFIG
 from contrib.config import POSTGRES_CONFIG
 from contrib.config import RABBITMQ_CONFIG
-from contrib.config import REDISCLUSTER_CONFIG
 from contrib.config import VERTICA_CONFIG
 import kombu
 import mysql.connector
 from psycopg2 import OperationalError
 from psycopg2 import connect
-import rediscluster
 import vertica_python
 
 
@@ -69,15 +67,6 @@ def check_mysql():
 
 
 @try_until_timeout(Exception)
-def check_rediscluster():
-    test_host = REDISCLUSTER_CONFIG["host"]
-    test_ports = REDISCLUSTER_CONFIG["ports"]
-    startup_nodes = [{"host": test_host, "port": int(port)} for port in test_ports.split(",")]
-    r = rediscluster.StrictRedisCluster(startup_nodes=startup_nodes)
-    r.flushall()
-
-
-@try_until_timeout(Exception)
 def check_vertica():
     conn = vertica_python.connect(**VERTICA_CONFIG)
     try:
@@ -101,7 +90,6 @@ if __name__ == "__main__":
         "cassandra": check_cassandra,
         "postgres": check_postgres,
         "mysql": check_mysql,
-        "rediscluster": check_rediscluster,
         "vertica": check_vertica,
         "rabbitmq": check_rabbitmq,
     }
