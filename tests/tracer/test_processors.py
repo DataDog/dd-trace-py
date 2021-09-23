@@ -220,13 +220,7 @@ def test_aggregator_partial_flush_2_spans():
 
 
 def test_trace_top_level_span_processor():
-    writer = DummyWriter()
-    aggr = SpanAggregator(
-        partial_flush_enabled=True,
-        partial_flush_min_spans=2,
-        trace_processors=[TraceTopLevelSpanProcessor()],
-        writer=writer,
-    )
+    aggr = SpanAggregator(trace_processors=[TraceTopLevelSpanProcessor()])
 
     # Normal usage
     parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
@@ -236,11 +230,9 @@ def test_trace_top_level_span_processor():
     child.parent_id = parent.span_id
     aggr.on_span_start(child)
 
-    assert writer.pop() == []
     child.finish()
-    assert writer.pop() == []
     parent.finish()
-    assert writer.pop() == [parent, child]
 
+    print(parent.metrics)
     assert "_dd.top_level" not in child.metrics
     assert parent.get_metric("_dd.top_level") == "1"
