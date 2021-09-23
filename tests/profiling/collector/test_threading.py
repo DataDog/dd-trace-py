@@ -69,7 +69,7 @@ def test_lock_acquire_events():
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 61, "test_lock_acquire_events")
+    assert event.frames[0] == (__file__, 62, "test_lock_acquire_events")
     assert event.sampling_pct == 100
 
 
@@ -206,7 +206,7 @@ def test_lock_gevent_tasks():
     assert len(r.events[collector_threading.LockReleaseEvent]) >= 1
 
     event = r.events[collector_threading.LockAcquireEvent][0]
-    assert event.lock_name == "test_threading.py:163"
+    assert event.lock_name == "test_threading.py:196"
     assert event.thread_id == nogevent.main_thread_id
     assert event.wait_time_ns >= 0
     assert event.task_id == t.ident
@@ -214,13 +214,13 @@ def test_lock_gevent_tasks():
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 164, "play_with_lock")
+    assert event.frames[0] == (__file__, 197, "play_with_lock")
     assert event.sampling_pct == 100
     assert event.task_id == t.ident
     assert event.task_name == "foobar"
 
     event = r.events[collector_threading.LockReleaseEvent][0]
-    assert event.lock_name == "test_threading.py:163"
+    assert event.lock_name == "test_threading.py:196"
     assert event.thread_id == nogevent.main_thread_id
     assert event.locked_for_ns >= 0.1
     assert event.task_id == t.ident
@@ -228,7 +228,7 @@ def test_lock_gevent_tasks():
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 165, "play_with_lock")
+    assert event.frames[0] == (__file__, 198, "play_with_lock")
     assert event.sampling_pct == 100
     assert event.task_id == t.ident
     assert event.task_name == "foobar"
