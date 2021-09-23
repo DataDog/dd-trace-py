@@ -9,7 +9,7 @@
   ],
   "executionEnvironments": [
     {
-      "root": "ddtrace"
+      "root": "."
     }
   ]
 }
