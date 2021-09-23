@@ -15,7 +15,8 @@ def test_repr():
     test_collector._test_repr(
         collector_threading.LockCollector,
         "LockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=32768, max_events={}), capture_pct=2.0, nframes=64, endpoint_collection_enabled=True, tracer=None)",
+        "recorder=Recorder(default_max_events=32768, max_events={}), capture_pct=2.0, nframes=64, "
+        "endpoint_collection_enabled=True, tracer=None)",
     )
 
 
@@ -62,7 +63,7 @@ def test_lock_acquire_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 0
     event = r.events[collector_threading.LockAcquireEvent][0]
-    assert event.lock_name == "test_threading.py:60"
+    assert event.lock_name == "test_threading.py:61"
     assert event.thread_id == nogevent.thread_get_ident()
     assert event.wait_time_ns > 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
@@ -89,14 +90,14 @@ def test_lock_events_tracer(tracer):
     events = r.reset()
     # The tracer might use locks, so we need to look into every event to assert we got ours
     for event_type in (collector_threading.LockAcquireEvent, collector_threading.LockReleaseEvent):
-        assert {"test_threading.py:80", "test_threading.py:83"}.issubset({e.lock_name for e in events[event_type]})
+        assert {"test_threading.py:81", "test_threading.py:84"}.issubset({e.lock_name for e in events[event_type]})
         for event in events[event_type]:
-            if event.name == "test_threading.py:80":
+            if event.name == "test_threading.py:81":
                 assert event.trace_id is None
                 assert event.span_id is None
                 assert event.trace_resource_container is None
                 assert event.trace_type is None
-            elif event.name == "test_threading.py:83":
+            elif event.name == "test_threading.py:84":
                 assert event.trace_id == trace_id
                 assert event.span_id == span_id
                 assert event.trace_resource_container[0] == t.resource
@@ -122,14 +123,14 @@ def test_lock_events_tracer_late_finish(tracer):
     events = r.reset()
     # The tracer might use locks, so we need to look into every event to assert we got ours
     for event_type in (collector_threading.LockAcquireEvent, collector_threading.LockReleaseEvent):
-        assert {"test_threading.py:111", "test_threading.py:114"}.issubset({e.lock_name for e in events[event_type]})
+        assert {"test_threading.py:112", "test_threading.py:115"}.issubset({e.lock_name for e in events[event_type]})
         for event in events[event_type]:
-            if event.name == "test_threading.py:111":
+            if event.name == "test_threading.py:112":
                 assert event.trace_id is None
                 assert event.span_id is None
                 assert event.trace_resource_container is None
                 assert event.trace_type is None
-            elif event.name == "test_threading.py:114":
+            elif event.name == "test_threading.py:115":
                 assert event.trace_id == trace_id
                 assert event.span_id == span_id
                 assert event.trace_resource_container[0] == span.resource
@@ -154,14 +155,14 @@ def test_resource_not_collected(monkeypatch, tracer):
     events = r.reset()
     # The tracer might use locks, so we need to look into every event to assert we got ours
     for event_type in (collector_threading.LockAcquireEvent, collector_threading.LockReleaseEvent):
-        assert {"test_threading.py:145", "test_threading.py:148"}.issubset({e.lock_name for e in events[event_type]})
+        assert {"test_threading.py:146", "test_threading.py:149"}.issubset({e.lock_name for e in events[event_type]})
         for event in events[event_type]:
-            if event.name == "test_threading.py:145":
+            if event.name == "test_threading.py:146":
                 assert event.trace_id is None
                 assert event.span_id is None
                 assert event.trace_resource_container is None
                 assert event.trace_type is None
-            elif event.name == "test_threading.py:148":
+            elif event.name == "test_threading.py:149":
                 assert event.trace_id == trace_id
                 assert event.span_id == span_id
                 assert event.trace_resource_container is None
@@ -177,13 +178,13 @@ def test_lock_release_events():
     assert len(r.events[collector_threading.LockAcquireEvent]) == 1
     assert len(r.events[collector_threading.LockReleaseEvent]) == 1
     event = r.events[collector_threading.LockReleaseEvent][0]
-    assert event.lock_name == "test_threading.py:174"
+    assert event.lock_name == "test_threading.py:175"
     assert event.thread_id == nogevent.thread_get_ident()
     assert event.locked_for_ns >= 0.1
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 176, "test_lock_release_events")
+    assert event.frames[0] == (__file__, 177, "test_lock_release_events")
     assert event.sampling_pct == 100
 
 
