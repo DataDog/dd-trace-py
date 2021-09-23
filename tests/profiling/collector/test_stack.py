@@ -456,7 +456,7 @@ def test_collect_span_id(tracer_and_collector):
             # No event left or no event yet
             continue
         if span.trace_id == event.trace_id and span.span_id == event.span_id:
-            assert event.trace_resource == resource
+            assert event.trace_resource_container[0] == resource
             assert event.trace_type == span_type
             break
 
@@ -474,12 +474,12 @@ def test_collect_span_resource_after_finish(tracer_and_collector):
             # No event left or no event yet
             continue
         if span.trace_id == event.trace_id and span.span_id == event.span_id:
-            assert event.trace_resource == "foobar"
+            assert event.trace_resource_container[0] == "foobar"
             assert event.trace_type == span_type
             break
     span.resource = resource
     span.finish()
-    assert event.trace_resource == resource
+    assert event.trace_resource_container[0] == resource
 
 
 def test_collect_multiple_span_id(tracer_and_collector):
@@ -496,7 +496,7 @@ def test_collect_multiple_span_id(tracer_and_collector):
             # No event left or no event yet
             continue
         if child.trace_id == event.trace_id and child.span_id == event.span_id:
-            assert event.trace_resource == resource
+            assert event.trace_resource_container[0] == resource
             assert event.trace_type == span_type
             break
 

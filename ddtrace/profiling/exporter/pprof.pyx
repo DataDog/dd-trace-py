@@ -181,14 +181,10 @@ class _PprofConverter(object):
             ),
         )
 
-        nevents = len(events)
-        sampling_ratio_avg = sum(event.capture_pct for event in events) / nevents / 100.0
-        total_alloc = sum(event.nevents for event in events)
-        number_of_alloc = total_alloc * sampling_ratio_avg
-        average_alloc_size = sum(event.size for event in events) / float(nevents)
-
-        self._location_values[location_key]["alloc-samples"] = nevents
-        self._location_values[location_key]["alloc-space"] = round(number_of_alloc * average_alloc_size)
+        self._location_values[location_key]["alloc-samples"] = sum(event.nevents for event in events)
+        self._location_values[location_key]["alloc-space"] = round(
+            sum(event.size / event.capture_pct * 100.0 for event in events)
+        )
 
     def convert_memalloc_heap_event(self, event):
         location_key = (
@@ -275,7 +271,18 @@ class _PprofConverter(object):
         )
 
     def convert_stack_exception_event(
-        self, thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes, exc_type_name, events
+        self,
+        thread_id,
+        thread_native_id,
+        thread_name,
+        trace_id,
+        span_id,
+        trace_resource,
+        trace_type,
+        frames,
+        nframes,
+        exc_type_name,
+        events,
     ):
         location_key = (
             self._to_locations(frames, nframes),
@@ -285,6 +292,8 @@ class _PprofConverter(object):
                 ("thread name", thread_name),
                 ("trace id", trace_id),
                 ("span id", span_id),
+                ("trace endpoint", trace_resource),
+                ("trace type", trace_type),
                 ("exception type", exc_type_name),
             ),
         )
@@ -336,15 +345,17 @@ class _PprofConverter(object):
 
 
 _stack_event_group_key_T = typing.Tuple[
-    int,
-    int,
-    str,
-    typing.Optional[int],
-    str,
-    str,
-    typing.Optional[int],
-    typing.Tuple,
-    int,
+    int,  # thread_id
+    int,  # thread_native_id
+    str,  # thread name
+    str,  # task_id
+    str,  # task_name
+    str,  # trace_id
+    str,  # span_id
+    str,  # trace resource
+    str,  # trace type
+    typing.Tuple,  # frames
+    int,  # nframes
 ]
 
 
@@ -372,13 +383,6 @@ class PprofExporter(exporter.Exporter):
         event,  # type: stack.StackSampleEvent
     ):
         # type: (...) -> _stack_event_group_key_T
-
-        if event.trace_type == ext.SpanTypes.WEB.value:
-            trace_resource = self._none_to_str(event.trace_resource)
-        else:
-            # Do not export trace_resource for privacy concerns.
-            trace_resource = ""
-
         return (
             event.thread_id,
             event.thread_native_id,
@@ -387,7 +391,7 @@ class PprofExporter(exporter.Exporter):
             self._none_to_str(event.task_name),
             self._none_to_str(event.trace_id),
             self._none_to_str(event.span_id),
-            trace_resource,
+            self._none_to_str(self._get_event_trace_resource(event)),
             self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
@@ -406,12 +410,6 @@ class PprofExporter(exporter.Exporter):
     def _lock_event_group_key(
         self, event  # type: lock.LockEventBase
     ):
-        if event.trace_type == ext.SpanTypes.WEB.value:
-            trace_resource = self._none_to_str(event.trace_resource)
-        else:
-            # Do not export trace_resource for privacy concerns.
-            trace_resource = ""
-
         return (
             event.lock_name,
             event.thread_id,
@@ -420,7 +418,7 @@ class PprofExporter(exporter.Exporter):
             self._none_to_str(event.task_name),
             self._none_to_str(event.trace_id),
             self._none_to_str(event.span_id),
-            trace_resource,
+            self._none_to_str(self._get_event_trace_resource(event)),
             self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
@@ -435,12 +433,15 @@ class PprofExporter(exporter.Exporter):
     def _stack_exception_group_key(self, event):
         exc_type = event.exc_type
         exc_type_name = exc_type.__module__ + "." + exc_type.__name__
+
         return (
             event.thread_id,
             event.thread_native_id,
             self._get_thread_name(event.thread_id, event.thread_name),
             self._none_to_str(event.trace_id),
             self._none_to_str(event.span_id),
+            self._none_to_str(self._get_event_trace_resource(event)),
+            self._none_to_str(event.trace_type),
             tuple(event.frames),
             event.nframes,
             exc_type_name,
@@ -468,6 +469,13 @@ class PprofExporter(exporter.Exporter):
             sorted(events, key=self._exception_group_key),
             key=self._exception_group_key,
         )
+
+    def _get_event_trace_resource(self, event):
+        trace_resource = None
+        # Do not export trace_resource for non Web spans for privacy concerns.
+        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
+            (trace_resource,) = event.trace_resource_container
+        return trace_resource
 
     @staticmethod
     def min_none(a, b):
@@ -581,7 +589,18 @@ class PprofExporter(exporter.Exporter):
                     )
 
         for (
-            (thread_id, thread_native_id, thread_name, trace_id, span_id, frames, nframes, exc_type_name),
+            (
+                thread_id,
+                thread_native_id,
+                thread_name,
+                trace_id,
+                span_id,
+                trace_resource,
+                trace_type,
+                frames,
+                nframes,
+                exc_type_name,
+            ),
             se_events,
         ) in self._group_stack_exception_events(events.get(stack.StackExceptionSampleEvent, [])):
             converter.convert_stack_exception_event(
@@ -590,6 +609,8 @@ class PprofExporter(exporter.Exporter):
                 thread_name,
                 trace_id,
                 span_id,
+                trace_resource,
+                trace_type,
                 frames,
                 nframes,
                 exc_type_name,
