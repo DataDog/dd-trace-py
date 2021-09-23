@@ -748,6 +748,13 @@ jobs:
       - run_tox_scenario:
           pattern: '^sanic_contrib-'
 
+  snowflake:
+    <<: &contrib_job
+    steps:
+      - run_test:
+          pattern: "snowflake"
+          snapshot: true
+
   starlette:
     <<: *machine_executor
     steps:
@@ -991,6 +998,7 @@ requires_tests: &requires_tests
     - requests
     - rq
     - sanic
+    - snowflake
     - sqlalchemy
     - sqlite3
     - starlette
@@ -1074,6 +1082,7 @@ workflows:
       - requests: *requires_base_venvs
       - rq: *requires_base_venvs
       - sanic: *requires_base_venvs
+      - snowflake: *requires_base_venv
       - starlette: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
       - sqlite3: *requires_base_venvs
