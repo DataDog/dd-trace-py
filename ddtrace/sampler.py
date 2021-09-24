@@ -183,7 +183,7 @@ class DatadogSampler(BasePrioritySampler):
                     rules = self._parse_rules_from_env_variable(env_sampling_rules)
                 except ValueError as e:
                     raise ValueError(
-                        "Unable to set DD_TRACE_SAMPLING_RULES={}".format(env_sampling_rules),
+                        "Unable to read DD_TRACE_SAMPLING_RULES={}".format(env_sampling_rules),
                         e,
                     )
             else:
@@ -224,10 +224,8 @@ class DatadogSampler(BasePrioritySampler):
                 # sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
                 try:
                     sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
-                except ValueError:
-                    raise ValueError(
-                        "SamplingRule() must be greater than or equal to 0.0 and less than or equal to 1.0", rule
-                    )
+                except ValueError as e:
+                    raise ValueError("Error creating sampling rule {}: {}".format(rule, e))
                 sampling_rules.append(sampling_rule)
         return sampling_rules
 
