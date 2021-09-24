@@ -4,7 +4,6 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import abc
 import json
-from json.decoder import JSONDecodeError
 from typing import Any
 from typing import Dict
 from typing import List
@@ -182,9 +181,10 @@ class DatadogSampler(BasePrioritySampler):
             if env_sampling_rules:
                 try:
                     rules = self._parse_rules_from_env_variable(env_sampling_rules)
-                except JSONDecodeError as e:
+                except ValueError as e:
                     raise ValueError(
-                        "Unable to set DD_TRACE_SAMPLING_RULES={%s} due to parsing configuration", env_sampling_rules, e
+                        "Unable to set DD_TRACE_SAMPLING_RULES={}".format(env_sampling_rules),
+                        e,
                     )
             else:
                 rules = []
@@ -221,15 +221,12 @@ class DatadogSampler(BasePrioritySampler):
                 sample_rate = float(rule["sample_rate"])
                 service = rule.get("service", SamplingRule.NO_RULE)
                 name = rule.get("name", SamplingRule.NO_RULE)
+                # sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
                 try:
                     sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
                 except ValueError:
                     raise ValueError(
-                        "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 \
-                         and less than or equal to 1.0".format(
-                            sample_rate
-                        ),
-                        rule,
+                        "SamplingRule() must be greater than or equal to 0.0 and less than or equal to 1.0", rule
                     )
                 sampling_rules.append(sampling_rule)
         return sampling_rules
