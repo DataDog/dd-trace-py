@@ -217,7 +217,7 @@ class DatadogSampler(BasePrioritySampler):
             json_rules = json.loads(rules)
             for rule in json_rules:
                 if "sample_rate" not in rule:
-                    raise KeyError("No sample_rate provided for the following rule {%s}", rule)
+                    raise KeyError("No sample_rate provided for the following rule: {}".format(rule))
                 sample_rate = float(rule["sample_rate"])
                 service = rule.get("service", SamplingRule.NO_RULE)
                 name = rule.get("name", SamplingRule.NO_RULE)
