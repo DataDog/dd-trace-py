@@ -25,6 +25,11 @@ from .internal.rate_limiter import RateLimiter
 from .utils.formats import get_env
 
 
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    JSONDecodeError = ValueError  # type: ignore
+
 if TYPE_CHECKING:
     from .span import Span
 
@@ -179,13 +184,7 @@ class DatadogSampler(BasePrioritySampler):
         if rules is None:
             env_sampling_rules = get_env("trace", "sampling_rules")
             if env_sampling_rules:
-                try:
-                    rules = self._parse_rules_from_env_variable(env_sampling_rules)
-                except ValueError as e:
-                    raise ValueError(
-                        "Unable to read DD_TRACE_SAMPLING_RULES={}".format(env_sampling_rules),
-                        e,
-                    )
+                rules = self._parse_rules_from_env_variable(env_sampling_rules)
             else:
                 rules = []
 
@@ -214,14 +213,16 @@ class DatadogSampler(BasePrioritySampler):
         sampling_rules = []
         if rules is not None:
             json_rules = []
-            json_rules = json.loads(rules)
+            try:
+                json_rules = json.loads(rules)
+            except JSONDecodeError:
+                raise ValueError("Unable to parse DD_TRACE_SAMPLING_RULES={}", rules)
             for rule in json_rules:
                 if "sample_rate" not in rule:
                     raise KeyError("No sample_rate provided for the following rule: {}".format(rule))
                 sample_rate = float(rule["sample_rate"])
                 service = rule.get("service", SamplingRule.NO_RULE)
                 name = rule.get("name", SamplingRule.NO_RULE)
-                # sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
                 try:
                     sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
                 except ValueError as e:
