@@ -28,6 +28,7 @@ from .utils.formats import get_env
 try:
     from json.decoder import JSONDecodeError
 except ImportError:
+    # handling python 2.X import error
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:
@@ -216,17 +217,17 @@ class DatadogSampler(BasePrioritySampler):
             try:
                 json_rules = json.loads(rules)
             except JSONDecodeError:
-                raise ValueError("Unable to parse DD_TRACE_SAMPLING_RULES={}", rules)
+                raise ValueError("Unable to parse DD_TRACE_SAMPLING_RULES={}".format(rules))
             for rule in json_rules:
                 if "sample_rate" not in rule:
-                    raise KeyError("No sample_rate provided for the following rule: {}".format(rule))
+                    raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
                 sample_rate = float(rule["sample_rate"])
                 service = rule.get("service", SamplingRule.NO_RULE)
                 name = rule.get("name", SamplingRule.NO_RULE)
                 try:
                     sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
                 except ValueError as e:
-                    raise ValueError("Error creating sampling rule {}: {}".format(rule, e))
+                    raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
                 sampling_rules.append(sampling_rule)
         return sampling_rules
 
@@ -344,7 +345,8 @@ class SamplingRule(BaseSampler):
         # Enforce sample rate constraints
         if not 0.0 <= sample_rate <= 1.0:
             raise ValueError(
-                "SamplingRule(sample_rate={!r}) must be greater than or equal to 0.0 and less than or equal to 1.0",
+                "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 ".format(sample_rate)
+                + "and less than or equal to 1.0"
             )
 
         self.sample_rate = sample_rate
