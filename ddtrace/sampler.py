@@ -345,8 +345,9 @@ class SamplingRule(BaseSampler):
         # Enforce sample rate constraints
         if not 0.0 <= sample_rate <= 1.0:
             raise ValueError(
-                "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 ".format(sample_rate)
-                + "and less than or equal to 1.0"
+                (
+                    "SamplingRule(sample_rate={}) must be greater than or equal to 0.0 and less than or equal to 1.0"
+                ).format(sample_rate)
             )
 
         self.sample_rate = sample_rate
