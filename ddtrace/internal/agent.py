@@ -13,6 +13,7 @@ from .uds import UDSHTTPConnection
 DEFAULT_HOSTNAME = "localhost"
 DEFAULT_TRACE_PORT = 8126
 DEFAULT_UNIX_TRACE_PATH = "/var/run/datadog/apm.socket"
+DEFAULT_UNIX_DSD_PATH = "/var/run/datadog/dsd.socket"
 DEFAULT_STATS_PORT = 8125
 DEFAULT_TRACE_URL = "http://%s:%s" % (DEFAULT_HOSTNAME, DEFAULT_TRACE_PORT)
 DEFAULT_TIMEOUT = 2.0
@@ -35,9 +36,12 @@ def get_trace_port(default=DEFAULT_TRACE_PORT):
     return default
 
 
-def get_stats_port():
-    # type: () -> int
-    return int(get_env("dogstatsd", "port", default=DEFAULT_STATS_PORT))  # type: ignore[arg-type]
+def get_stats_port(default=DEFAULT_STATS_PORT):
+    # type: (Union[T, int]) -> Union[T,int]
+    v =  get_env("dogstatsd", "port", default=default)
+    if v is not None:
+        return int(v)
+    return default
 
 
 def get_trace_agent_timeout():
@@ -69,9 +73,19 @@ def get_trace_url():
 
 def get_stats_url():
     # type: () -> str
-    return get_env(
-        "dogstatsd", "url", default="udp://{}:{}".format(get_hostname(), get_stats_port())
-    )  # type: ignore[return-value]
+    user_supplied_host = get_hostname(None) is not None
+    user_supplied_port = get_stats_port(None) is not None
+
+    url = get_env("dogstatsd", "url", default=None)  # type: ignore[return-value]
+
+    if not url:
+        if user_supplied_host or user_supplied_port:
+            url = "udp://{}:{}".format(get_hostname(), get_stats_port())
+        elif os.path.exists("/var/run/datadog/dsd.socket"):
+            url = "unix://%s" % (DEFAULT_UNIX_DSD_PATH)
+        else:
+            url = "udp://{}:{}".format(get_hostname(), get_stats_port())
+    return url
 
 
 def verify_url(url):
