@@ -17,9 +17,13 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+from ddtrace.utils.deprecation import deprecation
 
 
-USER_REJECT = USER_REJECT
-AUTO_REJECT = AUTO_REJECT
-AUTO_KEEP = AUTO_KEEP
-USER_KEEP = USER_KEEP
+deprecation(
+    name="ddtrace.ext.priority",
+    message="Use `ddtrace.constant` package instead",
+    version="1.0.0",
+)
+
+__all__ = ["USER_REJECT", "AUTO_REJECT", "AUTO_KEEP", "USER_KEEP"]
