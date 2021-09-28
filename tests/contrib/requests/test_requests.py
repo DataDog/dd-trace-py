@@ -11,11 +11,12 @@ import six
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
 from ddtrace.contrib.requests import patch
 from ddtrace.contrib.requests import unpatch
 from ddtrace.contrib.requests.connection import _extract_hostname
 from ddtrace.contrib.requests.connection import _extract_query_string
-from ddtrace.ext import errors
 from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -205,10 +206,10 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_is_measured(s)
         assert s.get_tag(http.METHOD) == "GET"
         assert s.error == 1
-        assert "Failed to establish a new connection" in s.get_tag(errors.MSG)
-        assert "Failed to establish a new connection" in s.get_tag(errors.STACK)
-        assert "Traceback (most recent call last)" in s.get_tag(errors.STACK)
-        assert "requests.exception" in s.get_tag(errors.TYPE)
+        assert "Failed to establish a new connection" in s.get_tag(ERROR_MSG)
+        assert "Failed to establish a new connection" in s.get_tag(ERROR_STACK)
+        assert "Traceback (most recent call last)" in s.get_tag(ERROR_STACK)
+        assert "requests.exception" in s.get_tag(ERROR_MSG)
 
     def test_500(self):
         out = self.session.get(URL_500)
