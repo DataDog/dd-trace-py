@@ -4,6 +4,7 @@ import os
 from typing import Any
 from typing import DefaultDict
 from typing import Tuple
+from typing import cast
 
 from ..utils.deprecation import deprecation
 from ..utils.formats import get_env
@@ -32,7 +33,7 @@ def get_logger(name):
     """
     # DEV: `logging.Logger.manager` refers to the single root `logging.Manager` instance
     #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1824-L1826  # noqa
-    manager = logging.Logger.manager  # type: ignore[attr-defined]
+    manager = logging.Logger.manager
 
     # If the logger does not exist yet, create it
     # DEV: `Manager.loggerDict` is a dict mapping logger name to logger
@@ -42,7 +43,7 @@ def get_logger(name):
         manager.loggerDict[name] = DDLogger(name=name)
 
     # Get our logger
-    logger = manager.loggerDict[name]
+    logger = cast(DDLogger, manager.loggerDict[name])
 
     # If this log manager has a `_fixupParents` method then call it on our logger
     # DEV: This helper is used to ensure our logger has an appropriate `Logger.parent` set,
@@ -50,9 +51,9 @@ def get_logger(name):
     #   https://github.com/python/cpython/blob/7c7839329c2c66d051960ab1df096aed1cc9343e/Lib/logging/__init__.py#L1272-L1294  # noqa
     # DEV: `_fixupParents` has been around for awhile, but add the `hasattr` guard... just in case.
     if hasattr(manager, "_fixupParents"):
-        manager._fixupParents(logger)
+        manager._fixupParents(logger)  # type: ignore[attr-defined]
 
-    # Return out logger
+    # Return our logger
     return logger
 
 

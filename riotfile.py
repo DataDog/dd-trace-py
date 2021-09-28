@@ -127,9 +127,13 @@ venv = Venv(
             pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
+            create=True,
             pkgs={
-                # TODO: https://mypy-lang.blogspot.com/2021/05/the-upcoming-switch-to-modular-typeshed.html
-                "mypy": "<0.900",
+                "mypy": latest,
+                "types-attrs": latest,
+                "types-protobuf": latest,
+                "types-setuptools": latest,
+                "types-six": latest,
             },
         ),
         Venv(
@@ -933,6 +937,39 @@ venv = Venv(
             ],
         ),
         Venv(
+            # aiobotocore: aiobotocore>=1.0 not yet supported
+            name="aiobotocore",
+            command="pytest {cmdargs} tests/contrib/aiobotocore",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    pkgs={
+                        "aiobotocore": ["~=0.2", "~=0.3", "~=0.4"],
+                    },
+                ),
+                # aiobotocore 0.2 and 0.4 do not work because they use async as a reserved keyword
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.8"),
+                    pkgs={
+                        "aiobotocore": ["~=0.5", "~=0.7", "~=0.8", "~=0.9"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "aiobotocore": ["~=0.10", "~=0.11"],
+                    },
+                ),
+                # aiobotocore dropped Python 3.5 support in 0.12
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "aiobotocore": "~=0.12",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="fastapi",
             command="pytest {cmdargs} tests/contrib/fastapi",
             venvs=[
@@ -1129,6 +1166,14 @@ venv = Venv(
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
+        ),
+        Venv(
+            name="rediscluster",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/rediscluster",
+            pkgs={
+                "redis-py-cluster": [">=1.3,<1.4", ">=2.0,<2.1", ">=2.1,<2.2", latest],
+            },
         ),
         Venv(
             name="redis",
