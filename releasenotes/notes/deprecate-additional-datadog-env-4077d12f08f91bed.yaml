@@ -6,6 +6,5 @@ deprecations:
       - [Deprecated environment variable] | [Recommended environment variable]
       - For `DATADOG_TRACE_AGENT_HOSTNAME`, use `DD_AGENT_HOST`
       - For `DATADOG_TRACE_AGENT_PORT` use `DD_AGENT_PORT`
-      - For `DATADOG_PRIORITY_SAMPLING`, `DD_TRACE_SAMPLE_RATE 
-      <https://docs.datadoghq.com/tracing/trace_retention_and_ingestion/#recommended-setting-the-global-ingestion-rate-to-100>`_
+      - For `DATADOG_PRIORITY_SAMPLING`, `follow ingestion controls <https://docs.datadoghq.com/tracing/trace_retention_and_ingestion/#recommended-setting-the-global-ingestion-rate-to-100>`_
       - For `DATADOG_PATCH_MODULES`, use `DD_PATCH_MODULES`
