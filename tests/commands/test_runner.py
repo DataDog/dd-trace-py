@@ -68,13 +68,21 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_env_enabling(self):
         """
-        DATADOG_TRACE_ENABLED=false allows disabling of the global tracer
+        DATADOG_TRACE_ENABLED=false or DD_TRACE_ENABLED=false allows disabling of the global tracer
         """
         with self.override_env(dict(DATADOG_TRACE_ENABLED="false")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_disabled.py"])
             assert out.startswith(b"Test success")
 
         with self.override_env(dict(DATADOG_TRACE_ENABLED="true")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_enabled.py"])
+            assert out.startswith(b"Test success")
+
+        with self.override_env(dict(DD_TRACE_ENABLED="false")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_disabled.py"])
+            assert out.startswith(b"Test success")
+
+        with self.override_env(dict(DD_TRACE_ENABLED="true")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_enabled.py"])
             assert out.startswith(b"Test success")
 
@@ -126,10 +134,14 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_host_port_from_env(self):
         """
-        DATADOG_TRACE_AGENT_HOSTNAME|PORT point to the tracer
+        DD_TRACE_AGENT_HOSTNAME|PORT and DATADOG_TRACE_AGENT_HOSTNAME|PORT point to the tracer
         to the correct host/port for submission
         """
         with self.override_env(dict(DATADOG_TRACE_AGENT_HOSTNAME="172.10.0.1", DATADOG_TRACE_AGENT_PORT="8120")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_hostname.py"])
+            assert out.startswith(b"Test success")
+
+        with self.override_env(dict(DD_TRACE_AGENT_HOSTNAME="172.10.0.1", DD_TRACE_AGENT_PORT="8120")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_hostname.py"])
             assert out.startswith(b"Test success")
 
@@ -188,9 +200,13 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_priority_sampling_from_env(self):
         """
-        DATADOG_PRIORITY_SAMPLING enables Distributed Sampling
+        DD_PRIORITY_SAMPLING and DATADOG_PRIORITY_SAMPLING enable Distributed Sampling
         """
         with self.override_env(dict(DATADOG_PRIORITY_SAMPLING="True")):
+            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_priority_sampling.py"])
+            assert out.startswith(b"Test success")
+
+        with self.override_env(dict(DD_PRIORITY_SAMPLING="True")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_priority_sampling.py"])
             assert out.startswith(b"Test success")
 

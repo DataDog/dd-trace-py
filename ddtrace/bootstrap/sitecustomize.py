@@ -60,7 +60,7 @@ EXTRA_PATCHED_MODULES = {
 
 
 def update_patched_modules():
-    modules_to_patch = os.environ.get("DATADOG_PATCH_MODULES")
+    modules_to_patch = get_env("patch", "modules")
     if not modules_to_patch:
         return
 
@@ -72,12 +72,14 @@ def update_patched_modules():
 try:
     from ddtrace import tracer
 
-    # Respect DATADOG_* environment variables in global tracer configuration
+    # Respect DATADOG_* environment variables in global tracer configuration but add deprecation warning
     # TODO: these variables are deprecated; use utils method and update our documentation
     # correct prefix should be DD_*
-    hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME"))
-    port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
-    priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
+
+    dd_hostname = get_env("trace", "agent", "hostname")
+    hostname = os.environ.get("DD_AGENT_HOST", dd_hostname)
+    port = get_env("trace", "agent", "port")
+    priority_sampling = get_env("priority", "sampling")
     profiling = asbool(os.environ.get("DD_PROFILING_ENABLED", False))
 
     if profiling:
@@ -88,7 +90,8 @@ try:
 
     opts = {}  # type: Dict[str, Any]
 
-    if asbool(os.environ.get("DATADOG_TRACE_ENABLED", True)):
+    dd_trace_enabled = get_env("trace", "enabled")
+    if asbool(dd_trace_enabled) != False:
         trace_enabled = True
     else:
         trace_enabled = False
