@@ -90,8 +90,8 @@ try:
 
     opts = {}  # type: Dict[str, Any]
 
-    dd_trace_enabled = get_env("trace", "enabled")
-    if asbool(dd_trace_enabled) is not False:
+    dd_trace_enabled = get_env("trace", "enabled", default=True)
+    if asbool(dd_trace_enabled):
         trace_enabled = True
     else:
         trace_enabled = False
