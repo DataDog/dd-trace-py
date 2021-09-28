@@ -13,6 +13,7 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.requests import patch
 from ddtrace.contrib.requests import unpatch
 from ddtrace.contrib.requests.connection import _extract_hostname
@@ -209,7 +210,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert "Failed to establish a new connection" in s.get_tag(ERROR_MSG)
         assert "Failed to establish a new connection" in s.get_tag(ERROR_STACK)
         assert "Traceback (most recent call last)" in s.get_tag(ERROR_STACK)
-        assert "requests.exception" in s.get_tag(ERROR_MSG)
+        assert "requests.exception" in s.get_tag(ERROR_TYPE)
 
     def test_500(self):
         out = self.session.get(URL_500)
