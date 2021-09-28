@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    Moved `ddtrace.ext.priority` constants into `ddtrace.constants` module.
