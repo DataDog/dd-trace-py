@@ -38,7 +38,7 @@ def unpatch():
     if getattr(snowflake.connector, "_datadog_patch", False):
         setattr(snowflake.connector, "_datadog_patch", False)
 
-        unwrap(snowflake.connector.SnowflakeConnection.connet)
+        unwrap(snowflake.connector.SnowflakeConnection.connect)
 
 
 def patched_connect(connect_func, _, args, kwargs):
