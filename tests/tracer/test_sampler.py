@@ -261,6 +261,100 @@ def test_sampling_rule_init():
     assert rule.name == name_regex
 
 
+def test_sampling_rule_init_via_env():
+    # Testing single sampling rule
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz","name":"abc"}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0
+        assert sampling_rule[0].service == "xyz"
+        assert sampling_rule[0].name == "abc"
+        assert len(sampling_rule) == 1
+
+    # Testing multiple sampling rules
+    with override_env(
+        dict(
+            DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz","name":"abc"}, \
+            {"sample_rate":0.5,"service":"my-service","name":"my-name"}]'
+        )
+    ):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0
+        assert sampling_rule[0].service == "xyz"
+        assert sampling_rule[0].name == "abc"
+
+        assert sampling_rule[1].sample_rate == 0.5
+        assert sampling_rule[1].service == "my-service"
+        assert sampling_rule[1].name == "my-name"
+        assert len(sampling_rule) == 2
+
+    # Testing for only Sample rate being set
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0
+        assert sampling_rule[0].service == SamplingRule.NO_RULE
+        assert sampling_rule[0].name == SamplingRule.NO_RULE
+        assert len(sampling_rule) == 1
+
+    # Testing for no name being set
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz"}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0
+        assert sampling_rule[0].service == "xyz"
+        assert sampling_rule[0].name == SamplingRule.NO_RULE
+        assert len(sampling_rule) == 1
+
+    # Testing for no service being set
+    with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"name":"abc"}]')):
+        sampling_rule = DatadogSampler().rules
+        assert sampling_rule[0].sample_rate == 1.0
+        assert sampling_rule[0].service == SamplingRule.NO_RULE
+        assert sampling_rule[0].name == "abc"
+        assert len(sampling_rule) == 1
+
+    # The Following error handling test use assertions on the json items instead of asserting on
+    # the returned stringdue to older version of python not keeping load order in dictionaires
+
+    # Testing for Sample rate greater than 1.0
+    with pytest.raises(ValueError) as excinfo:
+        with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":2.0,"service":"xyz","name":"abc"}]')):
+            sampling_rule = DatadogSampler().rules
+    assert str(excinfo.value).endswith(
+        "SamplingRule(sample_rate=2.0) must be greater than or equal to 0.0 and less than or equal to 1.0"
+    )
+    assert '"sample_rate": 2.0' in str(excinfo.value)
+    assert '"service": "xyz"' in str(excinfo.value)
+    assert '"name": "abc"' in str(excinfo.value)
+
+    # Testing for no Sample rate
+    with pytest.raises(KeyError) as excinfo:
+        with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"service":"xyz","name":"abc"}]')):
+            sampling_rule = DatadogSampler().rules
+    assert str(excinfo.value).startswith("'No sample_rate provided for sampling rule: ")
+    assert '"service": "xyz"' in str(excinfo.value)
+    assert '"name": "abc"' in str(excinfo.value)
+
+    # Testing for Invalid JSON
+    with pytest.raises(ValueError) as excinfo:
+        with override_env(dict(DD_TRACE_SAMPLING_RULES='["sample_rate":1.0,"service":"xyz","name":"abc"]')):
+            sampling_rule = DatadogSampler().rules
+    assert 'Unable to parse DD_TRACE_SAMPLING_RULES=["sample_rate":1.0,"service":"xyz","name":"abc"]' == str(
+        excinfo.value
+    )
+
+    # # Testing invalid rule with multiple rules defined
+    with pytest.raises(KeyError) as excinfo:
+        with override_env(
+            dict(
+                DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz","name":"abc"},'
+                + '{"service":"my-service","name":"my-name"}]'
+            )
+        ):
+            sampling_rule = DatadogSampler().rules
+    assert str(excinfo.value).startswith("'No sample_rate provided for sampling rule: ")
+    assert '"service": "my-service"' in str(excinfo.value)
+    assert '"name": "my-name"' in str(excinfo.value)
+
+
 @pytest.mark.parametrize(
     "span,rule,expected",
     [
