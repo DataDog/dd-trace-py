@@ -239,7 +239,7 @@ class DatadogSampler(BasePrioritySampler):
 
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None
-        span.context.sampling_priority = priority
+        span._trace_context.sampling_priority = priority
         span.sampled = priority is AUTO_KEEP
 
     def sample(self, span):

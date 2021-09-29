@@ -53,10 +53,10 @@ class Context(object):
                 )
         return False
 
-    def _with_span(self, span):
-        # type: (Span) -> Context
+    def _copy(self):
+        # type: () -> Context
         """Return a shallow copy of the context with the given span."""
-        ctx = self.__class__(trace_id=span.trace_id, span_id=span.span_id)
+        ctx = self.__class__(trace_id=self.trace_id, span_id=self.span_id)
         ctx._lock = self._lock
         ctx._meta = self._meta
         ctx._metrics = self._metrics

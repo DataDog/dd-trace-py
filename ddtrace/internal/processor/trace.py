@@ -78,7 +78,7 @@ class TraceTagsProcessor(TraceProcessor):
             return trace
 
         chunk_root = trace[0]
-        ctx = chunk_root._context
+        ctx = chunk_root._trace_context
         if not ctx:
             return trace
 

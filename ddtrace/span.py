@@ -71,6 +71,7 @@ class Span(object):
         # Sampler attributes
         "sampled",
         # Internal attributes
+        "_trace_context",
         "_context",
         "_local_root",
         "_parent",
@@ -147,7 +148,12 @@ class Span(object):
         # sampling
         self.sampled = True  # type: bool
 
-        self._context = context._with_span(self) if context else None  # type: Optional[Context]
+        if context is None:
+            self._trace_context = Context(trace_id=trace_id, span_id=span_id)  # type: Context
+            self._context = self._trace_context  # type: Optional[Context]
+        else:
+            self._trace_context = context
+            self._context = None
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
@@ -295,10 +301,10 @@ class Span(object):
             return
 
         elif key == MANUAL_KEEP_KEY:
-            self.context.sampling_priority = USER_KEEP
+            self._trace_context.sampling_priority = USER_KEEP
             return
         elif key == MANUAL_DROP_KEY:
-            self.context.sampling_priority = USER_REJECT
+            self._trace_context.sampling_priority = USER_REJECT
             return
         elif key == SERVICE_KEY:
             self.service = value
@@ -513,7 +519,10 @@ class Span(object):
         # type: () -> Context
         """Return the trace context for this span."""
         if self._context is None:
-            self._context = Context(trace_id=self.trace_id, span_id=self.span_id)
+            ctx = self._trace_context._copy()
+            ctx.trace_id = self.trace_id
+            ctx.span_id = self.span_id
+            self._context = ctx
         return self._context
 
     def __enter__(self):
