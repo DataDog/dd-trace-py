@@ -374,7 +374,7 @@ jobs:
     steps:
       - run_tox_scenario:
           store_coverage: false
-          pattern: '^py..-profile'
+          pattern: '^py.\+-profile'
 
   integration_agent5:
     <<: *machine_executor
