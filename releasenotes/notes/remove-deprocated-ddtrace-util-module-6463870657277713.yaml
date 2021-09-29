@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    The deprecated ``ddtrace.util`` module has been removed. The ``ddtrace.utils`` module should be used instead.
