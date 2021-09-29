@@ -278,7 +278,7 @@ def test_v2XX_middleware(client, test_spans):
         "django.middleware.security.SecurityMiddleware.process_request",
         "django.middleware.security.SecurityMiddleware.process_response",
         "tests.contrib.django.middleware.ClsMiddleware.__call__",
-        "tests.contrib.django.middleware.EverythingMiddleware",
+        "tests.contrib.django.middleware.fn_middleware",
         "tests.contrib.django.middleware.EverythingMiddleware.__call__",
         "tests.contrib.django.middleware.EverythingMiddleware.process_view",
     }
