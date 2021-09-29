@@ -252,19 +252,24 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
             base = ".".join(split[:-1])
             attr = split[-1]
 
-            # Function-based middleware is a factory which returns a handler function for requests.
-            # So instead of tracing the factory, we want to trace its returned value.
-            # We wrap the factory to return a traced version of the handler function.
-            def wrapped_factory(func, instance, args, kwargs):
-                # r is the middleware handler function returned from the factory
-                r = func(*args, **kwargs)
-                if r:
-                    return wrapt.FunctionWrapper(r, traced_func(django, "django.middleware", resource=mw_path))
-                # If r is an empty middleware function (i.e. returns None), don't wrap since NoneType cannot be called
-                else:
-                    return r
+            # DEV: We need to have a closure over `mw_path` for the resource name or else
+            # all function based middleware will share the same resource name
+            def _wrapper(resource):
+                # Function-based middleware is a factory which returns a handler function for requests.
+                # So instead of tracing the factory, we want to trace its returned value.
+                # We wrap the factory to return a traced version of the handler function.
+                def wrapped_factory(func, instance, args, kwargs):
+                    # r is the middleware handler function returned from the factory
+                    r = func(*args, **kwargs)
+                    if r:
+                        return wrapt.FunctionWrapper(r, traced_func(django, "django.middleware", resource=resource))
+                    # If r is an empty middleware function (i.e. returns None), don't wrap since NoneType cannot be called
+                    else:
+                        return r
 
-            trace_utils.wrap(base, attr, wrapped_factory)
+                return wrapped_factory
+
+            trace_utils.wrap(base, attr, _wrapper(resource=mw_path))
 
         # Instrument class-based middleware
         elif isclass(mw):

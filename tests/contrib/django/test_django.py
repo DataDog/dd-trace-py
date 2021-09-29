@@ -449,6 +449,15 @@ def test_empty_middleware_func_is_raised_in_django(client, test_spans):
             client.get("/")
 
 
+@pytest.mark.skipif(django.VERSION < (1, 10, 0), reason="Middleware functions only implemented since 1.10.0")
+def test_multiple_fn_middleware_resource_names(client, test_spans):
+    with modify_settings(MIDDLEWARE={"append": "tests.contrib.django.middleware.fn2_middleware"}):
+        client.get("/")
+
+    assert test_spans.find_span(name="django.middleware", resource="tests.contrib.django.middleware.fn_middleware")
+    assert test_spans.find_span(name="django.middleware", resource="tests.contrib.django.middleware.fn2_middleware")
+
+
 """
 View tests
 """
