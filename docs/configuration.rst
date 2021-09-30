@@ -144,6 +144,13 @@ below:
      - Float
      - 1.0
      - A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
+   
+   * - ``DD_TRACE_SAMPLING_RULES``
+     - JSON array
+     -
+     - A JSON array of objects. Each object must have a “sample_rate”, and the “name” and “service” fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive). 
+       **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service"}]'``
+       **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
 
        .. _dd-trace-header-tags:
    * - ``DD_TRACE_HEADER_TAGS``
