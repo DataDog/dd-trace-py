@@ -1207,6 +1207,9 @@ venv = Venv(
         Venv(
             name="snowflake",
             command="pytest {cmdargs} tests/contrib/snowflake",
+            pkgs={
+                "responses": latest,
+            },
             venvs=[
                 Venv(
                     # 2.2.0 dropped 2.7 support
