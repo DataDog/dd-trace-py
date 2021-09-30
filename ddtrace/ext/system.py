@@ -7,7 +7,7 @@ from ddtrace.utils.deprecation import deprecation
 
 deprecation(
     name="ddtrace.ext.system",
-    message="Use `ddtrace.constant` package instead",
+    message="Use `ddtrace.constants` module instead",
     version="1.0.0",
 )
 
