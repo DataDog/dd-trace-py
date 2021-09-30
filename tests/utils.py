@@ -870,17 +870,16 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
             os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
                 ["%s:%s" % (k, v) for k, v in existing_headers.items()]
             )
+
+        try:
+            conn.request("GET", "/test/session/start?test_session_token=%s" % token)
+        except Exception as e:
+            pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
         else:
-            # Signal the start of this test case to the test agent.
-            try:
-                conn.request("GET", "/test/session/start?test_session_token=%s" % token)
-            except Exception as e:
-                pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
-            else:
-                r = conn.getresponse()
-                if r.status != 200:
-                    # The test agent returns nice error messages we can forward to the user.
-                    pytest.fail(to_unicode(r.read()), pytrace=False)
+            r = conn.getresponse()
+            if r.status != 200:
+                # The test agent returns nice error messages we can forward to the user.
+                pytest.fail(to_unicode(r.read()), pytrace=False)
 
         try:
             yield SnapshotTest(
