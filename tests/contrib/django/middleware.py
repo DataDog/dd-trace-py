@@ -42,6 +42,16 @@ def fn_middleware(get_response):
     return mw
 
 
+def fn2_middleware(get_response):
+    """Function factory middleware."""
+
+    def mw(request):
+        response = get_response(request)
+        return response
+
+    return mw
+
+
 def empty_middleware(get_response):
     """Empty function middleware for regression testing."""
 
