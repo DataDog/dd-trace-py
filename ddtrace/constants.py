@@ -24,12 +24,7 @@ LOG_SPAN_KEY = "__datadog_log_span"
 
 ERROR_MSG = "error.msg"  # a string representing the error message
 ERROR_TYPE = "error.type"  # a string representing the type of the error
-ERROR_STACK = "error.stack"  # a human readable version of the stack. beta.
-
-# shorthand for -----^
-MSG = ERROR_MSG
-TYPE = ERROR_TYPE
-STACK = ERROR_STACK
+ERROR_STACK = "error.stack"  # a human readable version of the stack.
 
 # Use this to explicitly inform the backend that a trace should be rejected and not stored.
 USER_REJECT = -1

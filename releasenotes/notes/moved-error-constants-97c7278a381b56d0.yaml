@@ -6,6 +6,7 @@ upgrade:
       
 deprecations:
   - |
-    Moved ``ddtrace.ext.errors`` constants into ``ddtrace.constants`` module. 
-    Function ``get_traceback()`` in ddtrace.ext.errors is now deprecated and will be removed.
+    Moved ``ddtrace.ext.errors`` constants into ``ddtrace.constants`` module & will be removed in v1.0. 
+    Shorthand error constants in ``ddtrace.ext.errors`` will be removed in v1.0.
+    Function ``get_traceback()`` in ddtrace.ext.errors is now deprecated and will be removed v1.0.
 
