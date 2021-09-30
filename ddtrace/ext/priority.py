@@ -13,12 +13,17 @@ context.sampling_priority = USER_REJECT
 # Indicate to keep the trace
 span.context.sampling_priority = USER_KEEP
 """
+from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import AUTO_REJECT
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
+from ddtrace.utils.deprecation import deprecation
 
-# Use this to explicitly inform the backend that a trace should be rejected and not stored.
-USER_REJECT = -1
-# Used by the builtin sampler to inform the backend that a trace should be rejected and not stored.
-AUTO_REJECT = 0
-# Used by the builtin sampler to inform the backend that a trace should be kept and stored.
-AUTO_KEEP = 1
-# Use this to explicitly inform the backend that a trace should be kept and stored.
-USER_KEEP = 2
+
+deprecation(
+    name="ddtrace.ext.priority",
+    message="Use `ddtrace.constants` module instead",
+    version="1.0.0",
+)
+
+__all__ = ["USER_REJECT", "AUTO_REJECT", "AUTO_KEEP", "USER_KEEP"]
