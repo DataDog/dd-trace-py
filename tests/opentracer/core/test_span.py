@@ -16,7 +16,7 @@ def nop_tracer():
 
 @pytest.fixture
 def nop_span_ctx():
-    from ddtrace.ext.priority import AUTO_KEEP
+    from ddtrace.constants import AUTO_KEEP
     from ddtrace.opentracer.span_context import SpanContext
 
     return SpanContext(sampling_priority=AUTO_KEEP)

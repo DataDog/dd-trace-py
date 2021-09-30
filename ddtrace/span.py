@@ -23,12 +23,13 @@ from .constants import NUMERIC_TAGS
 from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
 from .constants import SPAN_MEASURED_KEY
+from .constants import USER_KEEP
+from .constants import USER_REJECT
 from .constants import VERSION_KEY
 from .context import Context
 from .ext import SpanTypes
 from .ext import http
 from .ext import net
-from .ext import priority
 from .internal import _rand
 from .internal.compat import NumericType
 from .internal.compat import StringIO
@@ -296,10 +297,10 @@ class Span(object):
             return
 
         elif key == MANUAL_KEEP_KEY:
-            self.context.sampling_priority = priority.USER_KEEP
+            self.context.sampling_priority = USER_KEEP
             return
         elif key == MANUAL_DROP_KEY:
-            self.context.sampling_priority = priority.USER_REJECT
+            self.context.sampling_priority = USER_REJECT
             return
         elif key == SERVICE_KEY:
             self.service = value
