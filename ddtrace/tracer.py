@@ -21,6 +21,8 @@ from ddtrace.utils.deprecation import deprecation
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
+from .constants import AUTO_KEEP
+from .constants import AUTO_REJECT
 from .constants import ENV_KEY
 from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
@@ -28,6 +30,7 @@ from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
+from .ext import system
 from .ext.priority import AUTO_KEEP
 from .ext.priority import AUTO_REJECT
 from .internal import agent

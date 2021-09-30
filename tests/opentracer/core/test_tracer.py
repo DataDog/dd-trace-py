@@ -11,7 +11,7 @@ import pytest
 
 import ddtrace
 from ddtrace import Tracer as DDTracer
-from ddtrace.ext.priority import AUTO_KEEP
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.opentracer import Tracer
 from ddtrace.opentracer import set_global_tracer
 from ddtrace.opentracer.span_context import SpanContext
