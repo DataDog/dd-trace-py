@@ -1,1 +1,32 @@
-[]
+[[
+  {
+    "name": "mariadb.query",
+    "service": "mariadb",
+    "resource": "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 1,
+    "meta": {
+      "db.name": "test",
+      "db.user": "test",
+      "error.msg": "Duplicate entry 'foo' for key 'PRIMARY'",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/dbapi/__init__.py\", line 75, in _trace_method\n    return method(*args, **kwargs)\nmariadb.IntegrityError: Duplicate entry 'foo' for key 'PRIMARY'\n",
+      "error.type": "mariadb.IntegrityError",
+      "out.host": "127.0.0.1",
+      "runtime-id": "afb83c6e2adf41f9a723786fdb1b223b",
+      "sql.executemany": "true"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": -1,
+      "out.port": 3306,
+      "system.pid": 5857
+    },
+    "duration": 4314000,
+    "start": 1633039295004445000
+  }]]
