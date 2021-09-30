@@ -16,17 +16,17 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://testserver/partial-view/",
-      "runtime-id": "db92d6832c3041cfa3df7a6f12339dd1"
+      "runtime-id": "13f491646b414faa8894b9ede5d22f5a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 7028
+      "system.pid": 3092
     },
-    "duration": 5299000,
-    "start": 1632170851497275000
+    "duration": 3702000,
+    "start": 1633035353348497000
   },
      {
        "name": "django.middleware",
@@ -38,8 +38,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 170000,
-       "start": 1632170851497513000
+       "duration": 156000,
+       "start": 1633035353348751000
      },
      {
        "name": "django.middleware",
@@ -51,8 +51,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 143000,
-       "start": 1632170851497755000
+       "duration": 136000,
+       "start": 1633035353348980000
      },
      {
        "name": "django.middleware",
@@ -64,8 +64,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 47000,
-       "start": 1632170851498110000
+       "duration": 170000,
+       "start": 1633035353349249000
      },
      {
        "name": "django.middleware",
@@ -77,8 +77,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 2149000,
-       "start": 1632170851498285000
+       "duration": 41000,
+       "start": 1633035353349570000
      },
      {
        "name": "django.middleware",
@@ -90,8 +90,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 105000,
-       "start": 1632170851500520000
+       "duration": 85000,
+       "start": 1633035353349810000
      },
      {
        "name": "django.middleware",
@@ -103,8 +103,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 42000,
-       "start": 1632170851500688000
+       "duration": 39000,
+       "start": 1633035353349956000
      },
      {
        "name": "django.middleware",
@@ -116,8 +116,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 242000,
-       "start": 1632170851500928000
+       "duration": 306000,
+       "start": 1633035353350193000
      },
      {
        "name": "django.view",
@@ -129,8 +129,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 86000,
-       "start": 1632170851501260000
+       "duration": 83000,
+       "start": 1633035353350582000
      },
      {
        "name": "django.middleware",
@@ -142,8 +142,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 43000,
-       "start": 1632170851501590000
+       "duration": 53000,
+       "start": 1633035353350726000
      },
      {
        "name": "django.middleware",
@@ -155,8 +155,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 116000,
-       "start": 1632170851501696000
+       "duration": 50000,
+       "start": 1633035353350906000
      },
      {
        "name": "django.middleware",
@@ -169,7 +169,7 @@
        "meta": {},
        "metrics": {},
        "duration": 40000,
-       "start": 1632170851501870000
+       "start": 1633035353351013000
      },
      {
        "name": "django.middleware",
@@ -181,8 +181,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 38000,
-       "start": 1632170851501967000
+       "duration": 39000,
+       "start": 1633035353351169000
      },
      {
        "name": "django.middleware",
@@ -194,8 +194,8 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 95000,
-       "start": 1632170851502061000
+       "duration": 109000,
+       "start": 1633035353351351000
      },
      {
        "name": "django.middleware",
@@ -207,6 +207,6 @@
        "error": 0,
        "meta": {},
        "metrics": {},
-       "duration": 47000,
-       "start": 1632170851502215000
+       "duration": 113000,
+       "start": 1633035353351517000
      }]]

@@ -11,7 +11,7 @@
     "meta": {
       "django.db.alias": "postgres",
       "django.db.vendor": "postgresql",
-      "runtime-id": "edc542b8318e44b297e54d3a6b1f5166"
+      "runtime-id": "13f491646b414faa8894b9ede5d22f5a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,10 +20,10 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "sql.rows": 1,
-      "system.pid": 4594
+      "system.pid": 3092
     },
-    "duration": 1114700,
-    "start": 1632164474134084600
+    "duration": 1024000,
+    "start": 1633035332504014000
   },
      {
        "name": "postgres.query",
@@ -46,6 +46,6 @@
          "out.port": 5432,
          "sql.rows": 1
        },
-       "duration": 777100,
-       "start": 1632164474134301700
+       "duration": 793000,
+       "start": 1633035332504182000
      }]]
