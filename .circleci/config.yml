@@ -1082,7 +1082,7 @@ workflows:
       - requests: *requires_base_venvs
       - rq: *requires_base_venvs
       - sanic: *requires_base_venvs
-      - snowflake: *requires_base_venv
+      - snowflake: *requires_base_venvs
       - starlette: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
       - sqlite3: *requires_base_venvs
