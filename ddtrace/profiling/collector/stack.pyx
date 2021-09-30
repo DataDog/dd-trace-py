@@ -289,7 +289,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
 
 
 
-cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links):
+cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
 
     if ignore_profiler:
         # Do not use `threading.enumerate` to not mess with locking (gevent!)
@@ -331,7 +331,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
             sampling_period=int(interval * 1e9),
         )
 
-        event.set_trace_info(span)
+        event.set_trace_info(span, collect_endpoint)
 
         stack_events.append(event)
 
@@ -350,7 +350,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 exc_type=exc_type,
             )
 
-            exc_event.set_trace_info(span)
+            exc_event.set_trace_info(span, collect_endpoint)
 
             exc_events.append(exc_event)
 
@@ -431,6 +431,7 @@ class StackCollector(collector.PeriodicCollector):
     max_time_usage_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 1, float))
     nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
+    endpoint_collection_enabled = attr.ib(factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool))
     tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False)
@@ -469,7 +470,7 @@ class StackCollector(collector.PeriodicCollector):
         self._last_wall_time = now
 
         all_events = stack_collect(
-            self.ignore_profiler, self._thread_time, self.nframes, self.interval, wall_time, self._thread_span_links,
+            self.ignore_profiler, self._thread_time, self.nframes, self.interval, wall_time, self._thread_span_links, self.endpoint_collection_enabled
         )
 
         used_wall_time_ns = compat.monotonic_ns() - now

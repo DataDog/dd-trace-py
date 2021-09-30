@@ -18,7 +18,7 @@ from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.encoding import JSONEncoder
-from ddtrace.internal.encoding import MsgpackEncoder
+from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import wrapt
@@ -426,7 +426,7 @@ class DummyWriter(AgentWriter):
         self.spans = []
         self.traces = []
         self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = MsgpackEncoder(4 << 20, 4 << 20)
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
