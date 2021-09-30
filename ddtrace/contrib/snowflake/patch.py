@@ -1,5 +1,3 @@
-from typing import Any
-
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.vendor import wrapt
