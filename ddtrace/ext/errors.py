@@ -18,7 +18,7 @@ __all__ = [ERROR_MSG, ERROR_TYPE, ERROR_STACK, MSG, TYPE, STACK]
 
 deprecation(
     name="ddtrace.ext.errors",
-    message="Use `ddtrace.constant` package instead",
+    message="Use `ddtrace.constants` module instead",
     version="1.0.0",
 )
 
