@@ -15,12 +15,16 @@ import pytest
 import six
 
 import ddtrace
+from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.ext import priority
@@ -1356,14 +1360,14 @@ def test_manual_keep(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_KEEP
 
 
 def test_manual_keep_then_drop(tracer, test_spans):
@@ -1373,7 +1377,7 @@ def test_manual_keep_then_drop(tracer, test_spans):
             child.set_tag(MANUAL_KEEP_KEY)
         root.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_REJECT
 
 
 def test_manual_drop(tracer, test_spans):
@@ -1535,7 +1539,7 @@ def test_bad_agent_url(monkeypatch):
 
 def test_context_priority(tracer, test_spans):
     """Assigning a sampling_priority should not affect if the trace is sent to the agent"""
-    for p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP, None, 999]:
+    for p in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP, None, 999]:
         with tracer.trace("span_%s" % p) as span:
             span.context.sampling_priority = p
 
@@ -1543,7 +1547,7 @@ def test_context_priority(tracer, test_spans):
         # the agent needs to know the sampling decision.
         spans = test_spans.pop()
         assert len(spans) == 1, "trace should be sampled"
-        if p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP]:
+        if p in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP]:
             assert spans[0].metrics[SAMPLING_PRIORITY_KEY] == p
 
 

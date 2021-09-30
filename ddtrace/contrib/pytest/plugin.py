@@ -5,6 +5,7 @@ from typing import Dict
 import pytest
 
 import ddtrace
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
@@ -13,7 +14,6 @@ from ddtrace.contrib.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.ext import test
-from ddtrace.ext.priority import AUTO_KEEP
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
