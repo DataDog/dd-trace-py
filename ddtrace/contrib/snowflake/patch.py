@@ -1,3 +1,5 @@
+from typing import Any
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.vendor import wrapt
@@ -29,7 +31,8 @@ def patch():
         return
     setattr(snowflake.connector, "_datadog_patch", True)
 
-    wrapt.wrap_function_wrapper("snowflake.connector", "SnowflakeConnection.connect", patched_connect)
+    wrapt.wrap_function_wrapper(snowflake.connector, "Connect", patched_connect)
+    wrapt.wrap_function_wrapper(snowflake.connector, "connect", patched_connect)
 
 
 def unpatch():
@@ -38,15 +41,15 @@ def unpatch():
     if getattr(snowflake.connector, "_datadog_patch", False):
         setattr(snowflake.connector, "_datadog_patch", False)
 
-        unwrap(snowflake.connector.SnowflakeConnection.connect)
+        unwrap(snowflake.connector, "Connect")
+        unwrap(snowflake.connector, "connect")
 
 
 def patched_connect(connect_func, _, args, kwargs):
     conn = connect_func(*args, **kwargs)
-    return patch_conn(conn)
+    if isinstance(conn, TracedConnection):
+        return conn
 
-
-def patch_conn(conn):
     traced_conn = TracedConnection(conn)
 
     # TODO: Get the real tags we need
