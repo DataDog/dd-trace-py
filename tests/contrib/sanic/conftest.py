@@ -3,8 +3,6 @@ import sys
 import pytest
 
 import ddtrace
-from ddtrace.contrib.sanic import patch
-from ddtrace.contrib.sanic import unpatch
 from tests.utils import DummyTracer
 
 
@@ -18,7 +16,5 @@ def tracer():
 
         tracer.configure(context_provider=AsyncioContextProvider())
     setattr(ddtrace, "tracer", tracer)
-    patch()
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
-    unpatch()
