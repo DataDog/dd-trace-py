@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -ex
+
+if [[ -z "${RUN_ID}" ]]; then
+    export RUN_ID=$(uuidgen)
+fi
+
+ARTIFACTS=/artifacts/${RUN_ID}/${SCENARIO}
+
+OUTPUT_V1=${ARTIFACTS}/${DDTRACE_V1}/
+mkdir -p ${OUTPUT_V1}
+source ${VENV_DDTRACE_V1}/bin/activate
+python run.py ${OUTPUT_V1}
+deactivate
+
+OUTPUT_V2=${ARTIFACTS}/${DDTRACE_V2}/
+mkdir -p ${OUTPUT_V2}
+source ${VENV_DDTRACE_V2}/bin/activate
+python run.py ${OUTPUT_V2}
+# use pyperf to compare results from both runs
+pyperf compare_to --table ${OUTPUT_V1}/results.json ${OUTPUT_V2}/results.json
+deactivate

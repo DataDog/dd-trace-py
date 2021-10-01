@@ -7,7 +7,7 @@ def get_application_name():
     # type: () -> typing.Optional[str]
     """Attempts to find the application name using system arguments."""
     try:
-        import __main__  # type: ignore[import]
+        import __main__
 
         name = __main__.__file__
     except (ImportError, AttributeError):

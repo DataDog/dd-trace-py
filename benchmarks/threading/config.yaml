@@ -1,0 +1,13 @@
+1-thread: &baseline
+  nthreads: 1
+  ntraces: 1000
+  nspans: 10
+10-threads:
+  <<: *baseline
+  nthreads: 10
+50-threads:
+  <<: *baseline
+  nthreads: 50
+100-threads:
+  <<: *baseline
+  nthreads: 100

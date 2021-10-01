@@ -1,0 +1,28 @@
+[[{"name" "rq.queue.enqueue_job"
+   "service" "rq"
+   "resource" "tests.contrib.rq.jobs.job_add1"
+   "type" "worker"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1631049654148153700
+   "duration" 23705500
+   "meta" {"runtime-id" "6e75d0807aa04f78aea66a630db7ac7f"
+           "queue.name" "sync-q"
+           "job.id" "5f0176f9-a10e-43a3-bc03-aced1bfae677"
+           "job.func_name" "tests.contrib.rq.jobs.job_add1"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 684
+              "_dd.tracer_kr" 1.0}}
+      {"name" "rq.job.perform"
+       "service" "rq"
+       "resource" "tests.contrib.rq.jobs.job_add1"
+       "error" 0
+       "span_id" 1
+       "trace_id" 0
+       "parent_id" 0
+       "start" 1631049654165756500
+       "duration" 1037100
+       "meta" {"job.id" "5f0176f9-a10e-43a3-bc03-aced1bfae677"}}]]

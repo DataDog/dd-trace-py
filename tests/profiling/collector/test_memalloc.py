@@ -176,25 +176,43 @@ def test_memory_collector():
     "ignore_profiler",
     (True, False),
 )
-def test_memory_collector_ignore_profiler(ignore_profiler):
+def test_memory_collector_ignore_profiler(
+    ignore_profiler,  # type: bool
+):
+    # type: (...) -> None
     r = recorder.Recorder()
     mc = memalloc.MemoryCollector(r, ignore_profiler=ignore_profiler)
+    quit_thread = threading.Event()
     with mc:
-        thread_id = mc._worker.ident
-        object()
+
+        def alloc():
+            _allocate_1k()
+            quit_thread.wait()
+
+        alloc_thread = threading.Thread(name="allocator", target=alloc)
+
+        if ignore_profiler:
+            alloc_thread._ddtrace_profiling_ignore = True
+
+        alloc_thread.start()
+
+        thread_id = alloc_thread.ident
+
         # Make sure we collect at least once
         mc.periodic()
 
-    ok = False
+    # We need to wait for the data collection to happen so it gets the `_ddtrace_profiling_ignore` Thread attribute from
+    # the global thread list.
+    quit_thread.set()
+    alloc_thread.join()
+
     for event in r.events[memalloc.MemoryAllocSampleEvent]:
         if ignore_profiler:
             assert event.thread_id != thread_id
         elif event.thread_id == thread_id:
-            ok = True
             break
-
-    if not ignore_profiler:
-        assert ok
+    else:
+        assert ignore_profiler, "No allocation event was found with the allocator thread"
 
 
 def test_heap():

@@ -6,6 +6,7 @@ import subprocess
 import sys
 from typing import List
 
+import attr
 import pytest
 
 import ddtrace
@@ -13,12 +14,13 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
-from ddtrace.internal._encoding import MsgpackEncoder
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.encoding import JSONEncoder
+from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
@@ -54,7 +56,7 @@ def override_env(env):
     """
     Temporarily override ``os.environ`` with provided values::
 
-        >>> with self.override_env(dict(DATADOG_TRACE_DEBUG=True)):
+        >>> with self.override_env(dict(DD_TRACE_DEBUG=True)):
             # Your test
     """
     # Copy the full original environment
@@ -424,7 +426,7 @@ class DummyWriter(AgentWriter):
         self.spans = []
         self.traces = []
         self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = MsgpackEncoder(4 << 20, 4 << 20)
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -820,8 +822,30 @@ class SnapshotFailed(Exception):
     pass
 
 
+@attr.s
+class SnapshotTest(object):
+    token = attr.ib(type=str)
+    tracer = attr.ib(type=ddtrace.Tracer, default=ddtrace.tracer)
+
+    def clear(self):
+        """Clear any traces sent that were sent for this snapshot."""
+        parsed = parse.urlparse(self.tracer.writer.agent_url)
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+        conn.request("GET", "/test/clear?token=%s" % self.token)
+        resp = conn.getresponse()
+        assert resp.status == 200
+
+
 @contextmanager
-def snapshot_context(token, ignores=None, tracer=None, async_mode=True):
+def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants=None):
+    # Use variant that applies to update test token. One must apply. If none
+    # apply, the test should have been marked as skipped.
+    if variants:
+        applicable_variant_ids = [k for (k, v) in variants.items() if v]
+        assert len(applicable_variant_ids) == 1
+        variant_id = applicable_variant_ids[0]
+        token = "{}_{}".format(token, variant_id) if variant_id else token
+
     ignores = ignores or []
     if not tracer:
         tracer = ddtrace.tracer
@@ -839,6 +863,13 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True):
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
             tracer.writer._headers["X-Datadog-Test-Token"] = token
+
+            # Also add a header to the environment for subprocesses test cases that might use snapshotting.
+            existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
+            existing_headers.update({"X-Datadog-Test-Token": token})
+            os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
+                ["%s:%s" % (k, v) for k, v in existing_headers.items()]
+            )
         else:
             # Signal the start of this test case to the test agent.
             try:
@@ -851,14 +882,17 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True):
                     # The test agent returns nice error messages we can forward to the user.
                     raise SnapshotFailed(r.read())
 
-        # Return context to the caller
         try:
-            yield
+            yield SnapshotTest(
+                tracer=tracer,
+                token=token,
+            )
         finally:
             # Force a flush so all traces are submitted.
             tracer.writer.flush_queue()
             if async_mode:
                 del tracer.writer._headers["X-Datadog-Test-Token"]
+                del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         # Query for the results of the test.
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
@@ -917,15 +951,7 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True,
             else token_override
         )
 
-        # Use variant that applies to update test token. One must apply. If none
-        # apply, the test should have been marked as skipped.
-        if variants:
-            applicable_variant_ids = [k for (k, v) in variants.items() if v]
-            assert len(applicable_variant_ids) == 1
-            variant_id = applicable_variant_ids[0]
-            token = "{}_{}".format(token, variant_id) if variant_id else token
-
-        with snapshot_context(token, ignores=ignores, tracer=tracer, async_mode=async_mode):
+        with snapshot_context(token, ignores=ignores, tracer=tracer, async_mode=async_mode, variants=variants):
             # Run the test.
             if include_tracer:
                 kwargs["tracer"] = tracer

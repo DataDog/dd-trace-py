@@ -13,15 +13,19 @@ from hypothesis.strategies import text
 import msgpack
 import pytest
 
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
+from ddtrace.internal._encoding import ListStringTable
+from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
-from ddtrace.internal.encoding import MsgpackEncoder
+from ddtrace.internal.encoding import MsgpackEncoderV03 as MsgpackEncoder
+from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.tracer import Tracer
@@ -73,7 +77,7 @@ class RefMsgpackEncoder(_EncoderBase):
 
     @staticmethod
     def decode(data):
-        return msgpack.unpackb(data, raw=True)
+        return msgpack.unpackb(data, raw=True, strict_map_key=False)
 
 
 class TestEncoders(TestCase):
@@ -175,7 +179,7 @@ class TestEncoders(TestCase):
 def decode(obj):
     if msgpack.version[:2] < (0, 6):
         return msgpack.unpackb(obj)
-    return msgpack.unpackb(obj, raw=True)
+    return msgpack.unpackb(obj, raw=True, strict_map_key=False)
 
 
 def test_custom_msgpack_encode():
@@ -310,7 +314,7 @@ def test_custom_msgpack_encode_trace_size(name, service, resource, meta, metrics
     trace = [span, span, span]
 
     encoder.put(trace)
-    assert encoder.size + 1 == len(encoder.encode())
+    assert encoder.size == len(encoder.encode())
 
 
 def test_encoder_buffer_size_limit():
@@ -319,7 +323,7 @@ def test_encoder_buffer_size_limit():
 
     trace = [Span(tracer=None, name="test")]
     encoder.put(trace)
-    trace_size = encoder.size
+    trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
 
     for _ in range(1, int(buffer_size / trace_size)):
         encoder.put(trace)
@@ -332,13 +336,79 @@ def test_encoder_buffer_size_limit():
 
 
 def test_encoder_buffer_item_size_limit():
-    buffer_size = 1 << 10
-    encoder = MsgpackEncoder(buffer_size, buffer_size)
+    max_item_size = 1 << 10
+    encoder = MsgpackEncoder(max_item_size << 1, max_item_size)
 
     span = Span(tracer=None, name="test")
     trace = [span]
     encoder.put(trace)
-    trace_size = encoder.size
+    trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
 
     with pytest.raises(BufferItemTooLarge):
-        encoder.put([span] * (int(buffer_size / trace_size) + 1))
+        encoder.put([span] * (int(max_item_size / trace_size) + 1))
+
+
+def test_custom_msgpack_encode_v05():
+    encoder = MsgpackEncoderV05(2 << 20, 2 << 20)
+    assert encoder.max_size == 2 << 20
+    assert encoder.max_item_size == 2 << 20
+    trace = [
+        Span(tracer=None, name="v05-test", service="foo", resource="GET"),
+        Span(tracer=None, name="v05-test", service="foo", resource="POST"),
+        Span(tracer=None, name=None, service="bar"),
+    ]
+
+    encoder.put(trace)
+    assert len(encoder) == 1
+
+    size = encoder.size
+    encoded = encoder.flush()
+    assert size == len(encoded)
+    st, ts = decode(encoded)
+
+    def filter_mut(ts):
+        return [[[s[i] for i in [0, 1, 2, 5, 7, 8, 9, 10, 11]] for s in t] for t in ts]
+
+    assert st == [b"", ORIGIN_KEY.encode(), b"foo", b"v05-test", b"GET", b"POST", b"bar"]
+    assert filter_mut(ts) == [
+        [
+            [2, 3, 4, 0, 0, 0, {}, {}, 0],
+            [2, 3, 5, 0, 0, 0, {}, {}, 0],
+            [6, 0, 0, 0, 0, 0, {}, {}, 0],
+        ]
+    ]
+
+
+def string_table_test(t, offset=0):
+    assert len(t) == 1 + offset
+    id1 = t.index("foobar")
+    assert len(t) == 2 + offset
+    assert id1 == t.index("foobar")
+    assert len(t) == 2 + offset
+    id2 = t.index("foobaz")
+    assert len(t) == 3 + offset
+    assert id2 == t.index("foobaz")
+    assert len(t) == 3 + offset
+    assert id1 != id2
+
+
+def test_msgpack_string_table():
+    t = MsgpackStringTable(1 << 10)
+
+    string_table_test(t, offset=1)
+
+    size = t.size
+    encoded = t.flush()
+    assert size == len(encoded)
+    assert decode(encoded + b"\xc0") == [[b"", ORIGIN_KEY.encode(), b"foobar", b"foobaz"], None]
+
+    assert len(t) == 1
+    assert "foobar" not in t
+
+
+def test_list_string_table():
+    t = ListStringTable()
+
+    string_table_test(t)
+
+    assert list(t) == ["", "foobar", "foobaz"]

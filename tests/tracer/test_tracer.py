@@ -15,12 +15,16 @@ import pytest
 import six
 
 import ddtrace
+from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.ext import priority
@@ -1140,26 +1144,13 @@ def test_early_exit(tracer, test_spans):
 
 class TestPartialFlush(TracerTestCase):
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="5")
     )
     def test_partial_flush(self):
-        root = self.tracer.trace("root")
-        for i in range(5):
-            self.tracer.trace("child%s" % i).finish()
-
-        traces = self.pop_traces()
-        assert len(traces) == 1
-        assert len(traces[0]) == 5
-        assert [s.name for s in traces[0]] == ["child0", "child1", "child2", "child3", "child4"]
-
-        root.finish()
-        traces = self.pop_traces()
-        assert len(traces) == 1
-        assert len(traces[0]) == 1
-        assert traces[0][0].name == "root"
+        self._test_partial_flush()
 
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="1")
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="1")
     )
     def test_partial_flush_too_many(self):
         root = self.tracer.trace("root")
@@ -1180,7 +1171,7 @@ class TestPartialFlush(TracerTestCase):
         assert traces[0][0].name == "root"
 
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="6")
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="6")
     )
     def test_partial_flush_too_few(self):
         root = self.tracer.trace("root")
@@ -1207,11 +1198,34 @@ class TestPartialFlush(TracerTestCase):
         self.test_partial_flush_too_few()
 
     @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="false", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="6")
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="false", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="6")
     )
     def test_partial_flush_configure_precedence(self):
         self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
         self.test_partial_flush()
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
+    )
+    def test_enable_partial_flush_with_deprecated_config(self):
+        # Test tracer with deprecated configs D_TRACER_...
+        self._test_partial_flush()
+
+    def _test_partial_flush(self):
+        root = self.tracer.trace("root")
+        for i in range(5):
+            self.tracer.trace("child%s" % i).finish()
+
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 5
+        assert [s.name for s in traces[0]] == ["child0", "child1", "child2", "child3", "child4"]
+
+        root.finish()
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        assert traces[0][0].name == "root"
 
 
 def test_unicode_config_vals():
@@ -1346,14 +1360,14 @@ def test_manual_keep(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_KEEP
 
 
 def test_manual_keep_then_drop(tracer, test_spans):
@@ -1363,7 +1377,7 @@ def test_manual_keep_then_drop(tracer, test_spans):
             child.set_tag(MANUAL_KEEP_KEY)
         root.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_REJECT
 
 
 def test_manual_drop(tracer, test_spans):
@@ -1525,7 +1539,7 @@ def test_bad_agent_url(monkeypatch):
 
 def test_context_priority(tracer, test_spans):
     """Assigning a sampling_priority should not affect if the trace is sent to the agent"""
-    for p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP, None, 999]:
+    for p in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP, None, 999]:
         with tracer.trace("span_%s" % p) as span:
             span.context.sampling_priority = p
 
@@ -1533,7 +1547,7 @@ def test_context_priority(tracer, test_spans):
         # the agent needs to know the sampling decision.
         spans = test_spans.pop()
         assert len(spans) == 1, "trace should be sampled"
-        if p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP]:
+        if p in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP]:
             assert spans[0].metrics[SAMPLING_PRIORITY_KEY] == p
 
 
@@ -1651,6 +1665,31 @@ def test_fork_manual_span_different_contexts(tracer):
         os._exit(12)
 
     span.finish()
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
+def test_fork_pid(tracer):
+    root = tracer.trace("root_span")
+    assert root.get_tag("runtime-id") is not None
+    assert root.get_metric(system.PID) is not None
+
+    pid = os.fork()
+
+    if pid:
+        child1 = tracer.trace("span1")
+        assert child1.get_tag("runtime-id") is None
+        assert child1.get_metric(system.PID) is None
+        child1.finish()
+    else:
+        child2 = tracer.trace("span2")
+        assert child2.get_tag("runtime-id") is not None
+        assert child2.get_metric(system.PID) is not None
+        child2.finish()
+        os._exit(12)
+
+    root.finish()
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12

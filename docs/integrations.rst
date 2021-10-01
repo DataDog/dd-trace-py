@@ -171,6 +171,12 @@ httplib
 ^^^^^^^
 .. automodule:: ddtrace.contrib.httplib
 
+.. _httpx:
+
+httpx
+^^^^^
+.. automodule:: ddtrace.contrib.httpx
+
 
 .. _jinja2:
 
@@ -191,6 +197,13 @@ kombu
 Mako
 ^^^^
 .. automodule:: ddtrace.contrib.mako
+
+
+.. _mariadb:
+
+MariaDB
+^^^^^^^
+.. automodule:: ddtrace.contrib.mariadb
 
 
 .. _molten:
@@ -311,6 +324,13 @@ redis-py-cluster
 Requests
 ^^^^^^^^
 .. automodule:: ddtrace.contrib.requests
+
+
+.. _rq:
+
+RQ
+^^^^^^^^
+.. automodule:: ddtrace.contrib.rq
 
 
 .. _sanic:

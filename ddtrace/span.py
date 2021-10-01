@@ -20,12 +20,14 @@ from .constants import NUMERIC_TAGS
 from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
 from .constants import SPAN_MEASURED_KEY
+from .constants import USER_KEEP
+from .constants import USER_REJECT
 from .constants import VERSION_KEY
 from .context import Context
+from .ext import SpanTypes
 from .ext import errors
 from .ext import http
 from .ext import net
-from .ext import priority
 from .internal import _rand
 from .internal.compat import NumericType
 from .internal.compat import StringIO
@@ -55,7 +57,7 @@ class Span(object):
         # Public span attributes
         "service",
         "name",
-        "resource",
+        "_resource",
         "span_id",
         "trace_id",
         "parent_id",
@@ -122,7 +124,8 @@ class Span(object):
         # required span info
         self.name = name
         self.service = service
-        self.resource = resource or name
+        self._resource = [resource or name]
+        self._span_type = None
         self.span_type = span_type
 
         # tags / metadata
@@ -166,6 +169,22 @@ class Span(object):
     def start(self, value):
         # type: (Union[int, float]) -> None
         self.start_ns = int(value * 1e9)
+
+    @property
+    def resource(self):
+        return self._resource[0]
+
+    @resource.setter
+    def resource(self, value):
+        self._resource[0] = value
+
+    @property
+    def span_type(self):
+        return self._span_type
+
+    @span_type.setter
+    def span_type(self, value):
+        self._span_type = value.value if isinstance(value, SpanTypes) else value
 
     @property
     def finished(self):
@@ -276,10 +295,10 @@ class Span(object):
             return
 
         elif key == MANUAL_KEEP_KEY:
-            self.context.sampling_priority = priority.USER_KEEP
+            self.context.sampling_priority = USER_KEEP
             return
         elif key == MANUAL_DROP_KEY:
-            self.context.sampling_priority = priority.USER_REJECT
+            self.context.sampling_priority = USER_REJECT
             return
         elif key == SERVICE_KEY:
             self.service = value
@@ -411,10 +430,10 @@ class Span(object):
             d["duration"] = self.duration_ns
 
         if self.meta:
-            d["meta"] = self.meta  # type: ignore[assignment]
+            d["meta"] = self.meta
 
         if self.metrics:
-            d["metrics"] = self.metrics  # type: ignore[assignment]
+            d["metrics"] = self.metrics
 
         if self.span_type:
             d["type"] = self.span_type

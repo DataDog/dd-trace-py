@@ -1,0 +1,66 @@
+[[{"name" "mariadb.query"
+   "service" "mariadb"
+   "resource" "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
+   "type" "sql"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1626718453407952000
+   "duration" 1705000
+   "meta" {"runtime-id" "0cbfb96da3ee4e86be3cf3b8a4004f86"
+           "out.host" "127.0.0.1"
+           "db.user" "test"
+           "db.name" "test"
+           "sql.executemany" "true"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 1502
+              "out.port" 3306
+              "db.rowcount" 2
+              "sql.rows" 2
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "mariadb.query"
+   "service" "mariadb"
+   "resource" "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
+   "type" "sql"
+   "error" 0
+   "span_id" 0
+   "trace_id" 1
+   "parent_id" nil
+   "start" 1626718453410309000
+   "duration" 1858000
+   "meta" {"runtime-id" "0cbfb96da3ee4e86be3cf3b8a4004f86"
+           "out.host" "127.0.0.1"
+           "db.user" "test"
+           "db.name" "test"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 1502
+              "out.port" 3306
+              "db.rowcount" 0
+              "sql.rows" 0
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "mariadb.query.fetchall"
+   "service" "mariadb"
+   "resource" "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
+   "type" "sql"
+   "error" 0
+   "span_id" 0
+   "trace_id" 2
+   "parent_id" nil
+   "start" 1626718453412328000
+   "duration" 331000
+   "meta" {"runtime-id" "0cbfb96da3ee4e86be3cf3b8a4004f86"
+           "out.host" "127.0.0.1"
+           "db.user" "test"
+           "db.name" "test"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 1502
+              "out.port" 3306
+              "db.rowcount" 2
+              "sql.rows" 2
+              "_dd.tracer_kr" 1.0}}]]

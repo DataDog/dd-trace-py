@@ -4,6 +4,7 @@ import sys
 import pytest
 import requests
 from requests import Session
+from requests.exceptions import InvalidURL
 from requests.exceptions import MissingSchema
 import six
 
@@ -332,7 +333,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         # in that case, no spans are created
         cfg = config.get_from(self.session)
         cfg["split_by_domain"] = True
-        with pytest.raises(MissingSchema):
+        with pytest.raises((MissingSchema, InvalidURL)):
             self.session.get("http:/some>thing")
 
         # We are wrapping `requests.Session.send` and this error gets thrown before that function

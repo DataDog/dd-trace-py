@@ -10,7 +10,8 @@ from opentracing import child_of
 import pytest
 
 import ddtrace
-from ddtrace.ext.priority import AUTO_KEEP
+from ddtrace import Tracer as DDTracer
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.opentracer import Tracer
 from ddtrace.opentracer import set_global_tracer
 from ddtrace.opentracer.span_context import SpanContext
@@ -25,7 +26,7 @@ class TestTracerConfig(object):
         tracer = Tracer(service_name="myservice", config=config)
 
         assert tracer._service_name == "myservice"
-        assert tracer._enabled is True
+        assert tracer._dd_tracer.enabled is True
 
     def test_no_service_name(self):
         """A service_name should be generated if one is not provided."""
@@ -44,10 +45,7 @@ class TestTracerConfig(object):
 
         # Ensure tracer1's config was not mutated
         assert tracer1._service_name == "serv1"
-        assert tracer1._enabled is True
-
         assert tracer2._service_name == "serv2"
-        assert tracer2._enabled is False
 
     def test_invalid_config_key(self):
         """A config with an invalid key should raise a ConfigException."""
@@ -70,6 +68,12 @@ class TestTracerConfig(object):
             tracer = Tracer(service_name="mysvc", config=config)
             assert ["enabeld", "setttings"] in str(ce_info)
             assert tracer is not None
+
+    def test_ddtrace_fallback_config(self, monkeypatch):
+        """Ensure datadog configuration is used by default."""
+        monkeypatch.setenv("DD_TRACE_ENABLED", "false")
+        tracer = Tracer(dd_tracer=DDTracer())
+        assert tracer._dd_tracer.enabled is False
 
     def test_global_tags(self):
         """Global tags should be passed from the opentracer to the tracer."""

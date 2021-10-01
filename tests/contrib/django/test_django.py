@@ -17,11 +17,11 @@ from six import ensure_text
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import errors
 from ddtrace.ext import http
-from ddtrace.ext.priority import USER_KEEP
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
@@ -77,6 +77,47 @@ def test_django_v2XX_request_root_span(client, test_spans):
         name="django.request",
         service="django",
         resource=resource,
+        parent_id=None,
+        span_type="web",
+        error=0,
+        meta=meta,
+    )
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+def test_django_v2XX_alter_root_resource(client, test_spans):
+    """
+    When making a request to a Django app
+        We properly create the `django.request` root span
+    """
+    resp = client.get("/alter-resource/")
+    assert resp.status_code == 200
+    assert resp.content == b""
+
+    spans = test_spans.get_spans()
+    # Assert the correct number of traces and spans
+    assert len(spans) == 26
+
+    # Assert the structure of the root `django.request` span
+    root = test_spans.get_root_span()
+
+    meta = {
+        "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
+        "django.response.class": "django.http.response.HttpResponse",
+        "django.user.is_authenticated": "False",
+        "django.view": "tests.contrib.django.views.alter_resource",
+        "http.method": "GET",
+        "http.status_code": "200",
+        "http.url": "http://testserver/alter-resource/",
+    }
+    if django.VERSION >= (2, 2, 0):
+        meta["http.route"] = "^alter-resource/$"
+
+    assert http.QUERY_STRING not in root.meta
+    root.assert_matches(
+        name="django.request",
+        service="django",
+        resource="custom django.request resource",
         parent_id=None,
         span_type="web",
         error=0,
@@ -237,7 +278,7 @@ def test_v2XX_middleware(client, test_spans):
         "django.middleware.security.SecurityMiddleware.process_request",
         "django.middleware.security.SecurityMiddleware.process_response",
         "tests.contrib.django.middleware.ClsMiddleware.__call__",
-        "tests.contrib.django.middleware.EverythingMiddleware",
+        "tests.contrib.django.middleware.fn_middleware",
         "tests.contrib.django.middleware.EverythingMiddleware.__call__",
         "tests.contrib.django.middleware.EverythingMiddleware.process_view",
     }
@@ -406,6 +447,15 @@ def test_empty_middleware_func_is_raised_in_django(client, test_spans):
     with override_settings(MIDDLEWARE=["tests.contrib.django.middleware.empty_middleware"]):
         with pytest.raises(django.core.exceptions.ImproperlyConfigured):
             client.get("/")
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+def test_multiple_fn_middleware_resource_names(client, test_spans):
+    with modify_settings(MIDDLEWARE={"append": "tests.contrib.django.middleware.fn2_middleware"}):
+        client.get("/")
+
+    assert test_spans.find_span(name="django.middleware", resource="tests.contrib.django.middleware.fn_middleware")
+    assert test_spans.find_span(name="django.middleware", resource="tests.contrib.django.middleware.fn2_middleware")
 
 
 """
@@ -1166,6 +1216,9 @@ def test_django_request_distributed(client, test_spans):
             SAMPLING_PRIORITY_KEY: USER_KEEP,
         },
     )
+
+    first_child_span = test_spans.find_span(parent_id=root.span_id)
+    assert first_child_span
 
 
 def test_django_request_distributed_disabled(client, test_spans):
