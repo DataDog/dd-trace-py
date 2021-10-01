@@ -1,3 +1,5 @@
+from typing import Dict
+from typing import FrozenSet
 from typing import Optional
 
 from ddtrace.utils.cache import cached
@@ -29,3 +31,15 @@ def from_wsgi_header(header):
     elif header not in UNPREFIXED_HEADERS:
         return None
     return header.replace("_", "-").title()
+
+
+def extract_header_value(possible_header_names, headers, default=None):
+    # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
+    """Search through a list of possible header names, return the value of the first match"""
+    for header in possible_header_names:
+        try:
+            return headers[header]
+        except KeyError:
+            pass
+
+    return default

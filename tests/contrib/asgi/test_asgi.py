@@ -9,7 +9,8 @@ import pytest
 
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.asgi import span_from_scope
-from ddtrace.propagation import http as http_propagation
+from ddtrace.propagation.datadog import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.datadog import HTTP_HEADER_TRACE_ID
 from tests.utils import DummyTracer
 from tests.utils import override_http_config
 
@@ -274,8 +275,8 @@ async def test_asgi_error_custom(scope, tracer, test_spans):
 async def test_distributed_tracing(scope, tracer, test_spans):
     app = TraceMiddleware(basic_app, tracer=tracer)
     headers = [
-        (http_propagation.HTTP_HEADER_PARENT_ID.encode(), "1234".encode()),
-        (http_propagation.HTTP_HEADER_TRACE_ID.encode(), "5678".encode()),
+        (HTTP_HEADER_PARENT_ID.encode(), "1234".encode()),
+        (HTTP_HEADER_TRACE_ID.encode(), "5678".encode()),
     ]
     scope["headers"] = headers
     instance = ApplicationCommunicator(app, scope)

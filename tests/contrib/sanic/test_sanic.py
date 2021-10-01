@@ -14,7 +14,8 @@ from sanic.server import HttpProtocol
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.propagation import http as http_propagation
+from ddtrace.propagation.datadog import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.datadog import HTTP_HEADER_TRACE_ID
 from tests.utils import override_config
 from tests.utils import override_http_config
 
@@ -154,8 +155,8 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
     with override_http_config("sanic", integration_http_config):
         with override_config("sanic", integration_config):
             headers = [
-                (http_propagation.HTTP_HEADER_PARENT_ID, "1234"),
-                (http_propagation.HTTP_HEADER_TRACE_ID, "5678"),
+                (HTTP_HEADER_PARENT_ID, "1234"),
+                (HTTP_HEADER_TRACE_ID, "5678"),
             ]
             response = await client.get("/hello", params=[("foo", "bar")], headers=headers)
             assert _response_status(response) == 200

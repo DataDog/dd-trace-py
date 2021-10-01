@@ -10,8 +10,8 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.internal.compat import PY2
-from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.propagation.datadog import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.datadog import HTTP_HEADER_TRACE_ID
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 

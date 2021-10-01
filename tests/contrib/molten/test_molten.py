@@ -9,8 +9,8 @@ from ddtrace.contrib.molten import patch
 from ddtrace.contrib.molten import unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
 from ddtrace.ext import http
-from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.propagation.datadog import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.datadog import HTTP_HEADER_TRACE_ID
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code

@@ -51,6 +51,33 @@ class TestConfig(BaseTestCase):
             config = Config()
             self.assertFalse(config.logs_injection)
 
+    def test_propagation_style_inject(self):
+        config = Config()
+        self.assertEqual(config.propagation_style_inject, ["datadog"])
+        with self.override_env(dict(DD_PROPAGATION_STYLE_INJECT="B3")):
+            config = Config()
+            self.assertEqual(config.propagation_style_inject, ["b3"])
+        with self.override_env(dict(DD_PROPAGATION_STYLE_INJECT="B3,Datadog")):
+            config = Config()
+            self.assertEqual(config.propagation_style_inject, ["b3", "datadog"])
+
+    def test_propagation_style_extract(self):
+        config = Config()
+        self.assertEqual(config.propagation_style_extract, ["datadog"])
+        with self.override_env(dict(DD_PROPAGATION_STYLE_EXTRACT="B3")):
+            config = Config()
+            self.assertEqual(config.propagation_style_extract, ["b3"])
+        with self.override_env(dict(DD_PROPAGATION_STYLE_EXTRACT="B3,Datadog")):
+            config = Config()
+            self.assertEqual(config.propagation_style_extract, ["b3", "datadog"])
+        # extract defaults to whatever inject is configured as
+        with self.override_env(dict(DD_PROPAGATION_STYLE_INJECT="B3,Datadog")):
+            config = Config()
+            self.assertEqual(config.propagation_style_extract, ["b3", "datadog"])
+        with self.override_env(dict(DD_PROPAGATION_STYLE_INJECT="B3", DD_PROPAGATION_STYLE_EXTRACT="Datadog")):
+            config = Config()
+            self.assertEqual(config.propagation_style_extract, ["datadog"])
+
     def test_service(self):
         # If none is provided the default should be ``None``
         with self.override_env(dict()):

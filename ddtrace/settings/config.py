@@ -140,6 +140,12 @@ class Config(object):
 
         self.logs_injection = asbool(get_env("logs", "injection", default=False))
 
+        self.propagation_style_inject = os.getenv("DD_PROPAGATION_STYLE_INJECT", "Datadog").lower().split(",")
+
+        self.propagation_style_extract = (
+            os.getenv("DD_PROPAGATION_STYLE_EXTRACT", str.join(",", self.propagation_style_inject)).lower().split(",")
+        )
+
         self.report_hostname = asbool(get_env("trace", "report_hostname", default=False))
 
         self.health_metrics_enabled = asbool(get_env("trace", "health_metrics_enabled", default=False))

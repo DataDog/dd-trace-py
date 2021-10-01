@@ -27,9 +27,9 @@ from ddtrace.ext import http
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
-from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
-from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
-from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
+from ddtrace.propagation.datadog import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.datadog import HTTP_HEADER_SAMPLING_PRIORITY
+from ddtrace.propagation.datadog import HTTP_HEADER_TRACE_ID
 from ddtrace.propagation.utils import get_wsgi_header
 from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer

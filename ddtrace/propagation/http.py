@@ -1,39 +1,30 @@
 from typing import Dict
-from typing import FrozenSet
-from typing import Optional
+
+from ddtrace import config as global_config
 
 from ..context import Context
-from ..internal.logger import get_logger
-from .utils import get_wsgi_header
+from .b3 import B3HTTPPropagator
+from .base_http_propagator import BaseHTTPPropagator
+from .datadog import DatadogHTTPPropagator
 
 
-log = get_logger(__name__)
+class HTTPPropagator(BaseHTTPPropagator):
+    """
+    A Propagator that wraps zero or more or more HTTP propagators.
 
-# HTTP headers one should set for distributed tracing.
-# These are cross-language (eg: Python, Go and other implementations should honor these)
-HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
-HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
-HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
-HTTP_HEADER_ORIGIN = "x-datadog-origin"
+    Currently supported HTTP propagators are:
 
-
-# Note that due to WSGI spec we have to also check for uppercased and prefixed
-# versions of these headers
-POSSIBLE_HTTP_HEADER_TRACE_IDS = frozenset([HTTP_HEADER_TRACE_ID, get_wsgi_header(HTTP_HEADER_TRACE_ID).lower()])
-POSSIBLE_HTTP_HEADER_PARENT_IDS = frozenset([HTTP_HEADER_PARENT_ID, get_wsgi_header(HTTP_HEADER_PARENT_ID).lower()])
-POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = frozenset(
-    [HTTP_HEADER_SAMPLING_PRIORITY, get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY).lower()]
-)
-POSSIBLE_HTTP_HEADER_ORIGIN = frozenset([HTTP_HEADER_ORIGIN, get_wsgi_header(HTTP_HEADER_ORIGIN).lower()])
-
-
-class HTTPPropagator(object):
-    """A HTTP Propagator using HTTP headers as carrier."""
+        - b3
+        - datadog
+    """
 
     @staticmethod
     def inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None
-        """Inject Context attributes that have to be propagated as HTTP headers.
+        """
+        Inject Context attributes that have to be propagated as HTTP headers.
+
+        Where multiple HTTP propagators are configured, each will be called in turn
 
         Here is an example using `requests`::
 
@@ -50,31 +41,19 @@ class HTTPPropagator(object):
         :param Context span_context: Span context to propagate.
         :param dict headers: HTTP headers to extend with tracing attributes.
         """
-        headers[HTTP_HEADER_TRACE_ID] = str(span_context.trace_id)
-        headers[HTTP_HEADER_PARENT_ID] = str(span_context.span_id)
-        sampling_priority = span_context.sampling_priority
-        # Propagate priority only if defined
-        if sampling_priority is not None:
-            headers[HTTP_HEADER_SAMPLING_PRIORITY] = str(span_context.sampling_priority)
-        # Propagate origin only if defined
-        if span_context.dd_origin is not None:
-            headers[HTTP_HEADER_ORIGIN] = str(span_context.dd_origin)
+        if "datadog" in global_config.propagation_style_inject:
+            DatadogHTTPPropagator.inject(span_context, headers)
 
-    @staticmethod
-    def _extract_header_value(possible_header_names, headers, default=None):
-        # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
-        for header in possible_header_names:
-            try:
-                return headers[header]
-            except KeyError:
-                pass
-
-        return default
+        if "b3" in global_config.propagation_style_inject:
+            B3HTTPPropagator.inject(span_context, headers)
 
     @staticmethod
     def extract(headers):
         # type: (Dict[str,str]) -> Context
-        """Extract a Context from HTTP headers into a new Context.
+        """
+        Extract a Context from HTTP headers into a new Context.
+
+        Where multiple HTTP propagators are configured, the first match found will be used
 
         Here is an example from a web endpoint::
 
@@ -91,57 +70,18 @@ class HTTPPropagator(object):
         :param dict headers: HTTP headers to extract tracing attributes.
         :return: New `Context` with propagated attributes.
         """
+        empty_ctx = Context()
         if not headers:
-            return Context()
+            return empty_ctx
 
-        try:
-            normalized_headers = {name.lower(): v for name, v in headers.items()}
-            # TODO: Fix variable type changing (mypy)
-            trace_id = HTTPPropagator._extract_header_value(
-                POSSIBLE_HTTP_HEADER_TRACE_IDS,
-                normalized_headers,
-            )
-            if trace_id is None:
-                return Context()
+        if "datadog" in global_config.propagation_style_extract:
+            ctx = DatadogHTTPPropagator.extract(headers)
+            if ctx != empty_ctx:
+                return ctx
 
-            parent_span_id = HTTPPropagator._extract_header_value(
-                POSSIBLE_HTTP_HEADER_PARENT_IDS,
-                normalized_headers,
-                default="0",
-            )
-            sampling_priority = HTTPPropagator._extract_header_value(
-                POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES,
-                normalized_headers,
-            )
-            origin = HTTPPropagator._extract_header_value(
-                POSSIBLE_HTTP_HEADER_ORIGIN,
-                normalized_headers,
-            )
+        if "b3" in global_config.propagation_style_extract:
+            ctx = B3HTTPPropagator.extract(headers)
+            if ctx != empty_ctx:
+                return ctx
 
-            # Try to parse values into their expected types
-            try:
-                if sampling_priority is not None:
-                    sampling_priority = int(sampling_priority)  # type: ignore[assignment]
-                else:
-                    sampling_priority = sampling_priority
-
-                return Context(
-                    # DEV: Do not allow `0` for trace id or span id, use None instead
-                    trace_id=int(trace_id) or None,
-                    span_id=int(parent_span_id) or None,  # type: ignore[arg-type]
-                    sampling_priority=sampling_priority,  # type: ignore[arg-type]
-                    dd_origin=origin,
-                )
-            # If headers are invalid and cannot be parsed, return a new context and log the issue.
-            except (TypeError, ValueError):
-                log.debug(
-                    "received invalid x-datadog-* headers, trace-id: %r, parent-id: %r, priority: %r, origin: %r",
-                    trace_id,
-                    parent_span_id,
-                    sampling_priority,
-                    origin,
-                )
-                return Context()
-        except Exception:
-            log.debug("error while extracting x-datadog-* headers", exc_info=True)
-            return Context()
+        return empty_ctx

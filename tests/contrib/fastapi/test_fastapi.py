@@ -8,7 +8,8 @@ import pytest
 import ddtrace
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
-from ddtrace.propagation import http as http_propagation
+from ddtrace.propagation.datadog import HTTP_HEADER_PARENT_ID
+from ddtrace.propagation.datadog import HTTP_HEADER_TRACE_ID
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_config
@@ -389,8 +390,8 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
 
 def test_distributed_tracing(client, tracer, test_spans):
     headers = [
-        (http_propagation.HTTP_HEADER_PARENT_ID, "5555"),
-        (http_propagation.HTTP_HEADER_TRACE_ID, "9999"),
+        (HTTP_HEADER_PARENT_ID, "5555"),
+        (HTTP_HEADER_TRACE_ID, "9999"),
         ("sleep", "False"),
     ]
     response = client.get("http://testserver/", headers=dict(headers))
