@@ -17,11 +17,11 @@ from six import ensure_text
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import errors
 from ddtrace.ext import http
-from ddtrace.ext.priority import USER_KEEP
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
@@ -278,7 +278,7 @@ def test_v2XX_middleware(client, test_spans):
         "django.middleware.security.SecurityMiddleware.process_request",
         "django.middleware.security.SecurityMiddleware.process_response",
         "tests.contrib.django.middleware.ClsMiddleware.__call__",
-        "tests.contrib.django.middleware.EverythingMiddleware",
+        "tests.contrib.django.middleware.fn_middleware",
         "tests.contrib.django.middleware.EverythingMiddleware.__call__",
         "tests.contrib.django.middleware.EverythingMiddleware.process_view",
     }
@@ -447,6 +447,15 @@ def test_empty_middleware_func_is_raised_in_django(client, test_spans):
     with override_settings(MIDDLEWARE=["tests.contrib.django.middleware.empty_middleware"]):
         with pytest.raises(django.core.exceptions.ImproperlyConfigured):
             client.get("/")
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+def test_multiple_fn_middleware_resource_names(client, test_spans):
+    with modify_settings(MIDDLEWARE={"append": "tests.contrib.django.middleware.fn2_middleware"}):
+        client.get("/")
+
+    assert test_spans.find_span(name="django.middleware", resource="tests.contrib.django.middleware.fn_middleware")
+    assert test_spans.find_span(name="django.middleware", resource="tests.contrib.django.middleware.fn2_middleware")
 
 
 """
