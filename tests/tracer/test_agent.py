@@ -3,10 +3,16 @@ import pytest
 from ddtrace.internal import agent
 
 
-def test_hostname(monkeypatch):
-    assert agent.get_hostname() == "localhost"
+def test_trace_hostname(monkeypatch):
+    assert agent.get_trace_hostname() == "localhost"
     monkeypatch.setenv("DD_AGENT_HOST", "host")
-    assert agent.get_hostname() == "host"
+    assert agent.get_trace_hostname() == "host"
+
+
+def test_stats_hostname(monkeypatch):
+    assert agent.get_stats_hostname() == "localhost"
+    monkeypatch.setenv("DD_AGENT_HOST", "host")
+    assert agent.get_stats_hostname() == "host"
 
 
 def test_trace_port(monkeypatch):
