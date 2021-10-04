@@ -43,7 +43,7 @@ def get_trace_port(default=DEFAULT_TRACE_PORT):
 
 def get_stats_port(default=DEFAULT_STATS_PORT):
     # type: (Union[T, int]) -> Union[T,int]
-    v = get_env("dogstatsd", "port", default=default)
+    v = get_env("dogstatsd", "port", default=None)
     if v is not None:
         return int(v)
     return default
@@ -81,7 +81,7 @@ def get_stats_url():
     user_supplied_host = get_stats_hostname(None) is not None
     user_supplied_port = get_stats_port(None) is not None
 
-    url = get_env("dogstatsd", "url", default=None)  # type: ignore[return-value]
+    url = get_env("dogstatsd", "url", default=None)
 
     if not url:
         if user_supplied_host or user_supplied_port:
