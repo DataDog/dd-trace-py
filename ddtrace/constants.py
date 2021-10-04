@@ -21,3 +21,12 @@ MANUAL_DROP_KEY = "manual.drop"
 MANUAL_KEEP_KEY = "manual.keep"
 
 LOG_SPAN_KEY = "__datadog_log_span"
+
+# Use this to explicitly inform the backend that a trace should be rejected and not stored.
+USER_REJECT = -1
+# Used by the builtin sampler to inform the backend that a trace should be rejected and not stored.
+AUTO_REJECT = 0
+# Used by the builtin sampler to inform the backend that a trace should be kept and stored.
+AUTO_KEEP = 1
+# Use this to explicitly inform the backend that a trace should be kept and stored.
+USER_KEEP = 2
