@@ -29,7 +29,7 @@ async def traced_aredis():
 
 def test_patching():
     """
-    When patching httpx library
+    When patching aredis library
         We wrap the correct methods
     When unpatching aredis library
         We unwrap the correct methods
