@@ -127,6 +127,8 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tag(test.SUITE, item.dtest.globs["__name__"])
         span.set_tag(test.TYPE, SpanTypes.TEST.value)
 
+        span.set_tag(test.FRAMEWORK_VERSION, pytest.__version__)
+
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error
         span.set_tag(test.STATUS, test.Status.FAIL.value)
