@@ -10,11 +10,13 @@ import six
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import errors
 from ddtrace.span import Span
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -189,16 +191,16 @@ class SpanTestCase(TracerTestCase):
             assert 0, "should have failed"
 
         assert s.error
-        assert "by zero" in s.get_tag(errors.ERROR_MSG)
-        assert "ZeroDivisionError" in s.get_tag(errors.ERROR_TYPE)
+        assert "by zero" in s.get_tag(ERROR_MSG)
+        assert "ZeroDivisionError" in s.get_tag(ERROR_TYPE)
 
     def test_traceback_without_error(self):
         s = Span(None, "test.span")
         s.set_traceback()
         assert not s.error
-        assert not s.get_tag(errors.ERROR_MSG)
-        assert not s.get_tag(errors.ERROR_TYPE)
-        assert "in test_traceback_without_error" in s.get_tag(errors.ERROR_STACK)
+        assert not s.get_tag(ERROR_MSG)
+        assert not s.get_tag(ERROR_TYPE)
+        assert "in test_traceback_without_error" in s.get_tag(ERROR_STACK)
 
     def test_ctx_mgr(self):
         s = Span(self.tracer, "bar")
@@ -214,9 +216,9 @@ class SpanTestCase(TracerTestCase):
             assert out == e
             assert s.duration > 0, s.duration
             assert s.error
-            assert s.get_tag(errors.ERROR_MSG) == "boo"
-            assert "Exception" in s.get_tag(errors.ERROR_TYPE)
-            assert s.get_tag(errors.ERROR_STACK)
+            assert s.get_tag(ERROR_MSG) == "boo"
+            assert "Exception" in s.get_tag(ERROR_TYPE)
+            assert s.get_tag(ERROR_STACK)
 
         else:
             assert 0, "should have failed"
@@ -542,9 +544,9 @@ def test_span_ignored_exceptions():
             raise ValueError()
 
     assert s.error == 0
-    assert s.get_tag(errors.ERROR_MSG) is None
-    assert s.get_tag(errors.ERROR_TYPE) is None
-    assert s.get_tag(errors.ERROR_STACK) is None
+    assert s.get_tag(ERROR_MSG) is None
+    assert s.get_tag(ERROR_TYPE) is None
+    assert s.get_tag(ERROR_STACK) is None
 
     s = Span(None, None)
     s._ignore_exception(ValueError)
@@ -558,9 +560,9 @@ def test_span_ignored_exceptions():
             raise RuntimeError()
 
     assert s.error == 1
-    assert s.get_tag(errors.ERROR_MSG) is not None
-    assert "RuntimeError" in s.get_tag(errors.ERROR_TYPE)
-    assert s.get_tag(errors.ERROR_STACK) is not None
+    assert s.get_tag(ERROR_MSG) is not None
+    assert "RuntimeError" in s.get_tag(ERROR_TYPE)
+    assert s.get_tag(ERROR_STACK) is not None
 
 
 def test_span_ignored_exception_multi():
@@ -577,9 +579,9 @@ def test_span_ignored_exception_multi():
             raise RuntimeError()
 
     assert s.error == 0
-    assert s.get_tag(errors.ERROR_MSG) is None
-    assert s.get_tag(errors.ERROR_TYPE) is None
-    assert s.get_tag(errors.ERROR_STACK) is None
+    assert s.get_tag(ERROR_MSG) is None
+    assert s.get_tag(ERROR_TYPE) is None
+    assert s.get_tag(ERROR_STACK) is None
 
 
 def test_span_ignored_exception_subclass():
@@ -595,9 +597,9 @@ def test_span_ignored_exception_subclass():
             raise RuntimeError()
 
     assert s.error == 0
-    assert s.get_tag(errors.ERROR_MSG) is None
-    assert s.get_tag(errors.ERROR_TYPE) is None
-    assert s.get_tag(errors.ERROR_STACK) is None
+    assert s.get_tag(ERROR_MSG) is None
+    assert s.get_tag(ERROR_TYPE) is None
+    assert s.get_tag(ERROR_STACK) is None
 
 
 def test_on_finish_single_callback():
