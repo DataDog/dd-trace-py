@@ -2,7 +2,7 @@
 upgrade:
   - |
      Instead of using error constants from ``ddtrace.ext.errors``. Use constants from ``ddtrace.constants`` module. 
-     For Example:: ``ddtrace.ext.errors.ERROR_MSG`` -> ``ddtrace.constants.ERROR_MSG``
+     For example: ``ddtrace.ext.errors.ERROR_MSG`` -> ``ddtrace.constants.ERROR_MSG``
       
 deprecations:
   - |
