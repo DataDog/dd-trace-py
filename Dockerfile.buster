@@ -75,9 +75,9 @@ RUN \
   && pyenv install 3.7.9 \
   && pyenv install 3.8.7 \
   && pyenv install 3.9.1 \
-  && pyenv install 3.10-dev \
+  && pyenv install 3.10.0 \
   # Order matters: first version is the global one
-  && pyenv global 3.9.1 2.7.18 3.5.10 3.6.12 3.7.9 3.8.7 3.10-dev \
+  && pyenv global 3.9.1 2.7.18 3.5.10 3.6.12 3.7.9 3.8.7 3.10.0 \
   && pip install --upgrade pip
 
 
