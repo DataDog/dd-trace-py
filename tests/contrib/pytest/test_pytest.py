@@ -639,6 +639,24 @@ class TestPytest(TracerTestCase):
         assert test_span.get_tag("error.msg") == "will fail in teardown"
         assert test_span.get_tag("error.stack") is not None
 
+    def test_pytest_will_report_its_version(self):
+        py_file = self.testdir.makepyfile(
+            """
+        import pytest
+
+        def test_will_work():
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        test_span = spans[0]
+
+        assert test_span.get_tag(test.FRAMEWORK_VERSION) == pytest.__version__
+
 
 @pytest.mark.parametrize(
     "repository_url,repository_name",

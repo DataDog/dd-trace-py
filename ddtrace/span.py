@@ -14,19 +14,22 @@ from typing import Union
 import six
 
 from . import config
+from .constants import ERROR_MSG
+from .constants import ERROR_STACK
+from .constants import ERROR_TYPE
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
 from .constants import NUMERIC_TAGS
 from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
 from .constants import SPAN_MEASURED_KEY
+from .constants import USER_KEEP
+from .constants import USER_REJECT
 from .constants import VERSION_KEY
 from .context import Context
 from .ext import SpanTypes
-from .ext import errors
 from .ext import http
 from .ext import net
-from .ext import priority
 from .internal import _rand
 from .internal.compat import NumericType
 from .internal.compat import StringIO
@@ -294,10 +297,10 @@ class Span(object):
             return
 
         elif key == MANUAL_KEEP_KEY:
-            self.context.sampling_priority = priority.USER_KEEP
+            self.context.sampling_priority = USER_KEEP
             return
         elif key == MANUAL_DROP_KEY:
-            self.context.sampling_priority = priority.USER_REJECT
+            self.context.sampling_priority = USER_REJECT
             return
         elif key == SERVICE_KEY:
             self.service = value
@@ -450,7 +453,7 @@ class Span(object):
             self.set_exc_info(exc_type, exc_val, exc_tb)
         else:
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
-            self.meta[errors.ERROR_STACK] = tb
+            self.meta[ERROR_STACK] = tb
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         # type: (Any, Any, Any) -> None
@@ -471,17 +474,17 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self.meta[errors.ERROR_MSG] = str(exc_val)
-        self.meta[errors.ERROR_TYPE] = exc_type_str
-        self.meta[errors.ERROR_STACK] = tb
+        self.meta[ERROR_MSG] = str(exc_val)
+        self.meta[ERROR_TYPE] = exc_type_str
+        self.meta[ERROR_STACK] = tb
 
     def _remove_exc_info(self):
         # type: () -> None
         """Remove all exception related information from the span."""
         self.error = 0
-        self._remove_tag(errors.ERROR_MSG)
-        self._remove_tag(errors.ERROR_TYPE)
-        self._remove_tag(errors.ERROR_STACK)
+        self._remove_tag(ERROR_MSG)
+        self._remove_tag(ERROR_TYPE)
+        self._remove_tag(ERROR_STACK)
 
     def pprint(self):
         # type: () -> str

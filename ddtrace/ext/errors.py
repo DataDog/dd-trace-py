@@ -4,17 +4,31 @@ tags for common error attributes
 
 import traceback
 
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
+from ddtrace.utils.deprecation import deprecated
+from ddtrace.utils.deprecation import deprecation
 
-ERROR_MSG = "error.msg"  # a string representing the error message
-ERROR_TYPE = "error.type"  # a string representing the type of the error
-ERROR_STACK = "error.stack"  # a human readable version of the stack. beta.
 
-# shorthand for -----^
+__all__ = [ERROR_MSG, ERROR_TYPE, ERROR_STACK]
+
+deprecation(
+    name="ddtrace.ext.errors",
+    message=(
+        "Use `ddtrace.constants` module instead. "
+        "Shorthand error constants will be removed. Use ERROR_MSG, ERROR_TYPE, and ERROR_STACK instead."
+    ),
+    version="1.0.0",
+)
+
+# shorthand for ERROR constants to be removed in v1.0-----^
 MSG = ERROR_MSG
 TYPE = ERROR_TYPE
 STACK = ERROR_STACK
 
 
+@deprecated("This method and module will be removed altogether", "1.0.0")
 def get_traceback(tb=None, error=None):
     t = None
     if error:
