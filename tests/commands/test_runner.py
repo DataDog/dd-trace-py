@@ -68,7 +68,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_env_enabling(self):
         """
-        DATADOG_TRACE_ENABLED=false or DD_TRACE_ENABLED=false allows disabling of the global tracer
+        DATADOG_TRACE_ENABLED=false and DD_TRACE_ENABLED=false allows disabling of the global tracer
         """
         with self.override_env(dict(DATADOG_TRACE_ENABLED="false")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_disabled.py"])
