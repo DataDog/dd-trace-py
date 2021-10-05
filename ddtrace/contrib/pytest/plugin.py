@@ -2,8 +2,8 @@ from doctest import DocTest
 import json
 from typing import Dict
 
-import pytest
 import pkg_resources
+import pytest
 
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
@@ -55,19 +55,11 @@ def pytest_addoption(parser):
     group = parser.getgroup("ddtrace")
 
     group._addoption(
-        "--ddtrace",
-        action="store_true",
-        dest="ddtrace",
-        default=False,
-        help=HELP_MSG,
+        "--ddtrace", action="store_true", dest="ddtrace", default=False, help=HELP_MSG,
     )
 
     group._addoption(
-        "--ddtrace-patch-all",
-        action="store_true",
-        dest="ddtrace-patch-all",
-        default=False,
-        help=PATCH_ALL_HELP_MSG,
+        "--ddtrace-patch-all", action="store_true", dest="ddtrace-patch-all", default=False, help=PATCH_ALL_HELP_MSG,
     )
 
     parser.addini("ddtrace", HELP_MSG, type="bool")
