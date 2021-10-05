@@ -73,7 +73,6 @@ try:
     from ddtrace import tracer
 
     # Respect DATADOG_* environment variables in global tracer configuration but add deprecation warning
-    # TODO: these variables are deprecated; use utils method and update our documentation
     # correct prefix should be DD_*
 
     dd_hostname = get_env("trace", "agent", "hostname")
