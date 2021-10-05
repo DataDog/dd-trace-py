@@ -3,6 +3,7 @@ import json
 from typing import Dict
 
 import pytest
+import pkg_resources
 
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
@@ -126,6 +127,8 @@ def pytest_runtest_protocol(item, nextitem):
         elif hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
             span.set_tag(test.SUITE, item.dtest.globs["__name__"])
         span.set_tag(test.TYPE, SpanTypes.TEST.value)
+
+        span.set_tag(test.FRAMEWORK_VERSION, pkg_resources.get_distribution("pytest").version)
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error
