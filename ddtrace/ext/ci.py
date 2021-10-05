@@ -204,6 +204,8 @@ def extract_azure_pipelines(env):
         git.COMMIT_MESSAGE: env.get("BUILD_SOURCEVERSIONMESSAGE"),
         git.COMMIT_AUTHOR_NAME: env.get("BUILD_REQUESTEDFORID"),
         git.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
+        STAGE_NAME: env.get("SYSTEM_STAGEDISPLAYNAME"),
+        JOB_NAME: env.get("SYSTEM_JOBDISPLAYNAME"),
     }
 
 
@@ -310,7 +312,7 @@ def extract_gitlab(env):
     if url:
         url = re.sub("/-/pipelines/", "/pipelines/", url)
     return {
-        git.BRANCH: env.get("CI_COMMIT_BRANCH"),
+        git.BRANCH: env.get("CI_COMMIT_REF_NAME"),
         git.COMMIT_SHA: env.get("CI_COMMIT_SHA"),
         git.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
         git.TAG: env.get("CI_COMMIT_TAG"),
