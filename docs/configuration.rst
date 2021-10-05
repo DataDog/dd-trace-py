@@ -78,13 +78,13 @@ below:
      - Enables <INTEGRATION> to be patched. For example, ``DD_TRACE_DJANGO_ENABLED=false`` will disable the Django
        integration from being installed. Added in ``v0.41.0``.
 
-       .. _datadog-patch-modules:
-   * - ``DATADOG_PATCH_MODULES``
+       .. _dd-patch-modules:
+   * - ``DD_PATCH_MODULES``
      - String
      -
      - Override the modules patched for this execution of the program. Must be
        a list in the ``module1:boolean,module2:boolean`` format. For example,
-       ``boto:true,redis:false``.
+       ``boto:true,redis:false``. Added in ``v0.55.0`` (formerly named ``DATADOG_PATCH_MODULES``).
 
        .. _dd-logs-injection:
    * - ``DD_LOGS_INJECTION``
