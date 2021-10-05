@@ -8,9 +8,11 @@ from routes import url_for
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
-from ddtrace.ext import errors
 from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
@@ -60,9 +62,9 @@ class PylonsTestCase(TracerTestCase):
         assert span.get_tag(http.URL) == "http://localhost:80/raise_exception"
         assert_span_http_status_code(span, 200)
         assert http.QUERY_STRING not in span.meta
-        assert span.get_tag(errors.ERROR_MSG) is None
-        assert span.get_tag(errors.ERROR_TYPE) is None
-        assert span.get_tag(errors.ERROR_STACK) is None
+        assert span.get_tag(ERROR_MSG) is None
+        assert span.get_tag(ERROR_TYPE) is None
+        assert span.get_tag(ERROR_STACK) is None
         assert span.span_type == "web"
 
     def test_mw_exc_success(self):
@@ -92,9 +94,9 @@ class PylonsTestCase(TracerTestCase):
         assert span.error == 0
         assert span.get_tag(http.URL) == "http://localhost:80/"
         assert_span_http_status_code(span, 200)
-        assert span.get_tag(errors.ERROR_MSG) is None
-        assert span.get_tag(errors.ERROR_TYPE) is None
-        assert span.get_tag(errors.ERROR_STACK) is None
+        assert span.get_tag(ERROR_MSG) is None
+        assert span.get_tag(ERROR_TYPE) is None
+        assert span.get_tag(ERROR_STACK) is None
 
     def test_middleware_exception(self):
         """Ensure exceptions raised in middleware are properly handled.
@@ -122,9 +124,9 @@ class PylonsTestCase(TracerTestCase):
         assert span.error == 1
         assert span.get_tag(http.URL) == "http://localhost:80/"
         assert_span_http_status_code(span, 500)
-        assert span.get_tag(errors.ERROR_MSG) == "Middleware exception"
-        assert span.get_tag(errors.ERROR_TYPE) == "exceptions.Exception"
-        assert span.get_tag(errors.ERROR_STACK)
+        assert span.get_tag(ERROR_MSG) == "Middleware exception"
+        assert span.get_tag(ERROR_TYPE) == "exceptions.Exception"
+        assert span.get_tag(ERROR_STACK)
 
     def test_exc_success(self):
         from .app.middleware import ExceptionToSuccessMiddleware
@@ -146,9 +148,9 @@ class PylonsTestCase(TracerTestCase):
         assert span.error == 0
         assert span.get_tag(http.URL) == "http://localhost:80/raise_exception"
         assert_span_http_status_code(span, 200)
-        assert span.get_tag(errors.ERROR_MSG) is None
-        assert span.get_tag(errors.ERROR_TYPE) is None
-        assert span.get_tag(errors.ERROR_STACK) is None
+        assert span.get_tag(ERROR_MSG) is None
+        assert span.get_tag(ERROR_TYPE) is None
+        assert span.get_tag(ERROR_STACK) is None
 
     def test_exc_client_failure(self):
         from .app.middleware import ExceptionToClientErrorMiddleware
@@ -170,9 +172,9 @@ class PylonsTestCase(TracerTestCase):
         assert span.error == 0
         assert span.get_tag(http.URL) == "http://localhost:80/raise_exception"
         assert_span_http_status_code(span, 404)
-        assert span.get_tag(errors.ERROR_MSG) is None
-        assert span.get_tag(errors.ERROR_TYPE) is None
-        assert span.get_tag(errors.ERROR_STACK) is None
+        assert span.get_tag(ERROR_MSG) is None
+        assert span.get_tag(ERROR_TYPE) is None
+        assert span.get_tag(ERROR_STACK) is None
 
     def test_success_200(self, query_string=""):
         if query_string:

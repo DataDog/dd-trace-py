@@ -4,10 +4,11 @@ from flask import signals
 import flask.templating
 
 from ddtrace import config
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 
 from .. import trace_utils
 from ...ext import SpanTypes
-from ...ext import errors
 from ...ext import http
 from ...internal import compat
 from ...internal.logger import get_logger
@@ -198,8 +199,8 @@ def _set_error_on_span(span, exception):
     # also get the exception from the sys.exc_info (and fill the error meta).
     # Since we aren't sure it always work/for insuring no BC break, keep
     # these lines which get overridden anyway.
-    span.set_tag(errors.ERROR_TYPE, type(exception))
-    span.set_tag(errors.ERROR_MSG, exception)
+    span.set_tag(ERROR_TYPE, type(exception))
+    span.set_tag(ERROR_MSG, exception)
     # The provided `exception` object doesn't have a stack trace attached,
     # so attach the stack trace with `set_traceback`.
     span.set_traceback()
