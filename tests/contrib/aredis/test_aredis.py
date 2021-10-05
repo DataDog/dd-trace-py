@@ -31,7 +31,7 @@ def test_patching():
     """
     When patching httpx library
         We wrap the correct methods
-    When unpatching httpx library
+    When unpatching aredis library
         We unwrap the correct methods
     """
     assert isinstance(aredis.client.StrictRedis.execute_command, ObjectProxy)
