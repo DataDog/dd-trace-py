@@ -22,13 +22,13 @@ from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import PID
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.ext import priority
-from ddtrace.ext import system
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
@@ -120,7 +120,7 @@ class TracerTestCases(TracerTestCase):
                 pass
 
         # Root span should contain the pid of the current process
-        root_span.assert_metrics({system.PID: getpid()}, exact=False)
+        root_span.assert_metrics({PID: getpid()}, exact=False)
 
         # Child span should not contain a pid tag
         child_span.assert_metrics(dict(), exact=True)
@@ -920,7 +920,7 @@ def test_tracer_runtime_tags_cross_execution(tracer):
     with tracer.trace("span") as span:
         pass
     assert span.get_tag("runtime-id") is not None
-    assert span.get_metric(system.PID) is not None
+    assert span.get_metric(PID) is not None
 
 
 def test_start_span_hooks():
@@ -1673,19 +1673,19 @@ def test_fork_manual_span_different_contexts(tracer):
 def test_fork_pid(tracer):
     root = tracer.trace("root_span")
     assert root.get_tag("runtime-id") is not None
-    assert root.get_metric(system.PID) is not None
+    assert root.get_metric(PID) is not None
 
     pid = os.fork()
 
     if pid:
         child1 = tracer.trace("span1")
         assert child1.get_tag("runtime-id") is None
-        assert child1.get_metric(system.PID) is None
+        assert child1.get_metric(PID) is None
         child1.finish()
     else:
         child2 = tracer.trace("span2")
         assert child2.get_tag("runtime-id") is not None
-        assert child2.get_metric(system.PID) is not None
+        assert child2.get_metric(PID) is not None
         child2.finish()
         os._exit(12)
 
