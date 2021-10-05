@@ -28,6 +28,7 @@
   "runtime.name",
   "runtime.version",
   "test.framework",
+  "test.framework_version",
   "test.name",
   "test.parameters",
   "test.skip_reason",
