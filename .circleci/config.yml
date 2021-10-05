@@ -749,7 +749,7 @@ jobs:
           pattern: '^sanic_contrib-'
 
   snowflake:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: "snowflake"
