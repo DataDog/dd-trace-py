@@ -655,7 +655,7 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 1
         test_span = spans[0]
 
-        assert test_span.get_tag(test.FRAMEWORK_VERSION) is not None
+        assert test_span.get_tag(test.FRAMEWORK_VERSION) == pytest.__version__
 
 
 @pytest.mark.parametrize(
