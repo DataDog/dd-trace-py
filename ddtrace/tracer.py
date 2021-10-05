@@ -26,10 +26,10 @@ from .constants import AUTO_REJECT
 from .constants import ENV_KEY
 from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
+from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
-from .ext import system
 from .internal import agent
 from .internal import atexit
 from .internal import compat
@@ -597,7 +597,7 @@ class Tracer(object):
 
         if not span._parent:
             span.meta["runtime-id"] = get_runtime_id()
-            span.metrics[system.PID] = self._pid
+            span.metrics[PID] = self._pid
 
         # Apply default global tags.
         if self.tags:
