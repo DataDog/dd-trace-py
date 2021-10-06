@@ -132,6 +132,4 @@ class Context(object):
             self._metrics,
         )
 
-    def __str__(self):
-        # type: () -> str
-        return repr(self)
+    __str__ = __repr__
