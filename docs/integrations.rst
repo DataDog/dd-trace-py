@@ -359,7 +359,7 @@ SQLAlchemy
 .. automodule:: ddtrace.contrib.sqlalchemy
 
 
-.. _sqllite:
+.. _sqlite:
 
 SQLite
 ^^^^^^

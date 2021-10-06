@@ -1,9 +1,8 @@
 import threading
+from typing import Any
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
-
-import attr
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
@@ -20,38 +19,40 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-@attr.s(eq=False, slots=True)
 class Context(object):
     """Represents the state required to propagate a trace across execution
     boundaries.
     """
 
-    trace_id = attr.ib(default=None, type=Optional[int])
-    span_id = attr.ib(default=None, type=Optional[int])
-    _dd_origin = attr.ib(default=None, type=Optional[str], repr=False)
-    _sampling_priority = attr.ib(default=None, type=Optional[NumericType], repr=False)
-    _lock = attr.ib(factory=threading.RLock, type=threading.RLock, repr=False)
-    _meta = attr.ib(factory=dict)  # type: _MetaDictType
-    _metrics = attr.ib(factory=dict)  # type: _MetricDictType
+    __slots__ = [
+        "trace_id",
+        "span_id",
+        "_lock",
+        "_meta",
+        "_metrics",
+    ]
 
-    def __attrs_post_init__(self):
-        if self._dd_origin is not None:
-            self.dd_origin = self._dd_origin
-        if self._sampling_priority is not None:
-            self.sampling_priority = self._sampling_priority
-        del self._dd_origin
-        del self._sampling_priority
+    def __init__(
+        self,
+        trace_id=None,  # type: Optional[int]
+        span_id=None,  # type: Optional[int]
+        dd_origin=None,  # type: Optional[str]
+        sampling_priority=None,  # type: Optional[float]
+        meta=None,  # type: Optional[_MetaDictType]
+        metrics=None,  # type: Optional[_MetricDictType]
+    ):
+        self._meta = meta if meta is not None else {}  # type: _MetaDictType
+        self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
 
-    def __eq__(self, other):
-        if isinstance(other, Context):
-            with self._lock:
-                return (
-                    self.trace_id == other.trace_id
-                    and self.span_id == other.span_id
-                    and self._meta == other._meta
-                    and self._metrics == other._metrics
-                )
-        return False
+        self.trace_id = trace_id  # type: Optional[int]
+        self.span_id = span_id  # type: Optional[int]
+
+        if dd_origin is not None:
+            self._meta[ORIGIN_KEY] = dd_origin
+        if sampling_priority is not None:
+            self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
+
+        self._lock = threading.RLock()
 
     def _with_span(self, span):
         # type: (Span) -> Context
@@ -109,3 +110,26 @@ class Context(object):
         It copies everything EXCEPT the registered and finished spans.
         """
         return self
+
+    def __eq__(self, other):
+        # type: (Any) -> bool
+        if isinstance(other, Context):
+            with self._lock:
+                return (
+                    self.trace_id == other.trace_id
+                    and self.span_id == other.span_id
+                    and self._meta == other._meta
+                    and self._metrics == other._metrics
+                )
+        return False
+
+    def __repr__(self):
+        # type: () -> str
+        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s)" % (
+            self.trace_id,
+            self.span_id,
+            self._meta,
+            self._metrics,
+        )
+
+    __str__ = __repr__
