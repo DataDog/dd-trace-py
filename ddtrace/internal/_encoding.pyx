@@ -588,7 +588,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             if has_error:
                 ret = pack_bytes(&self.pk, <char *> b"error", 5)
                 if ret != 0: return ret
-                ret = msgpack_pack_long(&self.pk, <long> (1 if span.error else 0))
+                ret = msgpack_pack_long(&self.pk, <long> 1)
                 if ret != 0: return ret
 
             if has_span_type:
