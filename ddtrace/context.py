@@ -1,4 +1,5 @@
 import threading
+from typing import Any
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
@@ -45,17 +46,6 @@ class Context(object):
             self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
 
         self._lock = threading.RLock()
-
-    def __eq__(self, other):
-        if isinstance(other, Context):
-            with self._lock:
-                return (
-                    self.trace_id == other.trace_id
-                    and self.span_id == other.span_id
-                    and self._meta == other._meta
-                    and self._metrics == other._metrics
-                )
-        return False
 
     def _with_span(self, span):
         # type: (Span) -> Context
@@ -113,3 +103,28 @@ class Context(object):
         It copies everything EXCEPT the registered and finished spans.
         """
         return self
+
+    def __eq__(self, other):
+        # type: (Any) -> bool
+        if isinstance(other, Context):
+            with self._lock:
+                return (
+                    self.trace_id == other.trace_id
+                    and self.span_id == other.span_id
+                    and self._meta == other._meta
+                    and self._metrics == other._metrics
+                )
+        return False
+
+    def __repr__(self):
+        # type: () -> str
+        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s)" % (
+            self.trace_id,
+            self.span_id,
+            self._meta,
+            self._metrics,
+        )
+
+    def __str__(self):
+        # type: () -> str
+        return repr(self)
