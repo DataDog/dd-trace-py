@@ -345,6 +345,13 @@ Sanic
 .. automodule:: ddtrace.contrib.sanic
 
 
+.. _snowflake:
+
+Snowflake
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.snowflake
+
+
 .. _starlette:
 
 Starlette
