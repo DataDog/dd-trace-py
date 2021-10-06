@@ -800,6 +800,14 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
+  aredis:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'aredis$'
+          snapshot: true
   redis:
     <<: *machine_executor
     parallelism: 4
@@ -977,6 +985,7 @@ requires_tests: &requires_tests
     - pyodbc
     - pyramid
     - pytest
+    - aredis
     - redis
     - rediscluster
     - requests
@@ -1059,6 +1068,7 @@ workflows:
       - pyodbc: *requires_base_venvs
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
+      - aredis: *requires_base_venvs
       - redis: *requires_base_venvs
       - rediscluster: *requires_base_venvs
       - requests: *requires_base_venvs
