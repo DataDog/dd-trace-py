@@ -1231,10 +1231,18 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    # 2.3.x needs pyarrow >=0.17,<0.18 which does not install on Python 3.9
+                    pys=select_pys(min_version="3.6", max_version="3.8"),
                     pkgs={
                         "snowflake-connector-python": [
                             "~=2.3.0",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "snowflake-connector-python": [
                             "~=2.4.0",
                             "~=2.5.0",
                             "~=2.6.0",
