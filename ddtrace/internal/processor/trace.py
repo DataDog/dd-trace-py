@@ -75,15 +75,12 @@ class TraceTopLevelSpanProcessor(TraceProcessor):
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
 
-        # if trace:
-        #     chunk_root = trace[0]
-        #     if chunk_root is chunk_root._local_root or (
-        #         chunk_root._parent and chunk_root._parent.service != chunk_root.service
-        #     ):
-        #         chunk_root.set_metric("_dd.top_level", 1)
+        span_ids = {span.span_id for span in trace}
         for span in trace:
             if span is span._local_root or (span._parent and span._parent.service != span.service):
                 span.set_metric("_dd.top_level", 1)
+            elif span.parent_id not in span_ids:
+                span.set_metric("_dd.top_level", 0)
 
         return trace
 
