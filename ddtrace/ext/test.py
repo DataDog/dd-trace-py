@@ -11,6 +11,9 @@ ARGUMENTS = TEST_ARGUMENTS = "test.arguments"
 # Test Framework
 FRAMEWORK = TEST_FRAMEWORK = "test.framework"
 
+# Test Framework Version
+FRAMEWORK_VERSION = TEST_FRAMEWORK_VERSION = "test.framework_version"
+
 # Test Name
 NAME = TEST_NAME = "test.name"
 

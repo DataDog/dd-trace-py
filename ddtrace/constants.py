@@ -22,6 +22,12 @@ MANUAL_KEEP_KEY = "manual.keep"
 
 LOG_SPAN_KEY = "__datadog_log_span"
 
+ERROR_MSG = "error.msg"  # a string representing the error message
+ERROR_TYPE = "error.type"  # a string representing the type of the error
+ERROR_STACK = "error.stack"  # a human readable version of the stack.
+
+PID = "system.pid"
+
 # Use this to explicitly inform the backend that a trace should be rejected and not stored.
 USER_REJECT = -1
 # Used by the builtin sampler to inform the backend that a trace should be rejected and not stored.
