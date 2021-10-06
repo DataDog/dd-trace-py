@@ -1,11 +1,17 @@
+import contextlib
 import json
 
 import pytest
 import responses
 import snowflake.connector
 
+from ddtrace import Pin
+from ddtrace import tracer
 from ddtrace.contrib.snowflake import patch
 from ddtrace.contrib.snowflake import unpatch
+from tests.opentracer.utils import init_tracer
+from tests.subprocesstest import run_in_subprocess
+from tests.utils import override_config
 from tests.utils import snapshot
 
 
@@ -40,12 +46,14 @@ def add_snowflake_response(
     return req_mock.add(method, url, body=json.dumps(body), status=status, content_type=content_type)
 
 
-def add_snowflake_query_response(rowtype, rows):
+def add_snowflake_query_response(rowtype, rows, total=None):
+    if total is None:
+        total = len(rows)
     data = {
         "queryResponseFormat": "json",
         "rowtype": [SNOWFLAKE_TYPES[t] for t in rowtype],
         "rowset": rows,
-        "total": len(rows),
+        "total": total,
     }
 
     add_snowflake_response(url="https://mock-account.snowflakecomputing.com:443/queries/v1/query-request", data=data)
@@ -78,13 +86,221 @@ def client():
         unpatch()
 
 
+@contextlib.contextmanager
+def ot_trace():
+    ot = init_tracer("snowflake_svc", tracer)
+    with ot.start_active_span("snowflake_op"):
+        yield
+
+
 @snapshot()
 @req_mock.activate
-def test_snowflake(client):
+def test_snowflake_fetchone(client):
     add_snowflake_query_response(
         rowtype=["TEXT"],
         rows=[("4.30.2",)],
     )
     with client.cursor() as cur:
-        cur.execute("select current_version();")
+        res = cur.execute("select current_version();")
+        assert res == cur
         assert cur.fetchone() == ("4.30.2",)
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_settings_override(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT"],
+        rows=[("4.30.2",)],
+    )
+    with override_config("snowflake", dict(service="my-snowflake-svc")):
+        with client.cursor() as cur:
+            res = cur.execute("select current_version();")
+            assert res == cur
+            assert cur.fetchone() == ("4.30.2",)
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_analytics_with_rate(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT"],
+        rows=[("4.30.2",)],
+    )
+    with override_config("snowflake", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+        with client.cursor() as cur:
+            res = cur.execute("select current_version();")
+            assert res == cur
+            assert cur.fetchone() == ("4.30.2",)
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_analytics_without_rate(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT"],
+        rows=[("4.30.2",)],
+    )
+    with override_config("snowflake", dict(analytics_enabled=True)):
+        with client.cursor() as cur:
+            res = cur.execute("select current_version();")
+            assert res == cur
+            assert cur.fetchone() == ("4.30.2",)
+
+
+@snapshot()
+@req_mock.activate
+@run_in_subprocess(env_overrides={"DD_SNOWFLAKE_SERVICE": "env-svc"})
+def test_snowflake_service_env(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT"],
+        rows=[("4.30.2",)],
+    )
+    with override_config("snowflake", dict(analytics_enabled=True)):
+        with client.cursor() as cur:
+            res = cur.execute("select current_version();")
+            assert res == cur
+            assert cur.fetchone() == ("4.30.2",)
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_pin_override(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT"],
+        rows=[("4.30.2",)],
+    )
+    Pin(service="pin-sv", tags={"custom": "tag"}).onto(client)
+    with client.cursor() as cur:
+        res = cur.execute("select current_version();")
+        assert res == cur
+        assert cur.fetchone() == ("4.30.2",)
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_commit(client):
+    add_snowflake_query_response(rowtype=[], rows=[])
+    client.commit()
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_rollback(client):
+    add_snowflake_query_response(rowtype=[], rows=[])
+    client.rollback()
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_fetchall(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT"],
+        rows=[("4.30.2",)],
+    )
+    with client.cursor() as cur:
+        res = cur.execute("select current_version();")
+        assert res == cur
+        assert cur.fetchall() == [("4.30.2",)]
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_fetchall_multiple_rows(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT", "TEXT"],
+        rows=[("1a", "1b"), ("2a", "2b")],
+    )
+    with client.cursor() as cur:
+        res = cur.execute("select a, b from t;")
+        assert res == cur
+        assert cur.fetchall() == [
+            ("1a", "1b"),
+            ("2a", "2b"),
+        ]
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_executemany_insert(client):
+    add_snowflake_query_response(
+        rowtype=[],
+        rows=[],
+        total=2,
+    )
+    with client.cursor() as cur:
+        res = cur.executemany(
+            "insert into t (a, b) values (%s, %s);",
+            [
+                ("1a", "1b"),
+                ("2a", "2b"),
+            ],
+        )
+        assert res == cur
+        assert res.rowcount == 2
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_ot_fetchone(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT"],
+        rows=[("4.30.2",)],
+    )
+    with ot_trace():
+        with client.cursor() as cur:
+            res = cur.execute("select current_version();")
+            assert res == cur
+            assert cur.fetchone() == ("4.30.2",)
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_ot_fetchall(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT"],
+        rows=[("4.30.2",)],
+    )
+    with ot_trace():
+        with client.cursor() as cur:
+            res = cur.execute("select current_version();")
+            assert res == cur
+            assert cur.fetchall() == [("4.30.2",)]
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_ot_fetchall_multiple_rows(client):
+    add_snowflake_query_response(
+        rowtype=["TEXT", "TEXT"],
+        rows=[("1a", "1b"), ("2a", "2b")],
+    )
+    with ot_trace():
+        with client.cursor() as cur:
+            res = cur.execute("select a, b from t;")
+            assert res == cur
+            assert cur.fetchall() == [
+                ("1a", "1b"),
+                ("2a", "2b"),
+            ]
+
+
+@snapshot()
+@req_mock.activate
+def test_snowflake_ot_executemany_insert(client):
+    add_snowflake_query_response(
+        rowtype=[],
+        rows=[],
+        total=2,
+    )
+    with ot_trace():
+        with client.cursor() as cur:
+            res = cur.executemany(
+                "insert into t (a, b) values (%s, %s);",
+                [
+                    ("1a", "1b"),
+                    ("2a", "2b"),
+                ],
+            )
+            assert res == cur
+            assert res.rowcount == 2

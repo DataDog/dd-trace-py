@@ -1,0 +1,21 @@
+[[{"name" "snowflake.connection.commit"
+   "service" "db"
+   "resource" "snowflake.connection.commit"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1633556569118781400
+   "duration" 3784200
+   "meta" {"runtime-id" "f8ec8599814b4c7c8dba46062fbed9a6"
+           "out.host" "mock-account.snowflakecomputing.com"
+           "db.name" "mock-db-name"
+           "db.user" "mock-user"
+           "db.application" "PythonConnector"
+           "db.schema" "mock-schema-name"
+           "db.warehouse" "mock-warehouse-name"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_sampling_priority_v1" 1
+              "system.pid" 6052
+              "out.port" 443
+              "_dd.tracer_kr" 1.0}}]]

@@ -1,0 +1,25 @@
+[[{"name" "snowflake.query"
+   "service" "db"
+   "resource" "select current_version();"
+   "type" "sql"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1633558321134813900
+   "duration" 3936500
+   "meta" {"runtime-id" "d300825b8c4a43d8b95ee8f2add56bb5"
+           "out.host" "mock-account.snowflakecomputing.com"
+           "db.name" "mock-db-name"
+           "db.user" "mock-user"
+           "db.application" "PythonConnector"
+           "db.schema" "mock-schema-name"
+           "db.warehouse" "mock-warehouse-name"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 6454
+              "out.port" 443
+              "db.rowcount" 1
+              "sql.rows" 1
+              "_dd.tracer_kr" 1.0}}]]

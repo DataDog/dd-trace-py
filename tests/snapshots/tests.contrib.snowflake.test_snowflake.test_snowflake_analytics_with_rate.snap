@@ -6,9 +6,9 @@
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
-   "start" 1633020759241297000
-   "duration" 10008600
-   "meta" {"runtime-id" "0f78e798899f473f967cf427028ad1b3"
+   "start" 1633558322783767200
+   "duration" 3072300
+   "meta" {"runtime-id" "d300825b8c4a43d8b95ee8f2add56bb5"
            "out.host" "mock-account.snowflakecomputing.com"
            "db.name" "mock-db-name"
            "db.user" "mock-user"
@@ -18,7 +18,7 @@
    "metrics" {"_dd.agent_psr" 1.0
               "_dd.measured" 1
               "_sampling_priority_v1" 1
-              "system.pid" 409
+              "system.pid" 6454
               "out.port" 443
               "db.rowcount" 1
               "sql.rows" 1

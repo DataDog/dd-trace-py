@@ -1,0 +1,19 @@
+[[{"name" "sql.query"
+   "service" "pin-sv"
+   "resource" "select current_version();"
+   "type" "sql"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1633558326542830800
+   "duration" 4919600
+   "meta" {"runtime-id" "d300825b8c4a43d8b95ee8f2add56bb5"
+           "custom" "tag"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 6454
+              "db.rowcount" 1
+              "sql.rows" 1
+              "_dd.tracer_kr" 1.0}}]]
