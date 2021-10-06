@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support for `snowflake-connector-python https://pypi.org/project/snowflake-connector-python/`_ >= 2.0.0.
