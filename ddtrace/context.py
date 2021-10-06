@@ -32,10 +32,17 @@ class Context(object):
         "_metrics",
     ]
 
-    def __init__(self, trace_id=None, span_id=None, dd_origin=None, sampling_priority=None):
-        # type: (Optional[int], Optional[int], Optional[str], Optional[float]) -> None
-        self._meta = {}  # type: _MetaDictType
-        self._metrics = {}  # type: _MetricDictType
+    def __init__(
+        self,
+        trace_id=None,  # type: Optional[int]
+        span_id=None,  # type: Optional[int]
+        dd_origin=None,  # type: Optional[str]
+        sampling_priority=None,  # type: Optional[float]
+        meta=None,  # type: Optional[_MetaDictType]
+        metrics=None,  # type: Optional[_MetricDictType]
+    ):
+        self._meta = meta if meta is not None else {}  # type: _MetaDictType
+        self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
 
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
