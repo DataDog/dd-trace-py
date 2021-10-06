@@ -220,19 +220,22 @@ def test_aggregator_partial_flush_2_spans():
 
 
 def test_trace_top_level_span_processor():
-    aggr = SpanAggregator(trace_processors=[TraceTopLevelSpanProcessor()])
+    trace_processors = TraceTopLevelSpanProcessor()
 
     # Normal usage
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
-    child.trace_id = parent.trace_id
-    child.parent_id = parent.span_id
-    aggr.on_span_start(child)
+    parent = Span(None, "parent", service="service1")
+    child1 = Span(None, "child1", service="service1")
+    child2 = Span(None, "child2", service="service2")
 
-    child.finish()
-    parent.finish()
+    child1.trace_id = parent.trace_id
+    child1.parent_id = parent.span_id
 
-    print(parent.metrics)
-    assert "_dd.top_level" not in child.metrics
-    assert parent.get_metric("_dd.top_level") == "1"
+    child2.trace_id = parent.trace_id
+    child2.parent_id = parent.span_id
+
+    trace_processors.process_trace([parent, child1, child2])
+
+    # assert "_dd.top_level" not in child1.metrics
+    assert parent.get_metric("_dd.top_level") == 1
+    assert child1.get_metric("_dd.top_level") == 0
+    assert child2.get_metric("_dd.top_level") == 1
