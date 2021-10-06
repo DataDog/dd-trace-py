@@ -2,7 +2,6 @@
    "service" "starlette"
    "resource" "POST /notes"
    "type" "web"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
@@ -21,7 +20,6 @@
        "service" "sqlite"
        "resource" "INSERT INTO notes (id, text, completed) VALUES (?, ?, ?)"
        "type" "sql"
-       "error" 0
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
@@ -34,7 +32,6 @@
    "service" "starlette"
    "resource" "GET /notes"
    "type" "web"
-   "error" 0
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
@@ -53,7 +50,6 @@
        "service" "sqlite"
        "resource" "SELECT * FROM NOTES"
        "type" "sql"
-       "error" 0
        "span_id" 1
        "trace_id" 1
        "parent_id" 0

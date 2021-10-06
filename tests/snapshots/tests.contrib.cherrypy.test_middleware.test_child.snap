@@ -2,7 +2,6 @@
    "service" "test.cherrypy.service"
    "resource" "GET /child"
    "type" "web"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
@@ -20,7 +19,6 @@
       {"name" "child"
        "service" "test.cherrypy.service"
        "resource" "child"
-       "error" 0
        "span_id" 1
        "trace_id" 0
        "parent_id" 0

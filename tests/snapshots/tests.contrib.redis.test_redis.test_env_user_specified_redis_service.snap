@@ -2,7 +2,6 @@
    "service" "myredis"
    "resource" "GET cheese"
    "type" "redis"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
@@ -23,7 +22,6 @@
    "service" "cfg-redis"
    "resource" "GET cheese"
    "type" "redis"
-   "error" 0
    "span_id" 0
    "trace_id" 1
    "parent_id" nil

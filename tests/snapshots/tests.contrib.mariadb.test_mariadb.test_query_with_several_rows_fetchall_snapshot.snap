@@ -2,7 +2,6 @@
    "service" "mariadb"
    "resource" "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
    "type" "sql"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
@@ -24,7 +23,6 @@
    "service" "mariadb"
    "resource" "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
    "type" "sql"
-   "error" 0
    "span_id" 0
    "trace_id" 1
    "parent_id" nil

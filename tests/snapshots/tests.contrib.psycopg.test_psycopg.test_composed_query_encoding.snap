@@ -2,7 +2,6 @@
    "service" "postgres"
    "resource" "select 'one' as x union all select 'two' as x"
    "type" "sql"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil

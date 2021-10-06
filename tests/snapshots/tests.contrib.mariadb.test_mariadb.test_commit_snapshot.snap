@@ -1,7 +1,6 @@
 [[{"name" "mariadb.connection.commit"
    "service" "mariadb"
    "resource" "mariadb.connection.commit"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil

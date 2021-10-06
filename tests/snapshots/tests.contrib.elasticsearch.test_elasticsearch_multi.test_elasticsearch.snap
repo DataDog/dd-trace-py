@@ -2,7 +2,6 @@
    "service" "elasticsearch"
    "resource" "PUT /ddtrace_index"
    "type" "elasticsearch"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
@@ -22,7 +21,6 @@
    "service" "elasticsearch"
    "resource" "DELETE /ddtrace_index"
    "type" "elasticsearch"
-   "error" 0
    "span_id" 0
    "trace_id" 1
    "parent_id" nil

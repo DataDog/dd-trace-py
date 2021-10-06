@@ -2,7 +2,6 @@
    "service" "postgresdb"
    "resource" "select 'one' as x"
    "type" "sql"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
@@ -22,7 +21,6 @@
        "service" "postgres"
        "resource" "select 'one' as x"
        "type" "sql"
-       "error" 0
        "span_id" 1
        "trace_id" 0
        "parent_id" 0

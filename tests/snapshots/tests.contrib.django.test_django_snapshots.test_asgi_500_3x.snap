@@ -27,7 +27,6 @@
       {"name" "django.middleware"
        "service" "django"
        "resource" "django.contrib.sessions.middleware.SessionMiddleware.__call__"
-       "error" 0
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
@@ -36,7 +35,6 @@
           {"name" "django.middleware"
            "service" "django"
            "resource" "django.contrib.sessions.middleware.SessionMiddleware.process_request"
-           "error" 0
            "span_id" 2
            "trace_id" 0
            "parent_id" 1
@@ -45,7 +43,6 @@
           {"name" "django.middleware"
            "service" "django"
            "resource" "django.middleware.common.CommonMiddleware.__call__"
-           "error" 0
            "span_id" 3
            "trace_id" 0
            "parent_id" 1
@@ -54,7 +51,6 @@
               {"name" "django.middleware"
                "service" "django"
                "resource" "django.middleware.common.CommonMiddleware.process_request"
-               "error" 0
                "span_id" 5
                "trace_id" 0
                "parent_id" 3
@@ -63,7 +59,6 @@
               {"name" "django.middleware"
                "service" "django"
                "resource" "django.middleware.csrf.CsrfViewMiddleware.__call__"
-               "error" 0
                "span_id" 6
                "trace_id" 0
                "parent_id" 3
@@ -72,7 +67,6 @@
                   {"name" "django.middleware"
                    "service" "django"
                    "resource" "django.middleware.csrf.CsrfViewMiddleware.process_request"
-                   "error" 0
                    "span_id" 8
                    "trace_id" 0
                    "parent_id" 6
@@ -81,7 +75,6 @@
                   {"name" "django.middleware"
                    "service" "django"
                    "resource" "django.contrib.auth.middleware.AuthenticationMiddleware.__call__"
-                   "error" 0
                    "span_id" 9
                    "trace_id" 0
                    "parent_id" 6
@@ -90,7 +83,6 @@
                       {"name" "django.middleware"
                        "service" "django"
                        "resource" "django.contrib.auth.middleware.AuthenticationMiddleware.process_request"
-                       "error" 0
                        "span_id" 11
                        "trace_id" 0
                        "parent_id" 9
@@ -99,7 +91,6 @@
                       {"name" "django.middleware"
                        "service" "django"
                        "resource" "django.contrib.messages.middleware.MessageMiddleware.__call__"
-                       "error" 0
                        "span_id" 12
                        "trace_id" 0
                        "parent_id" 9
@@ -108,7 +99,6 @@
                           {"name" "django.middleware"
                            "service" "django"
                            "resource" "django.contrib.messages.middleware.MessageMiddleware.process_request"
-                           "error" 0
                            "span_id" 13
                            "trace_id" 0
                            "parent_id" 12
@@ -117,7 +107,6 @@
                           {"name" "django.middleware"
                            "service" "django"
                            "resource" "django.middleware.clickjacking.XFrameOptionsMiddleware.__call__"
-                           "error" 0
                            "span_id" 14
                            "trace_id" 0
                            "parent_id" 12
@@ -126,7 +115,6 @@
                               {"name" "django.middleware"
                                "service" "django"
                                "resource" "django.middleware.security.SecurityMiddleware.__call__"
-                               "error" 0
                                "span_id" 16
                                "trace_id" 0
                                "parent_id" 14
@@ -135,7 +123,6 @@
                                   {"name" "django.middleware"
                                    "service" "django"
                                    "resource" "django.middleware.security.SecurityMiddleware.process_request"
-                                   "error" 0
                                    "span_id" 18
                                    "trace_id" 0
                                    "parent_id" 16
@@ -144,7 +131,6 @@
                                   {"name" "django.middleware"
                                    "service" "django"
                                    "resource" "tests.contrib.django.middleware.ClsMiddleware.__call__"
-                                   "error" 0
                                    "span_id" 19
                                    "trace_id" 0
                                    "parent_id" 16
@@ -153,7 +139,6 @@
                                       {"name" "django.middleware"
                                        "service" "django"
                                        "resource" "tests.contrib.django.middleware.fn_middleware"
-                                       "error" 0
                                        "span_id" 21
                                        "trace_id" 0
                                        "parent_id" 19
@@ -162,7 +147,6 @@
                                           {"name" "django.middleware"
                                            "service" "django"
                                            "resource" "tests.contrib.django.middleware.EverythingMiddleware.__call__"
-                                           "error" 0
                                            "span_id" 22
                                            "trace_id" 0
                                            "parent_id" 21
@@ -171,7 +155,6 @@
                                               {"name" "django.middleware"
                                                "service" "django"
                                                "resource" "django.middleware.csrf.CsrfViewMiddleware.process_view"
-                                               "error" 0
                                                "span_id" 23
                                                "trace_id" 0
                                                "parent_id" 22
@@ -180,7 +163,6 @@
                                               {"name" "django.middleware"
                                                "service" "django"
                                                "resource" "tests.contrib.django.middleware.EverythingMiddleware.process_view"
-                                               "error" 0
                                                "span_id" 24
                                                "trace_id" 0
                                                "parent_id" 22
@@ -201,7 +183,6 @@
                                               {"name" "django.middleware"
                                                "service" "django"
                                                "resource" "tests.contrib.django.middleware.EverythingMiddleware.process_exception"
-                                               "error" 0
                                                "span_id" 26
                                                "trace_id" 0
                                                "parent_id" 22
@@ -210,7 +191,6 @@
                                               {"name" "django.middleware"
                                                "service" "django"
                                                "resource" "django.middleware.csrf.CsrfViewMiddleware.process_request"
-                                               "error" 0
                                                "span_id" 27
                                                "trace_id" 0
                                                "parent_id" 22
@@ -219,7 +199,6 @@
                                               {"name" "django.middleware"
                                                "service" "django"
                                                "resource" "django.middleware.csrf.CsrfViewMiddleware.process_view"
-                                               "error" 0
                                                "span_id" 28
                                                "trace_id" 0
                                                "parent_id" 22
@@ -228,7 +207,6 @@
                                               {"name" "django.middleware"
                                                "service" "django"
                                                "resource" "django.middleware.csrf.CsrfViewMiddleware.process_response"
-                                               "error" 0
                                                "span_id" 29
                                                "trace_id" 0
                                                "parent_id" 22
@@ -238,7 +216,6 @@
                                                "service" "django"
                                                "resource" "django.template.base.Template.render"
                                                "type" "template"
-                                               "error" 0
                                                "span_id" 30
                                                "trace_id" 0
                                                "parent_id" 22
@@ -248,7 +225,6 @@
                                   {"name" "django.middleware"
                                    "service" "django"
                                    "resource" "django.middleware.security.SecurityMiddleware.process_response"
-                                   "error" 0
                                    "span_id" 20
                                    "trace_id" 0
                                    "parent_id" 16
@@ -257,7 +233,6 @@
                               {"name" "django.middleware"
                                "service" "django"
                                "resource" "django.middleware.clickjacking.XFrameOptionsMiddleware.process_response"
-                               "error" 0
                                "span_id" 17
                                "trace_id" 0
                                "parent_id" 14
@@ -266,7 +241,6 @@
                           {"name" "django.middleware"
                            "service" "django"
                            "resource" "django.contrib.messages.middleware.MessageMiddleware.process_response"
-                           "error" 0
                            "span_id" 15
                            "trace_id" 0
                            "parent_id" 12
@@ -275,7 +249,6 @@
                   {"name" "django.middleware"
                    "service" "django"
                    "resource" "django.middleware.csrf.CsrfViewMiddleware.process_response"
-                   "error" 0
                    "span_id" 10
                    "trace_id" 0
                    "parent_id" 6
@@ -284,7 +257,6 @@
               {"name" "django.middleware"
                "service" "django"
                "resource" "django.middleware.common.CommonMiddleware.process_response"
-               "error" 0
                "span_id" 7
                "trace_id" 0
                "parent_id" 3
@@ -293,7 +265,6 @@
           {"name" "django.middleware"
            "service" "django"
            "resource" "django.contrib.sessions.middleware.SessionMiddleware.process_response"
-           "error" 0
            "span_id" 4
            "trace_id" 0
            "parent_id" 1

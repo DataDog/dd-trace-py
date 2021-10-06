@@ -2,7 +2,6 @@
    "service" "urllib3"
    "resource" "urllib3.request"
    "type" "http"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil

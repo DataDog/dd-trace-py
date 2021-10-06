@@ -2,7 +2,6 @@
    "service" "redis"
    "resource" "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
    "type" "redis"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil

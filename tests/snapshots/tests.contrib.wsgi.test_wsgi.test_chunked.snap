@@ -2,7 +2,6 @@
    "service" "wsgi"
    "resource" "GET /chunked"
    "type" "web"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
@@ -20,7 +19,6 @@
       {"name" "wsgi.application"
        "service" "wsgi"
        "resource" "wsgi.application"
-       "error" 0
        "span_id" 1
        "trace_id" 0
        "parent_id" 0
@@ -29,7 +27,6 @@
       {"name" "wsgi.response"
        "service" "wsgi"
        "resource" "wsgi.response"
-       "error" 0
        "span_id" 2
        "trace_id" 0
        "parent_id" 0
@@ -40,7 +37,6 @@
            "service" "wsgi"
            "resource" "wsgi.start_response"
            "type" "web"
-           "error" 0
            "span_id" 3
            "trace_id" 0
            "parent_id" 2

@@ -2,7 +2,6 @@
    "service" "mariadb"
    "resource" "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
    "type" "sql"
-   "error" 0
    "span_id" 0
    "trace_id" 0
    "parent_id" nil
@@ -25,7 +24,6 @@
    "service" "mariadb"
    "resource" "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
    "type" "sql"
-   "error" 0
    "span_id" 0
    "trace_id" 1
    "parent_id" nil
@@ -47,7 +45,6 @@
    "service" "mariadb"
    "resource" "SELECT dummy_key, dummy_value FROM dummy ORDER BY dummy_key"
    "type" "sql"
-   "error" 0
    "span_id" 0
    "trace_id" 2
    "parent_id" nil
