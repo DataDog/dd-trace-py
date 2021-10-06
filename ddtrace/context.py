@@ -3,8 +3,6 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
 
-import attr
-
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.compat import NumericType
@@ -20,27 +18,33 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-@attr.s(eq=False, slots=True)
 class Context(object):
     """Represents the state required to propagate a trace across execution
     boundaries.
     """
 
-    trace_id = attr.ib(default=None, type=Optional[int])
-    span_id = attr.ib(default=None, type=Optional[int])
-    _dd_origin = attr.ib(default=None, type=Optional[str], repr=False)
-    _sampling_priority = attr.ib(default=None, type=Optional[NumericType], repr=False)
-    _lock = attr.ib(factory=threading.RLock, type=threading.RLock, repr=False)
-    _meta = attr.ib(factory=dict)  # type: _MetaDictType
-    _metrics = attr.ib(factory=dict)  # type: _MetricDictType
+    __slots__ = [
+        "trace_id",
+        "span_id",
+        "_lock",
+        "_meta",
+        "_metrics",
+    ]
 
-    def __attrs_post_init__(self):
-        if self._dd_origin is not None:
-            self.dd_origin = self._dd_origin
-        if self._sampling_priority is not None:
-            self.sampling_priority = self._sampling_priority
-        del self._dd_origin
-        del self._sampling_priority
+    def __init__(self, trace_id=None, span_id=None, dd_origin=None, sampling_priority=None):
+        # type: (Optional[int], Optional[int], Optional[str], Optional[float]) -> None
+        self._meta = {}  # type: _MetaDictType
+        self._metrics = {}  # type: _MetricDictType
+
+        self.trace_id = trace_id  # type: Optional[int]
+        self.span_id = span_id  # type: Optional[int]
+
+        if dd_origin is not None:
+            self._meta[ORIGIN_KEY] = dd_origin
+        if sampling_priority is not None:
+            self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
+
+        self._lock = threading.RLock()
 
     def __eq__(self, other):
         if isinstance(other, Context):
