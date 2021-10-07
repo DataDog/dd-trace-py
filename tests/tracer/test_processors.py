@@ -221,6 +221,7 @@ def test_aggregator_partial_flush_2_spans():
 
 def test_trace_top_level_span_processor():
     parent = Span(None, "parent", service="service")
+    parent._local_root = parent
 
     child1 = Span(None, "child1", service="service")
     child1.trace_id = parent.trace_id
