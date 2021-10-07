@@ -62,11 +62,19 @@ class Scenario(six.with_metaclass(ScenarioMeta)):
         """Returns a context manager that yields a function to be run for performance testing."""
         pass
 
+    @abc.abstractmethod
+    def init(self):
+        """Operations to perform in order to initialize the scenario."""
+        pass
+
     def _pyperf(self, loops):
+        self.init()
         rungen = self.run()
+
         run = next(rungen)
         t0 = time.perf_counter()
-        run(loops)
+        for _ in range(loops):
+            run()
         dt = time.perf_counter() - t0
         try:
             # perform any teardown

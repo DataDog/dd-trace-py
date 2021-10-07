@@ -10,14 +10,16 @@ class Encoder(bm.Scenario):
     nmetrics = bm.var(type=int)
     dd_origin = bm.var(type=bool)
 
+    def init(self):
+        utils.gen_data()
+
     def run(self):
         encoder = utils.init_encoder()
-        traces = utils.gen_traces(self)
+        traces = utils.load_traces(self.__dict__)
 
-        def _(loops):
-            for _ in range(loops):
-                for trace in traces:
-                    encoder.put(trace)
-                    encoder.encode()
+        def _():
+            for trace in traces:
+                encoder.put(trace)
+                encoder.encode()
 
         yield _
