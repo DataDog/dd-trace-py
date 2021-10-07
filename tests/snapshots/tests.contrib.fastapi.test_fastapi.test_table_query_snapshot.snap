@@ -14,7 +14,6 @@
            "http.version" "1.1"
            "http.status_code" "200"}
    "metrics" {"_dd.agent_psr" 1.0
-              "_dd.top_level" 1
               "_sampling_priority_v1" 1
               "_dd.tracer_kr" 1.0
               "system.pid" 30232}}]
@@ -34,7 +33,6 @@
            "http.version" "1.1"
            "http.status_code" "200"}
    "metrics" {"_dd.agent_psr" 1.0
-              "_dd.top_level" 1
               "_sampling_priority_v1" 1
               "_dd.tracer_kr" 1.0
               "system.pid" 30232}}]]

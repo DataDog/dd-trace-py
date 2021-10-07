@@ -9,7 +9,6 @@
    "duration" 22147000
    "meta" {"runtime-id" "afc32eb3be454c03b8a140291d5fd696"}
    "metrics" {"_dd.agent_psr" 1.0
-              "_dd.top_level" 1
               "_sampling_priority_v1" 1
               "system.pid" 12507
               "_dd.tracer_kr" 1.0}}
@@ -24,6 +23,5 @@
        "duration" 53000
        "meta" {"runtime-id" "dc30b84ca01142239a7f2a51d9c7725e"}
        "metrics" {"_sampling_priority_v1" 1
-                  "_dd.top_level" 1
                   "system.pid" 12517
                   "_dd.tracer_kr" 1.0}}]]
