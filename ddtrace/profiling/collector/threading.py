@@ -15,6 +15,7 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
 from ddtrace.utils import attr as attr_utils
+from ddtrace.utils import formats
 from ddtrace.vendor import wrapt
 
 
@@ -61,12 +62,13 @@ else:
 
 
 class _ProfiledLock(wrapt.ObjectProxy):
-    def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler):
+    def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled):
         wrapt.ObjectProxy.__init__(self, wrapped)
         self._self_recorder = recorder
         self._self_tracer = tracer
         self._self_max_nframes = max_nframes
         self._self_capture_sampler = capture_sampler
+        self._self_endpoint_collection_enabled = endpoint_collection_enabled
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
@@ -97,7 +99,7 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 )
 
                 if self._self_tracer is not None:
-                    event.set_trace_info(self._self_tracer.current_span())
+                    event.set_trace_info(self._self_tracer.current_span(), self._self_endpoint_collection_enabled)
 
                 self._self_recorder.push_event(event)
             except Exception:
@@ -127,7 +129,9 @@ class _ProfiledLock(wrapt.ObjectProxy):
                         )
 
                         if self._self_tracer is not None:
-                            event.set_trace_info(self._self_tracer.current_span())
+                            event.set_trace_info(
+                                self._self_tracer.current_span(), self._self_endpoint_collection_enabled
+                            )
 
                         self._self_recorder.push_event(event)
                     finally:
@@ -151,6 +155,10 @@ class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
     nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
+    endpoint_collection_enabled = attr.ib(
+        factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool)
+    )
+
     tracer = attr.ib(default=None)
 
     def _start_service(self):  # type: ignore[override]
@@ -174,7 +182,9 @@ class LockCollector(collector.CaptureSamplerCollector):
 
         def _allocate_lock(wrapped, instance, args, kwargs):
             lock = wrapped(*args, **kwargs)
-            return _ProfiledLock(lock, self.recorder, self.tracer, self.nframes, self._capture_sampler)
+            return _ProfiledLock(
+                lock, self.recorder, self.tracer, self.nframes, self._capture_sampler, self.endpoint_collection_enabled
+            )
 
         threading.Lock = FunctionWrapper(self.original, _allocate_lock)  # type: ignore[misc]
 

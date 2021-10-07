@@ -11,12 +11,13 @@ from cassandra.query import SimpleStatement
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.cassandra.patch import patch
 from ddtrace.contrib.cassandra.patch import unpatch
 from ddtrace.contrib.cassandra.session import SERVICE
 from ddtrace.contrib.cassandra.session import get_traced_cassandra
 from ddtrace.ext import cassandra as cassx
-from ddtrace.ext import errors
 from ddtrace.ext import net
 from tests.contrib.config import CASSANDRA_CONFIG
 from tests.opentracer.utils import init_tracer
@@ -295,7 +296,7 @@ class CassandraBase(object):
         assert spans
         query = spans[0]
         assert query.error == 1
-        for k in (errors.ERROR_MSG, errors.ERROR_TYPE):
+        for k in (ERROR_MSG, ERROR_TYPE):
             assert query.get_tag(k)
 
     def test_bound_statement(self):

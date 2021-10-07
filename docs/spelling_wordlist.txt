@@ -15,6 +15,7 @@ agentless
 analytics
 api
 app
+aredis
 args
 asgi
 asyncio
@@ -88,6 +89,7 @@ memcached
 metadata
 microservices
 middleware
+middlewares
 mongoengine
 multiline
 multiprocess
@@ -125,6 +127,7 @@ runnable
 runtime
 runtime-id
 sanic
+screenshots
 serializable
 sql
 sqlalchemy

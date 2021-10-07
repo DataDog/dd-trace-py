@@ -11,10 +11,12 @@ from cherrypy.lib.httputil import valid_status
 
 # project
 from ddtrace import config
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 
 from .. import trace_utils
 from ...ext import SpanTypes
-from ...ext import errors
 from ...internal import compat
 from ...utils.formats import asbool
 from ...utils.formats import get_env
@@ -86,9 +88,9 @@ class TraceTool(cherrypy.Tool):
             return
 
         span.error = 1
-        span.set_tag(errors.ERROR_TYPE, cherrypy._cperror._exc_info()[0])
-        span.set_tag(errors.ERROR_MSG, str(cherrypy._cperror._exc_info()[1]))
-        span.set_tag(errors.STACK, cherrypy._cperror.format_exc())
+        span.set_tag(ERROR_TYPE, cherrypy._cperror._exc_info()[0])
+        span.set_tag(ERROR_MSG, str(cherrypy._cperror._exc_info()[1]))
+        span.set_tag(ERROR_STACK, cherrypy._cperror.format_exc())
 
         self._close_span(span)
 

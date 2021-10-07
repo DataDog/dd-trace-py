@@ -16,12 +16,14 @@ from six import ensure_text
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
-from ddtrace.ext import errors
 from ddtrace.ext import http
-from ddtrace.ext.priority import USER_KEEP
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
@@ -278,7 +280,7 @@ def test_v2XX_middleware(client, test_spans):
         "django.middleware.security.SecurityMiddleware.process_request",
         "django.middleware.security.SecurityMiddleware.process_response",
         "tests.contrib.django.middleware.ClsMiddleware.__call__",
-        "tests.contrib.django.middleware.EverythingMiddleware",
+        "tests.contrib.django.middleware.fn_middleware",
         "tests.contrib.django.middleware.EverythingMiddleware.__call__",
         "tests.contrib.django.middleware.EverythingMiddleware.process_view",
     }
@@ -383,9 +385,9 @@ def test_middleware_trace_error_500(client, test_spans):
         assert span.resource == "GET ^error-500/$"
     else:
         assert span.resource == "GET tests.contrib.django.views.error_500"
-    assert span.get_tag(errors.ERROR_MSG) is None
-    assert span.get_tag(errors.ERROR_TYPE) is None
-    assert span.get_tag(errors.ERROR_STACK) is None
+    assert span.get_tag(ERROR_MSG) is None
+    assert span.get_tag(ERROR_TYPE) is None
+    assert span.get_tag(ERROR_STACK) is None
 
     # Test the view span (where the exception is generated)
     view_span = list(test_spans.filter_spans(name="django.view"))
@@ -393,17 +395,17 @@ def test_middleware_trace_error_500(client, test_spans):
     view_span = view_span[0]
     assert view_span.error == 1
     # Make sure the message is somewhere in the stack trace
-    assert "Error 500" in view_span.get_tag(errors.ERROR_STACK)
+    assert "Error 500" in view_span.get_tag(ERROR_STACK)
 
     # Test the catch exception middleware
     res = "tests.contrib.django.middleware.CatchExceptionMiddleware.process_exception"
     mw_span = list(test_spans.filter_spans(resource=res))[0]
     assert mw_span.error == 1
     # Make sure the message is somewhere in the stack trace
-    assert "Error 500" in view_span.get_tag(errors.ERROR_STACK)
-    assert mw_span.get_tag(errors.ERROR_MSG) is not None
-    assert mw_span.get_tag(errors.ERROR_TYPE) is not None
-    assert mw_span.get_tag(errors.ERROR_STACK) is not None
+    assert "Error 500" in view_span.get_tag(ERROR_STACK)
+    assert mw_span.get_tag(ERROR_MSG) is not None
+    assert mw_span.get_tag(ERROR_TYPE) is not None
+    assert mw_span.get_tag(ERROR_STACK) is not None
 
 
 def test_middleware_handled_view_exception_success(client, test_spans):
@@ -428,9 +430,9 @@ def test_middleware_handled_view_exception_success(client, test_spans):
     # Test the root span
     root_span = test_spans.get_root_span()
     assert root_span.error == 0
-    assert root_span.get_tag(errors.ERROR_STACK) is None
-    assert root_span.get_tag(errors.ERROR_MSG) is None
-    assert root_span.get_tag(errors.ERROR_TYPE) is None
+    assert root_span.get_tag(ERROR_STACK) is None
+    assert root_span.get_tag(ERROR_MSG) is None
+    assert root_span.get_tag(ERROR_TYPE) is None
 
     # Test the view span (where the exception is generated)
     view_span = list(test_spans.filter_spans(name="django.view"))
@@ -447,6 +449,15 @@ def test_empty_middleware_func_is_raised_in_django(client, test_spans):
     with override_settings(MIDDLEWARE=["tests.contrib.django.middleware.empty_middleware"]):
         with pytest.raises(django.core.exceptions.ImproperlyConfigured):
             client.get("/")
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
+def test_multiple_fn_middleware_resource_names(client, test_spans):
+    with modify_settings(MIDDLEWARE={"append": "tests.contrib.django.middleware.fn2_middleware"}):
+        client.get("/")
+
+    assert test_spans.find_span(name="django.middleware", resource="tests.contrib.django.middleware.fn_middleware")
+    assert test_spans.find_span(name="django.middleware", resource="tests.contrib.django.middleware.fn2_middleware")
 
 
 """

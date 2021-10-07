@@ -78,13 +78,13 @@ below:
      - Enables <INTEGRATION> to be patched. For example, ``DD_TRACE_DJANGO_ENABLED=false`` will disable the Django
        integration from being installed. Added in ``v0.41.0``.
 
-       .. _datadog-patch-modules:
-   * - ``DATADOG_PATCH_MODULES``
+       .. _dd-patch-modules:
+   * - ``DD_PATCH_MODULES``
      - String
      -
      - Override the modules patched for this execution of the program. Must be
        a list in the ``module1:boolean,module2:boolean`` format. For example,
-       ``boto:true,redis:false``.
+       ``boto:true,redis:false``. Added in ``v0.55.0`` (formerly named ``DATADOG_PATCH_MODULES``).
 
        .. _dd-logs-injection:
    * - ``DD_LOGS_INJECTION``
@@ -101,12 +101,23 @@ below:
        .. _dd-trace-agent-url:
    * - ``DD_TRACE_AGENT_URL``
      - URL
-     - ``unix:///var/run/datadog/dsd.socket`` if available 
+     - ``unix:///var/run/datadog/apm.socket`` if available 
        otherwise ``http://localhost:8126``
-     - The URL to use to connect the Datadog agent. The url can starts with
+     - The URL to use to connect the Datadog agent for traces. The url can start with
        ``http://`` to connect using HTTP or with ``unix://`` to use a Unix
        Domain Socket.   
        Example for http url: ``DD_TRACE_AGENT_URL=http://localhost:8126``
+       Example for UDS: ``DD_TRACE_AGENT_URL=unix:///var/run/datadog/apm.socket``
+
+       .. _dd-dogstatsd-url:
+   * - ``DD_DOGSTATSD_URL``
+     - URL
+     - ``unix:///var/run/datadog/dsd.socket`` if available 
+       otherwise ``udp://localhost:8125``
+     - The URL to use to connect the Datadog agent for Dogstatsd metrics. The url can start with
+       ``udp://`` to connect using UDP or with ``unix://`` to use a Unix
+       Domain Socket.   
+       Example for UDP url: ``DD_TRACE_AGENT_URL=udp://localhost:8125``
        Example for UDS: ``DD_TRACE_AGENT_URL=unix:///var/run/datadog/dsd.socket``
 
        .. _dd-trace-agent-timeout-seconds:
@@ -144,6 +155,13 @@ below:
      - Float
      - 1.0
      - A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
+   
+   * - ``DD_TRACE_SAMPLING_RULES``
+     - JSON array
+     -
+     - A JSON array of objects. Each object must have a “sample_rate”, and the “name” and “service” fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive). 
+       **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service"}]'``
+       **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
 
        .. _dd-trace-header-tags:
    * - ``DD_TRACE_HEADER_TAGS``

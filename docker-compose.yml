@@ -100,12 +100,13 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: kyleverhoog/dd-trace-test-agent
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
             - ./tests/snapshots:/snapshots
         environment:
+            - LOG_LEVEL=WARNING
             - SNAPSHOT_DIR=/snapshots
             - SNAPSHOT_CI
     vertica:
