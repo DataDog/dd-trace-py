@@ -1,0 +1,38 @@
+[[{"name" "elasticsearch.query"
+   "service" "elasticsearch"
+   "resource" "PUT /ddtrace_index"
+   "type" "elasticsearch"
+   "error" 0
+   "span_id" 0
+   "trace_id" 0
+   "parent_id" nil
+   "start" 1615404339946917000
+   "duration" 54144000
+   "meta" {"runtime-id" "b57310def5e6453589e773a8c58561be"
+           "elasticsearch.method" "PUT"
+           "elasticsearch.url" "/ddtrace_index"
+           "elasticsearch.params" "ignore=400"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 51889
+              "_dd.tracer_kr" 1.0}}]
+ [{"name" "elasticsearch.query"
+   "service" "elasticsearch"
+   "resource" "DELETE /ddtrace_index"
+   "type" "elasticsearch"
+   "error" 0
+   "span_id" 0
+   "trace_id" 1
+   "parent_id" nil
+   "start" 1615404340001313000
+   "duration" 36811000
+   "meta" {"runtime-id" "b57310def5e6453589e773a8c58561be"
+           "elasticsearch.method" "DELETE"
+           "elasticsearch.url" "/ddtrace_index"
+           "elasticsearch.params" "ignore=%5B400%2C+404%5D"}
+   "metrics" {"_dd.agent_psr" 1.0
+              "_dd.measured" 1
+              "_sampling_priority_v1" 1
+              "system.pid" 51889
+              "_dd.tracer_kr" 1.0}}]]
