@@ -224,10 +224,12 @@ def test_trace_top_level_span_processor():
     parent._local_root = parent
 
     child1 = Span(None, "child1", service="service")
+    child1.parent_id = parent.span_id
     child1._parent = parent
 
     child2 = Span(None, "child2", service="new_service_name")
-    child1._parent = parent
+    child2.parent_id = parent.span_id
+    child2._parent = parent
 
     child3 = Span(None, "child3")
     child3.parent_id = parent.span_id - 1
