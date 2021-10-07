@@ -231,13 +231,14 @@ def test_trace_top_level_span_processor():
     child2.parent_id = parent.span_id
     child2._parent = parent
 
-    child3 = Span(None, "child3")
-    child3.parent_id = parent.span_id - 1
+    orphanSpan = Span(None, "child3")
+    orphanSpan._parent = Span(None, "parent_not_in_trace")
+    orphanSpan.parent_id = orphanSpan._parent.span_id
 
     trace_processors = TraceTopLevelSpanProcessor()
-    trace_processors.process_trace([parent, child1, child2, child3])
+    trace_processors.process_trace([parent, child1, child2, orphanSpan])
 
     assert parent.get_metric("_dd.top_level") == 1
     assert "_dd.top_level" not in child1.metrics
     assert child2.get_metric("_dd.top_level") == 1
-    assert child3.get_metric("_dd.top_level") == 0
+    assert orphanSpan.get_metric("_dd.top_level") == 0
