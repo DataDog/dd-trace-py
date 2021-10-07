@@ -30,8 +30,6 @@
        "span_id": 2,
        "parent_id": 1,
        "error": 0,
-       "meta": {},
-       "metrics": {},
        "duration": 27000,
        "start": 1632166190214592000
      },
@@ -49,7 +47,6 @@
          "error.type": "exceptions.GeneratorExit",
          "result_class": "generator"
        },
-       "metrics": {},
        "duration": 1702000,
        "start": 1632166190214653000
      },
@@ -62,8 +59,6 @@
           "parent_id": 3,
           "type": "web",
           "error": 0,
-          "meta": {},
-          "metrics": {},
           "duration": 48000,
           "start": 1632166190214765000
         }]]

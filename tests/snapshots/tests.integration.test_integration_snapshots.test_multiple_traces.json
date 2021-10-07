@@ -31,8 +31,6 @@
        "span_id": 2,
        "parent_id": 1,
        "error": 0,
-       "meta": {},
-       "metrics": {},
        "duration": 14000,
        "start": 1631827407277347000
      }],
@@ -69,8 +67,6 @@
        "span_id": 2,
        "parent_id": 1,
        "error": 0,
-       "meta": {},
-       "metrics": {},
        "duration": 11000,
        "start": 1631827407277637000
      }]]

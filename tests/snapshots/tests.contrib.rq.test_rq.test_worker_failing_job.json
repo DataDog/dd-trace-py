@@ -60,7 +60,6 @@
             "error.type": "tests.contrib.rq.jobs.MyException",
             "job.id": "18ec3e53-42ee-4e71-8505-8a421e1b7c46"
           },
-          "metrics": {},
           "duration": 1310000,
           "start": 1632150771277473000
         }]]
