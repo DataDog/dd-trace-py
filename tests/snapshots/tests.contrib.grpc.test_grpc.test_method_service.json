@@ -22,6 +22,7 @@
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "system.pid": 4211
@@ -48,6 +49,7 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_dd.top_level": 1,
          "system.pid": 4211
        },
        "duration": 87500,
@@ -78,6 +80,7 @@
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "system.pid": 4211
@@ -105,6 +108,7 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_dd.top_level": 1,
          "system.pid": 4211
        },
        "duration": 72800,
