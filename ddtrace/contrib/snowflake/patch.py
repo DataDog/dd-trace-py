@@ -61,6 +61,6 @@ def patched_connect(connect_func, _, args, kwargs):
         "db.warehouse": conn.warehouse,
     }
 
-    Pin(app="snowflake", tags=tags).onto(traced_conn)
+    Pin(tags=tags).onto(traced_conn)
 
     return traced_conn
