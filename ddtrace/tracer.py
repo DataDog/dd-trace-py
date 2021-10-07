@@ -635,9 +635,6 @@ class Tracer(object):
 
     def _on_span_finish(self, span):
         # type: (Span) -> None
-        if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
-
         active = self.current_span()
         # Debug check: if the finishing span has a parent and its parent
         # is not the next active span then this is an error in synchronous tracing.
@@ -651,6 +648,9 @@ class Tracer(object):
 
         for p in self._span_processors:
             p.on_span_finish(span)
+
+        if self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
 
     def _initialize_span_processors(self):
         # type: () -> None
