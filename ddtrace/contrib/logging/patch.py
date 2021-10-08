@@ -39,7 +39,8 @@ def _get_current_span(tracer=None):
     if not tracer:
         tracer = ddtrace.tracer
 
-    if not tracer.enabled:
+    # We might be calling this during tracer initialization, in which case the "enabled" attribute is not available yet
+    if not getattr(tracer, "enabled", False):
         return None
 
     return tracer.current_span()
