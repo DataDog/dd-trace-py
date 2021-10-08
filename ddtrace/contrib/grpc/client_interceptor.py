@@ -4,7 +4,6 @@ import grpc
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import errors
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.compat import to_unicode
 from ddtrace.vendor import wrapt
@@ -13,6 +12,9 @@ from . import constants
 from . import utils
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ERROR_MSG
+from ...constants import ERROR_STACK
+from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
@@ -92,8 +94,8 @@ def _handle_error(span, response_error, status_code):
         # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
         span.error = 1
         exc_val = to_unicode(response_error.details())
-        span._set_str_tag(errors.ERROR_MSG, exc_val)
-        span._set_str_tag(errors.ERROR_TYPE, status_code)
+        span._set_str_tag(ERROR_MSG, exc_val)
+        span._set_str_tag(ERROR_TYPE, status_code)
         return
 
     exception = response_error.exception()
@@ -105,9 +107,9 @@ def _handle_error(span, response_error, status_code):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
             exc_val = to_unicode(response_error.details())
-            span._set_str_tag(errors.ERROR_MSG, exc_val)
-            span._set_str_tag(errors.ERROR_TYPE, status_code)
-            span._set_str_tag(errors.ERROR_STACK, stringify(traceback))
+            span._set_str_tag(ERROR_MSG, exc_val)
+            span._set_str_tag(ERROR_TYPE, status_code)
+            span._set_str_tag(ERROR_STACK, stringify(traceback))
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)

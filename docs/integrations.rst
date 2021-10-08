@@ -23,6 +23,11 @@ algoliasearch
 ^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.algoliasearch
 
+.. _aredis:
+
+aredis
+^^^^^^
+.. automodule:: ddtrace.contrib.aredis
 
 .. _asgi:
 
@@ -354,7 +359,7 @@ SQLAlchemy
 .. automodule:: ddtrace.contrib.sqlalchemy
 
 
-.. _sqllite:
+.. _sqlite:
 
 SQLite
 ^^^^^^

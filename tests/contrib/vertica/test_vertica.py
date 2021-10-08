@@ -4,9 +4,11 @@ import ddtrace
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.vertica.patch import patch
 from ddtrace.contrib.vertica.patch import unpatch
-from ddtrace.ext import errors
 from ddtrace.settings.config import _deepmerge
 from ddtrace.vendor import wrapt
 from tests.contrib.config import VERTICA_CONFIG
@@ -243,10 +245,10 @@ class TestVertica(TracerTestCase):
         # check all the metadata
         assert spans[0].service == "vertica"
         assert spans[0].error == 1
-        assert "INVALID QUERY" in spans[0].get_tag(errors.ERROR_MSG)
+        assert "INVALID QUERY" in spans[0].get_tag(ERROR_MSG)
         error_type = "vertica_python.errors.VerticaSyntaxError"
-        assert spans[0].get_tag(errors.ERROR_TYPE) == error_type
-        assert spans[0].get_tag(errors.ERROR_STACK)
+        assert spans[0].get_tag(ERROR_TYPE) == error_type
+        assert spans[0].get_tag(ERROR_STACK)
 
         assert spans[1].resource == "COMMIT;"
 
