@@ -627,7 +627,6 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
 
     # stderr is expected to log something due to debug logging
     assert b"[dd.service= dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
-    assert b"- DATADOG TRACER DIAGNOSTIC -" in err
 
     # Assert no logging exceptions in stderr
     assert b"KeyError: 'dd.service'" not in err
