@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The ``ddtrace.utils.wrappers.unwrap`` function now raises an error if
+    trying to unwrap a non-wrapped object.
