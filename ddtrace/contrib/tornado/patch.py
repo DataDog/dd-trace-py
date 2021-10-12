@@ -67,7 +67,6 @@ def unpatch():
     _u(tornado.web.RequestHandler, "on_finish")
     _u(tornado.web.RequestHandler, "log_exception")
     _u(tornado.web.Application, "__init__")
-    _u(tornado.concurrent, "run_on_executor")
     _u(tornado.template.Template, "generate")
 
     # unpatch `futures`

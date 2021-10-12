@@ -56,6 +56,17 @@ class PeriodicThread(threading.Thread):
     def run(self):
         """Run the target function periodically."""
         while not self.quit.wait(self.interval):
+            # DEV: Some frameworks, like e.g. gevent, seem to resuscitate some
+            # of the threads that were running prior to the fork of the worker
+            # processes. These threads are normally created via the native API
+            # and are exposed to the child process as _DummyThreads. We check
+            # whether the current thread is no longer an instance of the
+            # original thread class to prevent it from running in the child
+            # process while the state copied over from the parent is being
+            # cleaned up. The restarting of the thread is responsibility to the
+            # registered forksafe hooks.
+            if not isinstance(threading.current_thread(), self.__class__):
+                break
             self._target()
         if self._on_shutdown is not None:
             self._on_shutdown()
