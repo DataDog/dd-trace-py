@@ -62,7 +62,6 @@ def unpatch():
 
         _u(molten.BaseApp, "__init__")
         _u(molten.App, "__call__")
-        _u(molten.Router, "add_route")
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
