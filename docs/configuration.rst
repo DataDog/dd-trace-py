@@ -211,4 +211,10 @@ below:
      - The tags to apply to uploaded profile. Must be a list in the
        ``key1:value,key2:value2`` format.
 
+       .. _dd-profiling-endpoing-collection-enabled:
+   * - ``DD_PROFILING_ENDPOINT_COLLECTION_ENABLED``
+     - Boolean
+     - True
+     - Whether to enable the endpoint data collection in profiles.
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
