@@ -57,9 +57,6 @@ def format_command_args(args):
 
 
 def _set_redis_cmd_tags(config_integration, pin, span, instance, args):
-"""     with pin.tracer.trace(
-        redisx.CMD, service=trace_utils.ext_service(pin, config_integration, pin), span_type=SpanTypes.REDIS
-    ) as s: """
     span.set_tag(SPAN_MEASURED_KEY)
     query = format_command_args(args)
     span.resource = query
