@@ -220,25 +220,50 @@ def test_aggregator_partial_flush_2_spans():
 
 
 def test_trace_top_level_span_processor():
+    trace_processors = TraceTopLevelSpanProcessor()
     parent = Span(None, "parent", service="service")
     parent._local_root = parent
 
+    # Parent span and child span have the same service name
     child1 = Span(None, "child1", service="service")
     child1.parent_id = parent.span_id
     child1._parent = parent
+    trace_processors.process_trace([parent, child1])
+    # parent span should be set to top_level
+    # child span should not contain top_level metric
+    assert parent.get_metric("_dd.top_level") == 1
+    assert "_dd.top_level" not in child1.metrics
 
+    # Parent span and child span have the different service names
     child2 = Span(None, "child2", service="new_service_name")
     child2.parent_id = parent.span_id
     child2._parent = parent
-
-    orphanSpan = Span(None, "child3")
-    orphanSpan._parent = Span(None, "parent_not_in_trace")
-    orphanSpan.parent_id = orphanSpan._parent.span_id
-
-    trace_processors = TraceTopLevelSpanProcessor()
-    trace_processors.process_trace([parent, child1, child2, orphanSpan])
-
+    trace_processors.process_trace([parent, child2])
+    # child span should be set to top_level
     assert parent.get_metric("_dd.top_level") == 1
-    assert "_dd.top_level" not in child1.metrics
     assert child2.get_metric("_dd.top_level") == 1
-    assert orphanSpan.get_metric("_dd.top_level") == 0
+
+    # Trace chuck does not contain parent span
+    orphan_span = Span(None, "child3")
+    orphan_span._parent = Span(None, "parent_span_not_in_trace")
+    orphan_span.parent_id = orphan_span._parent.span_id
+    trace_processors.process_trace([parent, child1, orphan_span, child2])
+    # top_level in orphan_span should be explicitly set to zero/false
+    assert orphan_span.get_metric("_dd.top_level") == 0
+
+    # Parent span and child span have the different service names and Span._parent is None
+    malformed_orphan_span = Span(None, "malformed_orphan_span", service="new_service_name")
+    malformed_orphan_span.parent_id = Span(None, "parent_span_not_in_trace").span_id
+    malformed_orphan_span._parent = None
+    trace_processors.process_trace([malformed_orphan_span])
+    # For the malformed_orphan_span we can not check the service of the parent.
+    # Even though the service name of the child is different from the parent we are not
+    # able to validate this during execution (parent span is not in the trace chunk).
+    assert orphan_span.get_metric("_dd.top_level") == 0
+
+    # Trace contains no spans
+    trace = []
+    assert trace_processors.process_trace(trace) == trace
+
+    # Test return value contains all spans in the argument
+    assert trace_processors.process_trace([parent, child1, child2]) == [parent, child1, child2]
