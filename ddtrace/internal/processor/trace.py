@@ -74,6 +74,14 @@ class TraceTopLevelSpanProcessor(TraceProcessor):
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
+        """Mark a span in a trace as top level if:
+         1. Span has a different service name than it's parent
+         2. Span is a local root
+
+        Explicitly set top level to zero/false if:
+         1. Span has a truthy parent_id (not zero or None)
+            AND parent span in not in the trace chunk
+        """
 
         span_ids = {span.span_id for span in trace}
         for span in trace:
