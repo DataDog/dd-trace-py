@@ -259,7 +259,7 @@ def test_trace_top_level_span_processor():
     # For the malformed_orphan_span we can not check the service of the parent.
     # Even though the service name of the child is different from the parent we are not
     # able to validate this during execution (parent span is not in the trace chunk).
-    assert orphan_span.get_metric("_dd.top_level") == 0
+    assert malformed_orphan_span.get_metric("_dd.top_level") == 0
 
     # Trace contains no spans
     trace = []
