@@ -27,9 +27,9 @@ documentation][visualization docs].
 ### Set up your environment
 
 1. Download the dd-trace-py repository locally (e.g, `git clone`)
-2. Check if python is installed in your environment: `python --version`. If python is not installed, download it: https://www.python.org/downloads/
-3. The tests for this project run on various versions of python. We recommend using a Python Version Management tool, such as Pyenv to utilize multiple versions of Python
-4. Install Pyenv following these instructions: https://github.com/pyenv/pyenv#installation
+2. Check if Python is installed in your environment: `python --version`. If Python is not installed, download it: https://www.python.org/downloads/
+3. The tests for this project run on various versions of Python. We recommend using a Python Version Management tool, such as Pyenv, to utilize multiple versions of Python
+4. Install Pyenv: https://github.com/pyenv/pyenv#installation
 5. Run `pyenv install` for the following versions of Python: 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0
 6. Run `pyenv global` for the same list of versions: 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0
 
@@ -91,12 +91,12 @@ You can run multiple tests by using regular expressions:
 
 To run tests locally with riot, first install riot: `pip install riot`.
 Then, create the base virtual environments: `riot -v generate`.
-You can generate a list of all the available test suites by running `riot list`.
-Certain tests (such as the `contrib` tests) might require service containers to be running in order to emulate the necessary testing environment. You can specify individual containers to spin up (rather than the entire `compose` file) using `docker-compose up -d <SERVICE_NAME>`. `<SERVICE_NAME>` should match one of the services specified in the `docker-compose.yml` file (e.g, `elasticsearch`, `cassandra`, `consul`, etc).
-You can run a test suite with `riot -v run -s -x <TEST_SUITE_NAME>`. To limit the tests to a particular version of Python, use the -p flag: `riot -v run -p <PYTHON_VERSION>`.
-Note that the `run` command uses regex syntax, so in some cases you may want to use the following syntax: `^<TEST_SUITE_NAME>$` where `^` signifies the start of a string and `$` signifies the end of a string (for example, if you run `riot -v run -s -x redis`, both the redis and rediscluster test suites will run. You can use `riot -v run -s -x ^redis$` to ensure only the redis suite is run).
+You can generate a list of all the available test suites with `riot list`.
+Certain tests might require running service containers in order to emulate the necessary testing environment. You can spin up individual containers with `docker-compose up -d <SERVICE_NAME>`. `<SERVICE_NAME>` should match a service specified in the `docker-compose.yml` file (e.g, `elasticsearch`, `cassandra`, `consul`, etc).
+You can run a test suite with `riot -v run <RUN_FLAGS> <TEST_SUITE_NAME>`. We recommend the `-s` and `-x` flags: `-s` prevents riot from reinstalling the dev package; `-x` forces an exit after the first failed test suite. To limit the tests to a particular version of Python, use the `-p` flag: `riot -v run -p <PYTHON_VERSION>`.
+The `run` command uses regex syntax, which in some cases will cause multiple test suites to run. For example, `riot -v run -s -x redis` will cause both the redis and rediscluster test suites to run. You may want to use the following syntax to ensure only the individual suite runs: `^<TEST_SUITE_NAME>$` where `^` signifies the start of a string and `$` signifies the end of a string. For example, you can use `riot -v run -s -x ^redis$` to ensure only the redis suite is run.
 
-The APM test agent is an application which emulates the APM endpoints of the Datadog agent which can be used for testing Datadog APM client libraries. You can use the test agent as a proxy to the Datdaog Agent either via the `--agent-url `commandline argument or by the `DD_TRACE_AGENT_URL` or `DD_AGENT_URL` environment variables. You can spin up the `testagent` container along with any of the other service containers: `docker-compose up -d testagent <SERVICE_CONTAINER>`. Then run the test agent as a proxy in your tests: `DD_TRACE_AGENT_URL=http://<IP>:<PORT>/ riot -v run <RUN_FLAGS> --pass-env <TEST_SUITE_NAME>`. If you were to run the redis test suite using the test agent you might run something like this: `DD_TRACE_AGENT_URL=http://localhost:9126/ riot -v run -p 3.9 -s -x --pass-env redis`
+The APM test agent is an application which emulates the APM endpoints of the Datadog agent which can be used for testing Datadog APM client libraries. You can use the test agent as a proxy to the Datdaog Agent either via the `--agent-url `commandline argument or by the `DD_TRACE_AGENT_URL` or `DD_AGENT_URL` environment variables. You can spin up the `testagent` container along with any of the other service containers: `docker-compose up -d testagent <SERVICE_CONTAINER>`. Then run the test agent as a proxy in your tests: `DD_TRACE_AGENT_URL=<URL>/ riot -v run <RUN_FLAGS> --pass-env <TEST_SUITE_NAME>`, where `--pass-env` injects the `DD_TRACE_AGENT_URL` environment variable into the command. For example, you can run the redis test suite along with the test agent: `DD_TRACE_AGENT_URL=http://localhost:9126/ riot -v run -p 3.9 -s -x --pass-env redis`
 
 Read more about the APM test agent: https://github.com/datadog/dd-apm-test-agent#readme
 
