@@ -57,6 +57,9 @@ def format_command_args(args):
 
 
 def _set_redis_cmd_tags(config_integration, pin, span, instance, args):
+"""     with pin.tracer.trace(
+        redisx.CMD, service=trace_utils.ext_service(pin, config_integration, pin), span_type=SpanTypes.REDIS
+    ) as s: """
     span.set_tag(SPAN_MEASURED_KEY)
     query = format_command_args(args)
     span.resource = query
@@ -67,6 +70,7 @@ def _set_redis_cmd_tags(config_integration, pin, span, instance, args):
     span.set_metric(redisx.ARGS_LEN, len(args))
     # set analytics sample rate if enabled
     span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
+    # return func(*args, **kwargs)
 
 
 def _set_redis_execute_pipeline_tags(config_integration, resource, span, instance):
