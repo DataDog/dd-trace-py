@@ -39,7 +39,9 @@ def _get_current_span(tracer=None):
     if not tracer:
         tracer = ddtrace.tracer
 
-    if not tracer.enabled:
+    # We might be calling this during library initialization, in which case `ddtrace.tracer` might
+    # be the `tracer` module and not the global tracer instance.
+    if not getattr(tracer, "enabled", False):
         return None
 
     return tracer.current_span()

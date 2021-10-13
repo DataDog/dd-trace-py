@@ -50,6 +50,7 @@ from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
+from .monkey import patch
 from .provider import DefaultContextProvider
 from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
@@ -73,6 +74,8 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 )
 if debug_mode and not hasHandlers(log) and call_basic_config:
     if config.logs_injection:
+        # We need to ensure logging is patched in case the tracer logs during initialization
+        patch(logging=True)
         logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
     else:
         logging.basicConfig(level=logging.DEBUG)
