@@ -45,8 +45,6 @@ def patched_connect(connect_func, _, args, kwargs):
     if isinstance(conn, TracedConnection):
         return conn
 
-    traced_conn = TracedConnection(conn)
-
     # Add default tags to each query
     tags = {
         net.TARGET_HOST: conn.host,
@@ -58,6 +56,7 @@ def patched_connect(connect_func, _, args, kwargs):
         "db.warehouse": conn.warehouse,
     }
 
-    Pin(tags=tags).onto(traced_conn)
-
+    pin = Pin(tags=tags)
+    traced_conn = TracedConnection(conn, pin=pin, cfg=config.snowflake)
+    pin.onto(traced_conn)
     return traced_conn
