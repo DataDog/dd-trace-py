@@ -50,7 +50,7 @@ def patched_connect(connect_func, _, args, kwargs):
 
     traced_conn = TracedConnection(conn)
 
-    # TODO: Get the real tags we need
+    # Add default tags to each query
     tags = {
         net.TARGET_HOST: conn.host,
         net.TARGET_PORT: conn.port,
