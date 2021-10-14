@@ -15,19 +15,18 @@
       "db.user": "mock-user",
       "db.warehouse": "mock-warehouse-name",
       "out.host": "mock-account.snowflakecomputing.com",
-      "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf"
+      "runtime-id": "2ca2eba8ca9b4ae199c9732fc4f1a16d"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
       "_dd.tracer_kr": 1.0,
-      "_dd1.sr.eausr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "out.port": 443,
       "sql.rows": 1,
-      "system.pid": 79541
+      "system.pid": 80293
     },
-    "duration": 3869000,
-    "start": 1634218664420126000
+    "duration": 3141000,
+    "start": 1634218827948586000
   }]]

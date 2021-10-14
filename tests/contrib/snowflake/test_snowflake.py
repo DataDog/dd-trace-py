@@ -156,11 +156,10 @@ def test_snowflake_service_env(client):
         rowtype=["TEXT"],
         rows=[("4.30.2",)],
     )
-    with override_config("snowflake", dict(analytics_enabled=True)):
-        with client.cursor() as cur:
-            res = cur.execute("select current_version();")
-            assert res == cur
-            assert cur.fetchone() == ("4.30.2",)
+    with client.cursor() as cur:
+        res = cur.execute("select current_version();")
+        assert res == cur
+        assert cur.fetchone() == ("4.30.2",)
 
 
 @snapshot()
