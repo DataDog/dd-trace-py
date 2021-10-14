@@ -27,9 +27,8 @@ def iswrapped(obj, attr=None):
 
 def unwrap(obj, attr):
     # type: (Any, str) -> None
-    f = getattr(obj, attr, None)
-    if f and isinstance(f, wrapt.ObjectProxy) and hasattr(f, "__wrapped__"):
-        setattr(obj, attr, f.__wrapped__)
+    f = getattr(obj, attr)
+    setattr(obj, attr, f.__wrapped__)
 
 
 @deprecated("`wrapt` library is used instead", version="1.0.0")
