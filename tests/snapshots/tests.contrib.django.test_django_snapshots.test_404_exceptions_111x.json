@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
       "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
       "django.response.class": "django.http.response.HttpResponseNotFound",
@@ -34,7 +33,6 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 78000,
        "start": 1633584289731260000
      },
@@ -45,7 +43,6 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "error": 0,
        "duration": 85000,
        "start": 1633584289731408000
      },
@@ -56,7 +53,6 @@
        "trace_id": 0,
        "span_id": 4,
        "parent_id": 1,
-       "error": 0,
        "duration": 38000,
        "start": 1633584289731555000
      },
@@ -67,7 +63,6 @@
        "trace_id": 0,
        "span_id": 5,
        "parent_id": 1,
-       "error": 0,
        "duration": 42000,
        "start": 1633584289731652000
      },
@@ -78,7 +73,6 @@
        "trace_id": 0,
        "span_id": 6,
        "parent_id": 1,
-       "error": 0,
        "duration": 34000,
        "start": 1633584289731752000
      },
@@ -89,7 +83,6 @@
        "trace_id": 0,
        "span_id": 7,
        "parent_id": 1,
-       "error": 0,
        "duration": 243000,
        "start": 1633584289731843000
      },
@@ -100,7 +93,6 @@
        "trace_id": 0,
        "span_id": 8,
        "parent_id": 1,
-       "error": 0,
        "duration": 36000,
        "start": 1633584289732206000
      },
@@ -111,7 +103,6 @@
        "trace_id": 0,
        "span_id": 9,
        "parent_id": 1,
-       "error": 0,
        "duration": 43000,
        "start": 1633584289732402000
      },
@@ -122,7 +113,6 @@
        "trace_id": 0,
        "span_id": 10,
        "parent_id": 1,
-       "error": 0,
        "duration": 43000,
        "start": 1633584289732505000
      },
@@ -134,7 +124,6 @@
        "span_id": 11,
        "parent_id": 1,
        "type": "template",
-       "error": 0,
        "meta": {
          "django.template.engine.class": "django.template.engine.Engine"
        },
@@ -148,7 +137,6 @@
        "trace_id": 0,
        "span_id": 12,
        "parent_id": 1,
-       "error": 0,
        "duration": 43000,
        "start": 1633584289733579000
      },
@@ -159,7 +147,6 @@
        "trace_id": 0,
        "span_id": 13,
        "parent_id": 1,
-       "error": 0,
        "duration": 37000,
        "start": 1633584289733748000
      },
@@ -170,7 +157,6 @@
        "trace_id": 0,
        "span_id": 14,
        "parent_id": 1,
-       "error": 0,
        "duration": 47000,
        "start": 1633584289733844000
      },
@@ -181,7 +167,6 @@
        "trace_id": 0,
        "span_id": 15,
        "parent_id": 1,
-       "error": 0,
        "duration": 39000,
        "start": 1633584289733960000
      },
@@ -192,7 +177,6 @@
        "trace_id": 0,
        "span_id": 16,
        "parent_id": 1,
-       "error": 0,
        "duration": 37000,
        "start": 1633584289734055000
      },
@@ -203,7 +187,6 @@
        "trace_id": 0,
        "span_id": 17,
        "parent_id": 1,
-       "error": 0,
        "duration": 50000,
        "start": 1633584289734149000
      },
@@ -214,7 +197,6 @@
        "trace_id": 0,
        "span_id": 18,
        "parent_id": 1,
-       "error": 0,
        "duration": 42000,
        "start": 1633584289734257000
      }]]
