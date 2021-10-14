@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes exceptions raised when logging during tracer initialization when ``DD_LOGS_INJECTION`` is enabled.
