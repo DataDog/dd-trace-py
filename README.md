@@ -89,7 +89,8 @@ You can run multiple tests by using regular expressions:
 #### Running Tests locally
 
 1. Install riot: `pip install riot`.
-2. Create the base virtual environments: `riot -v generate`. You can generate a list of all the available test suites with `riot list`.
+2. Create the base virtual environments: `riot -v generate`.
+3. You can generate a list of all the available test suites with `riot list`.
 3. Certain tests might require running service containers in order to emulate the necessary testing environment. You can spin up individual containers with `docker-compose up -d <SERVICE_NAME>`, where `<SERVICE_NAME>` should match a service specified in the `docker-compose.yml` file.
 4. Run a test suite: `riot -v run <RUN_FLAGS> <TEST_SUITE_NAME>`. Optionally, use the `-s` and `-x` flags: `-s` prevents riot from reinstalling the dev package; `-x` forces an exit after the first failed test suite. To limit the tests to a particular version of Python, use the `-p` flag: `riot -v run -p <PYTHON_VERSION>`.
 
