@@ -20,9 +20,6 @@ config._add(
 
 
 def patch():
-    """Patch monkey patches psycopg's connection function
-    so that the connection's functions are traced.
-    """
     import snowflake.connector
 
     if getattr(snowflake.connector, "_datadog_patch", False):
