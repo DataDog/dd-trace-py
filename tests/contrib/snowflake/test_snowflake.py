@@ -59,8 +59,8 @@ def add_snowflake_query_response(rowtype, rows, total=None):
     add_snowflake_response(url="https://mock-account.snowflakecomputing.com:443/queries/v1/query-request", data=data)
 
 
-@pytest.fixture
-def client():
+@contextlib.contextmanager
+def _client():
     patch()
     with req_mock:
         add_snowflake_response(
@@ -84,6 +84,12 @@ def client():
     finally:
         ctx.close()
         unpatch()
+
+
+@pytest.fixture
+def client():
+    with _client() as ctx:
+        yield ctx
 
 
 @contextlib.contextmanager
@@ -149,17 +155,29 @@ def test_snowflake_analytics_without_rate(client):
 
 
 @snapshot()
-@req_mock.activate
-@run_in_subprocess(env_overrides={"DD_SNOWFLAKE_SERVICE": "env-svc"})
-def test_snowflake_service_env(client):
-    add_snowflake_query_response(
-        rowtype=["TEXT"],
-        rows=[("4.30.2",)],
+def test_snowflake_service_env(run_python_code_in_subprocess, monkeypatch):
+    monkeypatch.setenv("DD_SNOWFLAKE_SERVICE", "env-svc")
+
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+from tests.contrib.snowflake.test_snowflake import _client, add_snowflake_query_response, req_mock
+
+with _client() as c:
+    with req_mock:
+        add_snowflake_query_response(
+            rowtype=["TEXT"],
+            rows=[("4.30.2",)],
+        )
+
+        with c.cursor() as cur:
+            res = cur.execute("select current_version();")
+            assert res == cur
+            assert cur.fetchone() == ("4.30.2",)
+    """
     )
-    with client.cursor() as cur:
-        res = cur.execute("select current_version();")
-        assert res == cur
-        assert cur.fetchone() == ("4.30.2",)
+
+    assert status == 0, (out, err)
+    assert err == b""
 
 
 @snapshot()

@@ -1,7 +1,7 @@
 [[
   {
     "name": "sql.query",
-    "service": "snowflake",
+    "service": "env-svc",
     "resource": "select current_version();",
     "trace_id": 0,
     "span_id": 1,
