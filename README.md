@@ -29,8 +29,8 @@ documentation][visualization docs].
 1. Download the dd-trace-py repository locally (e.g, `git clone`)
 2. Check if Python is installed in your environment: `python --version`. If Python is not installed, download it: https://www.python.org/downloads/
 3. The tests for this project run on various versions of Python. We recommend using a Python Version Management tool, such as Pyenv, to utilize multiple versions of Python. Install Pyenv: https://github.com/pyenv/pyenv#installation
-4. Run `pyenv install` for the following versions of Python: 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0
-5. Run `pyenv global` for the same list of versions: 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0
+4. Install the relevant versions of Python in Pyenv: `pyenv install 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
+5. Make those versions available globally: `pyenv global 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
 
 ## Development
 
@@ -107,7 +107,7 @@ Run the test agent as a proxy in your tests:
 
 `--pass-env` injects the `DD_TRACE_AGENT_URL` environment variable into the command. For example, you can run the redis test suite along with the test agent, limited to tests for Python 3.9:
 
-    $ DD_TRACE_AGENT_URL=http://localhost:9126/ riot -v run -p 3.9 -s -x --pass-env redis
+    $ DD_TRACE_AGENT_URL=http://localhost:9126/ riot -v run -p 3.9 -s -x --pass-env '^redis$'
 
 Read more about the APM test agent: https://github.com/datadog/dd-apm-test-agent#readme
 
