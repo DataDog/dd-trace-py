@@ -176,7 +176,6 @@ with _client() as c:
     )
 
     assert status == 0, (out, err)
-    assert err == b""
 
 
 @snapshot()
