@@ -219,12 +219,12 @@ def test_aggregator_partial_flush_2_spans():
     assert writer.pop() == [parent]
 
 
-def test_trace_top_level_span_processor():
+def test_trace_top_level_span_processor_same_service_name():
+    """Parent span and child span have the same service name"""
     trace_processors = TraceTopLevelSpanProcessor()
     parent = Span(None, "parent", service="service")
     parent._local_root = parent
 
-    # Parent span and child span have the same service name
     child1 = Span(None, "child1", service="service")
     child1.parent_id = parent.span_id
     child1._parent = parent
@@ -234,7 +234,13 @@ def test_trace_top_level_span_processor():
     assert parent.get_metric("_dd.top_level") == 1
     assert "_dd.top_level" not in child1.metrics
 
-    # Parent span and child span have the different service names
+
+def test_trace_top_level_span_processor_different_service_name():
+    """Parent span and child span have the different service names"""
+    trace_processors = TraceTopLevelSpanProcessor()
+    parent = Span(None, "parent", service="service")
+    parent._local_root = parent
+
     child2 = Span(None, "child2", service="new_service_name")
     child2.parent_id = parent.span_id
     child2._parent = parent
@@ -243,15 +249,23 @@ def test_trace_top_level_span_processor():
     assert parent.get_metric("_dd.top_level") == 1
     assert child2.get_metric("_dd.top_level") == 1
 
-    # Trace chuck does not contain parent span
-    orphan_span = Span(None, "child3")
+
+def test_trace_top_level_span_processor_orphan_span():
+    """Trace chuck does not contain parent span"""
+    trace_processors = TraceTopLevelSpanProcessor()
+
+    orphan_span = Span(None, "orphan_span")
     orphan_span._parent = Span(None, "parent_span_not_in_trace")
     orphan_span.parent_id = orphan_span._parent.span_id
-    trace_processors.process_trace([parent, child1, orphan_span, child2])
+    trace_processors.process_trace([Span(None, "span1"), orphan_span])
     # top_level in orphan_span should be explicitly set to zero/false
     assert orphan_span.get_metric("_dd.top_level") == 0
 
-    # Parent span and child span have the different service names and Span._parent is None
+
+def test_trace_top_level_span_processor_no_parent_span_object():
+    """Parent span and child span have the different service names and Span._parent is None"""
+    trace_processors = TraceTopLevelSpanProcessor()
+
     span_wo_parent_span_obj = Span(None, "span_wo_parent_span_obj", service="new_service_name")
     span_wo_parent_span_obj.parent_id = Span(None, "parent_span_not_in_trace").span_id
     span_wo_parent_span_obj._parent = None
@@ -261,9 +275,14 @@ def test_trace_top_level_span_processor():
     # In this case top_level is set to false.
     assert span_wo_parent_span_obj.get_metric("_dd.top_level") == 0
 
+
+def test_trace_top_level_span_processor_trace_return_val():
+    """Trace contains no spans"""
+    trace_processors = TraceTopLevelSpanProcessor()
     # Trace contains no spans
     trace = []
     assert trace_processors.process_trace(trace) == trace
 
+    trace = [Span(None, "span1"), Span(None, "span2"), Span(None, "span3")]
     # Test return value contains all spans in the argument
-    assert trace_processors.process_trace([parent, child1, child2]) == [parent, child1, child2]
+    assert trace_processors.process_trace(trace) == trace
