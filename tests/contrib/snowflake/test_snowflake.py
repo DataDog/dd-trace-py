@@ -10,7 +10,6 @@ from ddtrace import tracer
 from ddtrace.contrib.snowflake import patch
 from ddtrace.contrib.snowflake import unpatch
 from tests.opentracer.utils import init_tracer
-from tests.subprocesstest import run_in_subprocess
 from tests.utils import override_config
 from tests.utils import snapshot
 
