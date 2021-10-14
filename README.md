@@ -105,7 +105,7 @@ Run the test agent as a proxy in your tests:
 
     $ DD_TRACE_AGENT_URL=<URL>/ riot -v run <RUN_FLAGS> --pass-env <TEST_SUITE_NAME>
 
-`--pass-env` injects the `DD_TRACE_AGENT_URL` environment variable into the command. For example, you can run the redis test suite along with the test agent:
+`--pass-env` injects the `DD_TRACE_AGENT_URL` environment variable into the command. For example, you can run the redis test suite along with the test agent, limited to tests for Python 3.9:
 
     $ DD_TRACE_AGENT_URL=http://localhost:9126/ riot -v run -p 3.9 -s -x --pass-env redis
 
