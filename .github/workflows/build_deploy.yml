@@ -15,7 +15,7 @@ on:
     - cron:  0 2 * * 2-6
 
 jobs:
-  build_wheels:
+  build_wheels_p27:
     name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -46,7 +46,7 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels py <= 2.7
+      - name: Build wheels
         uses: joerick/cibuildwheel@v1.12.0
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
@@ -61,85 +61,10 @@ jobs:
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
           CIBW_PROJECT_REQUIRES_PYTHON: "<=2.7"
 
-      - name: Build Python 3 wheels
-        uses: joerick/cibuildwheel@v2.1.3
-        env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_ARCHS: ${{ matrix.archs }}
-          # PyPY is not supported
-          CIBW_SKIP: pp*
-          # Run a smoke test on every supported platform
-          CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
-          # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-
       - uses: actions/upload-artifact@v2
         with:
           path: ./wheelhouse/*.whl
-  build_wheels_py_greaterthan_2.7:
-    name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-         - os: ubuntu-18.04
-           archs: x86_64 i686
-         - os: ubuntu-18.04
-           archs: aarch64
-         - os: windows-latest
-           archs: AMD64 x86
-         - os: macos-latest
-           archs: x86_64 universal2
-    steps:
-      - uses: actions/checkout@v2
-        # Include all history and tags
-        with:
-          fetch-depth: 0
 
-      - uses: actions/setup-python@v2
-        name: Install Python
-        with:
-          python-version: '3.8'
-
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v1
-        with:
-          platforms: all
-
-      - name: Build wheels py <= 2.7
-        uses: joerick/cibuildwheel@v1.12.0
-        env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_ARCHS: ${{ matrix.archs }}
-          # PyPY is not supported
-          # Windows 2.7 wheels no longer can be built https://github.com/DataDog/dd-trace-py/pull/2344
-          CIBW_SKIP: pp* cp27-win*
-          # Run a smoke test on every supported platform
-          CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
-          # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-          CIBW_PROJECT_REQUIRES_PYTHON: "<=2.7"
-
-      - name: Build wheels py > 2.7
-        uses: joerick/cibuildwheel@v2.1.3
-        env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_ARCHS: ${{ matrix.archs }}
-          # PyPY is not supported
-          # Windows 2.7 wheels no longer can be built https://github.com/DataDog/dd-trace-py/pull/2344
-          CIBW_SKIP: pp* cp27-win*
-          # Run a smoke test on every supported platform
-          CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
-          # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-
-      - uses: actions/upload-artifact@v2
-        with:
-          path: ./wheelhouse/*.whl
   build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest
@@ -158,7 +83,6 @@ jobs:
         run: |
           pip install cython
           python setup.py sdist
-
       - uses: actions/upload-artifact@v2
         with:
           path: dist/*.tar.gz
@@ -185,7 +109,6 @@ jobs:
         run: |
           pip install twine readme_renderer[md]
           twine check dist/*.tar.gz
-
       - name: Install source package
         run: pip install dist/*.tar.gz
 
@@ -213,7 +136,6 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           ./scripts/validate-version "${{ github.event.inputs.expectedVersion }}"
-
       - uses: pypa/gh-action-pypi-publish@master
         with:
           user: __token__
