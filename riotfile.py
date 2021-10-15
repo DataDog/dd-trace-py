@@ -1172,6 +1172,7 @@ venv = Venv(
             command="python -m tests.profiling.run pytest --no-cov --capture=no --verbose --benchmark-disable {cmdargs} "  # noqa
             "tests/profiling",
             pkgs={"pytest-benchmark": latest, "uwsgi": latest},
+            env={"PIP_NO_BINARY": "gevent"},
             venvs=[
                 Venv(
                     pys=select_pys(),

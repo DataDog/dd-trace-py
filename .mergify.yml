@@ -39,3 +39,6 @@ pull_request_rules:
       label:
         remove:
           - conflict
+      merge:
+        commit_message: default
+        method: squash
