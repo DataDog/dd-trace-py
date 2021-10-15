@@ -253,9 +253,11 @@ def test_trace_top_level_span_processor_different_service_name():
 def test_trace_top_level_span_processor_orphan_span():
     """Trace chuck does not contain parent span"""
     trace_processors = TraceTopLevelSpanProcessor()
+    parent = Span(None, "span_not_in_trace", service="service")
+    parent._local_root = parent
 
-    orphan_span = Span(None, "orphan_span")
-    orphan_span._parent = Span(None, "parent_span_not_in_trace")
+    orphan_span = Span(None, "orphan_span", service="service")
+    orphan_span._parent = parent
     orphan_span.parent_id = orphan_span._parent.span_id
     trace_processors.process_trace([Span(None, "span1"), orphan_span])
     # top_level in orphan_span should be explicitly set to zero/false
@@ -265,9 +267,11 @@ def test_trace_top_level_span_processor_orphan_span():
 def test_trace_top_level_span_processor_no_parent_span_object():
     """Parent span and child span have the different service names and Span._parent is None"""
     trace_processors = TraceTopLevelSpanProcessor()
+    parent = Span(None, "span_not_in_trace", service="service")
+    parent._local_root = parent
 
     span_wo_parent_span_obj = Span(None, "span_wo_parent_span_obj", service="new_service_name")
-    span_wo_parent_span_obj.parent_id = Span(None, "parent_span_not_in_trace").span_id
+    span_wo_parent_span_obj.parent_id = parent.span_id
     span_wo_parent_span_obj._parent = None
     trace_processors.process_trace([span_wo_parent_span_obj])
     # Even though the service name of the child is different from the parent we are not
@@ -285,4 +289,4 @@ def test_trace_top_level_span_processor_trace_return_val():
 
     trace = [Span(None, "span1"), Span(None, "span2"), Span(None, "span3")]
     # Test return value contains all spans in the argument
-    assert trace_processors.process_trace(trace) == trace
+    assert trace_processors.process_trace(trace[:]) == trace
