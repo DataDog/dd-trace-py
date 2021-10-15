@@ -61,7 +61,7 @@ jobs:
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
           CIBW_PROJECT_REQUIRES_PYTHON: "<=2.7"
 
-      - name: Build wheels py > 2.7
+      - name: Build Python 3 wheels
         uses: joerick/cibuildwheel@v2.1.3
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
