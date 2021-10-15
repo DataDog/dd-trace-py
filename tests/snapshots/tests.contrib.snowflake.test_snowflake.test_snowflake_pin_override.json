@@ -1,0 +1,25 @@
+[[
+  {
+    "name": "sql.query",
+    "service": "pin-sv",
+    "resource": "select current_version();",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "custom": "tag",
+      "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": 1,
+      "sql.rows": 1,
+      "system.pid": 79541
+    },
+    "duration": 3174000,
+    "start": 1634218665449110000
+  }]]

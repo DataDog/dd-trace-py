@@ -5,9 +5,11 @@ import time
 from flask import make_response
 
 from ddtrace import config
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.flask import TraceMiddleware
-from ddtrace.ext import errors
 from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
@@ -268,9 +270,9 @@ class TestFlask(TracerTestCase):
         assert_span_http_status_code(s, 500)
         assert s.error == 1
         assert s.meta.get(http.METHOD) == "GET"
-        assert "ZeroDivisionError" in s.meta.get(errors.ERROR_TYPE), s.meta
-        assert "by zero" in s.meta.get(errors.ERROR_MSG)
-        assert re.search('File ".*/contrib/flask/web.py", line [0-9]+, in fatal', s.meta.get(errors.ERROR_STACK))
+        assert "ZeroDivisionError" in s.meta.get(ERROR_TYPE), s.meta
+        assert "by zero" in s.meta.get(ERROR_MSG)
+        assert re.search('File ".*/contrib/flask/web.py", line [0-9]+, in fatal', s.meta.get(ERROR_STACK))
 
     def test_unicode(self):
         start = time.time()

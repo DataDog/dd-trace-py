@@ -38,14 +38,18 @@ Binary distributions are not available for Alpine so build dependencies must be 
 Quickstart
 ----------
 
-Tracing
-~~~~~~~
-
 .. important::
 
-    If ``gevent`` is used in the application then read the documentation
-    :ref:`here<gevent>`.
 
+    Using `gevent <https://www.gevent.org/>`__? Read our :ref:`gevent documentation<gevent>`.
+
+    Using `Gunicorn <https://gunicorn.org>`__? Read the :ref:`Gunicorn documentation<gunicorn>`.
+
+    Using `uWSGI <https://uwsgi-docs.readthedocs.io>`__? Read our :ref:`uWSGI documentation<uwsgi>`.
+
+
+Tracing
+~~~~~~~
 
 Getting started for tracing is as easy as prefixing your python entry-point
 command with ``ddtrace-run``.
@@ -57,6 +61,11 @@ your desired settings in place of the example environment variables)::
 
 For more advanced usage of ``ddtrace-run`` refer to the documentation
 :ref:`here<ddtracerun>`.
+
+To verify the environment configuration for your application run the command ``ddtrace-run --info``. 
+This will print out info useful for debugging to make sure your environment variable configurations are 
+being picked up correctly and that the tracer will be able to connect to the Datadog agent with them. 
+Note: ``--info`` Only reflects configurations made via environment variables, not those made in code.
 
 
 If ``ddtrace-run`` isn't suitable for your application then :ref:`patch_all`

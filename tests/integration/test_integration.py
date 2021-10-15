@@ -217,7 +217,7 @@ def test_single_trace_too_large():
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.log") as log:
         with t.trace("huge"):
-            for i in range(100000):
+            for i in range(200000):
                 with t.trace("operation") as s:
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()
@@ -522,7 +522,7 @@ def test_writer_env_configuration(run_python_code_in_subprocess):
 import ddtrace
 
 assert ddtrace.tracer.writer._encoder.max_size == 1000
-assert ddtrace.tracer.writer._encoder.max_item_size == 5000
+assert ddtrace.tracer.writer._encoder.max_item_size == 1000
 assert ddtrace.tracer.writer._interval == 5.0
 """,
         env=env,
@@ -554,7 +554,7 @@ def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subproc
 import ddtrace
 
 assert ddtrace.tracer.writer._encoder.max_size == 1000
-assert ddtrace.tracer.writer._encoder.max_item_size == 5000
+assert ddtrace.tracer.writer._encoder.max_item_size == 1000
 assert ddtrace.tracer.writer._interval == 5.0
 """,
         env=env,
@@ -601,3 +601,33 @@ def test_partial_flush_log(run_python_code_in_subprocess):
     log.debug.assert_has_calls(calls)
     s1.finish()
     t.shutdown()
+
+
+def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subprocess):
+    """
+    Regression test for enabling debug logging and logs injection
+
+    When both DD_TRACE_DEBUG and DD_LOGS_INJECTION are enabled
+    any logging during tracer initialization would raise an exception
+    because `dd.service` was not available in the log record yet.
+    """
+    env = os.environ.copy()
+    env["DD_TRACE_DEBUG"] = "true"
+    env["DD_LOGS_INJECTION"] = "true"
+
+    # DEV: We don't actually have to execute any code to validate this
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess("", env=env)
+
+    # The program will always exit successfully
+    # Errors during logging do not crash the app
+    assert status == 0, (out, err)
+
+    # The program does nothing
+    assert out == b""
+
+    # stderr is expected to log something due to debug logging
+    assert b"[dd.service= dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
+
+    # Assert no logging exceptions in stderr
+    assert b"KeyError: 'dd.service'" not in err
+    assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err

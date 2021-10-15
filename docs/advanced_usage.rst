@@ -23,6 +23,9 @@ You can also use a Unix Domain Socket to connect to the agent::
     tracer.configure(uds_path="/path/to/socket")
 
 
+.. _context:
+
+
 Context
 -------
 
@@ -373,7 +376,7 @@ Examples::
 
     from ddtrace import config
 
-    # Global config
+    # Global config
     config.http.trace_query_string = True
 
     # Integration level config, e.g. 'falcon'
@@ -387,13 +390,15 @@ Headers tracing
 
 For a selected set of integrations, it is possible to store http headers from both requests and responses in tags.
 
-Configuration can be provided both at the global level and at the integration level.
+The recommended method is to use the ``DD_TRACE_HEADER_TAGS`` environment variable.
+
+Alternatively, configuration can be provided both at the global level and at the integration level in your application code.
 
 Examples::
 
     from ddtrace import config
 
-    # Global config
+    # Global config
     config.trace_headers([
         'user-agent',
         'transfer-encoding',
@@ -602,6 +607,8 @@ and database modules without the need for changing your code::
 
   Usage: ddtrace-run <my_program>
 
+`--info`: This argument prints an easily readable tracer health check and configurations. It does not reflect configuration changes made at the code level,
+only environment variable configurations.
 
 The environment variables for ``ddtrace-run`` used to configure the tracer are
 detailed in :ref:`Configuration`.
@@ -634,35 +641,50 @@ the console, and changes can be made as needed.
 uWSGI
 -----
 
-The tracer and profiler support uWSGI when configured with the following:
+**Note:** ``ddtrace-run`` is not supported with uWSGI.
 
-- Threads must be enabled with `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`_ or with `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`_ if running uWSGI in multithreaded mode.
-- If manual instrumentation and configuration is used, `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`_ must be used.
+``ddtrace`` only supports `uWSGI <https://uwsgi-docs.readthedocs.io/>`__ when configured with each of the following:
 
-To enable tracing with automatic instrumentation and configuration with environment variables, use `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`_ option with the setting ``ddtrace.bootstrap.customize``. For example, add the following to the uWSGI configuration file::
+- Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
+- Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.
+- For automatic instrumentation (like ``ddtrace-run``) set the `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`__ option to ``ddtrace.bootstrap.sitecustomize``.
 
+Example with CLI arguments:
+
+.. code-block:: bash
+
+  uwsgi --enable-threads --lazy-apps --import=ddtrace.bootstrap.sitecustomize --master --processes=5 --http 127.0.0.1:8000 --module wsgi:app
+
+
+Example with uWSGI ini file:
+
+.. code-block:: ini
+
+  ;; uwsgi.ini
+  [uwsgi]
+  module = wsgi:app
+  http = 127.0.0.1:8000
+
+  master = true
+  processes = 5
+
+  ;; ddtrace required options
+  enable-threads = 1
+  lazy-apps = 1
   import=ddtrace.bootstrap.sitecustomize
 
-**Note:** Automatic instrumentation and configuration using ``ddtrace-run`` is not supported with uWSGI.
 
-To enable tracing with manual instrumentation and configuration, configure uWSGI with the ``lazy-apps`` option and use :ref:`patch_all()<patch_all>` and :ref:`agent configuration<agentconfiguration>` to a WSGI app::
+.. code-block:: bash
 
-  from ddtrace import patch_all
-  from ddtrace import tracer
+  uwsgi --ini uwsgi.ini
 
 
-  patch_all()
-  tracer.configure()
-
-  def application(env, start_response):
-      with tracer.trace("uwsgi-app"):
-          start_response('200 OK', [('Content-Type','text/html')])
-          return [b"Hello World"]
+.. _gunicorn:
 
 Gunicorn
 --------
 
-``ddtrace`` supports `Gunicorn <https://gunicorn.org>`_.
+``ddtrace`` supports `Gunicorn <https://gunicorn.org>`__.
 
 However, if you are using the ``gevent`` worker class, you have to make sure
 ``gevent`` monkey patching is done before loading the ``ddtrace`` library.
@@ -725,3 +747,4 @@ API
 
 .. toctree::
    :maxdepth: 2
+   

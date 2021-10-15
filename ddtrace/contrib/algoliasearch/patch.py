@@ -55,14 +55,14 @@ def unpatch():
     if getattr(algoliasearch, DD_PATCH_ATTR, False):
         setattr(algoliasearch, DD_PATCH_ATTR, False)
 
-    if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
-        _u(algoliasearch.index.Index, "search")
-    elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
-        from algoliasearch import search_index
+        if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
+            _u(algoliasearch.index.Index, "search")
+        elif algoliasearch_version >= (2, 0) and algoliasearch_version < (3, 0):
+            from algoliasearch import search_index
 
-        _u(search_index.SearchIndex, "search")
-    else:
-        return
+            _u(search_index.SearchIndex, "search")
+        else:
+            return
 
 
 # DEV: this maps serves the dual purpose of enumerating the algoliasearch.search() query_args that

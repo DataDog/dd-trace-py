@@ -86,26 +86,27 @@ services:
       image: datadog/docker-dd-agent:latest
       environment:
         - DD_BIND_HOST=0.0.0.0
-        - DD_API_KEY=invalid_but_this_is_fine
+        - DD_API_KEY=${DD_API_KEY-invalid_but_this_is_fine}
       ports:
         - "127.0.0.1:8126:8126"
     ddagent:
         image: datadog/agent:latest
         environment:
             - DD_BIND_HOST=0.0.0.0
-            - DD_API_KEY=invalid_key_but_this_is_fine
+            - DD_API_KEY=${DD_API_KEY-invalid_but_this_is_fine}
             - DD_APM_RECEIVER_SOCKET=/tmp/ddagent/trace.sock
         ports:
             - "127.0.0.1:8126:8126"
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: kyleverhoog/dd-trace-test-agent
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
             - ./tests/snapshots:/snapshots
         environment:
+            - LOG_LEVEL=WARNING
             - SNAPSHOT_DIR=/snapshots
             - SNAPSHOT_CI
     vertica:
@@ -126,7 +127,9 @@ services:
         working_dir: /root/project/
         volumes:
           - ddagent:/tmp/ddagent
-          - "./:/root/project"
+          - ./:/root/project
+          - ./.ddtox:/root/project/.tox
+          - ./.ddriot:/root/project/.riot
 
     localstack:
         image: localstack/localstack:0.12.1

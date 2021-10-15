@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add automatic unix domain socket detection for traces. The expected path for the socket is ``/var/run/datadog/apm.socket`` which if exists, will be used instead of the previous http default, ``http://localhost:8126/``. To be used in conjunction with ``apm_config.receiver_socket`` in your ``datadog.yaml`` file, or the ``DD_APM_RECEIVER_SOCKET`` environment variable set on the Datadog agent.

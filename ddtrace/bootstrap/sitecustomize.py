@@ -5,6 +5,8 @@ Add all monkey-patching that needs to run by default here
 import logging
 import os
 import sys
+from typing import Any
+from typing import Dict
 
 
 # Perform gevent patching as early as possible in the application before
@@ -58,7 +60,7 @@ EXTRA_PATCHED_MODULES = {
 
 
 def update_patched_modules():
-    modules_to_patch = os.environ.get("DATADOG_PATCH_MODULES")
+    modules_to_patch = get_env("patch", "modules")
     if not modules_to_patch:
         return
 
@@ -70,12 +72,13 @@ def update_patched_modules():
 try:
     from ddtrace import tracer
 
-    # Respect DATADOG_* environment variables in global tracer configuration
-    # TODO: these variables are deprecated; use utils method and update our documentation
+    # Respect DATADOG_* environment variables in global tracer configuration but add deprecation warning
     # correct prefix should be DD_*
-    hostname = os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME"))
-    port = os.environ.get("DATADOG_TRACE_AGENT_PORT")
-    priority_sampling = os.environ.get("DATADOG_PRIORITY_SAMPLING")
+
+    dd_hostname = get_env("trace", "agent", "hostname")
+    hostname = os.environ.get("DD_AGENT_HOST", dd_hostname)
+    port = get_env("trace", "agent", "port")
+    priority_sampling = get_env("priority", "sampling")
     profiling = asbool(os.environ.get("DD_PROFILING_ENABLED", False))
 
     if profiling:
@@ -84,12 +87,13 @@ try:
     if asbool(get_env("runtime_metrics", "enabled")):
         RuntimeWorker.enable()
 
-    opts = {}
+    opts = {}  # type: Dict[str, Any]
 
-    if asbool(os.environ.get("DATADOG_TRACE_ENABLED", True)):
-        patch = True
+    dd_trace_enabled = get_env("trace", "enabled", default=True)
+    if asbool(dd_trace_enabled):
+        trace_enabled = True
     else:
-        patch = False
+        trace_enabled = False
         opts["enabled"] = False
 
     if hostname:
@@ -101,14 +105,15 @@ try:
 
     tracer.configure(**opts)
 
-    if patch:
+    if trace_enabled:
         update_patched_modules()
         from ddtrace import patch_all
 
         patch_all(**EXTRA_PATCHED_MODULES)
 
-    if "DATADOG_ENV" in os.environ:
-        tracer.set_tags({constants.ENV_KEY: os.environ["DATADOG_ENV"]})
+    dd_env = get_env("env")
+    if dd_env:
+        tracer.set_tags({constants.ENV_KEY: dd_env})
 
     if "DD_TRACE_GLOBAL_TAGS" in os.environ:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")

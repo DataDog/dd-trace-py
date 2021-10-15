@@ -2,6 +2,7 @@ import typing
 
 import attr
 
+from ddtrace import span as ddspan
 from ddtrace.internal import compat
 
 
@@ -44,7 +45,20 @@ class StackBasedEvent(SampleEvent):
     task_name = attr.ib(default=None)
     frames = attr.ib(default=None)
     nframes = attr.ib(default=None)
-    trace_id = attr.ib(default=None)
-    span_id = attr.ib(default=None)
+    local_root_span_id = attr.ib(default=None, type=typing.Optional[int])
+    span_id = attr.ib(default=None, type=typing.Optional[int])
     trace_type = attr.ib(default=None, type=typing.Optional[str])
-    trace_resource = attr.ib(default=None, type=typing.Optional[str])
+    trace_resource_container = attr.ib(default=None)
+
+    def set_trace_info(
+        self,
+        span,  # type: typing.Optional[ddspan.Span]
+        endpoint_collection_enabled,  # type: bool
+    ):
+        if span:
+            self.span_id = span.span_id
+            if span._local_root is not None:
+                self.local_root_span_id = span._local_root.span_id
+                self.trace_type = span._local_root._span_type
+                if endpoint_collection_enabled:
+                    self.trace_resource_container = span._local_root._resource

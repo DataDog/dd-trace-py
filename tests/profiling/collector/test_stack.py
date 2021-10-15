@@ -9,11 +9,13 @@ import uuid
 import pytest
 import six
 
+from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import event as event_mod
 from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
+from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import stack
 
@@ -68,7 +70,7 @@ def test_collect_once():
     stack_events = all_events[0]
     for e in stack_events:
         if e.thread_name == "MainThread":
-            if TESTING_GEVENT and stack.FEATURES["gevent-tasks"]:
+            if TESTING_GEVENT and _task._gevent_tracer is not None:
                 assert e.task_id > 0
                 assert e.task_name == e.thread_name
             else:
@@ -93,7 +95,7 @@ def _fib(n):
         return _fib(n - 1) + _fib(n - 2)
 
 
-@pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
+@pytest.mark.skipif(_task._gevent_tracer is None, reason="gevent tasks not supported")
 def test_collect_gevent_thread_task():
     r = recorder.Recorder()
     s = stack.StackCollector(r)
@@ -161,7 +163,7 @@ class CollectorTest(collector.PeriodicCollector):
         return []
 
 
-@pytest.mark.skipif(not stack.FEATURES["gevent-tasks"], reason="gevent-tasks not supported")
+@pytest.mark.skipif(_task._gevent_tracer is None, reason="gevent tasks not supported")
 @pytest.mark.parametrize("ignore", (True, False))
 def test_ignore_profiler_gevent_task(monkeypatch, ignore):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
@@ -197,7 +199,7 @@ def test_repr():
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
         "recorder=Recorder(default_max_events=32768, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
-        "nframes=64, ignore_profiler=False, tracer=None)",
+        "nframes=64, ignore_profiler=False, endpoint_collection_enabled=True, tracer=None)",
     )
 
 
@@ -327,7 +329,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 321, "test_exception_collection")]
+    assert e.frames == [(__file__, 323, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -350,11 +352,11 @@ def test_exception_collection_trace(tracer):
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 344, "test_exception_collection_trace")]
+    assert e.frames == [(__file__, 346, "test_exception_collection_trace")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
-    assert e.trace_id == span.trace_id
+    assert e.local_root_span_id == span._local_root.span_id
 
 
 @pytest.fixture
@@ -454,10 +456,56 @@ def test_collect_span_id(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if span.trace_id == event.trace_id and span.span_id == event.span_id:
-            assert event.trace_resource == resource
+        if span.span_id == event.span_id:
+            assert event.trace_resource_container[0] == resource
+            assert event.trace_type == span_type
+            assert event.local_root_span_id == span._local_root.span_id
+            break
+
+
+def test_collect_span_resource_after_finish(tracer_and_collector):
+    t, c = tracer_and_collector
+    resource = str(uuid.uuid4())
+    span_type = str(uuid.uuid4())
+    span = t.start_span("foobar", activate=True, span_type=span_type)
+    # This test will run forever if it fails. Don't make it fail.
+    while True:
+        try:
+            event = c.recorder.events[stack.StackSampleEvent].pop()
+        except IndexError:
+            # No event left or no event yet
+            continue
+        if span.span_id == event.span_id:
+            assert event.trace_resource_container[0] == "foobar"
             assert event.trace_type == span_type
             break
+    span.resource = resource
+    span.finish()
+    assert event.trace_resource_container[0] == resource
+
+
+def test_resource_not_collected(monkeypatch, tracer):
+    monkeypatch.setenv("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", "false")
+    r = recorder.Recorder()
+    collector = stack.StackCollector(r, tracer=tracer)
+    collector.start()
+    try:
+        resource = str(uuid.uuid4())
+        span_type = str(uuid.uuid4())
+        span = tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type)
+        # This test will run forever if it fails. Don't make it fail.
+        while True:
+            try:
+                event = collector.recorder.events[stack.StackSampleEvent].pop()
+            except IndexError:
+                # No event left or no event yet
+                continue
+            if span.span_id == event.span_id:
+                assert event.trace_resource_container is None
+                assert event.trace_type == span_type
+                break
+    finally:
+        collector.stop()
 
 
 def test_collect_multiple_span_id(tracer_and_collector):
@@ -473,8 +521,8 @@ def test_collect_multiple_span_id(tracer_and_collector):
         except IndexError:
             # No event left or no event yet
             continue
-        if child.trace_id == event.trace_id and child.span_id == event.span_id:
-            assert event.trace_resource == resource
+        if child.span_id == event.span_id:
+            assert event.trace_resource_container[0] == resource
             assert event.trace_type == span_type
             break
 
@@ -547,3 +595,34 @@ def test_thread_time_cache():
         assert set(tt._get_last_thread_time().keys()) == set(
             (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
         )
+
+
+@pytest.mark.skipif(_task._gevent_tracer is None, reason="gevent tasks not supported")
+def test_collect_gevent_thread_hub():
+    r = recorder.Recorder()
+    s = stack.StackCollector(r, ignore_profiler=True)
+
+    # Start some greenthreads: they do nothing we just keep switching between them.
+    def _nothing():
+        for _ in range(10000):
+            # Do nothing and just switch to another greenlet
+            time.sleep(0)
+
+    threads = []
+    with s:
+        for i in range(100):
+            t = threading.Thread(target=_nothing, name="TestThread %d" % i)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+
+    main_thread_found = False
+    for event in r.events[stack.StackSampleEvent]:
+        if event.thread_name == compat.main_thread.ident and event.task_name is None:
+            pytest.fail("Task with no name detected, is it the Hub?")
+        else:
+            main_thread_found = True
+
+    # Make sure we did at least one check
+    assert main_thread_found

@@ -10,15 +10,17 @@ import cassandra.cluster
 from ddtrace import config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ERROR_MSG
+from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import cassandra as cassx
-from ...ext import errors
 from ...ext import net
 from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
 from ...internal.logger import get_logger
 from ...pin import Pin
+from ...utils import get_argument_value
 from ...utils.deprecation import deprecated
 from ...utils.formats import deep_getattr
 from ...vendor import wrapt
@@ -68,7 +70,7 @@ def _close_span_on_success(result, future):
 
 
 def traced_set_final_result(func, instance, args, kwargs):
-    result = args[0]
+    result = get_argument_value(args, kwargs, 0, "response")
     _close_span_on_success(result, instance)
     return func(*args, **kwargs)
 
@@ -82,8 +84,8 @@ def _close_span_on_error(exc, future):
         # handling the exception manually because we
         # don't have an ongoing exception here
         span.error = 1
-        span.set_tag(errors.ERROR_MSG, exc.args[0])
-        span.set_tag(errors.ERROR_TYPE, exc.__class__.__name__)
+        span.set_tag(ERROR_MSG, exc.args[0])
+        span.set_tag(ERROR_TYPE, exc.__class__.__name__)
     except Exception:
         log.debug("traced_set_final_exception was not able to set the error, failed with error", exc_info=True)
     finally:
@@ -92,7 +94,7 @@ def _close_span_on_error(exc, future):
 
 
 def traced_set_final_exception(func, instance, args, kwargs):
-    exc = args[0]
+    exc = get_argument_value(args, kwargs, 0, "response")
     _close_span_on_error(exc, instance)
     return func(*args, **kwargs)
 
@@ -134,7 +136,7 @@ def traced_execute_async(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    query = kwargs.get("query") or args[0]
+    query = get_argument_value(args, kwargs, 0, "query")
 
     span = _start_span_and_set_tags(pin, query, instance, cluster)
 

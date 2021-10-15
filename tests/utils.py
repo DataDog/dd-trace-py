@@ -14,11 +14,11 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
-from ddtrace.internal._encoding import MsgpackEncoder
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.encoding import JSONEncoder
+from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import wrapt
@@ -426,7 +426,7 @@ class DummyWriter(AgentWriter):
         self.spans = []
         self.traces = []
         self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = MsgpackEncoder(4 << 20, 4 << 20)
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -831,7 +831,7 @@ class SnapshotTest(object):
         """Clear any traces sent that were sent for this snapshot."""
         parsed = parse.urlparse(self.tracer.writer.agent_url)
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/clear?token=%s" % self.token)
+        conn.request("GET", "/test/session/clear?test_session_token=%s" % self.token)
         resp = conn.getresponse()
         assert resp.status == 200
 
@@ -862,25 +862,24 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
 
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
-            tracer.writer._headers["X-Datadog-Test-Token"] = token
+            tracer.writer._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
-            existing_headers.update({"X-Datadog-Test-Token": token})
+            existing_headers.update({"X-Datadog-Test-Session-Token": token})
             os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join(
                 ["%s:%s" % (k, v) for k, v in existing_headers.items()]
             )
+
+        try:
+            conn.request("GET", "/test/session/start?test_session_token=%s" % token)
+        except Exception as e:
+            pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
         else:
-            # Signal the start of this test case to the test agent.
-            try:
-                conn.request("GET", "/test/start?token=%s" % token)
-            except Exception as e:
-                pytest.fail("Could not connect to test agent: %s" % str(e), pytrace=False)
-            else:
-                r = conn.getresponse()
-                if r.status != 200:
-                    # The test agent returns nice error messages we can forward to the user.
-                    raise SnapshotFailed(r.read())
+            r = conn.getresponse()
+            if r.status != 200:
+                # The test agent returns nice error messages we can forward to the user.
+                pytest.fail(to_unicode(r.read()), pytrace=False)
 
         try:
             yield SnapshotTest(
@@ -891,24 +890,20 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
             # Force a flush so all traces are submitted.
             tracer.writer.flush_queue()
             if async_mode:
-                del tracer.writer._headers["X-Datadog-Test-Token"]
+                del tracer.writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         # Query for the results of the test.
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         r = conn.getresponse()
         if r.status != 200:
-            raise SnapshotFailed(r.read())
-    except SnapshotFailed as e:
-        # Fail the test if a failure has occurred and print out the
-        # message we got from the test agent.
-        pytest.fail(to_unicode(e.args[0]), pytrace=False)
+            pytest.fail(to_unicode(r.read()), pytrace=False)
     except Exception as e:
         # Even though it's unlikely any traces have been sent, make the
         # final request to the test agent so that the test case is finished.
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/snapshot?ignores=%s&token=%s" % (",".join(ignores), token))
+        conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         conn.getresponse()
         pytest.fail("Unexpected test failure during snapshot test: %s" % str(e), pytrace=True)
     finally:

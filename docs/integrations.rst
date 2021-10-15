@@ -23,6 +23,11 @@ algoliasearch
 ^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib.algoliasearch
 
+.. _aredis:
+
+aredis
+^^^^^^
+.. automodule:: ddtrace.contrib.aredis
 
 .. _asgi:
 
@@ -170,6 +175,12 @@ Grpc
 httplib
 ^^^^^^^
 .. automodule:: ddtrace.contrib.httplib
+
+.. _httpx:
+
+httpx
+^^^^^
+.. automodule:: ddtrace.contrib.httpx
 
 
 .. _jinja2:
@@ -320,11 +331,25 @@ Requests
 .. automodule:: ddtrace.contrib.requests
 
 
+.. _rq:
+
+RQ
+^^^^^^^^
+.. automodule:: ddtrace.contrib.rq
+
+
 .. _sanic:
 
 Sanic
 ^^^^^
 .. automodule:: ddtrace.contrib.sanic
+
+
+.. _snowflake:
+
+Snowflake
+^^^^^^^^^
+.. automodule:: ddtrace.contrib.snowflake
 
 
 .. _starlette:
@@ -341,7 +366,7 @@ SQLAlchemy
 .. automodule:: ddtrace.contrib.sqlalchemy
 
 
-.. _sqllite:
+.. _sqlite:
 
 SQLite
 ^^^^^^

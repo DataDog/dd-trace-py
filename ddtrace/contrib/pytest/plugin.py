@@ -1,9 +1,11 @@
+from doctest import DocTest
 import json
 from typing import Dict
 
 import pytest
 
 import ddtrace
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
@@ -114,12 +116,22 @@ def pytest_runtest_protocol(item, nextitem):
         span_type=SpanTypes.TEST.value,
     ) as span:
         span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
+        span.context.sampling_priority = AUTO_KEEP
         span.set_tags(pin.tags)
         span.set_tag(SPAN_KIND, KIND)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
         span.set_tag(test.NAME, item.name)
-        span.set_tag(test.SUITE, item.module.__name__)
+        if hasattr(item, "module"):
+            span.set_tag(test.SUITE, item.module.__name__)
+        elif hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
+            span.set_tag(test.SUITE, item.dtest.globs["__name__"])
         span.set_tag(test.TYPE, SpanTypes.TEST.value)
+
+        span.set_tag(test.FRAMEWORK_VERSION, pytest.__version__)
+
+        # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
+        # (where the actual test status is set), it means there was a pytest error
+        span.set_tag(test.STATUS, test.Status.FAIL.value)
 
         # Parameterized test cases will have a `callspec` attribute attached to the pytest Item object.
         # Pytest docs: https://docs.pytest.org/en/6.2.x/reference.html#pytest.Function
@@ -155,41 +167,38 @@ def pytest_runtest_makereport(item, call):
     if span is None:
         return
 
-    called_without_status = call.when == "call" and span.get_tag(test.STATUS) is None
-    failed_setup = call.when == "setup" and call.excinfo is not None
-    if not called_without_status and not failed_setup:
+    is_setup_or_teardown = call.when == "setup" or call.when == "teardown"
+    has_exception = call.excinfo is not None
+
+    if is_setup_or_teardown and not has_exception:
         return
 
-    try:
-        result = outcome.get_result()
+    result = outcome.get_result()
+    xfail = hasattr(result, "wasxfail") or "xfail" in result.keywords
+    has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
-        if hasattr(result, "wasxfail") or "xfail" in result.keywords:
-            if result.skipped:
-                # XFail tests that fail are recorded skipped by pytest
-                span.set_tag(test.RESULT, test.Status.XFAIL.value)
-                span.set_tag(test.XFAIL_REASON, result.wasxfail)
-            else:
-                span.set_tag(test.RESULT, test.Status.XPASS.value)
-                if result.passed:
-                    # XPass (strict=False) are recorded passed by pytest
-                    span.set_tag(test.XFAIL_REASON, result.wasxfail)
-                else:
-                    # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
-                    span.set_tag(test.XFAIL_REASON, result.longrepr)
-
-        if result.skipped:
-            if hasattr(result, "wasxfail"):
-                # XFail tests that fail are recorded skipped by pytest, should be passed instead
-                span.set_tag(test.STATUS, test.Status.PASS.value)
-            else:
-                span.set_tag(test.STATUS, test.Status.SKIP.value)
-            reason = _extract_reason(call)
-            if reason is not None:
-                span.set_tag(test.SKIP_REASON, reason)
-        elif result.passed:
+    if result.skipped:
+        if xfail and not has_skip_keyword:
+            # XFail tests that fail are recorded skipped by pytest, should be passed instead
+            span.set_tag(test.RESULT, test.Status.XFAIL.value)
+            span.set_tag(test.XFAIL_REASON, result.wasxfail)
             span.set_tag(test.STATUS, test.Status.PASS.value)
         else:
-            raise RuntimeWarning(result)
-    except Exception:
-        span.set_traceback()
+            span.set_tag(test.STATUS, test.Status.SKIP.value)
+        reason = _extract_reason(call)
+        if reason is not None:
+            span.set_tag(test.SKIP_REASON, reason)
+    elif result.passed:
+        span.set_tag(test.STATUS, test.Status.PASS.value)
+        if xfail and not has_skip_keyword:
+            # XPass (strict=False) are recorded passed by pytest
+            span.set_tag(test.XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+            span.set_tag(test.RESULT, test.Status.XPASS.value)
+    else:
+        if xfail and not has_skip_keyword:
+            # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
+            span.set_tag(test.XFAIL_REASON, result.longrepr)
+            span.set_tag(test.RESULT, test.Status.XPASS.value)
         span.set_tag(test.STATUS, test.Status.FAIL.value)
+        if call.excinfo:
+            span.set_exc_info(call.excinfo.type, call.excinfo.value, call.excinfo.tb)
