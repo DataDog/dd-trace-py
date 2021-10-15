@@ -61,9 +61,9 @@ def format_command_args(args):
 
 
 @contextmanager
-def _set_redis_cmd_tags(pin, config_integration, instance, args):
+def _set_redis_cmd_span(pin, config_integration, instance, args):
     with pin.tracer.trace(
-        redisx.CMD, service=trace_utils.ext_service(pin, config_integration, pin), span_type=SpanTypes.REDIS
+        redisx.CMD, service=trace_utils.ext_service(pin, config_integration), span_type=SpanTypes.REDIS
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         query = format_command_args(args)
@@ -75,12 +75,12 @@ def _set_redis_cmd_tags(pin, config_integration, instance, args):
         span.set_metric(redisx.ARGS_LEN, len(args))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
-        # yield the span in case future iterations of the integration need to build on span
+        # yield the span in case the caller wants to build on span
         yield span
 
 
 @contextmanager
-def _set_redis_execute_pipeline_tags(pin, config_integration, resource, instance):
+def _set_redis_execute_pipeline_span(pin, config_integration, resource, instance):
     with pin.tracer.trace(
         redisx.CMD,
         resource=resource,
@@ -93,7 +93,7 @@ def _set_redis_execute_pipeline_tags(pin, config_integration, resource, instance
         span.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
-        # yield the span in case future iterations of the integration need to build on span
+        # yield the span in case the caller wants to build on span
         yield span
 
 
