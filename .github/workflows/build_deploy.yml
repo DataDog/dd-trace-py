@@ -46,7 +46,7 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels
+      - name: Build wheels p27
         uses: joerick/cibuildwheel@v1.12.0
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
