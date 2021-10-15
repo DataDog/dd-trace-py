@@ -28,7 +28,7 @@ documentation][visualization docs].
 
 1. Download the dd-trace-py repository locally (e.g, `git clone`)
 2. Check if Python is installed in your environment: `python --version`. If Python is not installed, download it: https://www.python.org/downloads/
-3. The tests for this project run on various versions of Python. We recommend using a Python Version Management tool, such as Pyenv, to utilize multiple versions of Python. Install Pyenv: https://github.com/pyenv/pyenv#installation
+3. The tests for this project run on various versions of Python. We recommend using a Python version management tool, such as [pyenv](https://github.com/pyenv/pyenv), to utilize multiple versions of Python. Install Pyenv: https://github.com/pyenv/pyenv#installation
 4. Install the relevant versions of Python in Pyenv: `pyenv install 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
 5. Make those versions available globally: `pyenv global 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
 
