@@ -6,7 +6,6 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
     },
@@ -26,7 +25,6 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 12000,
        "start": 1631827407325375000
      }],
@@ -38,7 +36,6 @@
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
     },
@@ -59,7 +56,6 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 13000,
        "start": 1631827407329849000
      }],
@@ -71,7 +67,6 @@
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
     },
@@ -91,7 +86,6 @@
        "trace_id": 2,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 11000,
        "start": 1631827407334409000
      }],
@@ -103,7 +97,6 @@
     "trace_id": 3,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
     },
@@ -124,7 +117,6 @@
        "trace_id": 3,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 12000,
        "start": 1631827407338383000
      }],
@@ -136,7 +128,6 @@
     "trace_id": 4,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
     },
@@ -156,7 +147,6 @@
        "trace_id": 4,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 11000,
        "start": 1631827407342463000
      }],
@@ -168,7 +158,6 @@
     "trace_id": 5,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
     },
@@ -189,7 +178,6 @@
        "trace_id": 5,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 18000,
        "start": 1631827407346502000
      }],
@@ -201,7 +189,6 @@
     "trace_id": 6,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
     },
@@ -222,7 +209,6 @@
        "trace_id": 6,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 22000,
        "start": 1631827407350972000
      }]]

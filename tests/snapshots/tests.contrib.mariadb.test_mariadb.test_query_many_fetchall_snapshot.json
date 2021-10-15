@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
       "db.name": "test",
       "db.user": "test",
@@ -37,7 +36,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
       "db.name": "test",
       "db.user": "test",
@@ -66,7 +64,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
       "db.name": "test",
       "db.user": "test",

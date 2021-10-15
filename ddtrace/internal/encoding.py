@@ -51,7 +51,7 @@ class _EncoderBase(object):
 class JSONEncoder(_EncoderBase):
     content_type = "application/json"
 
-    def encode_traces(self, traces) -> str:
+    def encode_traces(self, traces):
         normalized_traces = [[span.to_dict() for span in trace] for trace in traces]
         return self.encode(normalized_traces)
 

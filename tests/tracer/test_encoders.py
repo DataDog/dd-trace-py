@@ -33,6 +33,9 @@ from ddtrace.tracer import Tracer
 from tests.utils import DummyTracer
 
 
+_ORIGIN_KEY = ORIGIN_KEY.encode()
+
+
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
     return "".join(random.choice(chars) for _ in range(size))
 
@@ -89,7 +92,10 @@ class RefMsgpackEncoder(_EncoderBase):
 
 class RefMsgpackEncoderV03(RefMsgpackEncoder):
     def normalize(self, span):
-        return span.to_dict()
+        d = span.to_dict()
+        if not d["error"]:
+            del d["error"]
+        return d
 
 
 class RefMsgpackEncoderV05(RefMsgpackEncoder):
@@ -224,22 +230,45 @@ class TestEncoders(TestCase):
                 assert b"client.testing" == items[i][j][b"name"]
 
 
-def decode(obj):
+def decode(obj, reconstruct=True):
+
     if msgpack.version[:2] < (0, 6):
-        return msgpack.unpackb(obj)
-    return msgpack.unpackb(obj, raw=True, strict_map_key=False)
+        unpacked = msgpack.unpackb(obj)
+    else:
+        unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
+
+    if not unpacked or not unpacked[0]:
+        return unpacked
+
+    if isinstance(unpacked[0][0], bytes) and reconstruct:
+        # v0.5
+        table, _traces = unpacked
+
+        def resolve(span):
+            return (
+                table[span[0]],
+                table[span[1]],
+                table[span[2]],
+                span[3],
+                span[4],
+                span[5],
+                span[6],
+                span[7],
+                span[8],
+                {table[k]: table[v] for k, v in span[9].items()},
+                {table[k]: v for k, v in span[10].items()},
+                table[span[11]],
+            )
+
+        traces = [[resolve(span) for span in trace] for trace in _traces]
+    else:
+        traces = unpacked
+
+    return traces
 
 
 def allencodings(f):
     return pytest.mark.parametrize("encoding", MSGPACK_ENCODERS.keys())(f)
-
-
-def dump(data):
-    chunks = [data[i : i + 8] for i in range(0, len(data), 8)]
-    for c in chunks:
-        _hex = " ".join(["%02x" % _ for _ in c])
-        text = "".join([chr(_) if chr(_).isprintable() else "." for _ in c])
-        print("%-23s  |  %s" % (_hex, text))
 
 
 @allencodings
@@ -341,8 +370,14 @@ def test_span_types(encoding, span, tags):
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
 
 
-def propagate_dd_origin(Encoder):
-    # Ensure encoded trace contains dd_origin tag in all spans
+@pytest.mark.parametrize(
+    "Encoder,item",
+    [
+        (MsgpackEncoderV03, b"meta"),
+        (MsgpackEncoderV05, 9),
+    ],
+)
+def test_encoder_propagates_dd_origin(Encoder, item):
     tracer = DummyTracer()
     encoder = Encoder(1 << 20, 1 << 20)
     with tracer.trace("Root") as root:
@@ -352,19 +387,10 @@ def propagate_dd_origin(Encoder):
                 pass
     trace = tracer.writer.pop()
     encoder.put(trace)
-    return decode(encoder.encode())
+    decoded_trace = decode(encoder.encode())
 
-
-def test_encoder_propagates_dd_origin_v03():
-    decoded_trace = propagate_dd_origin(MsgpackEncoderV03)
-    for span in decoded_trace[0]:
-        assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
-
-
-def test_encoder_propagates_dd_origin_v05():
-    decoded_trace = propagate_dd_origin(MsgpackEncoderV05)
-    for span in decoded_trace[1][0]:
-        assert span[9][1] == 2
+    # Ensure encoded trace contains dd_origin tag in all spans
+    assert all((_[item][_ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
 
 
 @allencodings
@@ -475,12 +501,12 @@ def test_custom_msgpack_encode_v05():
     size = encoder.size
     encoded = encoder.flush()
     assert size == len(encoded)
-    st, ts = decode(encoded)
+    st, ts = decode(encoded, reconstruct=False)
 
     def filter_mut(ts):
         return [[[s[i] for i in [0, 1, 2, 5, 7, 8, 9, 10, 11]] for s in t] for t in ts]
 
-    assert st == [b"", ORIGIN_KEY.encode(), b"foo", b"v05-test", b"GET", b"POST", b"bar"]
+    assert st == [b"", _ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar"]
     assert filter_mut(ts) == [
         [
             [2, 3, 4, 0, 0, 0, {}, {}, 0],
@@ -511,7 +537,7 @@ def test_msgpack_string_table():
     size = t.size
     encoded = t.flush()
     assert size == len(encoded)
-    assert decode(encoded + b"\xc0") == [[b"", ORIGIN_KEY.encode(), b"foobar", b"foobaz"], None]
+    assert decode(encoded + b"\xc0", reconstruct=False) == [[b"", _ORIGIN_KEY, b"foobar", b"foobaz"], None]
 
     assert len(t) == 2
     assert "foobar" not in t

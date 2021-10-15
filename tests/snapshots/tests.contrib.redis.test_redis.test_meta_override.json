@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "redis",
-    "error": 0,
     "meta": {
       "cheese": "camembert",
       "out.host": "localhost",

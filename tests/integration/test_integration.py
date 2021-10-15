@@ -23,7 +23,7 @@ AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 def allencodings(f):
-    return pytest.mark.parametrize("encoding", [None, "v0.5"])(f)
+    return pytest.mark.parametrize("encoding", ["", "v0.5"])(f)
 
 
 def test_configure_keeps_api_hostname_and_port():
@@ -647,3 +647,33 @@ def test_partial_flush_log(run_python_code_in_subprocess, encoding, monkeypatch)
     log.debug.assert_has_calls(calls)
     s1.finish()
     t.shutdown()
+
+
+def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subprocess):
+    """
+    Regression test for enabling debug logging and logs injection
+
+    When both DD_TRACE_DEBUG and DD_LOGS_INJECTION are enabled
+    any logging during tracer initialization would raise an exception
+    because `dd.service` was not available in the log record yet.
+    """
+    env = os.environ.copy()
+    env["DD_TRACE_DEBUG"] = "true"
+    env["DD_LOGS_INJECTION"] = "true"
+
+    # DEV: We don't actually have to execute any code to validate this
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess("", env=env)
+
+    # The program will always exit successfully
+    # Errors during logging do not crash the app
+    assert status == 0, (out, err)
+
+    # The program does nothing
+    assert out == b""
+
+    # stderr is expected to log something due to debug logging
+    assert b"[dd.service= dd.env= dd.version= dd.trace_id=0 dd.span_id=0]" in err
+
+    # Assert no logging exceptions in stderr
+    assert b"KeyError: 'dd.service'" not in err
+    assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err
