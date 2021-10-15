@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Add new ``DD_TRACE_SAMPLING_RULES`` environment variable to override default sampling rules. For Example::  
+    ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service"}]'``

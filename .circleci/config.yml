@@ -374,7 +374,7 @@ jobs:
     steps:
       - run_tox_scenario:
           store_coverage: false
-          pattern: '^py..-profile'
+          pattern: '^py.\+-profile'
 
   integration_agent5:
     <<: *machine_executor
@@ -748,6 +748,14 @@ jobs:
       - run_tox_scenario:
           pattern: '^sanic_contrib-'
 
+  snowflake:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "snowflake"
+          snapshot: true
+
   starlette:
     <<: *machine_executor
     steps:
@@ -800,6 +808,14 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
+  aredis:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'aredis$'
+          snapshot: true
   redis:
     <<: *machine_executor
     parallelism: 4
@@ -977,11 +993,13 @@ requires_tests: &requires_tests
     - pyodbc
     - pyramid
     - pytest
+    - aredis
     - redis
     - rediscluster
     - requests
     - rq
     - sanic
+    - snowflake
     - sqlalchemy
     - sqlite3
     - starlette
@@ -1059,11 +1077,13 @@ workflows:
       - pyodbc: *requires_base_venvs
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
+      - aredis: *requires_base_venvs
       - redis: *requires_base_venvs
       - rediscluster: *requires_base_venvs
       - requests: *requires_base_venvs
       - rq: *requires_base_venvs
       - sanic: *requires_base_venvs
+      - snowflake: *requires_base_venvs
       - starlette: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
       - sqlite3: *requires_base_venvs

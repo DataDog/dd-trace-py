@@ -143,7 +143,7 @@ class _PprofConverter(object):
         thread_name,  # type: str
         task_id,  # type: typing.Optional[int]
         task_name,  # type: str
-        trace_id,  # type: int
+        local_root_span_id,  # type: int
         span_id,  # type: int
         trace_resource,  # type: str
         trace_type,  # type: str
@@ -160,7 +160,7 @@ class _PprofConverter(object):
                 ("thread name", thread_name),
                 ("task id", task_id),
                 ("task name", task_name),
-                ("trace id", trace_id),
+                ("local root span id", local_root_span_id),
                 ("span id", span_id),
                 ("trace endpoint", trace_resource),
                 ("trace type", trace_type),
@@ -205,7 +205,7 @@ class _PprofConverter(object):
         thread_name,
         task_id,
         task_name,
-        trace_id,
+        local_root_span_id,
         span_id,
         trace_resource,
         trace_type,
@@ -221,7 +221,7 @@ class _PprofConverter(object):
                 ("thread name", thread_name),
                 ("task id", str(task_id)),
                 ("task name", task_name),
-                ("trace id", trace_id),
+                ("local root span id", local_root_span_id),
                 ("span id", span_id),
                 ("trace endpoint", trace_resource),
                 ("trace type", trace_type),
@@ -241,7 +241,7 @@ class _PprofConverter(object):
         thread_name,
         task_id,
         task_name,
-        trace_id,
+        local_root_span_id,
         span_id,
         trace_resource,
         trace_type,
@@ -257,7 +257,7 @@ class _PprofConverter(object):
                 ("thread name", thread_name),
                 ("task id", str(task_id)),
                 ("task name", task_name),
-                ("trace id", trace_id),
+                ("local root span id", local_root_span_id),
                 ("span id", span_id),
                 ("trace endpoint", trace_resource),
                 ("trace type", trace_type),
@@ -275,7 +275,7 @@ class _PprofConverter(object):
         thread_id,
         thread_native_id,
         thread_name,
-        trace_id,
+        local_root_span_id,
         span_id,
         trace_resource,
         trace_type,
@@ -290,7 +290,7 @@ class _PprofConverter(object):
                 ("thread id", str(thread_id)),
                 ("thread native id", str(thread_native_id)),
                 ("thread name", thread_name),
-                ("trace id", trace_id),
+                ("local root span id", local_root_span_id),
                 ("span id", span_id),
                 ("trace endpoint", trace_resource),
                 ("trace type", trace_type),
@@ -350,7 +350,7 @@ _stack_event_group_key_T = typing.Tuple[
     str,  # thread name
     str,  # task_id
     str,  # task_name
-    str,  # trace_id
+    str,  # local_root_span_id
     str,  # span_id
     str,  # trace resource
     str,  # trace type
@@ -389,7 +389,7 @@ class PprofExporter(exporter.Exporter):
             self._get_thread_name(event.thread_id, event.thread_name),
             self._none_to_str(event.task_id),
             self._none_to_str(event.task_name),
-            self._none_to_str(event.trace_id),
+            self._none_to_str(event.local_root_span_id),
             self._none_to_str(event.span_id),
             self._none_to_str(self._get_event_trace_resource(event)),
             self._none_to_str(event.trace_type),
@@ -416,7 +416,7 @@ class PprofExporter(exporter.Exporter):
             self._get_thread_name(event.thread_id, event.thread_name),
             self._none_to_str(event.task_id),
             self._none_to_str(event.task_name),
-            self._none_to_str(event.trace_id),
+            self._none_to_str(event.local_root_span_id),
             self._none_to_str(event.span_id),
             self._none_to_str(self._get_event_trace_resource(event)),
             self._none_to_str(event.trace_type),
@@ -438,7 +438,7 @@ class PprofExporter(exporter.Exporter):
             event.thread_id,
             event.thread_native_id,
             self._get_thread_name(event.thread_id, event.thread_name),
-            self._none_to_str(event.trace_id),
+            self._none_to_str(event.local_root_span_id),
             self._none_to_str(event.span_id),
             self._none_to_str(self._get_event_trace_resource(event)),
             self._none_to_str(event.trace_type),
@@ -524,7 +524,7 @@ class PprofExporter(exporter.Exporter):
                 thread_name,
                 task_id,
                 task_name,
-                trace_id,
+                local_root_span_id,
                 span_id,
                 trace_resource,
                 trace_type,
@@ -539,7 +539,7 @@ class PprofExporter(exporter.Exporter):
                 thread_name,
                 task_id,
                 task_name,
-                trace_id,
+                local_root_span_id,
                 span_id,
                 trace_resource,
                 trace_type,
@@ -565,7 +565,7 @@ class PprofExporter(exporter.Exporter):
                     thread_name,
                     task_id,
                     task_name,
-                    trace_id,
+                    local_root_span_id,
                     span_id,
                     trace_resource,
                     trace_type,
@@ -578,7 +578,7 @@ class PprofExporter(exporter.Exporter):
                         thread_name,
                         task_id,
                         task_name,
-                        trace_id,
+                        local_root_span_id,
                         span_id,
                         trace_resource,
                         trace_type,
@@ -593,7 +593,7 @@ class PprofExporter(exporter.Exporter):
                 thread_id,
                 thread_native_id,
                 thread_name,
-                trace_id,
+                local_root_span_id,
                 span_id,
                 trace_resource,
                 trace_type,
@@ -607,7 +607,7 @@ class PprofExporter(exporter.Exporter):
                 thread_id,
                 thread_native_id,
                 thread_name,
-                trace_id,
+                local_root_span_id,
                 span_id,
                 trace_resource,
                 trace_type,
@@ -625,7 +625,7 @@ class PprofExporter(exporter.Exporter):
                     thread_name,
                     task_id,
                     task_name,
-                    trace_id,
+                    local_root_span_id,
                     span_id,
                     trace_resource,
                     trace_type,

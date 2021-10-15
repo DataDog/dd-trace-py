@@ -6,7 +6,7 @@ from riot import Venv
 from riot import latest
 
 
-SUPPORTED_PYTHON_VERSIONS = [(2, 7), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9)]  # type: List[Tuple[int, int]]
+SUPPORTED_PYTHON_VERSIONS = [(2, 7), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9), (3, 10)]  # type: List[Tuple[int, int]]
 
 
 def version_to_str(version):
@@ -58,9 +58,9 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
-    ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9']
+    ['2.7', '3.5', '3.6', '3.7', '3.8', '3.9', '3.10']
     >>> select_pys(min_version='3')
-    ['3.5', '3.6', '3.7', '3.8', '3.9']
+    ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10']
     >>> select_pys(max_version='3')
     ['2.7']
     >>> select_pys(min_version='3.5', max_version='3.8')
@@ -1230,6 +1230,66 @@ venv = Venv(
                     latest,
                 ]
             },
+        ),
+        Venv(
+            name="aredis",
+            pys=select_pys(min_version="3.6"),
+            command="pytest {cmdargs} tests/contrib/aredis",
+            pkgs={
+                "pytest-asyncio": latest,
+                "aredis": [
+                    "~=1.1.0",
+                    latest,
+                ],
+            },
+        ),
+        Venv(
+            name="snowflake",
+            command="pytest {cmdargs} tests/contrib/snowflake",
+            pkgs={
+                "responses": latest,
+            },
+            venvs=[
+                Venv(
+                    # 2.2.0 dropped 2.7 support
+                    pys=select_pys(),
+                    pkgs={
+                        "snowflake-connector-python": [
+                            "~=2.0.0",
+                            "~=2.1.0",
+                        ],
+                    },
+                ),
+                Venv(
+                    # 2.3.7 dropped 3.5 support
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "snowflake-connector-python": [
+                            "~=2.2.0",
+                        ],
+                    },
+                ),
+                Venv(
+                    # 2.3.x needs pyarrow >=0.17,<0.18 which does not install on Python 3.9
+                    pys=select_pys(min_version="3.6", max_version="3.8"),
+                    pkgs={
+                        "snowflake-connector-python": [
+                            "~=2.3.0",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "snowflake-connector-python": [
+                            "~=2.4.0",
+                            "~=2.5.0",
+                            "~=2.6.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
         ),
     ],
 )

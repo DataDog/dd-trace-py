@@ -5,6 +5,7 @@ from typing import Dict
 import pytest
 
 import ddtrace
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
@@ -13,7 +14,6 @@ from ddtrace.contrib.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.ext import test
-from ddtrace.ext.priority import AUTO_KEEP
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
@@ -126,6 +126,8 @@ def pytest_runtest_protocol(item, nextitem):
         elif hasattr(item, "dtest") and isinstance(item.dtest, DocTest):
             span.set_tag(test.SUITE, item.dtest.globs["__name__"])
         span.set_tag(test.TYPE, SpanTypes.TEST.value)
+
+        span.set_tag(test.FRAMEWORK_VERSION, pytest.__version__)
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error

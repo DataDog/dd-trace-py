@@ -21,15 +21,15 @@ from ddtrace.utils.deprecation import deprecation
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
+from .constants import AUTO_KEEP
+from .constants import AUTO_REJECT
 from .constants import ENV_KEY
 from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
+from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
-from .ext import system
-from .ext.priority import AUTO_KEEP
-from .ext.priority import AUTO_REJECT
 from .internal import agent
 from .internal import atexit
 from .internal import compat
@@ -49,6 +49,7 @@ from .internal.runtime import get_runtime_id
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
+from .monkey import patch
 from .provider import DefaultContextProvider
 from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
@@ -72,6 +73,8 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 )
 if debug_mode and not hasHandlers(log) and call_basic_config:
     if config.logs_injection:
+        # We need to ensure logging is patched in case the tracer logs during initialization
+        patch(logging=True)
         logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
     else:
         logging.basicConfig(level=logging.DEBUG)
@@ -597,7 +600,7 @@ class Tracer(object):
 
         if not span._parent:
             span.meta["runtime-id"] = get_runtime_id()
-            span.metrics[system.PID] = self._pid
+            span.metrics[PID] = self._pid
 
         # Apply default global tags.
         if self.tags:

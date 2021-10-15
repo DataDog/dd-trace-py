@@ -15,16 +15,20 @@ import pytest
 import six
 
 import ddtrace
+from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import PID
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.ext import priority
-from ddtrace.ext import system
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
@@ -116,7 +120,7 @@ class TracerTestCases(TracerTestCase):
                 pass
 
         # Root span should contain the pid of the current process
-        root_span.assert_metrics({system.PID: getpid()}, exact=False)
+        root_span.assert_metrics({PID: getpid()}, exact=False)
 
         # Child span should not contain a pid tag
         child_span.assert_metrics(dict(), exact=True)
@@ -916,7 +920,7 @@ def test_tracer_runtime_tags_cross_execution(tracer):
     with tracer.trace("span") as span:
         pass
     assert span.get_tag("runtime-id") is not None
-    assert span.get_metric(system.PID) is not None
+    assert span.get_metric(PID) is not None
 
 
 def test_start_span_hooks():
@@ -1356,14 +1360,14 @@ def test_manual_keep(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_KEEP
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_KEEP
 
 
 def test_manual_keep_then_drop(tracer, test_spans):
@@ -1373,7 +1377,7 @@ def test_manual_keep_then_drop(tracer, test_spans):
             child.set_tag(MANUAL_KEEP_KEY)
         root.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_REJECT
 
 
 def test_manual_drop(tracer, test_spans):
@@ -1535,7 +1539,7 @@ def test_bad_agent_url(monkeypatch):
 
 def test_context_priority(tracer, test_spans):
     """Assigning a sampling_priority should not affect if the trace is sent to the agent"""
-    for p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP, None, 999]:
+    for p in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP, None, 999]:
         with tracer.trace("span_%s" % p) as span:
             span.context.sampling_priority = p
 
@@ -1543,7 +1547,7 @@ def test_context_priority(tracer, test_spans):
         # the agent needs to know the sampling decision.
         spans = test_spans.pop()
         assert len(spans) == 1, "trace should be sampled"
-        if p in [priority.USER_REJECT, priority.AUTO_REJECT, priority.AUTO_KEEP, priority.USER_KEEP]:
+        if p in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP]:
             assert spans[0].metrics[SAMPLING_PRIORITY_KEY] == p
 
 
@@ -1669,19 +1673,19 @@ def test_fork_manual_span_different_contexts(tracer):
 def test_fork_pid(tracer):
     root = tracer.trace("root_span")
     assert root.get_tag("runtime-id") is not None
-    assert root.get_metric(system.PID) is not None
+    assert root.get_metric(PID) is not None
 
     pid = os.fork()
 
     if pid:
         child1 = tracer.trace("span1")
         assert child1.get_tag("runtime-id") is None
-        assert child1.get_metric(system.PID) is None
+        assert child1.get_metric(PID) is None
         child1.finish()
     else:
         child2 = tracer.trace("span2")
         assert child2.get_tag("runtime-id") is not None
-        assert child2.get_metric(system.PID) is not None
+        assert child2.get_metric(PID) is not None
         child2.finish()
         os._exit(12)
 
