@@ -6,7 +6,6 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "db.application": "PythonConnector",
       "db.name": "mock-db-name",
