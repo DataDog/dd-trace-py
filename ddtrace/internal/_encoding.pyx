@@ -193,7 +193,8 @@ cdef class ListStringTable(StringTable):
 cdef class MsgpackStringTable(StringTable):
     cdef msgpack_packer pk
     cdef int max_size
-    cdef int _sp
+    cdef int _sp_len
+    cdef stdint.uint32_t _sp_id
     cdef object _lock
 
     def __init__(self, max_size):
@@ -203,7 +204,7 @@ cdef class MsgpackStringTable(StringTable):
             raise MemoryError("Unable to allocate internal buffer.")
         self.max_size = max_size
         self.pk.length = 6
-        self._sp = 0
+        self._sp_len = 0
         self._lock = threading.Lock()
         super(MsgpackStringTable, self).__init__()
 
@@ -216,16 +217,21 @@ cdef class MsgpackStringTable(StringTable):
     cdef insert(self, object string):
         cdef int ret
 
+        if self.pk.length + len(string) > self.max_size:
+            raise ValueError("String table is full.")
+
         ret = pack_text(&self.pk, string)
         if ret != 0:
             raise RuntimeError("Failed to add string to msgpack string table")
 
     cdef savepoint(self):
-        self._sp = self.pk.length
+        self._sp_len = self.pk.length
+        self._sp_id = self._next_id
 
     cdef rollback(self):
-        if self._sp > 0:
-            self.pk.length = self._sp
+        if self._sp_len > 0:
+            self.pk.length = self._sp_len
+            self._next_id = self._sp_id
 
     cdef get_bytes(self):
         cdef int ret;
@@ -267,7 +273,7 @@ cdef class MsgpackStringTable(StringTable):
             self.pk.length = 6
             self.reset()
             assert self.index(ORIGIN_KEY) == 1
-            self._sp = 0
+            self._sp_len = 0
 
 
 cdef class BufferedEncoder(object):

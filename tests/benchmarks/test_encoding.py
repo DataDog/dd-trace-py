@@ -4,6 +4,7 @@ import pytest
 
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import _EncoderBase
 from tests.tracer.test_encoders import REF_MSGPACK_ENCODERS
 from tests.tracer.test_encoders import gen_trace
@@ -16,6 +17,10 @@ def allencodings(f):
 
 class PPMsgpackEncoder(_EncoderBase):
     content_type = "application/msgpack"
+
+    def encode_traces(self, traces):
+        normalized_traces = [[span.to_dict() for span in trace] for trace in traces]
+        return self.encode(normalized_traces)
 
     @staticmethod
     def encode(obj):
@@ -91,12 +96,11 @@ def test_encode_trace_small_multi_custom(benchmark, encoding):
     benchmark(_)
 
 
-@allencodings
 @pytest.mark.parametrize("trace_size", [1, 50, 200, 1000])
 @pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
-def test_dd_origin_tagging_spans_via_encoder(benchmark, encoding, trace_size):
+def test_dd_origin_tagging_spans_via_encoder(benchmark, trace_size):
     """Propagate dd_origin tags to all spans in [1, 50, 200, 1000] span trace via Encoder"""
-    trace_encoder = MSGPACK_ENCODERS[encoding](4 << 20, 4 << 20)
+    trace_encoder = MsgpackEncoderV03(4 << 20, 4 << 20)
 
     tracer = DummyTracer()
     with tracer.trace("pytest-test") as root:

@@ -12,6 +12,7 @@ from hypothesis.strategies import integers
 from hypothesis.strategies import text
 import msgpack
 import pytest
+import six
 
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
@@ -108,7 +109,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
         if value is None:
             return 0
 
-        if isinstance(value, str):
+        if isinstance(value, six.string_types):
             return self.string_table.index(value)
 
         if isinstance(value, dict):
@@ -272,7 +273,7 @@ def allencodings(f):
 
 
 @allencodings
-def test_custom_msgpack_encode_v03(encoding):
+def test_custom_msgpack_encode(encoding):
     encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
     refencoder = REF_MSGPACK_ENCODERS[encoding]()
 
@@ -409,7 +410,7 @@ def test_custom_msgpack_encode_trace_size(encoding, name, service, resource, met
     span = Span(tracer=None, name=name, service=service, resource=resource)
     span.meta = meta
     span.metrics = metrics
-    span.error = error
+    span.error = error & ((1 << 31) - 1)
     span.span_type = span_type
     trace = [span, span, span]
 

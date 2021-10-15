@@ -228,18 +228,24 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         processing_interval=get_writer_interval_seconds(),  # type: float
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=get_writer_buffer_size(),  # type: int
-        max_payload_size=get_writer_max_payload_size(),  # type: int
+        buffer_size=None,  # type: Optional[int]
+        max_payload_size=None,  # type: Optional[int]
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
     ):
         # type: (...) -> None
+        # Pre-conditions:
+        if buffer_size is not None:
+            assert buffer_size > 0, "Writer buffer size is positive"
+        if max_payload_size is not None:
+            assert max_payload_size > 0, "Max payload size is positive"
+
         super(AgentWriter, self).__init__(interval=processing_interval)
         self.agent_url = agent_url
-        self._buffer_size = buffer_size
-        self._max_payload_size = max_payload_size
+        self._buffer_size = buffer_size or get_writer_buffer_size()
+        self._max_payload_size = max_payload_size or get_writer_max_payload_size()
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {
@@ -250,7 +256,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         }
         self._timeout = timeout
 
-        encoding_version = os.getenv("DD_TRACE_ENCODING") or ("v0.4" if priority_sampler is None else "v0.3")
+        encoding_version = os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
         try:
             Encoder = MSGPACK_ENCODERS[encoding_version]
         except KeyError:
@@ -345,10 +351,22 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 conn.close()
 
     def _downgrade(self, payload, response):
-        if self._endpoint == "v0.4/traces":
-            self._endpoint = "v0.3/traces"
-            return payload
-        raise ValueError
+        try:
+            if self._endpoint[0] == "v":
+                v, _, traces = self._endpoint[1:].partition("/")
+                if traces != "traces":
+                    raise ValueError()
+                major, minor = (int(_) for _ in v.split("."))
+                if minor:
+                    version = "v%d.%d" % (major, minor - 1)
+                    assert version in MSGPACK_ENCODERS, "Supported endpoint version"
+                    self._endpoint = "%s/%s" % (version, traces)
+                    self._encoder = MSGPACK_ENCODERS[version](self._encoder.max_size, self._encoder.max_item_size)
+                    return payload
+        except (IndexError, ValueError):
+            pass
+
+        raise ValueError()
 
     def _send_payload(self, payload, count):
         headers = self._headers.copy()

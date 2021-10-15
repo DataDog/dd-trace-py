@@ -23,7 +23,7 @@ AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 def allencodings(f):
-    return pytest.mark.parametrize("encoding", ["", "v0.5"])(f)
+    return pytest.mark.parametrize("encoding", ["", "v0.5"] if AGENT_VERSION != "v5" else [""])(f)
 
 
 def test_configure_keeps_api_hostname_and_port():
@@ -113,7 +113,7 @@ t.join()
 @allencodings
 @pytest.mark.skipif(AGENT_VERSION != "latest", reason="Agent v5 doesn't support UDS")
 def test_single_trace_uds(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
     sockdir = "/tmp/ddagent/trace.sock"
@@ -128,7 +128,7 @@ def test_single_trace_uds(encoding, monkeypatch):
 
 @allencodings
 def test_uds_wrong_socket_path(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
     t.configure(uds_path="/tmp/ddagent/nosockethere")
@@ -144,13 +144,17 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
 @allencodings
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
 def test_payload_too_large(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", str(1 << 12))
+    monkeypatch.setenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", str(1 << 12))
 
     t = Tracer()
+    assert t.writer._max_payload_size == 1 << 12
+    assert t.writer._buffer_size == 1 << 12
     # Make sure a flush doesn't happen partway through.
     t.configure(writer=AgentWriter(agent.get_trace_url(), processing_interval=1000))
     with mock.patch("ddtrace.internal.writer.log") as log:
-        for i in range(100000):
+        for i in range(100000 if encoding == "v0.5" else 1000):
             with t.trace("operation") as s:
                 s.set_tag(str(i), "b" * 190)
                 s.set_tag(str(i), "a" * 190)
@@ -171,7 +175,7 @@ def test_payload_too_large(encoding, monkeypatch):
 
 @allencodings
 def test_large_payload(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
     # Traces are approx. 275 bytes.
@@ -188,7 +192,7 @@ def test_large_payload(encoding, monkeypatch):
 
 @allencodings
 def test_child_spans(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -205,7 +209,7 @@ def test_child_spans(encoding, monkeypatch):
 
 @allencodings
 def test_metrics(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     with override_global_config(dict(health_metrics_enabled=True)):
         t = Tracer()
@@ -237,7 +241,7 @@ def test_metrics(encoding, monkeypatch):
 
 @allencodings
 def test_single_trace_too_large(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -254,7 +258,7 @@ def test_single_trace_too_large(encoding, monkeypatch):
 
 @allencodings
 def test_trace_bad_url(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
     t.configure(hostname="bad", port=1111)
@@ -270,7 +274,7 @@ def test_trace_bad_url(encoding, monkeypatch):
 
 @allencodings
 def test_writer_headers(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
     t.writer._put = mock.Mock(wraps=t.writer._put)
@@ -311,7 +315,7 @@ def test_writer_headers(encoding, monkeypatch):
 @allencodings
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support priority sampling responses.")
 def test_priority_sampling_response(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     # Send the data once because the agent doesn't respond with them on the
     # first payload.
@@ -415,11 +419,11 @@ def test_bad_encoder():
 @allencodings
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support v0.3")
 def test_downgrade(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
     t.writer._downgrade(None, None)
-    assert t.writer._endpoint == "v0.3/traces"
+    assert t.writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.4"]
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.finish()
@@ -430,7 +434,7 @@ def test_downgrade(encoding, monkeypatch):
 
 @allencodings
 def test_span_tags(encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -455,7 +459,7 @@ def test_synchronous_writer_shutdown():
 @allencodings
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support empty trace payloads.")
 def test_flush_log(caplog, encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     caplog.set_level(logging.INFO)
 
@@ -620,7 +624,7 @@ assert ddtrace.tracer.writer._interval == 1.0
 
 @allencodings
 def test_partial_flush_log(run_python_code_in_subprocess, encoding, monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     partial_flush_min_spans = 2
     t = Tracer()

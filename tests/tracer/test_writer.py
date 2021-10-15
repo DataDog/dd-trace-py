@@ -549,7 +549,7 @@ def test_additional_headers():
 
 
 def test_bad_encoding(monkeypatch):
-    monkeypatch.setenv("DD_TRACE_ENCODING", "foo")
+    monkeypatch.setenv("DD_TRACE_API_VERSION", "foo")
 
     with pytest.raises(ValueError):
         AgentWriter(agent_url="http://localhost:9126")

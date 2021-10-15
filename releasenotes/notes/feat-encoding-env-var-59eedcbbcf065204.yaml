@@ -1,8 +1,8 @@
 ---
 prelude: >
-    The v0.5 trace encoding version has been made available and can be selected
-    via the newly introduced ``DD_TRACE_ENCODING`` environment variable.
+    The v0.5 trace API version has been made available and can be selected
+    via the newly introduced ``DD_TRACE_API_VERSION`` environment variable.
 features:
   - |
-    Added the ``DD_TRACE_ENCODING`` environment variable for requesting a
-    specific trace encoding version.
+    Added the ``DD_TRACE_API_VERSION`` environment variable for requesting a
+    specific trace API version.
