@@ -3,8 +3,6 @@ import redis
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-from .. import trace_utils
-from ...ext import SpanTypes
 from ...ext import redis as redisx
 from ...pin import Pin
 from ...utils.wrappers import unwrap
@@ -67,11 +65,7 @@ def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace(
-        redisx.CMD, service=trace_utils.ext_service(pin, config.redis, pin), span_type=SpanTypes.REDIS
-    ) as s:
-        _set_redis_cmd_tags(config.redis, pin, s, instance, args)
-        # run the command
+    with _set_redis_cmd_tags(pin, config.redis, instance, args):
         return func(*args, **kwargs)
 
 
@@ -90,12 +84,5 @@ def traced_execute_pipeline(func, instance, args, kwargs):
 
     cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
-    tracer = pin.tracer
-    with tracer.trace(
-        redisx.CMD,
-        resource=resource,
-        service=trace_utils.ext_service(pin, config.redis),
-        span_type=SpanTypes.REDIS,
-    ) as s:
-        _set_redis_execute_pipeline_tags(config.redis, resource, s, instance)
+    with _set_redis_execute_pipeline_tags(pin, config.redis, resource, instance):
         return func(*args, **kwargs)
