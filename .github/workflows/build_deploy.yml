@@ -118,7 +118,7 @@ jobs:
         working-directory: /
 
   upload_pypi:
-    needs: [build_wheels, test_alpine_sdist]
+    needs: [build_wheels_p27, test_alpine_sdist]
     runs-on: ubuntu-latest
     if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch')
     steps:
