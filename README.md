@@ -11,7 +11,6 @@ have great visibility into bottlenecks and troublesome requests.
 
 ## Getting Started
 
-small change
 For a basic product overview, installation and quick start, check out our
 [setup documentation][setup docs].
 
