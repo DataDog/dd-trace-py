@@ -9,6 +9,7 @@ import uuid
 import pytest
 import six
 
+from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import event as event_mod
@@ -328,7 +329,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 322, "test_exception_collection")]
+    assert e.frames == [(__file__, 323, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -351,7 +352,7 @@ def test_exception_collection_trace(tracer):
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 345, "test_exception_collection_trace")]
+    assert e.frames == [(__file__, 346, "test_exception_collection_trace")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
@@ -594,3 +595,34 @@ def test_thread_time_cache():
         assert set(tt._get_last_thread_time().keys()) == set(
             (pthread_id, _threading.get_thread_native_id(pthread_id)) for pthread_id in threads
         )
+
+
+@pytest.mark.skipif(_task._gevent_tracer is None, reason="gevent tasks not supported")
+def test_collect_gevent_thread_hub():
+    r = recorder.Recorder()
+    s = stack.StackCollector(r, ignore_profiler=True)
+
+    # Start some greenthreads: they do nothing we just keep switching between them.
+    def _nothing():
+        for _ in range(10000):
+            # Do nothing and just switch to another greenlet
+            time.sleep(0)
+
+    threads = []
+    with s:
+        for i in range(100):
+            t = threading.Thread(target=_nothing, name="TestThread %d" % i)
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+
+    main_thread_found = False
+    for event in r.events[stack.StackSampleEvent]:
+        if event.thread_name == compat.main_thread.ident and event.task_name is None:
+            pytest.fail("Task with no name detected, is it the Hub?")
+        else:
+            main_thread_found = True
+
+    # Make sure we did at least one check
+    assert main_thread_found
