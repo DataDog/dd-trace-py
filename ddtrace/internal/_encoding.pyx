@@ -195,7 +195,6 @@ cdef class MsgpackStringTable(StringTable):
     cdef int max_size
     cdef int _sp
     cdef object _lock
-    cdef size_t _reset_size
 
     def __init__(self, max_size):
         self.pk.buf_size = min(max_size, 1 << 20)
@@ -209,7 +208,6 @@ cdef class MsgpackStringTable(StringTable):
         super(MsgpackStringTable, self).__init__()
 
         assert self.index(ORIGIN_KEY) == 1
-        self._reset_size = self.pk.length
 
     def __dealloc__(self):
         PyMem_Free(self.pk.buf)
@@ -262,13 +260,13 @@ cdef class MsgpackStringTable(StringTable):
             if res != 0:
                 raise RuntimeError("Failed to append raw bytes to msgpack string table")
 
-
     cpdef flush(self):
         try:
             return self.get_bytes()
         finally:
+            self.pk.length = 6
             self.reset()
-            self.pk.length = self._reset_size
+            assert self.index(ORIGIN_KEY) == 1
             self._sp = 0
 
 

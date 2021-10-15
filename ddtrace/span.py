@@ -9,6 +9,7 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
+from typing import Tuple
 from typing import Union
 
 import six
@@ -441,6 +442,23 @@ class Span(object):
             d["type"] = self.span_type
 
         return d
+
+    def to_tuple(self):
+        # type: () -> Tuple[str, str, str, int, int, int, int, int, int, Dict[str, str], Dict[str, float], str]
+        return (
+            self.service,
+            self.name,
+            self.resource,
+            self.trace_id,
+            self.span_id,
+            self.parent_id,
+            self.start_ns,
+            self.duration_ns,
+            int(bool(self.error)),
+            self.meta or {},
+            self.metrics or {},
+            self.span_type,
+        )
 
     def set_traceback(self, limit=20):
         # type: (int) -> None

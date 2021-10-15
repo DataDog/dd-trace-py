@@ -28,8 +28,8 @@ from ..utils.time import StopWatch
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from .agent import get_connection
-from .encoding import Encoder
 from .encoding import JSONEncoderV2
+from .encoding import MSGPACK_ENCODERS
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
@@ -250,10 +250,13 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         }
         self._timeout = timeout
 
-        if priority_sampler is not None:
-            self._endpoint = "v0.4/traces"
-        else:
-            self._endpoint = "v0.3/traces"
+        encoding_version = os.getenv("DD_TRACE_ENCODING") or ("v0.4" if priority_sampler is None else "v0.3")
+        try:
+            Encoder = MSGPACK_ENCODERS[encoding_version]
+        except KeyError:
+            raise ValueError("Unsupported encoding version: '%s'" % encoding_version)
+
+        self._endpoint = "%s/traces" % encoding_version
 
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:

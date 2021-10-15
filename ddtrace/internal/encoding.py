@@ -11,7 +11,7 @@ from ._encoding import MsgpackEncoderV05
 from .logger import get_logger
 
 
-__all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "Encoder"]
+__all__ = ["MsgpackEncoderV03", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]
 
 
 if TYPE_CHECKING:
@@ -30,26 +30,30 @@ class _EncoderBase(object):
         # type: (List[List[Span]]) -> str
         """
         Encodes a list of traces, expecting a list of items where each items
-        is a list of spans. Before dump the string in a serialized format all
-        traces are normalized, calling the ``to_dict()`` method. The traces
+        is a list of spans. Before dumping the string in a serialized format all
+        traces are normalized according to the encoding format. The trace
         nesting is not changed.
 
         :param traces: A list of traces that should be serialized
         """
-        normalized_traces = [[span.to_dict() for span in trace] for trace in traces]
-        return self.encode(normalized_traces)
+        raise NotImplementedError()
 
-    @staticmethod
-    def encode(obj):
+    def encode(self, obj):
+        # type: (List[List[Any]]) -> str
         """
         Defines the underlying format used during traces or services encoding.
-        This method must be implemented and should only be used by the internal functions.
+        This method must be implemented and should only be used by the internal
+        functions.
         """
-        raise NotImplementedError
+        raise NotImplementedError()
 
 
 class JSONEncoder(_EncoderBase):
     content_type = "application/json"
+
+    def encode_traces(self, traces) -> str:
+        normalized_traces = [[span.to_dict() for span in trace] for trace in traces]
+        return self.encode(normalized_traces)
 
     @staticmethod
     def encode(obj):
@@ -93,4 +97,8 @@ class JSONEncoderV2(JSONEncoder):
         return int(hex_id, 16)
 
 
-Encoder = MsgpackEncoderV03
+MSGPACK_ENCODERS = {
+    "v0.3": MsgpackEncoderV03,
+    "v0.4": MsgpackEncoderV03,
+    "v0.5": MsgpackEncoderV05,
+}

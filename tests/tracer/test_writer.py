@@ -546,3 +546,10 @@ def test_additional_headers():
         writer = AgentWriter(agent_url="http://localhost:9126")
         assert writer._headers["additional-header"] == "additional-value"
         assert writer._headers["header2"] == "value2"
+
+
+def test_bad_encoding(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", "foo")
+
+    with pytest.raises(ValueError):
+        AgentWriter(agent_url="http://localhost:9126")

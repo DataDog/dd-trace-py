@@ -22,6 +22,10 @@ from tests.utils import override_global_config
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
+def allencodings(f):
+    return pytest.mark.parametrize("encoding", [None, "v0.5"])(f)
+
+
 def test_configure_keeps_api_hostname_and_port():
     """
     Ensures that when calling configure without specifying hostname and port,
@@ -106,8 +110,11 @@ t.join()
     assert p.returncode == 0
 
 
+@allencodings
 @pytest.mark.skipif(AGENT_VERSION != "latest", reason="Agent v5 doesn't support UDS")
-def test_single_trace_uds():
+def test_single_trace_uds(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     t = Tracer()
     sockdir = "/tmp/ddagent/trace.sock"
     t.configure(uds_path=sockdir)
@@ -119,7 +126,10 @@ def test_single_trace_uds():
         log.error.assert_not_called()
 
 
-def test_uds_wrong_socket_path():
+@allencodings
+def test_uds_wrong_socket_path(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     t = Tracer()
     t.configure(uds_path="/tmp/ddagent/nosockethere")
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -131,8 +141,11 @@ def test_uds_wrong_socket_path():
     log.error.assert_has_calls(calls)
 
 
+@allencodings
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
-def test_payload_too_large():
+def test_payload_too_large(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     t = Tracer()
     # Make sure a flush doesn't happen partway through.
     t.configure(writer=AgentWriter(agent.get_trace_url(), processing_interval=1000))
@@ -156,7 +169,10 @@ def test_payload_too_large():
         log.error.assert_not_called()
 
 
-def test_large_payload():
+@allencodings
+def test_large_payload(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     t = Tracer()
     # Traces are approx. 275 bytes.
     # 10,000*275 ~ 3MB
@@ -170,7 +186,10 @@ def test_large_payload():
         log.error.assert_not_called()
 
 
-def test_child_spans():
+@allencodings
+def test_child_spans(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.log") as log:
         spans = []
@@ -184,7 +203,10 @@ def test_child_spans():
         log.error.assert_not_called()
 
 
-def test_metrics():
+@allencodings
+def test_metrics(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     with override_global_config(dict(health_metrics_enabled=True)):
         t = Tracer()
         statsd_mock = mock.Mock()
@@ -213,7 +235,10 @@ def test_metrics():
         )
 
 
-def test_single_trace_too_large():
+@allencodings
+def test_single_trace_too_large(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.log") as log:
         with t.trace("huge"):
@@ -227,7 +252,10 @@ def test_single_trace_too_large():
         log.error.assert_not_called()
 
 
-def test_trace_bad_url():
+@allencodings
+def test_trace_bad_url(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     t = Tracer()
     t.configure(hostname="bad", port=1111)
 
@@ -240,7 +268,10 @@ def test_trace_bad_url():
     log.error.assert_has_calls(calls)
 
 
-def test_writer_headers():
+@allencodings
+def test_writer_headers(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     t = Tracer()
     t.writer._put = mock.Mock(wraps=t.writer._put)
     with t.trace("op"):
@@ -277,8 +308,11 @@ def test_writer_headers():
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
+@allencodings
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support priority sampling responses.")
-def test_priority_sampling_response():
+def test_priority_sampling_response(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     # Send the data once because the agent doesn't respond with them on the
     # first payload.
     t = Tracer()
@@ -378,8 +412,11 @@ def test_bad_encoder():
     log.error.assert_has_calls(calls)
 
 
+@allencodings
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support v0.3")
-def test_downgrade():
+def test_downgrade(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     t = Tracer()
     t.writer._downgrade(None, None)
     assert t.writer._endpoint == "v0.3/traces"
@@ -391,7 +428,10 @@ def test_downgrade():
     log.error.assert_not_called()
 
 
-def test_span_tags():
+@allencodings
+def test_span_tags(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     t = Tracer()
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
@@ -412,8 +452,11 @@ def test_synchronous_writer_shutdown():
     tracer.shutdown()
 
 
+@allencodings
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="Test agent doesn't support empty trace payloads.")
-def test_flush_log(caplog):
+def test_flush_log(caplog, encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     caplog.set_level(logging.INFO)
 
     writer = AgentWriter(agent.get_trace_url())
@@ -575,7 +618,10 @@ assert ddtrace.tracer.writer._interval == 1.0
     assert status == 0, (out, err)
 
 
-def test_partial_flush_log(run_python_code_in_subprocess):
+@allencodings
+def test_partial_flush_log(run_python_code_in_subprocess, encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_ENCODING", encoding)
+
     partial_flush_min_spans = 2
     t = Tracer()
 

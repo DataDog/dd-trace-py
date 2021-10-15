@@ -3,15 +3,15 @@ from msgpack.fallback import Packer
 import pytest
 
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
-from ddtrace.internal.encoding import Encoder as MsgpackEncoder
+from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import _EncoderBase
 from tests.tracer.test_encoders import RefMsgpackEncoder
+from tests.tracer.test_encoders import allencodings
 from tests.tracer.test_encoders import gen_trace
 from tests.utils import DummyTracer
 
 
 msgpack_encoder = RefMsgpackEncoder()
-trace_encoder = MsgpackEncoder(4 << 20, 4 << 20)
 
 
 class PPMsgpackEncoder(_EncoderBase):
@@ -51,8 +51,11 @@ def test_encode_1000_span_trace_fallback(benchmark):
     benchmark(encoder.encode_traces, [trace_large])
 
 
+@allencodings
 @pytest.mark.benchmark(group="encoding", min_time=0.005)
-def test_encode_1000_span_trace_custom(benchmark):
+def test_encode_1000_span_trace_custom(benchmark, encoding):
+    trace_encoder = MSGPACK_ENCODERS[encoding](4 << 20, 4 << 20)
+
     def _():
         trace_encoder.put(trace_large)
         trace_encoder.encode()
@@ -60,8 +63,11 @@ def test_encode_1000_span_trace_custom(benchmark):
     benchmark(_)
 
 
+@allencodings
 @pytest.mark.benchmark(group="encoding.small", min_time=0.005)
-def test_encode_trace_small_custom(benchmark):
+def test_encode_trace_small_custom(benchmark, encoding):
+    trace_encoder = MSGPACK_ENCODERS[encoding](4 << 20, 4 << 20)
+
     def _():
         trace_encoder.put(trace_small)
         trace_encoder.encode()
@@ -69,8 +75,11 @@ def test_encode_trace_small_custom(benchmark):
     benchmark(_)
 
 
+@allencodings
 @pytest.mark.benchmark(group="encoding.small.multi", min_time=0.005)
-def test_encode_trace_small_multi_custom(benchmark):
+def test_encode_trace_small_multi_custom(benchmark, encoding):
+    trace_encoder = MSGPACK_ENCODERS[encoding](4 << 20, 4 << 20)
+
     def _():
         for _ in range(50):
             trace_encoder.put(trace_small)
@@ -79,10 +88,13 @@ def test_encode_trace_small_multi_custom(benchmark):
     benchmark(_)
 
 
+@allencodings
 @pytest.mark.parametrize("trace_size", [1, 50, 200, 1000])
 @pytest.mark.benchmark(group="encoding.dd_origin", min_time=0.005)
-def test_dd_origin_tagging_spans_via_encoder(benchmark, trace_size):
+def test_dd_origin_tagging_spans_via_encoder(benchmark, encoding, trace_size):
     """Propagate dd_origin tags to all spans in [1, 50, 200, 1000] span trace via Encoder"""
+    trace_encoder = MSGPACK_ENCODERS[encoding](4 << 20, 4 << 20)
+
     tracer = DummyTracer()
     with tracer.trace("pytest-test") as root:
         root.context.dd_origin = CI_APP_TEST_ORIGIN
