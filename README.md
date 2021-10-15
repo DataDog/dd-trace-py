@@ -25,14 +25,6 @@ documentation][visualization docs].
 [api docs]: https://ddtrace.readthedocs.io/
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 
-### Set up your environment
-
-1. Download the dd-trace-py repository locally (e.g, `git clone`)
-2. Check if Python is installed in your environment: `python --version`. If Python is not installed, download it: https://www.python.org/downloads/
-3. The tests for this project run on various versions of Python. We recommend using a Python version management tool, such as [pyenv](https://github.com/pyenv/pyenv), to utilize multiple versions of Python. Install Pyenv: https://github.com/pyenv/pyenv#installation
-4. Install the relevant versions of Python in Pyenv: `pyenv install 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
-5. Make those versions available globally: `pyenv global 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
-
 ## Development
 
 ### Contributing
@@ -51,7 +43,7 @@ branch, run the following command:
 
 ### Testing
 
-#### Environment
+#### Set up docker in your environment
 
 The test suite requires many backing services such as PostgreSQL, MySQL, Redis
 and more. We use `docker` and `docker-compose` to run the services in our CI
@@ -63,6 +55,13 @@ launch them through:
 
 [docker]: https://www.docker.com/products/docker
 [docker-compose]: https://www.docker.com/products/docker-compose
+
+### Set up Python in your environment
+
+1. Download the dd-trace-py repository locally: `git clone https://github.com/DataDog/dd-trace-py`
+2. The tests for this project run on various versions of Python. We recommend using a Python version management tool, such as [pyenv](https://github.com/pyenv/pyenv), to utilize multiple versions of Python. Install Pyenv: https://github.com/pyenv/pyenv#installation
+3. Install the relevant versions of Python in Pyenv: `pyenv install 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
+4. Make those versions available globally: `pyenv global 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
 
 #### Running Tests in docker
 
@@ -91,7 +90,7 @@ You can run multiple tests by using regular expressions:
 
 1. Install riot: `pip install riot`.
 2. Create the base virtual environments: `riot -v generate`.
-3. You can generate a list of all the available test suites with `riot list`.
+3. You can list the available test suites with `riot list`.
 4. Certain tests might require running service containers in order to emulate the necessary testing environment. You can spin up individual containers with `docker-compose up -d <SERVICE_NAME>`, where `<SERVICE_NAME>` should match a service specified in the `docker-compose.yml` file.
 5. Run a test suite: `riot -v run <RUN_FLAGS> <TEST_SUITE_NAME>`.
    1. Optionally, use the `-s` and `-x` flags: `-s` prevents riot from reinstalling the dev package; `-x` forces an exit after the first failed test suite. To limit the tests to a particular version of Python, use the `-p` flag: `riot -v run -p <PYTHON_VERSION>`.
