@@ -55,7 +55,7 @@ launch them through:
 [docker]: https://www.docker.com/products/docker
 [docker-compose]: https://www.docker.com/products/docker-compose
 
-#### Set up python
+#### Set up Python
 
 1. Download the dd-trace-py repository locally: `git clone https://github.com/DataDog/dd-trace-py`
 2. The tests for this project run on various versions of Python. We recommend using a Python version management tool, such as [pyenv](https://github.com/pyenv/pyenv), to utilize multiple versions of Python. Install Pyenv: https://github.com/pyenv/pyenv#installation
