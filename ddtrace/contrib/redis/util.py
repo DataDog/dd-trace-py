@@ -76,7 +76,6 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
         span.set_metric(redisx.ARGS_LEN, len(args))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
-        # yield the span in case the caller wants to build on span
         yield span
 
 
