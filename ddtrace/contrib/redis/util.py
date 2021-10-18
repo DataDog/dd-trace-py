@@ -62,6 +62,7 @@ def format_command_args(args):
 
 @contextmanager
 def _set_redis_cmd_span(pin, config_integration, instance, args):
+    """Create a span for the execute command method and tag it"""
     with pin.tracer.trace(
         redisx.CMD, service=trace_utils.ext_service(pin, config_integration), span_type=SpanTypes.REDIS
     ) as span:
@@ -81,6 +82,7 @@ def _set_redis_cmd_span(pin, config_integration, instance, args):
 
 @contextmanager
 def _set_redis_execute_pipeline_span(pin, config_integration, resource, instance):
+    """Create a span for the execute pipeline method and tag it"""
     with pin.tracer.trace(
         redisx.CMD,
         resource=resource,
