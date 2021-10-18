@@ -81,7 +81,7 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
 
 
 @contextmanager
-def _set_redis_execute_pipeline_span(pin, config_integration, resource, instance):
+def _trace_redis_execute_pipeline(pin, config_integration, resource, instance):
     """Create a span for the execute pipeline method and tag it"""
     with pin.tracer.trace(
         redisx.CMD,
