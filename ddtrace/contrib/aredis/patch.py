@@ -65,7 +65,6 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    # FIXME[matt] done in the agent. worth it?
     cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
     with _set_redis_execute_pipeline_span(pin, config.aredis, resource, instance):
