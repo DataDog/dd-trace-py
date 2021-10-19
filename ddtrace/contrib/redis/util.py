@@ -72,7 +72,7 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
         span.set_tag(redisx.RAWCMD, query)
         if pin.tags:
             span.set_tags(pin.tags)
-        span.set_tags(_get_tags(instance))
+        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.ARGS_LEN, len(args))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
@@ -90,13 +90,9 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance):
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag(redisx.RAWCMD, resource)
-        span.set_tags(_get_tags(instance))
+        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
         # yield the span in case the caller wants to build on span
         yield span
-
-
-def _get_tags(conn):
-    return _extract_conn_tags(conn.connection_pool.connection_kwargs)
