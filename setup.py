@@ -149,7 +149,7 @@ else:
 
 setup(
     name="ddtrace",
-    description="Datadog tracing code",
+    description="Datadog APM client library",
     url="https://github.com/DataDog/dd-trace-py",
     author="Datadog, Inc.",
     author_email="dev@datadoghq.com",

@@ -1,6 +1,8 @@
-## Description
-<!-- Please briefly describe the change and why it was required. -->
+## Commit Message
+<!-- Defaults to the title of the PR. Replace if desired. -->
+{{title}}
 
+<!-- Briefly describe the change and why it was required. -->
 
 ## Checklist
 - [ ] Added to the correct milestone.
