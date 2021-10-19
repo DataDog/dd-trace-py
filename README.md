@@ -58,7 +58,10 @@ launch them through:
 #### Set up Python
 
 1. Clone the repository locally: `git clone https://github.com/DataDog/dd-trace-py`
-2. The tests for this project run on various versions of Python. We recommend using a Python version management tool, such as [pyenv](https://github.com/pyenv/pyenv), to utilize multiple versions of Python. Install Pyenv: https://github.com/pyenv/pyenv#installation
+2. The tests for this project run on various versions of Python. We recommend
+   using a Python version management tool, such as
+   [pyenv](https://github.com/pyenv/pyenv), to utilize multiple versions of
+   Python. Install Pyenv: https://github.com/pyenv/pyenv#installation
 3. Install the relevant versions of Python in Pyenv: `pyenv install 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
 4. Make those versions available globally: `pyenv global 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
 
@@ -92,15 +95,26 @@ You can run multiple tests by using regular expressions:
 1. Install riot: `pip install riot`.
 2. Create the base virtual environments: `riot -v generate`.
 3. You can list the available test suites with `riot list`.
-4. Certain tests might require running service containers in order to emulate the necessary testing environment. You can spin up individual containers with `docker-compose up -d <SERVICE_NAME>`, where `<SERVICE_NAME>` should match a service specified in the `docker-compose.yml` file.
+4. Certain tests might require running service containers in order to emulate
+   the necessary testing environment. You can spin up individual containers with
+   `docker-compose up -d <SERVICE_NAME>`, where `<SERVICE_NAME>` should match a
+   service specified in the `docker-compose.yml` file.
 5. Run a test suite: `riot -v run <RUN_FLAGS> <TEST_SUITE_NAME>`.
-   1. Optionally, use the `-s` and `-x` flags: `-s` prevents riot from reinstalling the dev package; `-x` forces an exit after the first failed test suite. To limit the tests to a particular version of Python, use the `-p` flag: `riot -v run -p <PYTHON_VERSION>`.
+   1. Optionally, use the `-s` and `-x` flags: `-s` prevents riot from
+      reinstalling the dev package; `-x` forces an exit after the first failed
+      test suite. To limit the tests to a particular version of Python, use the
+      `-p` flag: `riot -v run -p <PYTHON_VERSION>`.
 
-The `run` command uses regex syntax, which in some cases will cause multiple test suites to run. Use the following syntax to ensure only an individual suite runs: `^<TEST_SUITE_NAME>$` where `^` signifies the start of a string and `$` signifies the end of a string. For example, use `riot -v run -s -x ^redis$` to run only the redis suite.
+The `run` command uses regex syntax, which in some cases will cause multiple
+test suites to run. Use the following syntax to ensure only an individual suite
+runs: `^<TEST_SUITE_NAME>$` where `^` signifies the start of a string and `$`
+signifies the end of a string. For example, use `riot -v run -s -x ^redis$` to
+run only the redis suite.
 
 #### Use the APM Test Agent
 
-The APM test agent can emulate the APM endpoints of the Datadog agent. Spin up the `testagent` container along with any other service container:
+The APM test agent can emulate the APM endpoints of the Datadog agent. Spin up
+the `testagent` container along with any other service container:
 
     $ docker-compose up -d testagent <SERVICE_CONTAINER>
 
@@ -108,11 +122,14 @@ Run the test agent as a proxy in your tests:
 
     $ DD_TRACE_AGENT_URL=http://localhost:9126/ riot -v run <RUN_FLAGS> --pass-env <TEST_SUITE_NAME>
 
-`--pass-env` injects the `DD_TRACE_AGENT_URL` environment variable into the command. For example, you can run the redis test suite along with the test agent, limited to tests for Python 3.9:
+`--pass-env` injects the environment variables of the current shell session into
+the command. Here's an example command for running the redis test suite along
+with the test agent, limited to tests for Python 3.9:
 
     $ DD_TRACE_AGENT_URL=http://localhost:9126/ riot -v run -p 3.9 -s -x --pass-env '^redis$'
 
-Read more about the APM test agent: https://github.com/datadog/dd-apm-test-agent#readme
+Read more about the APM test agent:
+https://github.com/datadog/dd-apm-test-agent#readme
 
 ### Continuous Integration
 
