@@ -1164,17 +1164,9 @@ venv = Venv(
                 Venv(
                     pys="3.6",
                     pkgs={
-                        "aiohttp": ["~=2.0", "~=2.1", "~=2.2"],
-                        "aiohttp_jinja2": ["~=0.12", "~=0.13"],
-                        "yarl": "~=0.18.0",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.8"),
-                    pkgs={
-                        "aiohttp": ["~=2.3"],
-                        "aiohttp_jinja2": "~=0.15",
-                        "yarl": "~=1.0",
+                        "aiohttp": ["~=2.0", "~=2.1", "~=2.2", "~=2.3"],
+                        "aiohttp_jinja2": ["~=0.12", "~=0.13", "~=0.15"],
+                        "yarl": ["~=0.18.0", "~=1.0"],
                     },
                 ),
                 Venv(
