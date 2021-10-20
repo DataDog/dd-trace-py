@@ -1159,7 +1159,8 @@ venv = Venv(
             pkgs={"pytest": [">=3"], "pytest-aiohttp": [latest]},
             venvs=[
                 Venv(
-                    pys=["3.6"],
+                    # python 3.5 raises -> NotImplemented: Can't perform operation for unregistered loader type
+                    pys="3.6",
                     pkgs={
                         "aiohttp": ["~=2.0", "~=2.1", "~=2.2"],
                         "aiohttp_jinja2": ["~=0.12", "~=0.13"],
@@ -1167,23 +1168,17 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.5", max_version="3.8"),
+                    # python 3.5 raises -> NotImplemented: Can't perform operation for unregistered loader type
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
-                        "aiohttp": "~=2.3",
+                        "aiohttp": ["~=2.3", "~=3.5"],
                         "aiohttp_jinja2": "~=0.15",
                         "yarl": "~=1.0",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.7"),
-                    pkgs={
-                        "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.5", "~=3.6"],
-                        "aiohttp_jinja2": "~=0.15",
-                        "yarl": "~=1.0",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.8"),
+                    # Python 3.5 is deprecated for aiohttp >3.0
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.6"],
                         "aiohttp_jinja2": "~=0.15",
