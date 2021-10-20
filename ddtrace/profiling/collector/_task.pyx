@@ -6,12 +6,21 @@ from . import _threading
 
 try:
     import gevent._tracer
+    import gevent.thread
 except ImportError:
     _gevent_tracer = None
 else:
+    class DDGreenletTracer(gevent._tracer.GreenletTracer):
+        def _trace(self, event, args):
+            # Do not trace gevent Hub: the Hub is a greenlet but we want to know the latest active greenlet *before*
+            # the application yielded back to the Hub. There's no point showing the Hub most of the time to the users as
+            # that does not give any information about user code.
+            if not isinstance(args[1], gevent.hub.Hub):
+                gevent._tracer.GreenletTracer._trace(self, event, args)
+
     # NOTE: bold assumption: this module is always imported by the MainThread.
     # A GreenletTracer is local to the thread instantiating it and we assume this is run by the MainThread.
-    _gevent_tracer = gevent._tracer.GreenletTracer()
+    _gevent_tracer = DDGreenletTracer()
 
 
 cpdef get_task(thread_id):

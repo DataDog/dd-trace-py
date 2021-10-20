@@ -71,6 +71,18 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
 class RefMsgpackEncoder(_EncoderBase):
     content_type = "application/msgpack"
 
+    def encode_traces(self, traces):
+        normalized_traces = []
+        for trace in traces:
+            t = []
+            for span in trace:
+                s = span.to_dict()
+                if s["error"] == 0:
+                    del s["error"]
+                t.append(s)
+            normalized_traces.append(t)
+        return self.encode(normalized_traces)
+
     @staticmethod
     def encode(obj):
         return msgpack.packb(obj)
