@@ -96,7 +96,7 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels python3
+      - name: Build wheels python 3.6 and above
         uses: pypa/cibuildwheel@v2.1.3
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
