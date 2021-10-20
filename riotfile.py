@@ -1181,7 +1181,7 @@ venv = Venv(
                     # Python 3.5 is deprecated for aiohttp >= 3.0
                     pys=select_pys(min_version="3.6"),
                     pkgs={
-                        "aiohttp": ["~=2.3", "~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.4", "~=3.5", "~=3.6"],
+                        "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.4", "~=3.5", "~=3.6"],
                         "aiohttp_jinja2": "~=0.15",
                         "yarl": "~=1.0",
                     },
