@@ -15,7 +15,7 @@ on:
     - cron:  0 2 * * 2-6
 
 jobs:
-  build_wheels_py2:
+  build_wheels_py27_35:
     name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -46,7 +46,7 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels python2
+      - name: Build wheels python 2.7 and 3.5
         uses: joerick/cibuildwheel@v1.12.0
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
@@ -54,12 +54,12 @@ jobs:
           CIBW_ARCHS: ${{ matrix.archs }}
           # PyPY is not supported
           # Windows 2.7 wheels no longer can be built https://github.com/DataDog/dd-trace-py/pull/2344
-          CIBW_SKIP: pp* cp27-win*
+          CIBW_SKIP: cp27-win*
+          CIBW_BUILD: cp27* cp35*
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-          CIBW_PROJECT_REQUIRES_PYTHON: ">=2.0, <3.0"
 
       - uses: actions/upload-artifact@v2
         with:
@@ -102,14 +102,11 @@ jobs:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
           CIBW_ARCHS: ${{ matrix.archs }}
-          # PyPY is not supported
-          # Windows 2.7 wheels no longer can be built https://github.com/DataDog/dd-trace-py/pull/2344
-          CIBW_SKIP: pp* cp27-win*
+          CIBW_BUILD: cp3*
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-          CIBW_PROJECT_REQUIRES_PYTHON: ">=3.0"
 
       - uses: actions/upload-artifact@v2
         with:
@@ -168,7 +165,7 @@ jobs:
         working-directory: /
 
   upload_pypi:
-    needs: [build_wheels_py2, build_wheels_py3, test_alpine_sdist]
+    needs: [build_wheels_py27_35, build_wheels_py3, test_alpine_sdist]
     runs-on: ubuntu-latest
     if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch')
     steps:
