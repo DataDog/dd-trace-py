@@ -1156,7 +1156,7 @@ venv = Venv(
         Venv(
             name="aiohttp",
             command="pytest {cmdargs} tests/contrib/aiohttp",
-            pkgs={"pytest": [">=3"], "pytest-aiohttp": [latest]},
+            pkgs={"pytest-aiohttp": [latest]},
             venvs=[
                 # Python 3.5 raises `NotImplemented: Can't perform operation for unregistered loader type`
                 # for aiohttp < 3.0
