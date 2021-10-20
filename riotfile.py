@@ -1259,6 +1259,6 @@ venv = Venv(
                 "reno": latest,
             },
             command="reno {cmdargs}",
-        )
+        ),
     ],
 )
