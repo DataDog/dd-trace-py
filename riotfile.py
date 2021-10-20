@@ -1158,8 +1158,10 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={"pytest": [">=3"], "pytest-aiohttp": [latest]},
             venvs=[
+                # Python 3.5 raises `NotImplemented: Can't perform operation for unregistered loader type`
+                # for aiohttp < 3.0
+                # TO DO: @mabdinur fix test_templates.test_template_rendering_package() for python 3.5
                 Venv(
-                    # python 3.5 raises -> NotImplemented: Can't perform operation for unregistered loader type
                     pys="3.6",
                     pkgs={
                         "aiohttp": ["~=2.0", "~=2.1", "~=2.2"],
@@ -1168,19 +1170,10 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # python 3.5 raises -> NotImplemented: Can't perform operation for unregistered loader type
+                    # Python 3.5 is deprecated for aiohttp >= 3.0
                     pys=select_pys(min_version="3.6"),
                     pkgs={
-                        "aiohttp": ["~=2.3", "~=3.5"],
-                        "aiohttp_jinja2": "~=0.15",
-                        "yarl": "~=1.0",
-                    },
-                ),
-                Venv(
-                    # Python 3.5 is deprecated for aiohttp >3.0
-                    pys=select_pys(min_version="3.6"),
-                    pkgs={
-                        "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.6"],
+                        "aiohttp": ["~=2.3", "~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.4", "~=3.5", "~=3.6"],
                         "aiohttp_jinja2": "~=0.15",
                         "yarl": "~=1.0",
                     },
