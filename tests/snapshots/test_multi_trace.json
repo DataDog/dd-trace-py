@@ -6,7 +6,6 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "runtime-id": "bcc8589f1d534d2abf2bd7eb4a8eba2d"
     },
@@ -26,7 +25,6 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 29000,
        "start": 1633030641740720000
      }],
@@ -38,7 +36,6 @@
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "runtime-id": "bcc8589f1d534d2abf2bd7eb4a8eba2d"
     },
@@ -58,7 +55,6 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 15000,
        "start": 1633030641741273000
      }]]

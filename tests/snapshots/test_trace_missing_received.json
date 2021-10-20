@@ -6,7 +6,6 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "error": 0,
     "meta": {
       "runtime-id": "85e0245afd424d4298fb67077ecc3897"
     },
@@ -26,7 +25,6 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "error": 0,
        "duration": 11000,
        "start": 1633030777324740000
      }]]
