@@ -6,11 +6,11 @@ from typing import Any
 from typing import Callable
 from typing import List
 
-from ..ddtrace.vendor.wrapt.importer import when_imported
 from .internal.logger import get_logger
 from .settings import _config as config
 from .utils import formats
 from .utils.deprecation import deprecated
+from .vendor.wrapt.importer import when_imported
 
 
 log = get_logger(__name__)
