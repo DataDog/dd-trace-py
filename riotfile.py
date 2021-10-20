@@ -1162,7 +1162,7 @@ venv = Venv(
                 # for aiohttp < 3.0
                 # TO DO: @mabdinur fix test_templates.test_template_rendering_package() for python 3.5
                 Venv(
-                    pys="3.6",
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
                         "aiohttp": ["~=2.0", "~=2.1", "~=2.2", "~=2.3"],
                         "aiohttp_jinja2": ["~=0.12", "~=0.13", "~=0.15"],
