@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >= 4", "cython"]
+requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
@@ -26,6 +26,7 @@ exclude = '''
   | ddtrace/internal/_encoding.pyx$
   | ddtrace/internal/_rand.pyx$
   | ddtrace/profiling/collector/_traceback.pyx$
+  | ddtrace/profiling/collector/_task.pyx$
   | ddtrace/profiling/collector/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof_.*pb2.py$

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a possible NoneType error in the WSGI middleware start_response method.

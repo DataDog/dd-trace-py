@@ -97,10 +97,11 @@ def _store_headers(headers, span, integration_config, request_or_response):
         return
 
     for header_name, header_value in headers.items():
-        if not integration_config.header_is_traced(header_name):
+        tag_name = integration_config._header_tag_name(header_name)
+        if tag_name is None:
             continue
-        tag_name = _normalize_tag_name(request_or_response, header_name)
-        span.set_tag(tag_name, header_value)
+        # An empty tag defaults to a http.<request or response>.headers.<header name> tag
+        span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
 def _store_request_headers(headers, span, integration_config):
@@ -163,6 +164,16 @@ def with_traced_module(func):
         return wrapper
 
     return with_mod
+
+
+def distributed_tracing_enabled(int_config, default=False):
+    # type: (IntegrationConfig, bool) -> bool
+    """Returns whether distributed tracing is enabled for this integration config"""
+    if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
+        return int_config.distributed_tracing_enabled
+    elif "distributed_tracing" in int_config and int_config.distributed_tracing is not None:
+        return int_config.distributed_tracing
+    return default
 
 
 def int_service(pin, int_config, default=None):
@@ -264,18 +275,16 @@ def set_http_meta(
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
-    # type: (Tracer, Optional[Dict[str, Any]], Optional[Dict[str, str]], Optional[bool]) -> None
+    # type: (Tracer, Optional[IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     int_config will be used to check if distributed trace headers context will be activated, but
     override will override whatever value is set in int_config if passed any value other than None.
     """
-    int_config = int_config or {}
-
     if override is False:
         return None
 
-    if override or int_config.get("distributed_tracing_enabled", int_config.get("distributed_tracing", False)):
+    if override or (int_config and distributed_tracing_enabled(int_config)):
         context = HTTPPropagator.extract(request_headers)
         # Only need to activate the new context if something was propagated
         if context.trace_id:
@@ -306,7 +315,7 @@ def set_flattened_tags(
     items,  # type: Iterator[Tuple[str, Any]]
     sep=".",  # type: str
     exclude_policy=None,  # type: Optional[Callable[[str], bool]]
-    processor=None,  # type Optional[Callable[[Any], Any]]
+    processor=None,  # type: Optional[Callable[[Any], Any]]
 ):
     # type: (...) -> None
     for prefix, value in items:

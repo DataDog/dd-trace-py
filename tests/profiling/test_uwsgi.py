@@ -13,6 +13,11 @@ from tests.contrib.uwsgi import run_uwsgi
 from . import utils
 
 
+# uwsgi does not support Python 3.10 yet
+if sys.version_info[:2] >= (3, 10):
+    pytestmark = pytest.mark.skip
+
+
 uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 
 

@@ -2,6 +2,7 @@ import abc
 from collections import defaultdict
 from json import loads
 import logging
+import os
 import sys
 from typing import List
 from typing import Optional
@@ -22,6 +23,7 @@ from ..constants import KEEP_SPANS_RATE_KEY
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
 from ..utils.formats import get_env
+from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
@@ -226,18 +228,24 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         processing_interval=get_writer_interval_seconds(),  # type: float
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=get_writer_buffer_size(),  # type: int
-        max_payload_size=get_writer_max_payload_size(),  # type: int
+        buffer_size=None,  # type: Optional[int]
+        max_payload_size=None,  # type: Optional[int]
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
     ):
         # type: (...) -> None
+        # Pre-conditions:
+        if buffer_size is not None and buffer_size <= 0:
+            raise ValueError("Writer buffer size must be positive")
+        if max_payload_size is not None and max_payload_size <= 0:
+            raise ValueError("Max payload size must be positive")
+
         super(AgentWriter, self).__init__(interval=processing_interval)
         self.agent_url = agent_url
-        self._buffer_size = buffer_size
-        self._max_payload_size = max_payload_size
+        self._buffer_size = buffer_size or get_writer_buffer_size()
+        self._max_payload_size = max_payload_size or get_writer_max_payload_size()
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {
@@ -266,6 +274,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             max_item_size=self._max_payload_size,
         )
         self._headers.update({"Content-Type": self._encoder.content_type})
+        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            self._headers.update(parse_tags_str(additional_header_str))
         self.dogstatsd = dogstatsd
         self._report_metrics = report_metrics
         self._metrics_reset()

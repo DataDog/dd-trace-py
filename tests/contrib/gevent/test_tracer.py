@@ -6,10 +6,10 @@ from opentracing.scope_managers.gevent import GeventScopeManager
 
 import ddtrace
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.context import Context
 from ddtrace.contrib.gevent import patch
 from ddtrace.contrib.gevent import unpatch
-from ddtrace.ext.priority import USER_KEEP
 from ddtrace.internal.compat import PY3
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase

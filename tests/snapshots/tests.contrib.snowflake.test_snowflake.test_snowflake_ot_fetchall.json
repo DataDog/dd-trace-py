@@ -1,0 +1,45 @@
+[[
+  {
+    "name": "snowflake_op",
+    "service": "snowflake_svc",
+    "resource": "snowflake_op",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 79541
+    },
+    "duration": 3408984,
+    "start": 1634218674220118016
+  },
+     {
+       "name": "sql.query",
+       "service": "snowflake",
+       "resource": "select current_version();",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "sql",
+       "meta": {
+         "db.application": "PythonConnector",
+         "db.name": "mock-db-name",
+         "db.schema": "mock-schema-name",
+         "db.user": "mock-user",
+         "db.warehouse": "mock-warehouse-name",
+         "out.host": "mock-account.snowflakecomputing.com"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "db.rowcount": 1,
+         "out.port": 443,
+         "sql.rows": 1
+       },
+       "duration": 3133000,
+       "start": 1634218674220307000
+     }]]

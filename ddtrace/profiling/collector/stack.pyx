@@ -15,6 +15,7 @@ from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
+from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
 from ddtrace.utils import attr as attr_utils
@@ -29,21 +30,7 @@ from ddtrace.utils import formats
 FEATURES = {
     "cpu-time": False,
     "stack-exceptions": False,
-    "gevent-tasks": False,
 }
-
-
-_gevent_tracer = None
-try:
-    import gevent._tracer
-    import gevent.thread
-except ImportError:
-    _gevent_tracer = None
-else:
-    # NOTE: bold assumption: this module is always imported by the MainThread.
-    # A GreenletTracer is local to the thread instantiating it and we assume this is run by the MainThread.
-    _gevent_tracer = gevent._tracer.GreenletTracer()
-    FEATURES["gevent-tasks"] = True
 
 
 IF UNAME_SYSNAME == "Linux":
@@ -234,25 +221,6 @@ ELSE:
         PyObject* _PyThread_CurrentFrames()
 
 
-cdef get_task(thread_id):
-    """Return the task id and name for a thread."""
-    # gevent greenlet support:
-    # we only support tracing tasks in the greenlets are run in the MainThread.
-    if thread_id == nogevent.main_thread_id and _gevent_tracer is not None:
-        if _gevent_tracer.active_greenlet is None:
-            # That means gevent never switch to another greenlet, we're still in the main one
-            task_id = compat.main_thread.ident
-        else:
-            task_id = gevent.thread.get_ident(_gevent_tracer.active_greenlet)
-
-        # Greenlets might be started as Thread in gevent
-        task_name = _threading.get_thread_name(task_id)
-    else:
-        task_id = None
-        task_name = None
-
-    return task_id, task_name
-
 
 cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with gil:
     cdef dict current_exceptions = {}
@@ -315,7 +283,7 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
 
 
 
-cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links):
+cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_time, thread_span_links, collect_endpoint):
 
     if ignore_profiler:
         # Do not use `threading.enumerate` to not mess with locking (gevent!)
@@ -335,69 +303,56 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     exc_events = []
 
     for thread_id, thread_native_id, thread_name, frame, exception, span, cpu_time in running_threads:
-        task_id, task_name = get_task(thread_id)
+        task_id, task_name, task_frame = _task.get_task(thread_id)
 
-        # When gevent thread monkey-patching is enabled, our PeriodicCollector non-real-threads are gevent tasks
+        # When gevent thread monkey-patching is enabled, our PeriodicCollector non-real-threads are gevent tasks.
         # Therefore, they run in the main thread and their samples are collected by `collect_threads`.
         # We ignore them here:
         if task_id in thread_id_ignore_list:
             continue
 
+        # Inject the task frame and replace the thread frame: this is especially handy for gevent as it allows us to
+        # replace the "hub" stack trace by the latest active greenlet, which is more interesting to show and account
+        # resources for.
+        if task_frame is not None:
+           frame = task_frame
+
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
 
-        if span is None:
-            trace_id = None
-            span_id = None
-            trace_type = None
-            trace_resource = None
-        else:
-            trace_id = span.trace_id
-            span_id = span.span_id
-            if span._local_root is None:
-                trace_type = None
-                trace_resource = None
-            else:
-                trace_type = span._local_root.span_type
-                trace_resource = span._local_root.resource
-
-        stack_events.append(
-            StackSampleEvent(
-                thread_id=thread_id,
-                thread_native_id=thread_native_id,
-                thread_name=thread_name,
-                task_id=task_id,
-                task_name=task_name,
-                trace_id=trace_id,
-                span_id=span_id,
-                trace_resource=trace_resource,
-                trace_type=trace_type,
-                nframes=nframes, frames=frames,
-                wall_time_ns=wall_time,
-                cpu_time_ns=cpu_time,
-                sampling_period=int(interval * 1e9),
-            ),
+        event = StackSampleEvent(
+            thread_id=thread_id,
+            thread_native_id=thread_native_id,
+            thread_name=thread_name,
+            task_id=task_id,
+            task_name=task_name,
+            nframes=nframes, frames=frames,
+            wall_time_ns=wall_time,
+            cpu_time_ns=cpu_time,
+            sampling_period=int(interval * 1e9),
         )
+
+        event.set_trace_info(span, collect_endpoint)
+
+        stack_events.append(event)
 
         if exception is not None:
             exc_type, exc_traceback = exception
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
-            exc_events.append(
-                StackExceptionSampleEvent(
-                    thread_id=thread_id,
-                    thread_name=thread_name,
-                    thread_native_id=thread_native_id,
-                    task_id=task_id,
-                    task_name=task_name,
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    trace_resource=trace_resource,
-                    trace_type=trace_type,
-                    nframes=nframes,
-                    frames=frames,
-                    sampling_period=int(interval * 1e9),
-                    exc_type=exc_type,
-                ),
+            exc_event = StackExceptionSampleEvent(
+                thread_id=thread_id,
+                thread_name=thread_name,
+                thread_native_id=thread_native_id,
+                task_id=task_id,
+                task_name=task_name,
+                nframes=nframes,
+                frames=frames,
+                sampling_period=int(interval * 1e9),
+                exc_type=exc_type,
             )
+
+            exc_event.set_trace_info(span, collect_endpoint)
+
+            exc_events.append(exc_event)
 
     return stack_events, exc_events
 
@@ -476,6 +431,7 @@ class StackCollector(collector.PeriodicCollector):
     max_time_usage_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_TIME_USAGE_PCT", 1, float))
     nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
+    endpoint_collection_enabled = attr.ib(factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool))
     tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False, eq=False)
     _last_wall_time = attr.ib(init=False, repr=False, eq=False)
@@ -514,7 +470,7 @@ class StackCollector(collector.PeriodicCollector):
         self._last_wall_time = now
 
         all_events = stack_collect(
-            self.ignore_profiler, self._thread_time, self.nframes, self.interval, wall_time, self._thread_span_links,
+            self.ignore_profiler, self._thread_time, self.nframes, self.interval, wall_time, self._thread_span_links, self.endpoint_collection_enabled
         )
 
         used_wall_time_ns = compat.monotonic_ns() - now

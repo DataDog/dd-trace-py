@@ -26,7 +26,7 @@ def region(tracer):
     patch()
     # Setup a simple dogpile cache region for testing.
     # The backend is trivial so we can use memory to simplify test setup.
-    test_region = dogpile.cache.make_region(name="TestRegion")
+    test_region = dogpile.cache.make_region(name="TestRegion", key_mangler=lambda x: x)
     test_region.configure("dogpile.cache.memory")
     Pin.override(dogpile.cache, tracer=tracer)
     return test_region
@@ -205,3 +205,12 @@ class TestInnerFunctionCalls(object):
         spy_multi_cache.reset_mock()
         assert [6, 10] == multi_cache(3, 5)
         assert spy_single_cache.call_count == 0
+
+
+def test_get_or_create_kwarg_only(region):
+    """
+    When get_or_create is called with only kwargs
+        The arguments should be handled correctly
+    """
+    assert region.get_or_create(key="key", creator=lambda: 3) == 3
+    assert region.get_or_create_multi(keys="keys", creator=lambda *args: [1, 2])

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add automatic unix domain socket detection for Dogstatsd. The expected path for the socket is ``/var/run/datadog/dsd.socket`` which if exists, will be used instead of the previous UDP default, ``udp://localhost:8125/``. To be used in conjunction with ``dogstatsd_socket`` in your ``datadog.yaml`` file, or the ``DD_DOGSTATSD_SOCKET`` environment variable set on the Datadog agent.

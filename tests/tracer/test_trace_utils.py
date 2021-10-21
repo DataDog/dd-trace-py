@@ -412,6 +412,56 @@ def test_bad_http_code(mock_log, span, int_config, val, bad):
         assert span.meta[http.STATUS_CODE] == str(val)
 
 
+@pytest.mark.parametrize(
+    "props,default,expected",
+    (
+        # Not configured, take the default
+        ({}, None, False),
+        ({}, False, False),
+        ({}, True, True),
+        # _enabled only, take provided value
+        ({"distributed_tracing_enabled": True}, None, True),
+        ({"distributed_tracing_enabled": True}, False, True),
+        ({"distributed_tracing_enabled": True}, True, True),
+        ({"distributed_tracing_enabled": None}, None, False),
+        ({"distributed_tracing_enabled": None}, True, True),
+        ({"distributed_tracing_enabled": None}, False, False),
+        ({"distributed_tracing_enabled": False}, None, False),
+        ({"distributed_tracing_enabled": False}, False, False),
+        ({"distributed_tracing_enabled": False}, True, False),
+        # non-_enabled only, take provided value
+        ({"distributed_tracing": True}, None, True),
+        ({"distributed_tracing": True}, False, True),
+        ({"distributed_tracing": True}, True, True),
+        ({"distributed_tracing": None}, None, False),
+        ({"distributed_tracing": None}, True, True),
+        ({"distributed_tracing": None}, False, False),
+        ({"distributed_tracing": False}, None, False),
+        ({"distributed_tracing": False}, False, False),
+        ({"distributed_tracing": False}, True, False),
+        # Prefer _enabled value
+        ({"distributed_tracing_enabled": True, "distributed_tracing": False}, None, True),
+        ({"distributed_tracing_enabled": True, "distributed_tracing": True}, None, True),
+        ({"distributed_tracing_enabled": True, "distributed_tracing": None}, None, True),
+        ({"distributed_tracing_enabled": None, "distributed_tracing": True}, None, True),
+        ({"distributed_tracing_enabled": None, "distributed_tracing": None}, None, False),
+        ({"distributed_tracing_enabled": None, "distributed_tracing": None}, False, False),
+        ({"distributed_tracing_enabled": None, "distributed_tracing": None}, True, True),
+        ({"distributed_tracing_enabled": False, "distributed_tracing": True}, None, False),
+        ({"distributed_tracing_enabled": False, "distributed_tracing": False}, None, False),
+    ),
+)
+def test_distributed_tracing_enabled(int_config, props, default, expected):
+    kwargs = {}
+    if default is not None:
+        kwargs["default"] = default
+
+    for key, value in props.items():
+        int_config.myint[key] = value
+
+    assert trace_utils.distributed_tracing_enabled(int_config.myint, **kwargs) == expected, (props, default, expected)
+
+
 def test_activate_distributed_headers_enabled(int_config):
     tracer = Tracer()
     int_config.myint["distributed_tracing_enabled"] = True

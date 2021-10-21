@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add support for `snowflake-connector-python
+    <https://pypi.org/project/snowflake-connector-python/>`_ >= 2.0.0. Note
+    that this integration is in beta and is not enabled by default. See the
+    snowflake integration documentation for how to enable.

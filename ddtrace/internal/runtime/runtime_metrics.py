@@ -1,5 +1,4 @@
 import itertools
-from threading import RLock
 from typing import ClassVar
 from typing import Optional
 from typing import Set
@@ -81,7 +80,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
     enabled = False
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
-    _lock = RLock()
+    _lock = forksafe.Lock()
 
     def __attrs_post_init__(self):
         # type: () -> None
@@ -147,7 +146,7 @@ class RuntimeWorker(periodic.PeriodicService):
         with self._dogstatsd_client:
             for key, value in self._runtime_metrics:
                 log.debug("Writing metric %s:%s", key, value)
-                self._dogstatsd_client.gauge(key, value)
+                self._dogstatsd_client.distribution(key, value)
 
     def _stop_service(self):  # type: ignore[override]
         # type: (...) -> None

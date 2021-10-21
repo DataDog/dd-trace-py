@@ -24,6 +24,18 @@ Configuration
 
    Default: ``True``
 
+.. py:data:: ddtrace.config.botocore['invoke_with_legacy_context']
+
+    This preserves legacy behavior when tracing directly invoked Python and Node Lambda
+    functions instrumented with datadog-lambda-python < v41 or datadog-lambda-js < v3.58.0.
+
+    Legacy support for older libraries is available with
+    ``ddtrace.config.botocore.invoke_with_legacy_context = True`` or by setting the environment
+    variable ``DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT=true``.
+
+
+    Default: ``False``
+
 
 Example::
 
