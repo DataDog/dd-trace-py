@@ -4,6 +4,7 @@ from ..internal.utils.formats import asbool  # noqa
 from ..internal.utils.formats import deep_getattr  # noqa
 from ..internal.utils.formats import get_env  # noqa
 from ..internal.utils.formats import parse_tags_str  # noqa
+from ..internal.utils.formats import log  # noqa
 
 
 deprecation(
