@@ -1,16 +1,21 @@
 """
 The snowflake integration instruments the ``snowflake-connector-python`` library to trace Snowflake queries.
 
+Note that this integration is in beta.
+
 Enabling
 ~~~~~~~~
 
-The integration is enabled automatically when using
+The integration is not enabled automatically when using
 :ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
 
-Or use :ref:`patch()<patch>` to manually enable the integration::
+Use :ref:`patch()<patch>` to manually enable the integration::
 
-    from ddtrace import patch
+    from ddtrace import patch, patch_all
     patch(snowflake=True)
+    patch_all(snowflake=True)
+
+or the ``DD_TRACE_SNOWFLAKE_ENABLED=true`` to enable it with ``ddtrace-run``.
 
 
 Global Configuration
