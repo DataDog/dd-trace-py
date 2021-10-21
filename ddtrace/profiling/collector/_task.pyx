@@ -31,13 +31,16 @@ cpdef get_task(thread_id):
         if _gevent_tracer.active_greenlet is None:
             # That means gevent never switch to another greenlet, we're still in the main one
             task_id = compat.main_thread.ident
+            frame = None
         else:
             task_id = gevent.thread.get_ident(_gevent_tracer.active_greenlet)
+            frame = _gevent_tracer.active_greenlet.gr_frame
 
         # Greenlets might be started as Thread in gevent
         task_name = _threading.get_thread_name(task_id)
     else:
         task_id = None
         task_name = None
+        frame = None
 
-    return task_id, task_name
+    return task_id, task_name, frame
