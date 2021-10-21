@@ -19,6 +19,6 @@ from .utils.deprecation import deprecation
 
 deprecation(
     name="ddtrace.monkey",
-    message="Import directly from the ddtrace module instead",
+    message="Import the patch and patch_all functions directly from the ddtrace module instead",
     version="1.0.0",
 )
