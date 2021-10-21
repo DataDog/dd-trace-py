@@ -23,22 +23,22 @@ from ddtrace.vendor import wrapt
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
-    lock_name = attr.ib(default=None)
-    sampling_pct = attr.ib(default=None)
+    lock_name = attr.ib(default=None, type=typing.Optional[str])
+    sampling_pct = attr.ib(default=None, type=typing.Optional[int])
 
 
 @event.event_class
 class LockAcquireEvent(LockEventBase):
     """A lock has been acquired."""
 
-    wait_time_ns = attr.ib(default=None)
+    wait_time_ns = attr.ib(default=None, type=typing.Optional[int])
 
 
 @event.event_class
 class LockReleaseEvent(LockEventBase):
     """A lock has been released."""
 
-    locked_for_ns = attr.ib(default=None)
+    locked_for_ns = attr.ib(default=None, type=typing.Optional[int])
 
 
 def _current_thread():
@@ -84,8 +84,15 @@ class _ProfiledLock(wrapt.ObjectProxy):
             try:
                 end = self._self_acquired_at = compat.monotonic_ns()
                 thread_id, thread_name = _current_thread()
-                frames, nframes = _traceback.pyframe_to_frames(sys._getframe(1), self._self_max_nframes)
-                task_id, task_name = _task.get_task(thread_id)
+                task_id, task_name, task_frame = _task.get_task(thread_id)
+
+                if task_frame is None:
+                    frame = sys._getframe(1)
+                else:
+                    frame = task_frame
+
+                frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+
                 event = LockAcquireEvent(
                     lock_name=self._self_name,
                     frames=frames,
@@ -105,7 +112,12 @@ class _ProfiledLock(wrapt.ObjectProxy):
             except Exception:
                 pass
 
-    def release(self, *args, **kwargs):
+    def release(
+        self,
+        *args,  # type: typing.Any
+        **kwargs  # type: typing.Any
+    ):
+        # type: (...) -> None
         try:
             return self.__wrapped__.release(*args, **kwargs)
         finally:
@@ -113,10 +125,17 @@ class _ProfiledLock(wrapt.ObjectProxy):
                 if hasattr(self, "_self_acquired_at"):
                     try:
                         end = compat.monotonic_ns()
-                        frames, nframes = _traceback.pyframe_to_frames(sys._getframe(1), self._self_max_nframes)
                         thread_id, thread_name = _current_thread()
-                        task_id, task_name = _task.get_task(thread_id)
-                        event = LockReleaseEvent(
+                        task_id, task_name, task_frame = _task.get_task(thread_id)
+
+                        if task_frame is None:
+                            frame = sys._getframe(1)
+                        else:
+                            frame = task_frame
+
+                        frames, nframes = _traceback.pyframe_to_frames(frame, self._self_max_nframes)
+
+                        event = LockReleaseEvent(  # type: ignore[call-arg]
                             lock_name=self._self_name,
                             frames=frames,
                             nframes=nframes,
