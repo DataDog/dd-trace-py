@@ -1,19 +1,9 @@
-import os
-import sys
-import typing
+from ..internal.utils.config import get_application_name  # noqa
+from ..internal.utils.deprecation import deprecation
 
 
-def get_application_name():
-    # type: () -> typing.Optional[str]
-    """Attempts to find the application name using system arguments."""
-    try:
-        import __main__
-
-        name = __main__.__file__
-    except (ImportError, AttributeError):
-        try:
-            name = sys.argv[0]
-        except (AttributeError, IndexError):
-            return None
-
-    return os.path.basename(name)
+deprecation(
+    name="ddtrace.utils.config",
+    message="Use `ddtrace.internal.utils.config` module instead",
+    version="1.0.0",
+)

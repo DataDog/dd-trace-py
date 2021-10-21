@@ -1,16 +1,10 @@
-import os
-from typing import Callable
-from typing import Type
-from typing import TypeVar
-from typing import Union
+from ..internal.utils.attr import T  # noqa
+from ..internal.utils.attr import from_env  # noqa
+from ..internal.utils.deprecation import deprecation
 
 
-T = TypeVar("T")
-
-
-def from_env(name, default, value_type):
-    # type: (str, T, Union[Callable[[Union[str, T, None]], T], Type[T]]) -> Callable[[], T]
-    def _():
-        return value_type(os.environ.get(name, default))
-
-    return _
+deprecation(
+    name="ddtrace.utils.attr",
+    message="Use `ddtrace.internal.utils.attr` module instead",
+    version="1.0.0",
+)
