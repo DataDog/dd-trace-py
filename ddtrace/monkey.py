@@ -53,7 +53,7 @@ PATCH_MODULES = {
     "requests": True,
     "rq": True,
     "sanic": True,
-    "snowflake": True,
+    "snowflake": False,
     "sqlalchemy": False,  # Prefer DB client instrumentation
     "sqlite3": True,
     "aiohttp": True,  # requires asyncio (Python 3.4+)
