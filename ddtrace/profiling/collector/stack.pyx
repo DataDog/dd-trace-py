@@ -22,12 +22,6 @@ from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
 
 
-try:
-    import gevent.thread
-except ImportError:
-    pass
-
-
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
 # module without having gevent crashing our dedicated thread.
 

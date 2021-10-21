@@ -132,12 +132,18 @@ def test_uds_wrong_socket_path():
 
 
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
-def test_payload_too_large():
+def test_payload_too_large(monkeypatch):
+    SIZE = 1 << 12  # 4KB
+    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", str(SIZE))
+    monkeypatch.setenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", str(SIZE))
+
     t = Tracer()
+    assert t.writer._max_payload_size == SIZE
+    assert t.writer._buffer_size == SIZE
     # Make sure a flush doesn't happen partway through.
     t.configure(writer=AgentWriter(agent.get_trace_url(), processing_interval=1000))
     with mock.patch("ddtrace.internal.writer.log") as log:
-        for i in range(100000):
+        for i in range(1000):
             with t.trace("operation") as s:
                 s.set_tag(str(i), "b" * 190)
                 s.set_tag(str(i), "a" * 190)

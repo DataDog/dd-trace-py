@@ -6,6 +6,7 @@ from . import _threading
 
 try:
     import gevent._tracer
+    import gevent.thread
 except ImportError:
     _gevent_tracer = None
 else:

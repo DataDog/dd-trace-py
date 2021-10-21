@@ -1252,5 +1252,13 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            pys=["3"],
+            name="reno",
+            pkgs={
+                "reno": latest,
+            },
+            command="reno {cmdargs}",
+        ),
     ],
 )
