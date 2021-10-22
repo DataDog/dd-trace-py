@@ -34,4 +34,3 @@ class HTTPSConnection(BasePathMixin, httplib.HTTPSConnection):
     """
     httplib.HTTPSConnection wrapper to add a base path to requested URLs
     """
-    
