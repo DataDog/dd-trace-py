@@ -465,8 +465,8 @@ jobs:
   aiohttp:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^aiohttp_contrib-'
+      - run_test:
+          pattern: 'aiohttp'
 
   asgi:
     <<: *contrib_job_small

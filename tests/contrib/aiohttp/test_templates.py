@@ -1,3 +1,7 @@
+import sys
+
+import pytest
+
 from .app.web import set_filesystem_loader
 from .app.web import set_package_loader
 
@@ -43,6 +47,7 @@ async def test_template_rendering_filesystem(untraced_app_tracer, aiohttp_client
     assert 0 == span.error
 
 
+@pytest.mark.skipif(sys.version_info < (3, 6), reason="Not compatible with Python 3.5")
 async def test_template_rendering_package(untraced_app_tracer, aiohttp_client, loop):
     app, tracer = untraced_app_tracer
     client = await aiohttp_client(app)
