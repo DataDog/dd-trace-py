@@ -1,4 +1,5 @@
 from aiohttp.tracing import TraceConfig
+
 from ddtrace import tracer
 from ddtrace.propagation.http import HTTPPropagator
 
