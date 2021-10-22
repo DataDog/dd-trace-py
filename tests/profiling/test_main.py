@@ -1,4 +1,6 @@
+import multiprocessing
 import os
+import sys
 
 import pytest
 
@@ -62,3 +64,32 @@ def test_fork_gevent(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
     stdout, stderr, exitcode, pid = call_program("python", os.path.join(os.path.dirname(__file__), "gevent_fork.py"))
     assert exitcode == 0
+
+
+atleast_py37 = sys.version_info[:2] >= (3, 7)
+
+if atleast_py37:
+    methods = multiprocessing.get_all_start_methods()
+else:
+    methods = []
+
+
+@pytest.mark.parametrize(
+    "method",
+    methods,
+)
+def test_multiprocessing(method, tmp_path, monkeypatch):
+    filename = str(tmp_path / "pprof")
+    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "0.1")
+    stdout, stderr, exitcode, pid = call_program(
+        "ddtrace-run",
+        "python",
+        os.path.join(os.path.dirname(__file__), "_test_multiprocessing.py"),
+        method,
+    )
+    assert exitcode == 0, (stdout, stderr)
+    child_pid = stdout.decode().strip()
+    utils.check_pprof_file(filename + "." + str(pid) + ".1")
+    utils.check_pprof_file(filename + "." + str(child_pid) + ".1")
