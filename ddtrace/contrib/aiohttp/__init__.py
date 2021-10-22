@@ -46,6 +46,18 @@ to the ``request`` object, so that it can be used in the application code::
 
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
+To enable distributed tracing for client calls it is possible to use the standard mechanism
+tracing mechanisms of ``aiohttp.ClientSession`` by passing a ``ddtrace.contrib.aiohttp.DDTraceConfig``
+instance to the `trace_configs` as follows:
+
+    import aiohttp
+    from ddtrace.contrib.aiohttp import DDTraceConfig
+
+    with ClientSession(trace_configs=[DDTraceConfig()]) as session:
+        await session.get('/')
+
+The integration will record a trace from request start to end and propagate the headers for tracing.
+
 """
 from ...utils.importlib import require_modules
 
