@@ -22,12 +22,6 @@ from ddtrace.utils import attr as attr_utils
 from ddtrace.utils import formats
 
 
-try:
-    import gevent.thread
-except ImportError:
-    pass
-
-
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
 # module without having gevent crashing our dedicated thread.
 
@@ -309,13 +303,19 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     exc_events = []
 
     for thread_id, thread_native_id, thread_name, frame, exception, span, cpu_time in running_threads:
-        task_id, task_name = _task.get_task(thread_id)
+        task_id, task_name, task_frame = _task.get_task(thread_id)
 
-        # When gevent thread monkey-patching is enabled, our PeriodicCollector non-real-threads are gevent tasks
+        # When gevent thread monkey-patching is enabled, our PeriodicCollector non-real-threads are gevent tasks.
         # Therefore, they run in the main thread and their samples are collected by `collect_threads`.
         # We ignore them here:
         if task_id in thread_id_ignore_list:
             continue
+
+        # Inject the task frame and replace the thread frame: this is especially handy for gevent as it allows us to
+        # replace the "hub" stack trace by the latest active greenlet, which is more interesting to show and account
+        # resources for.
+        if task_frame is not None:
+           frame = task_frame
 
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
 
