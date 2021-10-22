@@ -103,6 +103,14 @@ async def noop_middleware(app, handler):
     return middleware_handler
 
 
+async def echo_request_headers(request):
+    response = web.Response(text="response_headers_test")
+
+    for h, v in request.headers.items():
+        response.headers["request-" + h] = v
+    return response
+
+
 def setup_app(loop=None):
     """
     Use this method to create the app. It must receive
@@ -119,6 +127,7 @@ def setup_app(loop=None):
     app.router.add_get("/", home)
     app.router.add_get("/delayed/", delayed_handler)
     app.router.add_get("/echo/{name}", name)
+    app.router.add_get("/echo_request_headers", echo_request_headers)
     app.router.add_get("/chaining/", coroutine_chaining)
     app.router.add_get("/exception", route_exception)
     app.router.add_get("/async_exception", route_async_exception)
