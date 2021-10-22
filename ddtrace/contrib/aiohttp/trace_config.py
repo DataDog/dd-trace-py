@@ -15,7 +15,7 @@ async def _on_request_end(session, trace_config_ctx, params):
     trace_config_ctx.span.finish()
 
 
-class DataDog(TraceConfig):
+class DDTraceConfig(TraceConfig):
     def __init__(self):
         super().__init__()
 

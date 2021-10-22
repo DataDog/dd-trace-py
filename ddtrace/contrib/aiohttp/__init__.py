@@ -69,9 +69,6 @@ with require_modules(required_modules) as missing_modules:
         from .middlewares import trace_app
         from .patch import patch
         from .patch import unpatch
+        from .trace_config import DDTraceConfig
 
-        __all__ = [
-            "patch",
-            "unpatch",
-            "trace_app",
-        ]
+        __all__ = ["patch", "unpatch", "trace_app", "DDTraceConfig"]

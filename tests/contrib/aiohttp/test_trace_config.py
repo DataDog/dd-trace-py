@@ -1,7 +1,7 @@
 from aiohttp import ClientSession
 from aiohttp.test_utils import TestServer
 
-from ddtrace.contrib.aiohttp.trace_config import DataDog
+from ddtrace.contrib.aiohttp import DDTraceConfig
 
 
 async def test_client_session_header_tracing(patched_app_tracer, loop):
@@ -10,7 +10,7 @@ async def test_client_session_header_tracing(patched_app_tracer, loop):
 
     # TODO: move server fixture to conftest
 
-    async with ClientSession(trace_configs=[DataDog()]) as session:
+    async with ClientSession(trace_configs=[DDTraceConfig()]) as session:
         resp = await session.get(server.make_url("/echo_request_headers"))
         assert resp.status == 200
 
