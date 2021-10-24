@@ -1,7 +1,10 @@
+import grpc
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ...utils.wrappers import unwrap as _u
 from ..grpc import constants
 from .aio_server_interceptor import create_aio_server_interceptor
 
@@ -51,4 +54,12 @@ def _aio_server_constructor_interceptor(wrapped, instance, args, kwargs):
 
 
 def _unpatch_aio_server():
-    pass
+    if not getattr(constants.GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False):
+        return
+    setattr(constants.GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False)
+
+    pin = Pin.get_from(constants.GRPC_AIO_PIN_MODULE_SERVER)
+    if pin:
+        pin.remove_from(constants.GRPC_AIO_PIN_MODULE_SERVER)
+
+    _u(grpc.aio, "server")
