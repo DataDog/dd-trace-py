@@ -27,7 +27,6 @@ def create_aio_server_interceptor(pin):
 
     return _ServerInterceptor(interceptor_function)
 
-
 class _TracedRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, pin, handler_call_details, wrapped):
         super(_TracedRpcMethodHandler, self).__init__(wrapped)
@@ -60,8 +59,11 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         try:
             response_or_iterator = await behavior(*args, **kwargs)
         except Exception:
-            # TODO: properly catch exception
-            pass
+            span.set_traceback()
+            # https://github.com/grpc/grpc/issues/27409 there seems to be a bug with 
+            # accessing code and details from server side context
+            span.error = 1
+            raise
         finally:
             span.finish()
 
