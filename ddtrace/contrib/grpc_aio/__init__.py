@@ -1,3 +1,17 @@
+"""
+The gRPC integration traces aio.grpc server using the interceptor pattern.
+
+
+Enabling
+~~~~~~~~To manually enable the integration::
+
+    from ddtrace import patch
+    patch(grpc_aio=True)
+
+    # use grpc like usual
+"""
+
+
 from ...utils.importlib import require_modules
 
 
