@@ -42,7 +42,7 @@ class TestPytest(TracerTestCase):
             import ddtrace.monkey
 
             def test_patched_all():
-                assert ddtrace.monkey._PATCHED_MODULES
+                assert ddtrace._monkey._PATCHED_MODULES
         """
         )
         file_name = os.path.basename(py_file.strpath)
@@ -61,7 +61,7 @@ class TestPytest(TracerTestCase):
             import ddtrace.monkey
 
             def test_patched_all():
-                assert ddtrace.monkey._PATCHED_MODULES
+                assert ddtrace._monkey._PATCHED_MODULES
         """
         )
         file_name = os.path.basename(py_file.strpath)
