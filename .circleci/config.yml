@@ -722,7 +722,7 @@ jobs:
           pattern: '^pyodbc_contrib-'
 
   pyramid:
-    <<: *machine_executor
+    <<: *contrib_job
     steps:
       - run_test:
           pattern: 'pyramid'
