@@ -724,8 +724,8 @@ jobs:
   pyramid:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^pyramid_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: 'pyramid'
 
   requests:
     <<: *contrib_job
