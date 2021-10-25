@@ -1081,6 +1081,32 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="grpc_aio",
+            command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
+            pkgs={
+                "googleapis-common-protos": latest,
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "grpcio": [
+                            "~=1.32.0",
+                            "~=1.33.0",
+                            "~=1.34.0",
+                            "~=1.35.0",
+                            "~=1.36.0",
+                            "~=1.37.0",
+                            "~=1.38.0",
+                            "~=1.39.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="rq",
             command="pytest tests/contrib/rq",
             venvs=[
