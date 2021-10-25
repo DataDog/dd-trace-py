@@ -951,18 +951,16 @@ venv = Venv(
                             latest,
                         ],
                     },
-                    venvs = [
+                    venvs=[
+                        Venv(command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py"),
                         Venv(
-                            command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py"
+                            command=(
+                                "python tests/ddtrace_run.py pytest {cmdargs}"
+                                " tests/contrib/pyramid/test_pyramid_autopatch.py"
+                            ),
+                            env={"DATADOG_SERVICE_NAME": "foobar", "DATADOG_PYRAMID_DISTRIBUTED_TRACING": "True"},
                         ),
-                        Venv(
-                            command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pyramid/test_pyramid_autopatch.py",
-                            env={"DATADOG_SERVICE_NAME":"foobar",
-                            "DATADOG_PYRAMID_DISTRIBUTED_TRACING":"True"
-                            }
-
-                        )
-                        ]
+                    ],
                 ),
             ],
         ),
