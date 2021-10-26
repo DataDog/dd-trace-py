@@ -237,10 +237,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     ):
         # type: (...) -> None
         # Pre-conditions:
-        if buffer_size is not None:
-            assert buffer_size > 0, "Writer buffer size is positive"
-        if max_payload_size is not None:
-            assert max_payload_size > 0, "Max payload size is positive"
+        if buffer_size is not None and buffer_size <= 0:
+            raise ValueError("Writer buffer size must be positive")
+        if max_payload_size is not None and max_payload_size <= 0:
+            raise ValueError("Max payload size must be positive")
 
         super(AgentWriter, self).__init__(interval=processing_interval)
         self.agent_url = agent_url
@@ -260,7 +260,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         try:
             Encoder = MSGPACK_ENCODERS[encoding_version]
         except KeyError:
-            raise ValueError("Unsupported encoding version: '%s'" % encoding_version)
+            raise ValueError(
+                "Unsupported encoding version: '%s'. The supported versions are: %r"
+                % (encoding_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
+            )
 
         self._endpoint = "%s/traces" % encoding_version
 
@@ -351,21 +354,21 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 conn.close()
 
     def _downgrade(self, payload, response):
-        try:
-            if self._endpoint[0] == "v":
-                v, _, traces = self._endpoint[1:].partition("/")
-                if traces != "traces":
-                    raise ValueError()
-                major, minor = (int(_) for _ in v.split("."))
-                if minor:
-                    version = "v%d.%d" % (major, minor - 1)
-                    assert version in MSGPACK_ENCODERS, "Supported endpoint version"
-                    self._endpoint = "%s/%s" % (version, traces)
-                    self._encoder = MSGPACK_ENCODERS[version](self._encoder.max_size, self._encoder.max_item_size)
-                    return payload
-        except (IndexError, ValueError):
-            pass
-
+        if self._endpoint == "v0.5/traces":
+            self._endpoint = "v0.4/traces"
+            self._encoder = MSGPACK_ENCODERS["v0.4"](
+                max_size=self._buffer_size,
+                max_item_size=self._max_payload_size,
+            )
+            # Since we have to change the encoding in this case, the payload
+            # would need to be converted to the downgraded encoding before
+            # sending it, but we chuck it away instead.
+            return None
+        if self._endpoint == "v0.4/traces":
+            self._endpoint = "v0.3/traces"
+            # These endpoints share the same encoding, so we can try sending the
+            # same payload over the downgraded endpoint.
+            return payload
         raise ValueError()
 
     def _send_payload(self, payload, count):
@@ -393,7 +396,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     self.agent_url,
                 )
             else:
-                return self._send_payload(payload, count)
+                if payload is not None:
+                    self._send_payload(payload, count)
         elif response.status >= 400:
             log.error(
                 "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",

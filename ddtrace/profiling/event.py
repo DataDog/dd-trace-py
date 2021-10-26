@@ -6,7 +6,13 @@ from ddtrace import span as ddspan
 from ddtrace.internal import compat
 
 
-def event_class(klass):
+_T = typing.TypeVar("_T")
+
+
+def event_class(
+        klass  # type: typing.Type[_T]
+):
+    # type: (...) -> typing.Type[_T]
     return attr.s(slots=True)(klass)
 
 
@@ -18,6 +24,7 @@ class Event(object):
 
     @property
     def name(self):
+        # type: (...) -> str
         """Name of the event."""
         return self.__class__.__name__
 

@@ -442,23 +442,6 @@ class Span(object):
 
         return d
 
-    def to_tuple(self):
-        # type: () -> tuple
-        return (
-            self.service,
-            self.name,
-            self.resource,
-            self.trace_id or 0,
-            self.span_id or 0,
-            self.parent_id or 0,
-            self.start_ns or 0,
-            self.duration_ns or 0,
-            int(bool(self.error)),
-            self.meta or {},
-            self.metrics or {},
-            self.span_type,
-        )
-
     def set_traceback(self, limit=20):
         # type: (int) -> None
         """If the current stack has an exception, tag the span with the

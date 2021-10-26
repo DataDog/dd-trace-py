@@ -144,13 +144,14 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
 @allencodings
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason.")
 def test_payload_too_large(encoding, monkeypatch):
+    SIZE = 1 << 12  # 4KB
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
-    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", str(1 << 12))
-    monkeypatch.setenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", str(1 << 12))
+    monkeypatch.setenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", str(SIZE))
+    monkeypatch.setenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", str(SIZE))
 
     t = Tracer()
-    assert t.writer._max_payload_size == 1 << 12
-    assert t.writer._buffer_size == 1 << 12
+    assert t.writer._max_payload_size == SIZE
+    assert t.writer._buffer_size == SIZE
     # Make sure a flush doesn't happen partway through.
     t.configure(writer=AgentWriter(agent.get_trace_url(), processing_interval=1000))
     with mock.patch("ddtrace.internal.writer.log") as log:

@@ -37,6 +37,24 @@ from tests.utils import DummyTracer
 _ORIGIN_KEY = ORIGIN_KEY.encode()
 
 
+def span_to_tuple(span):
+    # type: (Span) -> tuple
+    return (
+        span.service,
+        span.name,
+        span.resource,
+        span.trace_id or 0,
+        span.span_id or 0,
+        span.parent_id or 0,
+        span.start_ns or 0,
+        span.duration_ns or 0,
+        int(bool(span.error)),
+        span.meta or {},
+        span.metrics or {},
+        span.span_type,
+    )
+
+
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
     return "".join(random.choice(chars) for _ in range(size))
 
@@ -118,7 +136,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
         return value
 
     def normalize(self, span):
-        return tuple(self._index_or_value(_) for _ in span.to_tuple())
+        return tuple(self._index_or_value(_) for _ in span_to_tuple(span))
 
     def encode(self, obj):
         try:

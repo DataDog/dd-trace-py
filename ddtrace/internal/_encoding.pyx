@@ -9,6 +9,7 @@ from ddtrace.constants import ORIGIN_KEY
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
+DEF MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE = 6
 
 
 cdef extern from "Python.h":
@@ -166,8 +167,9 @@ cdef class StringTable(object):
 
     cdef reset(self):
         PyDict_Clear(self._table)
-        self._next_id = 0
-        assert self._index("") == 0
+        PyDict_SetItem(self._table, "", 0)
+        self.insert("")
+        self._next_id = 1
 
     def __len__(self):
         return PyLong_FromLong(self._next_id)
@@ -196,6 +198,7 @@ cdef class MsgpackStringTable(StringTable):
     cdef int _sp_len
     cdef stdint.uint32_t _sp_id
     cdef object _lock
+    cdef size_t _reset_size
 
     def __init__(self, max_size):
         self.pk.buf_size = min(max_size, 1 << 20)
@@ -203,12 +206,13 @@ cdef class MsgpackStringTable(StringTable):
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
         self.max_size = max_size
-        self.pk.length = 6
+        self.pk.length = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE
         self._sp_len = 0
         self._lock = threading.Lock()
         super(MsgpackStringTable, self).__init__()
 
         assert self.index(ORIGIN_KEY) == 1
+        self._reset_size = self.pk.length
 
     def __dealloc__(self):
         PyMem_Free(self.pk.buf)
@@ -218,7 +222,11 @@ cdef class MsgpackStringTable(StringTable):
         cdef int ret
 
         if self.pk.length + len(string) > self.max_size:
-            raise ValueError("String table is full.")
+            raise ValueError(
+                "Cannot insert '%s': string table is full (current size: %d, max size: %d)." % (
+                    string, self.pk.length, self.max_size
+                )
+            )
 
         ret = pack_text(&self.pk, string)
         if ret != 0:
@@ -236,7 +244,7 @@ cdef class MsgpackStringTable(StringTable):
     cdef get_bytes(self):
         cdef int ret;
         cdef stdint.uint32_t l = self._next_id
-        cdef int offset = 6 - array_prefix_size(l)
+        cdef int offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(l)
         cdef int old_pos = self.pk.length
         
         with self._lock:
@@ -266,14 +274,20 @@ cdef class MsgpackStringTable(StringTable):
             if res != 0:
                 raise RuntimeError("Failed to append raw bytes to msgpack string table")
 
+    cdef reset(self):
+        StringTable.reset(self)
+        assert self._next_id == 1
+
+        PyDict_SetItem(self._table, ORIGIN_KEY, 1)
+        self._next_id = 2
+        self.pk.length = self._reset_size
+        self._sp_len = 0
+
     cpdef flush(self):
         try:
             return self.get_bytes()
         finally:
-            self.pk.length = 6
             self.reset()
-            assert self.index(ORIGIN_KEY) == 1
-            self._sp_len = 0
 
 
 cdef class BufferedEncoder(object):
