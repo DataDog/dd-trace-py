@@ -34,10 +34,8 @@ def unpatch():
 async def traced_execute_command():
     pass
 
-
 async def traced_pipeline():
     pass
-
 
 async def traced_execute_pipeline():
     pass
