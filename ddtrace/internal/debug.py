@@ -78,7 +78,7 @@ def collect(tracer):
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.
         module_available = module in packages_available
-        module_instrumented = module in ddtrace.monkey._PATCHED_MODULES
+        module_instrumented = module in ddtrace._monkey._PATCHED_MODULES
         module_imported = module in sys.modules
 
         if enabled:

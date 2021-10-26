@@ -937,6 +937,34 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pyramid",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "webtest": [latest],
+                        "pyramid": [
+                            "~=1.7",
+                            "~=1.8",
+                            "~=1.9",
+                            "~=1.10",
+                            latest,
+                        ],
+                    },
+                    venvs=[
+                        Venv(command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py"),
+                        Venv(
+                            command=(
+                                "python tests/ddtrace_run.py pytest {cmdargs}"
+                                " tests/contrib/pyramid/test_pyramid_autopatch.py"
+                            ),
+                            env={"DATADOG_SERVICE_NAME": "foobar", "DATADOG_PYRAMID_DISTRIBUTED_TRACING": "True"},
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             # aiobotocore: aiobotocore>=1.0 not yet supported
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
