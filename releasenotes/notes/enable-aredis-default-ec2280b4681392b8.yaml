@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Aredis is now enabled by default.
