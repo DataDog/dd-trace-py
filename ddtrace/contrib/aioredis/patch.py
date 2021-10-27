@@ -30,12 +30,15 @@ def unpatch():
     _u(aioredis.client.Redis, "pipeline")
     _u(aioredis.client.Pipeline, "execute")
 
+
 # should these share a source with aredis?
 async def traced_execute_command():
     pass
 
+
 async def traced_pipeline():
     pass
+
 
 async def traced_execute_pipeline():
     pass
