@@ -1312,5 +1312,17 @@ venv = Venv(
             },
             command="reno {cmdargs}",
         ),
+        Venv(
+            name="aioredis",
+            pys=select_pys(min_version="3.6"),
+            command="pytest {cmdargs} tests/contrib/aioredis",
+            pkgs={
+                "pytest-asyncio": latest,
+                "aioredis": [
+                    "~=1.3.0",
+                    latest,
+                ],
+            },
+        ),
     ],
 )
