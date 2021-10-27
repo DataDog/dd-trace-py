@@ -1,7 +1,6 @@
 import os
 
 import pyramid.config
-from pyramid.path import caller_package
 
 from ddtrace import config
 from ddtrace.vendor import wrapt

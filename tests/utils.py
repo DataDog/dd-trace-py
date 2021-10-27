@@ -8,11 +8,15 @@ from typing import List
 
 import attr
 import pytest
+import requests
+import six
+import tenacity
 
 import ddtrace
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.context import Context
 from ddtrace.ext import http
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
@@ -23,6 +27,8 @@ from ddtrace.internal.writer import AgentWriter
 from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
+
+from ddtrace.propagation.http import HTTPPropagator
 
 
 NO_CHILDREN = object()
