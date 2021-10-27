@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The aredis integration is now enabled by default.

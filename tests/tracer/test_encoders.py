@@ -414,7 +414,7 @@ def test_msgpack_string_table():
     assert size == len(encoded)
     assert decode(encoded + b"\xc0") == [[b"", ORIGIN_KEY.encode(), b"foobar", b"foobaz"], None]
 
-    assert len(t) == 1
+    assert len(t) == 2
     assert "foobar" not in t
 
 
