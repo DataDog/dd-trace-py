@@ -149,5 +149,5 @@ def pyramid_client(snapshot):
 
 @pytest.mark.snapshot()
 def test_simple_pyramid_app_endpoint(pyramid_client):
-    resp = pyramid_client.get("/")
-    assert resp.status_code == 200
+    r = pyramid_client.get("/")
+    assert r.status_code == 200
