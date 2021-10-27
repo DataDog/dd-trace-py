@@ -18,6 +18,7 @@ log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
+    "aredis": True,
     "asyncio": True,
     "boto": True,
     "botocore": True,
