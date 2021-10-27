@@ -24,11 +24,10 @@ from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils.formats import parse_tags_str
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
-
-from ddtrace.propagation.http import HTTPPropagator
 
 
 NO_CHILDREN = object()
