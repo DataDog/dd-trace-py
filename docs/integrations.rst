@@ -3,6 +3,13 @@
 Integrations
 ------------
 
+.. aioredis:
+
+aioredis
+^^^^^^^^
+.. automodule:: ddtrace.contrib.aioredis
+
+
 .. _aiobotocore:
 
 aiobotocore

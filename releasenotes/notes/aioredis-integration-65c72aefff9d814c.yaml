@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add tracing support for the ``aioredis`` library. Supported version #TODO
