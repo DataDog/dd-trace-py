@@ -6,7 +6,6 @@ import pytest
 from ddtrace import config
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from tests.utils import snapshot
 from tests.webclient import Client
 
 from .utils import PyramidBase
@@ -144,9 +143,11 @@ def pyramid_client(snapshot):
     finally:
         resp = client.get_ignored("/shutdown-tracer")
         assert resp.status_code == 200
+        # print(proc.stdout.read())
         proc.terminate()
 
 
 @pytest.mark.snapshot()
 def test_simple_pyramid_app_endpoint(pyramid_client):
-    pyramid_client.get("/")
+    resp = pyramid_client.get("/")
+    assert resp.status_code == 200

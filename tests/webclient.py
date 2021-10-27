@@ -3,6 +3,7 @@ import six
 import tenacity
 
 from ddtrace.context import Context
+from ddtrace.filters import TraceFilter
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -51,3 +52,11 @@ class Client(object):
             assert r.status_code == 200
 
         ping()
+
+
+class PingFilter(TraceFilter):
+    def process_trace(self, trace):
+        # Filter out all traces with trace_id = 1
+        # This is done to prevent certain traces from being included in snapshots and
+        # accomplished by propagating an http trace id of 1 with the request to Django.
+        return None if trace and trace[0].trace_id == 1 else trace

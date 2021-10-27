@@ -1,9 +1,17 @@
-import os
-from ddtrace import tracer
 from wsgiref.simple_server import make_server
 
 from pyramid.config import Configurator
 from pyramid.response import Response
+
+from ddtrace import tracer
+from tests.webclient import PingFilter
+
+
+tracer.configure(
+    settings={
+        "FILTERS": [PingFilter()],
+    }
+)
 
 
 def hello_world(request):
