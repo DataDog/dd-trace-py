@@ -8,6 +8,6 @@ from ..internal.utils.deprecation import warn  # noqa
 
 deprecation(
     name="ddtrace.utils.deprecation",
-    message="Use `ddtrace.internal.utils.deprecation` module instead",
+    message="This module will be removed in v1.0.",
     version="1.0.0",
 )
