@@ -5,6 +5,7 @@
     "resource": "GET hello",
     "trace_id": 0,
     "span_id": 1,
+    "error": 0,
     "parent_id": 0,
     "type": "web",
     "meta": {
