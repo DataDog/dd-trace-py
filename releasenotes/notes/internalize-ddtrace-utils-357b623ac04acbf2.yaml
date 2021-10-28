@@ -1,7 +1,7 @@
 ---
 deprecations:
   - |
-    The `ddtrace.utils` folder and all of its files has been copied over into
+    The `ddtrace.utils` module and all of its submodules have been copied over into
     `ddtrace.internal` in an effort to internalize these modules. All public
     methods contained in these modules have been imported back into their
     filename counterparts in `ddtrace.utils` in order to retain compatibility
