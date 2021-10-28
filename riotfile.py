@@ -937,8 +937,6 @@ venv = Venv(
             ],
         ),
         Venv(
-<<<<<<< HEAD
-=======
             name="pyramid",
             venvs=[
                 Venv(
@@ -968,7 +966,6 @@ venv = Venv(
             ],
         ),
         Venv(
->>>>>>> b1e5902a (Fix Pyramid integration caller_package level (#2950))
             # aiobotocore: aiobotocore>=1.0 not yet supported
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",

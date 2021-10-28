@@ -724,14 +724,9 @@ jobs:
   pyramid:
     <<: *machine_executor
     steps:
-<<<<<<< HEAD
-      - run_tox_scenario:
-          pattern: '^pyramid_contrib\(_autopatch\)\?-'
-=======
       - run_test:
           pattern: 'pyramid'
           snapshot: true
->>>>>>> b1e5902a (Fix Pyramid integration caller_package level (#2950))
 
   requests:
     <<: *contrib_job
