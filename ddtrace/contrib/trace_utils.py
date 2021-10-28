@@ -16,11 +16,11 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.http import normalize_header_name
+from ddtrace.internal.utils.http import strip_query_string
+import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.utils.cache import cached
-from ddtrace.utils.http import normalize_header_name
-from ddtrace.utils.http import strip_query_string
-import ddtrace.utils.wrappers
 from ddtrace.vendor import wrapt
 
 
@@ -33,8 +33,8 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 wrap = wrapt.wrap_function_wrapper
-unwrap = ddtrace.utils.wrappers.unwrap
-iswrapped = ddtrace.utils.wrappers.iswrapped
+unwrap = ddtrace.internal.utils.wrappers.unwrap
+iswrapped = ddtrace.internal.utils.wrappers.iswrapped
 
 REQUEST = "request"
 RESPONSE = "response"
