@@ -20,8 +20,8 @@ def patch():
     _w("aioredis.client", "Redis.execute_command", traced_execute_command)
     _w("aioredis.client", "Redis.pipeline", traced_pipeline)
     _w("aioredis.client", "Pipeline.execute", traced_execute_pipeline)
-    pin = Pin(app="aioredis")
-    pin.onto(aioredis.client)
+    pin = Pin()
+    pin.onto(aioredis.client.Redis)
 
 
 def unpatch():
