@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix Pyramid caller_package level issue which resulted in crashes when starting Pyramid applications. Level now left at default (2).
+    
