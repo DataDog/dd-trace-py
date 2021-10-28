@@ -9,6 +9,6 @@ from ..internal.utils.formats import log  # noqa
 
 deprecation(
     name="ddtrace.utils.formats",
-    message="Use `ddtrace.internal.utils.formats` module instead",
+    message="This module will be removed in v1.0.",
     version="1.0.0",
 )
