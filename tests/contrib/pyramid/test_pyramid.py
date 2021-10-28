@@ -143,7 +143,6 @@ def pyramid_client(snapshot):
     finally:
         resp = client.get_ignored("/shutdown-tracer")
         assert resp.status_code == 200
-        # print(proc.stdout.read())
         proc.terminate()
 
 
