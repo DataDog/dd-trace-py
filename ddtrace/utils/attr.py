@@ -5,6 +5,6 @@ from ..internal.utils.deprecation import deprecation
 
 deprecation(
     name="ddtrace.utils.attr",
-    message="Use `ddtrace.internal.utils.attr` module instead",
+    message="This module will be removed in v1.0.",
     version="1.0.0",
 )
