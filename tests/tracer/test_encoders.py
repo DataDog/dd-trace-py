@@ -251,10 +251,7 @@ class TestEncoders(TestCase):
 
 def decode(obj, reconstruct=True):
 
-    if msgpack.version[:2] < (0, 6):
-        unpacked = msgpack.unpackb(obj)
-    else:
-        unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
+    unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
 
     if not unpacked or not unpacked[0]:
         return unpacked
@@ -419,7 +416,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
     resource=text(),
     meta=dictionaries(text(), text()),
     metrics=dictionaries(text(), floats()),
-    error=integers(),
+    error=integers(min_value=-(2 ** 31), max_value=2 ** 31 - 1),
     span_type=text(),
 )
 @settings(max_examples=200)
@@ -428,7 +425,7 @@ def test_custom_msgpack_encode_trace_size(encoding, name, service, resource, met
     span = Span(tracer=None, name=name, service=service, resource=resource)
     span.meta = meta
     span.metrics = metrics
-    span.error = error & ((1 << 31) - 1)
+    span.error = error
     span.span_type = span_type
     trace = [span, span, span]
 

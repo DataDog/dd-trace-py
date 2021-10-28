@@ -234,6 +234,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
+        api_version=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         # Pre-conditions:
@@ -256,7 +257,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         }
         self._timeout = timeout
 
-        encoding_version = os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
+        encoding_version = (
+            api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
+        )
         try:
             Encoder = MSGPACK_ENCODERS[encoding_version]
         except KeyError:
@@ -363,6 +366,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
             # sending it, but we chuck it away instead.
+            log.warning(
+                "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
+                "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
+                "endpoint available, or explicitly set the trace API version to, e.g., v0.4."
+            )
             return None
         if self._endpoint == "v0.4/traces":
             self._endpoint = "v0.3/traces"
