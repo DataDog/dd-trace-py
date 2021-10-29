@@ -1,0 +1,24 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "my-aioredis",
+    "resource": "GET cheese",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "meta": {
+      "redis.raw_command": "GET cheese",
+      "runtime-id": "c6091ae9e2274e148ee1792016d9cc59"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "redis.args_length": 2,
+      "system.pid": 70019
+    },
+    "duration": 2758000,
+    "start": 1635534921632381000
+  }]]

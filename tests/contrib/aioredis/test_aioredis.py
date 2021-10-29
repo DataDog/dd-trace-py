@@ -1,11 +1,13 @@
 import aioredis
 import pytest
 
+from ddtrace import Pin
 from ddtrace.contrib.aioredis.patch import aioredis_version
 from ddtrace.contrib.aioredis.patch import patch
 from ddtrace.contrib.aioredis.patch import unpatch
 from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import override_config
+from tests.utils import snapshot
 
 from ..config import REDIS_CONFIG
 
@@ -18,8 +20,8 @@ async def redis_client():
 
 def get_redis_instance():
     if aioredis_version >= (2, 0):
-        return aioredis.from_url('redis://localhost:%s' % REDIS_CONFIG["port"])
-    return aioredis.create_redis(('localhost', 6379))
+        return aioredis.from_url("redis://localhost:%s" % REDIS_CONFIG["port"])
+    return aioredis.create_redis(("localhost", 6379))
 
 
 @pytest.fixture(autouse=True)
@@ -51,15 +53,18 @@ def test_patching():
         assert not isinstance(aioredis.client.Pipeline.pipeline, ObjectProxy)
     else:
         assert isinstance(aioredis.Redis.execute, ObjectProxy)
-        assert isinstance(aioredis.commands.Pipeline.execute, ObjectProxy)
         unpatch()
         assert not isinstance(aioredis.Redis.execute, ObjectProxy)
-        assert not isinstance(aioredis.commands.Pipeline.execute, ObjectProxy)
 
 
-# test return value for all requests
 @pytest.mark.asyncio
 @pytest.mark.snapshot
+@snapshot(
+    variants={
+        "13x": aioredis_version < (2, 0),
+        "2x": (2, 0) <= aioredis_version,
+    }
+)
 async def test_basic_request(redis_client):
     val = await redis_client.get("cheese")
     assert val is None
@@ -67,6 +72,24 @@ async def test_basic_request(redis_client):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
+@snapshot(
+    variants={
+        "13x": aioredis_version < (2, 0),
+        "2x": (2, 0) <= aioredis_version,
+    }
+)
+async def test_long_command(redis_client):
+    await redis_client.mget(*range(1000))
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+@snapshot(
+    variants={
+        "13x": aioredis_version < (2, 0),
+        "2x": (2, 0) <= aioredis_version,
+    }
+)
 async def test_override_service_name(redis_client):
     with override_config("aioredis", dict(service_name="myaioredis")):
         val = await redis_client.get("cheese")
@@ -78,11 +101,37 @@ async def test_override_service_name(redis_client):
         assert val == "my-cheese"
 
 
-# check if you can use pin to override details - like aredis test_opentracing,
-# but it can be changed to be a snapshot testing case
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+@snapshot(
+    variants={
+        "13x": aioredis_version < (2, 0),
+        "2x": (2, 0) <= aioredis_version,
+    }
+)
+async def test_pin(redis_client):
+    Pin.override(redis_client, service="my-aioredis")
+    val = await redis_client.get("cheese")
+    assert val is None
+
+
+# TODO: check response from execute?
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+@pytest.mark.skipif(aioredis_version < (2, 0), reason="Pipeline methods are not instrumented in versions < 2.0")
+async def test_pipeline_traced(redis_client):
+    p = await redis_client.pipeline(transaction=False)
+    await p.set("blah", 32)
+    await p.rpush("foo", u"éé")
+    await p.hgetall("xxx")
+    await p.execute()
+
 
 """
-@pytest.mark.asyncio
-async def test_execute_command(snapshot_context):
-    with snapshot_context():
+@snapshot(
+    variants={
+        "13x": aioredis_version < (2, 0),
+        "2x": (2, 0) <= aioredis_version,
+    }
+)
 """

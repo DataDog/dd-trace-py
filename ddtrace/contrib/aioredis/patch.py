@@ -5,19 +5,16 @@ from ddtrace.pin import Pin
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ..redis.util import _extract_conn_tags
 from ..redis.util import _trace_redis_cmd
 from ..redis.util import _trace_redis_execute_pipeline
 from ..redis.util import format_command_args
 
 
-# from ..redis.util import _extract_conn_tags
-
-
-# TODO: service is showing up as null in the snapshots.
 config._add("aioredis", dict(_default_service="redis"))
 
-aioredis_version_str = getattr(aioredis, '__version__', '0.0.0')
-aioredis_version = tuple([int(i) for i in aioredis_version_str.split('.')])
+aioredis_version_str = getattr(aioredis, "__version__", "0.0.0")
+aioredis_version = tuple([int(i) for i in aioredis_version_str.split(".")])
 
 
 def patch():
@@ -31,10 +28,7 @@ def patch():
         _w("aioredis.client", "Pipeline.execute", traced_execute_pipeline)
         pin.onto(aioredis.client.Redis)
     else:
-        print("version less than 2")
         _w("aioredis", "Redis.execute", traced_execute_command)
-        # TODO: not sure what to sub this for in 1.3.0: _w("aioredis.commands", "Pipeline", traced_pipeline)
-        _w("aioredis.commands", "Pipeline.execute", traced_execute_pipeline)
         pin.onto(aioredis.Redis)
 
 
@@ -49,7 +43,6 @@ def unpatch():
         _u(aioredis.client.Pipeline, "execute")
     else:
         _u(aioredis.Redis, "execute")
-        _u(aioredis.commands.Pipeline, "execute")
 
 
 async def traced_execute_command(func, instance, args, kwargs):
@@ -57,8 +50,9 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.aioredis, args):  # as span:
-        # span.set_tags(_extract_conn_tags(aioredis.ConnectionsPool.connection_kwargs))
+    with _trace_redis_cmd(pin, config.aioredis, args) as span:
+        if hasattr(instance, "connection_pool"):
+            span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         return await func(*args, **kwargs)
 
 
@@ -77,6 +71,7 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
 
     cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
-    with _trace_redis_execute_pipeline(pin, config.aioredis, resource, instance):  # as span:
-        # TODO: span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
+    with _trace_redis_execute_pipeline(pin, config.aioredis, resource, instance) as span:
+        if hasattr(instance, "connection_pool"):
+            span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         return await func(*args, **kwargs)
