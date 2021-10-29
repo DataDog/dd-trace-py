@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Previously customers could not override the default service name using a pin instance.  
