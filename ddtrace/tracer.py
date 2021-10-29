@@ -297,6 +297,7 @@ class Tracer(object):
         writer=None,  # type: Optional[TraceWriter]
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
+        api_version=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         """
@@ -393,6 +394,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
+                api_version=api_version,
             )
         elif writer is None and isinstance(self.writer, LogWriter):
             # No need to do anything for the LogWriter.

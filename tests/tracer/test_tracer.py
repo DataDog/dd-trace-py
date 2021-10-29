@@ -29,6 +29,8 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.ext import priority
+from ddtrace.internal._encoding import MsgpackEncoderV03
+from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
@@ -1693,3 +1695,14 @@ def test_fork_pid(tracer):
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
+
+
+def test_tracer_api_version():
+    t = Tracer()
+    assert isinstance(t.writer._encoder, MsgpackEncoderV03)
+
+    t.configure(api_version="v0.5")
+    assert isinstance(t.writer._encoder, MsgpackEncoderV05)
+
+    t.configure(api_version="v0.4")
+    assert isinstance(t.writer._encoder, MsgpackEncoderV03)
