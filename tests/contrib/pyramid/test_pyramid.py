@@ -1,9 +1,18 @@
+import os
+import subprocess
+
+import pytest
+
 from ddtrace import config
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from tests.webclient import Client
 
 from .utils import PyramidBase
 from .utils import PyramidTestCase
+
+
+SERVER_PORT = 8000
 
 
 def includeme(config):
@@ -102,3 +111,42 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
         assert span.parent_id != 42
         assert span.get_metric(SAMPLING_PRIORITY_KEY) != 2
         assert span.get_tag(ORIGIN_KEY) != "synthetics"
+
+
+@pytest.fixture(scope="function")
+def pyramid_client(snapshot):
+    """Runs a Pyramid app in a subprocess and returns a client which can be used to query it.
+
+    Traces are flushed by invoking a tracer.shutdown() using a /shutdown-tracer route
+    at the end of the testcase.
+    """
+
+    env = os.environ.copy()
+    env["SERVER_PORT"] = str(SERVER_PORT)
+
+    cmd = ["ddtrace-run", "python", "tests/contrib/pyramid/app/app.py"]
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=True,
+        env=env,
+    )
+
+    client = Client("http://localhost:%d" % SERVER_PORT)
+
+    # Wait for the server to start up
+    client.wait()
+
+    try:
+        yield client
+    finally:
+        resp = client.get_ignored("/shutdown-tracer")
+        assert resp.status_code == 200
+        proc.terminate()
+
+
+@pytest.mark.snapshot()
+def test_simple_pyramid_app_endpoint(pyramid_client):
+    r = pyramid_client.get("/")
+    assert r.status_code == 200
