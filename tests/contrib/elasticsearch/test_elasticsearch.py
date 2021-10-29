@@ -41,7 +41,6 @@ class ElasticsearchPatchTest(TracerTestCase):
     ES_INDEX = "ddtrace_index"
     ES_TYPE = "ddtrace_type"
 
-    TEST_SERVICE = "elasticsearch"
     TEST_PORT = str(ELASTICSEARCH_CONFIG["port"])
 
     def setUp(self):
@@ -75,7 +74,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         TracerTestCase.assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "elasticsearch"
         assert span.name == "elasticsearch.query"
         assert span.span_type == "elasticsearch"
         assert span.error == 0
