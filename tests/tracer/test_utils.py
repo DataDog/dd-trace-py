@@ -205,7 +205,7 @@ _LOG_ERROR_FAIL_SEPARATOR = (
     ],
 )
 def test_parse_env_tags(tag_str, expected_tags, error_calls):
-    with mock.patch("ddtrace.utils.formats.log") as log:
+    with mock.patch("ddtrace.internal.utils.formats.log") as log:
         tags = parse_tags_str(tag_str)
         assert tags == expected_tags
         if error_calls:
