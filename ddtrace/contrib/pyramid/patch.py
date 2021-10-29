@@ -62,6 +62,12 @@ def traced_init(wrapped, instance, args, kwargs):
     # If the tweens are explicitly set with 'pyramid.tweens', we need to
     # explicitly set our tween too since `add_tween` will be ignored.
     insert_tween_if_needed(trace_settings)
+
+    if not kwargs.get("package", None):
+        from pyramid.path import caller_package
+
+        kwargs["package"] = caller_package(level=2)
+
     kwargs["settings"] = trace_settings
     wrapped(*args, **kwargs)
     trace_pyramid(instance)
