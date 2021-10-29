@@ -41,7 +41,7 @@ class ElasticsearchPatchTest(TracerTestCase):
     ES_INDEX = "ddtrace_index"
     ES_TYPE = "ddtrace_type"
 
-    TEST_SERVICE = "test"
+    TEST_SERVICE = "elasticsearch"
     TEST_PORT = str(ELASTICSEARCH_CONFIG["port"])
 
     def setUp(self):
@@ -49,7 +49,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         super(ElasticsearchPatchTest, self).setUp()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(es.transport)
+        Pin(tracer=self.tracer).onto(es.transport)
         mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
         es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
 
@@ -186,7 +186,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(es.transport)
+        Pin(tracer=self.tracer).onto(es.transport)
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
@@ -214,7 +214,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(es.transport)
+        Pin(tracer=self.tracer).onto(es.transport)
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
@@ -225,7 +225,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_user_specified_service(self):
+    def test_set_dd_service(self):
         """
         When a user specifies a service for the app
             The elasticsearch integration should not use it.
@@ -240,7 +240,22 @@ class ElasticsearchPatchTest(TracerTestCase):
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
-        assert spans[0].service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
+    def test_user_specified_service(self):
+        """
+        When a user specifies a service for the app
+            The elasticsearch integration should not use it.
+        """
+        # Ensure that the service name was configured
+        from ddtrace import config
+
+        self.es.indices.create(index=self.ES_INDEX, ignore=400)
+        Pin(tracer=self.tracer).onto(self.es.transport)
+        spans = self.get_spans()
+        self.reset()
+        assert len(spans) == 1
+        assert spans[0].service == "custom-elasticsearch"
 
     def test_none_param(self):
         try:
