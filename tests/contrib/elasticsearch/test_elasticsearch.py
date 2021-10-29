@@ -7,6 +7,7 @@ from ddtrace.contrib.elasticsearch.patch import patch
 from ddtrace.contrib.elasticsearch.patch import unpatch
 from ddtrace.ext import http
 from tests.utils import TracerTestCase
+from tests.utils import override_config
 
 from ..config import ELASTICSEARCH_CONFIG
 
@@ -256,6 +257,23 @@ class ElasticsearchPatchTest(TracerTestCase):
         self.reset()
         assert len(spans) == 1
         assert spans[0].service == "custom-elasticsearch"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
+    def test_service_name_config_override(self):
+        """
+        When a user specifies a service mapping it should override the default
+        """
+        from ddtrace import config
+
+        assert config.elasticsearch.service != "test_service"
+
+        with self.override_config("elasticsearch", dict(service="test_service")):
+            self.es.indices.create(index=self.ES_INDEX, ignore=400)
+            Pin(tracer=self.tracer).onto(self.es.transport)
+            spans = self.get_spans()
+            self.reset()
+            assert len(spans) == 1
+            assert spans[0].service == "test_service"
 
     def test_none_param(self):
         try:
