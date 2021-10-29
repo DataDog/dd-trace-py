@@ -225,7 +225,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    def test_set_dd_service(self):
+    def test_user_specified_service(self):
         """
         When a user specifies a service for the app
             The elasticsearch integration should not use it.
@@ -240,15 +240,16 @@ class ElasticsearchPatchTest(TracerTestCase):
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
+        assert spans[0].service != "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
-    def test_user_specified_service(self):
+    def test_service_mapping_config(self):
         """
-        When a user specifies a service for the app
-            The elasticsearch integration should not use it.
+        When a user specifies a service mapping it should override the default
         """
-        # Ensure that the service name was configured
         from ddtrace import config
+
+        assert config.service != "custom-elasticsearch"
 
         self.es.indices.create(index=self.ES_INDEX, ignore=400)
         Pin(tracer=self.tracer).onto(self.es.transport)
