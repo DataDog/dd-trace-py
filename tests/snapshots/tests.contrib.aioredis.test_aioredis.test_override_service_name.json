@@ -1,0 +1,72 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "myaioredis",
+    "resource": "GET cheese",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "meta": {
+      "redis.raw_command": "GET cheese",
+      "runtime-id": "c2d782ad49d640a4b057c67af7ff0c45"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "redis.args_length": 2,
+      "system.pid": 46599
+    },
+    "duration": 1725000,
+    "start": 1635469334876064000
+  }],
+[
+  {
+    "name": "redis.command",
+    "service": "myaioredis",
+    "resource": "SET cheese my-cheese",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "meta": {
+      "redis.raw_command": "SET cheese my-cheese",
+      "runtime-id": "c2d782ad49d640a4b057c67af7ff0c45"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "redis.args_length": 3,
+      "system.pid": 46599
+    },
+    "duration": 1537000,
+    "start": 1635469334877990000
+  }],
+[
+  {
+    "name": "redis.command",
+    "service": "myaioredis",
+    "resource": "GET cheese",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "meta": {
+      "redis.raw_command": "GET cheese",
+      "runtime-id": "c2d782ad49d640a4b057c67af7ff0c45"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "redis.args_length": 2,
+      "system.pid": 46599
+    },
+    "duration": 1501000,
+    "start": 1635469334879690000
+  }]]

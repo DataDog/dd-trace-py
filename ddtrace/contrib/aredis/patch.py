@@ -6,6 +6,7 @@ from ddtrace.vendor import wrapt
 from ...ext import redis as redisx
 from ...pin import Pin
 from ...utils.wrappers import unwrap
+from ..redis.util import _extract_conn_tags
 from ..redis.util import _trace_redis_cmd
 from ..redis.util import _trace_redis_execute_pipeline
 from ..redis.util import format_command_args
@@ -47,7 +48,9 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.aredis, instance, args):
+    with _trace_redis_cmd(pin, config.aredis, args) as span:
+        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
+
         # run the command
         return await func(*args, **kwargs)
 
@@ -67,5 +70,6 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
 
     cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
-    with _trace_redis_execute_pipeline(pin, config.aredis, resource, instance):
+    with _trace_redis_execute_pipeline(pin, config.aredis, resource, instance) as span:
+        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         return await func(*args, **kwargs)

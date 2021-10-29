@@ -41,7 +41,11 @@ def format_command_args(args):
     out = []
     for arg in args:
         try:
-            cmd = stringify(arg)
+            # TODO: handle when it contains a byte string
+            if isinstance(arg, bytes):
+                cmd = arg.decode()
+            else:
+                cmd = stringify(arg)
 
             if len(cmd) > VALUE_MAX_LEN:
                 cmd = cmd[:VALUE_MAX_LEN] + VALUE_TOO_LONG_MARK
@@ -61,7 +65,7 @@ def format_command_args(args):
 
 
 @contextmanager
-def _trace_redis_cmd(pin, config_integration, instance, args):
+def _trace_redis_cmd(pin, config_integration, args):
     """Create a span for the execute command method and tag it"""
     with pin.tracer.trace(
         redisx.CMD, service=trace_utils.ext_service(pin, config_integration), span_type=SpanTypes.REDIS
@@ -72,7 +76,6 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
         span.set_tag(redisx.RAWCMD, query)
         if pin.tags:
             span.set_tags(pin.tags)
-        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.ARGS_LEN, len(args))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
@@ -90,7 +93,6 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance):
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag(redisx.RAWCMD, resource)
-        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())

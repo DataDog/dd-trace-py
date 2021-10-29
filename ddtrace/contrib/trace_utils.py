@@ -185,6 +185,7 @@ def int_service(pin, int_config, default=None):
     lastly the default provided by the integration.
     """
     int_config = int_config or {}
+    print("int_config is %s" % int_config)
 
     # Pin has top priority since it is user defined in code
     if pin and pin.service:
