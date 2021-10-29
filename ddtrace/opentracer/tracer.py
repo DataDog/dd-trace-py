@@ -4,7 +4,6 @@ from typing import List
 from typing import Optional
 from typing import Union
 
-from ddtrce.internal.utils.config import get_application_name
 import opentracing
 from opentracing import Format
 from opentracing import Scope
@@ -16,6 +15,7 @@ from ddtrace import Span as DatadogSpan
 from ddtrace import Tracer as DatadogTracer
 from ddtrace.constants import FILTERS_KEY
 from ddtrace.context import Context as DatadogContext
+from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings import ConfigException
 
 from ..internal.logger import get_logger
