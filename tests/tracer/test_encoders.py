@@ -12,6 +12,7 @@ from hypothesis.strategies import integers
 from hypothesis.strategies import text
 import msgpack
 import pytest
+import six
 
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
@@ -23,13 +24,35 @@ from ddtrace.internal.compat import msgpack_type
 from ddtrace.internal.compat import string_type
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
-from ddtrace.internal.encoding import MsgpackEncoderV03 as MsgpackEncoder
+from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.encoding import MsgpackEncoderV03
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
 from tests.utils import DummyTracer
+
+
+_ORIGIN_KEY = ORIGIN_KEY.encode()
+
+
+def span_to_tuple(span):
+    # type: (Span) -> tuple
+    return (
+        span.service,
+        span.name,
+        span.resource,
+        span.trace_id or 0,
+        span.span_id or 0,
+        span.parent_id or 0,
+        span.start_ns or 0,
+        span.duration_ns or 0,
+        int(bool(span.error)),
+        span.meta or {},
+        span.metrics or {},
+        span.span_type,
+    )
 
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
@@ -71,25 +94,63 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
 class RefMsgpackEncoder(_EncoderBase):
     content_type = "application/msgpack"
 
+    def normalize(self, span):
+        raise NotImplementedError()
+
     def encode_traces(self, traces):
-        normalized_traces = []
-        for trace in traces:
-            t = []
-            for span in trace:
-                s = span.to_dict()
-                if s["error"] == 0:
-                    del s["error"]
-                t.append(s)
-            normalized_traces.append(t)
+        normalized_traces = [[self.normalize(span) for span in trace] for trace in traces]
         return self.encode(normalized_traces)
 
-    @staticmethod
-    def encode(obj):
+    def encode(self, obj):
         return msgpack.packb(obj)
 
     @staticmethod
     def decode(data):
         return msgpack.unpackb(data, raw=True, strict_map_key=False)
+
+
+class RefMsgpackEncoderV03(RefMsgpackEncoder):
+    def normalize(self, span):
+        d = span.to_dict()
+        if not d["error"]:
+            del d["error"]
+        return d
+
+
+class RefMsgpackEncoderV05(RefMsgpackEncoder):
+    def __init__(self, *args, **kwargs):
+        super(RefMsgpackEncoderV05, self).__init__(*args, **kwargs)
+        self.string_table = ListStringTable()
+        self.string_table.index(ORIGIN_KEY)
+
+    def _index_or_value(self, value):
+        if value is None:
+            return 0
+
+        if isinstance(value, six.string_types):
+            return self.string_table.index(value)
+
+        if isinstance(value, dict):
+            return {self._index_or_value(k): self._index_or_value(v) for k, v in value.items()}
+
+        return value
+
+    def normalize(self, span):
+        return tuple(self._index_or_value(_) for _ in span_to_tuple(span))
+
+    def encode(self, obj):
+        try:
+            return super(RefMsgpackEncoderV05, self).encode([list(self.string_table), obj])
+        finally:
+            self.string_table = ListStringTable()
+            self.string_table.index(ORIGIN_KEY)
+
+
+REF_MSGPACK_ENCODERS = {
+    "v0.3": RefMsgpackEncoderV03,
+    "v0.4": RefMsgpackEncoderV03,
+    "v0.5": RefMsgpackEncoderV05,
+}
 
 
 class TestEncoders(TestCase):
@@ -158,9 +219,9 @@ class TestEncoders(TestCase):
                 assert isinstance(items[i][j]["span_id"], string_type)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
-    def test_encode_traces_msgpack(self):
+    def test_encode_traces_msgpack_v03(self):
         # test encoding for MsgPack format
-        encoder = MsgpackEncoder(2 << 10, 2 << 10)
+        encoder = MsgpackEncoderV03(2 << 10, 2 << 10)
         encoder.put(
             [
                 Span(name="client.testing", tracer=None),
@@ -188,15 +249,48 @@ class TestEncoders(TestCase):
                 assert b"client.testing" == items[i][j][b"name"]
 
 
-def decode(obj):
-    if msgpack.version[:2] < (0, 6):
-        return msgpack.unpackb(obj)
-    return msgpack.unpackb(obj, raw=True, strict_map_key=False)
+def decode(obj, reconstruct=True):
+
+    unpacked = msgpack.unpackb(obj, raw=True, strict_map_key=False)
+
+    if not unpacked or not unpacked[0]:
+        return unpacked
+
+    if isinstance(unpacked[0][0], bytes) and reconstruct:
+        # v0.5
+        table, _traces = unpacked
+
+        def resolve(span):
+            return (
+                table[span[0]],
+                table[span[1]],
+                table[span[2]],
+                span[3],
+                span[4],
+                span[5],
+                span[6],
+                span[7],
+                span[8],
+                {table[k]: table[v] for k, v in span[9].items()},
+                {table[k]: v for k, v in span[10].items()},
+                table[span[11]],
+            )
+
+        traces = [[resolve(span) for span in trace] for trace in _traces]
+    else:
+        traces = unpacked
+
+    return traces
 
 
-def test_custom_msgpack_encode():
-    encoder = MsgpackEncoder(1 << 20, 1 << 20)
-    refencoder = RefMsgpackEncoder()
+def allencodings(f):
+    return pytest.mark.parametrize("encoding", MSGPACK_ENCODERS.keys())(f)
+
+
+@allencodings
+def test_custom_msgpack_encode(encoding):
+    encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
+    refencoder = REF_MSGPACK_ENCODERS[encoding]()
 
     trace = gen_trace(nspans=50)
 
@@ -229,6 +323,7 @@ def span_type_span():
     return s
 
 
+@allencodings
 @pytest.mark.parametrize(
     "span",
     [
@@ -238,9 +333,9 @@ def span_type_span():
         span_type_span(),
     ],
 )
-def test_msgpack_span_property_variations(span):
-    refencoder = RefMsgpackEncoder()
-    encoder = MsgpackEncoder(1 << 10, 1 << 10)
+def test_msgpack_span_property_variations(encoding, span):
+    refencoder = REF_MSGPACK_ENCODERS[encoding]()
+    encoder = MSGPACK_ENCODERS[encoding](1 << 10, 1 << 10)
 
     # Finish the span to ensure a duration exists.
     span.finish()
@@ -262,6 +357,7 @@ class SubFloat(float):
     pass
 
 
+@allencodings
 @pytest.mark.parametrize(
     "span, tags",
     [
@@ -276,9 +372,9 @@ class SubFloat(float):
         ),
     ],
 )
-def test_span_types(span, tags):
-    refencoder = RefMsgpackEncoder()
-    encoder = MsgpackEncoder(1 << 10, 1 << 10)
+def test_span_types(encoding, span, tags):
+    refencoder = REF_MSGPACK_ENCODERS[encoding]()
+    encoder = MSGPACK_ENCODERS[encoding](1 << 10, 1 << 10)
 
     span.set_tags(tags)
 
@@ -290,34 +386,42 @@ def test_span_types(span, tags):
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
 
 
-def test_encoder_propagates_dd_origin():
+@pytest.mark.parametrize(
+    "Encoder,item",
+    [
+        (MsgpackEncoderV03, b"meta"),
+        (MsgpackEncoderV05, 9),
+    ],
+)
+def test_encoder_propagates_dd_origin(Encoder, item):
     tracer = DummyTracer()
-    encoder = MsgpackEncoder(1 << 20, 1 << 20)
+    encoder = Encoder(1 << 20, 1 << 20)
     with tracer.trace("Root") as root:
         root.context.dd_origin = CI_APP_TEST_ORIGIN
         for _ in range(999):
             with tracer.trace("child"):
                 pass
-    # Ensure encoded trace contains dd_origin tag in all spans
     trace = tracer.writer.pop()
     encoder.put(trace)
-    decoded_trace = decode(encoder.encode())[0]
-    for span in decoded_trace:
-        assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"
+    decoded_trace = decode(encoder.encode())
+
+    # Ensure encoded trace contains dd_origin tag in all spans
+    assert all((_[item][_ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
 
 
+@allencodings
 @given(
     name=text(),
     service=text(),
     resource=text(),
     meta=dictionaries(text(), text()),
     metrics=dictionaries(text(), floats()),
-    error=integers(),
+    error=integers(min_value=-(2 ** 31), max_value=2 ** 31 - 1),
     span_type=text(),
 )
 @settings(max_examples=200)
-def test_custom_msgpack_encode_trace_size(name, service, resource, meta, metrics, error, span_type):
-    encoder = MsgpackEncoder(1 << 20, 1 << 20)
+def test_custom_msgpack_encode_trace_size(encoding, name, service, resource, meta, metrics, error, span_type):
+    encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
     span = Span(tracer=None, name=name, service=service, resource=resource)
     span.meta = meta
     span.metrics = metrics
@@ -329,9 +433,9 @@ def test_custom_msgpack_encode_trace_size(name, service, resource, meta, metrics
     assert encoder.size == len(encoder.encode())
 
 
-def test_encoder_buffer_size_limit():
+def test_encoder_buffer_size_limit_v03():
     buffer_size = 1 << 10
-    encoder = MsgpackEncoder(buffer_size, buffer_size)
+    encoder = MsgpackEncoderV03(buffer_size, buffer_size)
 
     trace = [Span(tracer=None, name="test")]
     encoder.put(trace)
@@ -347,9 +451,30 @@ def test_encoder_buffer_size_limit():
         encoder.put(trace)
 
 
-def test_encoder_buffer_item_size_limit():
+def test_encoder_buffer_size_limit_v05():
+    buffer_size = 1 << 10
+    encoder = MsgpackEncoderV05(buffer_size, buffer_size)
+
+    trace = [Span(tracer=None, name="test")]
+    encoder.put(trace)
+    base_size = encoder.size
+    encoder.put(trace)
+
+    trace_size = encoder.size - base_size
+
+    for _ in range(1, int((buffer_size - base_size) / trace_size)):
+        encoder.put(trace)
+
+    with pytest.raises(BufferFull):
+        encoder.put(trace)
+
+    with pytest.raises(BufferFull):
+        encoder.put(trace)
+
+
+def test_encoder_buffer_item_size_limit_v03():
     max_item_size = 1 << 10
-    encoder = MsgpackEncoder(max_item_size << 1, max_item_size)
+    encoder = MsgpackEncoderV03(max_item_size << 1, max_item_size)
 
     span = Span(tracer=None, name="test")
     trace = [span]
@@ -358,6 +483,22 @@ def test_encoder_buffer_item_size_limit():
 
     with pytest.raises(BufferItemTooLarge):
         encoder.put([span] * (int(max_item_size / trace_size) + 1))
+
+
+def test_encoder_buffer_item_size_limit_v05():
+    max_item_size = 1 << 10
+    encoder = MsgpackEncoderV05(max_item_size << 1, max_item_size)
+
+    span = Span(tracer=None, name="test")
+    trace = [span]
+    encoder.put(trace)
+    base_size = encoder.size
+    encoder.put(trace)
+
+    trace_size = encoder.size - base_size
+
+    with pytest.raises(BufferItemTooLarge):
+        encoder.put([span] * (int(max_item_size / trace_size) + 2))
 
 
 def test_custom_msgpack_encode_v05():
@@ -376,12 +517,12 @@ def test_custom_msgpack_encode_v05():
     size = encoder.size
     encoded = encoder.flush()
     assert size == len(encoded)
-    st, ts = decode(encoded)
+    st, ts = decode(encoded, reconstruct=False)
 
     def filter_mut(ts):
         return [[[s[i] for i in [0, 1, 2, 5, 7, 8, 9, 10, 11]] for s in t] for t in ts]
 
-    assert st == [b"", ORIGIN_KEY.encode(), b"foo", b"v05-test", b"GET", b"POST", b"bar"]
+    assert st == [b"", _ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar"]
     assert filter_mut(ts) == [
         [
             [2, 3, 4, 0, 0, 0, {}, {}, 0],
@@ -412,7 +553,7 @@ def test_msgpack_string_table():
     size = t.size
     encoded = t.flush()
     assert size == len(encoded)
-    assert decode(encoded + b"\xc0") == [[b"", ORIGIN_KEY.encode(), b"foobar", b"foobaz"], None]
+    assert decode(encoded + b"\xc0", reconstruct=False) == [[b"", _ORIGIN_KEY, b"foobar", b"foobaz"], None]
 
     assert len(t) == 2
     assert "foobar" not in t
