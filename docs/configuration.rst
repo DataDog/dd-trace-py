@@ -170,6 +170,13 @@ below:
      - A map of case-insensitive header keys to tag names. Automatically applies matching header values as tags on root spans.
        For example, ``User-Agent:http.useragent,content-type:http.content_type``.
 
+       .. _dd-trace-api-version:
+   * - ``DD_TRACE_API_VERSION``
+     - String
+     - ``v0.4`` if priority sampling is enabled, else ``v0.3``
+     - The trace API version to use when sending traces to the Datadog agent.
+       Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
+
        .. _dd-profiling-enabled:
    * - ``DD_PROFILING_ENABLED``
      - Boolean
