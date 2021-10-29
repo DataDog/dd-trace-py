@@ -942,6 +942,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
+                        "requests": [latest],
                         "webtest": [latest],
                         "pyramid": [
                             "~=1.7",
