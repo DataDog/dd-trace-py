@@ -1089,7 +1089,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.5"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "grpcio": [
                             "~=1.32.0",
