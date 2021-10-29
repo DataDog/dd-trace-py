@@ -3,7 +3,6 @@ from typing import Any
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import pprof_pb2
 
-
 class _Sequence:
     start_at: Any = ...
     next_id: Any = ...
