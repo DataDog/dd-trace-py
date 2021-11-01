@@ -9,6 +9,7 @@ OpenTracing
 aiobotocore
 aiohttp
 aiopg
+aioredis
 algolia
 algoliasearch
 agentless
