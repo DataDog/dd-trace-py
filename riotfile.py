@@ -944,6 +944,7 @@ venv = Venv(
                     pkgs={
                         "requests": [latest],
                         "webtest": [latest],
+                        "tests/contrib/pyramid/pserve_app": [latest],
                         "pyramid": [
                             "~=1.7",
                             "~=1.8",
