@@ -28,8 +28,8 @@ from ..utils.time import StopWatch
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from .agent import get_connection
-from .encoding import Encoder
 from .encoding import JSONEncoderV2
+from .encoding import MSGPACK_ENCODERS
 from .logger import get_logger
 from .runtime import container
 from .sma import SimpleMovingAverage
@@ -228,18 +228,25 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         processing_interval=get_writer_interval_seconds(),  # type: float
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        buffer_size=get_writer_buffer_size(),  # type: int
-        max_payload_size=get_writer_max_payload_size(),  # type: int
+        buffer_size=None,  # type: Optional[int]
+        max_payload_size=None,  # type: Optional[int]
         timeout=agent.get_trace_agent_timeout(),  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
+        api_version=None,  # type: Optional[str]
     ):
         # type: (...) -> None
+        # Pre-conditions:
+        if buffer_size is not None and buffer_size <= 0:
+            raise ValueError("Writer buffer size must be positive")
+        if max_payload_size is not None and max_payload_size <= 0:
+            raise ValueError("Max payload size must be positive")
+
         super(AgentWriter, self).__init__(interval=processing_interval)
         self.agent_url = agent_url
-        self._buffer_size = buffer_size
-        self._max_payload_size = max_payload_size
+        self._buffer_size = buffer_size or get_writer_buffer_size()
+        self._max_payload_size = max_payload_size or get_writer_max_payload_size()
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {
@@ -250,10 +257,18 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         }
         self._timeout = timeout
 
-        if priority_sampler is not None:
-            self._endpoint = "v0.4/traces"
-        else:
-            self._endpoint = "v0.3/traces"
+        encoding_version = (
+            api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
+        )
+        try:
+            Encoder = MSGPACK_ENCODERS[encoding_version]
+        except KeyError:
+            raise ValueError(
+                "Unsupported encoding version: '%s'. The supported versions are: %r"
+                % (encoding_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
+            )
+
+        self._endpoint = "%s/traces" % encoding_version
 
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:
@@ -342,10 +357,27 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 conn.close()
 
     def _downgrade(self, payload, response):
+        if self._endpoint == "v0.5/traces":
+            self._endpoint = "v0.4/traces"
+            self._encoder = MSGPACK_ENCODERS["v0.4"](
+                max_size=self._buffer_size,
+                max_item_size=self._max_payload_size,
+            )
+            # Since we have to change the encoding in this case, the payload
+            # would need to be converted to the downgraded encoding before
+            # sending it, but we chuck it away instead.
+            log.warning(
+                "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
+                "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
+                "endpoint available, or explicitly set the trace API version to, e.g., v0.4."
+            )
+            return None
         if self._endpoint == "v0.4/traces":
             self._endpoint = "v0.3/traces"
+            # These endpoints share the same encoding, so we can try sending the
+            # same payload over the downgraded endpoint.
             return payload
-        raise ValueError
+        raise ValueError()
 
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
@@ -372,7 +404,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     self.agent_url,
                 )
             else:
-                return self._send_payload(payload, count)
+                if payload is not None:
+                    self._send_payload(payload, count)
         elif response.status >= 400:
             log.error(
                 "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",

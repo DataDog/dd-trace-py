@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "elasticsearch",
-    "error": 0,
     "meta": {
       "elasticsearch.method": "PUT",
       "elasticsearch.params": "ignore=400",
@@ -34,7 +33,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "elasticsearch",
-    "error": 0,
     "meta": {
       "elasticsearch.method": "DELETE",
       "elasticsearch.params": "ignore=%5B400%2C+404%5D",

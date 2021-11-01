@@ -465,8 +465,8 @@ jobs:
   aiohttp:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^aiohttp_contrib-'
+      - run_test:
+          pattern: 'aiohttp'
 
   asgi:
     <<: *contrib_job_small
@@ -722,10 +722,11 @@ jobs:
           pattern: '^pyodbc_contrib-'
 
   pyramid:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^pyramid_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: 'pyramid'
+          snapshot: true
 
   requests:
     <<: *contrib_job
@@ -747,6 +748,14 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^sanic_contrib-'
+
+  snowflake:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          pattern: "snowflake"
+          snapshot: true
 
   starlette:
     <<: *machine_executor
@@ -991,6 +1000,7 @@ requires_tests: &requires_tests
     - requests
     - rq
     - sanic
+    - snowflake
     - sqlalchemy
     - sqlite3
     - starlette
@@ -1074,6 +1084,7 @@ workflows:
       - requests: *requires_base_venvs
       - rq: *requires_base_venvs
       - sanic: *requires_base_venvs
+      - snowflake: *requires_base_venvs
       - starlette: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
       - sqlite3: *requires_base_venvs

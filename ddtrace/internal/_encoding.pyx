@@ -9,6 +9,7 @@ from ddtrace.constants import ORIGIN_KEY
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
+DEF MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE = 6
 
 
 cdef extern from "Python.h":
@@ -166,8 +167,9 @@ cdef class StringTable(object):
 
     cdef reset(self):
         PyDict_Clear(self._table)
-        self._next_id = 0
-        assert self._index("") == 0
+        PyDict_SetItem(self._table, "", 0)
+        self.insert("")
+        self._next_id = 1
 
     def __len__(self):
         return PyLong_FromLong(self._next_id)
@@ -193,7 +195,8 @@ cdef class ListStringTable(StringTable):
 cdef class MsgpackStringTable(StringTable):
     cdef msgpack_packer pk
     cdef int max_size
-    cdef int _sp
+    cdef int _sp_len
+    cdef stdint.uint32_t _sp_id
     cdef object _lock
     cdef size_t _reset_size
 
@@ -203,8 +206,8 @@ cdef class MsgpackStringTable(StringTable):
         if self.pk.buf == NULL:
             raise MemoryError("Unable to allocate internal buffer.")
         self.max_size = max_size
-        self.pk.length = 6
-        self._sp = 0
+        self.pk.length = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE
+        self._sp_len = 0
         self._lock = threading.Lock()
         super(MsgpackStringTable, self).__init__()
 
@@ -218,21 +221,30 @@ cdef class MsgpackStringTable(StringTable):
     cdef insert(self, object string):
         cdef int ret
 
+        if self.pk.length + len(string) > self.max_size:
+            raise ValueError(
+                "Cannot insert '%s': string table is full (current size: %d, max size: %d)." % (
+                    string, self.pk.length, self.max_size
+                )
+            )
+
         ret = pack_text(&self.pk, string)
         if ret != 0:
             raise RuntimeError("Failed to add string to msgpack string table")
 
     cdef savepoint(self):
-        self._sp = self.pk.length
+        self._sp_len = self.pk.length
+        self._sp_id = self._next_id
 
     cdef rollback(self):
-        if self._sp > 0:
-            self.pk.length = self._sp
+        if self._sp_len > 0:
+            self.pk.length = self._sp_len
+            self._next_id = self._sp_id
 
     cdef get_bytes(self):
         cdef int ret;
         cdef stdint.uint32_t l = self._next_id
-        cdef int offset = 6 - array_prefix_size(l)
+        cdef int offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(l)
         cdef int old_pos = self.pk.length
         
         with self._lock:
@@ -262,14 +274,20 @@ cdef class MsgpackStringTable(StringTable):
             if res != 0:
                 raise RuntimeError("Failed to append raw bytes to msgpack string table")
 
+    cdef reset(self):
+        StringTable.reset(self)
+        assert self._next_id == 1
+
+        PyDict_SetItem(self._table, ORIGIN_KEY, 1)
+        self._next_id = 2
+        self.pk.length = self._reset_size
+        self._sp_len = 0
 
     cpdef flush(self):
         try:
             return self.get_bytes()
         finally:
             self.reset()
-            self.pk.length = self._reset_size
-            self._sp = 0
 
 
 cdef class BufferedEncoder(object):
@@ -535,11 +553,12 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         cdef int has_meta
         cdef int has_metrics
 
+        has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
         has_meta = <bint> (len(span.meta) > 0 or dd_origin is not NULL)
         has_metrics = <bint> (len(span.metrics) > 0)
 
-        L = 9 + has_span_type + has_meta + has_metrics
+        L = 8 + has_span_type + has_meta + has_metrics + has_error
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -574,11 +593,6 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             ret = pack_text(&self.pk, span.name)
             if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"error", 5)
-            if ret != 0: return ret
-            ret = msgpack_pack_long(&self.pk, <long> (1 if span.error else 0))
-            if ret != 0: return ret
-
             ret = pack_bytes(&self.pk, <char *> b"start", 5)
             if ret != 0: return ret
             ret = pack_number(&self.pk, span.start_ns)
@@ -588,6 +602,12 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             if ret != 0: return ret
             ret = pack_number(&self.pk, span.duration_ns)
             if ret != 0: return ret
+
+            if has_error:
+                ret = pack_bytes(&self.pk, <char *> b"error", 5)
+                if ret != 0: return ret
+                ret = msgpack_pack_long(&self.pk, <long> 1)
+                if ret != 0: return ret
 
             if has_span_type:
                 ret = pack_bytes(&self.pk, <char *> b"type", 4)

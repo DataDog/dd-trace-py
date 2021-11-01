@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
       "http.method": "POST",
       "http.status_code": "200",
@@ -33,7 +32,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
-       "error": 0,
        "meta": {
          "sql.db": "test.db"
        },
@@ -54,7 +52,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
       "http.method": "GET",
       "http.status_code": "200",
@@ -80,7 +77,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
-       "error": 0,
        "meta": {
          "sql.db": "test.db"
        },

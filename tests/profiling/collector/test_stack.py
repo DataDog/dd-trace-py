@@ -599,6 +599,7 @@ def test_thread_time_cache():
 
 @pytest.mark.skipif(_task._gevent_tracer is None, reason="gevent tasks not supported")
 def test_collect_gevent_thread_hub():
+    # type: (...) -> None
     r = recorder.Recorder()
     s = stack.StackCollector(r, ignore_profiler=True)
 
@@ -619,10 +620,14 @@ def test_collect_gevent_thread_hub():
 
     main_thread_found = False
     for event in r.events[stack.StackSampleEvent]:
-        if event.thread_name == compat.main_thread.ident and event.task_name is None:
-            pytest.fail("Task with no name detected, is it the Hub?")
-        else:
-            main_thread_found = True
+        if event.task_id == compat.main_thread.ident:
+            if event.task_name is None:
+                pytest.fail("Task with no name detected, is it the Hub?")
+            else:
+                main_thread_found = True
+        elif event.task_id in {t.ident for t in threads}:
+            # Make sure we capture the sleep call and not a gevent hub frame
+            assert event.frames[0][2] in ("_nothing", "sleep", "get_ident", "__bootstrap_inner")
 
     # Make sure we did at least one check
     assert main_thread_found

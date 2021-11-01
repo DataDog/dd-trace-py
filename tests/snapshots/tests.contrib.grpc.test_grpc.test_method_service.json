@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "grpc",
-    "error": 0,
     "meta": {
       "grpc.host": "::",
       "grpc.method.kind": "unary",
@@ -38,7 +37,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "grpc",
-       "error": 0,
        "meta": {
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
@@ -64,7 +62,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "grpc",
-    "error": 0,
     "meta": {
       "grpc.host": "::",
       "grpc.method.kind": "unary",
@@ -96,7 +93,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "grpc",
-       "error": 0,
        "meta": {
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",

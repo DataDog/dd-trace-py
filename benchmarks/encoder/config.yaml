@@ -5,6 +5,7 @@ one-trace: &base_variant
   ltags: 0
   nmetrics: 0
   dd_origin: false
+  encoding: "v0.4"
 many-traces:
   <<: *base_variant
   ntraces: 100

@@ -298,6 +298,7 @@ class Tracer(object):
         writer=None,  # type: Optional[TraceWriter]
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
+        api_version=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         """
@@ -394,6 +395,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
+                api_version=api_version,
             )
         elif writer is None and isinstance(self.writer, LogWriter):
             # No need to do anything for the LogWriter.
@@ -639,9 +641,6 @@ class Tracer(object):
 
     def _on_span_finish(self, span):
         # type: (Span) -> None
-        if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
-
         active = self.current_span()
         # Debug check: if the finishing span has a parent and its parent
         # is not the next active span then this is an error in synchronous tracing.
@@ -655,6 +654,9 @@ class Tracer(object):
 
         for p in self._span_processors:
             p.on_span_finish(span)
+
+        if self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
 
     def _initialize_span_processors(self):
         # type: () -> None
