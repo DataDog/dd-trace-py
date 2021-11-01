@@ -41,7 +41,6 @@ def format_command_args(args):
     out = []
     for arg in args:
         try:
-            # TODO: handle when it contains a byte string
             if isinstance(arg, bytes):
                 cmd = arg.decode()
             else:
