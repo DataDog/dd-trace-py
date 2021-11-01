@@ -149,7 +149,6 @@ async def test_pipeline_traced(redis_client):
     await p.get("blah")
     await p.get("foo")
     response_list = await p.execute()
-    print(response_list)
     assert response_list[0] is True  # response from redis.set is OK if successfully pushed
     assert response_list[1] is True
     assert (
