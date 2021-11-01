@@ -74,14 +74,23 @@ async def test_basic_request_2(redis_client):
 @pytest.mark.snapshot
 @pytest.mark.skipif(aioredis_version < (2, 0), reason="")
 async def test_long_command_13(redis_client):
-    await redis_client.mget(*range(1000))
+    length = 1000
+    val_list = await redis_client.mget(*range(length))
+    assert len(val_list) == length
+    for val in val_list:
+        assert val is None
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 @pytest.mark.skipif(aioredis_version >= (2, 0), reason="")
 async def test_long_command_2(redis_client):
-    await redis_client.mget(*range(1000))
+    length = 1000
+    val_list = await redis_client.mget(*range(length))
+    assert len(val_list) == length
+    for val in val_list:
+        assert val is None
+
 
 
 @pytest.mark.asyncio
@@ -136,7 +145,14 @@ async def test_pin_2(redis_client):
 @pytest.mark.skipif(aioredis_version < (2, 0), reason="Pipeline methods are not instrumented in versions < 2.0")
 async def test_pipeline_traced(redis_client):
     p = await redis_client.pipeline(transaction=False)
-    await p.set("blah", 32)
-    await p.rpush("foo", u"éé")
-    await p.hgetall("xxx")
-    await p.execute()
+    await p.set("blah", "boo")
+    await p.set("foo", "bar")
+    await p.get("blah")
+    await p.get("foo")
+    response_list = await p.execute()
+    print(response_list)
+    assert response_list[0] is True # response from redis.set is OK if successfully pushed
+    assert response_list[1] is True
+    assert response_list[2].decode() == "boo" # response from hset is 'Integer reply: The number of fields that were added.'
+    assert response_list[3].decode() == "bar"
+
