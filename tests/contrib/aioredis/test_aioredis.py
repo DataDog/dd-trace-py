@@ -92,7 +92,6 @@ async def test_long_command_2(redis_client):
         assert val is None
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 @pytest.mark.skipif(aioredis_version < (2, 0), reason="")
@@ -151,8 +150,9 @@ async def test_pipeline_traced(redis_client):
     await p.get("foo")
     response_list = await p.execute()
     print(response_list)
-    assert response_list[0] is True # response from redis.set is OK if successfully pushed
+    assert response_list[0] is True  # response from redis.set is OK if successfully pushed
     assert response_list[1] is True
-    assert response_list[2].decode() == "boo" # response from hset is 'Integer reply: The number of fields that were added.'
+    assert (
+        response_list[2].decode() == "boo"
+    )  # response from hset is 'Integer reply: The number of fields that were added.'
     assert response_list[3].decode() == "bar"
-

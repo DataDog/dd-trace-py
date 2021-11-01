@@ -114,8 +114,7 @@ commands:
           at: .
       - checkout
       - when:
-          condition:
-              << parameters.snapshot >>
+          condition: << parameters.snapshot >>
           steps:
             - run: SNAPSHOT_CI=1 docker-compose up -d testagent << parameters.docker_services >>
             - run:
@@ -129,12 +128,10 @@ commands:
                   mv .riot .ddriot
                   echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'
       - unless:
-          condition:
-              << parameters.snapshot >>
+          condition: << parameters.snapshot >>
           steps:
             - when:
-                condition:
-                  << parameters.wait >>
+                condition: << parameters.wait >>
                 steps:
                   - setup_tox
                   - run:
@@ -144,8 +141,7 @@ commands:
             - run:
                 command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - when:
-          condition:
-            << parameters.store_coverage >>
+          condition: << parameters.store_coverage >>
           steps:
             - save_coverage
       - store_test_results:
@@ -165,8 +161,7 @@ commands:
       - checkout
       - restore_tox_cache
       - when:
-          condition:
-            << parameters.wait >>
+          condition: << parameters.wait >>
           steps:
             - run:
                 name: "Waiting for << parameters.wait >>"
@@ -198,8 +193,7 @@ commands:
       - setup_tox
       - restore_tox_cache
       - when:
-          condition:
-            << parameters.wait >>
+          condition: << parameters.wait >>
           steps:
             - run:
                 name: "Waiting for << parameters.wait >>"
@@ -209,8 +203,7 @@ commands:
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
       - save_tox_cache
       - when:
-          condition:
-            << parameters.store_coverage >>
+          condition: << parameters.store_coverage >>
           steps:
             - save_coverage
       - store_test_results:
@@ -366,7 +359,7 @@ jobs:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^py..-opentracer'
+          pattern: "^py..-opentracer"
 
   profile:
     <<: *contrib_job
@@ -417,20 +410,20 @@ jobs:
       - image: *ddtrace_dev_image
     steps:
       - run_test:
-          pattern: 'vendor'
+          pattern: "vendor"
 
   futures:
     <<: *contrib_job_small
     steps:
       - run_tox_scenario:
-          pattern: '^futures_contrib-'
+          pattern: "^futures_contrib-"
 
   boto:
     <<: *machine_executor
     parallelism: 4
     steps:
       - run_test:
-          pattern: '^boto'  # run boto and botocore
+          pattern: "^boto" # run boto and botocore
           snapshot: true
           docker_services: "localstack"
 
@@ -442,43 +435,43 @@ jobs:
     steps:
       - run_test:
           store_coverage: false
-          pattern: 'ddtracerun'
+          pattern: "ddtracerun"
 
   test_logging:
     <<: *contrib_job_small
     steps:
       - run_test:
-          pattern: 'test_logging'
+          pattern: "test_logging"
 
   asyncio:
     <<: *contrib_job_small
     steps:
       - run_tox_scenario:
-          pattern: '^asyncio_contrib-'
+          pattern: "^asyncio_contrib-"
 
   pylons:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^pylons_contrib-'
+          pattern: "^pylons_contrib-"
 
   aiohttp:
     <<: *contrib_job
     steps:
       - run_test:
-          pattern: 'aiohttp'
+          pattern: "aiohttp"
 
   asgi:
     <<: *contrib_job_small
     steps:
       - run_test:
-          pattern: 'asgi$'
+          pattern: "asgi$"
 
   tornado:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^tornado_contrib-'
+          pattern: "^tornado_contrib-"
 
   bottle:
     <<: *contrib_job
@@ -499,7 +492,7 @@ jobs:
     steps:
       - run_test:
           wait: cassandra
-          pattern: 'cassandra'
+          pattern: "cassandra"
 
   celery:
     <<: *contrib_job
@@ -510,14 +503,14 @@ jobs:
       - image: *rabbitmq_image
     steps:
       - run_test:
-          pattern: 'celery'
+          pattern: "celery"
 
   cherrypy:
     <<: *machine_executor
     parallelism: 6
     steps:
       - run_test:
-          pattern: 'cherrypy'
+          pattern: "cherrypy"
           snapshot: true
 
   consul:
@@ -527,35 +520,35 @@ jobs:
       - image: *consul_image
     steps:
       - run_tox_scenario:
-          pattern: '^consul_contrib-'
+          pattern: "^consul_contrib-"
 
   dogpile_cache:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^dogpile_contrib-'
+          pattern: "^dogpile_contrib-"
 
   elasticsearch:
     <<: *machine_executor
     parallelism: 4
     steps:
       - run_test:
-          pattern: 'elasticsearch'
+          pattern: "elasticsearch"
           snapshot: true
-          docker_services: 'elasticsearch'
+          docker_services: "elasticsearch"
 
   falcon:
     <<: *contrib_job
     steps:
       - run_test:
-          pattern: 'falcon'
+          pattern: "falcon"
 
   django:
     <<: *machine_executor
     parallelism: 6
     steps:
       - run_test:
-          pattern: 'django$'
+          pattern: "django$"
           snapshot: true
           docker_services: "memcached redis postgres"
 
@@ -563,7 +556,7 @@ jobs:
     <<: *machine_executor
     steps:
       - run_test:
-          pattern: 'django_hosts$'
+          pattern: "django_hosts$"
           snapshot: true
 
   djangorestframework:
@@ -571,7 +564,7 @@ jobs:
     parallelism: 6
     steps:
       - run_test:
-          pattern: 'djangorestframework'
+          pattern: "djangorestframework"
           snapshot: true
           docker_services: "memcached redis"
 
@@ -591,13 +584,13 @@ jobs:
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
-          pattern: 'flask(_cache)?'
+          pattern: "flask(_cache)?"
 
   gevent:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^gevent_contrib-'
+          pattern: "^gevent_contrib-"
 
   grpc:
     <<: *machine_executor
@@ -611,21 +604,21 @@ jobs:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^httplib_contrib'
+          pattern: "^httplib_contrib"
 
   httpx:
     <<: *machine_executor
     steps:
       - run_test:
-          pattern: 'httpx'
+          pattern: "httpx"
           snapshot: true
-          docker_services: 'httpbin_local'
+          docker_services: "httpbin_local"
 
   mariadb:
     <<: *machine_executor
     steps:
       - run_test:
-          pattern: 'mariadb$'
+          pattern: "mariadb$"
           snapshot: true
           docker_services: "mariadb"
 
@@ -633,7 +626,7 @@ jobs:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^molten_contrib-'
+          pattern: "^molten_contrib-"
 
   mysqlconnector:
     <<: *contrib_job
@@ -643,7 +636,7 @@ jobs:
     steps:
       - run_test:
           wait: mysql
-          pattern: 'mysql'
+          pattern: "mysql"
 
   mysqlpython:
     <<: *contrib_job
@@ -653,7 +646,7 @@ jobs:
     steps:
       - run_tox_scenario:
           wait: mysql
-          pattern: '^mysqldb_contrib-.*-mysqlclient'
+          pattern: "^mysqldb_contrib-.*-mysqlclient"
 
   pymysql:
     <<: *contrib_job
@@ -663,7 +656,7 @@ jobs:
     steps:
       - run_tox_scenario:
           wait: mysql
-          pattern: '^pymysql_contrib-'
+          pattern: "^pymysql_contrib-"
 
   pylibmc:
     <<: *contrib_job
@@ -672,13 +665,13 @@ jobs:
       - image: *memcached_image
     steps:
       - run_tox_scenario:
-          pattern: '^pylibmc_contrib-'
+          pattern: "^pylibmc_contrib-"
 
   pytest:
     executor: ddtrace_dev
     steps:
       - run_test:
-          pattern: 'pytest'
+          pattern: "pytest"
 
   pymemcache:
     <<: *contrib_job
@@ -694,9 +687,9 @@ jobs:
     parallelism: 1
     steps:
       - run_test:
-          pattern: 'mongoengine'
+          pattern: "mongoengine"
           snapshot: true
-          docker_services: 'mongo'
+          docker_services: "mongo"
 
   pymongo:
     <<: *contrib_job
@@ -719,13 +712,13 @@ jobs:
       - image: *ddtrace_dev_image
     steps:
       - run_tox_scenario:
-          pattern: '^pyodbc_contrib-'
+          pattern: "^pyodbc_contrib-"
 
   pyramid:
     <<: *contrib_job
     steps:
       - run_test:
-          pattern: 'pyramid'
+          pattern: "pyramid"
 
   requests:
     <<: *contrib_job
@@ -740,13 +733,13 @@ jobs:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^requests_gevent_contrib-'
+          pattern: "^requests_gevent_contrib-"
 
   sanic:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^sanic_contrib-'
+          pattern: "^sanic_contrib-"
 
   snowflake:
     <<: *machine_executor
@@ -778,7 +771,7 @@ jobs:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^dbapi_contrib-'
+          pattern: "^dbapi_contrib-"
 
   psycopg:
     <<: *machine_executor
@@ -795,8 +788,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *moto_image
     steps:
-       - run_test:
-          pattern: 'aiobotocore'
+      - run_test:
+          pattern: "aiobotocore"
 
   aiopg:
     <<: *contrib_job
@@ -806,31 +799,41 @@ jobs:
     steps:
       - run_test:
           wait: postgres
-          pattern: 'aiopg'
+          pattern: "aiopg"
 
   aredis:
     <<: *machine_executor
     parallelism: 4
     steps:
       - run_test:
-          docker_services: 'redis'
-          pattern: 'aredis$'
+          docker_services: "redis"
+          pattern: "aredis$"
           snapshot: true
+
+  aioredis:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          docker_services: "redis"
+          pattern: "redis$"
+          snapshot: true
+
   redis:
     <<: *machine_executor
     parallelism: 4
     steps:
       - run_test:
-          docker_services: 'redis'
-          pattern: 'redis$'
+          docker_services: "redis"
+          pattern: "redis$"
           snapshot: true
 
   rediscluster:
     <<: *machine_executor
     steps:
       - run_test:
-          pattern: 'rediscluster'
-          docker_services: 'rediscluster'
+          pattern: "rediscluster"
+          docker_services: "rediscluster"
           snapshot: true
 
   rq:
@@ -849,7 +852,7 @@ jobs:
       # `snapshot: true` will run `docker-compose logs -f` for us
       - run: docker-compose up -d httpbin_local
       - run_test:
-          pattern: 'urllib3'
+          pattern: "urllib3"
           snapshot: true
 
   vertica:
@@ -864,7 +867,7 @@ jobs:
     steps:
       - run_tox_scenario:
           wait: vertica
-          pattern: '^vertica_contrib-'
+          pattern: "^vertica_contrib-"
 
   wsgi:
     <<: *machine_executor
@@ -881,38 +884,38 @@ jobs:
     steps:
       - run_tox_scenario:
           wait: rabbitmq
-          pattern: '^kombu_contrib-'
+          pattern: "^kombu_contrib-"
 
   sqlite3:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^sqlite3_contrib-'
+          pattern: "^sqlite3_contrib-"
 
   benchmarks:
     <<: *contrib_job
     steps:
       - run_test:
           store_coverage: false
-          pattern: '^benchmarks'
+          pattern: "^benchmarks"
 
   jinja2:
     <<: *contrib_job
     steps:
       - run_test:
-          pattern: 'jinja2'
+          pattern: "jinja2"
 
   mako:
     <<: *contrib_job_small
     steps:
       - run_test:
-          pattern: 'mako'
+          pattern: "mako"
 
   algoliasearch:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
-          pattern: '^algoliasearch_contrib-'
+          pattern: "^algoliasearch_contrib-"
 
   build_docs:
     # build documentation and store as an artifact
@@ -923,8 +926,8 @@ jobs:
       - build_docs
       - run:
           command: |
-             mkdir -p /tmp/docs
-             cp -r docs/_build/html/* /tmp/docs
+            mkdir -p /tmp/docs
+            cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
           path: /tmp/docs
 
@@ -944,6 +947,8 @@ requires_tests: &requires_tests
     - aiobotocore
     - aiohttp
     - aiopg
+    - aioredis
+    - aredis
     - asyncio
     - algoliasearch
     - asgi
@@ -993,7 +998,6 @@ requires_tests: &requires_tests
     - pyodbc
     - pyramid
     - pytest
-    - aredis
     - redis
     - rediscluster
     - requests
@@ -1028,6 +1032,8 @@ workflows:
       - aiobotocore: *requires_base_venvs
       - aiohttp: *requires_base_venvs
       - aiopg: *requires_base_venvs
+      - aioredis: *requires_base_venvs
+      - aredis: *requires_base_venvs
       - asyncio: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
@@ -1077,7 +1083,6 @@ workflows:
       - pyodbc: *requires_base_venvs
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
-      - aredis: *requires_base_venvs
       - redis: *requires_base_venvs
       - rediscluster: *requires_base_venvs
       - requests: *requires_base_venvs
