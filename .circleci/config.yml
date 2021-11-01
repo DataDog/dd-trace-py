@@ -948,7 +948,6 @@ requires_tests: &requires_tests
     - aiohttp
     - aiopg
     - aioredis
-    - aredis
     - asyncio
     - algoliasearch
     - asgi
@@ -998,6 +997,7 @@ requires_tests: &requires_tests
     - pyodbc
     - pyramid
     - pytest
+    - aredis
     - redis
     - rediscluster
     - requests
@@ -1033,7 +1033,6 @@ workflows:
       - aiohttp: *requires_base_venvs
       - aiopg: *requires_base_venvs
       - aioredis: *requires_base_venvs
-      - aredis: *requires_base_venvs
       - asyncio: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
@@ -1083,6 +1082,7 @@ workflows:
       - pyodbc: *requires_base_venvs
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
+      - aredis: *requires_base_venvs
       - redis: *requires_base_venvs
       - rediscluster: *requires_base_venvs
       - requests: *requires_base_venvs
