@@ -5,7 +5,6 @@ from typing import Union
 
 from ddtrace.span import Span
 
-
 Trace = List[Span]
 
 class ListStringTable(object):
