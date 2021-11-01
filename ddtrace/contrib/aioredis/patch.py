@@ -72,6 +72,5 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
     cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
     with _trace_redis_execute_pipeline(pin, config.aioredis, resource, instance) as span:
-        if hasattr(instance, "connection_pool"):
-            span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
+        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         return await func(*args, **kwargs)
