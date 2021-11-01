@@ -138,7 +138,6 @@ async def test_pin_2(redis_client):
     assert val is None
 
 
-# TODO: check response from execute?
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 @pytest.mark.skipif(aioredis_version < (2, 0), reason="Pipeline methods are not instrumented in versions < 2.0")
