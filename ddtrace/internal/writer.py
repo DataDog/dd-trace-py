@@ -14,6 +14,7 @@ import six
 import tenacity
 
 import ddtrace
+from ddtrace import config
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
@@ -237,6 +238,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]
+        raise_exc=None,  # type: Optional[bool]
     ):
         # type: (...) -> None
         # Pre-conditions:
@@ -302,6 +304,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
+        self._raise_exc = raise_exc if raise_exc is not None else config._raise
 
     @property
     def _agent_endpoint(self):
@@ -501,6 +504,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def flush_queue(self, raise_exc=False):
         # type: (bool) -> None
+        raise_exc = raise_exc or self._raise_exc
         try:
             try:
                 n_traces = len(self._encoder)
@@ -508,9 +512,12 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 if encoded is None:
                     return
             except Exception:
-                log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)
-                self._metrics_dist("encoder.dropped.traces", n_traces)
-                return
+                if raise_exc:
+                    raise
+                else:
+                    log.error("failed to encode trace with encoder %r", self._encoder, exc_info=True)
+                    self._metrics_dist("encoder.dropped.traces", n_traces)
+                    return
 
             try:
                 self._retry_upload(self._send_payload, encoded, n_traces)

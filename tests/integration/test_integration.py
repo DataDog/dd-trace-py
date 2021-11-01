@@ -797,3 +797,14 @@ def test_no_warnings():
             )
             * 75
         ), err
+
+
+def test_raise_mode_encoding_error():
+    with override_global_config(dict(_raise=True)):
+        t = Tracer()
+        t.configure(writer=AgentWriter(agent.get_trace_url(), raise_exc=True))
+
+        s = t.trace("operation")
+        s.meta["dsaf"] = object()  # type: ignore
+        with pytest.raises(TypeError):
+            s.finish()
