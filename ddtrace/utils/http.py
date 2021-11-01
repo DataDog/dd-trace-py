@@ -5,6 +5,6 @@ from ..internal.utils.http import strip_query_string  # noqa
 
 deprecation(
     name="ddtrace.utils.http",
-    message="Use `ddtrace.internal.utils.http` module instead",
+    message="This module will be removed in v1.0.",
     version="1.0.0",
 )

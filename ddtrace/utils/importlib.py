@@ -6,6 +6,6 @@ from ..internal.utils.importlib import require_modules  # noqa
 
 deprecation(
     name="ddtrace.utils.importlib",
-    message="Use `ddtrace.internal.utils.importlib` module instead",
+    message="This module will be removed in v1.0.",
     version="1.0.0",
 )

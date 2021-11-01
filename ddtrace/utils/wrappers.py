@@ -7,6 +7,6 @@ from ..internal.utils.wrappers import unwrap  # noqa
 
 deprecation(
     name="ddtrace.utils.wrappers",
-    message="Use `ddtrace.internal.utils.wrappers` module instead",
+    message="This module will be removed in v1.0.",
     version="1.0.0",
 )

@@ -4,6 +4,6 @@ from ..internal.utils.time import StopWatch  # noqa
 
 deprecation(
     name="ddtrace.utils.time",
-    message="Use `ddtrace.internal.utils.time` module instead",
+    message="This module will be removed in v1.0.",
     version="1.0.0",
 )

@@ -4,6 +4,6 @@ from ..internal.utils.version import parse_version  # noqa
 
 deprecation(
     name="ddtrace.utils.version",
-    message="Use `ddtrace.internal.utils.version` module instead",
+    message="This module will be removed in v1.0.",
     version="1.0.0",
 )
