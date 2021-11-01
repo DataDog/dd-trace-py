@@ -30,6 +30,8 @@ def main(global_config, **settings):
     with Configurator(settings=settings) as config:
         config.add_route("tracer-shutdown", "/shutdown-tracer")
         config.add_view(tracer_shutdown, route_name="tracer-shutdown")
+        # This will trigger usage of the package name reproing an issue
+        # reported in #2942.
         config.include(".routes")
         config.scan()
     return config.make_wsgi_app()
