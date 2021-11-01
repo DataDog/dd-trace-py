@@ -2,12 +2,12 @@ import datetime
 from importlib import import_module
 
 from ddtrace import Pin
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.elasticsearch.patch import patch
 from ddtrace.contrib.elasticsearch.patch import unpatch
 from ddtrace.ext import http
 from tests.utils import TracerTestCase
-from tests.utils import override_config
 
 from ..config import ELASTICSEARCH_CONFIG
 
@@ -230,9 +230,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         When a user specifies a service for the app
             The elasticsearch integration should not use it.
         """
-        # Ensure that the service name was configured
-        from ddtrace import config
-
         assert config.service == "mysvc"
 
         self.es.indices.create(index=self.ES_INDEX, ignore=400)
@@ -240,36 +237,27 @@ class ElasticsearchPatchTest(TracerTestCase):
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
-        assert spans[0].service != "mysvc"
+        assert spans[0].service != "es"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
     def test_service_mapping_config(self):
         """
         When a user specifies a service mapping it should override the default
         """
-        from ddtrace import config
-
-        assert config.service != "custom-elasticsearch"
+        assert config.elasticsearch.service != "custom-elasticsearch"
 
         self.es.indices.create(index=self.ES_INDEX, ignore=400)
-        Pin(tracer=self.tracer).onto(self.es.transport)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
         assert spans[0].service == "custom-elasticsearch"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
     def test_service_name_config_override(self):
         """
         When a user specifies a service mapping it should override the default
         """
-        from ddtrace import config
-
-        assert config.elasticsearch.service != "test_service"
-
         with self.override_config("elasticsearch", dict(service="test_service")):
             self.es.indices.create(index=self.ES_INDEX, ignore=400)
-            Pin(tracer=self.tracer).onto(self.es.transport)
             spans = self.get_spans()
             self.reset()
             assert len(spans) == 1
