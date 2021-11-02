@@ -1,0 +1,11 @@
+---
+prelude: >
+    The ``v0.5`` trace API version has been made available and can be selected
+    via the newly introduced ``DD_TRACE_API_VERSION`` environment variable by
+    setting ``DD_TRACE_API_VERSION="v0.5"``. This newer API version generates
+    smaller payloads, thus increasing the trace throughput to the Datadog agent,
+    for better performance.
+features:
+  - |
+    Added the ``DD_TRACE_API_VERSION`` environment variable for requesting a
+    specific trace API version.

@@ -1,4 +1,5 @@
 import contextlib
+import os
 import sys
 
 import pytest
@@ -61,7 +62,7 @@ def snapshot(request):
     assert len(marks) < 2, "Multiple snapshot marks detected"
     if marks:
         snap = marks[0]
-        token = _request_token(request)
+        token = _request_token(request).replace(" ", "_").replace(os.path.sep, "_")
         with _snapshot_context(token, *snap.args, **snap.kwargs) as snapshot:
             yield snapshot
     else:
