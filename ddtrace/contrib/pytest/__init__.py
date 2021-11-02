@@ -12,7 +12,7 @@ file read by pytest (``pytest.ini``, ``setup.cfg``, ...)::
     ddtrace = 1
 
 You can enable all integrations by using the ``--ddtrace-patch-all`` option
-alongside ``--ddtrace``or by adding this to your configuration::
+alongside ``--ddtrace`` or by adding this to your configuration::
 
     [pytest]
     ddtrace = 1
