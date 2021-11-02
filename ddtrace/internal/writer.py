@@ -1,6 +1,7 @@
 import abc
+import binascii
 from collections import defaultdict
-from json import loads
+import json
 import logging
 import os
 import sys
@@ -22,6 +23,7 @@ from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
+from ..utils.formats import asbool
 from ..utils.formats import get_env
 from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
@@ -141,7 +143,7 @@ class Response(object):
                 )
                 return
 
-            return loads(body)
+            return json.loads(body)
         except (ValueError, TypeError):
             log.debug("Unable to parse Datadog Agent JSON response: %r", body, exc_info=True)
 
@@ -300,6 +302,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
+        self._log_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_PAYLOADS", False))
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -385,6 +388,14 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
         self._metrics_dist("http.requests")
 
+        if self._log_payloads:
+            data = {
+                "hex_payload": binascii.hexlify(payload).decode(),
+                "agent_url": self.agent_url,
+                "timeout": self._timeout,
+                "headers": headers,
+            }
+            log.debug("sending payload: %s", json.dumps(data))
         response = self._put(payload, headers)
 
         if response.status >= 400:
