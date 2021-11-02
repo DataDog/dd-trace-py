@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix memory leak caused when the tracer is disabled.
