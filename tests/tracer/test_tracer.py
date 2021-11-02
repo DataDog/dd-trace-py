@@ -1711,7 +1711,14 @@ def test_tracer_api_version():
 
 
 @pytest.mark.parametrize("enabled", [True, False])
-def test_tracer_memory_leak(enabled):
+def test_tracer_memory_leak_span_processors(enabled):
+    """
+    Test whether the tracer or span processors will hold onto
+    span references after the trace is complete.
+
+    This is a regression test for the tracer not calling on_span_finish
+    of SpanAggregator when the tracer was disabled and traces leaking.
+    """
     spans = weakref.WeakSet()
 
     # Filter to ensure we don't send the traces to the writer
@@ -1723,15 +1730,13 @@ def test_tracer_memory_leak(enabled):
     t.enabled = enabled
     t.configure(settings={"FILTERS": [DropAllFilter()]})
 
-    # Run test in a function to ensure all local references to
-    # `span` are removed
-    def run(t):
-        for _ in range(5):
-            with t.trace("test") as span:
-                spans.add(span)
+    for _ in range(5):
+        with t.trace("test") as span:
+            spans.add(span)
 
-    # Create the spans
-    run(t)
+    # Be sure to dereference the last Span held by the local variable `span`
+    span = None
+
     # Force gc
     gc.collect()
     assert len(spans) == 0
