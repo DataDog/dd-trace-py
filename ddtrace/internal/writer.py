@@ -389,13 +389,16 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._metrics_dist("http.requests")
 
         if self._log_payloads:
-            data = {
-                "hex_payload": binascii.hexlify(payload).decode(),
-                "agent_url": self.agent_url,
-                "timeout": self._timeout,
-                "headers": headers,
-            }
-            log.debug("sending payload: %s", json.dumps(data))
+            try:
+                data = {
+                    "hex_payload": binascii.hexlify(payload).decode(),
+                    "agent_url": self.agent_url,
+                    "timeout": self._timeout,
+                    "headers": headers,
+                }
+                log.debug("sending payload: %s", json.dumps(data))
+            except Exception as e:
+                log.debug("failed to log payload: %s, %r", e, payload)
         response = self._put(payload, headers)
 
         if response.status >= 400:
