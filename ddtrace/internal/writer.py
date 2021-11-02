@@ -302,7 +302,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
-        self._log_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_PAYLOADS", False))
+        self._log_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count

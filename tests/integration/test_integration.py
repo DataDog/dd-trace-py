@@ -395,7 +395,7 @@ def test_bad_payload():
 
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent response is different.")
 def test_bad_payload_log_payload(monkeypatch):
-    monkeypatch.setenv("_DD_TRACE_WRITER_LOG_PAYLOADS", "true")
+    monkeypatch.setenv("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "true")
     t = Tracer()
 
     class BadEncoder:
@@ -429,7 +429,7 @@ def test_bad_payload_log_payload(monkeypatch):
 
 @pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent response is different.")
 def test_bad_payload_log_payload_non_bytes(monkeypatch):
-    monkeypatch.setenv("_DD_TRACE_WRITER_LOG_PAYLOADS", "true")
+    monkeypatch.setenv("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "true")
     t = Tracer()
 
     class BadEncoder:
