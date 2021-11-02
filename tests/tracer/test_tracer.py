@@ -1697,17 +1697,6 @@ def test_fork_pid(tracer):
     assert exit_code == 12
 
 
-def test_tracer_api_version():
-    t = Tracer()
-    assert isinstance(t.writer._encoder, MsgpackEncoderV03)
-
-    t.configure(api_version="v0.5")
-    assert isinstance(t.writer._encoder, MsgpackEncoderV05)
-
-    t.configure(api_version="v0.4")
-    assert isinstance(t.writer._encoder, MsgpackEncoderV03)
-
-
 @pytest.mark.parametrize("enabled", [True, False])
 def test_tracer_memory_leak_span_processors(enabled):
     """
