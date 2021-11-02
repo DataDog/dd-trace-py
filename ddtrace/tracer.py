@@ -628,8 +628,10 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
-        for p in self._span_processors:
-            p.on_span_start(span)
+        # Only call span processors if the tracer is enabled
+        if self.enabled:
+            for p in self._span_processors:
+                p.on_span_start(span)
 
         self._hooks.emit(self.__class__.start_span, span)
         return span
@@ -646,11 +648,10 @@ class Tracer(object):
                 "span %r closing after its parent %r, this is an error when not using async", span, span._parent
             )
 
-        if not self.enabled:
-            return  # nothing to do
-
-        for p in self._span_processors:
-            p.on_span_finish(span)
+        # Only call span processors if the tracer is enabled
+        if self.enabled:
+            for p in self._span_processors:
+                p.on_span_finish(span)
 
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
