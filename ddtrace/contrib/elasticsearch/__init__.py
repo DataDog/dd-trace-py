@@ -18,6 +18,10 @@ Or use :ref:`patch()<patch>` to manually enable the integration::
     # Example of instrumented query
     es.indices.create(index='books', ignore=400)
 
+    # Use a pin to specify metadata related to this client
+    es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
+    Pin.override(es.transport, service='elasticsearch-videos')
+    es.indices.create(index='videos', ignore=400)
 
 
 
