@@ -1183,6 +1183,36 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiopg",
         ),
         Venv(
+<<<<<<< HEAD
+=======
+            name="aiohttp",
+            command="pytest {cmdargs} tests/contrib/aiohttp",
+            pkgs={
+                "pytest-aiohttp": [latest],
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    pkgs={
+                        "aiohttp": ["~=2.0", "~=2.1", "~=2.2", "~=2.3"],
+                        "aiohttp_jinja2": ["~=0.12", "~=0.13", "~=0.15"],
+                        "async-timeout": ["<4.0.0"],
+                        "yarl": "~=0.18.0",
+                    },
+                ),
+                Venv(
+                    # Python 3.5 is deprecated for aiohttp >= 3.0
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.4", "~=3.5", "~=3.6"],
+                        "aiohttp_jinja2": "~=0.15",
+                        "yarl": "~=1.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+>>>>>>> 7f886a0b (Pin async-timeout to <4.0.0 for older aiohttp versions (#2963))
             name="jinja2",
             venvs=[
                 Venv(
