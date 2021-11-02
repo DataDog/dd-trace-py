@@ -1695,8 +1695,6 @@ def test_fork_pid(tracer):
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 12
-<<<<<<< HEAD
-=======
 
 
 def test_tracer_api_version():
@@ -1740,4 +1738,3 @@ def test_tracer_memory_leak_span_processors(enabled):
     # Force gc
     gc.collect()
     assert len(spans) == 0
->>>>>>> f65e636f (Fix memory leak when the tracer is disabled (#2964))
