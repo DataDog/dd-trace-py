@@ -1,7 +1,7 @@
 import abc
 import binascii
 from collections import defaultdict
-import json
+from json import loads
 import logging
 import os
 import sys
@@ -143,7 +143,7 @@ class Response(object):
                 )
                 return
 
-            return json.loads(body)
+            return loads(body)
         except (ValueError, TypeError):
             log.debug("Unable to parse Datadog Agent JSON response: %r", body, exc_info=True)
 
@@ -302,7 +302,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
-        self._log_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
+        self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -417,7 +417,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 response.reason,
             )
             # Append the payload if requested
-            if self._log_payloads:
+            if self._log_error_payloads:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
                 if isinstance(payload, bytes):
