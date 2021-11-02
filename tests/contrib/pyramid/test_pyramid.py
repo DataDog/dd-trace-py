@@ -113,8 +113,13 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
         assert span.get_tag(ORIGIN_KEY) != "synthetics"
 
 
+@pytest.fixture
+def pyramid_app():
+    return "ddtrace-run python tests/contrib/pyramid/app/app.py"
+
+
 @pytest.fixture(scope="function")
-def pyramid_client(snapshot):
+def pyramid_client(snapshot, pyramid_app):
     """Runs a Pyramid app in a subprocess and returns a client which can be used to query it.
 
     Traces are flushed by invoking a tracer.shutdown() using a /shutdown-tracer route
@@ -124,7 +129,7 @@ def pyramid_client(snapshot):
     env = os.environ.copy()
     env["SERVER_PORT"] = str(SERVER_PORT)
 
-    cmd = ["ddtrace-run", "python", "tests/contrib/pyramid/app/app.py"]
+    cmd = pyramid_app.split(" ")
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -146,6 +151,13 @@ def pyramid_client(snapshot):
         proc.terminate()
 
 
+@pytest.mark.parametrize(
+    "pyramid_app",
+    [
+        "ddtrace-run pserve tests/contrib/pyramid/pserve_app/development.ini",
+        "ddtrace-run python tests/contrib/pyramid/app/app.py",
+    ],
+)
 @pytest.mark.snapshot()
 def test_simple_pyramid_app_endpoint(pyramid_client):
     r = pyramid_client.get("/")
