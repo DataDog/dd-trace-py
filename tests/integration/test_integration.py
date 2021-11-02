@@ -393,6 +393,74 @@ def test_bad_payload():
     log.error.assert_has_calls(calls)
 
 
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent response is different.")
+def test_bad_payload_log_payload(monkeypatch):
+    monkeypatch.setenv("_DD_TRACE_WRITER_LOG_PAYLOADS", "true")
+    t = Tracer()
+
+    class BadEncoder:
+        def __len__(self):
+            return 0
+
+        def put(self, trace):
+            pass
+
+        def encode(self):
+            return b"bad_payload"
+
+        def encode_traces(self, traces):
+            return b"bad_payload"
+
+    t.writer._encoder = BadEncoder()
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        t.trace("asdf").finish()
+        t.shutdown()
+    calls = [
+        mock.call(
+            "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
+            "http://localhost:8126",
+            400,
+            "Bad Request",
+            "6261645f7061796c6f6164",
+        )
+    ]
+    log.error.assert_has_calls(calls)
+
+
+@pytest.mark.skipif(AGENT_VERSION == "testagent", reason="FIXME: Test agent response is different.")
+def test_bad_payload_log_payload_non_bytes(monkeypatch):
+    monkeypatch.setenv("_DD_TRACE_WRITER_LOG_PAYLOADS", "true")
+    t = Tracer()
+
+    class BadEncoder:
+        def __len__(self):
+            return 0
+
+        def put(self, trace):
+            pass
+
+        def encode(self):
+            return "bad_payload"
+
+        def encode_traces(self, traces):
+            return "bad_payload"
+
+    t.writer._encoder = BadEncoder()
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        t.trace("asdf").finish()
+        t.shutdown()
+    calls = [
+        mock.call(
+            "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
+            "http://localhost:8126",
+            400,
+            "Bad Request",
+            "bad_payload",
+        )
+    ]
+    log.error.assert_has_calls(calls)
+
+
 def test_bad_encoder():
     t = Tracer()
 

@@ -388,17 +388,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
         self._metrics_dist("http.requests")
 
-        if self._log_payloads:
-            try:
-                data = {
-                    "hex_payload": binascii.hexlify(payload).decode(),
-                    "agent_url": self.agent_url,
-                    "timeout": self._timeout,
-                    "headers": headers,
-                }
-                log.debug("sending payload: %s", json.dumps(data))
-            except Exception as e:
-                log.debug("failed to log payload: %s, %r", e, payload)
         response = self._put(payload, headers)
 
         if response.status >= 400:
@@ -421,12 +410,22 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 if payload is not None:
                     self._send_payload(payload, count)
         elif response.status >= 400:
-            log.error(
-                "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
+            msg = "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s"
+            log_args = (
                 self.agent_url,
                 response.status,
                 response.reason,
             )
+            # Append the payload if requested
+            if self._log_payloads:
+                msg += ", payload %s"
+                # If the payload is bytes then hex encode the value before logging
+                if isinstance(payload, bytes):
+                    log_args += (binascii.hexlify(payload).decode(),)
+                else:
+                    log_args += (payload,)
+
+            log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
         elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
