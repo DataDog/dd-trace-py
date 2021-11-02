@@ -1186,13 +1186,16 @@ venv = Venv(
         Venv(
             name="aiohttp",
             command="pytest {cmdargs} tests/contrib/aiohttp",
-            pkgs={"pytest-aiohttp": [latest]},
+            pkgs={
+                "pytest-aiohttp": [latest],
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
                         "aiohttp": ["~=2.0", "~=2.1", "~=2.2", "~=2.3"],
                         "aiohttp_jinja2": ["~=0.12", "~=0.13", "~=0.15"],
+                        "async-timeout": ["<4.0.0"],
                         "yarl": "~=0.18.0",
                     },
                 ),
