@@ -420,7 +420,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             if self._log_error_payloads:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
-                if isinstance(payload, bytes):
+                if isinstance(payload, six.binary_type):
                     log_args += (binascii.hexlify(payload).decode(),)
                 else:
                     log_args += (payload,)

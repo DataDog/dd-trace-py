@@ -440,10 +440,20 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
             pass
 
         def encode(self):
-            return "bad_payload"
+            # Python 2.7
+            # >>> isinstance("", bytes)
+            # True
+            # >>> isinstance(u"", bytes)
+            # False
+            # Python 3
+            # >>> isinstance("", bytes)
+            # False
+            # >>> isinstance(u"", bytes)
+            # False
+            return u"bad_payload"
 
         def encode_traces(self, traces):
-            return "bad_payload"
+            return u"bad_payload"
 
     t.writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
