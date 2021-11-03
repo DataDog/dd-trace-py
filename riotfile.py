@@ -1321,10 +1321,5 @@ venv = Venv(
             },
             command="reno {cmdargs}",
         ),
-        Venv(
-            pys=["3"],
-            name="avail_pythons",
-            command="echo %s" % ",".join(select_pys()),
-        ),
     ],
 )
