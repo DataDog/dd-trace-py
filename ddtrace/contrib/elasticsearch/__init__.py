@@ -28,7 +28,7 @@ Or use :ref:`patch()<patch>` to manually enable the integration::
 Configuration
 ~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.elasticsearch['service_name']
+.. py:data:: ddtrace.config.elasticsearch['service']
 
    The service name reported for your elasticsearch app.
 
