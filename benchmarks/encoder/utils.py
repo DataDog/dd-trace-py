@@ -25,10 +25,12 @@ def _rands(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 def _random_values(k, size):
-    return list(set([_rands(size=size) for _ in range(k)]))
+    return list(dict.fromkeys([_rands(size=size) for _ in range(k)]))
 
 
 def gen_traces(config):
+    random.seed(1)
+
     traces = []
 
     # choose from a set of randomly generated span attributes
