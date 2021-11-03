@@ -38,7 +38,7 @@ Example::
     from ddtrace import config
 
     # Override service name
-    config.elasticsearch['service_name'] = 'custom-service-name'
+    config.elasticsearch['service'] = 'custom-service-name'
 """
 from .patch import patch
 
