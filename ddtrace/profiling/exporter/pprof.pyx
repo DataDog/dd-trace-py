@@ -7,11 +7,11 @@ import attr
 import six
 
 from ddtrace import ext
+from ddtrace.internal.utils import config
 from ddtrace.profiling import exporter
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.utils import config
 
 
 def _protobuf_post_312():
