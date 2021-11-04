@@ -5,7 +5,7 @@ from ddtrace.vendor import wrapt
 
 from ...ext import redis as redisx
 from ...pin import Pin
-from ...utils.wrappers import unwrap
+from ..trace_utils import unwrap
 from .util import _trace_redis_cmd
 from .util import _trace_redis_execute_pipeline
 from .util import format_command_args

@@ -53,7 +53,7 @@ Global Configuration
 .. __: https://pylonsproject.org/about-pylons-framework.html
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["pylons.wsgiapp"]

@@ -16,11 +16,11 @@ from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
 from ...internal.compat import PYTHON_VERSION_INFO
+from ...internal.utils import ArgumentError
+from ...internal.utils import get_argument_value
+from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
-from ...utils import ArgumentError
-from ...utils import get_argument_value
-from ...utils.formats import deep_getattr
-from ...utils.wrappers import unwrap
+from ..trace_utils import unwrap
 
 
 ARGS_NAME = ("action", "params", "path", "verb")

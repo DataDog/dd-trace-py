@@ -4,9 +4,9 @@ import attr
 
 import ddtrace
 
-from ...utils import get_argument_value
-from ...utils.wrappers import unwrap as _u
+from ...internal.utils import get_argument_value
 from ...vendor.wrapt import wrap_function_wrapper as _w
+from ..trace_utils import unwrap as _u
 
 
 RECORD_ATTR_TRACE_ID = "dd.trace_id"

@@ -2,7 +2,7 @@ import sqlalchemy
 
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ...utils.wrappers import unwrap
+from ..trace_utils import unwrap
 from .engine import _wrap_create_engine
 
 

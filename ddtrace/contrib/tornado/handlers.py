@@ -7,8 +7,8 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import http
-from ...utils import ArgumentError
-from ...utils import get_argument_value
+from ...internal.utils import ArgumentError
+from ...internal.utils import get_argument_value
 from .constants import CONFIG_KEY
 from .constants import REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext

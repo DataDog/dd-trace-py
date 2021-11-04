@@ -62,7 +62,7 @@ provided by _mysql_connector, is not supported.
 Help on mysql.connector can be found on:
 https://dev.mysql.com/doc/connector-python/en/
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 # check `mysql-connector` availability

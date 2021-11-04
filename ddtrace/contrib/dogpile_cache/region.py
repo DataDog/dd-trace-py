@@ -3,8 +3,8 @@ import dogpile
 from ddtrace.ext import SpanTypes
 
 from ...constants import SPAN_MEASURED_KEY
+from ...internal.utils import get_argument_value
 from ...pin import Pin
-from ...utils import get_argument_value
 
 
 def _wrap_get_create(func, instance, args, kwargs):
