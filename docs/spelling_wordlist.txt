@@ -25,6 +25,7 @@ autopatching
 backend
 backends
 bikeshedding
+booleans
 boto
 botocore
 CGroup
