@@ -1,4 +1,4 @@
-from ddtrace.utils.deprecation import deprecation
+from ddtrace.internal.utils.deprecation import deprecation
 
 from .internal.compat import CONTEXTVARS_IS_AVAILABLE
 from .internal.compat import NumericType

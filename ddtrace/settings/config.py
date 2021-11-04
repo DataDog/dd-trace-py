@@ -4,7 +4,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.utils.cache import cachedmethod
+from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.logger import get_logger
 from ..pin import Pin

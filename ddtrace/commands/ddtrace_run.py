@@ -7,8 +7,8 @@ import sys
 
 import ddtrace
 from ddtrace.internal.compat import PY2
-from ddtrace.utils.formats import asbool
-from ddtrace.utils.formats import get_env
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import get_env
 
 
 if PY2:

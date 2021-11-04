@@ -1,6 +1,6 @@
 from typing import Optional
 
-from ddtrace.utils.cache import cached
+from ddtrace.internal.utils.cache import cached
 
 
 @cached()

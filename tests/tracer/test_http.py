@@ -3,8 +3,8 @@ from hypothesis import given
 from hypothesis.provisional import urls
 
 from ddtrace.internal.compat import parse
-from ddtrace.utils.http import normalize_header_name
-from ddtrace.utils.http import strip_query_string
+from ddtrace.internal.utils.http import normalize_header_name
+from ddtrace.internal.utils.http import strip_query_string
 
 
 class TestHeaderNameNormalization(object):

@@ -15,10 +15,10 @@ import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.runtime import container
+from ddtrace.internal.utils import attr as attr_utils
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import pprof
-from ddtrace.utils import attr as attr_utils
-from ddtrace.utils.formats import parse_tags_str
 
 
 HOSTNAME = platform.node()
