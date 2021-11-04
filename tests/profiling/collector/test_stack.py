@@ -632,6 +632,7 @@ def test_collect_gevent_thread_hub():
                 "sleep",
                 "get_ident",
                 "__bootstrap_inner",
+                "_bootstrap_inner",
                 "switch",
                 "run",
                 "notify",
