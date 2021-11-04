@@ -39,7 +39,7 @@
          "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
        },
        "metrics": {
-         "_dd.top_level": 0,
+         "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
          "system.pid": 67067
