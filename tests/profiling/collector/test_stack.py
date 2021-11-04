@@ -639,6 +639,7 @@ def test_collect_gevent_thread_hub():
                 "main_thread_found",
                 "get",
                 "get_hub",
+                "__init__",
             )
 
     # Make sure we did at least one check
