@@ -17,7 +17,7 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
-from ddtrace.utils.deprecation import deprecation
+from ddtrace.internal.utils.deprecation import deprecation
 from ddtrace.vendor import debtcollector
 
 from . import _hooks

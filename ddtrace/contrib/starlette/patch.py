@@ -5,7 +5,7 @@ from starlette.routing import Match
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.internal.logger import get_logger
-from ddtrace.utils.wrappers import unwrap as _u
+from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 

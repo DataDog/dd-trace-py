@@ -2,7 +2,7 @@
 Standard system tags
 """
 from ddtrace.constants import PID
-from ddtrace.utils.deprecation import deprecation
+from ddtrace.internal.utils.deprecation import deprecation
 
 
 deprecation(

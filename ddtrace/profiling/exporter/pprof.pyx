@@ -7,11 +7,11 @@ import attr
 import six
 
 from ddtrace import ext
+from ddtrace.internal.utils import config
 from ddtrace.profiling import exporter
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.utils import config
 
 
 def _protobuf_post_312():
@@ -19,7 +19,7 @@ def _protobuf_post_312():
     """Check if protobuf version is post 3.12"""
     import google.protobuf
 
-    from ddtrace.utils.version import parse_version
+    from ddtrace.internal.utils.version import parse_version
 
     v = parse_version(google.protobuf.__version__)
     return v[0] >= 3 and v[1] >= 12
