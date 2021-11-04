@@ -638,6 +638,7 @@ def test_collect_gevent_thread_hub():
                 "notify",
                 "main_thread_found",
                 "get",
+                "get_hub",
             )
 
     # Make sure we did at least one check
