@@ -2,6 +2,7 @@ import datetime
 from importlib import import_module
 
 from ddtrace import Pin
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.elasticsearch.patch import patch
 from ddtrace.contrib.elasticsearch.patch import unpatch
@@ -41,7 +42,6 @@ class ElasticsearchPatchTest(TracerTestCase):
     ES_INDEX = "ddtrace_index"
     ES_TYPE = "ddtrace_type"
 
-    TEST_SERVICE = "test"
     TEST_PORT = str(ELASTICSEARCH_CONFIG["port"])
 
     def setUp(self):
@@ -49,7 +49,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         super(ElasticsearchPatchTest, self).setUp()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(es.transport)
+        Pin(tracer=self.tracer).onto(es.transport)
         mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
         es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
 
@@ -75,7 +75,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         TracerTestCase.assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "elasticsearch"
         assert span.name == "elasticsearch.query"
         assert span.span_type == "elasticsearch"
         assert span.error == 0
@@ -186,7 +186,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(es.transport)
+        Pin(tracer=self.tracer).onto(es.transport)
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
@@ -214,7 +214,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
 
         es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(es.transport)
+        Pin(tracer=self.tracer).onto(es.transport)
 
         # Test index creation
         es.indices.create(index=self.ES_INDEX, ignore=400)
@@ -230,9 +230,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         When a user specifies a service for the app
             The elasticsearch integration should not use it.
         """
-        # Ensure that the service name was configured
-        from ddtrace import config
-
         assert config.service == "mysvc"
 
         self.es.indices.create(index=self.ES_INDEX, ignore=400)
@@ -240,7 +237,31 @@ class ElasticsearchPatchTest(TracerTestCase):
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
-        assert spans[0].service != "mysvc"
+        assert spans[0].service != "es"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-elasticsearch"))
+    def test_service_mapping_config(self):
+        """
+        When a user specifies a service mapping it should override the default
+        """
+        assert config.elasticsearch.service != "custom-elasticsearch"
+
+        self.es.indices.create(index=self.ES_INDEX, ignore=400)
+        spans = self.get_spans()
+        self.reset()
+        assert len(spans) == 1
+        assert spans[0].service == "custom-elasticsearch"
+
+    def test_service_name_config_override(self):
+        """
+        When a user specifies a service mapping it should override the default
+        """
+        with self.override_config("elasticsearch", dict(service="test_service")):
+            self.es.indices.create(index=self.ES_INDEX, ignore=400)
+            spans = self.get_spans()
+            self.reset()
+            assert len(spans) == 1
+            assert spans[0].service == "test_service"
 
     def test_none_param(self):
         try:

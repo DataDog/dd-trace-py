@@ -3,12 +3,14 @@
 tests for Tracer and utilities.
 """
 import contextlib
+import gc
 import multiprocessing
 import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
 import warnings
+import weakref
 
 import mock
 import pytest
@@ -1706,3 +1708,35 @@ def test_tracer_api_version():
 
     t.configure(api_version="v0.4")
     assert isinstance(t.writer._encoder, MsgpackEncoderV03)
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_tracer_memory_leak_span_processors(enabled):
+    """
+    Test whether the tracer or span processors will hold onto
+    span references after the trace is complete.
+
+    This is a regression test for the tracer not calling on_span_finish
+    of SpanAggregator when the tracer was disabled and traces leaking.
+    """
+    spans = weakref.WeakSet()
+
+    # Filter to ensure we don't send the traces to the writer
+    class DropAllFilter:
+        def process_trace(self, trace):
+            return None
+
+    t = Tracer()
+    t.enabled = enabled
+    t.configure(settings={"FILTERS": [DropAllFilter()]})
+
+    for _ in range(5):
+        with t.trace("test") as span:
+            spans.add(span)
+
+    # Be sure to dereference the last Span held by the local variable `span`
+    span = None
+
+    # Force gc
+    gc.collect()
+    assert len(spans) == 0
