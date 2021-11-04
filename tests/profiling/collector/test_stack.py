@@ -636,6 +636,8 @@ def test_collect_gevent_thread_hub():
                 "switch",
                 "run",
                 "notify",
+                "main_thread_found",
+                "get",
             )
 
     # Make sure we did at least one check
