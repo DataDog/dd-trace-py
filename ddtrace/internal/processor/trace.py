@@ -85,12 +85,12 @@ class TraceTopLevelSpanProcessor(TraceProcessor):
 
         span_ids = {span.span_id for span in trace}
         for span in trace:
-            if span._parent and span.service != span._parent.service:
+            if span is span._local_root:
+                span.set_metric("_dd.top_level", 1)
+            elif span._parent and span.service != span._parent.service:
                 span.set_metric("_dd.top_level", 1)
             elif span.parent_id and span.parent_id not in span_ids:
                 span.set_metric("_dd.top_level", 0)
-            elif span is span._local_root:
-                span.set_metric("_dd.top_level", 1)
 
         return trace
 
