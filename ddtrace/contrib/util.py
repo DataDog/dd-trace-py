@@ -7,7 +7,7 @@ from ..utils.importlib import require_modules
 
 deprecation(
     name="ddtrace.contrib.util",
-    message="Use `ddtrace.internal.utils.importlib` module instead",
+    message="`ddtrace.contrib.util` module will be removed in 1.0.0",
     version="1.0.0",
 )
 
