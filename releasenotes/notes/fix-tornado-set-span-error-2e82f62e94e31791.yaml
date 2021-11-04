@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Ensure tornado spans are marked as an error if the response status code is 500 <= x < 600.
