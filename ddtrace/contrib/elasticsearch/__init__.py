@@ -1,14 +1,18 @@
-"""Instrument Elasticsearch to report Elasticsearch queries.
+"""
+The Elasticsearch integration will trace Elasticsearch queries.
 
-``patch_all`` will automatically patch your Elasticsearch instance to make it work.
-::
+Enabling
+~~~~~~~~
 
-    from ddtrace import Pin, patch
+The elasticsearch integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+
+Or use :ref:`patch()<patch>` to manually enable the integration::
+
+    from ddtrace import patch
     from elasticsearch import Elasticsearch
 
-    # If not patched yet, you can patch elasticsearch specifically
     patch(elasticsearch=True)
-
     # This will report spans with the default instrumentation
     es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
     # Example of instrumented query
@@ -18,6 +22,23 @@
     es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
     Pin.override(es.transport, service='elasticsearch-videos')
     es.indices.create(index='videos', ignore=400)
+
+
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.elasticsearch['service']
+
+   The service name reported for your elasticsearch app.
+
+
+Example::
+
+    from ddtrace import config
+
+    # Override service name
+    config.elasticsearch['service'] = 'custom-service-name'
 """
 from .patch import patch
 

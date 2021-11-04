@@ -627,7 +627,15 @@ def test_collect_gevent_thread_hub():
                 main_thread_found = True
         elif event.task_id in {t.ident for t in threads}:
             # Make sure we capture the sleep call and not a gevent hub frame
-            assert event.frames[0][2] in ("_nothing", "sleep", "get_ident", "__bootstrap_inner")
+            assert event.frames[0][2] in (
+                "_nothing",
+                "sleep",
+                "get_ident",
+                "__bootstrap_inner",
+                "switch",
+                "run",
+                "notify",
+            )
 
     # Make sure we did at least one check
     assert main_thread_found
