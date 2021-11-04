@@ -22,7 +22,7 @@ orbs:
 
 machine_executor: &machine_executor
   machine:
-    image: ubuntu-1604:201903-01
+    image: ubuntu-2004:202107-02
   environment:
     - BOTO_CONFIG: /dev/null
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
@@ -32,7 +32,7 @@ machine_executor: &machine_executor
       run:
         name: Set global pyenv
         command: |
-          pyenv global 3.6.5
+          pyenv global 3.9.4
 
 contrib_job: &contrib_job
   executor: ddtrace_dev
@@ -224,7 +224,7 @@ commands:
       - run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libenchant-dev
-      - run: riot run docs
+      - run: riot -v run --pass-env docs
 
 executors:
   cimg_base:
