@@ -156,3 +156,4 @@ whitelist
 workflow
 wsgi
 xfail
+yaaredis
