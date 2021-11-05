@@ -20,6 +20,7 @@ from ...internal.logger import get_logger
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ...utils import get_argument_value
+from ...utils.formats import asbool
 from ...utils.formats import deep_getattr
 from ...utils.formats import get_env
 from ...utils.wrappers import unwrap
@@ -37,8 +38,8 @@ log = get_logger(__name__)
 config._add(
     "botocore",
     {
-        "distributed_tracing": get_env("botocore", "distributed_tracing", default=True),
-        "invoke_with_legacy_context": get_env("botocore", "invoke_with_legacy_context", default=False),
+        "distributed_tracing": asbool(get_env("botocore", "distributed_tracing", default=True)),
+        "invoke_with_legacy_context": asbool(get_env("botocore", "invoke_with_legacy_context", default=False)),
     },
 )
 

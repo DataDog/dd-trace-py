@@ -940,10 +940,12 @@ venv = Venv(
             name="pyramid",
             venvs=[
                 Venv(
+                    command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py",
                     pys=select_pys(),
                     pkgs={
                         "requests": [latest],
                         "webtest": [latest],
+                        "tests/contrib/pyramid/pserve_app": [latest],
                         "pyramid": [
                             "~=1.7",
                             "~=1.8",
@@ -952,16 +954,6 @@ venv = Venv(
                             latest,
                         ],
                     },
-                    venvs=[
-                        Venv(command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py"),
-                        Venv(
-                            command=(
-                                "python tests/ddtrace_run.py pytest {cmdargs}"
-                                " tests/contrib/pyramid/test_pyramid_autopatch.py"
-                            ),
-                            env={"DATADOG_SERVICE_NAME": "foobar", "DATADOG_PYRAMID_DISTRIBUTED_TRACING": "True"},
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -1185,13 +1177,16 @@ venv = Venv(
         Venv(
             name="aiohttp",
             command="pytest {cmdargs} tests/contrib/aiohttp",
-            pkgs={"pytest-aiohttp": [latest]},
+            pkgs={
+                "pytest-aiohttp": [latest],
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
                         "aiohttp": ["~=2.0", "~=2.1", "~=2.2", "~=2.3"],
                         "aiohttp_jinja2": ["~=0.12", "~=0.13", "~=0.15"],
+                        "async-timeout": ["<4.0.0"],
                         "yarl": "~=0.18.0",
                     },
                 ),

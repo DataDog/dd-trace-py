@@ -7,11 +7,11 @@ import attr
 import six
 
 from ddtrace import ext
+from ddtrace.internal.utils import config
 from ddtrace.profiling import exporter
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
-from ddtrace.utils import config
 
 
 def _protobuf_post_312():
@@ -19,7 +19,7 @@ def _protobuf_post_312():
     """Check if protobuf version is post 3.12"""
     import google.protobuf
 
-    from ddtrace.utils.version import parse_version
+    from ddtrace.internal.utils.version import parse_version
 
     v = parse_version(google.protobuf.__version__)
     return v[0] >= 3 and v[1] >= 12
@@ -300,12 +300,6 @@ class _PprofConverter(object):
 
         self._location_values[location_key]["exception-samples"] = len(events)
 
-    def convert_memory_event(self, stats, sampling_ratio):
-        location = tuple(self._to_Location(frame.filename, frame.lineno).id for frame in reversed(stats.traceback))
-        location_key = (location, tuple())
-        self._location_values[location_key]["alloc-samples"] = int(stats.count / sampling_ratio)
-        self._location_values[location_key]["alloc-space"] = int(stats.size / sampling_ratio)
-
     def _build_profile(self, start_time_ns, duration_ns, period, sample_types, program_name) -> pprof_pb2.Profile:
         pprof_sample_type = [
             pprof_pb2.ValueType(type=self._str(type_), unit=self._str(unit)) for type_, unit in sample_types
@@ -453,47 +447,12 @@ class PprofExporter(exporter.Exporter):
             key=self._stack_exception_group_key,
         )
 
-    def _exception_group_key(self, event):
-        exc_type = event.exc_type
-        exc_type_name = exc_type.__module__ + "." + exc_type.__name__
-        return (
-            event.thread_id,
-            self._get_thread_name(event.thread_id, event.thread_name),
-            tuple(event.frames),
-            event.nframes,
-            exc_type_name,
-        )
-
-    def _group_exception_events(self, events):
-        return itertools.groupby(
-            sorted(events, key=self._exception_group_key),
-            key=self._exception_group_key,
-        )
-
     def _get_event_trace_resource(self, event):
         trace_resource = None
         # Do not export trace_resource for non Web spans for privacy concerns.
         if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
             (trace_resource,) = event.trace_resource_container
         return trace_resource
-
-    @staticmethod
-    def min_none(a, b):
-        """A min() version that discards None values."""
-        if a is None:
-            return b
-        if b is None:
-            return a
-        return min(a, b)
-
-    @staticmethod
-    def max_none(a, b):
-        """A max() version that discards None values."""
-        if a is None:
-            return b
-        if b is None:
-            return a
-        return max(a, b)
 
     def export(self, events, start_time_ns, end_time_ns) -> pprof_pb2.Profile:  # type: ignore[valid-type]
         """Convert events to pprof format.

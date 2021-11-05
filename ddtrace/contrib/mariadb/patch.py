@@ -5,9 +5,9 @@ from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.ext import db
 from ddtrace.ext import net
-from ddtrace.utils.formats import asbool
-from ddtrace.utils.formats import get_env
-from ddtrace.utils.wrappers import unwrap
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import get_env
+from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
 
 

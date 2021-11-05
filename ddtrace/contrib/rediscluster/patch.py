@@ -10,8 +10,8 @@ from ddtrace.contrib.redis.patch import traced_pipeline
 from ddtrace.contrib.redis.util import format_command_args
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import redis as redisx
+from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
-from ddtrace.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
 
 

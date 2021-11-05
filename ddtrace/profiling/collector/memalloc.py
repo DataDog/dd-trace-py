@@ -13,11 +13,11 @@ try:
 except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
+from ddtrace.internal.utils import attr as attr_utils
+from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _threading
-from ddtrace.utils import attr as attr_utils
-from ddtrace.utils import formats
 
 
 LOG = logging.getLogger(__name__)

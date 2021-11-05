@@ -3,7 +3,7 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace.internal.compat import parse
-from ddtrace.utils.formats import get_env
+from ddtrace.internal.utils.formats import get_env
 
 from .http import HTTPConnection
 from .http import HTTPSConnection
