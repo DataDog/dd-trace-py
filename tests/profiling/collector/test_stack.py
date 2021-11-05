@@ -604,9 +604,9 @@ def test_collect_gevent_thread_hub():
 
     # Start some greenthreads: they do nothing we just keep switching between them.
     def _nothing():
-        for _ in range(10000):
+        for _ in range(100):
             # Do nothing and just switch to another greenlet
-            time.sleep(0)
+            time.sleep(0.01)
 
     threads = []
     with s:
@@ -618,24 +618,21 @@ def test_collect_gevent_thread_hub():
             t.join()
 
     main_thread_found = False
-    for event in r.events[stack.StackSampleEvent]:
+    sleep_task_found = False
+    events = r.events[stack.StackSampleEvent]
+    for event in events:
         if event.task_id == compat.main_thread.ident:
             if event.task_name is None:
                 pytest.fail("Task with no name detected, is it the Hub?")
             else:
                 main_thread_found = True
-        elif event.task_id in {t.ident for t in threads}:
+        elif event.task_id in {t.ident for t in threads} and event.frames[0][2] in (
+            "_nothing",
+            "sleep",
+        ):
             # Make sure we capture the sleep call and not a gevent hub frame
-            assert event.frames[0][2] in (
-                "_nothing",
-                "sleep",
-                "get_ident",
-                "__bootstrap_inner",
-                "_bootstrap_inner",
-                "switch",
-                "run",
-                "notify",
-            )
+            sleep_task_found = True
 
     # Make sure we did at least one check
-    assert main_thread_found
+    assert main_thread_found, events
+    assert sleep_task_found, events
