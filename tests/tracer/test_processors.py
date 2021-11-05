@@ -247,7 +247,7 @@ def test_trace_top_level_span_processor_different_service_name():
     child.parent_id = parent.span_id
     child._parent = parent
     child._local_root = parent
-    
+
     trace_processors.process_trace([parent, child])
     # child span should be set to top_level
     assert parent.get_metric("_dd.top_level") == 1
