@@ -5,9 +5,9 @@ import attr
 
 from ddtrace.internal import compat
 from ddtrace.internal import periodic
+from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.profiling import _traceback
 from ddtrace.profiling import exporter
-from ddtrace.utils import attr as attr_utils
 
 
 LOG = logging.getLogger(__name__)

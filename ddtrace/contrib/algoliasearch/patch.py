@@ -1,7 +1,7 @@
 from ddtrace import config
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
-from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils

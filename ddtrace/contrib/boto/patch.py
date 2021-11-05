@@ -8,8 +8,8 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import aws
 from ddtrace.ext import http
+from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
-from ddtrace.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
 
 from ...utils import get_argument_value

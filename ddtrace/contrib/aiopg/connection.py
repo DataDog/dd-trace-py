@@ -9,8 +9,8 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import sql
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
-from ddtrace.utils.version import parse_version
 from ddtrace.vendor import wrapt
 
 
