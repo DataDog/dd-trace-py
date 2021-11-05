@@ -33,8 +33,8 @@ from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
-from ddtrace.utils.formats import asbool
-from ddtrace.utils.formats import get_env
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import get_env
 from ddtrace.vendor import wrapt
 
 from . import utils

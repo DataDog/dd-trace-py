@@ -6,7 +6,7 @@ from ddtrace.contrib.trace_utils import _normalized_header_name
 from ddtrace.contrib.trace_utils import _store_headers
 from ddtrace.contrib.trace_utils import _store_request_headers as store_request_headers
 from ddtrace.contrib.trace_utils import _store_response_headers as store_response_headers
-from ddtrace.utils.deprecation import deprecation
+from ddtrace.internal.utils.deprecation import deprecation
 
 
 __all__ = (

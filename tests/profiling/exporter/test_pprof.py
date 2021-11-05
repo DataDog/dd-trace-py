@@ -688,7 +688,7 @@ def test_to_str_none():
     assert id1 == id2 != id_o
 
 
-@mock.patch("ddtrace.utils.config.get_application_name")
+@mock.patch("ddtrace.internal.utils.config.get_application_name")
 def test_pprof_exporter(gan):
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
