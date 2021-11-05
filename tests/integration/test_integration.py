@@ -763,9 +763,8 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err
 
 
-def test_no_warnings(ddtrace_run_python_code_in_subprocess):
+def test_no_warnings():
     env = os.environ.copy()
-    env["DD_PROFILING_ENABLED"] = "true"
     # Have to disable sqlite3 as coverage uses it on process shutdown
     # which results in a trace being generated after the tracer shutdown
     # has been initiated which results in a deprecation warning.
