@@ -838,12 +838,10 @@ jobs:
   urllib3:
     <<: *machine_executor
     steps:
-      - checkout
-      # `snapshot: true` will run `docker-compose logs -f` for us
-      - run: docker-compose up -d httpbin_local
       - run_test:
           pattern: 'urllib3'
           snapshot: true
+          docker_services: "httpbin_local"
 
   vertica:
     <<: *contrib_job
