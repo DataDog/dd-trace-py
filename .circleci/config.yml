@@ -218,14 +218,6 @@ commands:
       - store_artifacts:
           path: test-results
 
-  build_docs:
-    steps:
-      - setup_riot
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libenchant-dev
-      - run: riot -v run --pass-env docs
-
 executors:
   cimg_base:
     docker:
@@ -917,13 +909,13 @@ jobs:
 
   build_docs:
     # build documentation and store as an artifact
-    <<: *machine_executor
+    executor: ddtrace_dev
     steps:
+      - setup_riot
       - checkout
-      - *pyenv-set-global
-      - build_docs
       - run:
           command: |
+             riot -v run docs
              mkdir -p /tmp/docs
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:

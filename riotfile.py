@@ -166,8 +166,6 @@ venv = Venv(
                 "sphinx": latest,
                 "sphinxcontrib-spelling": latest,
                 "PyEnchant": latest,
-                "six": latest,
-                "tenacity": latest,
             },
             command="scripts/build-docs",
         ),
