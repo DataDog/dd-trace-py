@@ -5,18 +5,29 @@ from . import _threading
 
 
 try:
-    import gevent._tracer
+    from greenlet import settrace, getcurrent
     import gevent.thread
+    import gevent.hub
 except ImportError:
     _gevent_tracer = None
 else:
-    class DDGreenletTracer(gevent._tracer.GreenletTracer):
-        def _trace(self, event, args):
-            # Do not trace gevent Hub: the Hub is a greenlet but we want to know the latest active greenlet *before*
-            # the application yielded back to the Hub. There's no point showing the Hub most of the time to the users as
-            # that does not give any information about user code.
-            if not isinstance(args[1], gevent.hub.Hub):
-                gevent._tracer.GreenletTracer._trace(self, event, args)
+
+    class DDGreenletTracer(object):
+        def __init__(self):
+            # type: (...) -> None
+            self.active_greenlet = getcurrent()
+            self.previous_trace_function = settrace(self)
+
+        def __call__(self, event, args):
+            if event in ('switch', 'throw'):
+                # Do not trace gevent Hub: the Hub is a greenlet but we want to know the latest active greenlet *before*
+                # the application yielded back to the Hub. There's no point showing the Hub most of the time to the
+                # users as that does not give any information about user code.
+                if not isinstance(args[1], gevent.hub.Hub):
+                    self.active_greenlet = args[1]
+
+            if self.previous_trace_function is not None:
+                self.previous_trace_function(event, args)
 
     # NOTE: bold assumption: this module is always imported by the MainThread.
     # A GreenletTracer is local to the thread instantiating it and we assume this is run by the MainThread.
@@ -28,16 +39,10 @@ cpdef get_task(thread_id):
     # gevent greenlet support:
     # we only support tracing tasks in the greenlets are run in the MainThread.
     if thread_id == nogevent.main_thread_id and _gevent_tracer is not None:
-        if _gevent_tracer.active_greenlet is None:
-            # That means gevent never switch to another greenlet, we're still in the main one
-            task_id = compat.main_thread.ident
-            frame = None
-        else:
-            task_id = gevent.thread.get_ident(_gevent_tracer.active_greenlet)
-            frame = _gevent_tracer.active_greenlet.gr_frame
-
+        task_id = gevent.thread.get_ident(_gevent_tracer.active_greenlet)
         # Greenlets might be started as Thread in gevent
         task_name = _threading.get_thread_name(task_id)
+        frame = _gevent_tracer.active_greenlet.gr_frame
     else:
         task_id = None
         task_name = None
