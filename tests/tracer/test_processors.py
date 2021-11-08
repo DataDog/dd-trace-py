@@ -223,9 +223,11 @@ def test_aggregator_partial_flush_2_spans():
 def test_trace_top_level_span_processor_partial_flushing():
     """Parent span and child span have the same service name"""
     tracer = Tracer()
+
     tracer.configure(
         partial_flush_enabled=True,
         partial_flush_min_spans=2,
+        writer=DummyWriter(),
     )
 
     with tracer.trace("parent") as parent:
@@ -249,6 +251,8 @@ def test_trace_top_level_span_processor_same_service_name():
     """Parent span and child span have the same service name"""
 
     tracer = Tracer()
+    tracer.writer = DummyWriter()
+
     with tracer.trace("parent", service="top_level_test") as parent:
         with tracer.trace("child") as child:
             pass
@@ -261,6 +265,8 @@ def test_trace_top_level_span_processor_different_service_name():
     """Parent span and child span have the different service names"""
 
     tracer = Tracer()
+    tracer.writer = DummyWriter()
+
     with tracer.trace("parent", service="top_level_test_service") as parent:
         with tracer.trace("child", service="top_level_test_service2") as child:
             pass
@@ -273,12 +279,13 @@ def test_trace_top_level_span_processor_orphan_span():
     """Trace chuck does not contain parent span"""
 
     tracer = Tracer()
-    with tracer.trace("parent"):
-        with tracer.trace("orphan span") as orphan_span:
-            orphans_parent = Span(None, "span_wo_parent_span_obj")
-            orphan_span._parent = orphans_parent
-            orphan_span._local_root = orphans_parent
-            orphan_span.parent_id = orphans_parent.span_id
+    tracer.writer = DummyWriter()
+
+    with tracer.trace("parent") as parent:
+        pass
+
+    with tracer.start_span("orphan span", child_of=parent) as orphan_span:
+        pass
 
     # top_level in orphan_span should be explicitly set to zero/false
     assert orphan_span.get_metric("_dd.top_level") == 0
