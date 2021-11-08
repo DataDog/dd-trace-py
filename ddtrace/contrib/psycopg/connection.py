@@ -1,11 +1,8 @@
 """
 Tracing utilities for the psycopg potgres client library.
 """
-
-# stdlib
 import functools
 
-# 3p
 from psycopg2.extensions import connection
 from psycopg2.extensions import cursor
 
@@ -14,7 +11,7 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...ext import sql
-from ...utils.deprecation import deprecated
+from ...internal.utils.deprecation import deprecated
 
 
 @deprecated(message="Use patching instead (see the docs).", version="1.0.0")

@@ -3,10 +3,10 @@ import requests
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import get_env
 from ...pin import Pin
-from ...utils.formats import asbool
-from ...utils.formats import get_env
-from ...utils.wrappers import unwrap as _u
+from ..trace_utils import unwrap as _u
 from .connection import _wrap_send
 from .legacy import _distributed_tracing
 from .legacy import _distributed_tracing_setter

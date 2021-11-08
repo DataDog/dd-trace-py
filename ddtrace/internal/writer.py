@@ -21,12 +21,12 @@ from . import compat
 from . import periodic
 from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
+from ..internal.utils.formats import asbool
+from ..internal.utils.formats import get_env
+from ..internal.utils.formats import parse_tags_str
+from ..internal.utils.time import StopWatch
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
-from ..utils.formats import asbool
-from ..utils.formats import get_env
-from ..utils.formats import parse_tags_str
-from ..utils.time import StopWatch
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from .agent import get_connection

@@ -62,7 +62,7 @@ Configuration
 .. __: https://asgi.readthedocs.io/
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = []

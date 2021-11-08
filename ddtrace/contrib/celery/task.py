@@ -1,4 +1,4 @@
-from ...utils.deprecation import deprecation
+from ...internal.utils.deprecation import deprecation
 from .app import patch_app
 
 

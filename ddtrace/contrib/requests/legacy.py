@@ -2,7 +2,7 @@
 # that will be removed in newer versions of the Tracer.
 from ddtrace import config
 
-from ...utils.deprecation import deprecation
+from ...internal.utils.deprecation import deprecation
 
 
 def _distributed_tracing(self):
