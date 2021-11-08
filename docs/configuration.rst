@@ -206,7 +206,7 @@ below:
        .. _dd-profiling-heap-enabled:
    * - ``DD_PROFILING_HEAP_ENABLED``
      - Boolean
-     - False
+     - True
      - Whether to enable the heap memory profiler.
 
        .. _dd-profiling-capture-pct:
