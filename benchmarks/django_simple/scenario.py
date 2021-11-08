@@ -3,8 +3,8 @@ import utils
 
 
 class DjangoSimple(bm.Scenario):
-    tracer_enabled = bm.var(type=bool)
-    profiler_enabled = bm.var(type=bool)
+    tracer_enabled = bm.bool()
+    profiler_enabled = bm.bool()
 
     def run(self):
         with utils.server(self) as get_response:
