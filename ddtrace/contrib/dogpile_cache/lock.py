@@ -1,7 +1,7 @@
 import dogpile
 
+from ...internal.utils.formats import asbool
 from ...pin import Pin
-from ...utils.formats import asbool
 
 
 def _wrap_lock_ctor(func, instance, args, kwargs):

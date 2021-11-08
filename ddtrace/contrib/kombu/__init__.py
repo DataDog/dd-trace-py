@@ -32,7 +32,7 @@ without the whole trace being dropped.
     Pin.override(producer, service='kombu-consumer')
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["kombu", "kombu.messaging"]

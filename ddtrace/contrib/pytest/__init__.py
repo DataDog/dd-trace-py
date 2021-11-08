@@ -43,7 +43,7 @@ Global Configuration
 
 from ddtrace import config
 
-from ...utils.formats import get_env
+from ...internal.utils.formats import get_env
 
 
 # pytest default settings

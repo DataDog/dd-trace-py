@@ -74,7 +74,7 @@ def collect(tracer):
 
     packages_available = {p.project_name: p.version for p in pkg_resources.working_set}
     integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
-    for module, enabled in ddtrace.monkey.PATCH_MODULES.items():
+    for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.
         module_available = module in packages_available

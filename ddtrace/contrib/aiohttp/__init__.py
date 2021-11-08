@@ -47,7 +47,7 @@ to the ``request`` object, so that it can be used in the application code::
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["aiohttp"]

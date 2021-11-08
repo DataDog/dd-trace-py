@@ -19,7 +19,7 @@ Only supports tracing for the synchronous client.
     Pin.override(client, service='consul-kv')
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["consul"]

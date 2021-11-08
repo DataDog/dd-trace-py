@@ -10,9 +10,9 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import sql
 from ...internal.logger import get_logger
+from ...internal.utils import ArgumentError
+from ...internal.utils import get_argument_value
 from ...pin import Pin
-from ...utils import ArgumentError
-from ...utils import get_argument_value
 from ...vendor import wrapt
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped

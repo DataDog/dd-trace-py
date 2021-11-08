@@ -3,8 +3,8 @@ import bottle
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-from ...utils.formats import asbool
-from ...utils.formats import get_env
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import get_env
 from .trace import TracePlugin
 
 

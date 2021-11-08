@@ -44,7 +44,7 @@ Example::
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["falcon"]
