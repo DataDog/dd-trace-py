@@ -52,7 +52,7 @@ To configure the mariadb integration on an per-connection basis use the
     cursor.execute("SELECT 6*7 AS the_answer;")
 
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["mariadb"]

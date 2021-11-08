@@ -3,7 +3,7 @@ import aiohttp_jinja2
 from ddtrace import Pin
 
 from ...ext import SpanTypes
-from ...utils import get_argument_value
+from ...internal.utils import get_argument_value
 
 
 def _trace_render_template(func, module, args, kwargs):

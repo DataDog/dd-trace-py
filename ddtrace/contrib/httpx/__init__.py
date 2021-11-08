@@ -77,7 +77,7 @@ To configure particular ``httpx`` client instances use the :ref:`Pin<Pin>` API::
 
 .. __: https://www.python-httpx.org/
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["httpx"]

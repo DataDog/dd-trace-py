@@ -38,7 +38,7 @@ threads:
       current active ``Context`` so that generated traces in the new task are
       attached to the main trace
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["asyncio"]

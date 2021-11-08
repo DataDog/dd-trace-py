@@ -6,10 +6,10 @@ from ddtrace import config
 
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...internal.utils.importlib import func_name
 from ...pin import Pin
-from ...utils.importlib import func_name
-from ...utils.wrappers import unwrap as _u
-from ...vendor.wrapt import wrap_function_wrapper as _w
+from ..trace_utils import unwrap as _u
+from ..trace_utils import wrap as _w
 from .constants import DEFAULT_TEMPLATE_NAME
 
 

@@ -6,8 +6,8 @@ from typing import DefaultDict
 from typing import Tuple
 from typing import cast
 
-from ..utils.deprecation import deprecation
-from ..utils.formats import get_env
+from ..internal.utils.deprecation import deprecation
+from ..internal.utils.formats import get_env
 
 
 def get_logger(name):

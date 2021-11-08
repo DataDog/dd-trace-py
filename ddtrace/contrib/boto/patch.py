@@ -12,7 +12,7 @@ from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
-from ...utils import get_argument_value
+from ...internal.utils import get_argument_value
 
 
 # Original boto client class

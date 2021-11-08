@@ -53,7 +53,7 @@ To configure the integration on an per-connection basis use the
     cursor = db.cursor()
     cursor.execute("select * from users where id = 1")
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["pyodbc"]
