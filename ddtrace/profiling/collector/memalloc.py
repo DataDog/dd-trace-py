@@ -56,7 +56,7 @@ def _get_default_heap_sample_size(
     if heap_sample_size is not None:
         return int(heap_sample_size)
 
-    if not formats.asbool(os.environ.get("DD_PROFILING_HEAP_ENABLED", "0")):
+    if not formats.asbool(os.environ.get("DD_PROFILING_HEAP_ENABLED", "1")):
         return 0
 
     try:
