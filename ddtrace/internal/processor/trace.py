@@ -72,7 +72,6 @@ class TraceSamplingProcessor(TraceProcessor):
 class TraceTopLevelSpanProcessor(TraceProcessor):
     """Processor marks spans as top level"""
 
-
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         """Mark a span in a trace as top level if:
