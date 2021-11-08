@@ -8,7 +8,7 @@ from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.compat import NumericType
 from .internal.logger import get_logger
-from .utils.deprecation import deprecated
+from .internal.utils.deprecation import deprecated
 
 
 if TYPE_CHECKING:

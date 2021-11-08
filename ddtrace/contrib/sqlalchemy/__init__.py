@@ -15,7 +15,7 @@ using the patch method that **must be called before** importing sqlalchemy::
     # Use a PIN to specify metadata related to this engine
     Pin.override(engine, service='replica-db')
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["sqlalchemy", "sqlalchemy.event"]

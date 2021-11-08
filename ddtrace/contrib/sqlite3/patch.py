@@ -1,17 +1,15 @@
-# 3p
 import sqlite3
 import sqlite3.dbapi2
 
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-# project
 from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
 from ...contrib.dbapi import TracedCursor
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import get_env
 from ...pin import Pin
-from ...utils.formats import asbool
-from ...utils.formats import get_env
 
 
 # Original connect method

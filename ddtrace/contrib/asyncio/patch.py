@@ -4,7 +4,7 @@ import sys
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ...utils.wrappers import unwrap as _u
+from ..trace_utils import unwrap as _u
 from .wrappers import wrapped_create_task
 
 

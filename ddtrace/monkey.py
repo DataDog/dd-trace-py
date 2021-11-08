@@ -14,7 +14,7 @@ from ._monkey import get_patched_modules  # noqa
 from ._monkey import patch  # noqa
 from ._monkey import patch_all  # noqa
 from ._monkey import patch_module  # noqa
-from .utils.deprecation import deprecation
+from .internal.utils.deprecation import deprecation
 
 
 deprecation(

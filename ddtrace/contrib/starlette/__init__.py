@@ -73,7 +73,7 @@ Example::
     config.starlette['request_span_name'] = 'custom-request-span-name'
 
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["starlette"]

@@ -50,7 +50,7 @@ Global Configuration
 
    Default: ``False``
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 from .patch import patch
 from .patch import unpatch
 

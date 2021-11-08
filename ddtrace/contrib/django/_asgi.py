@@ -4,7 +4,7 @@ Module providing async hooks. Do not import this module unless using Python >= 3
 from ddtrace.contrib.asgi import span_from_scope
 
 from .. import trace_utils
-from ...utils import get_argument_value
+from ...internal.utils import get_argument_value
 from .utils import REQUEST_DEFAULT_RESOURCE
 from .utils import _after_request_tags
 from .utils import _before_request_tags
