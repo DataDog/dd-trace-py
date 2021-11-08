@@ -1253,6 +1253,18 @@ venv = Venv(
             },
         ),
         Venv(
+            name="yaaredis",
+            pys=select_pys(min_version="3.6"),
+            command="pytest {cmdargs} tests/contrib/yaaredis",
+            pkgs={
+                "pytest-asyncio": latest,
+                "yaaredis": [
+                    "~=2.0.0",
+                    latest,
+                ],
+            },
+        ),
+        Venv(
             name="snowflake",
             command="pytest {cmdargs} tests/contrib/snowflake",
             pkgs={

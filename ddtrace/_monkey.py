@@ -71,6 +71,7 @@ PATCH_MODULES = {
     "pyodbc": True,
     "fastapi": True,
     "dogpile_cache": True,
+    "yaaredis": True,
 }
 
 _LOCK = threading.Lock()
