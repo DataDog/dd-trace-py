@@ -626,13 +626,15 @@ def test_collect_gevent_thread_hub():
                 pytest.fail("Task with no name detected, is it the Hub?")
             else:
                 main_thread_found = True
-        elif event.task_id in {t.ident for t in threads} and event.frames[0][2] in (
-            "_nothing",
-            "sleep",
-        ):
-            # Make sure we capture the sleep call and not a gevent hub frame
-            sleep_task_found = True
+        elif event.task_id in {t.ident for t in threads}:
+            for filename, lineno, funcname in event.frames:
+                if funcname in (
+                    "_nothing",
+                    "sleep",
+                ):
+                    # Make sure we capture the sleep call and not a gevent hub frame
+                    sleep_task_found = True
+                    break
 
-    # Make sure we did at least one check
-    assert main_thread_found, events
-    assert sleep_task_found, events
+    assert main_thread_found
+    assert sleep_task_found
