@@ -72,6 +72,8 @@ class TraceSamplingProcessor(TraceProcessor):
 class TraceTopLevelSpanProcessor(TraceProcessor):
     """Processor marks spans as top level"""
 
+    counter = 0
+
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         """Mark a span in a trace as top level if:
@@ -84,6 +86,9 @@ class TraceTopLevelSpanProcessor(TraceProcessor):
         """
 
         span_ids = {span.span_id for span in trace}
+        print(trace)
+        print(TraceTopLevelSpanProcessor.counter)
+        TraceTopLevelSpanProcessor.counter += 1
         for span in trace:
             if span is span._local_root:
                 span.set_metric("_dd.top_level", 1)

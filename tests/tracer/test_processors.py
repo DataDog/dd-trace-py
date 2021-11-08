@@ -5,6 +5,7 @@ import mock
 import pytest
 
 from ddtrace import Span
+from ddtrace import Tracer
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import TraceProcessor
@@ -219,73 +220,68 @@ def test_aggregator_partial_flush_2_spans():
     assert writer.pop() == [parent]
 
 
+def test_trace_top_level_span_processor_partial_flushing():
+    """Parent span and child span have the same service name"""
+    tracer = Tracer()
+    tracer.configure(
+        partial_flush_enabled=True,
+        partial_flush_min_spans=2,
+    )
+
+    with tracer.trace("parent") as parent:
+        with tracer.trace("1") as child1:
+            pass
+        with tracer.trace("2") as child2:
+            pass
+        with tracer.trace("3") as child3:
+            pass
+
+    # child spans 1 and 2 were partial flushed WITHOUT the parent span in the trace chunk
+    assert child1.get_metric("_dd.top_level") == 0
+    assert child2.get_metric("_dd.top_level") == 0
+
+    # child span 3 was partial flushed WITH the parent span in the trace chunk
+    assert "_dd.top_level" not in child3.metrics
+    assert parent.get_metric("_dd.top_level") == 1
+
+
 def test_trace_top_level_span_processor_same_service_name():
     """Parent span and child span have the same service name"""
-    trace_processors = TraceTopLevelSpanProcessor()
-    parent = Span(None, "parent", service="service")
-    parent._local_root = parent
 
-    child = Span(None, "child", service="service")
-    child.parent_id = parent.span_id
-    child._parent = parent
-    child._local_root = parent
+    tracer = Tracer()
+    with tracer.trace("parent", service="top_level_test") as parent:
+        with tracer.trace("child") as child:
+            pass
 
-    trace_processors.process_trace([parent, child])
-    # parent span should be set to top_level
-    # child span should not contain top_level metric
     assert parent.get_metric("_dd.top_level") == 1
     assert "_dd.top_level" not in child.metrics
 
 
 def test_trace_top_level_span_processor_different_service_name():
     """Parent span and child span have the different service names"""
-    trace_processors = TraceTopLevelSpanProcessor()
-    parent = Span(None, "parent", service="service")
-    parent._local_root = parent
 
-    child = Span(None, "child", service="new_service_name")
-    child.parent_id = parent.span_id
-    child._parent = parent
-    child._local_root = parent
+    tracer = Tracer()
+    with tracer.trace("parent", service="top_level_test_service") as parent:
+        with tracer.trace("child", service="top_level_test_service2") as child:
+            pass
 
-    trace_processors.process_trace([parent, child])
-    # child span should be set to top_level
     assert parent.get_metric("_dd.top_level") == 1
     assert child.get_metric("_dd.top_level") == 1
 
 
 def test_trace_top_level_span_processor_orphan_span():
     """Trace chuck does not contain parent span"""
-    trace_processors = TraceTopLevelSpanProcessor()
-    parent = Span(None, "span_not_in_trace", service="service")
-    parent._local_root = parent
 
-    orphan_span = Span(None, "orphan_span", service="service")
-    orphan_span._parent = parent
-    orphan_span._local_root = parent
-    orphan_span.parent_id = orphan_span._parent.span_id
+    tracer = Tracer()
+    with tracer.trace("parent") as parent:
+        with tracer.trace("orphan span") as orphan_span:
+            orphans_parent = Span(None, "span_wo_parent_span_obj")
+            orphan_span._parent = orphans_parent
+            orphan_span._local_root = orphans_parent
+            orphan_span.parent_id = orphans_parent.span_id
 
-    trace_processors.process_trace([orphan_span])
     # top_level in orphan_span should be explicitly set to zero/false
     assert orphan_span.get_metric("_dd.top_level") == 0
-
-
-def test_trace_top_level_span_processor_no_parent_span_object():
-    """Parent span and child span have the different service names and Span._parent is None"""
-    trace_processors = TraceTopLevelSpanProcessor()
-    parent = Span(None, "span_not_in_trace", service="service")
-    parent._local_root = parent
-
-    span_wo_parent_span_obj = Span(None, "span_wo_parent_span_obj", service="new_service_name")
-    span_wo_parent_span_obj.parent_id = parent.span_id
-    span_wo_parent_span_obj._local_root = parent
-    span_wo_parent_span_obj._parent = None
-
-    trace_processors.process_trace([span_wo_parent_span_obj])
-    # Even though the service name of the child is different from the parent we are not
-    # able to validate this during execution (Span._parent is None).
-    # In this case top_level is set to false.
-    assert span_wo_parent_span_obj.get_metric("_dd.top_level") == 0
 
 
 def test_trace_top_level_span_processor_trace_return_val():
