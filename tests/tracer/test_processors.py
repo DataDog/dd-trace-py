@@ -223,7 +223,6 @@ def test_aggregator_partial_flush_2_spans():
 def test_trace_top_level_span_processor_partial_flushing():
     """Parent span and child span have the same service name"""
     tracer = Tracer()
-
     tracer.configure(
         partial_flush_enabled=True,
         partial_flush_min_spans=2,
@@ -251,7 +250,7 @@ def test_trace_top_level_span_processor_same_service_name():
     """Parent span and child span have the same service name"""
 
     tracer = Tracer()
-    tracer.writer = DummyWriter()
+    tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test") as parent:
         with tracer.trace("child") as child:
@@ -265,7 +264,7 @@ def test_trace_top_level_span_processor_different_service_name():
     """Parent span and child span have the different service names"""
 
     tracer = Tracer()
-    tracer.writer = DummyWriter()
+    tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent", service="top_level_test_service") as parent:
         with tracer.trace("child", service="top_level_test_service2") as child:
@@ -279,7 +278,7 @@ def test_trace_top_level_span_processor_orphan_span():
     """Trace chuck does not contain parent span"""
 
     tracer = Tracer()
-    tracer.writer = DummyWriter()
+    tracer.configure(writer=DummyWriter())
 
     with tracer.trace("parent") as parent:
         pass
