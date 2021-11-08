@@ -273,7 +273,7 @@ def test_trace_top_level_span_processor_orphan_span():
     """Trace chuck does not contain parent span"""
 
     tracer = Tracer()
-    with tracer.trace("parent") as parent:
+    with tracer.trace("parent"):
         with tracer.trace("orphan span") as orphan_span:
             orphans_parent = Span(None, "span_wo_parent_span_obj")
             orphan_span._parent = orphans_parent
