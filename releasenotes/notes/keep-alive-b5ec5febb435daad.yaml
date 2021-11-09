@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Trace HTTP connections to the agent will now use http keep-alive.

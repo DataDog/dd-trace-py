@@ -38,7 +38,11 @@ from .sma import SimpleMovingAverage
 
 
 if TYPE_CHECKING:
+    from typing import Dict
+
     from ddtrace import Span
+
+    from .agent import ConnectionType
 
 
 log = get_logger(__name__)
@@ -292,6 +296,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
+        self._conn = None  # type: Optional[ConnectionType]
         self._retry_upload = tenacity.Retrying(
             # Retry RETRY_ATTEMPTS times within the first half of the processing
             # interval, using a Fibonacci policy with jitter
@@ -355,12 +360,22 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         )
 
     def _put(self, data, headers):
-        conn = get_connection(self.agent_url, self._timeout)
+        # type: (bytes, Dict[str, str]) -> Response
+        if self._conn is None:
+            self._conn = get_connection(self.agent_url, self._timeout)
+
+        headers["Connection"] = "keep-alive"
 
         with StopWatch() as sw:
             try:
-                conn.request("PUT", self._endpoint, data, headers)
-                resp = compat.get_connection_response(conn)
+                self._conn.request("PUT", self._endpoint, data, headers)
+            except Exception:
+                # Close the connection and reset it to None on error.
+                self._conn.close()
+                self._conn = None
+                raise
+            else:
+                resp = compat.get_connection_response(self._conn)
                 t = sw.elapsed()
                 if t >= self.interval:
                     log_level = logging.WARNING
@@ -368,8 +383,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     log_level = logging.DEBUG
                 log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._agent_endpoint)
                 return Response.from_http_response(resp)
-            finally:
-                conn.close()
 
     def _downgrade(self, payload, response):
         if self._endpoint == "v0.5/traces":
@@ -548,4 +561,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         super(AgentWriter, self)._stop_service()
         self.join(timeout=timeout)
 
-    on_shutdown = periodic
+    def on_shutdown(self):
+        self.periodic()
+        if self._conn:
+            self._conn.close()
+            self._conn = None
