@@ -1,10 +1,10 @@
 from ._scenario import Scenario
 from ._scenario import var
-from ._scenario import var_bool as bool
+from ._scenario import var_bool
 
 
 __all__ = [
     "var",
-    "bool",
+    "var_bool",
     "Scenario",
 ]
