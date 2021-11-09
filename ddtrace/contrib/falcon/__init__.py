@@ -18,7 +18,7 @@ You can also use the autopatching functionality::
     app = falcon.API()
 
 To disable distributed tracing when using autopatching, set the
-``DATADOG_FALCON_DISTRIBUTED_TRACING`` environment variable to ``False``.
+``DD_FALCON_DISTRIBUTED_TRACING`` environment variable to ``False``.
 
 **Supported span hooks**
 
