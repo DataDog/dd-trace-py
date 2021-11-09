@@ -1,5 +1,4 @@
 import os
-
 # 3p
 import sqlite3
 import sqlite3.dbapi2
