@@ -59,7 +59,7 @@ class IntegrationConfig(AttrDict):
         analytics_enabled = asbool(_) if _ is not None else None
 
         analytics_sample_rate = float(
-            os.environ.get("DD_TRACE_%s_ANALYTICS_SAMPLE_RATE" % self.integration_name.upper(), default=1.0)
+            os.getenv("DD_TRACE_%s_ANALYTICS_SAMPLE_RATE" % self.integration_name.upper(), default=1.0)
         )
 
         return analytics_enabled, analytics_sample_rate
