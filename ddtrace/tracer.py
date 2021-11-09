@@ -149,9 +149,7 @@ class Tracer(object):
         pfe_default_value = False
         pfms_default_value = 500
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=pfe_default_value))
-        self._partial_flush_min_spans = int(
-            os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=pfms_default_value)
-        )
+        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=pfms_default_value))
 
         self._initialize_span_processors()
         self._hooks = _hooks.Hooks()

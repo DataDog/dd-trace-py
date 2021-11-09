@@ -60,16 +60,12 @@ def get_writer_buffer_size():
 
 def get_writer_max_payload_size():
     # type: () -> int
-    return int(
-        os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE)
-    )
+    return int(os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE))
 
 
 def get_writer_interval_seconds():
     # type: () -> float
-    return float(
-        os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL)
-    )
+    return float(os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL))
 
 
 def _human_size(nbytes):
