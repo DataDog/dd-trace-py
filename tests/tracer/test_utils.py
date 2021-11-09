@@ -1,5 +1,4 @@
 from functools import partial
-import os
 import typing
 import unittest
 import warnings
@@ -16,7 +15,6 @@ from ddtrace.utils.deprecation import deprecated
 from ddtrace.utils.deprecation import deprecation
 from ddtrace.utils.deprecation import format_message
 from ddtrace.utils.formats import asbool
-from ddtrace.utils.formats import get_env
 from ddtrace.utils.formats import parse_tags_str
 from ddtrace.utils.importlib import func_name
 from ddtrace.utils.version import parse_version
@@ -34,44 +32,6 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(asbool(""))
         self.assertTrue(asbool(True))
         self.assertFalse(asbool(False))
-
-    def test_get_env(self):
-        # ensure `get_env` returns a default value if environment variables
-        # are not set
-        value = get_env("django", "distributed_tracing")
-        self.assertIsNone(value)
-        value = get_env("django", "distributed_tracing", default=False)
-        self.assertFalse(value)
-
-    def test_get_env_long(self):
-        os.environ["DD_SOME_VERY_LONG_TEST_KEY"] = "1"
-        value = get_env("some", "very", "long", "test", "key", default="2")
-        assert value == "1"
-
-    def test_get_env_found(self):
-        # ensure `get_env` returns a value if the environment variable is set
-        os.environ["DD_REQUESTS_DISTRIBUTED_TRACING"] = "1"
-        value = get_env("requests", "distributed_tracing")
-        self.assertEqual(value, "1")
-
-    def test_get_env_found_legacy(self):
-        # ensure `get_env` returns a value if legacy environment variables
-        # are used, raising a Deprecation warning
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            os.environ["DATADOG_REQUESTS_DISTRIBUTED_TRACING"] = "1"
-            value = get_env("requests", "distributed_tracing")
-            self.assertEqual(value, "1")
-            self.assertEqual(len(w), 1)
-            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertTrue("Use `DD_` prefix instead" in str(w[-1].message))
-
-    def test_get_env_key_priority(self):
-        # ensure `get_env` use `DD_` with highest priority
-        os.environ["DD_REQUESTS_DISTRIBUTED_TRACING"] = "highest"
-        os.environ["DATADOG_REQUESTS_DISTRIBUTED_TRACING"] = "lowest"
-        value = get_env("requests", "distributed_tracing")
-        self.assertEqual(value, "highest")
 
     def test_deprecation_formatter(self):
         # ensure the formatter returns the proper message

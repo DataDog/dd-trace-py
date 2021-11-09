@@ -1,3 +1,5 @@
+import os
+
 # 3p
 import MySQLdb
 
@@ -10,7 +12,6 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ...ext import db
 from ...ext import net
 from ...utils.formats import asbool
-from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
 
 
@@ -18,7 +19,7 @@ config._add(
     "mysqldb",
     dict(
         _default_service="mysql",
-        trace_fetch_methods=asbool(get_env("mysqldb", "trace_fetch_methods", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 

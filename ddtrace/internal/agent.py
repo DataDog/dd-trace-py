@@ -3,7 +3,6 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace.internal.compat import parse
-from ddtrace.utils.formats import get_env
 
 from .http import HTTPConnection
 from .http import HTTPSConnection
@@ -43,7 +42,7 @@ def get_trace_port(default=DEFAULT_TRACE_PORT):
 
 def get_stats_port(default=DEFAULT_STATS_PORT):
     # type: (Union[T, int]) -> Union[T,int]
-    v = get_env("dogstatsd", "port", default=None)
+    v = os.getenv("DD_DOGSTATSD_PORT", default=None)
     if v is not None:
         return int(v)
     return default
@@ -51,7 +50,7 @@ def get_stats_port(default=DEFAULT_STATS_PORT):
 
 def get_trace_agent_timeout():
     # type: () -> float
-    return float(get_env("trace", "agent", "timeout", "seconds", default=DEFAULT_TIMEOUT))  # type: ignore[arg-type]
+    return float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", default=DEFAULT_TIMEOUT))  # type: ignore[arg-type]
 
 
 def get_trace_url():
@@ -81,7 +80,7 @@ def get_stats_url():
     user_supplied_host = get_stats_hostname(None) is not None
     user_supplied_port = get_stats_port(None) is not None
 
-    url = get_env("dogstatsd", "url", default=None)
+    url = os.getenv("DD_DOGSTATSD_URL", default=None)
 
     if not url:
         if user_supplied_host or user_supplied_port:

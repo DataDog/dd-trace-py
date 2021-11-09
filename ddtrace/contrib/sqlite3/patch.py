@@ -1,3 +1,5 @@
+import os
+
 # 3p
 import sqlite3
 import sqlite3.dbapi2
@@ -11,7 +13,6 @@ from ...contrib.dbapi import TracedConnection
 from ...contrib.dbapi import TracedCursor
 from ...pin import Pin
 from ...utils.formats import asbool
-from ...utils.formats import get_env
 
 
 # Original connect method
@@ -21,7 +22,7 @@ config._add(
     "sqlite",
     dict(
         _default_service="sqlite",
-        trace_fetch_methods=asbool(get_env("sqlite", "trace_fetch_methods", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_SQLITE_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 

@@ -4,6 +4,7 @@ Trace queries to aws api done via botocore client
 # 3p
 import base64
 import json
+import os
 
 import botocore.client
 
@@ -21,7 +22,6 @@ from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ...utils import get_argument_value
 from ...utils.formats import deep_getattr
-from ...utils.formats import get_env
 from ...utils.wrappers import unwrap
 
 
@@ -37,8 +37,8 @@ log = get_logger(__name__)
 config._add(
     "botocore",
     {
-        "distributed_tracing": get_env("botocore", "distributed_tracing", default=True),
-        "invoke_with_legacy_context": get_env("botocore", "invoke_with_legacy_context", default=False),
+        "distributed_tracing": os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True),
+        "invoke_with_legacy_context": os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False),
     },
 )
 

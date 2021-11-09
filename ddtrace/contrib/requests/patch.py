@@ -1,3 +1,5 @@
+import os
+
 import requests
 
 from ddtrace import config
@@ -5,7 +7,6 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...pin import Pin
 from ...utils.formats import asbool
-from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
 from .connection import _wrap_send
 from .legacy import _distributed_tracing
@@ -16,8 +17,8 @@ from .legacy import _distributed_tracing_setter
 config._add(
     "requests",
     {
-        "distributed_tracing": asbool(get_env("requests", "distributed_tracing", default=True)),
-        "split_by_domain": asbool(get_env("requests", "split_by_domain", default=False)),
+        "distributed_tracing": asbool(os.getenv("DD_REQUESTS_DISTRIBUTED_TRACING", default=True)),
+        "split_by_domain": asbool(os.getenv("DD_REQUESTS_SPLIT_BY_DOMAIN", default=False)),
         "_default_service": "requests",
     },
 )

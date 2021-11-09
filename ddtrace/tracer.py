@@ -17,7 +17,6 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
-from ddtrace.utils.deprecation import deprecation
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -59,12 +58,11 @@ from .sampler import RateSampler
 from .span import Span
 from .utils.deprecation import deprecated
 from .utils.formats import asbool
-from .utils.formats import get_env
 
 
 log = get_logger(__name__)
 
-debug_mode = asbool(get_env("trace", "debug", default=False))
+debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
 call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "true"))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
@@ -126,7 +124,7 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = asbool(get_env("trace", "enabled", default=True))
+        self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self.context_provider = DefaultContextProvider()
         self.sampler = DatadogSampler()  # type: BaseSampler
         self.priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
@@ -148,18 +146,11 @@ class Tracer(object):
             )
         self.writer = writer  # type: TraceWriter
 
-        # DD_TRACER_... should be deprecated after version 1.0.0 is released
         pfe_default_value = False
         pfms_default_value = 500
-        if "DD_TRACER_PARTIAL_FLUSH_ENABLED" in os.environ or "DD_TRACER_PARTIAL_FLUSH_MIN_SPANS" in os.environ:
-            deprecation("DD_TRACER_... use DD_TRACE_... instead", version="1.0.0")
-            pfe_default_value = asbool(get_env("tracer", "partial_flush_enabled", default=pfe_default_value))
-            pfms_default_value = int(
-                get_env("tracer", "partial_flush_min_spans", default=pfms_default_value)  # type: ignore[arg-type]
-            )
-        self._partial_flush_enabled = asbool(get_env("trace", "partial_flush_enabled", default=pfe_default_value))
+        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=pfe_default_value))
         self._partial_flush_min_spans = int(
-            get_env("trace", "partial_flush_min_spans", default=pfms_default_value)  # type: ignore[arg-type]
+            os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=pfms_default_value)  # type: ignore[arg-type]
         )
 
         self._initialize_span_processors()

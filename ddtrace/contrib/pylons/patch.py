@@ -1,3 +1,5 @@
+import os
+
 import pylons.wsgiapp
 
 from ddtrace import Pin
@@ -6,7 +8,6 @@ from ddtrace import tracer
 from ddtrace.vendor import wrapt
 
 from ...utils.formats import asbool
-from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
 from .middleware import PylonsTraceMiddleware
 
@@ -14,7 +15,7 @@ from .middleware import PylonsTraceMiddleware
 config._add(
     "pylons",
     dict(
-        distributed_tracing=asbool(get_env("pylons", "distributed_tracing", default=True)),
+        distributed_tracing=asbool(os.getenv("DD_PYLONS_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 

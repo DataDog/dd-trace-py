@@ -1,3 +1,5 @@
+import os
+
 # 3p
 import psycopg2
 from psycopg2.sql import Composable
@@ -11,7 +13,6 @@ from ddtrace.ext import sql
 from ddtrace.vendor import wrapt
 
 from ...utils.formats import asbool
-from ...utils.formats import get_env
 from ...utils.version import parse_version
 
 
@@ -19,7 +20,7 @@ config._add(
     "psycopg",
     dict(
         _default_service="postgres",
-        trace_fetch_methods=asbool(get_env("psycopg", "trace_fetch_methods", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 

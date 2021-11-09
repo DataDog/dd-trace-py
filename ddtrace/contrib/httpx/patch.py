@@ -1,3 +1,4 @@
+import os
 import typing
 
 import httpx
@@ -15,7 +16,6 @@ from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.utils import get_argument_value
 from ddtrace.utils.formats import asbool
-from ddtrace.utils.formats import get_env
 from ddtrace.utils.wrappers import unwrap as _u
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -27,8 +27,8 @@ if typing.TYPE_CHECKING:
 config._add(
     "httpx",
     {
-        "distributed_tracing": asbool(get_env("httpx", "distributed_tracing", default=True)),
-        "split_by_domain": asbool(get_env("httpx", "split_by_domain", default=False)),
+        "distributed_tracing": asbool(os.getenv("DD_HTTPX_DISTRIBUTED_TRACING", default=True)),
+        "split_by_domain": asbool(os.getenv("DD_HTTPX_SPLIT_BY_DOMAIN", default=False)),
     },
 )
 

@@ -4,6 +4,7 @@ Datadog trace code for cherrypy.
 
 # stdlib
 import logging
+import os
 
 # 3p
 import cherrypy
@@ -19,7 +20,6 @@ from .. import trace_utils
 from ...ext import SpanTypes
 from ...internal import compat
 from ...utils.formats import asbool
-from ...utils.formats import get_env
 
 
 log = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 config._add(
     "cherrypy",
     dict(
-        distributed_tracing=asbool(get_env("cherrypy", "distributed_tracing", default=True)),
+        distributed_tracing=asbool(os.getenv("DD_CHERRYPY_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 

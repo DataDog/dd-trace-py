@@ -1,3 +1,5 @@
+import os
+
 import urllib3
 
 from ddtrace import config
@@ -12,7 +14,6 @@ from ...propagation.http import HTTPPropagator
 from ...utils import ArgumentError
 from ...utils import get_argument_value
 from ...utils.formats import asbool
-from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
 
 
@@ -24,8 +25,8 @@ config._add(
     "urllib3",
     {
         "_default_service": "urllib3",
-        "distributed_tracing": asbool(get_env("urllib3", "distributed_tracing", default=True)),
-        "split_by_domain": asbool(get_env("urllib3", "split_by_domain", default=False)),
+        "distributed_tracing": asbool(os.getenv("DD_URLLIB3_DISTRIBUTED_TRACING", default=True)),
+        "split_by_domain": asbool(os.getenv("DD_URLLIB3_SPLIT_BY_DOMAIN", default=False)),
     },
 )
 

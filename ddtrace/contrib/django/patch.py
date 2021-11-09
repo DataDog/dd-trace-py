@@ -9,6 +9,7 @@ specific Django apps like Django Rest Framework (DRF).
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
+import os
 import sys
 
 from ddtrace import Pin
@@ -34,7 +35,6 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.utils.formats import asbool
-from ddtrace.utils.formats import get_env
 from ddtrace.vendor import wrapt
 
 from . import utils
@@ -47,20 +47,20 @@ config._add(
     "django",
     dict(
         _default_service="django",
-        cache_service_name=get_env("django", "cache_service_name") or "django",
-        database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
-        database_service_name=get_env("django", "database_service_name", default=""),
-        trace_fetch_methods=asbool(get_env("django", "trace_fetch_methods", default=False)),
+        cache_service_name=os.getenv("DD_DJANGO_CACHE_SERVICE_NAME", default="django"),
+        database_service_name_prefix=os.getenv("DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX", default=""),
+        database_service_name=os.getenv("DD_DJANGO_DATABASE_SERVICE_NAME", default=""),
+        trace_fetch_methods=asbool(os.getenv("DD_DJANGO_TRACE_FETCH_METHODS", default=False)),
         distributed_tracing_enabled=True,
-        instrument_middleware=asbool(get_env("django", "instrument_middleware", default=True)),
+        instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
         instrument_databases=True,
         instrument_caches=True,
         analytics_enabled=None,  # None allows the value to be overridden by the global config
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=True,
-        use_handler_resource_format=asbool(get_env("django", "use_handler_resource_format", default=False)),
-        use_legacy_resource_format=asbool(get_env("django", "use_legacy_resource_format", default=False)),
+        use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
+        use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
     ),
 )
 

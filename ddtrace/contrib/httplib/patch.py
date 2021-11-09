@@ -1,3 +1,4 @@
+import os
 import sys
 
 import six
@@ -15,7 +16,6 @@ from ...internal.logger import get_logger
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ...utils.formats import asbool
-from ...utils.formats import get_env
 from ...utils.wrappers import unwrap as _u
 
 
@@ -27,7 +27,7 @@ log = get_logger(__name__)
 config._add(
     "httplib",
     {
-        "distributed_tracing": asbool(get_env("httplib", "distributed_tracing", default=True)),
+        "distributed_tracing": asbool(os.getenv("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
     },
 )
 
