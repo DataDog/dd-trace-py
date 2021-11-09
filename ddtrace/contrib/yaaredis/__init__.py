@@ -46,7 +46,7 @@ To configure particular yaaredis instances use the :ref:`Pin<Pin>` API::
         await client.get("my-key")
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["yaaredis", "yaaredis.client"]

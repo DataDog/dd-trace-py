@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The heap profiler is now enabled by default.

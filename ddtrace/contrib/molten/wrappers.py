@@ -5,7 +5,7 @@ from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ... import Pin
-from ...utils.importlib import func_name
+from ...internal.utils.importlib import func_name
 
 
 MOLTEN_ROUTE = "molten.route"

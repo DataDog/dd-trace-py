@@ -18,7 +18,7 @@ To enable it, you must run ``patch_all(aiobotocore=True)``
     # This query generates a trace
     lambda_client.list_functions()
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["aiobotocore.client"]

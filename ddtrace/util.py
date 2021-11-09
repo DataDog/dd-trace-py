@@ -1,11 +1,11 @@
 # [Backward compatibility]: keep importing modules functions
-from .utils.deprecation import deprecated
-from .utils.deprecation import deprecation
-from .utils.formats import asbool
-from .utils.formats import deep_getattr
-from .utils.formats import get_env
-from .utils.wrappers import safe_patch
-from .utils.wrappers import unwrap
+from .internal.utils.deprecation import deprecated
+from .internal.utils.deprecation import deprecation
+from .internal.utils.formats import asbool
+from .internal.utils.formats import deep_getattr
+from .internal.utils.formats import get_env
+from .internal.utils.wrappers import safe_patch
+from .internal.utils.wrappers import unwrap
 
 
 deprecation(

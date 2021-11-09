@@ -1,8 +1,8 @@
 # [Backward compatibility]: keep importing modules functions
-from ..utils.deprecation import deprecation
-from ..utils.importlib import func_name
-from ..utils.importlib import module_name
-from ..utils.importlib import require_modules
+from ..internal.utils.deprecation import deprecation
+from ..internal.utils.importlib import func_name
+from ..internal.utils.importlib import module_name
+from ..internal.utils.importlib import require_modules
 
 
 deprecation(

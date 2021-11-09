@@ -58,7 +58,7 @@ To configure the integration on an per-connection basis use the
     cursor = conn.cursor()
     cursor.execute("SELECT current_version()")
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["snowflake.connector"]

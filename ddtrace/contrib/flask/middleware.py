@@ -12,8 +12,8 @@ from ...ext import SpanTypes
 from ...ext import http
 from ...internal import compat
 from ...internal.logger import get_logger
-from ...utils.cache import cached
-from ...utils.deprecation import deprecated
+from ...internal.utils.cache import cached
+from ...internal.utils.deprecation import deprecated
 
 
 log = get_logger(__name__)

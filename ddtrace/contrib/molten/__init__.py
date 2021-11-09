@@ -34,7 +34,7 @@ Configuration
 :ref:`All HTTP tags <http-tagging>` are supported for this integration.
 
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["molten"]

@@ -83,9 +83,9 @@ from ddtrace import config
 
 from .. import trace_utils
 from ...ext import SpanTypes
+from ...internal.utils import get_argument_value
+from ...internal.utils.formats import asbool
 from ...propagation.http import HTTPPropagator
-from ...utils import get_argument_value
-from ...utils.formats import asbool
 
 
 __all__ = [

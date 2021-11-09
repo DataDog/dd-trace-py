@@ -2,8 +2,8 @@ from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor import wrapt
 
+from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
-from ...utils.wrappers import unwrap
 
 
 log = get_logger(__name__)

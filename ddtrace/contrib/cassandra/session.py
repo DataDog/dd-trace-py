@@ -3,10 +3,8 @@ Trace queries along a session to a cassandra cluster
 """
 import sys
 
-# 3p
 import cassandra.cluster
 
-# project
 from ddtrace import config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -19,10 +17,10 @@ from ...ext import net
 from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
 from ...internal.logger import get_logger
+from ...internal.utils import get_argument_value
+from ...internal.utils.deprecation import deprecated
+from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
-from ...utils import get_argument_value
-from ...utils.deprecation import deprecated
-from ...utils.formats import deep_getattr
 from ...vendor import wrapt
 
 

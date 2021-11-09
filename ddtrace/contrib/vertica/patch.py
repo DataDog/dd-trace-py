@@ -11,9 +11,9 @@ from ...ext import SpanTypes
 from ...ext import db as dbx
 from ...ext import net
 from ...internal.logger import get_logger
+from ...internal.utils import get_argument_value
+from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
-from ...utils import get_argument_value
-from ...utils.wrappers import unwrap
 from .constants import APP
 
 

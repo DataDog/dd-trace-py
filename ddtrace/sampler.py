@@ -22,7 +22,7 @@ from .internal.compat import iteritems
 from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
-from .utils.formats import get_env
+from .internal.utils.formats import get_env
 
 
 try:

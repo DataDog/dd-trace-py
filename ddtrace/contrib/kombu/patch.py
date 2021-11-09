@@ -10,11 +10,11 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import kombu as kombux
+from ...internal.utils import get_argument_value
+from ...internal.utils.formats import get_env
+from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
-from ...utils import get_argument_value
-from ...utils.formats import get_env
-from ...utils.wrappers import unwrap
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
 from .utils import extract_conn_tags

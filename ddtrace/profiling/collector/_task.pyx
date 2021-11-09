@@ -1,4 +1,4 @@
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 
 from . import _threading

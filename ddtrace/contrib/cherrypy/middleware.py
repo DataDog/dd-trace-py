@@ -1,15 +1,11 @@
 """
 Datadog trace code for cherrypy.
 """
-
-# stdlib
 import logging
 
-# 3p
 import cherrypy
 from cherrypy.lib.httputil import valid_status
 
-# project
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -18,8 +14,8 @@ from ddtrace.constants import ERROR_TYPE
 from .. import trace_utils
 from ...ext import SpanTypes
 from ...internal import compat
-from ...utils.formats import asbool
-from ...utils.formats import get_env
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import get_env
 
 
 log = logging.getLogger(__name__)

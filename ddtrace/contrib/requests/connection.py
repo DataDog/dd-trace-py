@@ -8,8 +8,8 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
+from ...internal.utils import get_argument_value
 from ...propagation.http import HTTPPropagator
-from ...utils import get_argument_value
 
 
 log = get_logger(__name__)
