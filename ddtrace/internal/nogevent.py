@@ -38,8 +38,9 @@ thread_get_ident = get_original(six.moves._thread.__name__, "get_ident")
 Thread = get_original("threading", "Thread")
 Lock = get_original("threading", "Lock")
 
+is_threading_patched = is_module_patched("threading")
 
-if is_module_patched("threading"):
+if is_threading_patched:
 
     @attr.s
     class DoubleLock(object):
@@ -75,7 +76,7 @@ else:
     DoubleLock = threading.Lock  # type:  ignore[misc,assignment]
 
 
-if is_module_patched("threading"):
+if is_threading_patched:
     # NOTE: bold assumption: this module is always imported by the MainThread.
     # The python `threading` module makes that assumption and it's beautiful we're going to do the same.
     # We don't have the choice has we can't access the original MainThread
