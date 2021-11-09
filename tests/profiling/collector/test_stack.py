@@ -15,7 +15,6 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event as event_mod
 from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
-from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import stack
 
@@ -70,7 +69,7 @@ def test_collect_once():
     stack_events = all_events[0]
     for e in stack_events:
         if e.thread_name == "MainThread":
-            if TESTING_GEVENT and _task._gevent_tracer is not None:
+            if TESTING_GEVENT:
                 assert e.task_id > 0
                 assert e.task_name == e.thread_name
             else:
@@ -95,7 +94,7 @@ def _fib(n):
         return _fib(n - 1) + _fib(n - 2)
 
 
-@pytest.mark.skipif(_task._gevent_tracer is None, reason="gevent tasks not supported")
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 def test_collect_gevent_thread_task():
     r = recorder.Recorder()
     s = stack.StackCollector(r)
@@ -163,7 +162,7 @@ class CollectorTest(collector.PeriodicCollector):
         return []
 
 
-@pytest.mark.skipif(_task._gevent_tracer is None, reason="gevent tasks not supported")
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 @pytest.mark.parametrize("ignore", (True, False))
 def test_ignore_profiler_gevent_task(monkeypatch, ignore):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
@@ -329,7 +328,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 323, "test_exception_collection")]
+    assert e.frames == [(__file__, 322, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -352,7 +351,7 @@ def test_exception_collection_trace(tracer):
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 346, "test_exception_collection_trace")]
+    assert e.frames == [(__file__, 345, "test_exception_collection_trace")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
@@ -597,7 +596,7 @@ def test_thread_time_cache():
         )
 
 
-@pytest.mark.skipif(_task._gevent_tracer is None, reason="gevent tasks not supported")
+@pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
 def test_collect_gevent_thread_hub():
     # type: (...) -> None
     r = recorder.Recorder()
@@ -605,9 +604,9 @@ def test_collect_gevent_thread_hub():
 
     # Start some greenthreads: they do nothing we just keep switching between them.
     def _nothing():
-        for _ in range(10000):
+        for _ in range(100):
             # Do nothing and just switch to another greenlet
-            time.sleep(0)
+            time.sleep(0.01)
 
     threads = []
     with s:
@@ -619,24 +618,23 @@ def test_collect_gevent_thread_hub():
             t.join()
 
     main_thread_found = False
-    for event in r.events[stack.StackSampleEvent]:
+    sleep_task_found = False
+    events = r.events[stack.StackSampleEvent]
+    for event in events:
         if event.task_id == compat.main_thread.ident:
             if event.task_name is None:
                 pytest.fail("Task with no name detected, is it the Hub?")
             else:
                 main_thread_found = True
         elif event.task_id in {t.ident for t in threads}:
-            # Make sure we capture the sleep call and not a gevent hub frame
-            assert event.frames[0][2] in (
-                "_nothing",
-                "sleep",
-                "get_ident",
-                "__bootstrap_inner",
-                "_bootstrap_inner",
-                "switch",
-                "run",
-                "notify",
-            )
+            for filename, lineno, funcname in event.frames:
+                if funcname in (
+                    "_nothing",
+                    "sleep",
+                ):
+                    # Make sure we capture the sleep call and not a gevent hub frame
+                    sleep_task_found = True
+                    break
 
-    # Make sure we did at least one check
     assert main_thread_found
+    assert sleep_task_found

@@ -185,7 +185,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Tests a connection error results in error spans with proper exc info"""
         retries = 3
         try:
-            self.http.request("GET", "http://fakesubdomain." + SOCKET, retries=retries)
+            self.http.request("GET", "http://localhost:9999", retries=retries)
         except Exception:
             pass
         else:

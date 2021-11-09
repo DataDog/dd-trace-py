@@ -44,7 +44,7 @@ Use a specific ``Cache`` implementation with::
 
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["flask_cache", "flask_caching"]

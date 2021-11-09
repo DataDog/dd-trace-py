@@ -45,7 +45,7 @@ To configure particular redis instances use the :ref:`Pin<Pin>` API::
     client.get("my-key")
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["redis", "redis.client"]

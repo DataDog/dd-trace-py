@@ -10,8 +10,8 @@ from ...ext import SpanTypes
 from ...ext import elasticsearch as metadata
 from ...ext import http
 from ...internal.compat import urlencode
+from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
-from ...utils.wrappers import unwrap as _u
 from .quantize import quantize
 
 

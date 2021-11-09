@@ -4,9 +4,9 @@ from ddtrace import config
 from ddtrace import tracer
 from ddtrace.vendor import wrapt
 
-from ...utils.formats import asbool
-from ...utils.formats import get_env
-from ...utils.version import parse_version
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import get_env
+from ...internal.utils.version import parse_version
 from .middleware import TraceMiddleware
 
 

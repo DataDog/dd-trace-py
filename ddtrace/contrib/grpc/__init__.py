@@ -75,7 +75,7 @@ To configure the gRPC integration on the server use the ``Pin`` API::
 """
 
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["grpc"]

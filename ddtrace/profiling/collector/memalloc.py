@@ -13,11 +13,11 @@ try:
 except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
+from ddtrace.internal.utils import attr as attr_utils
+from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _threading
-from ddtrace.utils import attr as attr_utils
-from ddtrace.utils import formats
 
 
 LOG = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ def _get_default_heap_sample_size(
     if heap_sample_size is not None:
         return int(heap_sample_size)
 
-    if not formats.asbool(os.environ.get("DD_PROFILING_HEAP_ENABLED", "0")):
+    if not formats.asbool(os.environ.get("DD_PROFILING_HEAP_ENABLED", "1")):
         return 0
 
     try:

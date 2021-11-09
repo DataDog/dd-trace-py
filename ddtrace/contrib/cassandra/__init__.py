@@ -21,7 +21,7 @@
     session = cluster.connect("my_keyspace")
     session.execute("select id from my_table limit 10;")
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["cassandra.cluster"]

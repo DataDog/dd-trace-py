@@ -3,9 +3,9 @@ from typing import Optional
 from typing import Tuple
 
 from .._hooks import Hooks
-from ..utils.attrdict import AttrDict
-from ..utils.formats import asbool
-from ..utils.formats import get_env
+from ..internal.utils.attrdict import AttrDict
+from ..internal.utils.formats import asbool
+from ..internal.utils.formats import get_env
 from .http import HttpConfig
 
 

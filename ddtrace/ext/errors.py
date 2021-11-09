@@ -7,8 +7,8 @@ import traceback
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.utils.deprecation import deprecated
-from ddtrace.utils.deprecation import deprecation
+from ddtrace.internal.utils.deprecation import deprecated
+from ddtrace.internal.utils.deprecation import deprecation
 
 
 __all__ = [ERROR_MSG, ERROR_TYPE, ERROR_STACK]

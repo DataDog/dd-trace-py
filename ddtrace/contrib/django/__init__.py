@@ -146,7 +146,7 @@ Example::
 
 .. __: https://www.djangoproject.com/
 """  # noqa: E501
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["django"]

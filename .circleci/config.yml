@@ -809,6 +809,16 @@ jobs:
           docker_services: 'redis'
           pattern: 'aredis$'
           snapshot: true
+
+  yaaredis:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'yaaredis$'
+          snapshot: true
+
   redis:
     <<: *machine_executor
     parallelism: 4
@@ -985,6 +995,7 @@ requires_tests: &requires_tests
     - pyramid
     - pytest
     - aredis
+    - yaaredis
     - redis
     - rediscluster
     - requests
@@ -1069,6 +1080,7 @@ workflows:
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
       - aredis: *requires_base_venvs
+      - yaaredis: *requires_base_venvs
       - redis: *requires_base_venvs
       - rediscluster: *requires_base_venvs
       - requests: *requires_base_venvs

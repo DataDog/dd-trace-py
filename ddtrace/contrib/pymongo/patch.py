@@ -10,8 +10,8 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import mongo as mongox
-from ...utils.deprecation import deprecated
-from ...utils.wrappers import unwrap as _u
+from ...internal.utils.deprecation import deprecated
+from ..trace_utils import unwrap as _u
 from .client import TracedMongoClient
 from .client import set_address_tags
 

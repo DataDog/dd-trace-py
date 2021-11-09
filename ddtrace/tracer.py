@@ -17,10 +17,11 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
-from ddtrace.utils.deprecation import deprecation
+from ddtrace.internal.utils.deprecation import deprecation
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
+from ._monkey import patch
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
@@ -46,10 +47,12 @@ from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
 from .internal.runtime import get_runtime_id
+from .internal.utils.deprecation import deprecated
+from .internal.utils.formats import asbool
+from .internal.utils.formats import get_env
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
-from .monkey import patch
 from .provider import DefaultContextProvider
 from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
@@ -57,9 +60,6 @@ from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
-from .utils.deprecation import deprecated
-from .utils.formats import asbool
-from .utils.formats import get_env
 
 
 log = get_logger(__name__)
