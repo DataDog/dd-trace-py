@@ -182,7 +182,7 @@ class DatadogSampler(BasePrioritySampler):
         if rate_limit is None:
             rate_limit = int(
                 os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT)
-            )  # type: ignore[arg-type]
+            )
 
         # Ensure rules is a list
         if rules is None:

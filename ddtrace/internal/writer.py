@@ -55,20 +55,20 @@ DEFAULT_PROCESSING_INTERVAL = 1.0
 
 def get_writer_buffer_size():
     # type: () -> int
-    return int(os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE))  # type: ignore[arg-type]
+    return int(os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE))
 
 
 def get_writer_max_payload_size():
     # type: () -> int
     return int(
-        os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE)  # type: ignore[arg-type]
+        os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE)
     )
 
 
 def get_writer_interval_seconds():
     # type: () -> float
     return float(
-        os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL)  # type: ignore[arg-type]
+        os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL)
     )
 
 

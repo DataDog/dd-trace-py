@@ -50,7 +50,7 @@ def get_stats_port(default=DEFAULT_STATS_PORT):
 
 def get_trace_agent_timeout():
     # type: () -> float
-    return float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", default=DEFAULT_TIMEOUT))  # type: ignore[arg-type]
+    return float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", default=DEFAULT_TIMEOUT))
 
 
 def get_trace_url():
