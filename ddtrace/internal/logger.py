@@ -6,8 +6,6 @@ from typing import DefaultDict
 from typing import Tuple
 from typing import cast
 
-from ..utils.deprecation import deprecation
-
 
 def get_logger(name):
     # type: (str) -> DDLogger
