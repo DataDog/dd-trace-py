@@ -8,7 +8,7 @@ class Encoder(bm.Scenario):
     ntags = bm.var(type=int)
     ltags = bm.var(type=int)
     nmetrics = bm.var(type=int)
-    dd_origin = bm.var(type=bool)
+    dd_origin = bm.var_bool()
     encoding = bm.var(type=str)
 
     def run(self):

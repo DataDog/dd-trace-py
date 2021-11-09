@@ -5,8 +5,14 @@ import attr
 import pyperf
 import six
 
+from ._to_bool import to_bool
+
 
 var = attr.ib
+
+
+def var_bool(*args, **kwargs):
+    return attr.ib(*args, **kwargs, converter=to_bool)
 
 
 def _register(scenario_cls):
