@@ -3,8 +3,8 @@ import utils
 
 
 class FlaskSimple(bm.Scenario):
-    tracer_enabled = bm.var(type=bool)
-    profiler_enabled = bm.var(type=bool)
+    tracer_enabled = bm.var_bool()
+    profiler_enabled = bm.var_bool()
 
     def run(self):
         with utils.server(self) as get_response:
