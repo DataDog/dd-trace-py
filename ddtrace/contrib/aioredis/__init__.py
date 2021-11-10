@@ -26,7 +26,7 @@ Global Configuration
    This option can also be set with the ``DD_AIOREDIS_SERVICE`` environment
    variable.
 
-   Default: ``"aioredis"``
+   Default: ``"redis"``
 
 
 Instance Configuration
