@@ -70,7 +70,17 @@ class TraceSamplingProcessor(TraceProcessor):
 
 @attr.s
 class TraceTopLevelSpanProcessor(TraceProcessor):
-    """Processor marks spans as top level"""
+    """Processor marks spans as top level
+    
+    A span is "top level" if it is the first span in a trace (root span), 
+    the first span wrapping a service (span.service != parent.service), 
+    or it is the top-most span created within a process (local root). 
+    
+    The "top level" metric will be used by the agent to calculate trace metrics 
+    and determine how spans should be displaced in the UI. If this metric is not 
+    set by the tracer the first span in a trace chunk will be marked as top level.
+    
+    """
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
