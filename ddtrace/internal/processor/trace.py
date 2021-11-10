@@ -59,6 +59,9 @@ class TraceSamplingProcessor(TraceProcessor):
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
+            if trace[0]._context.sampling_priority <= 0:
+                return None
+
             for span in trace:
                 if span.sampled:
                     return trace
