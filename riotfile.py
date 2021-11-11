@@ -272,7 +272,7 @@ venv = Venv(
         Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
-            pkgs={"pytest": "~=3.10"},
+            pkgs={"pytest": "~=3.10", "more_itertools": "<8.11.0"},
             venvs=[
                 # Non-4.x celery should be able to use the older redis lib, since it locks to an older kombu
                 Venv(
@@ -282,7 +282,6 @@ venv = Venv(
                     pkgs={
                         "celery": "~=3.0",  # most recent 3.x.x release
                         "redis": "~=2.10.6",
-                        "more_itertools": "<8.11.0",
                     },
                 ),
                 # 4.x celery bumps kombu to 4.4+, which requires redis 3.2 or later, this tests against
@@ -356,6 +355,7 @@ venv = Venv(
         Venv(
             name="cherrypy",
             command="python -m pytest {cmdargs} tests/contrib/cherrypy",
+            pkgs={"more_itertools": "<8.11.0"},
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -369,7 +369,6 @@ venv = Venv(
                             ">=16,<17",
                             ">=17,<18",
                         ],
-                        "more_itertools": "<8.11.0",
                     },
                 ),
                 Venv(
