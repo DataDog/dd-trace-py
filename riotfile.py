@@ -700,6 +700,7 @@ venv = Venv(
                         "Flask-Cache": ["~=0.12.0"],
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
+                        "more_itertools": "<8.11.0",
                     },
                 ),
                 Venv(
@@ -710,6 +711,7 @@ venv = Venv(
                         "Flask-Cache": ["~=0.13.0", latest],
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
+                        "more_itertools": "<8.11.0",
                     },
                 ),
                 Venv(
