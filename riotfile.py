@@ -608,14 +608,13 @@ venv = Venv(
         Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
-            pkgs={"blinker": latest, "more_itertools": "<8.11.0"},
+            pkgs={"blinker": latest,"pytest": "~=3.0", "more_itertools": "<8.11.0"},
             venvs=[
                 # Flask == 0.12.0
                 Venv(
                     pys=select_pys(),
                     pkgs={
                         "flask": ["~=0.12.0"],
-                        "pytest": "~=3.0",
                     },
                 ),
                 Venv(
@@ -627,7 +626,6 @@ venv = Venv(
                     },
                     pkgs={
                         "flask": ["~=0.12.0"],
-                        "pytest": "~=3.0",
                     },
                 ),
                 # Flask 1.x.x
