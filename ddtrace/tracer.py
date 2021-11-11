@@ -133,6 +133,7 @@ class Tracer(object):
         self.sampler = DatadogSampler()  # type: BaseSampler
         self.priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self._compute_stats = config._compute_stats
 
         if self._use_log_writer() and url is None:
             writer = LogWriter()  # type: TraceWriter
@@ -147,6 +148,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
+                compute_stats_enabled=self._compute_stats,
             )
         self.writer = writer  # type: TraceWriter
 
@@ -300,6 +302,7 @@ class Tracer(object):
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
         api_version=None,  # type: Optional[str]
+        compute_stats_enabled=None,
     ):
         # type: (...) -> None
         """
@@ -378,6 +381,9 @@ class Tracer(object):
             # get the URL from.
             url = None  # type: ignore
 
+        if compute_stats_enabled is not None:
+            self._compute_stats = compute_stats_enabled
+
         try:
             self.writer.stop()
         except service.ServiceStatusError:
@@ -397,12 +403,14 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
+                compute_stats_enabled=self._compute_stats,
             )
         elif writer is None and isinstance(self.writer, LogWriter):
             # No need to do anything for the LogWriter.
             pass
         if isinstance(self.writer, AgentWriter):
             self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
+
         self._initialize_span_processors()
 
         if context_provider is not None:
@@ -674,8 +682,9 @@ class Tracer(object):
                 trace_processors=trace_processors,
                 writer=self.writer,
             ),
-            SpanStatsProcessor(self.writer.agent_url),
         ]  # type: List[SpanProcessor]
+        if self._compute_stats:
+            self._span_processors.append(SpanStatsProcessor(self.writer.agent_url))
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

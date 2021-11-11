@@ -237,6 +237,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]
+        compute_stats_enabled=False,  # type: bool
     ):
         # type: (...) -> None
         # Pre-conditions:
@@ -268,6 +269,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 "Unsupported api version: '%s'. The supported versions are: %r"
                 % (self._api_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
             )
+
+        self._compute_stats = compute_stats_enabled
 
         self._endpoint = "%s/traces" % self._api_version
 
@@ -393,6 +396,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
         headers["X-Datadog-Trace-Count"] = str(count)
+        if self._compute_stats:
+            headers["Datadog-Client-Computed-Stats"] = "yes"
 
         self._metrics_dist("http.requests")
 
