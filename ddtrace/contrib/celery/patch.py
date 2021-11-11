@@ -4,6 +4,7 @@ import celery
 
 from ddtrace import config
 import ddtrace.internal.forksafe as forksafe
+from ddtrace.utils.formats import asbool
 
 from .app import patch_app
 from .app import unpatch_app
@@ -18,7 +19,7 @@ forksafe._soft = True
 config._add(
     "celery",
     {
-        "distributed_tracing": os.getenv("DD_CELERY_DISTRIBUTED_TRACING", default=False),
+        "distributed_tracing": asbool(os.getenv("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
         "producer_service_name": os.getenv("DD_CELERY_PRODUCER_SERVICE_NAME", default=PRODUCER_SERVICE),
         "worker_service_name": os.getenv("DD_CELERY_WORKER_SERVICE_NAME", default=WORKER_SERVICE),
     },

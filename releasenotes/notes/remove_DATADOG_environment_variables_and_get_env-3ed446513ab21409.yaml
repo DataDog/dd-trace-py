@@ -1,3 +1,4 @@
-deprecations:
+---
+upgrade:
   - |
     The tracer will no longer accept any environment variables prefixed with `DATADOG_`. All environment variables should be updated to start with `DD_` which is the correct prefix.

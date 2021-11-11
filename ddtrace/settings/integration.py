@@ -43,7 +43,9 @@ class IntegrationConfig(AttrDict):
         analytics_enabled, analytics_sample_rate = self._get_analytics_settings()
         self.setdefault("analytics_enabled", analytics_enabled)
         self.setdefault("analytics_sample_rate", float(analytics_sample_rate))
-        service = os.getenv("DD_" + name + "_" + "SERVICE", os.getenv("DD_" + name + "_" + "SERVICE_NAME", default=None))
+        service = os.getenv(
+            "DD_" + name + "_" + "SERVICE", os.getenv("DD_" + name + "_" + "SERVICE_NAME", default=None)
+        )
         self.setdefault("service", service)
         # TODO[v1.0]: this is required for backwards compatibility since some
         # integrations use service_name instead of service. These should be
