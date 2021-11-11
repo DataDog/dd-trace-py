@@ -14,6 +14,9 @@ from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
 
+from ...constants import AUTO_REJECT
+from ...constants import USER_REJECT
+
 
 log = get_logger(__name__)
 
@@ -56,11 +59,18 @@ class TraceSamplingProcessor(TraceProcessor):
     parts of the trace are unsampled when the whole trace should be sampled.
     """
 
+    def __init__(self, compute_stats_enabled):
+        # type: (bool) -> None
+        self._compute_stats_enabled = compute_stats_enabled
+
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
-            if trace[0]._context.sampling_priority <= 0:
-                return None
+            # When stats computation is enabled in the tracer then we can
+            # safely drop the traces.
+            if self._compute_stats_enabled:
+                if trace[0]._context.sampling_priority in (AUTO_REJECT, USER_REJECT):
+                    return None
 
             for span in trace:
                 if span.sampled:

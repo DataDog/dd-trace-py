@@ -671,8 +671,9 @@ class Tracer(object):
         # type: () -> None
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
-        trace_processors += [TraceSamplingProcessor()]
-        trace_processors += [TraceTopLevelSpanProcessor()]
+        trace_processors += [TraceSamplingProcessor(self._compute_stats)]
+        if not self._compute_stats:
+            trace_processors += [TraceTopLevelSpanProcessor()]
         trace_processors += self._filters
 
         self._span_processors = [
