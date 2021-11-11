@@ -608,13 +608,15 @@ venv = Venv(
         Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
-            pkgs={"blinker": latest,"pytest": "~=3.0", "more_itertools": "<8.11.0"},
+            pkgs={"blinker": latest},
             venvs=[
                 # Flask == 0.12.0
                 Venv(
                     pys=select_pys(),
                     pkgs={
                         "flask": ["~=0.12.0"],
+                        "pytest": "~=3.0",
+                        "more_itertools": "<8.11.0",
                     },
                 ),
                 Venv(
@@ -624,9 +626,7 @@ venv = Venv(
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
                     },
-                    pkgs={
-                        "flask": ["~=0.12.0"],
-                    },
+                    pkgs={"flask": ["~=0.12.0"], "pytest": "~=3.0", "more_itertools": "<8.11.0"},
                 ),
                 # Flask 1.x.x
                 Venv(
