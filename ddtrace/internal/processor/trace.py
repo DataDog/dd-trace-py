@@ -72,9 +72,8 @@ class TraceSamplingProcessor(TraceProcessor):
 class TraceTopLevelSpanProcessor(TraceProcessor):
     """Processor marks spans as top level
 
-    A span is "top level" if it is the first span in a trace (root span),
-    the first span wrapping a service (span.service != parent.service),
-    or it is the top-most span created within a process (local root).
+    A span is top level when it is the entrypoint method for a request to a service.
+    Top level span and service entry span are equivalent terms
 
     The "top level" metric will be used by the agent to calculate trace metrics
     and determine how spans should be displaced in the UI. If this metric is not
