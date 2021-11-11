@@ -14,9 +14,6 @@ from ..agent import get_connection
 from ..compat import get_connection_response
 from ..logger import get_logger
 from ..periodic import PeriodicService
-from ..stats_pb2 import ClientGroupedStats
-from ..stats_pb2 import ClientStatsBucket
-from ..stats_pb2 import ClientStatsPayload
 
 
 if typing.TYPE_CHECKING:
@@ -90,24 +87,6 @@ class _StatsBucket(object):
         self._start = start
         self._duration = duration
         self.stats = defaultdict(lambda: SpanStats())  # type: DefaultDict[SpanAggrKey, SpanStats]
-
-    def to_proto(self):
-        # type: () -> ClientStatsBucket
-        pb_bucket = ClientStatsBucket(self._start, self._duration)
-        pb_stats = []
-        for aggr_key, stats in self.stats.items():
-            name, service, resource, _type, http_status, synthetics = aggr_key
-            pb_stat = ClientGroupedStats()
-            pb_stat.service = service
-            pb_stat.name = name
-            pb_stat.resource = resource
-            pb_stat.HTTP_status_code = http_status
-            pb_stat.DB_type = _type
-            # TODO: sketch -> pb
-            pb_stats.append(pb_stat)
-
-        pb_bucket.stats = pb_stats
-        return pb_bucket
 
     def to_dict(self):
         # type: () -> Dict
