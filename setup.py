@@ -1,9 +1,11 @@
 import os
 import platform
+import subprocess
 import sys
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
+from setuptools.command.build_ext import build_ext as BuildExtCommand
 
 # ORDER MATTERS
 # Import this after setuptools or it will fail
@@ -64,6 +66,17 @@ class Tox(TestCommand):
             args = shlex.split(self.tox_args)
         errno = tox.cmdline(args=args)
         sys.exit(errno)
+
+
+class CMake(BuildExtCommand):
+    def build_extension(self, ext):
+        for source in ext.sources:
+            source_dir = os.path.dirname(source)
+            if os.path.exists(os.path.join(source_dir, "CMakeLists.txt")):
+                build_dir = os.path.join(self.build_temp, ext.name)
+                subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir])
+                subprocess.check_call(["cmake", "--build", build_dir])
+        return BuildExtCommand.build_extension(self, ext)
 
 
 long_description = """
@@ -182,7 +195,7 @@ setup(
     },
     # plugin tox
     tests_require=["tox", "flake8"],
-    cmdclass={"test": Tox},
+    cmdclass={"build_ext": CMake, "test": Tox},
     entry_points={
         "console_scripts": [
             "ddtrace-run = ddtrace.commands.ddtrace_run:main",
@@ -249,6 +262,11 @@ setup(
                 "ddtrace.profiling._build",
                 sources=["ddtrace/profiling/_build.pyx"],
                 language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.appsec._ddwaf",
+                sources=["ddtrace/appsec/_ddwaf.pyx"],
+                language="c++",
             ),
         ],
         compile_time_env={
