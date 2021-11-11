@@ -282,6 +282,7 @@ venv = Venv(
                     pkgs={
                         "celery": "~=3.0",  # most recent 3.x.x release
                         "redis": "~=2.10.6",
+                        "more_itertools": "<8.11.0",
                     },
                 ),
                 # 4.x celery bumps kombu to 4.4+, which requires redis 3.2 or later, this tests against
@@ -368,6 +369,7 @@ venv = Venv(
                             ">=16,<17",
                             ">=17,<18",
                         ],
+                        "more_itertools": "<8.11.0",
                     },
                 ),
                 Venv(
@@ -607,9 +609,7 @@ venv = Venv(
         Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
-            pkgs={
-                "blinker": latest,
-            },
+            pkgs={"blinker": latest, "more_itertools": "<8.11.0"},
             venvs=[
                 # Flask == 0.12.0
                 Venv(
@@ -1013,7 +1013,7 @@ venv = Venv(
                 Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
-                    pkgs={"pytest": ">=4.0,<4.6", "msgpack": latest},
+                    pkgs={"pytest": ">=4.0,<4.6", "msgpack": latest, "more_itertools": "<8.11.0"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
