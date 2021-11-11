@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Configure a writer thread in a child process after forking based on writer configuration from its parent process.
