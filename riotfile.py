@@ -272,7 +272,7 @@ venv = Venv(
         Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
-            pkgs={"pytest": "~=3.10"},
+            pkgs={"pytest": "~=3.10", "more_itertools": "<8.11.0"},
             venvs=[
                 # Non-4.x celery should be able to use the older redis lib, since it locks to an older kombu
                 Venv(
@@ -368,12 +368,14 @@ venv = Venv(
                             ">=16,<17",
                             ">=17,<18",
                         ],
+                        "more_itertools": "<8.11.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
                     pkgs={
                         "cherrypy": [">=18.0,<19", latest],
+                        "more_itertools": "<8.11.0",
                     },
                 ),
             ],
@@ -607,9 +609,7 @@ venv = Venv(
         Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
-            pkgs={
-                "blinker": latest,
-            },
+            pkgs={"blinker": latest},
             venvs=[
                 # Flask == 0.12.0
                 Venv(
@@ -617,6 +617,7 @@ venv = Venv(
                     pkgs={
                         "flask": ["~=0.12.0"],
                         "pytest": "~=3.0",
+                        "more_itertools": "<8.11.0",
                     },
                 ),
                 Venv(
@@ -626,10 +627,7 @@ venv = Venv(
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
                     },
-                    pkgs={
-                        "flask": ["~=0.12.0"],
-                        "pytest": "~=3.0",
-                    },
+                    pkgs={"flask": ["~=0.12.0"], "pytest": "~=3.0", "more_itertools": "<8.11.0"},
                 ),
                 # Flask 1.x.x
                 Venv(
@@ -702,6 +700,7 @@ venv = Venv(
                         "Flask-Cache": ["~=0.12.0"],
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
+                        "more_itertools": "<8.11.0",
                     },
                 ),
                 Venv(
@@ -712,6 +711,7 @@ venv = Venv(
                         "Flask-Cache": ["~=0.13.0", latest],
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
+                        "more_itertools": "<8.11.0",
                     },
                 ),
                 Venv(
@@ -1026,6 +1026,7 @@ venv = Venv(
                             latest,
                         ],
                         "msgpack": latest,
+                        "more_itertools": "<8.11.0",
                     },
                 ),
             ],
