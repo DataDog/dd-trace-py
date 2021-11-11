@@ -355,7 +355,6 @@ venv = Venv(
         Venv(
             name="cherrypy",
             command="python -m pytest {cmdargs} tests/contrib/cherrypy",
-            pkgs={"more_itertools": "<8.11.0"},
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -369,12 +368,14 @@ venv = Venv(
                             ">=16,<17",
                             ">=17,<18",
                         ],
+                        "more_itertools": "<8.11.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
                     pkgs={
                         "cherrypy": [">=18.0,<19", latest],
+                        "more_itertools": "<8.11.0",
                     },
                 ),
             ],
