@@ -46,6 +46,7 @@ from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
+from .internal.processor.trace import TraceTopLevelSpanProcessor
 from .internal.runtime import get_runtime_id
 from .internal.utils.deprecation import deprecated
 from .internal.utils.formats import asbool
@@ -663,6 +664,7 @@ class Tracer(object):
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor()]
+        trace_processors += [TraceTopLevelSpanProcessor()]
         trace_processors += self._filters
 
         self._span_processors = [
