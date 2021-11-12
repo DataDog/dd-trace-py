@@ -61,8 +61,8 @@ SpanAggrKey = typing.Tuple[
 ]
 
 
-class SpanStats(object):
-    """ """
+class SpanAggrStats(object):
+    """Aggregated span statistics."""
 
     def __init__(self):
         self.hits = 0
@@ -71,40 +71,6 @@ class SpanStats(object):
         self.duration = 0
         self.ok_distribution = LogCollapsingLowestDenseDDSketch(0.00775, offset=1.8761281912861705, bin_limit=2048)
         self.err_distribution = LogCollapsingLowestDenseDDSketch(0.00775, offset=1.8761281912861705, bin_limit=2048)
-
-    def to_dict(self, aggr_key):
-        # type: (SpanAggrKey) -> Dict
-        name, service, resource, _type, http_status, synthetics = aggr_key
-        return {
-            "name": name,
-            "service": service,
-            "resource": resource,
-            "DB_type": _type,
-            "HTTP_status_code": http_status,
-            "synthetics": synthetics,
-            "hits": self.hits,
-            "topLevelHits": self.top_level_hits,
-            "duration": self.duration,
-            "errors": self.errors,
-            "okSummary": DDSketchProto.to_proto(self.ok_distribution).SerializeToString(),
-            "errSummary": DDSketchProto.to_proto(self.err_distribution).SerializeToString(),
-        }
-
-
-class _StatsBucket(object):
-    def __init__(self, start, duration):
-        # type: (int, int) -> None
-        self._start = start
-        self._duration = duration
-        self.stats = defaultdict(lambda: SpanStats())  # type: DefaultDict[SpanAggrKey, SpanStats]
-
-    def to_dict(self):
-        # type: () -> Dict
-        return {
-            "start": self._start,
-            "duration": self._duration,
-            "stats": [stats.to_dict(aggr_key) for aggr_key, stats in self.stats.items()],
-        }
 
 
 def _span_aggr_key(span):
@@ -133,7 +99,9 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
         self._agent_url = agent_url
         self._timeout = timeout
         self._bucket_size_ns = int(10 * 10e9)  # type: int
-        self._buckets = {}  # type: Dict[int, _StatsBucket]
+        self._buckets = defaultdict(
+            lambda: defaultdict(SpanAggrStats)
+        )  # type: DefaultDict[int, DefaultDict[SpanAggrKey, SpanAggrStats]]
         self._endpoint = "/v0.6/stats"
         self._connection = None  # type: Optional[ConnectionType]
         self._lock = threading.Lock()
@@ -149,16 +117,12 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
             return
 
         with self._lock:
+            # Align the span into the corresponding stats bucket
             span_end_ns = span.start_ns + span.duration_ns
-            # Align the span into the corresponding bucket.
             bucket_time_ns = span_end_ns - (span_end_ns % self._bucket_size_ns)
-            if bucket_time_ns in self._buckets:
-                bucket = self._buckets[bucket_time_ns]
-            else:
-                bucket = self._buckets[bucket_time_ns] = _StatsBucket(bucket_time_ns, self._bucket_size_ns)
-
             aggr_key = _span_aggr_key(span)
-            stats = bucket.stats[aggr_key]
+            stats = self._buckets[bucket_time_ns][aggr_key]
+
             stats.hits += 1
             stats.duration += span.duration_ns
             if is_top_level:
@@ -173,17 +137,49 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
     def _agent_endpoint(self):
         return "%s%s" % (self._agent_url, self._endpoint)
 
+    def _serialize_buckets(self):
+        # type: () -> List
+        serialized_buckets = []
+        for bucket_time_ns, bucket in self._buckets.items():
+            bucket_aggr_stats = []
+            for aggr_key, stat_aggr in bucket.items():
+                name, service, resource, _type, http_status, synthetics = aggr_key
+                bucket_aggr_stats.append(
+                    {
+                        "name": name,
+                        "service": service,
+                        "resource": resource,
+                        "DB_type": _type,
+                        "HTTP_status_code": http_status,
+                        "synthetics": synthetics,
+                        "hits": stat_aggr.hits,
+                        "topLevelHits": stat_aggr.top_level_hits,
+                        "duration": stat_aggr.duration,
+                        "errors": stat_aggr.errors,
+                        "okSummary": DDSketchProto.to_proto(stat_aggr.ok_distribution).SerializeToString(),
+                        "errSummary": DDSketchProto.to_proto(stat_aggr.err_distribution).SerializeToString(),
+                    }
+                )
+            serialized_buckets.append(
+                {
+                    "start": bucket_time_ns,
+                    "duration": self._bucket_size_ns,
+                    "stats": bucket_aggr_stats,
+                }
+            )
+        return serialized_buckets
+
     def periodic(self):
         # type: (...) -> None
         with self._lock:
-            stat_buckets = [bucket.to_dict() for bucket in self._buckets.values()]
-            self._buckets = {}
+            serialized_stats = self._serialize_buckets()
+            self._buckets = defaultdict(lambda: defaultdict(SpanAggrStats))
         payload = msgpack.packb(
             {
                 "hostname": config.report_hostname,
                 "env": config.env,
                 "version": config.version,
-                "stats": stat_buckets,
+                "stats": serialized_stats,
             },
             use_bin_type=True,
         )
@@ -192,7 +188,6 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
             self._connection = get_connection(self._agent_url, self._timeout)
             self._connection.request("PUT", self._endpoint, payload, headers)
             log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
-            print("sent %s to %s" % (_human_size(len(payload)), self._agent_endpoint))
         except Exception:
             log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
         else:
