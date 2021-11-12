@@ -70,12 +70,17 @@ class Tox(TestCommand):
 
 class CMake(BuildExtCommand):
     def build_extension(self, ext):
+        to_build = set()
         for source in ext.sources:
-            source_dir = os.path.dirname(source)
+            source_dir = os.path.dirname(os.path.realpath(source))
             if os.path.exists(os.path.join(source_dir, "CMakeLists.txt")):
-                build_dir = os.path.join(self.build_temp, ext.name)
-                subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir])
-                subprocess.check_call(["cmake", "--build", build_dir])
+                to_build.add(source_dir)
+
+        for idx, source_dir in enumerate(to_build):
+            build_dir = os.path.join(self.build_temp, "_".join([ext.name, str(idx)]))
+            subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir])
+            subprocess.check_call(["cmake", "--build", build_dir])
+
         return BuildExtCommand.build_extension(self, ext)
 
 
