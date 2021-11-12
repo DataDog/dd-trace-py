@@ -596,7 +596,6 @@ class Tracer(object):
                         # If dropped by the local sampler, distributed instrumentation can drop it too.
                         context.sampling_priority = AUTO_REJECT
             else:
-                context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
 
