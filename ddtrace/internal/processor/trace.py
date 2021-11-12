@@ -59,9 +59,7 @@ class TraceSamplingProcessor(TraceProcessor):
     parts of the trace are unsampled when the whole trace should be sampled.
     """
 
-    def __init__(self, compute_stats_enabled):
-        # type: (bool) -> None
-        self._compute_stats_enabled = compute_stats_enabled
+    _compute_stats_enabled = attr.ib(type=bool)
 
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]

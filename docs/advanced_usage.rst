@@ -23,6 +23,19 @@ You can also use a Unix Domain Socket to connect to the agent::
     tracer.configure(uds_path="/path/to/socket")
 
 
+
+.. _sampling:
+
+Sampling
+--------
+
+something something performance
+
+something something kinds of sampling
+
+something something stats computation
+
+
 .. _context:
 
 
@@ -747,4 +760,3 @@ API
 
 .. toctree::
    :maxdepth: 2
-   
