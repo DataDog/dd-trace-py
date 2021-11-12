@@ -88,7 +88,7 @@ services:
         - DD_BIND_HOST=0.0.0.0
         - DD_API_KEY=${DD_API_KEY-invalid_but_this_is_fine}
       ports:
-        - "127.0.0.1:8126:8126"
+        - "127.0.0.1:7126:8126"
     ddagent:
         image: datadog/agent:latest
         environment:

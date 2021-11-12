@@ -368,40 +368,14 @@ jobs:
           store_coverage: false
           pattern: '^py.\+-profile'
 
-  integration_agent5:
-    <<: *machine_executor
-    steps:
-      - checkout
-      - run: docker-compose up -d ddagent5
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-v5'
-
   integration_agent:
     <<: *machine_executor
+    parallelism: 6
     steps:
-      - checkout
-      - run: docker-compose up -d ddagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-latest'
-
-  integration_testagent:
-    <<: *machine_executor
-    steps:
-      - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
-      - run:
-          environment:
-            DD_TRACE_AGENT_URL: http://localhost:9126
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
+      - run_test:
+          pattern: 'integration_agent'
+          snapshot: true
+          docker_services: "ddagent5 ddagent testagent"
 
   vendor:
     <<: *contrib_job_small
@@ -970,9 +944,7 @@ requires_tests: &requires_tests
     - grpc
     - httplib
     - httpx
-    - integration_agent5
     - integration_agent
-    - integration_testagent
     - vendor
     - profile
     - jinja2
@@ -1055,9 +1027,7 @@ workflows:
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
-      - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
-      - integration_testagent: *requires_base_venvs
       - vendor: *requires_base_venvs
       - profile: *requires_base_venvs
       - jinja2: *requires_base_venvs

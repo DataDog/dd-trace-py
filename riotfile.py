@@ -1314,6 +1314,32 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="integration_agent",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/integration/",
+            pkgs={"msgpack": latest},
+            venvs=[
+                Venv(
+                    env={
+                        "AGENT_VERSION": "latest",
+                    },
+                ),
+                Venv(
+                    env={
+                        "AGENT_VERSION": "v5",
+                        "DD_TRACE_AGENT_URL": "http://localhost:7126",
+                    },
+                ),
+                Venv(
+                    env={
+                        "AGENT_VERSION": "testagent",
+                        "SNAPSHOT_CI": "1",
+                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             pys=["3"],
             name="reno",
             pkgs={
