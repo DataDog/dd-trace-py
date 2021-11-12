@@ -303,6 +303,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         )
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
 
+    @property
+    def _agent_endpoint(self):
+        return "{}/{}".format(self.agent_url, self._endpoint)
+
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
         if tags:
@@ -358,7 +362,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self.agent_url)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._agent_endpoint)
                 return Response.from_http_response(resp)
             finally:
                 conn.close()
@@ -416,7 +420,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         elif response.status >= 400:
             msg = "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s"
             log_args = (
-                self.agent_url,
+                self._agent_endpoint,
                 response.status,
                 response.reason,
             )
@@ -513,7 +517,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 if raise_exc:
                     e.reraise()
                 else:
-                    log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
+                    log.error("failed to send traces to Datadog Agent at %s", self._agent_endpoint, exc_info=True)
             finally:
                 if self._report_metrics and self.dogstatsd:
                     # Note that we cannot use the batching functionality of dogstatsd because

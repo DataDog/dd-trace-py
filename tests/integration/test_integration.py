@@ -137,7 +137,11 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
         t.trace("client.testing").finish()
         t.shutdown()
     calls = [
-        mock.call("failed to send traces to Datadog Agent at %s", "unix:///tmp/ddagent/nosockethere", exc_info=True)
+        mock.call(
+            "failed to send traces to Datadog Agent at %s",
+            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.4"),
+            exc_info=True,
+        )
     ]
     log.error.assert_has_calls(calls)
 
@@ -270,7 +274,13 @@ def test_trace_bad_url(encoding, monkeypatch):
             pass
         t.shutdown()
 
-    calls = [mock.call("failed to send traces to Datadog Agent at %s", "http://bad:1111", exc_info=True)]
+    calls = [
+        mock.call(
+            "failed to send traces to Datadog Agent at %s",
+            "http://bad:1111/{}/traces".format(encoding if encoding else "v0.4"),
+            exc_info=True,
+        )
+    ]
     log.error.assert_has_calls(calls)
 
 
@@ -386,7 +396,7 @@ def test_bad_payload():
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
-            "http://localhost:8126",
+            "http://localhost:8126/v0.4",
             400,
             "Bad Request",
         )
@@ -419,7 +429,7 @@ def test_bad_payload_log_payload(monkeypatch):
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
-            "http://localhost:8126",
+            "http://localhost:8126/v0.4",
             400,
             "Bad Request",
             "6261645f7061796c6f6164",
@@ -463,7 +473,7 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
-            "http://localhost:8126",
+            "http://localhost:8126/v0.4",
             400,
             "Bad Request",
             "bad_payload",
@@ -554,7 +564,7 @@ def test_flush_log(caplog, encoding, monkeypatch):
                 "sent %s in %.5fs to %s",
                 AnyStr(),
                 AnyFloat(),
-                writer.agent_url,
+                "{}/{}/traces".format(writer.agent_url, encoding if encoding else "v0.5"),
             )
         ]
         log.log.assert_has_calls(calls)
