@@ -12,6 +12,7 @@ from . import SpanProcessor
 from ...constants import SPAN_MEASURED_KEY
 from ..agent import get_connection
 from ..compat import get_connection_response
+from ..compat import time_ns
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..writer import _human_size
@@ -19,7 +20,7 @@ from ..writer import _human_size
 
 if typing.TYPE_CHECKING:
     from typing import DefaultDict
-    from typing import Dict
+    from typing import List
     from typing import Optional
 
     from ddtrace import Span
@@ -98,7 +99,7 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
         self.start()
         self._agent_url = agent_url
         self._timeout = timeout
-        self._bucket_size_ns = int(10 * 10e9)  # type: int
+        self._bucket_size_ns = int(10 * 1e9)  # type: int
         self._buckets = defaultdict(
             lambda: defaultdict(SpanAggrStats)
         )  # type: DefaultDict[int, DefaultDict[SpanAggrKey, SpanAggrStats]]
@@ -139,9 +140,24 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
 
     def _serialize_buckets(self):
         # type: () -> List
+        """Serialize and update the buckets.
+
+        The current bucket is left in case any other spans are added.
+        """
         serialized_buckets = []
+        serialized_bucket_keys = []
+        now_ns = time_ns()
         for bucket_time_ns, bucket in self._buckets.items():
+            # TODO: have to be able to force these out on process shutdown
+            if bucket_time_ns > now_ns - self._bucket_size_ns:
+                # do not flush the current bucket
+                # DEV: is this actually required? Can a bucket not be reported twice?
+                #      What about spans `finished` with a custom end time (in the past)
+                #      after the bucket has been flushed?
+                continue
             bucket_aggr_stats = []
+            serialized_bucket_keys.append(bucket_time_ns)
+
             for aggr_key, stat_aggr in bucket.items():
                 name, service, resource, _type, http_status, synthetics = aggr_key
                 bucket_aggr_stats.append(
@@ -149,7 +165,7 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
                         "name": name,
                         "service": service,
                         "resource": resource,
-                        "DB_type": _type,
+                        "type": _type,  # DB_Type?
                         "HTTP_status_code": http_status,
                         "synthetics": synthetics,
                         "hits": stat_aggr.hits,
@@ -157,7 +173,7 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
                         "duration": stat_aggr.duration,
                         "errors": stat_aggr.errors,
                         "okSummary": DDSketchProto.to_proto(stat_aggr.ok_distribution).SerializeToString(),
-                        "errSummary": DDSketchProto.to_proto(stat_aggr.err_distribution).SerializeToString(),
+                        "errorSummary": DDSketchProto.to_proto(stat_aggr.err_distribution).SerializeToString(),
                     }
                 )
             serialized_buckets.append(
@@ -167,13 +183,18 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
                     "stats": bucket_aggr_stats,
                 }
             )
+
+        # Clear out buckets that have been serialized
+        for key in serialized_bucket_keys:
+            del self._buckets[key]
+
         return serialized_buckets
 
     def periodic(self):
         # type: (...) -> None
         with self._lock:
             serialized_stats = self._serialize_buckets()
-            self._buckets = defaultdict(lambda: defaultdict(SpanAggrStats))
+            print(serialized_stats)
         payload = msgpack.packb(
             {
                 "hostname": config.report_hostname,
@@ -187,7 +208,6 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
         try:
             self._connection = get_connection(self._agent_url, self._timeout)
             self._connection.request("PUT", self._endpoint, payload, headers)
-            log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
         except Exception:
             log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
         else:
@@ -200,6 +220,9 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
                     resp.status,
                     self._agent_endpoint,
                 )
+            else:
+                log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
+                print("sent %s to %s" % (_human_size(len(payload)), self._agent_endpoint))
         finally:
             self._connection.close()
 
