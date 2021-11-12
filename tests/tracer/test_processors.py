@@ -5,9 +5,11 @@ import mock
 import pytest
 
 from ddtrace import Span
+from ddtrace import Tracer
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import TraceProcessor
+from ddtrace.internal.processor.trace import TraceTopLevelSpanProcessor
 from tests.utils import DummyWriter
 
 
@@ -216,3 +218,85 @@ def test_aggregator_partial_flush_2_spans():
     assert writer.pop() == [child1, child2]
     parent.finish()
     assert writer.pop() == [parent]
+
+
+def test_trace_top_level_span_processor_partial_flushing():
+    """Parent span and child span have the same service name"""
+    tracer = Tracer()
+    tracer.configure(
+        partial_flush_enabled=True,
+        partial_flush_min_spans=2,
+        writer=DummyWriter(),
+    )
+
+    with tracer.trace("parent") as parent:
+        with tracer.trace("1") as child1:
+            pass
+        with tracer.trace("2") as child2:
+            pass
+        with tracer.trace("3") as child3:
+            pass
+
+    # child spans 1 and 2 were partial flushed WITHOUT the parent span in the trace chunk
+    assert child1.get_metric("_dd.top_level") == 0
+    assert child2.get_metric("_dd.top_level") == 0
+
+    # child span 3 was partial flushed WITH the parent span in the trace chunk
+    assert "_dd.top_level" not in child3.metrics
+    assert parent.get_metric("_dd.top_level") == 1
+
+
+def test_trace_top_level_span_processor_same_service_name():
+    """Parent span and child span have the same service name"""
+
+    tracer = Tracer()
+    tracer.configure(writer=DummyWriter())
+
+    with tracer.trace("parent", service="top_level_test") as parent:
+        with tracer.trace("child") as child:
+            pass
+
+    assert parent.get_metric("_dd.top_level") == 1
+    assert "_dd.top_level" not in child.metrics
+
+
+def test_trace_top_level_span_processor_different_service_name():
+    """Parent span and child span have the different service names"""
+
+    tracer = Tracer()
+    tracer.configure(writer=DummyWriter())
+
+    with tracer.trace("parent", service="top_level_test_service") as parent:
+        with tracer.trace("child", service="top_level_test_service2") as child:
+            pass
+
+    assert parent.get_metric("_dd.top_level") == 1
+    assert child.get_metric("_dd.top_level") == 1
+
+
+def test_trace_top_level_span_processor_orphan_span():
+    """Trace chuck does not contain parent span"""
+
+    tracer = Tracer()
+    tracer.configure(writer=DummyWriter())
+
+    with tracer.trace("parent") as parent:
+        pass
+
+    with tracer.start_span("orphan span", child_of=parent) as orphan_span:
+        pass
+
+    # top_level in orphan_span should be explicitly set to zero/false
+    assert orphan_span.get_metric("_dd.top_level") == 0
+
+
+def test_trace_top_level_span_processor_trace_return_val():
+    """TraceProcessor returns spans"""
+    trace_processors = TraceTopLevelSpanProcessor()
+    # Trace contains no spans
+    trace = []
+    assert trace_processors.process_trace(trace) == trace
+
+    trace = [Span(None, "span1"), Span(None, "span2"), Span(None, "span3")]
+    # Test return value contains all spans in the argument
+    assert trace_processors.process_trace(trace[:]) == trace

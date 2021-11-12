@@ -15,6 +15,7 @@
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "system.pid": 67067
@@ -37,6 +38,7 @@
          "runtime-id": "79fea89591ef49e8b01debfbbd52f789"
        },
        "metrics": {
+         "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
          "system.pid": 67074
