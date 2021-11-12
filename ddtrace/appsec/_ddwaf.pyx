@@ -2,18 +2,16 @@
 # distutils: library_dirs = ddtrace/appsec/lib
 # distutils: libraries = ddwaf
 
+import six
 import typing
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 
 from _libddwaf cimport (
     ddwaf_object,
     ddwaf_object_array,
-    ddwaf_object_array_add,
     ddwaf_object_invalid,
     ddwaf_object_map,
-    ddwaf_object_map_addl,
-    ddwaf_object_stringl,
-    ddwaf_object_free,
+    ddwaf_object_stringl_nc,
     ddwaf_version,
     ddwaf_get_version
 )
@@ -26,52 +24,70 @@ def version():
     return (version.major, version.minor, version.patch)
 
 
-cdef ddwaf_object* _alloc():
-    return <ddwaf_object *> PyMem_Malloc(sizeof(ddwaf_object))
-
-cdef void _dealloc(ddwaf_object *obj):
-    if obj != NULL:
-        ddwaf_object_free(obj)
-        PyMem_Free(obj)
-
-# TODO unicode
-cdef ddwaf_object* _convert(value):
-    obj = _alloc()
-    if obj == NULL:
-        return NULL
-    if isinstance(value, unicode):
-        value = value.encode("utf-8", errors="surrogatepass")
-    if isinstance(value, bytes):
-        ddwaf_object_stringl(obj, value, len(value))
-    elif isinstance(value, (list, tuple)):
-        ddwaf_object_array(obj);
-        for item in value:
-            item_obj = _convert(item)
-            ret = ddwaf_object_array_add(obj, item_obj)
-            if ret is False:
-                _dealloc(item_obj)
-    elif isinstance(value, dict):
-        ddwaf_object_map(obj)
-        for k, v in value.items():
-            item_obj = _convert(v)
-            if isinstance(k, unicode):
-                k = k.encode("utf-8", errors="surrogatepass")
-            if isinstance(k, bytes):
-                ret = ddwaf_object_map_addl(obj, k, len(k), item_obj)
-                if ret is False:
-                    _dealloc(item_obj)
-    else:
-        ddwaf_object_invalid(obj)
-    return obj
-
 cdef class _Wrapper:
     cdef ddwaf_object *_ptr
+    cdef public object _strings
+    cdef public ssize_t _size
+    cdef public ssize_t _next_idx
 
     def __cinit__(self, value):
-        self._ptr = _convert(value)
-        if self._ptr == NULL:
-            raise MemoryError
+        self._next_idx = 0
+        self._size = 0
+        self._strings = []
+        self._ptr = NULL
+        self._convert(self._reserve_obj(), value)
+
+    cdef ddwaf_object* _reserve_obj(self, ssize_t n=1):
+        cdef ssize_t idx, i
+        cdef ddwaf_object* ptr
+
+        idx = self._next_idx
+        ptr = self._ptr
+        if idx + n > self._size:
+            self._size += n + ((64 - (n % 64)) % 64)
+            ptr = <ddwaf_object *> PyMem_Realloc(self._ptr, self._size * sizeof(ddwaf_object))
+            if ptr == NULL:
+                raise MemoryError
+            self._ptr = ptr
+        self._next_idx += n
+        for i in range(n):
+            ddwaf_object_invalid(ptr + idx + i)
+        return ptr + idx
+
+    cdef void _convert(self, ddwaf_object* obj, value):
+        cdef ssize_t i
+
+        if isinstance(value, six.text_type):
+            value = value.encode("utf-8", errors="surrogatepass")
+
+        if isinstance(value, bytes):
+            self._strings.append(value)
+            ddwaf_object_stringl_nc(obj, value, len(value))
+
+        elif isinstance(value, (list, tuple)):
+            ddwaf_object_array(obj);
+            n = len(value)
+            items_obj = self._reserve_obj(n)
+            for i in range(n):
+                self._convert(items_obj + i, value[i])
+            obj.array = items_obj
+            obj.nbEntries = n
+
+        elif isinstance(value, dict):
+            ddwaf_object_map(obj)
+            n = len(value)
+            items_obj = self._reserve_obj(n)
+            for i, (k, v) in enumerate(six.iteritems(value)):
+                if isinstance(k, six.text_type):
+                    k = k.encode("utf-8", errors="surrogatepass")
+                if isinstance(k, bytes):
+                    item_obj = items_obj + i
+                    self._strings.append(k)
+                    item_obj.parameterName = k
+                    item_obj.parameterNameLength = len(k)
+                    self._convert(item_obj, v)
+            obj.array = items_obj
+            obj.nbEntries = n
 
     def __dealloc__(self):
-        _dealloc(self._ptr)
-        self._ptr = NULL
+        PyMem_Free(self._ptr)
