@@ -73,7 +73,7 @@ class TestTraceRejectedByAgent:
         calls = [
             mock.call(
                 "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
-                agent.get_trace_url(),
+                "{}/{}/traces".format(agent.get_trace_url(), "v0.4"),
                 400,
                 "Bad Request",
             )
