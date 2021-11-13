@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix Python exceptions during Trace encoding being ignored and creating invalid payloads.
