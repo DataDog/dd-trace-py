@@ -28,7 +28,7 @@ def get_containter_id():
 
 
 HOST = {
-    "os": platform.system(),
+    "os": platform.platform(aliased=1, terse=1),
     "hostname": get_hostname(),
     "os_version": platform.version(),
     "kernel_name": platform.system(),
