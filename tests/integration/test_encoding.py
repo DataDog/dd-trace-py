@@ -5,7 +5,6 @@ import mock
 import pytest
 
 from ddtrace import Tracer
-from ddtrace.internal import agent
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
