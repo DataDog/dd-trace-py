@@ -1,3 +1,5 @@
+import typing
+
 import attr
 
 
@@ -10,7 +12,7 @@ class Exporter(object):
     """Exporter base class."""
 
     def export(self, events, start_time_ns, end_time_ns):
-        # type: (...) -> None
+        # type: (...) -> typing.Any
         """Export events.
 
         :param events: List of events to export.

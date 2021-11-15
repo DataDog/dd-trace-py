@@ -16,6 +16,7 @@
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "system.pid": 4441
@@ -36,6 +37,7 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_dd.top_level": 1,
          "sql.rows": 1
        },
        "duration": 17785900,
@@ -59,6 +61,7 @@
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
+       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "system.pid": 4441
@@ -78,7 +81,8 @@
          "sql.db": "test.db"
        },
        "metrics": {
-         "_dd.measured": 1
+         "_dd.measured": 1,
+          "_dd.top_level": 1
        },
        "duration": 6997400,
        "start": 1632161674379481900
