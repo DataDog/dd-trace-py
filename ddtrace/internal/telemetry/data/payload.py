@@ -44,11 +44,10 @@ class AppStartedPayload(Payload):
         import pkg_resources
 
         dependencies = []
-        for pkg in pkg_resources.working_set:
-            dependency = create_dependency(pkg.project_name, pkg.version)  # type: Dependency
-            dependencies.append(dependency)
-
-        return dependencies
+        return [
+            create_dependency(pkg.project_name, pkg.version)
+            for pkg in pkg_resources.working_set
+        ]
 
     def to_dict(self):
         # type: () -> Dict
