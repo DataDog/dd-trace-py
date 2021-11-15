@@ -258,19 +258,18 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
         }
         self._timeout = timeout
-
-        encoding_version = (
+        self._api_version = (
             api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
         )
         try:
-            Encoder = MSGPACK_ENCODERS[encoding_version]
+            Encoder = MSGPACK_ENCODERS[self._api_version]
         except KeyError:
             raise ValueError(
-                "Unsupported encoding version: '%s'. The supported versions are: %r"
-                % (encoding_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
+                "Unsupported api version: '%s'. The supported versions are: %r"
+                % (self._api_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
             )
 
-        self._endpoint = "%s/traces" % encoding_version
+        self._endpoint = "%s/traces" % self._api_version
 
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:
@@ -337,14 +336,19 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def recreate(self):
         # type: () -> AgentWriter
-        writer = self.__class__(
+        return self.__class__(
             agent_url=self.agent_url,
+            sampler=self._sampler,
             priority_sampler=self._priority_sampler,
+            processing_interval=self._interval,
+            buffer_size=self._buffer_size,
+            max_payload_size=self._max_payload_size,
+            timeout=self._timeout,
+            dogstatsd=self.dogstatsd,
+            report_metrics=self._report_metrics,
             sync_mode=self._sync_mode,
+            api_version=self._api_version,
         )
-        writer._headers = self._headers
-        writer._endpoint = self._endpoint
-        return writer
 
     def _put(self, data, headers):
         conn = get_connection(self.agent_url, self._timeout)
