@@ -11,9 +11,9 @@ from .metrics import Series
 
 
 class Payload(ABC):
-    @property
     @abstractmethod
     def request_type(self):
+        # type: () -> str
         pass
 
     @abstractmethod
@@ -28,12 +28,10 @@ class AppIntegrationsChangedPayload(Payload):
         super().__init__()
         self.integrations = integrations  # type: List[Integration]
 
-    @property
     def request_type(self):
         return "app-integrations-changed"
 
     def to_dict(self):
-        # type: () -> Dict
         return {"integrations": self.integrations}
 
 
@@ -45,9 +43,15 @@ class AppStartedPayload(Payload):
         self.additional_payload = additional_payload  # type: Dict[str, str]
         self.dependencies = self.get_dependencies()
 
-    @property
     def request_type(self):
         return "app-started"
+
+    def to_dict(self):
+        return {
+            "configuration": self.configuration,
+            "additional_payload": self.additional_payload,
+            "dependencies": self.dependencies,
+        }
 
     def get_dependencies(self):
         # type: () -> List[Dependency]
@@ -56,18 +60,8 @@ class AppStartedPayload(Payload):
         dependencies = []
         return [create_dependency(pkg.project_name, pkg.version) for pkg in pkg_resources.working_set]
 
-    def to_dict(self):
-        # type: () -> Dict
-        return {
-            "configuration": self.configuration,
-            "additional_payload": self.additional_payload,
-            "dependencies": self.dependencies,
-        }
-
 
 class AppGenerateMetricsPayload(Payload):
-    REQUEST_TYPE = "app-generate-metrics"  # type: str
-
     def __init__(self, series):
         # type: (List[Series]) -> None
         super().__init__()
@@ -76,7 +70,6 @@ class AppGenerateMetricsPayload(Payload):
         self.lib_version = get_version()  # type: str
         self.series = series  # type: List[Series]
 
-    @property
     def request_type(self):
         return "app-generate-metrics"
 
@@ -91,4 +84,8 @@ class AppGenerateMetricsPayload(Payload):
 
 
 class AppClosedPayload(Payload):
-    REQUEST_TYPE = "app-closing"  # type: str
+    def request_type(self):
+        return "app-generate-metrics"
+
+    def to_dict(self):
+        return {}
