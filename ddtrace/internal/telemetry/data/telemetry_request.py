@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Any
 from typing import Dict
@@ -39,6 +40,9 @@ def create_telemetry_request(payload):
     return {
         "headers": {
             "Content-type": "application/json",
+            "DD-API-KEY": os.environ.get(
+                "DD_API_KEY", default=""
+            ),  # get_api_key() will be removed when agent proxy is live
             "DD-Telemetry-Request-Type": payload.request_type(),
             "DD-Telemetry-API-Version": "v1",
         },
