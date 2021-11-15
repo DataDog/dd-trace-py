@@ -7,6 +7,10 @@ from ...hostname import get_hostname
 
 
 class Series:
+    """
+    Stores and sends metrics using the Datadog Metrics API: https://docs.datadoghq.com/api/latest/metrics/
+    """
+
     GAUGE = "gauge"
     COUNT = "count"
     RATE = "rate"
@@ -23,11 +27,13 @@ class Series:
         self.metric = self.TELEMETRY_METRIC_PREFIX % (metric,)  # type: str
 
     def add_point(self, value):
+        """Adds timestamped data point associated with a metric"""
         # type: (int) -> None
         timestamp = int(time.time())  # type: int
         self.points.append([timestamp, value])
 
     def add_tag(self, name, value):
+        """sets metrics tag"""
         # type: (str, str) -> None
         self.tags[name] = value
 

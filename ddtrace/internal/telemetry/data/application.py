@@ -14,14 +14,21 @@ Application = TypedDict(
         "language_name": str,
         "language_version": str,
         "tracer_version": str,
-        "patches": str,
         "runtime_name": str,
         "runtime_version": str,
     },
 )
+"""
+Stores info about an application. 
+
+Service name, service version, and enviorment fields 
+are used to uniquely identify applications in the 
+telemetry intake service 
+"""
 
 
 def format_version_info(vi):
+    """Converts a named tuple to the format x.x.x"""
     # type: (sys.version_info) -> str
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
@@ -33,7 +40,6 @@ APPLICATION = {
     "language_name": "python",
     "language_version": format_version_info(sys.version_info),
     "tracer_version": get_version(),
-    "patches": "",
     "runtime_name": sys.implementation.name,
     "runtime_version": format_version_info(sys.implementation.version),
 }  # type: Application

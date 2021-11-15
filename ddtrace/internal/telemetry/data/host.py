@@ -17,14 +17,17 @@ Host = TypedDict(
         "container_id": str,
     },
 )
+"""
+Stores info about the host an application is running on
+"""
 
 
 def get_containter_id():
+    """Get ID from docker container"""
     # type: () -> str
     container_info = get_container_info()
     if container_info:
         return container_info.container_id or ""
-    return ""
 
 
 def get_os_version():
