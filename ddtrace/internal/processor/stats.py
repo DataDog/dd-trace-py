@@ -6,6 +6,7 @@ from ddsketch.ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto
 import msgpack
 
+import ddtrace
 from ddtrace import config
 
 from . import SpanProcessor
@@ -13,6 +14,7 @@ from ...constants import SPAN_MEASURED_KEY
 from ..agent import get_connection
 from ..compat import get_connection_response
 from ..compat import time_ns
+from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..writer import _human_size
@@ -160,27 +162,27 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
 
             for aggr_key, stat_aggr in bucket.items():
                 name, service, resource, _type, http_status, synthetics = aggr_key
-                bucket_aggr_stats.append(
-                    {
-                        "name": name,
-                        "service": service,
-                        "resource": resource,
-                        "type": _type,  # DB_Type?
-                        "HTTP_status_code": http_status,
-                        "synthetics": synthetics,
-                        "hits": stat_aggr.hits,
-                        "topLevelHits": stat_aggr.top_level_hits,
-                        "duration": stat_aggr.duration,
-                        "errors": stat_aggr.errors,
-                        "okSummary": DDSketchProto.to_proto(stat_aggr.ok_distribution).SerializeToString(),
-                        "errorSummary": DDSketchProto.to_proto(stat_aggr.err_distribution).SerializeToString(),
-                    }
-                )
+                bucket = {
+                    "Name": name,
+                    "Resource": resource,
+                    "Synthetics": synthetics,
+                    "Hits": stat_aggr.hits,
+                    "TopLevelHits": stat_aggr.top_level_hits,
+                    "Duration": stat_aggr.duration,
+                    "Errors": stat_aggr.errors,
+                    "OkSummary": DDSketchProto.to_proto(stat_aggr.ok_distribution).SerializeToString(),
+                    "ErrorSummary": DDSketchProto.to_proto(stat_aggr.err_distribution).SerializeToString(),
+                }
+                if service:
+                    bucket["Service"] = service
+                if _type:
+                    bucket["Type"] = _type
+                bucket_aggr_stats.append(bucket)
             serialized_buckets.append(
                 {
-                    "start": bucket_time_ns,
-                    "duration": self._bucket_size_ns,
-                    "stats": bucket_aggr_stats,
+                    "Start": bucket_time_ns,
+                    "Duration": self._bucket_size_ns,
+                    "Stats": bucket_aggr_stats,
                 }
             )
 
@@ -195,16 +197,24 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
         with self._lock:
             serialized_stats = self._serialize_buckets()
             print(serialized_stats)
-        payload = msgpack.packb(
-            {
-                "hostname": config.report_hostname,
-                "env": config.env,
-                "version": config.version,
-                "stats": serialized_stats,
-            },
-            use_bin_type=True,
-        )
-        headers = {}
+
+        raw_payload = {
+            "Stats": serialized_stats,
+        }
+        hostname = get_hostname()
+        if hostname:
+            raw_payload["Hostname"] = hostname
+        if config.env:
+            raw_payload["Env"] = config.env
+        if config.version:
+            raw_payload["Version"] = config.version
+
+        payload = msgpack.packb(raw_payload, use_bin_type=True)
+        headers = {
+            "Datadog-Meta-Lang": "python",
+            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Content-Type": "application/msgpack",
+        }
         try:
             self._connection = get_connection(self._agent_url, self._timeout)
             self._connection.request("PUT", self._endpoint, payload, headers)
@@ -216,8 +226,9 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
                 log.error("Datadog agent does not support tracer stats computation, please upgrade your agent")
             elif resp.status != 200:
                 log.error(
-                    "failed to send stats payload, %s response from Datadog agent at %s",
+                    "failed to send stats payload, %s (%s) response from Datadog agent at %s",
                     resp.status,
+                    resp.reason,
                     self._agent_endpoint,
                 )
             else:
