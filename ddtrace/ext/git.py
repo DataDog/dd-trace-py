@@ -2,8 +2,8 @@
 tags for common git attributes
 """
 import os
-import subprocess
 import re
+import subprocess
 from typing import Dict
 from typing import MutableMapping
 from typing import Optional
