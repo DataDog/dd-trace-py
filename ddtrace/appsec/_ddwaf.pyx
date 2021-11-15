@@ -2,14 +2,15 @@
 # distutils: library_dirs = ddtrace/appsec/lib
 # distutils: libraries = ddwaf
 
+import attr
 import six
 import typing
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 
 from _libddwaf cimport (
     ddwaf_object,
-    ddwaf_object_array,
     ddwaf_object_invalid,
+    ddwaf_object_array,
     ddwaf_object_map,
     ddwaf_object_stringl_nc,
     ddwaf_version,
@@ -24,20 +25,17 @@ def version():
     return (version.major, version.minor, version.patch)
 
 
-cdef class _Wrapper:
+cdef class _Wrapper(object):
     cdef ddwaf_object *_ptr
     cdef public object _strings
     cdef public ssize_t _size
     cdef public ssize_t _next_idx
 
-    def __cinit__(self, value):
-        self._next_idx = 0
-        self._size = 0
+    def __init__(self, value):
         self._strings = []
-        self._ptr = NULL
         self._convert(self._reserve_obj(), value)
 
-    cdef ddwaf_object* _reserve_obj(self, ssize_t n=1):
+    cdef ddwaf_object* _reserve_obj(self, ssize_t n=1) except NULL:
         cdef ssize_t idx, i
         cdef ddwaf_object* ptr
 
@@ -50,12 +48,15 @@ cdef class _Wrapper:
                 raise MemoryError
             self._ptr = ptr
         self._next_idx += n
-        for i in range(n):
-            ddwaf_object_invalid(ptr + idx + i)
+        for i in range(idx, idx + n):
+            ddwaf_object_invalid(ptr + i)
         return ptr + idx
 
-    cdef void _convert(self, ddwaf_object* obj, value):
+    cdef void _convert(self, ddwaf_object* obj, value) except *:
         cdef ssize_t i
+
+        if isinstance(value, (int, float)):
+            value = str(value)
 
         if isinstance(value, six.text_type):
             value = value.encode("utf-8", errors="surrogatepass")
@@ -88,6 +89,12 @@ cdef class _Wrapper:
                     self._convert(item_obj, v)
             obj.array = items_obj
             obj.nbEntries = n
+
+    def __repr__(self):
+        return "<_Wrapper for {0._next_idx} elements>".format(self)
+
+    def __sizeof__(self):
+        return super(_Wrapper, self).__sizeof__() + self._size
 
     def __dealloc__(self):
         PyMem_Free(self._ptr)

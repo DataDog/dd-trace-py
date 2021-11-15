@@ -18,7 +18,5 @@ cdef extern from "include/ddwaf.h":
 
     ddwaf_object* ddwaf_object_invalid(ddwaf_object *obj);
     ddwaf_object* ddwaf_object_stringl_nc(ddwaf_object *obj, const char *val, size_t length);
-    ddwaf_object* ddwaf_object_signed_force(ddwaf_object *obj, int64_t val);
-    ddwaf_object* ddwaf_object_unsigned_force(ddwaf_object *obj, uint64_t val);
     ddwaf_object* ddwaf_object_array(ddwaf_object *obj);
     ddwaf_object* ddwaf_object_map(ddwaf_object *obj);
