@@ -15,7 +15,7 @@ def create_integration(name, version="", enabled=True, auto_enabled=True, compat
         "enabled": enabled,
         "auto_enabled": auto_enabled,
         "compatible": compatible,
-        "errors": errors,
+        "error": error,
     }
 
 
