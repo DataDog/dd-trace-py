@@ -20,3 +20,12 @@ cdef extern from "include/ddwaf.h":
     ddwaf_object* ddwaf_object_stringl_nc(ddwaf_object *obj, const char *val, size_t length);
     ddwaf_object* ddwaf_object_array(ddwaf_object *obj);
     ddwaf_object* ddwaf_object_map(ddwaf_object *obj);
+
+    ctypedef struct ddwaf_handle:
+        pass
+
+    ctypedef struct ddwaf_config:
+        pass
+
+    ddwaf_handle ddwaf_init(const ddwaf_object* rules, const ddwaf_config* config);
+    void ddwaf_destroy(ddwaf_handle handle);
