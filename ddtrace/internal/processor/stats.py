@@ -196,11 +196,8 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
         # type: (...) -> None
         with self._lock:
             serialized_stats = self._serialize_buckets()
-            print(serialized_stats)
 
-        raw_payload = {
-            "Stats": serialized_stats,
-        }
+        raw_payload = {"Stats": serialized_stats}
         hostname = get_hostname()
         if hostname:
             raw_payload["Hostname"] = hostname
@@ -233,7 +230,6 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
                 )
             else:
                 log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
-                print("sent %s to %s" % (_human_size(len(payload)), self._agent_endpoint))
         finally:
             self._connection.close()
 
