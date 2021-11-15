@@ -11,27 +11,16 @@ class Series:
     COUNT = "count"
     RATE = "rate"
 
-    COMMON_TELEMETRY_METRIC = "dd.app_telemetry.tracers.%s"
-    PYTHON_TELEMETRY_METRIC = "dd.app_telemetry.tracers.python.%s"
+    TELEMETRY_METRIC_PREFIX = "dd.app_telemetry.tracers.%s"
 
-    def __init__(self, name, metric_type=COUNT, is_common=False, interval=None):
-        # type: (str, str, bool, Optional[int]) -> None
+    def __init__(self, metric, metric_type=COUNT, interval=None):
+        # type: (str, str, Optional[int]) -> None
         self.points = []  # type: List[List[int]]
         self.tags = {}  # type: Dict[str, str]
         self.type = metric_type  # type: str
         self.interval = interval  # type: Optional[int]
         self.host = get_hostname()  # type: str
-        self.metric = Series.set_metric_name(name, is_common)  # type: str
-
-    @classmethod
-    def set_metric_name(cls, metric_name, is_common=False):
-        # type: (str, bool) -> str
-        if "dd.app_telemetry.tracers." in metric_name:
-            return metric_name
-        elif is_common:
-            return cls.COMMON_TELEMETRY_METRIC % metric_name
-
-        return cls.PYTHON_TELEMETRY_METRIC % metric_name
+        self.metric = cls.TELEMETRY_METRIC_PREFIX % (metric_name, )  # type: str
 
     def add_point(self, value):
         # type: (int) -> None
