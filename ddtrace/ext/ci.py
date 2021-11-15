@@ -57,18 +57,10 @@ RUNTIME_NAME = "runtime.name"
 # Runtime Version
 RUNTIME_VERSION = "runtime.version"
 
-_RE_REFS = re.compile(r"^refs/(heads/)?")
-_RE_ORIGIN = re.compile(r"^origin/")
-_RE_TAGS = re.compile(r"^tags/")
 _RE_URL = re.compile(r"(https?://)[^/]*@")
 
 
 log = get_logger(__name__)
-
-
-def _normalize_ref(name):
-    # type: (Optional[str]) -> Optional[str]
-    return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
 
 
 def _filter_sensitive_info(url):
@@ -114,10 +106,10 @@ def tags(env=None, cwd=None):
     # Tags provided by the user take precedence over everything
     tags.update({k: v for k, v in user_specified_git_info.items() if v})
 
-    tags[git.TAG] = _normalize_ref(tags.get(git.TAG))
+    tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
     if tags.get(git.TAG) and git.BRANCH in tags:
         del tags[git.BRANCH]
-    tags[git.BRANCH] = _normalize_ref(tags.get(git.BRANCH))
+    tags[git.BRANCH] = git.normalize_ref(tags.get(git.BRANCH))
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
     workspace_path = tags.get(WORKSPACE_PATH)
@@ -343,7 +335,7 @@ def extract_jenkins(env):
         branch = branch_or_tag
     name = env.get("JOB_NAME")
     if name and branch:
-        name = re.sub("/{0}".format(_normalize_ref(branch)), "", name)
+        name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
 
