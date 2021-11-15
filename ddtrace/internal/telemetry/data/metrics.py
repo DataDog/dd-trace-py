@@ -31,17 +31,6 @@ class Series:
         # type: (str, str) -> None
         self.tags[name] = value
 
-    def combine(self, other_series):
-        # type: (Series) -> None
-        if self.type != other_series.type:
-            raise Exception("Metrics with the same name should have the same type")
-
-        if self.interval != other_series.interval:
-            raise Exception("Metrics with the same name should have the same interval")
-
-        self.tags.update(other_series.tags)
-        self.points.extend(other_series.points)
-
     def to_dict(self):
         # type: () -> Dict
         return {
