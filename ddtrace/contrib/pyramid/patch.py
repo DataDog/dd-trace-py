@@ -5,8 +5,8 @@ import pyramid.config
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-from ...utils.formats import asbool
-from ...utils.formats import get_env
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import get_env
 from .constants import SETTINGS_ANALYTICS_ENABLED
 from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
 from .constants import SETTINGS_DISTRIBUTED_TRACING

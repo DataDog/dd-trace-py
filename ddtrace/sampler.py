@@ -18,11 +18,13 @@ from .constants import ENV_KEY
 from .constants import SAMPLING_AGENT_DECISION
 from .constants import SAMPLING_LIMIT_DECISION
 from .constants import SAMPLING_RULE_DECISION
+from .constants import USER_KEEP
+from .constants import USER_REJECT
 from .internal.compat import iteritems
 from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
-from .utils.formats import get_env
+from .internal.utils.formats import get_env
 
 
 try:
@@ -240,7 +242,7 @@ class DatadogSampler(BasePrioritySampler):
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None
         span.context.sampling_priority = priority
-        span.sampled = priority is AUTO_KEEP
+        span.sampled = priority > 0  # Positive priorities mean it was kept
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -279,11 +281,11 @@ class DatadogSampler(BasePrioritySampler):
         if isinstance(matching_rule, (RateSampler, SamplingRule)):
             span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
         if not matching_rule.sample(span):
-            self._set_priority(span, AUTO_REJECT)
+            self._set_priority(span, USER_REJECT)
             return False
         else:
             # Do not return here, we need to apply rate limit
-            self._set_priority(span, AUTO_KEEP)
+            self._set_priority(span, USER_KEEP)
 
         # Ensure all allowed traces adhere to the global rate limit
         allowed = self.limiter.is_allowed()
@@ -292,11 +294,11 @@ class DatadogSampler(BasePrioritySampler):
         #      various sample rates that are getting applied to this span
         span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         if not allowed:
-            self._set_priority(span, AUTO_REJECT)
+            self._set_priority(span, USER_REJECT)
             return False
 
         # We made it by all of checks, sample this trace
-        self._set_priority(span, AUTO_KEEP)
+        self._set_priority(span, USER_KEEP)
         return True
 
 

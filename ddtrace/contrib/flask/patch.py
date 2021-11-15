@@ -11,9 +11,9 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
-from ...utils import get_argument_value
-from ...utils.version import parse_version
-from ...utils.wrappers import unwrap as _u
+from ...internal.utils import get_argument_value
+from ...internal.utils.version import parse_version
+from ..trace_utils import unwrap as _u
 from .helpers import get_current_app
 from .helpers import simple_tracer
 from .helpers import with_instance_pin

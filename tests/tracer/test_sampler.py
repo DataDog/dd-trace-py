@@ -13,6 +13,8 @@ from ddtrace.constants import SAMPLING_AGENT_DECISION
 from ddtrace.constants import SAMPLING_LIMIT_DECISION
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import SAMPLING_RULE_DECISION
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.internal.compat import iteritems
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.sampler import AllSampler
@@ -655,7 +657,7 @@ class MatchNoSample(SamplingRule):
                     NoMatch(0.5),
                 ],
             ),
-            AUTO_KEEP,
+            USER_KEEP,
             1.0,
             1.0,
         ),
@@ -668,7 +670,7 @@ class MatchNoSample(SamplingRule):
                     MatchSample(0.5),
                 ],
             ),
-            AUTO_KEEP,
+            USER_KEEP,
             0.5,
             1.0,
         ),
@@ -681,7 +683,7 @@ class MatchNoSample(SamplingRule):
                     MatchNoSample(0.5),
                 ],
             ),
-            AUTO_KEEP,
+            USER_KEEP,
             0.5,
             1.0,
         ),
@@ -694,7 +696,7 @@ class MatchNoSample(SamplingRule):
                     NoMatch(0.5),
                 ],
             ),
-            AUTO_REJECT,
+            USER_REJECT,
             0.5,
             None,
         ),
@@ -707,7 +709,7 @@ class MatchNoSample(SamplingRule):
                     NoMatch(0.5),
                 ],
             ),
-            AUTO_REJECT,
+            USER_REJECT,
             0.5,
             None,
         ),
@@ -761,7 +763,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
 
 
@@ -789,7 +791,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_REJECT
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
     assert spans[0].get_metric(SAMPLING_LIMIT_DECISION) is None
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
 
@@ -817,7 +819,7 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_REJECT
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 0
 
 
@@ -846,7 +848,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
 
     spans = dummy_tracer.pop()
     assert len(spans) == 2, "Trace should have been sampled and written"
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
 
 
@@ -875,7 +877,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
     assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
 
 

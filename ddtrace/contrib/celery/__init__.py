@@ -42,7 +42,7 @@ Configuration
    Default: ``'celery-worker'``
 
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["celery"]

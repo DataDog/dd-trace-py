@@ -36,7 +36,7 @@ hashing with memcached - the key(s) will appear as a mangled hash.
 
 .. __: https://dogpilecache.sqlalchemy.org/
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["dogpile.cache"]

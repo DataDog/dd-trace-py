@@ -16,6 +16,7 @@ from ddtrace.internal.writer import AgentWriter
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
+from tests.utils import call_program
 from tests.utils import override_global_config
 
 
@@ -136,7 +137,11 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
         t.trace("client.testing").finish()
         t.shutdown()
     calls = [
-        mock.call("failed to send traces to Datadog Agent at %s", "unix:///tmp/ddagent/nosockethere", exc_info=True)
+        mock.call(
+            "failed to send traces to Datadog Agent at %s",
+            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.4"),
+            exc_info=True,
+        )
     ]
     log.error.assert_has_calls(calls)
 
@@ -269,7 +274,13 @@ def test_trace_bad_url(encoding, monkeypatch):
             pass
         t.shutdown()
 
-    calls = [mock.call("failed to send traces to Datadog Agent at %s", "http://bad:1111", exc_info=True)]
+    calls = [
+        mock.call(
+            "failed to send traces to Datadog Agent at %s",
+            "http://bad:1111/{}/traces".format(encoding if encoding else "v0.4"),
+            exc_info=True,
+        )
+    ]
     log.error.assert_has_calls(calls)
 
 
@@ -385,7 +396,7 @@ def test_bad_payload():
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
-            "http://localhost:8126",
+            "http://localhost:8126/v0.4/traces",
             400,
             "Bad Request",
         )
@@ -418,7 +429,7 @@ def test_bad_payload_log_payload(monkeypatch):
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
-            "http://localhost:8126",
+            "http://localhost:8126/v0.4/traces",
             400,
             "Bad Request",
             "6261645f7061796c6f6164",
@@ -462,7 +473,7 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
-            "http://localhost:8126",
+            "http://localhost:8126/v0.4/traces",
             400,
             "Bad Request",
             "bad_payload",
@@ -547,13 +558,15 @@ def test_flush_log(caplog, encoding, monkeypatch):
     with mock.patch("ddtrace.internal.writer.log") as log:
         writer.write([])
         writer.flush_queue(raise_exc=True)
+        # for latest agent, default to v0.3 since no priority sampler is set
+        expected_encoding = "v0.3" if AGENT_VERSION == "v5" else (encoding or "v0.3")
         calls = [
             mock.call(
                 logging.DEBUG,
                 "sent %s in %.5fs to %s",
                 AnyStr(),
                 AnyFloat(),
-                writer.agent_url,
+                "{}/{}/traces".format(writer.agent_url, expected_encoding),
             )
         ]
         log.log.assert_has_calls(calls)
@@ -760,3 +773,14 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     # Assert no logging exceptions in stderr
     assert b"KeyError: 'dd.service'" not in err
     assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err
+
+
+def test_no_warnings():
+    env = os.environ.copy()
+    # Have to disable sqlite3 as coverage uses it on process shutdown
+    # which results in a trace being generated after the tracer shutdown
+    # has been initiated which results in a deprecation warning.
+    env["DD_TRACE_SQLITE3_ENABLED"] = "false"
+    out, err, status, pid = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
+    assert out == b"", out
+    assert err == b"", err

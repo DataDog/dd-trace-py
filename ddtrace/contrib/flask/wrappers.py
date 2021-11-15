@@ -2,8 +2,8 @@ from ddtrace import config
 from ddtrace.vendor.wrapt import function_wrapper
 
 from .. import trace_utils
+from ...internal.utils.importlib import func_name
 from ...pin import Pin
-from ...utils.importlib import func_name
 from .helpers import get_current_app
 
 

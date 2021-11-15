@@ -1,6 +1,6 @@
 from redis import StrictRedis
 
-from ...utils.deprecation import deprecated
+from ...internal.utils.deprecation import deprecated
 
 
 DEFAULT_SERVICE = "redis"
