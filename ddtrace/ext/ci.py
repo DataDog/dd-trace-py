@@ -275,7 +275,9 @@ def extract_github_actions(env):
         branch = branch_or_tag
 
     pipeline_url = "{0}/{1}/actions/runs/{2}".format(
-        env.get("GITHUB_SERVER_URL"), env.get("GITHUB_REPOSITORY"), env.get("GITHUB_RUN_ID"),
+        env.get("GITHUB_SERVER_URL"),
+        env.get("GITHUB_REPOSITORY"),
+        env.get("GITHUB_RUN_ID"),
     )
     run_attempt = env.get("GITHUB_RUN_ATTEMPT")
     if run_attempt:
