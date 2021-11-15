@@ -9,6 +9,7 @@ from typing import List
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
+from .internal.telemetry import queue_integration
 from .internal.utils import formats
 from .internal.utils.deprecation import deprecated
 from .settings import _config as config
@@ -120,12 +121,14 @@ def _on_import_factory(module, raise_errors=True):
         path = "ddtrace.contrib.%s" % module
         try:
             imported_module = importlib.import_module(path)
-        except ImportError:
+        except ImportError as ie:
+            queue_integration(module, ie.msg, "no")
             if raise_errors:
                 raise
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
         else:
             imported_module.patch()
+            queue_integration(module)
 
     return on_import
 
@@ -213,17 +216,22 @@ def _patch_module(module, raise_errors=True):
 
     Returns if the module got properly patched.
     """
+    is_patched = False
+
     try:
-        return _attempt_patch_module(module)
-    except ModuleNotFoundException:
+        is_patched = _attempt_patch_module(module)
+        queue_integration(module)
+    except ModuleNotFoundException as mnf:
+        queue_integration(module, str(mnf), "no")
         if raise_errors:
             raise
-        return False
-    except Exception:
+    except Exception as e:
+        queue_integration(module, str(e), "no")
         if raise_errors:
             raise
         log.debug("failed to patch %s", module, exc_info=True)
-        return False
+
+    return is_patched
 
 
 @deprecated(

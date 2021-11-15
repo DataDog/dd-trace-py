@@ -206,6 +206,11 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="telemetry",
+            command="pytest {cmdargs} tests/telemetry/",
+            pys=select_pys(min_version="3.8"),
+        ),
+        Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
