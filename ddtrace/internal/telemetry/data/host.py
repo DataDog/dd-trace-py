@@ -38,11 +38,11 @@ def get_os_version():
 
 
 HOST = {
-    "os": platform.system(),
+    "os": platform.platform(aliased=1, terse=1),
     "hostname": get_hostname(),
-    "os_version": "",
-    "kernel_name": "",
-    "kernel_release": "",
-    "kernel_version": "",
+    "os_version": get_os_version(),
+    "kernel_name": platform.system(),
+    "kernel_release": platform.release(),
+    "kernel_version": platform.version(),
     "container_id": get_containter_id(),
 }  # type: Host

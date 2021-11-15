@@ -3,7 +3,7 @@ from typing import TypedDict
 
 Integration = TypedDict(
     "Integration",
-    {"name": str, "version": str, "enabled": bool, "auto_enabled": bool, "compatible": str, "errors": str},
+    {"name": str, "version": str, "enabled": bool, "auto_enabled": bool, "compatible": str, "error": str},
 )
 
 
