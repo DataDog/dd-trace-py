@@ -22,8 +22,8 @@ Host = TypedDict(
 def get_containter_id():
     # type: () -> str
     container_info = get_container_info()
-    if container_info and container_info.container_id:
-        return container_info.container_id
+    if container_info:
+        return container_info.container_id or ""
     return ""
 
 
