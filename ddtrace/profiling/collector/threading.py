@@ -23,22 +23,22 @@ from ddtrace.vendor import wrapt
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
-    lock_name = attr.ib(default=None, type=typing.Optional[str])
-    sampling_pct = attr.ib(default=None, type=typing.Optional[int])
+    lock_name = attr.ib(default="<unknown lock name>", type=str)
+    sampling_pct = attr.ib(default=0, type=int)
 
 
 @event.event_class
 class LockAcquireEvent(LockEventBase):
     """A lock has been acquired."""
 
-    wait_time_ns = attr.ib(default=None, type=typing.Optional[int])
+    wait_time_ns = attr.ib(default=0, type=int)
 
 
 @event.event_class
 class LockReleaseEvent(LockEventBase):
     """A lock has been released."""
 
-    locked_for_ns = attr.ib(default=None, type=typing.Optional[int])
+    locked_for_ns = attr.ib(default=0, type=int)
 
 
 def _current_thread():
