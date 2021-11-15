@@ -27,10 +27,20 @@ def get_containter_id():
     return ""
 
 
+def get_os_version():
+    ver, _, _ = platform.mac_ver()
+    if ver:
+        return ver
+    ver, _, _ = platform.win32_ver()
+    if ver:
+        return ver
+    return ""
+
+
 HOST = {
     "os": platform.system(),
     "hostname": get_hostname(),
-    "os_version": platform.version(),
+    "os_version": "",
     "kernel_name": "",
     "kernel_release": "",
     "kernel_version": "",
