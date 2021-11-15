@@ -46,6 +46,10 @@ class TelemetryWriter(PeriodicService):
         self.integrations_queue.append(integration)
 
     def add_metric(self, series):
+        """ "
+        Add series object to series map. If the metric already
+        exists in the series map then update its values.
+        """
         # type: (Series) -> None
         metric_name = series.metric
         if metric_name in self.series_map:

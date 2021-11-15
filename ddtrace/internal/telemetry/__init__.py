@@ -22,13 +22,15 @@ if TELEMETRY_ENABLED:
     _TELEMETRY_WRITER.requests.append(appstarted_request)
 
 
-def queue_telemetry_event(request_body):
+def queue_telemetry_event(telemetry_request):
+    """Queues Telemetry Request to Telemetry Writer if Telemetry is ENABLED"""
     # type: (TelemetryRequest) -> None
     if TELEMETRY_ENABLED:
-        _TELEMETRY_WRITER.add_request(request_body)
+        _TELEMETRY_WRITER.add_request(telemetry_request)
 
 
 def queue_integration(module, error_message="", compatible=""):
+    """Creates and Queues Integration Object to Telemetry Writer if Telemetry is ENABLED"""
     # type: (str, str, str) -> None
     if TELEMETRY_ENABLED:
         integration = create_integration(name=module, errors=error_message, compatible=compatible)
@@ -36,6 +38,7 @@ def queue_integration(module, error_message="", compatible=""):
 
 
 def queue_metric(series):
+    """Queues Metric to Telemetry Writer if Telemetry is ENABLED"""
     # type: (Series) -> None
     if TELEMETRY_ENABLED:
         _TELEMETRY_WRITER.add_metric(series)
