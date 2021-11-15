@@ -28,11 +28,11 @@ def get_containter_id():
 
 
 HOST = {
-    "os": "",
+    "os": platform.system(),
     "hostname": get_hostname(),
-    "os_version": "",
-    "kernel_name": platform.system(),
-    "kernel_release": platform.release(),
-    "kernel_version": platform.version(),
+    "os_version": platform.version(),
+    "kernel_name": "",
+    "kernel_release": "",
+    "kernel_version": "",
     "container_id": get_containter_id(),
 }  # type: Host
