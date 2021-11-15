@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fix Python exceptions during Trace encoding being ignored and creating invalid payloads.
+    Fix handling of Python exceptions during trace encoding. The tracer will no longer silently fail to encode invalid span data and instead log an exception.
