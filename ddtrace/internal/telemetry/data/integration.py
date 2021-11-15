@@ -7,7 +7,7 @@ Integration = TypedDict(
 )
 
 
-def create_integration(name, version="", enabled=True, auto_enabled=True, compatible="", errors=""):
+def create_integration(name, version="", enabled=True, auto_enabled=True, compatible="", error=""):
     # type: (str, str, bool, bool, str, str) -> Integration
     return {
         "name": name,
