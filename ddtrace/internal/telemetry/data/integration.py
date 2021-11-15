@@ -17,10 +17,3 @@ def create_integration(name, version="", enabled=True, auto_enabled=True, compat
         "compatible": compatible,
         "error": error,
     }
-
-
-def on_exception(integration, exception, compatible="no"):
-    # type: (Integration, str, str) -> None
-    integration["errors"] = exception
-    integration["compatible"] = compatible
-    integration["enabled"] = False
