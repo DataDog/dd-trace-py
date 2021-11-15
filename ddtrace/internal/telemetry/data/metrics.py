@@ -20,7 +20,7 @@ class Series:
         self.type = metric_type  # type: str
         self.interval = interval  # type: Optional[int]
         self.host = get_hostname()  # type: str
-        self.metric = cls.TELEMETRY_METRIC_PREFIX % (metric_name, )  # type: str
+        self.metric = self.TELEMETRY_METRIC_PREFIX % (metric,)  # type: str
 
     def add_point(self, value):
         # type: (int) -> None

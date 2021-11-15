@@ -28,8 +28,8 @@ def format_version_info(vi):
 
 APPLICATION = {
     "service_name": config.service or "unnamed_python_service",
-    "service_version": config.version or "DD_SERVICE_VERSION NOT SET",
-    "env": config.env or "DD_ENV NOT SET",
+    "service_version": config.version or "",
+    "env": config.env or "",
     "language_name": "python",
     "language_version": format_version_info(sys.version_info),
     "tracer_version": get_version(),

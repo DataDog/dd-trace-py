@@ -1,3 +1,5 @@
+from abc import ABC
+from abc import abstractmethod
 from typing import Dict
 from typing import List
 
@@ -8,21 +10,27 @@ from .integration import Integration
 from .metrics import Series
 
 
-class Payload:
-    REQUEST_TYPE = "not-defined"  # type: str
+class Payload(ABC):
+    @property
+    @abstractmethod
+    def request_type(self):
+        pass
 
+    @abstractmethod
     def to_dict(self):
         # type: () -> Dict
-        return {}
+        pass
 
 
 class AppIntegrationsChangedPayload(Payload):
-    REQUEST_TYPE = "app-integrations-changed"  # type: str
-
     def __init__(self, integrations):
         # type: (List[Integration]) -> None
         super().__init__()
         self.integrations = integrations  # type: List[Integration]
+
+    @property
+    def request_type(self):
+        return "app-integrations-changed"
 
     def to_dict(self):
         # type: () -> Dict
@@ -30,8 +38,6 @@ class AppIntegrationsChangedPayload(Payload):
 
 
 class AppStartedPayload(Payload):
-    REQUEST_TYPE = "app-started"  # type: str
-
     def __init__(self, configurations={}, additional_payload={}):
         # type: (Dict, Dict) -> None
         super().__init__()
@@ -39,15 +45,16 @@ class AppStartedPayload(Payload):
         self.additional_payload = additional_payload  # type: Dict[str, str]
         self.dependencies = self.get_dependencies()
 
+    @property
+    def request_type(self):
+        return "app-started"
+
     def get_dependencies(self):
         # type: () -> List[Dependency]
         import pkg_resources
 
         dependencies = []
-        return [
-            create_dependency(pkg.project_name, pkg.version)
-            for pkg in pkg_resources.working_set
-        ]
+        return [create_dependency(pkg.project_name, pkg.version) for pkg in pkg_resources.working_set]
 
     def to_dict(self):
         # type: () -> Dict
@@ -68,6 +75,10 @@ class AppGenerateMetricsPayload(Payload):
         self.lib_language = "python"  # type: str
         self.lib_version = get_version()  # type: str
         self.series = series  # type: List[Series]
+
+    @property
+    def request_type(self):
+        return "app-generate-metrics"
 
     def to_dict(self):
         # type: () -> Dict
