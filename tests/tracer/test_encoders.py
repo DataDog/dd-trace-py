@@ -565,3 +565,33 @@ def test_list_string_table():
     string_table_test(t)
 
     assert list(t) == ["", "foobar", "foobaz"]
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"trace_id": "trace_id"},
+        {"span_id": "span_id"},
+        {"parent_id": "parent_id"},
+        {"service": True},
+        {"resource": 50},
+        {"name": [1, 2, 3]},
+        {"start_ns": "start_time"},
+        {"duration_ns": "duration_time"},
+        {"span_type": 100},
+        {"meta": {"num": 100}},
+        {"metrics": {"key": "value"}},
+    ],
+)
+def test_encoding_invalid_data(data):
+    encoder = MsgpackEncoderV03(1 << 20, 1 << 20)
+
+    span = Span(tracer=None, name="test")
+    for key, value in data.items():
+        setattr(span, key, value)
+
+    trace = [span]
+    with pytest.raises(TypeError):
+        encoder.put(trace)
+
+    assert encoder.encode() is None
