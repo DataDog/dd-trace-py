@@ -273,18 +273,26 @@ def extract_github_actions(env):
         tag = branch_or_tag
     else:
         branch = branch_or_tag
+
+    pipeline_url = "{0}/{1}/actions/runs/{2}".format(
+        env.get("GITHUB_SERVER_URL"), env.get("GITHUB_REPOSITORY"), env.get("GITHUB_RUN_ID"),
+    )
+    run_attempt = env.get("GITHUB_RUN_ATTEMPT")
+    if run_attempt:
+        pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
+
     return {
         git.BRANCH: branch,
         git.COMMIT_SHA: env.get("GITHUB_SHA"),
-        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("GITHUB_REPOSITORY")),
+        git.REPOSITORY_URL: "{0}/{1}.git".format(env.get("GITHUB_SERVER_URL"), env.get("GITHUB_REPOSITORY")),
         git.TAG: tag,
-        JOB_URL: "https://github.com/{0}/commit/{1}/checks".format(env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")),
+        JOB_URL: "{0}/{1}/commit/{2}/checks".format(
+            env.get("GITHUB_SERVER_URL"), env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")
+        ),
         PIPELINE_ID: env.get("GITHUB_RUN_ID"),
         PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
-        PIPELINE_URL: "https://github.com/{0}/commit/{1}/checks".format(
-            env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")
-        ),
+        PIPELINE_URL: pipeline_url,
         PROVIDER_NAME: "github",
         WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
     }
