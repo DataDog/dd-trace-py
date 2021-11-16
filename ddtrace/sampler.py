@@ -24,6 +24,7 @@ from .internal.compat import iteritems
 from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
+from .internal.utils.cache import cachedmethod
 from .internal.utils.formats import get_env
 
 
@@ -261,7 +262,7 @@ class DatadogSampler(BasePrioritySampler):
         # Go through all rules and grab the first one that matched
         # DEV: This means rules should be ordered by the user from most specific to least specific
         for rule in self.rules:
-            if rule.matches(span):
+            if rule.matches(span.service, span.name):
                 matching_rule = rule
                 break
         else:
@@ -396,8 +397,9 @@ class SamplingRule(BaseSampler):
         # Exact match on the values
         return prop == pattern
 
-    def matches(self, span):
-        # type: (Span) -> bool
+    @cachedmethod
+    def matches(self, service, name):
+        # type: (Optional[str], str) -> bool
         """
         Return if this span matches this rule
 
@@ -406,11 +408,11 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return all(
+        return all([
             self._pattern_matches(prop, pattern)
             for prop, pattern in [
-                (span.service, self.service),
-                (span.name, self.name),
+                    (service, self.service),
+                    (name, self.name),
             ]
         )
 
