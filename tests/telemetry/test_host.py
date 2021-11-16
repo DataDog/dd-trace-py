@@ -1,4 +1,5 @@
 import platform
+
 import mock
 
 from ddtrace.internal.telemetry.data.host import HOST
@@ -6,7 +7,6 @@ from ddtrace.internal.telemetry.data.host import Host
 from ddtrace.internal.telemetry.data.host import get_containter_id
 from ddtrace.internal.telemetry.data.host import get_hostname
 from ddtrace.internal.telemetry.data.host import get_os_version
-from ddtrace.internal.runtime.container import CGroupInfo
 
 
 def test_host_fields():
@@ -38,6 +38,7 @@ def test_get_os_version_win32():
 def test_get_container_id():
     # not sure how to mock get_container_info()
 
+    # from ddtrace.internal.runtime.container import CGroupInfo
     # cgroupinfo = CGroupInfo()
     # cgroupinfo.container_id = "1641"
 

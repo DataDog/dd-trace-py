@@ -1,11 +1,13 @@
+import pytest
+
 from ddtrace.internal.telemetry.data.application import get_version
-from ddtrace.internal.telemetry.data.dependency import Dependency
 from ddtrace.internal.telemetry.data.integration import create_integration
 from ddtrace.internal.telemetry.data.metrics import Series
 from ddtrace.internal.telemetry.data.payload import AppClosedPayload
 from ddtrace.internal.telemetry.data.payload import AppGenerateMetricsPayload
 from ddtrace.internal.telemetry.data.payload import AppIntegrationsChangedPayload
 from ddtrace.internal.telemetry.data.payload import AppStartedPayload
+from ddtrace.internal.telemetry.data.payload import Payload
 
 
 def test_app_started_payload():
@@ -34,7 +36,6 @@ def test_app_integrations_changed():
 
     assert payload.request_type() == "app-integrations-changed"
     assert len(payload.integrations) == 3
-
     assert payload.to_dict() == {"integrations": integrations}
 
 
@@ -45,10 +46,16 @@ def test_generate_metrics():
 
     assert payload.request_type() == "generate-metrics"
     assert len(payload.series) == 1
-
     assert payload.to_dict() == {
         "namespace": "tracers",
         "lib_language": "python",
         "lib_version": get_version(),
         "series": [s.to_dict() for s in series_array],
     }
+
+
+def test_base_payload():
+    with pytest.raises(TypeError) as te:
+        Payload()
+
+    assert "Can't instantiate abstract class Payload with abstract methods request_type, to_dict" in str(te)

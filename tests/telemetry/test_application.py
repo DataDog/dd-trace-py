@@ -1,10 +1,9 @@
 import sys
-from typing import Tuple
 
 from ddtrace.internal.telemetry.data.application import APPLICATION
 from ddtrace.internal.telemetry.data.application import Application
-from ddtrace.internal.telemetry.data.application import get_version
 from ddtrace.internal.telemetry.data.application import format_version_info
+from ddtrace.internal.telemetry.data.application import get_version
 
 
 def test_application():

@@ -1,8 +1,8 @@
-import time
-
 from ddtrace.internal.telemetry.data.application import APPLICATION
+from ddtrace.internal.telemetry.data.dependency import Dependency
 from ddtrace.internal.telemetry.data.dependency import create_dependency
 from ddtrace.internal.telemetry.data.host import HOST
+from ddtrace.internal.telemetry.data.integration import Integration
 from ddtrace.internal.telemetry.data.integration import create_integration
 from ddtrace.internal.telemetry.data.payload import AppClosedPayload
 from ddtrace.internal.telemetry.data.telemetry_request import create_telemetry_request

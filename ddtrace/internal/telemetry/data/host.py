@@ -1,8 +1,9 @@
 import platform
 from typing import TypedDict
 
-from ...hostname import get_hostname
 from ddtrace.internal.runtime.container import get_container_info
+
+from ...hostname import get_hostname
 
 
 Host = TypedDict(
