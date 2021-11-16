@@ -397,7 +397,7 @@ class SamplingRule(BaseSampler):
         # Exact match on the values
         return prop == pattern
 
-    @cachedmethod
+    @cachedmethod()
     def matches(self, service, name):
         # type: (Optional[str], str) -> bool
         """
