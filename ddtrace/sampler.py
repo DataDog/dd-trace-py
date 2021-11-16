@@ -408,11 +408,13 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return all([
-            self._pattern_matches(prop, pattern)
-            for prop, pattern in [
+        return all(
+            [
+                self._pattern_matches(prop, pattern)
+                for prop, pattern in [
                     (service, self.service),
                     (name, self.name),
+                ]
             ]
         )
 
