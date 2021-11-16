@@ -9,6 +9,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Tuple
 
 import six
 
@@ -398,6 +399,19 @@ class SamplingRule(BaseSampler):
         return prop == pattern
 
     @cachedmethod()
+    def _cached_matches(self, key):
+        # type: (Tuple[Optional[str], str]) -> bool
+        service, name = key
+        return all(
+            [
+                self._pattern_matches(prop, pattern)
+                for prop, pattern in [
+                    (service, self.service),
+                    (name, self.name),
+                ]
+            ]
+        )
+
     def matches(self, service, name):
         # type: (Optional[str], str) -> bool
         """
@@ -408,15 +422,7 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return all(
-            [
-                self._pattern_matches(prop, pattern)
-                for prop, pattern in [
-                    (service, self.service),
-                    (name, self.name),
-                ]
-            ]
-        )
+        return self._cached_matches((service, name))
 
     def sample(self, span):
         # type: (Span) -> bool
