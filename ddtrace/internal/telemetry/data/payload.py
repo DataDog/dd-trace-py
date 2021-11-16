@@ -18,22 +18,22 @@ class Payload(ABC):
 
     @abstractmethod
     def request_type(self):
+        # type: () -> str
         """
         Every payload must return one of the following request types:
         app-closed, app-started, app-dendencies-load, app-integrations-changed,
         app-heartbeat, app-generate-metrics
         """
-        # type: () -> str
         pass
 
     @abstractmethod
     def to_dict(self):
+        # type: () -> Dict
         """
         the return value of this method is used to convert a Payload object
         into a json. All payload keys that are required by the telemetry intake
         service must be set here.
         """
-        # type: () -> Dict
         pass
 
 
@@ -59,11 +59,9 @@ class AppStartedPayload(Payload):
     and application configurations.
     """
 
-    def __init__(self, configurations={}, additional_payload={}):
-        # type: (Dict, Dict) -> None
+    def __init__(self):
+        # type: () -> None
         super().__init__()
-        self.configuration = configurations  # type: Dict[str, str]
-        self.additional_payload = additional_payload  # type: Dict[str, str]
         self.dependencies = self.get_dependencies()
 
     def request_type(self):
@@ -71,20 +69,17 @@ class AppStartedPayload(Payload):
 
     def to_dict(self):
         return {
-            "configuration": self.configuration,
-            "additional_payload": self.additional_payload,
             "dependencies": self.dependencies,
         }
 
     def get_dependencies(self):
+        # type: () -> List[Dependency]
         """
         Returns the names and versions of all packages
         in the current working set
         """
-        # type: () -> List[Dependency]
         import pkg_resources
 
-        dependencies = []
         return [create_dependency(pkg.project_name, pkg.version) for pkg in pkg_resources.working_set]
 
 
@@ -103,7 +98,7 @@ class AppGenerateMetricsPayload(Payload):
         self.series = series  # type: List[Series]
 
     def request_type(self):
-        return "app-generate-metrics"
+        return "generate-metrics"
 
     def to_dict(self):
         # type: () -> Dict

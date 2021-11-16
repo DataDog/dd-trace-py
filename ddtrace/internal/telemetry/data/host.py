@@ -23,29 +23,35 @@ Stores info about the host an application is running on
 
 
 def get_containter_id():
-    """Get ID from docker container"""
     # type: () -> str
+    """Get ID from docker container"""
     container_info = get_container_info()
     if container_info:
         return container_info.container_id or ""
 
 
 def get_os_version():
+    # type: () -> None
     ver, _, _ = platform.mac_ver()
     if ver:
         return ver
-    ver, _, _ = platform.win32_ver()
+    _, ver, _, _ = platform.win32_ver()
     if ver:
         return ver
     return ""
 
 
-HOST = {
-    "os": platform.platform(aliased=1, terse=1),
-    "hostname": get_hostname(),
-    "os_version": get_os_version(),
-    "kernel_name": platform.system(),
-    "kernel_release": platform.release(),
-    "kernel_version": platform.version(),
-    "container_id": get_containter_id(),
-}  # type: Host
+def get_host():
+
+    return {
+        "os": platform.platform(aliased=1, terse=1),
+        "hostname": get_hostname(),
+        "os_version": get_os_version(),
+        "kernel_name": platform.system(),
+        "kernel_release": platform.release(),
+        "kernel_version": platform.version(),
+        "container_id": get_containter_id(),
+    }  # type: Host
+
+
+HOST = get_host()

@@ -15,26 +15,25 @@ class Series:
     COUNT = "count"
     RATE = "rate"
 
-    TELEMETRY_METRIC_PREFIX = "dd.app_telemetry.tracers.%s"
-
-    def __init__(self, metric, metric_type=COUNT, interval=None):
-        # type: (str, str, Optional[int]) -> None
+    def __init__(self, metric, metric_type=COUNT, common=False, interval=None):
+        # type: (str, str, bool, Optional[int]) -> None
+        self.metric = metric
+        self.type = metric_type
+        self.interval = interval
+        self.common = common
         self.points = []  # type: List[List[int]]
         self.tags = {}  # type: Dict[str, str]
-        self.type = metric_type  # type: str
-        self.interval = interval  # type: Optional[int]
-        self.host = get_hostname()  # type: str
-        self.metric = self.TELEMETRY_METRIC_PREFIX % (metric,)  # type: str
+        self.host = get_hostname()
 
     def add_point(self, value):
-        """Adds timestamped data point associated with a metric"""
         # type: (int) -> None
+        """Adds timestamped data point associated with a metric"""
         timestamp = int(time.time())  # type: int
         self.points.append([timestamp, value])
 
     def add_tag(self, name, value):
-        """sets metrics tag"""
         # type: (str, str) -> None
+        """sets metrics tag"""
         self.tags[name] = value
 
     def to_dict(self):
@@ -44,6 +43,7 @@ class Series:
             "points": self.points,
             "tags": self.tags,
             "type": self.type,
+            "common": self.common,
             "interval": self.interval,
             "host": self.host,
         }

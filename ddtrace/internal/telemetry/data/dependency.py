@@ -3,7 +3,7 @@ from typing import TypedDict
 
 Dependency = TypedDict("Dependency", {"name": str, "version": str})
 """
-Stores name and versions of imported modules 
+Stores name and versions of imported modules
 """
 
 

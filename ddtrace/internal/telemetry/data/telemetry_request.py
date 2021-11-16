@@ -25,7 +25,7 @@ RequestBody = TypedDict(
     },
 )
 """
-contains all the body fields required by version 
+contains all the body fields required by version
 one of the Telemetry Intake API
 """
 
@@ -37,17 +37,17 @@ TelemetryRequest = TypedDict(
     },
 )
 """
-contains all the header and body fields required 
+contains all the header and body fields required
 to send a request to Telemetry Intake v1
 """
 
 
 def create_telemetry_request(payload):
+    # type: (Payload) -> TelemetryRequest
     """
     creates a telemetry request with a payload and
     initializes required high level fields
     """
-    # type: (Payload) -> TelemetryRequest
     return {
         "headers": {
             "Content-type": "application/json",
