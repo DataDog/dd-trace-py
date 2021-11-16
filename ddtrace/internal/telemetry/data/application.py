@@ -34,7 +34,7 @@ def format_version_info(vi):
 
 
 def get_application():
-
+    # type: () -> Application
     return {
         "service_name": config.service or "unnamed_python_service",
         "service_version": config.version or "",

@@ -2,7 +2,7 @@ import platform
 from typing import TypedDict
 
 from ...hostname import get_hostname
-from ...runtime.container import get_container_info
+from ddtrace.internal.runtime.container import get_container_info
 
 
 Host = TypedDict(
@@ -26,12 +26,13 @@ def get_containter_id():
     # type: () -> str
     """Get ID from docker container"""
     container_info = get_container_info()
+    print(container_info.container_id)
     if container_info:
         return container_info.container_id or ""
 
 
 def get_os_version():
-    # type: () -> None
+    # type: () -> str
     ver, _, _ = platform.mac_ver()
     if ver:
         return ver
@@ -42,7 +43,7 @@ def get_os_version():
 
 
 def get_host():
-
+    # type: () -> Host
     return {
         "os": platform.platform(aliased=1, terse=1),
         "hostname": get_hostname(),

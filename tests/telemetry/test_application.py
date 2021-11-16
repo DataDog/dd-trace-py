@@ -1,26 +1,22 @@
 import sys
+from typing import Tuple
 
 from ddtrace.internal.telemetry.data.application import APPLICATION
 from ddtrace.internal.telemetry.data.application import Application
 from ddtrace.internal.telemetry.data.application import get_version
+from ddtrace.internal.telemetry.data.application import format_version_info
 
 
 def test_application():
-    vi = sys.version_info
-    language_version = "{}.{}.{}".format(vi.major, vi.minor, vi.micro)
-
-    vi = sys.implementation.version
-    runtime_version = "{}.{}.{}".format(vi.major, vi.minor, vi.micro)
-
     expected_application = {
         "service_name": "unnamed_python_service",
         "service_version": "",
         "env": "",
         "language_name": "python",
-        "language_version": language_version,
+        "language_version": format_version_info(sys.version_info),
         "tracer_version": get_version(),
         "runtime_name": sys.implementation.name,
-        "runtime_version": runtime_version,
+        "runtime_version": format_version_info(sys.implementation.version),
     }  # type: Application
 
     assert APPLICATION == expected_application
@@ -43,3 +39,11 @@ assert APPLICATION["env"] == "prod"
     )
 
     assert status == 0, (out, err)
+
+
+def test_format_version_info():
+
+    sys_vi = sys.version_info
+
+    version_str = format_version_info(sys_vi)
+    assert version_str == "{}.{}.{}".format(sys_vi.major, sys_vi.minor, sys_vi.micro)
