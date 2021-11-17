@@ -402,15 +402,11 @@ class SamplingRule(BaseSampler):
     def _matches(self, key):
         # type: (Tuple[Optional[str], str]) -> bool
         service, name = key
-        return all(
-            [
-                self._pattern_matches(prop, pattern)
-                for prop, pattern in [
-                    (service, self.service),
-                    (name, self.name),
-                ]
-            ]
-        )
+    for prop, pattern in [(service, self.service), (name, self.name)]:
+        if not self._pattern_matches(prop, pattern):
+            return False
+    else:
+        return True
 
     def matches(self, span):
         # type: (Span) -> bool
