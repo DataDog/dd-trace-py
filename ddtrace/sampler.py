@@ -399,7 +399,7 @@ class SamplingRule(BaseSampler):
         return prop == pattern
 
     @cachedmethod()
-    def _cached_matches(self, key):
+    def _matches(self, key):
         # type: (Tuple[Optional[str], str]) -> bool
         service, name = key
         return all(
@@ -424,7 +424,7 @@ class SamplingRule(BaseSampler):
         """
         # Our MFU cache expects a single key, convert the
         # provided Span into a hashable tuple for the cache
-        return self._cached_matches((span.service, span.name))
+        return self._matches((span.service, span.name))
 
     def sample(self, span):
         # type: (Span) -> bool
