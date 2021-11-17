@@ -24,7 +24,7 @@ Stores information to uniquely identify a service
 
 
 def format_version_info(vi):
-    # type: (sys.version_info) -> str
+    # type: (sys._version_info) -> str
     """
     Converts sys.version_info into a string with the format x.x.x
     """
@@ -46,7 +46,7 @@ def get_application():
         "tracer_version": get_version(),
         "runtime_name": sys.implementation.name,
         "runtime_version": format_version_info(sys.implementation.version),
-    }  # type: Application
+    }
 
 
 APPLICATION = get_application()

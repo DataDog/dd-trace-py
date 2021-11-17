@@ -17,6 +17,9 @@ RequestBody = TypedDict(
         "tracer_time": int,
         "runtime_id": str,
         "api_version": str,
+        # seq_id (sequence id) should be incremented every time a telemetry
+        # request is sent to the agent. This field will be used to monitor
+        # dropped payloads and reorder requests on the backend
         "seq_id": int,
         "application": Application,
         "host": Host,

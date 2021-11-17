@@ -27,9 +27,9 @@ def get_containter_id():
     # type: () -> str
     """Get ID from docker container"""
     container_info = get_container_info()
-    print(container_info.container_id)
     if container_info:
         return container_info.container_id or ""
+    return ""
 
 
 def get_os_version():
@@ -53,14 +53,14 @@ def get_host():
     Creates a Host dictionary using the platform module
     """
     return {
-        "os": platform.platform(aliased=1, terse=1),
+        "os": platform.platform(aliased=True, terse=True),
         "hostname": get_hostname(),
         "os_version": get_os_version(),
         "kernel_name": platform.system(),
         "kernel_release": platform.release(),
         "kernel_version": platform.version(),
         "container_id": get_containter_id(),
-    }  # type: Host
+    }
 
 
 HOST = get_host()
