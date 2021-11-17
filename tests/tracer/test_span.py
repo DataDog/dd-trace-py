@@ -679,11 +679,16 @@ def test_manual_context_usage():
 
 
 def test_set_exc_info_with_unicode():
-    try:
-        raise Exception("DataDog/水")
-    except Exception:
-        type_, value_, traceback_ = sys.exc_info()
-    span = Span(None, "span1")
-    span.set_exc_info(type_, value_, traceback_)
+    exceptions_to_raise = [Exception("DataDog/水")]
+    if not six.PY3:
+        exceptions_to_raise.append(u"DataDog/水")
 
-    assert "DataDog/水" in span.get_tag(ERROR_MSG)
+    for exception in exceptions_to_raise:
+        try:
+            raise exception
+        except Exception:
+            type_, value_, traceback_ = sys.exc_info()
+        span = Span(None, "span1")
+        span.set_exc_info(type_, value_, traceback_)
+
+        assert "DataDog/水" in span.get_tag(ERROR_MSG)
