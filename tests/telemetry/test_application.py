@@ -23,7 +23,7 @@ def test_application():
 
 
 def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
-    """tests the APPLICATION singleton when DD_SERVICE, DD_VERSION, and DD_ENV enviorment variables"""
+    """tests the APPLICATION singleton when DD_SERVICE, DD_VERSION, and DD_ENV environment variables"""
     monkeypatch.setenv("DD_SERVICE", "test_service")
     monkeypatch.setenv("DD_VERSION", "12.34.56")
     monkeypatch.setenv("DD_ENV", "prod")

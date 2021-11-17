@@ -5,7 +5,7 @@ from ddtrace.internal.telemetry.data.metrics import Series
 
 
 def test_default_series():
-    """tests intializing a Series with default args"""
+    """tests initializing a Series with default args"""
     series = Series("test.metric")
 
     assert series.metric == "test.metric"
@@ -17,7 +17,7 @@ def test_default_series():
 
 
 def test_guage_series():
-    """tests intializing a Series object with a guage metric"""
+    """tests initializing a Series object with a gauge metric"""
     series = Series("test.guage_metric", MetricType.GAUGE, interval=20, common=False)
 
     assert series.metric == "test.guage_metric"
@@ -27,7 +27,7 @@ def test_guage_series():
 
 
 def test_rate_series():
-    """tests intializing a Series object with a rate metric"""
+    """tests initializing a Series object with a rate metric"""
     series = Series("test.common_rate_metric", MetricType.RATE, interval=30, common=True)
 
     assert series.metric == "test.common_rate_metric"

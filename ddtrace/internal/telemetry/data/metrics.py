@@ -25,7 +25,7 @@ class Series:
         metric: metric name
         metric_type: type of metric (count/gauge/rate)
         common: set to True if a metric is common to all tracers, false if it is python specific
-        interval: field set for guage and rate metrics, any field set is ignored for count metrics (in secs)
+        interval: field set for gauge and rate metrics, any field set is ignored for count metrics (in secs)
         """
         self.metric = metric
         self.type = metric_type

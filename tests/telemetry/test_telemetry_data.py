@@ -37,7 +37,7 @@ def test_create_integration():
 
 
 def test_create_integration_with_default_args():
-    """validates the return value of create_integration when defualt arguments are used"""
+    """validates the return value of create_integration when default arguments are used"""
     name = "integration_name"
     integration = create_integration(name)
 

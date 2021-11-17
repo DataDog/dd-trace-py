@@ -26,14 +26,14 @@ def test_host_fields():
 
 
 def test_get_os_version_macos():
-    """test retreiving the os version on a mac machine"""
+    """test retrieving the os version on a mac machine"""
     with mock.patch("platform.mac_ver") as macos:
         macos.return_value = ("3.5.6", ("", "", ""), "")
         assert get_os_version() == "3.5.6"
 
 
 def test_get_os_version_win32():
-    """test retreiving the os version on a windows 32-bit machine"""
+    """test retrieving the os version on a windows 32-bit machine"""
     with mock.patch("platform.win32_ver") as win32:
         win32.return_value = ("", "4.1.6", "", "")
         assert get_os_version() == "4.1.6"
