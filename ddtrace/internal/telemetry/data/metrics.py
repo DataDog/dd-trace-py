@@ -11,22 +11,22 @@ from ...hostname import get_hostname
 class MetricType(Enum):
     """gauge, count, and rate are the 3 metric types accepted by the Telemetry Instrumentation"""
 
-    COUNT = "count"
-    GAUGE = "gauge"
-    RATE = "rate"
+    COUNT = "count"  # type: str
+    GAUGE = "gauge"  # type: str
+    RATE = "rate"  # type: str
 
 
 class Series:
     """stores metrics which will be sent to the Telemetry Intake metrics to the Datadog Instrumentation Telemetry Org"""
 
     def __init__(self, metric, metric_type=MetricType.COUNT, common=False, interval=None):
+        # type: (str, MetricType, bool, Optional[int]) -> None
         """
         metric: metric name
         metric_type: type of metric (count/gauge/rate)
         common: set to True if a metric is common to all tracers, false if it is python specific
         interval: field set for guage and rate metrics, any field set is ignored for count metrics (in secs)
         """
-        # type: (str, MetricType, bool, Optional[int]) -> None
         self.metric = metric
         self.type = metric_type
         self.interval = interval
