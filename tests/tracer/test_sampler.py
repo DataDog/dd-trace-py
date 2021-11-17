@@ -381,7 +381,7 @@ def test_sampling_rule_init_via_env():
     ],
 )
 def test_sampling_rule_matches_name(span, rule, expected):
-    assert rule.matches(span) is expected, "{} -> {} -> {}".format(rule, span, expected)
+    assert rule.matches(span.service, span.name) is expected, "{} -> {} -> {}".format(rule, span, expected)
 
 
 @pytest.mark.parametrize(
@@ -412,7 +412,7 @@ def test_sampling_rule_matches_name(span, rule, expected):
     ],
 )
 def test_sampling_rule_matches_service(span, rule, expected):
-    assert rule.matches(span) is expected, "{} -> {} -> {}".format(rule, span, expected)
+    assert rule.matches(span.service, span.name) is expected, "{} -> {} -> {}".format(rule, span, expected)
 
 
 @pytest.mark.parametrize(
@@ -474,7 +474,7 @@ def test_sampling_rule_matches_service(span, rule, expected):
     ],
 )
 def test_sampling_rule_matches(span, rule, expected):
-    assert rule.matches(span) is expected, "{} -> {} -> {}".format(rule, span, expected)
+    assert rule.matches(span.service, span.name) is expected, "{} -> {} -> {}".format(rule, span, expected)
 
 
 def test_sampling_rule_matches_exception():
@@ -487,7 +487,7 @@ def test_sampling_rule_matches_exception():
     span = create_span(name="test.span")
 
     with mock.patch("ddtrace.sampler.log") as mock_log:
-        assert rule.matches(span) is False
+        assert rule.matches(span.service, span.name) is False
         mock_log.warning.assert_called_once_with(
             "%r pattern %r failed with %r",
             rule,
@@ -622,7 +622,7 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
 
 
 class MatchSample(SamplingRule):
-    def matches(self, span):
+    def matches(self, service, name):
         return True
 
     def sample(self, span):
@@ -630,7 +630,7 @@ class MatchSample(SamplingRule):
 
 
 class NoMatch(SamplingRule):
-    def matches(self, span):
+    def matches(self, service, name):
         return False
 
     def sample(self, span):
@@ -638,7 +638,7 @@ class NoMatch(SamplingRule):
 
 
 class MatchNoSample(SamplingRule):
-    def matches(self, span):
+    def matches(self, service, name):
         return True
 
     def sample(self, span):
@@ -757,7 +757,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
     with dummy_tracer.trace("test.span") as span:
         # Assert all of our expected functions were called
         sampler_spy.sample.assert_called_once_with(span)
-        rule_spy.matches.assert_called_once_with(span)
+        rule_spy.matches.assert_called_once_with(span.service, span.name)
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_called_once_with()
 
@@ -785,7 +785,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
     with dummy_tracer.trace("test.span") as span:
         # Assert all of our expected functions were called
         sampler_spy.sample.assert_called_once_with(span)
-        rule_spy.matches.assert_called_once_with(span)
+        rule_spy.matches.assert_called_once_with(span.service, span.name)
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_called_once_with()
 
@@ -813,7 +813,7 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
     with dummy_tracer.trace("test.span") as span:
         # Assert all of our expected functions were called
         sampler_spy.sample.assert_called_once_with(span)
-        rule_spy.matches.assert_called_once_with(span)
+        rule_spy.matches.assert_called_once_with(span.service, span.name)
         rule_spy.sample.assert_called_once_with(span)
         limiter_spy.is_allowed.assert_not_called()
 
@@ -842,7 +842,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
             # Assert all of our expected functions were called
             # DEV: `assert_called_once_with` ensures we didn't also call with the child span
             sampler_spy.sample.assert_called_once_with(parent)
-            rule_spy.matches.assert_called_once_with(parent)
+            rule_spy.matches.assert_called_once_with(parent.service, parent.name)
             rule_spy.sample.assert_called_once_with(parent)
             limiter_spy.is_allowed.assert_called_once_with()
 
@@ -871,7 +871,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
 
     # Assert all of our expected functions were called
     sampler_spy.sample.assert_called_once_with(span)
-    rule_spy.matches.assert_called_once_with(span)
+    rule_spy.matches.assert_called_once_with(span.service, span.name)
     rule_spy.sample.assert_called_once_with(span)
     limiter_spy.is_allowed.assert_called_once_with()
 
