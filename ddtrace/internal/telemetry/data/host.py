@@ -1,10 +1,12 @@
 import platform
 from typing import TypedDict
 
+from ddtrace.internal.runtime.container import get_container_info
+
 from ...hostname import get_hostname
-from ...runtime.container import get_container_info
 
 
+# Stores info about the host an application is running on
 Host = TypedDict(
     "Host",
     {
@@ -21,6 +23,7 @@ Host = TypedDict(
 
 def get_containter_id():
     # type: () -> str
+    """Get ID from docker container"""
     container_info = get_container_info()
     if container_info:
         return container_info.container_id or ""
@@ -28,21 +31,29 @@ def get_containter_id():
 
 
 def get_os_version():
+    # type: () -> str
+    """returns the os version for applications running on Mac or Windows 32-bit"""
     ver, _, _ = platform.mac_ver()
     if ver:
         return ver
-    ver, _, _ = platform.win32_ver()
+    _, ver, _, _ = platform.win32_ver()
     if ver:
         return ver
     return ""
 
 
-HOST = {
-    "os": platform.platform(aliased=1, terse=1),
-    "hostname": get_hostname(),
-    "os_version": get_os_version(),
-    "kernel_name": platform.system(),
-    "kernel_release": platform.release(),
-    "kernel_version": platform.version(),
-    "container_id": get_containter_id(),
-}  # type: Host
+def get_host():
+    # type: () -> Host
+    """creates a Host Dict using the platform module"""
+    return {
+        "os": platform.platform(aliased=True, terse=True),
+        "hostname": get_hostname(),
+        "os_version": get_os_version(),
+        "kernel_name": platform.system(),
+        "kernel_release": platform.release(),
+        "kernel_version": platform.version(),
+        "container_id": get_containter_id(),
+    }
+
+
+HOST = get_host()

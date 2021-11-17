@@ -1,6 +1,7 @@
 from typing import TypedDict
 
 
+# Stores information about modules we attempt to instrument
 Integration = TypedDict(
     "Integration",
     {"name": str, "version": str, "enabled": bool, "auto_enabled": bool, "compatible": str, "error": str},
@@ -9,6 +10,7 @@ Integration = TypedDict(
 
 def create_integration(name, version="", enabled=True, auto_enabled=True, compatible="", error=""):
     # type: (str, str, bool, bool, str, str) -> Integration
+    """creates an Integration Dict and sets default values"""
     return {
         "name": name,
         "version": version,

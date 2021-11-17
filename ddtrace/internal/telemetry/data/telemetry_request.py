@@ -12,12 +12,16 @@ from .host import Host
 from .payload import Payload
 
 
+# Contains all the body fields required by v1 of the Telemetry Intake API
 RequestBody = TypedDict(
     "RequestBody",
     {
         "tracer_time": int,
         "runtime_id": str,
         "api_version": str,
+        # seq_id (sequence id) should be incremented every time a telemetry request is
+        # sent to the agent. This field will be used to monitor dropped payloads and
+        # reorder requests on the backend
         "seq_id": int,
         "application": Application,
         "host": Host,
@@ -26,6 +30,8 @@ RequestBody = TypedDict(
     },
 )
 
+# Contains all the header and body fields required to send a request to v1 of
+# the Telemetry Intake Service
 TelemetryRequest = TypedDict(
     "TelemetryRequest",
     {
@@ -35,8 +41,16 @@ TelemetryRequest = TypedDict(
 )
 
 
-def create_telemetry_request(payload):
-    # type: (Payload) -> TelemetryRequest
+def create_telemetry_request(payload, seq_id):
+    # type: (Payload, int) -> TelemetryRequest
+    """
+    Initializes the required fields for a generic Telemetry Intake Request
+
+    The payload object sets fields specific to one of the following event types:
+    app-started, app-closed, app-integrations-changed, and generate-metrics
+
+    The seq_id arg is a counter representing the number of requests sent by the writer
+    """
     return {
         "headers": {
             "Content-type": "application/json",
@@ -50,7 +64,7 @@ def create_telemetry_request(payload):
             "tracer_time": int(time.time()),
             "runtime_id": get_runtime_id(),
             "api_version": "v1",
-            "seq_id": 0,
+            "seq_id": seq_id,
             "application": APPLICATION,
             "host": HOST,
             "payload": payload.to_dict(),
