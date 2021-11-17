@@ -2,6 +2,7 @@ import time
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ...hostname import get_hostname
 
@@ -21,7 +22,7 @@ class Series:
         self.type = metric_type
         self.interval = interval
         self.common = common
-        self.points = []  # type: List[List[int]]
+        self.points = []  # type: List[Tuple[int, int]]
         self.tags = {}  # type: Dict[str, str]
         self.host = get_hostname()
 
