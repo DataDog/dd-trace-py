@@ -48,8 +48,7 @@ to send a request to v1 of Telemetry Intake Service
 def create_telemetry_request(payload):
     # type: (Payload) -> TelemetryRequest
     """
-    Initializes the required fields for a
-    generic Telemetry Intake Request
+    Initializes the required fields for a generic Telemetry Intake Request
 
     The payload object sets fields specific to one
     of the following event types:
