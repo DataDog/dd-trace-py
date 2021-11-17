@@ -37,7 +37,7 @@ def test_rate_series():
 
 
 def test_series_set_tag():
-    """tests adding a tag to metric"""
+    """tests adding tags to a metric"""
     series = Series("test.rate_metric", metric_type=MetricType.RATE)
 
     series.set_tag("foo", "bar")
@@ -49,7 +49,7 @@ def test_series_set_tag():
 
 
 def test_series_add_point():
-    """tests adding a point to metric"""
+    """tests adding points to a metric"""
     series = Series("test.guage_metric", MetricType.GAUGE, interval=10)
 
     with mock.patch("time.time") as t:

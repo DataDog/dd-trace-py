@@ -7,9 +7,7 @@ Dependency = TypedDict("Dependency", {"name": str, "version": str})
 
 def create_dependency(name, version):
     # type: (str, str) -> Dependency
-    """
-    Helper for creating a Dependency dictionary
-    """
+    """helper for creating a Dependency Dict"""
     return {
         "name": name,
         "version": version,

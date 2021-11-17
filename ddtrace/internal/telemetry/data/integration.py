@@ -10,9 +10,7 @@ Integration = TypedDict(
 
 def create_integration(name, version="", enabled=True, auto_enabled=True, compatible="", error=""):
     # type: (str, str, bool, bool, str, str) -> Integration
-    """
-    Creates an Integration dictionary with default values
-    """
+    """creates an Integration Dict and sets default values"""
     return {
         "name": name,
         "version": version,

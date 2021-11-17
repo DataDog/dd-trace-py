@@ -11,7 +11,7 @@ from ddtrace.internal.telemetry.data.host import get_os_version
 
 
 def test_host_fields():
-    """validate HOST contains default fields"""
+    """validates whether the HOST singleton contains the expected fields"""
     expected_host = {
         "os": platform.platform(aliased=1, terse=1),
         "hostname": get_hostname(),

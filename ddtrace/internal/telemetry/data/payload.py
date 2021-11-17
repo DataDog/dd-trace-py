@@ -11,18 +11,14 @@ from .metrics import Series
 
 
 class Payload(ABC):
-    """ "
-    Meta class which ensures all telemetry payloads implement
-    the abstract methods listed below.
-    """
+    """Meta class which ensures all telemetry payloads implement the abstract methods listed below."""
 
     @abstractmethod
     def request_type(self):
         # type: () -> str
         """
-        Every payload must return one of the following request types:
-        app-closed, app-started, app-dendencies-load, app-integrations-changed,
-        app-heartbeat, app-generate-metrics
+        every payload must return one of the following request types:
+        app-closed, app-started, app-dendencies-load, app-integrations-changed, app-heartbeat, app-generate-metrics
         """
         raise NotImplementedError
 
@@ -30,18 +26,14 @@ class Payload(ABC):
     def to_dict(self):
         # type: () -> Dict
         """
-        The return value of this method is used to convert a Payload object
-        into a json. All payload fields that are required by the telemetry intake
-        service must be set here
+        the return value of this method is used to convert a Payload object into a json.
+        All payload fields that are required by the telemetry intake service must be set here
         """
         raise NotImplementedError
 
 
 class AppIntegrationsChangedPayload(Payload):
-    """
-    Payload of a TelemetryRequest which is sent
-    after we attempt to instrument a module.
-    """
+    """Payload of a TelemetryRequest which is sent after we attempt to instrument a module"""
 
     def __init__(self, integrations):
         # type: (List[Integration]) -> None
@@ -56,9 +48,7 @@ class AppIntegrationsChangedPayload(Payload):
 
 
 class AppStartedPayload(Payload):
-    """
-    Payload of a TelemetryRequest which is sent at the start of the an application.
-    """
+    """Payload of a TelemetryRequest which is sent at the start of the an application"""
 
     def __init__(self):
         # type: () -> None
@@ -77,18 +67,14 @@ class AppStartedPayload(Payload):
 
     def get_dependencies(self):
         # type: () -> List[Dependency]
-        """
-        returns a list of all package names and version in the working set of an applications
-        """
+        """returns a list of all package names and version in the working set of an applications"""
         import pkg_resources
 
         return [create_dependency(pkg.project_name, pkg.version) for pkg in pkg_resources.working_set]
 
 
 class AppGenerateMetricsPayload(Payload):
-    """
-    Telemetry Payload for sending metrics to the Instrumentation Telemetry Datadog Org
-    """
+    """Telemetry Payload for sending metrics to the Instrumentation Telemetry Datadog Org"""
 
     def __init__(self, series):
         # type: (List[Series]) -> None
@@ -114,8 +100,8 @@ class AppGenerateMetricsPayload(Payload):
 
 class AppClosedPayload(Payload):
     """
-    A payload with the request_type app-closed notifies the intake
-    service that an application instance has terminated
+    A payload with the request_type app-closed notifies the intake service
+    that an application instance has terminated
     """
 
     def request_type(self):

@@ -32,9 +32,7 @@ def get_containter_id():
 
 def get_os_version():
     # type: () -> str
-    """
-    Returns the os version for applications running on Mac or Windows 32-bit
-    """
+    """returns the os version for applications running on Mac or Windows 32-bit"""
     ver, _, _ = platform.mac_ver()
     if ver:
         return ver
@@ -46,9 +44,7 @@ def get_os_version():
 
 def get_host():
     # type: () -> Host
-    """
-    Creates a Host dictionary using the platform module
-    """
+    """creates a Host Dict using the platform module"""
     return {
         "os": platform.platform(aliased=True, terse=True),
         "hostname": get_hostname(),

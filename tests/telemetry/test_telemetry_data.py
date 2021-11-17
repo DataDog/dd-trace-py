@@ -11,7 +11,7 @@ from ddtrace.internal.telemetry.data.telemetry_request import create_telemetry_r
 
 
 def test_create_dependency():
-    """test creating a Dependency typed dict"""
+    """tests create_dependency and validates return type"""
     name = "dependency_name"
     version = "0.0.0"
     dependency = create_dependency(name, version)
@@ -23,7 +23,7 @@ def test_create_dependency():
 
 
 def test_create_integration():
-    """test creating an Integration TypedDict"""
+    """tests create_integration and validates return type"""
     integration = create_integration("integration_name", "0.0.0", False, False, "no", "error")
 
     assert integration == {

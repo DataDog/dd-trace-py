@@ -13,7 +13,7 @@ from ddtrace.internal.telemetry.data.payload import Payload
 
 
 def test_payload_request_type():
-    """validates the return value of Payload.to_dict"""
+    """validates the return value of Payload.request_type"""
     assert AppClosedPayload().request_type() == "app-closed"
     assert AppStartedPayload().request_type() == "app-started"
     assert AppGenerateMetricsPayload([]).request_type() == "generate-metrics"

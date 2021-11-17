@@ -17,9 +17,7 @@ class MetricType(Enum):
 
 
 class Series:
-    """
-    Stores metrics which will be sent to the Telemetry Intake metrics to the Datadog Instrumentation Telemetry Org
-    """
+    """stores metrics which will be sent to the Telemetry Intake metrics to the Datadog Instrumentation Telemetry Org"""
 
     def __init__(self, metric, metric_type=MetricType.COUNT, common=False, interval=None):
         """
@@ -39,24 +37,18 @@ class Series:
 
     def add_point(self, value):
         # type: (int) -> None
-        """
-        Adds timestamped data point associated with a metric
-        """
+        """adds timestamped data point associated with a metric"""
         timestamp = int(time.time())  # type: int
         self.points.append((timestamp, value))
 
     def set_tag(self, name, value):
         # type: (str, str) -> None
-        """
-        Sets a metrics tag
-        """
+        """sets a metrics tag"""
         self.tags[name] = value
 
     def to_dict(self):
         # type: () -> Dict
-        """
-        Returns a dictionary containing the metrics fields expected by the telemetry intake service
-        """
+        """returns a dictionary containing the metrics fields expected by the telemetry intake service"""
         return {
             "metric": self.metric,
             "points": self.points,
