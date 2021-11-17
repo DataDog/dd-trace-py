@@ -422,6 +422,8 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
+        # Our MFU cache expects a single key, convert the
+        # provided Span into a hashable tuple for the cache
         return self._cached_matches((span.service, span.name))
 
     def sample(self, span):
