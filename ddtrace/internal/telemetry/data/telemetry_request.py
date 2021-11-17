@@ -25,8 +25,8 @@ RequestBody = TypedDict(
     },
 )
 """
-contains all the body fields required by version
-one of the Telemetry Intake API
+Contains all the body fields required by v1
+of the Telemetry Intake API
 """
 
 TelemetryRequest = TypedDict(
@@ -37,16 +37,21 @@ TelemetryRequest = TypedDict(
     },
 )
 """
-contains all the header and body fields required
-to send a request to Telemetry Intake v1
+Contains all the header and body fields required
+to send a request to v1 of Telemetry Intake Service
 """
 
 
 def create_telemetry_request(payload):
     # type: (Payload) -> TelemetryRequest
     """
-    creates a telemetry request with a payload and
-    initializes required high level fields
+    Initializes the required fields for a
+    generic Telemetry Intake Request
+
+    The payload object sets fields specific to one
+    of the following event types:
+    app-started, app-closed, app-integrations-changed,
+    and generate-metrics
     """
     return {
         "headers": {

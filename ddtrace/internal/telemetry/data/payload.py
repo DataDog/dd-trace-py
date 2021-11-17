@@ -12,8 +12,8 @@ from .metrics import Series
 
 class Payload(ABC):
     """ "
-    Meta class which ensures child classes implements
-    the abstract classes listed below.
+    Meta class which ensures all telemetry payloads implement
+    the abstract methods listed below.
     """
 
     @abstractmethod
@@ -30,14 +30,19 @@ class Payload(ABC):
     def to_dict(self):
         # type: () -> Dict
         """
-        the return value of this method is used to convert a Payload object
-        into a json. All payload keys that are required by the telemetry intake
-        service must be set here.
+        The return value of this method is used to convert a Payload object
+        into a json. All payload fields that are required by the telemetry intake
+        service must be set here
         """
         pass
 
 
 class AppIntegrationsChangedPayload(Payload):
+    """
+    Payload of a TelemetryRequest which is sent
+    after we attempt to instrument a module.
+    """
+
     def __init__(self, integrations):
         # type: (List[Integration]) -> None
         super().__init__()
@@ -55,8 +60,8 @@ class AppStartedPayload(Payload):
     Payload of a TelemetryRequest which is sent
     at the start of the an application.
 
-    Contains Information about an applications installed packages
-    and application configurations.
+    dependencies contains a list of an applications
+    installed packages.
     """
 
     def __init__(self):
@@ -65,9 +70,11 @@ class AppStartedPayload(Payload):
         self.dependencies = self.get_dependencies()
 
     def request_type(self):
+        # type: () -> str
         return "app-started"
 
     def to_dict(self):
+        # type: () -> Dict
         return {
             "dependencies": self.dependencies,
         }
@@ -98,6 +105,7 @@ class AppGenerateMetricsPayload(Payload):
         self.series = series  # type: List[Series]
 
     def request_type(self):
+        # type: () -> str
         return "generate-metrics"
 
     def to_dict(self):
@@ -117,7 +125,9 @@ class AppClosedPayload(Payload):
     """
 
     def request_type(self):
+        # type: () -> str
         return "app-closed"
 
     def to_dict(self):
+        # type: () -> Dict
         return {}

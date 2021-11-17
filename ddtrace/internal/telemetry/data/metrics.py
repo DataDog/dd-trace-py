@@ -27,17 +27,25 @@ class Series:
 
     def add_point(self, value):
         # type: (int) -> None
-        """Adds timestamped data point associated with a metric"""
+        """
+        Adds timestamped data point associated with a metric
+        """
         timestamp = int(time.time())  # type: int
         self.points.append([timestamp, value])
 
     def add_tag(self, name, value):
         # type: (str, str) -> None
-        """sets metrics tag"""
+        """
+        Sets a metrics tag
+        """
         self.tags[name] = value
 
     def to_dict(self):
         # type: () -> Dict
+        """
+        Returns a dictionary containing the metrics fields expected
+        by the telemetry intake service
+        """
         return {
             "metric": self.metric,
             "points": self.points,

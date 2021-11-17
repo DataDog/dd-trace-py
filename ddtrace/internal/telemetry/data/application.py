@@ -19,22 +19,24 @@ Application = TypedDict(
     },
 )
 """
-Stores info about an application.
-
-Service name, service version, and enviorment fields
-are used to uniquely identify applications in the
-telemetry intake service
+Stores information to uniquely identify a service
 """
 
 
 def format_version_info(vi):
     # type: (sys.version_info) -> str
-    """Converts a named tuple to the format x.x.x"""
+    """
+    Converts sys.version_info into a string with the format x.x.x
+    """
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
 
 def get_application():
     # type: () -> Application
+    """
+    Creates an Application Dictionary using ddtrace configurations
+    and the System-Specific module
+    """
     return {
         "service_name": config.service or "unnamed_python_service",
         "service_version": config.version or "",
