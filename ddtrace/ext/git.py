@@ -2,6 +2,7 @@
 tags for common git attributes
 """
 import os
+import re
 import subprocess
 from typing import Dict
 from typing import MutableMapping
@@ -52,7 +53,16 @@ COMMIT_COMMITTER_DATE = "git.commit.committer.date"
 # Git Commit Message
 COMMIT_MESSAGE = "git.commit.message"
 
+_RE_REFS = re.compile(r"^refs/(heads/)?")
+_RE_ORIGIN = re.compile(r"^origin/")
+_RE_TAGS = re.compile(r"^tags/")
+
 log = get_logger(__name__)
+
+
+def normalize_ref(name):
+    # type: (Optional[str]) -> Optional[str]
+    return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
 
 
 def _git_subprocess_cmd(cmd, cwd=None):
@@ -145,11 +155,22 @@ def extract_user_git_metadata(env=None):
     """Extract git commit metadata from user-provided env vars."""
     env = os.environ if env is None else env
 
+    branch = normalize_ref(env.get("DD_GIT_BRANCH"))
+    tag = normalize_ref(env.get("DD_GIT_TAG"))
+
+    if env.get("DD_GIT_TAG"):
+        branch = None
+
+    # if DD_GIT_BRANCH is a tag, we associate its value to TAG instead of BRANCH
+    if "origin/tags" in env.get("DD_GIT_BRANCH", "") or "refs/heads/tags" in env.get("DD_GIT_BRANCH", ""):
+        branch = None
+        tag = normalize_ref(env.get("DD_GIT_BRANCH"))
+
     tags = {}
     tags[REPOSITORY_URL] = env.get("DD_GIT_REPOSITORY_URL")
     tags[COMMIT_SHA] = env.get("DD_GIT_COMMIT_SHA")
-    tags[BRANCH] = env.get("DD_GIT_BRANCH")
-    tags[TAG] = env.get("DD_GIT_TAG")
+    tags[BRANCH] = branch
+    tags[TAG] = tag
     tags[COMMIT_MESSAGE] = env.get("DD_GIT_COMMIT_MESSAGE")
     tags[COMMIT_AUTHOR_DATE] = env.get("DD_GIT_COMMIT_AUTHOR_DATE")
     tags[COMMIT_AUTHOR_EMAIL] = env.get("DD_GIT_COMMIT_AUTHOR_EMAIL")
