@@ -48,15 +48,9 @@ class SamplingRules(bm.Scenario):
             sample_rate=1.0,
         )
 
-        # The API of `rule.matches` changed from `matches(span)` to `matches(service, name)`
-        multi_arg = len(inspect.getfullargspec(rule.matches).args) > 2
-
         def _(loops):
             for _ in range(loops):
                 for span in iter_n(spans, n=self.num_iterations):
-                    if multi_arg:
-                        rule.matches(span.service, span.name)
-                    else:
-                        rule.matches(span)
+                    rule.matches(span)
 
         yield _

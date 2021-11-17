@@ -263,7 +263,7 @@ class DatadogSampler(BasePrioritySampler):
         # Go through all rules and grab the first one that matched
         # DEV: This means rules should be ordered by the user from most specific to least specific
         for rule in self.rules:
-            if rule.matches(span.service, span.name):
+            if rule.matches(span):
                 matching_rule = rule
                 break
         else:
@@ -412,8 +412,8 @@ class SamplingRule(BaseSampler):
             ]
         )
 
-    def matches(self, service, name):
-        # type: (Optional[str], str) -> bool
+    def matches(self, span):
+        # type: (Span) -> bool
         """
         Return if this span matches this rule
 
@@ -422,7 +422,7 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return self._cached_matches((service, name))
+        return self._cached_matches((span.service, span.name))
 
     def sample(self, span):
         # type: (Span) -> bool
