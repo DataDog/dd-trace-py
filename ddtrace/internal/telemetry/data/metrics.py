@@ -31,7 +31,7 @@ class Series:
         Adds timestamped data point associated with a metric
         """
         timestamp = int(time.time())  # type: int
-        self.points.append([timestamp, value])
+        self.points.append((timestamp, value))
 
     def add_tag(self, name, value):
         # type: (str, str) -> None

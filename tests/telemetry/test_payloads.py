@@ -55,7 +55,7 @@ def test_generate_metrics():
 
 
 def test_base_payload():
-    with pytest.raises(TypeError) as te:
+    with pytest.raises(TypeError) as type_err:
         Payload()
 
-    assert "Can't instantiate abstract class Payload with abstract methods request_type, to_dict" in str(te)
+    assert "Can't instantiate abstract class Payload with abstract methods request_type, to_dict" in str(type_err)

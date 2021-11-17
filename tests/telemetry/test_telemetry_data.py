@@ -51,7 +51,9 @@ def test_create_telemetry_request():
     payload = AppClosedPayload()
     telmetry_request = create_telemetry_request(payload=payload)
 
+    # tracer_time is set using time.time, assert the value set is valid
     assert telmetry_request["body"]["tracer_time"] > 0
+    # ignore the tracer_time field in the assertion below, this value might differ
     telmetry_request["body"]["tracer_time"] = 0
 
     assert telmetry_request == {

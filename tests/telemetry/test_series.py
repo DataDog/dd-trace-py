@@ -6,12 +6,11 @@ from ddtrace.internal.telemetry.data.metrics import Series
 
 def test_series_to_dict():
     series = Series("test.metric")
-    series.add_tag("foo", "bar")
 
     assert series.to_dict() == {
         "metric": "test.metric",
         "points": [],
-        "tags": {"foo": "bar"},
+        "tags": {},
         "type": Series.COUNT,
         "common": False,
         "interval": None,
@@ -34,12 +33,16 @@ def test_series_add_point():
 
     curr_time_in_secs = int(time.time())
 
+    # two points were added to the series object
     assert len(series.points) == 2
+    # each point should be tuple with two integers (timestamp, value)
     assert len(series.points[0]) == 2
     assert len(series.points[1]) == 2
 
+    # assert each timestamp contains a time in the last 10 seconds
     assert curr_time_in_secs - series.points[0][0] < 10
-    assert series.points[0][1] == 111111
-
     assert curr_time_in_secs - series.points[1][0] < 10
+
+    # assert the value set using add_point() exists
+    assert series.points[0][1] == 111111
     assert series.points[1][1] == 222222
