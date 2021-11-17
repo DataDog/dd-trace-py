@@ -1,3 +1,5 @@
+import mock
+
 from ddtrace.internal.telemetry.data.application import APPLICATION
 from ddtrace.internal.telemetry.data.dependency import Dependency
 from ddtrace.internal.telemetry.data.dependency import create_dependency
@@ -6,10 +8,10 @@ from ddtrace.internal.telemetry.data.integration import Integration
 from ddtrace.internal.telemetry.data.integration import create_integration
 from ddtrace.internal.telemetry.data.payload import AppClosedPayload
 from ddtrace.internal.telemetry.data.telemetry_request import create_telemetry_request
-from ddtrace.internal.telemetry.data.telemetry_request import get_runtime_id
 
 
 def test_create_dependency():
+    """test creating a Dependency typed dict"""
     name = "dependency_name"
     version = "0.0.0"
     dependency = create_dependency(name, version)
@@ -21,6 +23,7 @@ def test_create_dependency():
 
 
 def test_create_integration():
+    """test creating an Integration TypedDict"""
     integration = create_integration("integration_name", "0.0.0", False, False, "no", "error")
 
     assert integration == {
@@ -34,6 +37,7 @@ def test_create_integration():
 
 
 def test_create_integration_with_default_args():
+    """validates the return value of create_integration when defualt arguments are used"""
     name = "integration_name"
     integration = create_integration(name)
 
@@ -48,28 +52,30 @@ def test_create_integration_with_default_args():
 
 
 def test_create_telemetry_request():
+    """validates the return value of create_telemetry_request"""
     payload = AppClosedPayload()
-    telmetry_request = create_telemetry_request(payload=payload)
+    seq_id = 1
 
-    # tracer_time is set using time.time, assert the value set is valid
-    assert telmetry_request["body"]["tracer_time"] > 0
-    # ignore the tracer_time field in the assertion below, this value might differ
-    telmetry_request["body"]["tracer_time"] = 0
+    with mock.patch("time.time") as t:
+        t.return_value = 6543210
+        with mock.patch("ddtrace.internal.telemetry.data.telemetry_request.get_runtime_id") as get_rt_id:
+            get_rt_id.return_value = "1234-567"
 
-    assert telmetry_request == {
-        "headers": {
-            "Content-type": "application/json",
-            "DD-Telemetry-Request-Type": payload.request_type(),
-            "DD-Telemetry-API-Version": "v1",
-        },
-        "body": {
-            "tracer_time": 0,
-            "runtime_id": get_runtime_id(),
-            "api_version": "v1",
-            "seq_id": 0,
-            "application": APPLICATION,
-            "host": HOST,
-            "payload": payload.to_dict(),
-            "request_type": payload.request_type(),
-        },
-    }
+            telmetry_request = create_telemetry_request(payload, seq_id)
+            assert telmetry_request == {
+                "headers": {
+                    "Content-type": "application/json",
+                    "DD-Telemetry-Request-Type": "app-closed",
+                    "DD-Telemetry-API-Version": "v1",
+                },
+                "body": {
+                    "tracer_time": 6543210,
+                    "runtime_id": "1234-567",
+                    "api_version": "v1",
+                    "seq_id": seq_id,
+                    "application": APPLICATION,
+                    "host": HOST,
+                    "payload": {},
+                    "request_type": "app-closed",
+                },
+            }

@@ -24,7 +24,7 @@ class Payload(ABC):
         app-closed, app-started, app-dendencies-load, app-integrations-changed,
         app-heartbeat, app-generate-metrics
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def to_dict(self):
@@ -34,7 +34,7 @@ class Payload(ABC):
         into a json. All payload fields that are required by the telemetry intake
         service must be set here
         """
-        pass
+        raise NotImplementedError
 
 
 class AppIntegrationsChangedPayload(Payload):
@@ -57,11 +57,7 @@ class AppIntegrationsChangedPayload(Payload):
 
 class AppStartedPayload(Payload):
     """
-    Payload of a TelemetryRequest which is sent
-    at the start of the an application.
-
-    dependencies contains a list of an applications
-    installed packages.
+    Payload of a TelemetryRequest which is sent at the start of the an application.
     """
 
     def __init__(self):
@@ -82,8 +78,7 @@ class AppStartedPayload(Payload):
     def get_dependencies(self):
         # type: () -> List[Dependency]
         """
-        Returns the names and versions of all packages
-        in the current working set
+        returns a list of all package names and version in the working set of an applications
         """
         import pkg_resources
 
@@ -92,8 +87,7 @@ class AppStartedPayload(Payload):
 
 class AppGenerateMetricsPayload(Payload):
     """
-    Telemetry Payload for sending metrics to the Instrumentation
-    Telemetry Datadog Org
+    Telemetry Payload for sending metrics to the Instrumentation Telemetry Datadog Org
     """
 
     def __init__(self, series):

@@ -6,6 +6,7 @@ from ddtrace.internal.runtime.container import get_container_info
 from ...hostname import get_hostname
 
 
+# Stores info about the host an application is running on
 Host = TypedDict(
     "Host",
     {
@@ -18,9 +19,6 @@ Host = TypedDict(
         "container_id": str,
     },
 )
-"""
-Stores info about the host an application is running on
-"""
 
 
 def get_containter_id():
@@ -35,8 +33,7 @@ def get_containter_id():
 def get_os_version():
     # type: () -> str
     """
-    Returns the os version for applications running on
-    Mac or Windows 32-bit
+    Returns the os version for applications running on Mac or Windows 32-bit
     """
     ver, _, _ = platform.mac_ver()
     if ver:

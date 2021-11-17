@@ -5,6 +5,7 @@ from ....settings import _config as config  # noqa: E402
 from ....version import get_version
 
 
+# Stores information to uniquely identify a service
 Application = TypedDict(
     "Application",
     {
@@ -18,9 +19,6 @@ Application = TypedDict(
         "runtime_version": str,
     },
 )
-"""
-Stores information to uniquely identify a service
-"""
 
 
 def format_version_info(vi):
@@ -34,8 +32,7 @@ def format_version_info(vi):
 def get_application():
     # type: () -> Application
     """
-    Creates an Application Dictionary using ddtrace configurations
-    and the System-Specific module
+    Creates an Application Dictionary using ddtrace configurations and the System-Specific module
     """
     return {
         "service_name": config.service or "unnamed_python_service",

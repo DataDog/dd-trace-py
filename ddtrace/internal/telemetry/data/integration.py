@@ -1,13 +1,11 @@
 from typing import TypedDict
 
 
+# Stores information about modules we attempt to instrument
 Integration = TypedDict(
     "Integration",
     {"name": str, "version": str, "enabled": bool, "auto_enabled": bool, "compatible": str, "error": str},
 )
-"""
-Stores information about modules we attempt to instrument
-"""
 
 
 def create_integration(name, version="", enabled=True, auto_enabled=True, compatible="", error=""):

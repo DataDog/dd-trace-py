@@ -1,48 +1,84 @@
-import time
+import mock
 
-from ddtrace.internal.telemetry.data.host import get_hostname
+from ddtrace.internal.telemetry.data.metrics import MetricType
 from ddtrace.internal.telemetry.data.metrics import Series
 
 
-def test_series_to_dict():
+def test_default_series():
+    """tests intializing a Series with default args"""
     series = Series("test.metric")
 
-    assert series.to_dict() == {
-        "metric": "test.metric",
-        "points": [],
-        "tags": {},
-        "type": Series.COUNT,
-        "common": False,
-        "interval": None,
-        "host": get_hostname(),
-    }
+    assert series.metric == "test.metric"
+    assert series.type == MetricType.COUNT
+    assert series.common is False
+    assert series.interval is None
+    assert series.tags == {}
+    assert series.points == []
 
 
-def test_series_add_tag():
-    series = Series("test.metric")
+def test_guage_series():
+    """tests intializing a Series object with a guage metric"""
+    series = Series("test.guage_metric", MetricType.GAUGE, interval=20, common=False)
 
-    series.add_tag("foo", "bar")
-    assert series.tags == {"foo": "bar"}
+    assert series.metric == "test.guage_metric"
+    assert series.type == MetricType.GAUGE
+    assert series.common is False
+    assert series.interval == 20
+
+
+def test_rate_series():
+    """tests intializing a Series object with a rate metric"""
+    series = Series("test.common_rate_metric", MetricType.RATE, interval=30, common=True)
+
+    assert series.metric == "test.common_rate_metric"
+    assert series.type == MetricType.RATE
+    assert series.common is True
+    assert series.interval == 30
+
+
+def test_series_set_tag():
+    """tests adding a tag to metric"""
+    series = Series("test.rate_metric", metric_type=MetricType.RATE)
+
+    series.set_tag("foo", "bar")
+    series.set_tag("foo", "moo")
+
+    series.set_tag("gege", "meme")
+
+    assert series.tags == {"foo": "moo", "gege": "meme"}
 
 
 def test_series_add_point():
-    series = Series("test.metric")
+    """tests adding a point to metric"""
+    series = Series("test.guage_metric", MetricType.GAUGE, interval=10)
 
-    series.add_point(111111)
-    series.add_point(222222)
+    with mock.patch("time.time") as t:
+        t.return_value = 6543210
+        series.add_point(111111)
+        series.add_point(222222)
 
-    curr_time_in_secs = int(time.time())
+        assert series.points == [(6543210, 111111), (6543210, 222222)]
 
-    # two points were added to the series object
-    assert len(series.points) == 2
-    # each point should be tuple with two integers (timestamp, value)
-    assert len(series.points[0]) == 2
-    assert len(series.points[1]) == 2
 
-    # assert each timestamp contains a time in the last 10 seconds
-    assert curr_time_in_secs - series.points[0][0] < 10
-    assert curr_time_in_secs - series.points[1][0] < 10
+def test_series_to_dict():
+    """tests converting a series object to a dict and validates the set fields"""
+    series = Series("test.metric", MetricType.GAUGE, True, interval=10)
 
-    # assert the value set using add_point() exists
-    assert series.points[0][1] == 111111
-    assert series.points[1][1] == 222222
+    with mock.patch("time.time") as t:
+        t.return_value = 6543210
+        with mock.patch("ddtrace.internal.telemetry.data.metrics.get_hostname") as gh:
+            gh.return_value = "docker-desktop"
+            series.add_point(111111)
+            series.add_point(222222)
+
+            series.set_tag("foo", "bar")
+
+            assert series.to_dict() == {
+                "metric": "test.metric",
+                "points": [(6543210, 111111), (6543210, 222222)],
+                "tags": {"foo": "bar"},
+                "type": "gauge",
+                "common": True,
+                "interval": 10,
+                "host": "docker-desktop",
+            }

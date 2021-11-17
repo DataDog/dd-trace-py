@@ -1,10 +1,8 @@
 from typing import TypedDict
 
 
+# Stores the name and versions of python modules
 Dependency = TypedDict("Dependency", {"name": str, "version": str})
-"""
-Stores the name and versions of python modules
-"""
 
 
 def create_dependency(name, version):

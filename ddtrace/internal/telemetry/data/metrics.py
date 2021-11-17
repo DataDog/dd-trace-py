@@ -1,3 +1,4 @@
+from enum import Enum
 import time
 from typing import Dict
 from typing import List
@@ -7,17 +8,27 @@ from typing import Tuple
 from ...hostname import get_hostname
 
 
-class Series:
-    """
-    Stores and sends metrics using the Datadog Metrics API: https://docs.datadoghq.com/api/latest/metrics/
-    """
+class MetricType(Enum):
+    """gauge, count, and rate are the 3 metric types accepted by the Telemetry Instrumentation"""
 
-    GAUGE = "gauge"
     COUNT = "count"
+    GAUGE = "gauge"
     RATE = "rate"
 
-    def __init__(self, metric, metric_type=COUNT, common=False, interval=None):
-        # type: (str, str, bool, Optional[int]) -> None
+
+class Series:
+    """
+    Stores metrics which will be sent to the Telemetry Intake metrics to the Datadog Instrumentation Telemetry Org
+    """
+
+    def __init__(self, metric, metric_type=MetricType.COUNT, common=False, interval=None):
+        """
+        metric: metric name
+        metric_type: type of metric (count/gauge/rate)
+        common: set to True if a metric is common to all tracers, false if it is python specific
+        interval: field set for guage and rate metrics, any field set is ignored for count metrics (in secs)
+        """
+        # type: (str, MetricType, bool, Optional[int]) -> None
         self.metric = metric
         self.type = metric_type
         self.interval = interval
@@ -34,7 +45,7 @@ class Series:
         timestamp = int(time.time())  # type: int
         self.points.append((timestamp, value))
 
-    def add_tag(self, name, value):
+    def set_tag(self, name, value):
         # type: (str, str) -> None
         """
         Sets a metrics tag
@@ -44,14 +55,13 @@ class Series:
     def to_dict(self):
         # type: () -> Dict
         """
-        Returns a dictionary containing the metrics fields expected
-        by the telemetry intake service
+        Returns a dictionary containing the metrics fields expected by the telemetry intake service
         """
         return {
             "metric": self.metric,
             "points": self.points,
             "tags": self.tags,
-            "type": self.type,
+            "type": self.type.value,
             "common": self.common,
             "interval": self.interval,
             "host": self.host,

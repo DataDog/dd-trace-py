@@ -7,6 +7,7 @@ from ddtrace.internal.telemetry.data.application import get_version
 
 
 def test_application():
+    """tests Application values when no enviorment variables are set"""
     expected_application = {
         "service_name": "unnamed_python_service",
         "service_version": "",
@@ -22,7 +23,7 @@ def test_application():
 
 
 def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
-
+    """tests Application values when DD_SERVICE, DD_VERSION, and DD_ENV enviorment variables"""
     monkeypatch.setenv("DD_SERVICE", "test_service")
     monkeypatch.setenv("DD_VERSION", "12.34.56")
     monkeypatch.setenv("DD_ENV", "prod")
@@ -41,7 +42,7 @@ assert APPLICATION["env"] == "prod"
 
 
 def test_format_version_info():
-
+    """validates the return value of format_version_info() has the format: x.x.x"""
     sys_vi = sys.version_info
 
     version_str = format_version_info(sys_vi)
