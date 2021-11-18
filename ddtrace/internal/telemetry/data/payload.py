@@ -2,6 +2,7 @@ from abc import ABC
 from abc import abstractmethod
 from typing import Dict
 from typing import List
+from typing import Literal
 
 from ....version import get_version
 from .dependency import Dependency
@@ -10,12 +11,22 @@ from .integration import Integration
 from .metrics import Series
 
 
+RequestTypesLiteral = Literal[
+    "app-closed",
+    "app-started",
+    "app-dendencies-load",
+    "app-integrations-changed",
+    "app-heartbeat",
+    "app-generate-metrics",
+]
+
+
 class Payload(ABC):
     """Meta class which ensures all telemetry payloads implement the abstract methods listed below."""
 
     @abstractmethod
     def request_type(self):
-        # type: () -> str
+        # type: () -> RequestTypesLiteral
         """
         every payload must return one of the following request types:
         app-closed, app-started, app-dendencies-load, app-integrations-changed, app-heartbeat, app-generate-metrics
@@ -56,11 +67,9 @@ class AppStartedPayload(Payload):
         self.dependencies = self.get_dependencies()
 
     def request_type(self):
-        # type: () -> str
         return "app-started"
 
     def to_dict(self):
-        # type: () -> Dict
         return {
             "dependencies": self.dependencies,
         }
@@ -85,11 +94,9 @@ class AppGenerateMetricsPayload(Payload):
         self.series = series  # type: List[Series]
 
     def request_type(self):
-        # type: () -> str
         return "generate-metrics"
 
     def to_dict(self):
-        # type: () -> Dict
         return {
             "namespace": self.namespace,
             "lib_language": self.lib_language,
@@ -105,9 +112,7 @@ class AppClosedPayload(Payload):
     """
 
     def request_type(self):
-        # type: () -> str
         return "app-closed"
 
     def to_dict(self):
-        # type: () -> Dict
         return {}

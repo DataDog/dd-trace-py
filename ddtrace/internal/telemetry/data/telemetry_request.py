@@ -45,10 +45,10 @@ def create_telemetry_request(payload, seq_id):
     """
     Initializes the required fields for a generic Telemetry Intake Request
 
-    The payload object sets fields specific to one of the following event types:
-    app-started, app-closed, app-integrations-changed, and generate-metrics
+    :param Payload payload: The payload object sets fields specific to one of the following event types:
+        app-started, app-closed, app-integrations-changed, and generate-metrics
 
-    The seq_id arg is a counter representing the number of requests sent by the writer
+    :param seq_id int: arg is a counter representing the number of requests sent by the writer
     """
     return {
         "headers": {

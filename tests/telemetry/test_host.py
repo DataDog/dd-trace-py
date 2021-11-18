@@ -1,6 +1,7 @@
 import platform
 
 import mock
+import pytest
 
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data.host import HOST
@@ -25,18 +26,21 @@ def test_host_fields():
     assert HOST == expected_host
 
 
-def test_get_os_version_macos():
-    """test retrieving the os version on a mac machine"""
+@pytest.mark.parametrize(
+    "mac_ver,win32_ver,expected",
+    [
+        ((None, None, None), (None, "4.1.6", None, None), "4.1.6"),
+        (("3.5.6", None, None), (None, "", None, None), "3.5.6"),
+        ((None, None, None), (None, None, None, None), ""),
+    ],
+)
+def test_get_os_version(mac_ver, win32_ver, expected):
+    """test retrieving the os version on a mac and windows 32-bit operating systems"""
     with mock.patch("platform.mac_ver") as macos:
-        macos.return_value = ("3.5.6", ("", "", ""), "")
-        assert get_os_version() == "3.5.6"
-
-
-def test_get_os_version_win32():
-    """test retrieving the os version on a windows 32-bit machine"""
-    with mock.patch("platform.win32_ver") as win32:
-        win32.return_value = ("", "4.1.6", "", "")
-        assert get_os_version() == "4.1.6"
+        macos.return_value = mac_ver
+        with mock.patch("platform.win32_ver") as win32:
+            win32.return_value = win32_ver
+            assert get_os_version() == expected
 
 
 def test_get_container_id_when_container_exists():

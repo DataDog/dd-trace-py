@@ -57,7 +57,7 @@ def test_create_telemetry_request():
     seq_id = 1
 
     with mock.patch("time.time") as t:
-        t.return_value = 6543210
+        t.return_value = 888366600
         with mock.patch("ddtrace.internal.telemetry.data.telemetry_request.get_runtime_id") as get_rt_id:
             get_rt_id.return_value = "1234-567"
 
@@ -69,7 +69,7 @@ def test_create_telemetry_request():
                     "DD-Telemetry-API-Version": "v1",
                 },
                 "body": {
-                    "tracer_time": 6543210,
+                    "tracer_time": 888366600,
                     "runtime_id": "1234-567",
                     "api_version": "v1",
                     "seq_id": seq_id,

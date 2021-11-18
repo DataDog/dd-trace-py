@@ -1,7 +1,8 @@
 import sys
 from typing import TypedDict
 
-from ....settings import _config as config  # noqa: E402
+from ddtrace import config  # noqa: E402
+
 from ....version import get_version
 
 

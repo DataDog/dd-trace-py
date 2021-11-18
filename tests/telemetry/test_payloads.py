@@ -46,7 +46,7 @@ def test_generate_metrics_payload_to_dict():
                 "metric": "test.metric",
                 "points": [],
                 "tags": {},
-                "type": MetricType.COUNT.value,
+                "type": MetricType.COUNT,
                 "common": False,
                 "interval": 10,
                 "host": get_hostname(),
@@ -86,11 +86,12 @@ def test_app_started_payload_dependencies():
 
     assert len(payload.dependencies) > 0
 
-    assert "name" in payload.dependencies[0]
-    assert payload.dependencies[0]["name"]
+    for dep in payload.dependencies:
+        assert "name" in dep
+        assert "version" in dep
 
-    assert "version" in payload.dependencies[0]
-    assert payload.dependencies[0]["version"]
+        assert dep["name"]
+        assert dep["version"]
 
 
 def test_integrations_changed_payload_integrations():

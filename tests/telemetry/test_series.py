@@ -53,11 +53,11 @@ def test_series_add_point():
     series = Series("test.guage_metric", MetricType.GAUGE, interval=10)
 
     with mock.patch("time.time") as t:
-        t.return_value = 6543210
+        t.return_value = 888366600
         series.add_point(111111)
         series.add_point(222222)
 
-        assert series.points == [(6543210, 111111), (6543210, 222222)]
+        assert series.points == [(888366600, 111111), (888366600, 222222)]
 
 
 def test_series_to_dict():
@@ -65,7 +65,7 @@ def test_series_to_dict():
     series = Series("test.metric", MetricType.GAUGE, True, interval=10)
 
     with mock.patch("time.time") as t:
-        t.return_value = 6543210
+        t.return_value = 888366600
         with mock.patch("ddtrace.internal.telemetry.data.metrics.get_hostname") as gh:
             gh.return_value = "docker-desktop"
             series.add_point(111111)
@@ -75,7 +75,7 @@ def test_series_to_dict():
 
             assert series.to_dict() == {
                 "metric": "test.metric",
-                "points": [(6543210, 111111), (6543210, 222222)],
+                "points": [(888366600, 111111), (888366600, 222222)],
                 "tags": {"foo": "bar"},
                 "type": "gauge",
                 "common": True,
