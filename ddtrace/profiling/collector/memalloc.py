@@ -27,13 +27,13 @@ LOG = logging.getLogger(__name__)
 class MemoryAllocSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
-    size = attr.ib(default=None)
+    size = attr.ib(default=0, type=int)
     """Allocation size in bytes."""
 
-    capture_pct = attr.ib(default=None)
+    capture_pct = attr.ib(default=None, type=float)
     """The capture percentage."""
 
-    nevents = attr.ib(default=None)
+    nevents = attr.ib(default=0, type=int)
     """The total number of allocation events sampled."""
 
 
@@ -41,10 +41,10 @@ class MemoryAllocSampleEvent(event.StackBasedEvent):
 class MemoryHeapSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
-    size = attr.ib(default=None)
+    size = attr.ib(default=0, type=int)
     """Allocation size in bytes."""
 
-    sample_size = attr.ib(default=None)
+    sample_size = attr.ib(default=0, type=int)
     """The sampling size."""
 
 
