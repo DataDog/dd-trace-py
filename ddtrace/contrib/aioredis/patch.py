@@ -1,8 +1,8 @@
 import aioredis
 
 from ddtrace import config
-from ddtrace.pin import Pin
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ..redis.util import _extract_conn_tags
