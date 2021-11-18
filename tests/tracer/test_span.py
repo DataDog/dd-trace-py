@@ -391,6 +391,22 @@ class SpanTestCase(TracerTestCase):
         s.set_tag(ENV_KEY, "prod")
         assert s.get_tag(ENV_KEY) == "prod"
 
+    def test_set_baggage_item(self):
+        s = Span(tracer=None, name="test.span")
+        s.set_baggage_item("custom.key", "123")
+        assert s.get_baggage_item("custom.key") == "123"
+
+    def test_baggage_propagation(self):
+        span1 = Span(tracer=None, name="test.span1")
+        span1.set_baggage_item("item1", "123")
+
+        span2 = Span(tracer=None, name="test.span2", context=span1.context)
+        span2.set_baggage_item("item2", "456")
+
+        assert span2.get_baggage_item("item1") == "123"
+        assert span2.get_baggage_item("item2") == "456"
+        assert span1.get_baggage_item("item2") is None
+
 
 @pytest.mark.parametrize(
     "value,assertion",

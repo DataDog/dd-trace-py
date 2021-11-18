@@ -9,13 +9,14 @@ from .utils import get_wsgi_header
 
 log = get_logger(__name__)
 
+HTTP_BAGGAGE_PREFIX = "ot-baggage-"
+
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
 HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
 HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
 HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
 HTTP_HEADER_ORIGIN = "x-datadog-origin"
-
 
 # Note that due to WSGI spec we have to also check for uppercased and prefixed
 # versions of these headers
@@ -59,6 +60,11 @@ class HTTPPropagator(object):
         # Propagate origin only if defined
         if span_context.dd_origin is not None:
             headers[HTTP_HEADER_ORIGIN] = str(span_context.dd_origin)
+
+        # Add the baggage item
+        if span_context.baggage is not None:
+            for key in span_context.baggage:
+                headers[HTTP_BAGGAGE_PREFIX + key] = span_context.baggage[key]
 
     @staticmethod
     def _extract_header_value(possible_header_names, headers, default=None):

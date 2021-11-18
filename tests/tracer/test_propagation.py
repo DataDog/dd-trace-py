@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -26,6 +27,8 @@ class TestHttpPropagation(TestCase):
         tracer = DummyTracer()
 
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics")
+        ctx.set_baggage_item("key1", "val1")
+
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
             headers = {}
@@ -35,6 +38,7 @@ class TestHttpPropagation(TestCase):
             assert int(headers[HTTP_HEADER_PARENT_ID]) == span.span_id
             assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == span.context.sampling_priority
             assert headers[HTTP_HEADER_ORIGIN] == span.context.dd_origin
+            assert headers[HTTP_BAGGAGE_PREFIX + "key1"] == "val1"
 
     def test_extract(self):
         tracer = DummyTracer()

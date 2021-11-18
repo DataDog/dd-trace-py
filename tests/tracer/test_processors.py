@@ -8,6 +8,7 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
+from ddtrace.internal.processor.trace import TraceBaggageProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
 from ddtrace.internal.processor.trace import TraceTopLevelSpanProcessor
 from tests.utils import DummyWriter
@@ -300,3 +301,38 @@ def test_trace_top_level_span_processor_trace_return_val():
     trace = [Span(None, "span1"), Span(None, "span2"), Span(None, "span3")]
     # Test return value contains all spans in the argument
     assert trace_processors.process_trace(trace[:]) == trace
+
+
+def test_trace_tags_processor():
+    """TraceProcessor returns spans"""
+    trace_processors = TraceBaggageProcessor()
+    # Trace contains no spans
+    trace = []
+    assert trace_processors.process_trace(trace) == trace
+
+    span1 = Span(tracer=None, name="test.span1")
+    span1.set_baggage_item("item1", "123")
+
+    span2 = Span(tracer=None, name="test.span2", context=span1.context)
+    span2.set_baggage_item("item2", "456")
+
+    span3 = Span(tracer=None, name="test.span3", context=span2.context)
+    span3.set_baggage_item("item3", "789")
+
+    trace = [span1, span2, span3]
+
+    # Test return value contains all spans in the argument
+    assert trace_processors.process_trace(trace[:]) == trace
+
+    assert span1.get_tag("item1") == "123"
+    assert span2.get_tag("item1") == "123"
+    assert span3.get_tag("item1") == "123"
+
+    assert span2.get_tag("item2") == "456"
+    assert span3.get_tag("item2") == "456"
+
+    assert span3.get_tag("item3") == "789"
+
+    assert span1.get_tag("item2") is None
+    assert span1.get_tag("item3") is None
+    assert span2.get_tag("item3") is None

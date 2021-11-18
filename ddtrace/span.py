@@ -406,6 +406,36 @@ class Span(object):
         # type: (_TagNameType) -> Optional[NumericType]
         return self.metrics.get(key)
 
+    def set_baggage_item(self, key, value):
+        # type: (str, Any) -> Span
+        """Sets a baggage item in the span context of this span.
+
+        Baggage is used to propagate state between spans.
+
+        :param key: baggage item key
+        :type key: str
+
+        :param value: baggage item value
+        :type value: a type that can be compat.stringify()'d
+
+        :rtype: Span
+        :return: itself for chaining calls
+        """
+        self._context = self.context.with_baggage_item(key, value)
+        return self
+
+    def get_baggage_item(self, key):
+        # type: (str) -> Optional[str]
+        """Gets a baggage item from the span context of this span.
+
+        :param key: baggage item key
+        :type key: str
+
+        :rtype: str
+        :return: the baggage value for the given key or ``None``.
+        """
+        return self.context.get_baggage_item(key)
+
     def to_dict(self):
         # type: () -> Dict[str, Any]
         d = {

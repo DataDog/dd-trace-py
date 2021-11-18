@@ -43,6 +43,7 @@ from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
 from .internal.processor.trace import SpanAggregator
+from .internal.processor.trace import TraceBaggageProcessor
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
@@ -662,6 +663,7 @@ class Tracer(object):
         # type: () -> None
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
+        trace_processors += [TraceBaggageProcessor()]
         trace_processors += [TraceSamplingProcessor()]
         trace_processors += [TraceTopLevelSpanProcessor()]
         trace_processors += self._filters

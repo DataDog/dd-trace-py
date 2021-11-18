@@ -123,6 +123,25 @@ class TraceTagsProcessor(TraceProcessor):
 
 
 @attr.s
+class TraceBaggageProcessor(TraceProcessor):
+    """Processor that applies trace-level tags to the trace."""
+
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        if not trace:
+            return trace
+
+        for span in trace:
+            ctx = span._context
+            if not ctx:
+                continue
+
+            ctx._update_baggage_items(span)
+
+        return trace
+
+
+@attr.s
 class SpanAggregator(SpanProcessor):
     """Processor that aggregates spans together by trace_id and writes the
     spans to the provided writer when:
