@@ -78,7 +78,7 @@ cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
     return ret
 
 
-cdef inline int pack_number(msgpack_packer *pk, object n):
+cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
     if n is None:
         return msgpack_pack_nil(pk)
 
@@ -101,7 +101,7 @@ cdef inline int pack_number(msgpack_packer *pk, object n):
     raise TypeError("Unhandled numeric type: %r" % type(n))
 
 
-cdef inline int pack_text(msgpack_packer *pk, object text):
+cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
     cdef Py_ssize_t L
     cdef int ret
 
@@ -422,7 +422,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         raise NotImplementedError()
 
-    cdef inline int _pack_trace(self, list trace):
+    cdef inline int _pack_trace(self, list trace) except? -1:
         cdef int ret
         cdef Py_ssize_t L
         cdef void * dd_origin = NULL
@@ -482,7 +482,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cpdef flush(self):
         raise NotImplementedError()
 
-    cdef int pack_span(self, object span, void *dd_origin):
+    cdef int pack_span(self, object span, void *dd_origin) except? -1:
         raise NotImplementedError()
 
 
@@ -496,7 +496,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
 
-    cdef inline int _pack_meta(self, object meta, char *dd_origin):
+    cdef inline int _pack_meta(self, object meta, char *dd_origin) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -524,7 +524,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         raise TypeError("Unhandled meta type: %r" % type(meta))
 
-    cdef inline int _pack_metrics(self, object metrics):
+    cdef inline int _pack_metrics(self, object metrics) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -546,7 +546,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cdef int pack_span(self, object span, void *dd_origin):
+    cdef int pack_span(self, object span, void *dd_origin) except? -1:
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type
@@ -662,7 +662,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return <void *> PyLong_AsLong(self._st._index(dd_origin))
 
-    cdef int pack_span(self, object span, void *dd_origin):
+    cdef int pack_span(self, object span, void *dd_origin) except? -1:
         cdef int ret
 
         ret = msgpack_pack_array(&self.pk, 12)

@@ -9,6 +9,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Tuple
 
 import six
 
@@ -24,6 +25,7 @@ from .internal.compat import iteritems
 from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
+from .internal.utils.cache import cachedmethod
 from .internal.utils.formats import get_env
 
 
@@ -396,6 +398,16 @@ class SamplingRule(BaseSampler):
         # Exact match on the values
         return prop == pattern
 
+    @cachedmethod()
+    def _matches(self, key):
+        # type: (Tuple[Optional[str], str]) -> bool
+        service, name = key
+        for prop, pattern in [(service, self.service), (name, self.name)]:
+            if not self._pattern_matches(prop, pattern):
+                return False
+        else:
+            return True
+
     def matches(self, span):
         # type: (Span) -> bool
         """
@@ -406,13 +418,9 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return all(
-            self._pattern_matches(prop, pattern)
-            for prop, pattern in [
-                (span.service, self.service),
-                (span.name, self.name),
-            ]
-        )
+        # Our MFU cache expects a single key, convert the
+        # provided Span into a hashable tuple for the cache
+        return self._matches((span.service, span.name))
 
     def sample(self, span):
         # type: (Span) -> bool

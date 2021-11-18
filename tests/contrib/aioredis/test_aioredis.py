@@ -20,7 +20,7 @@ async def redis_client():
 def get_redis_instance():
     if aioredis_version >= (2, 0):
         return aioredis.from_url("redis://localhost:%s" % REDIS_CONFIG["port"])
-    return aioredis.create_redis(("localhost", 6379))
+    return aioredis.create_redis(("localhost", REDIS_CONFIG["port"]))
 
 
 @pytest.fixture(autouse=True)

@@ -5,7 +5,7 @@ import pytest
 
 from ddtrace.profiling import event
 from ddtrace.profiling import recorder
-from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import stack_event
 from tests.utils import call_program
 
 
@@ -47,11 +47,11 @@ def test_limit():
     r = recorder.Recorder(
         default_max_events=12,
         max_events={
-            stack.StackSampleEvent: 24,
+            stack_event.StackSampleEvent: 24,
         },
     )
-    assert r.events[stack.StackExceptionSampleEvent].maxlen == 12
-    assert r.events[stack.StackSampleEvent].maxlen == 24
+    assert r.events[stack_event.StackExceptionSampleEvent].maxlen == 12
+    assert r.events[stack_event.StackSampleEvent].maxlen == 24
 
 
 def test_fork():
