@@ -5,11 +5,19 @@
 import functools
 import six
 import typing
+from collections import deque
+
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
+from libc.stdint cimport uint64_t
 
 from _libddwaf cimport (
     ddwaf_handle,
+    ddwaf_context,
+    ddwaf_result,
     ddwaf_init,
+    ddwaf_context_init,
+    ddwaf_run,
+    ddwaf_context_destroy,
     ddwaf_destroy,
     ddwaf_object,
     ddwaf_object_invalid,
@@ -27,7 +35,6 @@ def version():
     ddwaf_get_version(&version)
     return (version.major, version.minor, version.patch)
 
-ctypedef void (*ddwaf_object_applyf)(ddwaf_object *);
 
 cdef class _Wrapper(object):
     cdef ddwaf_object *_ptr
@@ -35,64 +42,81 @@ cdef class _Wrapper(object):
     cdef readonly ssize_t _size
     cdef readonly ssize_t _next_idx
 
-    def __init__(self, value):
+    def __init__(self, value, max_objects=1024):
         self._string_refs = []
-        self._convert(self._reserve_obj(), value)
+        self._convert(value, max_objects)
 
-    cdef ddwaf_object* _reserve_obj(self, ssize_t n=1) except NULL:
+    cdef ssize_t _reserve_obj(self, ssize_t n=1) except -1:
         cdef ssize_t idx, i
-        cdef ddwaf_object* ptr
+        cdef ddwaf_object *ptr
+        cdef ddwaf_object *obj
 
         idx = self._next_idx
         ptr = self._ptr
         if idx + n > self._size:
-            self._size += n + ((64 - (n % 64)) % 64)
+            self._size += n + ((128 - (n % 128)) % 128)
             ptr = <ddwaf_object *> PyMem_Realloc(self._ptr, self._size * sizeof(ddwaf_object))
             if ptr == NULL:
                 raise MemoryError
+            elif ptr != self._ptr:
+                # we need to patch all array objects because they use pointers to other objects
+                for i in range(idx):
+                    obj = ptr + i
+                    if obj.array != NULL:
+                        obj.array = obj.array - self._ptr + ptr
             self._ptr = ptr
         self._next_idx += n
         for i in range(idx, idx + n):
             ddwaf_object_invalid(ptr + i)
-        return ptr + idx
+        return idx
 
-    cdef void _convert(self, ddwaf_object* obj, value) except *:
-        cdef ssize_t i
+    cdef void _convert(self, value, max_objects) except *:
+        cdef object stack
+        cdef ddwaf_object *obj
+        cdef ddwaf_object *item_obj
+        cdef ssize_t i, j, idx
 
-        if isinstance(value, (int, float)):
-            value = str(value)
+        i = 0
+        stack = deque([(self._reserve_obj(), value)], maxlen=max_objects)
+        while len(stack) and (max_objects is None or i < <ssize_t?> max_objects):
+            idx, val = stack.popleft()
+            obj = self._ptr + idx
 
-        if isinstance(value, six.text_type):
-            value = value.encode("utf-8", errors="surrogatepass")
+            if isinstance(val, (int, float)):
+                val = six.text_type(val)
 
-        if isinstance(value, bytes):
-            self._string_refs.append(value)
-            ddwaf_object_stringl_nc(obj, <bytes> value, len(value))
+            if isinstance(val, six.text_type):
+                val = val.encode("utf-8", errors="surrogatepass")
 
-        elif isinstance(value, (list, tuple)):
-            ddwaf_object_array(obj);
-            n = len(value)
-            items_obj = self._reserve_obj(n)
-            for i in range(n):
-                self._convert(items_obj + i, value[i])
-            obj.array = items_obj
-            obj.nbEntries = n
+            if isinstance(val, bytes):
+                self._string_refs.append(val)
+                ddwaf_object_stringl_nc(obj, <bytes> val, len(val))
 
-        elif isinstance(value, dict):
-            ddwaf_object_map(obj)
-            n = len(value)
-            items_obj = self._reserve_obj(n)
-            for i, (k, v) in enumerate(six.iteritems(value)):
-                if isinstance(k, six.text_type):
-                    k = k.encode("utf-8", errors="surrogatepass")
-                if isinstance(k, bytes):
-                    item_obj = items_obj + i
-                    self._string_refs.append(k)
-                    item_obj.parameterName = <bytes> k
-                    item_obj.parameterNameLength = len(k)
-                    self._convert(item_obj, v)
-            obj.array = items_obj
-            obj.nbEntries = n
+            elif isinstance(value, (list, tuple)):
+                ddwaf_object_array(obj);
+                n = len(val)
+                idx = self._reserve_obj(n)
+                stack.extend([(idx + j, val[j]) for j in range(n)])
+                obj.array = self._ptr + idx
+                obj.nbEntries = n
+
+            elif isinstance(val, dict):
+                ddwaf_object_map(obj)
+                n = len(val)
+                idx = self._reserve_obj(n)
+                obj.array = self._ptr + idx
+                obj.nbEntries = n
+                for j, (k, v) in enumerate(six.iteritems(val)):
+                    if isinstance(k, six.text_type):
+                        k = k.encode("utf-8", errors="surrogatepass")
+                    if isinstance(k, bytes):
+                        item_obj = self._ptr + idx + j
+                        self._string_refs.append(k)
+                        item_obj.parameterName = <bytes> k
+                        item_obj.parameterNameLength = len(k)
+                        stack.append((idx + j, v))
+
+            i += 1
 
     def __repr__(self):
         return "<_Wrapper for {0._next_idx} elements>".format(self)
@@ -110,9 +134,24 @@ cdef class DDWaf(object):
 
     def __init__(self, rules):
         cdef ddwaf_object* rule_objects
-        self._rules = _Wrapper(rules)
+        self._rules = _Wrapper(rules, max_objects=None)
         rule_objects = (<_Wrapper?>self._rules)._ptr;
         self._handle = ddwaf_init(rule_objects, NULL)
+        if <void *> self._handle == NULL:
+            raise ValueError("invalid rules")
+
+    def run(self, data, timeout_ms=1000):
+        cdef ddwaf_context ctx
+        cdef ddwaf_result result
+
+        ctx = ddwaf_context_init(self._handle, NULL)
+        if <void *> ctx == NULL:
+            raise RuntimeError
+        try:
+            wrapper = _Wrapper(data)
+            ddwaf_run(ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms)
+        finally:
+            ddwaf_context_destroy(ctx)
 
     def __dealloc__(self):
         ddwaf_destroy(self._handle)

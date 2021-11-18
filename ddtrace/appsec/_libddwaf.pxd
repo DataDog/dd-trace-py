@@ -27,5 +27,19 @@ cdef extern from "include/ddwaf.h":
     ctypedef struct ddwaf_config:
         pass
 
+    ctypedef struct ddwaf_context:
+        pass
+
+    ctypedef struct ddwaf_result:
+        pass
+
+    ctypedef enum DDWAF_RET_CODE:
+        pass
+
+    ctypedef void (*ddwaf_object_free_fn)(ddwaf_object *object);
+
     ddwaf_handle ddwaf_init(const ddwaf_object* rules, const ddwaf_config* config);
+    ddwaf_context ddwaf_context_init(const ddwaf_handle handle, ddwaf_object_free_fn obj_free);
+    DDWAF_RET_CODE ddwaf_run(ddwaf_context context, ddwaf_object* data, ddwaf_result *result, uint64_t timeout);
+    void ddwaf_context_destroy(ddwaf_context context);
     void ddwaf_destroy(ddwaf_handle handle);
