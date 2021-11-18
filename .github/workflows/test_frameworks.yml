@@ -243,7 +243,9 @@ jobs:
       - name: Install ddtrace
         run: pip install ../ddtrace
       - name: Install dependencies
-        run: "scripts/install"
+        run: |
+          scripts/install
+          pip install graphene==2.1.9
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       - name: Run tests
         run: pytest -p no:warnings --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers'
