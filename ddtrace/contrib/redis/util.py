@@ -92,6 +92,7 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance):
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag(redisx.RAWCMD, resource)
+        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())
