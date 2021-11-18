@@ -11,9 +11,9 @@ from ...hostname import get_hostname
 class MetricType:
     """gauge, count, and rate are the 3 metric types accepted by the Telemetry Instrumentation"""
 
-    COUNT = "count"  # type: str
-    GAUGE = "gauge"  # type: str
-    RATE = "rate"  # type: str
+    COUNT = "count"  # type: Literal['count']
+    GAUGE = "gauge"  # type: Literal['gauge']
+    RATE = "rate"  # type: Literal['rate']
 
 
 class Series:
