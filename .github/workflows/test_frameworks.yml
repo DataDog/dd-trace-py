@@ -220,7 +220,7 @@ jobs:
       - name: Run tests
         run: tox -e py
 
-  starlette-testsuite-0_14_2:
+  starlette-testsuite-0_17_1:
     runs-on: "ubuntu-latest"
     env:
       DD_TESTING_RAISE: true
@@ -238,17 +238,15 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: encode/starlette
-          ref: 0.14.2
+          ref: 0.17.1
           path: starlette
       - name: Install ddtrace
         run: pip install ../ddtrace
       - name: Install dependencies
-        run: |
-          scripts/install
-          pip install graphene==2.1.9
+        run: scripts/install
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       - name: Run tests
-        run: pytest -p no:warnings --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers'
+        run: pytest --ddtrace-patch-all tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers and not test_staticfiles_with_invalid_dir_permissions_returns_401'
 
   requests-testsuite-2_26_0:
     runs-on: "ubuntu-latest"
