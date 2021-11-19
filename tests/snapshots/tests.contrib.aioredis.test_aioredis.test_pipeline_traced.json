@@ -9,16 +9,17 @@
     "type": "redis",
     "meta": {
       "redis.raw_command": "SET blah boo\nSET foo bar\nGET blah\nGET foo",
-      "runtime-id": "8b85fc18021447b1b07afe1715546637"
+      "runtime-id": "c62f4c8ba54d403ab24400038822ded7"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.measured": 1,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "redis.pipeline_length": 4,
-      "system.pid": 6930
+      "system.pid": 1671
     },
-    "duration": 2765000,
-    "start": 1635788533269180000
+    "duration": 2673000,
+    "start": 1637345422441952000
   }]]
