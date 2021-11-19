@@ -1,0 +1,25 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "redis",
+    "resource": "GET cheese",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "meta": {
+      "redis.raw_command": "GET cheese",
+      "runtime-id": "4a625148285a49de9e30100fbf7cb248"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "redis.args_length": 2,
+      "system.pid": 1070
+    },
+    "duration": 758821,
+    "start": 1637354833194929358
+  }]]
