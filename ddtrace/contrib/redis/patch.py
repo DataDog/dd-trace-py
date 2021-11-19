@@ -6,7 +6,6 @@ from ddtrace.vendor import wrapt
 from ...ext import redis as redisx
 from ...pin import Pin
 from ..trace_utils import unwrap
-from .util import _extract_conn_tags
 from .util import _trace_redis_cmd
 from .util import _trace_redis_execute_pipeline
 from .util import format_command_args
@@ -66,8 +65,7 @@ def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.redis, args) as span:
-        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
+    with _trace_redis_cmd(pin, config.redis, instance, args):
         return func(*args, **kwargs)
 
 
@@ -86,6 +84,5 @@ def traced_execute_pipeline(func, instance, args, kwargs):
 
     cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
-    with _trace_redis_execute_pipeline(pin, config.redis, resource, instance) as span:
-        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
+    with _trace_redis_execute_pipeline(pin, config.redis, resource, instance):
         return func(*args, **kwargs)

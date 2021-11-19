@@ -3,7 +3,7 @@
 Integrations
 ------------
 
-.. aioredis:
+.. _aioredis:
 
 aioredis
 ^^^^^^^^

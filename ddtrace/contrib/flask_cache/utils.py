@@ -44,7 +44,7 @@ def _extract_conn_tags(client):
             tags[net.TARGET_PORT] = contact_point[1]
     elif hasattr(client, "connection_pool"):
         # Redis main connection
-        redis_tags = extract_redis_tags(client.connection_pool.connection_kwargs)
+        redis_tags = extract_redis_tags(client)
         tags.update(**redis_tags)
     elif hasattr(client, "addresses"):
         # pylibmc
