@@ -208,7 +208,7 @@ cdef class MsgpackStringTable(StringTable):
         self.max_size = max_size
         self.pk.length = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE
         self._sp_len = 0
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         super(MsgpackStringTable, self).__init__()
 
         assert self.index(ORIGIN_KEY) == 1
@@ -284,10 +284,11 @@ cdef class MsgpackStringTable(StringTable):
         self._sp_len = 0
 
     cpdef flush(self):
-        try:
-            return self.get_bytes()
-        finally:
-            self.reset()
+        with self._lock:
+            try:
+                return self.get_bytes()
+            finally:
+                self.reset()
 
 
 cdef class BufferedEncoder(object):
@@ -372,7 +373,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         self.max_size = max_size
         self.pk.buf_size = buf_size
         self.max_item_size = max_item_size if max_item_size < max_size else max_size
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._reset_buffer()
 
     def __dealloc__(self):
@@ -393,10 +394,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         self.pk.length = MSGPACK_ARRAY_LENGTH_PREFIX_SIZE  # Leave room for array length prefix
 
     cpdef encode(self):
-        if not self._count:
-            return None
+        with self._lock:
+            if not self._count:
+                return None
 
-        return self.flush()
+            return self.flush()
 
     cdef inline int _update_array_len(self):
         """Update traces array size prefix"""
@@ -437,10 +439,9 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         if L > 0 and trace[0].context is not None and trace[0].context.dd_origin is not None:
             dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
 
-        with self._lock:
-            for span in trace:
-                ret = self.pack_span(span, dd_origin)
-                if ret != 0: raise RuntimeError("Couldn't pack span")
+        for span in trace:
+            ret = self.pack_span(span, dd_origin)
+            if ret != 0: raise RuntimeError("Couldn't pack span")
 
         return ret
 
@@ -448,29 +449,30 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         """Put a trace (i.e. a list of spans) in the buffer."""
         cdef int ret
 
-        len_before = self.pk.length
-        size_before = self.size
-        try:
-            ret = self._pack_trace(trace)
-            if ret:  # should not happen.
-                raise RuntimeError("internal error")
+        with self._lock:
+            len_before = self.pk.length
+            size_before = self.size
+            try:
+                ret = self._pack_trace(trace)
+                if ret:  # should not happen.
+                    raise RuntimeError("internal error")
 
-            # DEV: msgpack avoids buffer overflows by calling PyMem_Realloc so
-            # we must check sizes manually.
-            # TODO: We should probably ensure that the buffer size doesn't
-            # grow arbitrarily because of the PyMem_Realloc and if it does then
-            # free and reallocate with the appropriate size.
-            if self.size - size_before > self.max_item_size:
-                raise BufferItemTooLarge(self.size - size_before)
+                # DEV: msgpack avoids buffer overflows by calling PyMem_Realloc so
+                # we must check sizes manually.
+                # TODO: We should probably ensure that the buffer size doesn't
+                # grow arbitrarily because of the PyMem_Realloc and if it does then
+                # free and reallocate with the appropriate size.
+                if self.size - size_before > self.max_item_size:
+                    raise BufferItemTooLarge(self.size - size_before)
 
-            if self.size > self.max_size:
-                raise BufferFull(self.size - size_before)
+                if self.size > self.max_size:
+                    raise BufferFull(self.size - size_before)
 
-            self._count += 1
-        except:
-            # rollback
-            self.pk.length = len_before
-            raise
+                self._count += 1
+            except:
+                # rollback
+                self.pk.length = len_before
+                raise
 
     @property
     def size(self):
@@ -488,10 +490,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
 cdef class MsgpackEncoderV03(MsgpackEncoderBase):
     cpdef flush(self):
-        try:
-            return self.get_bytes()
-        finally:
-            self._reset_buffer()
+        with self._lock:
+            try:
+                return self.get_bytes()
+            finally:
+                self._reset_buffer()
 
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
