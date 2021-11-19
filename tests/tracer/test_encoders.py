@@ -2,6 +2,8 @@
 import json
 import random
 import string
+import threading
+import time
 from unittest import TestCase
 
 from hypothesis import given
@@ -31,6 +33,7 @@ from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
+from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import DummyTracer
 
 
@@ -595,3 +598,35 @@ def test_encoding_invalid_data(data):
         encoder.put(trace)
 
     assert encoder.encode() is None
+
+
+@allencodings
+def test_custom_msgpack_encode_thread_safe(encoding):
+    class TracingThread(threading.Thread):
+        def __init__(self, encoder, span_count, trace_count):
+            super(TracingThread, self).__init__()
+            trace = [
+                Span(tracer=None, name="span-{}-{}".format(self.name, _), service="threads", resource="TEST")
+                for _ in range(span_count)
+            ]
+            self._encoder = encoder
+            self._trace = trace
+            self._trace_count = trace_count
+
+        def run(self):
+            for _ in range(self._trace_count):
+                self._encoder.put(self._trace)
+
+    THREADS = 40
+    SPANS = 15
+    TRACES = 10
+    encoder = MSGPACK_ENCODERS[encoding](2 << 20, 2 << 20)
+
+    ts = [TracingThread(encoder, random.randint(1, SPANS), random.randint(1, TRACES)) for _ in range(THREADS)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+
+    unpacked = decode(encoder.encode(), reconstruct=True)
+    assert unpacked is not None
