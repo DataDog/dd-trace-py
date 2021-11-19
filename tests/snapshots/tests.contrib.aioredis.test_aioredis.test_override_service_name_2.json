@@ -9,7 +9,7 @@
     "type": "redis",
     "meta": {
       "redis.raw_command": "GET cheese",
-      "runtime-id": "ff3f776160e5468caad6dfc4ad004558"
+      "runtime-id": "803cb547178d4973a99675c137d20dcd"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -18,10 +18,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "redis.args_length": 2,
-      "system.pid": 1745
+      "system.pid": 889
     },
-    "duration": 1324000,
-    "start": 1637345453131794000
+    "duration": 729050,
+    "start": 1637354508085361269
   }],
 [
   {
@@ -34,7 +34,7 @@
     "type": "redis",
     "meta": {
       "redis.raw_command": "SET cheese my-cheese",
-      "runtime-id": "ff3f776160e5468caad6dfc4ad004558"
+      "runtime-id": "803cb547178d4973a99675c137d20dcd"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -43,10 +43,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "redis.args_length": 3,
-      "system.pid": 1745
+      "system.pid": 889
     },
-    "duration": 806000,
-    "start": 1637345453133467000
+    "duration": 503097,
+    "start": 1637354508086239192
   }],
 [
   {
@@ -59,7 +59,7 @@
     "type": "redis",
     "meta": {
       "redis.raw_command": "GET cheese",
-      "runtime-id": "ff3f776160e5468caad6dfc4ad004558"
+      "runtime-id": "803cb547178d4973a99675c137d20dcd"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -68,8 +68,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "redis.args_length": 2,
-      "system.pid": 1745
+      "system.pid": 889
     },
-    "duration": 590000,
-    "start": 1637345453134381000
+    "duration": 418586,
+    "start": 1637354508086837144
   }]]

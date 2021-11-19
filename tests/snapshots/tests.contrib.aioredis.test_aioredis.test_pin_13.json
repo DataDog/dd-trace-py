@@ -9,7 +9,7 @@
     "type": "redis",
     "meta": {
       "redis.raw_command": "GET cheese",
-      "runtime-id": "c62f4c8ba54d403ab24400038822ded7"
+      "runtime-id": "709470ce656c46148aa13b0f6758fb68"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -18,8 +18,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "redis.args_length": 2,
-      "system.pid": 1671
+      "system.pid": 881
     },
-    "duration": 2033000,
-    "start": 1637345422405544000
+    "duration": 577117,
+    "start": 1637354496301922743
   }]]
