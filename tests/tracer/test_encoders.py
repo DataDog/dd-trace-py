@@ -3,7 +3,6 @@ import json
 import random
 import string
 import threading
-import time
 from unittest import TestCase
 
 from hypothesis import given
@@ -33,7 +32,6 @@ from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
 from ddtrace.tracer import Tracer
-from ddtrace.vendor.wrapt import ObjectProxy
 from tests.utils import DummyTracer
 
 
