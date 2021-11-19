@@ -264,7 +264,8 @@ cdef class MsgpackStringTable(StringTable):
 
     @property
     def size(self):
-        return self.pk.length - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE + array_prefix_size(self._next_id)
+        with self._lock:
+            return self.pk.length - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE + array_prefix_size(self._next_id)
 
     cdef append_raw(self, long src, Py_ssize_t size):
         cdef int res
@@ -477,7 +478,8 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     @property
     def size(self):
         """Return the size in bytes of the encoder buffer."""
-        return self.pk.length + array_prefix_size(self._count) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
+        with self._lock:
+            return self.pk.length + array_prefix_size(self._count) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
 
     # ---- Abstract methods ----
 
@@ -640,24 +642,27 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         self._st = MsgpackStringTable(max_size)
 
     cpdef flush(self):
-        try:
-            self._st.append_raw(PyLong_FromLong(<long> self.get_buffer()), <Py_ssize_t> super(MsgpackEncoderV05, self).size)
-            return self._st.flush()
-        finally:
-            self._reset_buffer()
+        with self._lock:
+            try:
+                self._st.append_raw(PyLong_FromLong(<long> self.get_buffer()), <Py_ssize_t> super(MsgpackEncoderV05, self).size)
+                return self._st.flush()
+            finally:
+                self._reset_buffer()
 
     @property
     def size(self):
         """Return the size in bytes of the encoder buffer."""
-        return self._st.size + super(MsgpackEncoderV05, self).size
+        with self._lock:
+            return self._st.size + super(MsgpackEncoderV05, self).size
 
     cpdef put(self, list trace):
-        try:
-            self._st.savepoint()
-            super(MsgpackEncoderV05, self).put(trace)
-        except Exception:
-            self._st.rollback()
-            raise
+        with self._lock:
+            try:
+                self._st.savepoint()
+                super(MsgpackEncoderV05, self).put(trace)
+            except Exception:
+                self._st.rollback()
+                raise
 
     cdef inline int _pack_string(self, object string):
         return msgpack_pack_uint32(&self.pk, self._st._index(string))
