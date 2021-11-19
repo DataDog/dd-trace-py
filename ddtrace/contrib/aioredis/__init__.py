@@ -41,7 +41,7 @@ To configure the aioredis integration on an per-instance basis use the
     myaioredis = aioredis.Aioredis()
     Pin.override(myaioredis, service="myaioredis")
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["aioredis"]
