@@ -59,24 +59,14 @@ def test_patching():
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(
-    variants={
-        "13": aioredis_version < (2, 0, 0),
-        "2": aioredis_version >= (2, 0, 0),
-    },
-)
+@pytest.mark.snapshot
 async def test_basic_request(redis_client):
     val = await redis_client.get("cheese")
     assert val is None
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(
-    variants={
-        "13": aioredis_version < (2, 0, 0),
-        "2": aioredis_version >= (2, 0, 0),
-    },
-)
+@pytest.mark.snapshot
 async def test_long_command(redis_client):
     length = 1000
     val_list = await redis_client.mget(*range(length))
@@ -86,12 +76,7 @@ async def test_long_command(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(
-    variants={
-        "13": aioredis_version < (2, 0, 0),
-        "2": aioredis_version >= (2, 0, 0),
-    },
-)
+@pytest.mark.snapshot
 async def test_override_service_name(redis_client):
     with override_config("aioredis", dict(service_name="myaioredis")):
         val = await redis_client.get("cheese")
@@ -104,12 +89,7 @@ async def test_override_service_name(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(
-    variants={
-        "13": aioredis_version < (2, 0, 0),
-        "2": aioredis_version >= (2, 0, 0),
-    },
-)
+@pytest.mark.snapshot
 async def test_pin(redis_client):
     Pin.override(redis_client, service="my-aioredis")
     val = await redis_client.get("cheese")

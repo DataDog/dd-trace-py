@@ -9,7 +9,7 @@
     "type": "redis",
     "meta": {
       "redis.raw_command": "SET blah boo\nSET foo bar\nGET blah\nGET foo",
-      "runtime-id": "803cb547178d4973a99675c137d20dcd"
+      "runtime-id": "9b0776aeb7f246769e03c31ebc75cd8c"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -18,8 +18,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "redis.pipeline_length": 4,
-      "system.pid": 889
+      "system.pid": 1078
     },
-    "duration": 941073,
-    "start": 1637354508137341618
+    "duration": 1191619,
+    "start": 1637354843944687088
   }]]
