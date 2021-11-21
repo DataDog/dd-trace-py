@@ -2,35 +2,35 @@
 # distutils: library_dirs = ddtrace/appsec/lib
 # distutils: libraries = ddwaf
 
-import functools
 import six
-import typing
-from collections import deque
 
-from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
+from typing import Tuple
+from collections import deque
+from collections.abc import Mapping, Sequence
+
+from cpython.mem cimport PyMem_Realloc, PyMem_Free
+from libc.string cimport memset
 from libc.stdint cimport uint64_t
 
 from _libddwaf cimport (
+    DDWAF_OBJ_TYPE,
     ddwaf_handle,
     ddwaf_context,
     ddwaf_result,
-    ddwaf_init,
-    ddwaf_context_init,
-    ddwaf_run,
-    ddwaf_context_destroy,
-    ddwaf_destroy,
     ddwaf_object,
-    ddwaf_object_invalid,
-    ddwaf_object_array,
-    ddwaf_object_map,
-    ddwaf_object_stringl_nc,
     ddwaf_version,
-    ddwaf_get_version
+    ddwaf_get_version,
+    ddwaf_init,
+    ddwaf_run,
+    ddwaf_result_free,
+    ddwaf_destroy,
+    ddwaf_context_init,
+    ddwaf_context_destroy,
 )
 
 
 def version():
-    # type: () -> typing.Tuple[int, int, int]
+    # type: () -> Tuple[int, int, int]
     cdef ddwaf_version version
     ddwaf_get_version(&version)
     return (version.major, version.minor, version.patch)
@@ -58,7 +58,8 @@ cdef class _Wrapper(object):
             ptr = <ddwaf_object *> PyMem_Realloc(self._ptr, self._size * sizeof(ddwaf_object))
             if ptr == NULL:
                 raise MemoryError
-            elif ptr != self._ptr:
+            memset(ptr + idx, 0, (self._size - idx) * sizeof(ddwaf_object))
+            if self._ptr != NULL and ptr != self._ptr:
                 # we need to patch all array objects because they use pointers to other objects
                 for i in range(idx):
                     obj = ptr + i
@@ -66,8 +67,6 @@ cdef class _Wrapper(object):
                         obj.array = obj.array - self._ptr + ptr
             self._ptr = ptr
         self._next_idx += n
-        for i in range(idx, idx + n):
-            ddwaf_object_invalid(ptr + i)
         return idx
 
     cdef void _convert(self, value, max_objects) except *:
@@ -90,18 +89,12 @@ cdef class _Wrapper(object):
 
             if isinstance(val, bytes):
                 self._string_refs.append(val)
-                ddwaf_object_stringl_nc(obj, <bytes> val, len(val))
+                obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING
+                obj.stringValue = <bytes> val
+                obj.nbEntries = len(val)
 
-            elif isinstance(value, (list, tuple)):
-                ddwaf_object_array(obj);
-                n = len(val)
-                idx = self._reserve_obj(n)
-                stack.extend([(idx + j, val[j]) for j in range(n)])
-                obj.array = self._ptr + idx
-                obj.nbEntries = n
-
-            elif isinstance(val, dict):
-                ddwaf_object_map(obj)
+            elif isinstance(val, Mapping):
+                obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP
                 n = len(val)
                 idx = self._reserve_obj(n)
                 obj.array = self._ptr + idx
@@ -115,6 +108,14 @@ cdef class _Wrapper(object):
                         item_obj.parameterName = <bytes> k
                         item_obj.parameterNameLength = len(k)
                         stack.append((idx + j, v))
+
+            elif isinstance(val, Sequence):
+                obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY
+                n = len(val)
+                idx = self._reserve_obj(n)
+                stack.extend([(idx + j, val[j]) for j in range(n)])
+                obj.array = self._ptr + idx
+                obj.nbEntries = n
 
             i += 1
 
@@ -150,7 +151,10 @@ cdef class DDWaf(object):
         try:
             wrapper = _Wrapper(data)
             ddwaf_run(ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms)
+            if result.data != NULL:
+                return (<bytes> result.data).decode("utf-8")
         finally:
+            ddwaf_result_free(&result)
             ddwaf_context_destroy(ctx)
 
     def __dealloc__(self):
