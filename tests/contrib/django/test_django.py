@@ -1542,10 +1542,7 @@ def test_django_instrument_databases_env(env_val):
                 "ddtrace-run",
                 "python",
                 "-c",
-                (
-                    "from ddtrace import config;"
-                    "assert config.django.instrument_databases is {}".format(env_val)
-                ),
+                "from ddtrace import config; assert config.django.instrument_databases is {}".format(env_val),
             ],
         )
         assert out.startswith(b"")
@@ -1562,10 +1559,7 @@ def test_django_instrument_caches_env(env_val):
                 "ddtrace-run",
                 "python",
                 "-c",
-                (
-                    "from ddtrace import config;"
-                    "assert config.django.instrument_caches is {};".format(env_val)
-                ),
+                "from ddtrace import config;" "assert config.django.instrument_caches is {};".format(env_val),
             ],
         )
         assert out.startswith(b"")
