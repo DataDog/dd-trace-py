@@ -57,18 +57,10 @@ RUNTIME_NAME = "runtime.name"
 # Runtime Version
 RUNTIME_VERSION = "runtime.version"
 
-_RE_REFS = re.compile(r"^refs/(heads/)?")
-_RE_ORIGIN = re.compile(r"^origin/")
-_RE_TAGS = re.compile(r"^tags/")
 _RE_URL = re.compile(r"(https?://)[^/]*@")
 
 
 log = get_logger(__name__)
-
-
-def _normalize_ref(name):
-    # type: (Optional[str]) -> Optional[str]
-    return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
 
 
 def _filter_sensitive_info(url):
@@ -114,10 +106,10 @@ def tags(env=None, cwd=None):
     # Tags provided by the user take precedence over everything
     tags.update({k: v for k, v in user_specified_git_info.items() if v})
 
-    tags[git.TAG] = _normalize_ref(tags.get(git.TAG))
+    tags[git.TAG] = git.normalize_ref(tags.get(git.TAG))
     if tags.get(git.TAG) and git.BRANCH in tags:
         del tags[git.BRANCH]
-    tags[git.BRANCH] = _normalize_ref(tags.get(git.BRANCH))
+    tags[git.BRANCH] = git.normalize_ref(tags.get(git.BRANCH))
     tags[git.REPOSITORY_URL] = _filter_sensitive_info(tags.get(git.REPOSITORY_URL))
 
     workspace_path = tags.get(WORKSPACE_PATH)
@@ -281,18 +273,28 @@ def extract_github_actions(env):
         tag = branch_or_tag
     else:
         branch = branch_or_tag
+
+    pipeline_url = "{0}/{1}/actions/runs/{2}".format(
+        env.get("GITHUB_SERVER_URL"),
+        env.get("GITHUB_REPOSITORY"),
+        env.get("GITHUB_RUN_ID"),
+    )
+    run_attempt = env.get("GITHUB_RUN_ATTEMPT")
+    if run_attempt:
+        pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
+
     return {
         git.BRANCH: branch,
         git.COMMIT_SHA: env.get("GITHUB_SHA"),
-        git.REPOSITORY_URL: "https://github.com/{0}.git".format(env.get("GITHUB_REPOSITORY")),
+        git.REPOSITORY_URL: "{0}/{1}.git".format(env.get("GITHUB_SERVER_URL"), env.get("GITHUB_REPOSITORY")),
         git.TAG: tag,
-        JOB_URL: "https://github.com/{0}/commit/{1}/checks".format(env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")),
+        JOB_URL: "{0}/{1}/commit/{2}/checks".format(
+            env.get("GITHUB_SERVER_URL"), env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")
+        ),
         PIPELINE_ID: env.get("GITHUB_RUN_ID"),
         PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
-        PIPELINE_URL: "https://github.com/{0}/commit/{1}/checks".format(
-            env.get("GITHUB_REPOSITORY"), env.get("GITHUB_SHA")
-        ),
+        PIPELINE_URL: pipeline_url,
         PROVIDER_NAME: "github",
         WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
     }
@@ -343,7 +345,7 @@ def extract_jenkins(env):
         branch = branch_or_tag
     name = env.get("JOB_NAME")
     if name and branch:
-        name = re.sub("/{0}".format(_normalize_ref(branch)), "", name)
+        name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
 
