@@ -474,10 +474,7 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        if isinstance(exc_val, bytes):
-            self.meta[ERROR_MSG] = exc_val.decode()
-        else:
-            self.meta[ERROR_MSG] = stringify(exc_val)
+        self.meta[ERROR_MSG] = ensure_text(exc_val)
         self.meta[ERROR_TYPE] = exc_type_str
         self.meta[ERROR_STACK] = tb
 
