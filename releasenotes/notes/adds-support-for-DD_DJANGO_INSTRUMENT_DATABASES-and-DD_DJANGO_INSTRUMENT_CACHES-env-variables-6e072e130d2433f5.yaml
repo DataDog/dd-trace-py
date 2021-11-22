@@ -1,5 +1,4 @@
 ---
-
 features:
   - |
     Add new environment variables to configure django instrumention.
