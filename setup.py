@@ -175,7 +175,6 @@ setup(
         "six>=1.12.0",
         "pep562; python_version<'3.7'",
         "msgpack",
-        "ddsketch @ git+https://github.com/kyle-verhoog/sketches-py@api"
     ],
     extras_require={
         # users can include opentracing by having:

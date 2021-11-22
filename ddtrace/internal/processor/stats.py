@@ -2,12 +2,12 @@ from collections import defaultdict
 import threading
 import typing
 
-from ddsketch.ddsketch import LogCollapsingLowestDenseDDSketch
-from ddsketch.pb.proto import DDSketchProto
 import msgpack
 
 import ddtrace
 from ddtrace import config
+from ddtrace.vendor.ddsketch.ddsketch import LogCollapsingLowestDenseDDSketch
+from ddtrace.vendor.ddsketch.pb.proto import DDSketchProto
 
 from . import SpanProcessor
 from ...constants import SPAN_MEASURED_KEY
@@ -72,8 +72,8 @@ class SpanAggrStats(object):
         self.top_level_hits = 0
         self.errors = 0
         self.duration = 0
-        self.ok_distribution = LogCollapsingLowestDenseDDSketch(0.00775, offset=1.8761281912861705, bin_limit=2048)
-        self.err_distribution = LogCollapsingLowestDenseDDSketch(0.00775, offset=1.8761281912861705, bin_limit=2048)
+        self.ok_distribution = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
+        self.err_distribution = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
 
 
 def _span_aggr_key(span):
