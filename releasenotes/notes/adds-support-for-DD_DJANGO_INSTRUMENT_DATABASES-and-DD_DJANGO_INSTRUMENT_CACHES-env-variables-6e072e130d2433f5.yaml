@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    Add new environment variables to configure django instrumention.
+    Add new environment variables to configure django instrumentation.
 
     ``DD_DJANGO_INSTRUMENT_DATABASES``, ``DD_DJANGO_INSTRUMENT_CACHES``
