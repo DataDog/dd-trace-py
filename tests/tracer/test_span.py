@@ -691,4 +691,4 @@ def test_set_exc_info_with_unicode():
         span = Span(None, "span1")
         span.set_exc_info(type_, value_, traceback_)
 
-        assert "DataDog/水" == span.get_tag(ERROR_MSG)
+        assert u"DataDog/水" == span.get_tag(ERROR_MSG)
