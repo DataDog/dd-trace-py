@@ -48,7 +48,6 @@ async def traced_execute_command(func, instance, args, kwargs):
         return await func(*args, **kwargs)
 
     with _trace_redis_cmd(pin, config.aredis, instance, args):
-
         # run the command
         return await func(*args, **kwargs)
 
