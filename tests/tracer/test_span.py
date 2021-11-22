@@ -679,9 +679,9 @@ def test_manual_context_usage():
 
 
 def test_set_exc_info_with_unicode():
-    exceptions_to_raise = [Exception("DataDog/水")]
-    if not six.PY3:
-        exceptions_to_raise.append(Exception(u"DataDog/水"))
+    exceptions_to_raise = [Exception(u"DataDog/水")]
+    if six.PY3:
+        exceptions_to_raise.append(Exception("DataDog/水"))
 
     for exception in exceptions_to_raise:
         try:
