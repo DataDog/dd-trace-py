@@ -9,7 +9,7 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import net
 from ...ext import redis as redisx
-from ...internal.compat import stringify
+from ...internal.compat import ensure_text
 
 
 VALUE_PLACEHOLDER = "?"
@@ -20,6 +20,8 @@ CMD_MAX_LEN = 1000
 
 def _extract_conn_tags(instance):
     """Transform redis conn info into dogtrace metas"""
+
+    # some redis clients do not have a connection_pool attribute (ex. aioredis v1.3)
     if not hasattr(instance, "connection_pool"):
         return {}
 
