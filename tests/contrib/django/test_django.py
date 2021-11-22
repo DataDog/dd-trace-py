@@ -1531,6 +1531,46 @@ def test_django_use_handler_resource_format_env(client, test_spans):
         assert out.startswith(b"Test success")
 
 
+@pytest.mark.parametrize("env_val", ["True", "False"])
+def test_django_instrument_databases_env(env_val):
+    """
+    Test that DD_DJANGO_INSTRUMENT_DATABASES enables/disables django db instrumentation
+    """
+    with override_env(dict(DD_DJANGO_INSTRUMENT_DATABASES=env_val)):
+        out = subprocess.check_output(
+            [
+                "ddtrace-run",
+                "python",
+                "-c",
+                (
+                    "from ddtrace import config;"
+                    "assert config.django.instrument_databases is {};print('Test success')".format(env_val)
+                ),
+            ],
+        )
+        assert out.startswith(b"Test success")
+
+
+@pytest.mark.parametrize("env_val", ["True", "False"])
+def test_django_instrument_caches_env(env_val):
+    """
+    Test that DD_DJANGO_INSTRUMENT_CACHES enables/disables django cache instrumentation
+    """
+    with override_env(dict(DD_DJANGO_INSTRUMENT_CACHES=env_val)):
+        out = subprocess.check_output(
+            [
+                "ddtrace-run",
+                "python",
+                "-c",
+                (
+                    "from ddtrace import config;"
+                    "assert config.django.instrument_caches is {};print('Test success');".format(env_val)
+                ),
+            ],
+        )
+        assert out.startswith(b"Test success")
+
+
 def test_django_use_legacy_resource_format(client, test_spans):
     """
     Test that the specified format is used over the default.
