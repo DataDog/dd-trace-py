@@ -42,10 +42,6 @@ def _extract_conn_tags(client):
             contact_point = client.servers[0].address
             tags[net.TARGET_HOST] = contact_point[0]
             tags[net.TARGET_PORT] = contact_point[1]
-    elif hasattr(client, "connection_pool"):
-        # Redis main connection
-        redis_tags = extract_redis_tags(client)
-        tags.update(**redis_tags)
     elif hasattr(client, "addresses"):
         # pylibmc
         # FIXME[matt] should we memoize this?
@@ -54,4 +50,9 @@ def _extract_conn_tags(client):
             _, host, port, _ = addrs[0]
             tags[net.TARGET_PORT] = port
             tags[net.TARGET_HOST] = host
+    else:
+        # Redis main connection
+        redis_tags = extract_redis_tags(client)
+        tags.update(**redis_tags)
+
     return tags
