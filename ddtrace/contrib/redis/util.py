@@ -45,10 +45,7 @@ def format_command_args(args):
     out = []
     for arg in args:
         try:
-            if isinstance(arg, bytes):
-                cmd = arg.decode()
-            else:
-                cmd = stringify(arg)
+            cmd = ensure_text(arg)
 
             if len(cmd) > VALUE_MAX_LEN:
                 cmd = cmd[:VALUE_MAX_LEN] + VALUE_TOO_LONG_MARK
