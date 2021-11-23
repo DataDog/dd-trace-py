@@ -1,6 +1,7 @@
 import os
 import platform
 import subprocess
+import tempfile
 import sys
 
 from setuptools import setup, find_packages, Extension
@@ -77,9 +78,17 @@ class CMake(BuildExtCommand):
                 to_build.add(source_dir)
 
         for idx, source_dir in enumerate(to_build):
-            build_dir = os.path.join(self.build_temp, "_".join([ext.name, str(idx)]))
-            subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir])
-            subprocess.check_call(["cmake", "--build", build_dir])
+            opts = ["-DCMAKE_BUILD_TYPE=RelWithDebInfo"]
+            if platform.system() == "Windows":
+                opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+                # self.build_temp is too long on Windows and MSBuild is limited to 255
+                # characters file paths.
+                build_dir = tempfile.mkdtemp()
+            else:
+                opts.extend(["-G", "Ninja"])
+                build_dir = os.path.join(self.build_temp, "_".join([ext.name, str(idx)]))
+            subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir] + opts)
+            subprocess.check_call(["cmake", "--build", build_dir, "--config", "RelWithDebInfo"])
 
         return BuildExtCommand.build_extension(self, ext)
 
@@ -129,11 +138,13 @@ if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
     debug_compile_args = []
+    ddwaf_libraries = ["ddwaf_static"]
 else:
+    linux = platform.system() == "Linux"
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
     if "DD_COMPILE_DEBUG" in os.environ:
-        if platform.system() == "Linux":
+        if linux:
             debug_compile_args = ["-g", "-O0", "-Werror", "-Wall", "-Wextra", "-Wpedantic", "-fanalyzer"]
         else:
             debug_compile_args = [
@@ -148,6 +159,10 @@ else:
             ]
     else:
         debug_compile_args = []
+    if linux:
+        ddwaf_libraries = ["ddwaf", "rt", "m", "dl", "pthread"]
+    else:
+        ddwaf_libraries = ["ddwaf"]
 
 
 if sys.version_info[:2] >= (3, 4):
@@ -271,6 +286,9 @@ setup(
             Cython.Distutils.Extension(
                 "ddtrace.appsec._ddwaf",
                 sources=["ddtrace/appsec/_ddwaf.pyx"],
+                include_dirs=["ddtrace/appsec/include"],
+                library_dirs=["ddtrace/appsec/lib"],
+                libraries=ddwaf_libraries,
                 language="c++",
             ),
         ],

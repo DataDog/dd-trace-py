@@ -25,7 +25,7 @@ jobs:
            archs: x86_64 i686
          - os: ubuntu-18.04
            archs: aarch64
-         - os: windows-latest
+         - os: vs2017-win2016
            archs: AMD64 x86
          - os: macos-latest
            archs: x86_64 universal2
@@ -75,7 +75,7 @@ jobs:
            archs: x86_64 i686
          - os: ubuntu-18.04
            archs: aarch64
-         - os: windows-latest
+         - os: vs2017-win2016
            archs: AMD64 x86
          - os: macos-latest
            archs: x86_64 universal2
@@ -150,7 +150,7 @@ jobs:
 
       - name: Install build dependencies
         # Rust + Cargo are needed for Cryptography
-        run: apk add git gcc musl-dev libffi-dev openssl-dev bash rust cargo
+        run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo
 
       - name: Check source package
         run: |

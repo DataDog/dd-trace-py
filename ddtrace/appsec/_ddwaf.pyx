@@ -1,12 +1,13 @@
-# distutils: include_dirs = ddtrace/appsec/include
-# distutils: library_dirs = ddtrace/appsec/lib
-# distutils: libraries = ddwaf
-
 import six
+import sys
 
 from typing import Tuple
 from collections import deque
-from collections.abc import Mapping, Sequence
+
+if sys.version_info >= (3, 5):
+    from typing import Mapping, Sequence
+else:
+    from collections import Mapping, Sequence
 
 from cpython.mem cimport PyMem_Realloc, PyMem_Free
 from libc.string cimport memset
