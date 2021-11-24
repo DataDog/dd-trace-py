@@ -1168,7 +1168,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
                     pkgs={
                         "aiopg": ["~=0.15.0", "~=0.16.0"],  # TODO: add latest
                     },
