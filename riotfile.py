@@ -409,12 +409,24 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
                     pkgs={
                         "pymongo": [
                             ">=3.5,<3.6",
                             ">=3.6,<3.7",
                             ">=3.7,<3.8",
+                            ">=3.8,<3.9",
+                            ">=3.9,<3.10",
+                            ">=3.10,<3.11",
+                            ">=3.12,<3.13",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "pymongo": [
                             ">=3.8,<3.9",
                             ">=3.9,<3.10",
                             ">=3.10,<3.11",
