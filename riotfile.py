@@ -272,7 +272,7 @@ venv = Venv(
         Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
-            pkgs={"pytest": "~=3.10", "more_itertools": "<8.11.0"},
+            pkgs={"more_itertools": "<8.11.0"},
             venvs=[
                 # Non-4.x celery should be able to use the older redis lib, since it locks to an older kombu
                 Venv(
@@ -280,6 +280,7 @@ venv = Venv(
                     # https://github.com/pypa/setuptools/issues/2086
                     pys=select_pys(max_version="3.5"),
                     pkgs={
+                        "pytest": "~=3.10",
                         "celery": "~=3.0",  # most recent 3.x.x release
                         "redis": "~=2.10.6",
                     },
@@ -290,6 +291,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.6"),
                     pkgs={
+                        "pytest": "~=3.10",
                         "celery": [
                             "~=4.0.2",
                             "~=4.1.1",
@@ -301,6 +303,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.6"),
                     pkgs={
+                        "pytest": "~=3.10",
                         "celery": [
                             "~=4.0.2",
                             "~=4.1.1",
@@ -314,6 +317,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.6"),
                     pkgs={
+                        "pytest": "~=3.10",
                         "celery": "~=4.2.2",
                         "redis": "~=2.10.6",
                         "kombu": "~=4.3.0",
@@ -321,8 +325,9 @@ venv = Venv(
                 ),
                 # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.9"),
                     pkgs={
+                        "pytest": "~=3.10",
                         "celery": [
                             "~=4.3.1",
                             "~=4.4.7",
