@@ -1055,12 +1055,23 @@ venv = Venv(
                     pkgs={"pytest": ">=4.0,<4.6", "msgpack": latest},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.5"),
+                    pys=select_pys(min_version="3.5", max_version="3.9"),
                     pkgs={
                         "pytest": [
                             ">=3.0,<4.0",
                             ">=4.0,<5.0",
                             ">=5.0,<6.0",
+                            ">=6.0,<7.0",
+                            latest,
+                        ],
+                        "msgpack": latest,
+                        "more_itertools": "<8.11.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "pytest": [
                             ">=6.0,<7.0",
                             latest,
                         ],
