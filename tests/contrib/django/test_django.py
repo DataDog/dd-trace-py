@@ -1531,35 +1531,49 @@ def test_django_use_handler_resource_format_env(client, test_spans):
         assert out.startswith(b"Test success")
 
 
-@pytest.mark.parametrize("env_val", ["True", "False"])
-def test_django_instrument_databases_env(env_val):
+@pytest.mark.parametrize(
+    "env_var,instrument_x",
+    [
+        ("DD_DJANGO_INSTRUMENT_DATABASES", "instrument_databases"),
+        ("DD_DJANGO_INSTRUMENT_CACHES", "instrument_caches"),
+        ("DD_DJANGO_INSTRUMENT_MIDDLEWARE", "instrument_middleware"),
+    ],
+)
+def test_enable_django_instrument_env(env_var, instrument_x):
     """
-    Test that DD_DJANGO_INSTRUMENT_DATABASES enables/disables django db instrumentation
+    Test that {env} enables instrumentation
     """
-    with override_env(dict(DD_DJANGO_INSTRUMENT_DATABASES=env_val)):
+    with override_env({env_var: "true"}):
         out = subprocess.check_output(
             [
                 "ddtrace-run",
                 "python",
                 "-c",
-                "from ddtrace import config; assert config.django.instrument_databases is {}".format(env_val),
+                "from ddtrace import config; assert config.django.%s" % instrument_x,
             ],
         )
         assert out.startswith(b"")
 
 
-@pytest.mark.parametrize("env_val", ["True", "False"])
-def test_django_instrument_caches_env(env_val):
+@pytest.mark.parametrize(
+    "env_var,instrument_x",
+    [
+        ("DD_DJANGO_INSTRUMENT_DATABASES", "instrument_databases"),
+        ("DD_DJANGO_INSTRUMENT_CACHES", "instrument_caches"),
+        ("DD_DJANGO_INSTRUMENT_MIDDLEWARE", "instrument_middleware"),
+    ],
+)
+def test_disable_django_instrument_env(env_var, instrument_x):
     """
-    Test that DD_DJANGO_INSTRUMENT_CACHES enables/disables django cache instrumentation
+    Test that {env} disables instrumentation
     """
-    with override_env(dict(DD_DJANGO_INSTRUMENT_CACHES=env_val)):
+    with override_env({env_var: "false"}):
         out = subprocess.check_output(
             [
                 "ddtrace-run",
                 "python",
                 "-c",
-                "from ddtrace import config; assert config.django.instrument_caches is {};".format(env_val),
+                "from ddtrace import config; assert not config.django.%s" % instrument_x,
             ],
         )
         assert out.startswith(b"")
