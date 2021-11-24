@@ -1162,7 +1162,7 @@ venv = Venv(
         ),
         Venv(
             name="httpx",
-            pys=select_pys(min_version="3.6", max_version="3.9"),
+            pys=select_pys(min_version="3.6"),
             command="pytest {cmdargs} tests/contrib/httpx",
             pkgs={
                 "pytest-asyncio": latest,
