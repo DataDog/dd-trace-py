@@ -738,8 +738,12 @@ venv = Venv(
                     pkgs={"mysql-connector-python": ["==8.0.5", "<8.0.24"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
                     pkgs={"mysql-connector-python": ["==8.0.5", ">=8.0", latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"mysql-connector-python": [">=8.0", latest]},
                 ),
             ],
         ),
