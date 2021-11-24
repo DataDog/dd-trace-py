@@ -834,10 +834,10 @@ venv = Venv(
                     },
                     venvs=[
                         Venv(
-                            pys=select_pys(),
+                            pys=select_pys(max_version="3.9"),
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.6"),
+                            pys=select_pys(min_version="3.6", max_version="3.9"),
                             pkgs={"mysql-connector-python": latest},
                         ),
                     ],
