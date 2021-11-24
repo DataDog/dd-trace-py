@@ -236,7 +236,7 @@ venv = Venv(
                 # Falcon 1.x
                 # Python 2.7+
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.9"),
                     pkgs={
                         "falcon": [
                             "~=1.4.1",
