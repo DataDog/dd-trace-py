@@ -1206,7 +1206,7 @@ venv = Venv(
             name="jinja2",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.9"),
                     pkgs={"jinja2": [("~=2.%d.0" % m) for m in range(7, 12)]},
                 ),
                 Venv(
