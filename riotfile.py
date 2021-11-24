@@ -1311,7 +1311,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     # 2.2.0 dropped 2.7 support
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.9"),
                     pkgs={
                         "snowflake-connector-python": [
                             "~=2.0.0",
@@ -1321,7 +1321,7 @@ venv = Venv(
                 ),
                 Venv(
                     # 2.3.7 dropped 3.5 support
-                    pys=select_pys(min_version="3.5"),
+                    pys=select_pys(min_version="3.5", max_version="3.9"),
                     pkgs={
                         "snowflake-connector-python": [
                             "~=2.2.0",
@@ -1338,7 +1338,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
                     pkgs={
                         "snowflake-connector-python": [
                             "~=2.4.0",
