@@ -1272,7 +1272,7 @@ venv = Venv(
         ),
         Venv(
             name="aredis",
-            pys=select_pys(min_version="3.6"),
+            pys=select_pys(min_version="3.6", max_version="3.9"),
             command="pytest {cmdargs} tests/contrib/aredis",
             pkgs={
                 "pytest-asyncio": latest,
