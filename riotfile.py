@@ -1158,9 +1158,17 @@ venv = Venv(
         ),
         Venv(
             name="urllib3",
-            pys=select_pys(),
-            pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
             command="pytest {cmdargs} tests/contrib/urllib3",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.9"),
+                    pkgs={"urllib3": ["~=1.22.0", ">=1.23,<1.27", latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"urllib3": [">=1.23,<1.27", latest]},
+                ),
+            ],
         ),
         Venv(
             name="cassandra",
