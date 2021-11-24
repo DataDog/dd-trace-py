@@ -473,10 +473,13 @@ venv = Venv(
                     },
                 ),
                 Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pkgs={"django": [">=2.0,<2.1"]},
+                ),
+                Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "django": [
-                            ">=2.0,<2.1",
                             ">=2.1,<2.2",
                             ">=2.2,<2.3",
                             "~=3.0",
