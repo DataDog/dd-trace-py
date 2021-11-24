@@ -827,18 +827,30 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
             venvs=[
                 Venv(
-                    pkgs={
-                        "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                        "psycopg2": ["~=2.8.0"],
-                        "mysql-connector-python": ["<8.0.24"],
-                    },
                     venvs=[
                         Venv(
                             pys=select_pys(max_version="3.9"),
+                            pkgs={
+                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
+                                "psycopg2": ["~=2.8.0"],
+                                "mysql-connector-python": ["<8.0.24"],
+                            },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.6", max_version="3.9"),
-                            pkgs={"mysql-connector-python": latest},
+                            pkgs={
+                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
+                                "psycopg2": ["~=2.8.0"],
+                                "mysql-connector-python": latest,
+                            },
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={"mysql-connector-python": latest,
+                                "sqlalchemy": ["~=1.2.0", "~=1.3.0", latest],
+                                "psycopg2": ["~=2.8.0"],
+                                "mysql-connector-python": latest,
+                            },
                         ),
                     ],
                 ),
