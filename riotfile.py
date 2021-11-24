@@ -874,7 +874,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/requests",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.9"),
                     pkgs={
                         "requests-mock": ">=1.4",
                         "requests": [
@@ -884,6 +884,16 @@ venv = Venv(
                             ">=2.14,<2.15",
                             ">=2.16,<2.17",
                             ">=2.18,<2.19",
+                            ">=2.20,<2.21",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "requests-mock": ">=1.4",
+                        "requests": [
                             ">=2.20,<2.21",
                             latest,
                         ],
