@@ -1,7 +1,5 @@
 import os
 import platform
-import subprocess
-import tempfile
 import sys
 
 from setuptools import setup, find_packages, Extension
@@ -71,26 +69,32 @@ class Tox(TestCommand):
 
 class CMake(BuildExtCommand):
     def build_extension(self, ext):
+        import shutil
+        import subprocess
+        import tempfile
+
         to_build = set()
         for source in ext.sources:
             source_dir = os.path.dirname(os.path.realpath(source))
             if os.path.exists(os.path.join(source_dir, "CMakeLists.txt")):
                 to_build.add(source_dir)
 
+        debug_compile = "DD_COMPILE_DEBUG" in os.environ
+
         for source_dir in to_build:
-            if "DD_COMPILE_DEBUG" in os.environ:
-                build_type = "RelWithDebInfo"
-            else:
-                build_type = "Release"
+            build_type = "RelWithDebInfo" if debug_compile else "Release"
             opts = ["-DCMAKE_BUILD_TYPE={}".format(build_type)]
             if platform.system() == "Windows":
                 opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
             else:
                 opts.extend(["-G", "Ninja"])
-            build_dir = tempfile.mkdtemp()
-            # TODO remove build_dir
-            subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir] + opts)
-            subprocess.check_call(["cmake", "--build", build_dir, "--config", build_type])
+            try:
+                build_dir = tempfile.mkdtemp()
+                subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir] + opts)
+                subprocess.check_call(["cmake", "--build", build_dir, "--config", build_type])
+            finally:
+                if not debug_compile:
+                    shutil.rmtree(build_dir, ignore_errors=True)
 
         return BuildExtCommand.build_extension(self, ext)
 
