@@ -1,5 +1,8 @@
+from libc.stdint cimport int64_t
+from libc.stdint cimport uint16_t
+from libc.stdint cimport uint32_t
+from libc.stdint cimport uint64_t
 from libcpp cimport bool
-from libc.stdint cimport uint16_t, int64_t, uint64_t
 
 
 cdef extern from "include/ddwaf.h":
@@ -14,6 +17,7 @@ cdef extern from "include/ddwaf.h":
         DDWAF_OBJ_ARRAY
         DDWAF_OBJ_MAP
         DDWAF_OBJ_STRING
+        DDWAF_OBJ_INVALID
 
     ctypedef struct ddwaf_object:
         const char* parameterName
@@ -47,6 +51,7 @@ cdef extern from "include/ddwaf.h":
     void ddwaf_context_destroy(ddwaf_context context);
     void ddwaf_result_free(ddwaf_result* result);
     void ddwaf_destroy(ddwaf_handle handle);
+    const char* const* ddwaf_required_addresses(const ddwaf_handle handle, uint32_t* size);
 
     ctypedef enum DDWAF_LOG_LEVEL:
         DDWAF_LOG_TRACE

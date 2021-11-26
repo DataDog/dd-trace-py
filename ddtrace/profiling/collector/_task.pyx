@@ -5,9 +5,10 @@ from . import _threading
 
 
 try:
-    from greenlet import settrace, getcurrent
-    import gevent.thread
     import gevent.hub
+    import gevent.thread
+    from greenlet import getcurrent
+    from greenlet import settrace
 except ImportError:
     _gevent_tracer = None
 else:

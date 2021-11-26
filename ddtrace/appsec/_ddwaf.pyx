@@ -1,33 +1,45 @@
-import six
-import sys
-
-from typing import Tuple
 from collections import deque
+import sys
+from typing import Tuple
+
+import six
+
 
 if sys.version_info >= (3, 5):
-    from typing import Mapping, Sequence
+    from typing import Mapping
+    from typing import Sequence
 else:
     from collections import Mapping, Sequence
 
-from cpython.mem cimport PyMem_Realloc, PyMem_Free
-from libc.string cimport memset
+from _libddwaf cimport DDWAF_LOG_LEVEL
+from _libddwaf cimport DDWAF_OBJ_TYPE
+from _libddwaf cimport ddwaf_context
+from _libddwaf cimport ddwaf_context_destroy
+from _libddwaf cimport ddwaf_context_init
+from _libddwaf cimport ddwaf_destroy
+from _libddwaf cimport ddwaf_get_version
+from _libddwaf cimport ddwaf_handle
+from _libddwaf cimport ddwaf_init
+from _libddwaf cimport ddwaf_object
+from _libddwaf cimport ddwaf_required_addresses
+from _libddwaf cimport ddwaf_result
+from _libddwaf cimport ddwaf_result_free
+from _libddwaf cimport ddwaf_run
+from _libddwaf cimport ddwaf_set_log_cb
+from _libddwaf cimport ddwaf_version
+from cpython.mem cimport PyMem_Free
+from cpython.mem cimport PyMem_Realloc
+from libc.stdint cimport uint32_t
 from libc.stdint cimport uint64_t
+from libc.stdint cimport uintptr_t
+from libc.string cimport memset
 
-from _libddwaf cimport (
-    DDWAF_OBJ_TYPE,
-    ddwaf_handle,
-    ddwaf_context,
-    ddwaf_result,
-    ddwaf_object,
-    ddwaf_version,
-    ddwaf_get_version,
-    ddwaf_init,
-    ddwaf_run,
-    ddwaf_result_free,
-    ddwaf_destroy,
-    ddwaf_context_init,
-    ddwaf_context_destroy,
-)
+
+cdef void print_trace(DDWAF_LOG_LEVEL level, const char *function, const char *file, unsigned line, const char *message, uint64_t len):
+    print("[ddwaf] {}".format(message))
+
+
+ddwaf_set_log_cb(print_trace, DDWAF_LOG_LEVEL.DDWAF_LOG_TRACE)
 
 
 def version():
@@ -43,7 +55,7 @@ cdef class _Wrapper(object):
     cdef readonly ssize_t _size
     cdef readonly ssize_t _next_idx
 
-    def __init__(self, value, max_objects=1024):
+    def __init__(self, value, max_objects=5000):
         self._string_refs = []
         self._convert(value, max_objects)
 
@@ -53,9 +65,8 @@ cdef class _Wrapper(object):
         cdef ddwaf_object *obj
 
         idx = self._next_idx
-        ptr = self._ptr
         if idx + n > self._size:
-            self._size += n + ((128 - (n % 128)) % 128)
+            self._size += ((1000 - (n % 1000)) % 1000)
             ptr = <ddwaf_object *> PyMem_Realloc(self._ptr, self._size * sizeof(ddwaf_object))
             if ptr == NULL:
                 raise MemoryError
@@ -64,23 +75,47 @@ cdef class _Wrapper(object):
                 # we need to patch all array objects because they use pointers to other objects
                 for i in range(idx):
                     obj = ptr + i
-                    if obj.array != NULL:
+                    if (obj.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP or obj.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY) and obj.array != NULL:
                         obj.array = obj.array - self._ptr + ptr
             self._ptr = ptr
         self._next_idx += n
         return idx
 
+    cdef void _make_string(self, ssize_t idx, const char* val, ssize_t length):
+        cdef ddwaf_object *obj
+        obj = self._ptr + idx
+        obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING
+        obj.stringValue = val
+        obj.nbEntries = length
+
+    cdef void _make_array(self, ssize_t idx, ssize_t array_idx, ssize_t nb_entries):
+        cdef ddwaf_object *obj
+        obj = self._ptr + idx
+        obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY
+        obj.array = self._ptr + array_idx
+        obj.nbEntries = nb_entries
+
+    cdef void _make_map(self, ssize_t idx, ssize_t array_idx, ssize_t nb_entries):
+        cdef ddwaf_object *obj
+        obj = self._ptr + idx
+        obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP
+        obj.array = self._ptr + array_idx
+        obj.nbEntries = nb_entries
+
+    cdef void _set_parameter(self, ssize_t idx, const char* name, ssize_t length):
+        cdef ddwaf_object *obj
+        obj = self._ptr + idx
+        obj.parameterName = name
+        obj.parameterNameLength = length
+
     cdef void _convert(self, value, max_objects) except *:
         cdef object stack
-        cdef ddwaf_object *obj
-        cdef ddwaf_object *item_obj
-        cdef ssize_t i, j, idx
+        cdef ssize_t i, j, n, idx, items_idx
 
         i = 0
         stack = deque([(self._reserve_obj(), value)], maxlen=max_objects)
         while len(stack) and (max_objects is None or i < <ssize_t?> max_objects):
             idx, val = stack.popleft()
-            obj = self._ptr + idx
 
             if isinstance(val, (int, float)):
                 val = six.text_type(val)
@@ -90,33 +125,27 @@ cdef class _Wrapper(object):
 
             if isinstance(val, bytes):
                 self._string_refs.append(val)
-                obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING
-                obj.stringValue = <bytes> val
-                obj.nbEntries = len(val)
+                self._make_string(idx, <bytes> val, len(val))
 
             elif isinstance(val, Mapping):
-                obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP
                 n = len(val)
-                idx = self._reserve_obj(n)
-                obj.array = self._ptr + idx
-                obj.nbEntries = n
+                items_idx = self._reserve_obj(n)
+                self._make_map(idx, items_idx, n)
+                # size of val must not change!! should not happen
+                # while holding the GIL?
                 for j, (k, v) in enumerate(six.iteritems(val)):
                     if isinstance(k, six.text_type):
                         k = k.encode("utf-8", errors="surrogatepass")
                     if isinstance(k, bytes):
-                        item_obj = self._ptr + idx + j
                         self._string_refs.append(k)
-                        item_obj.parameterName = <bytes> k
-                        item_obj.parameterNameLength = len(k)
-                        stack.append((idx + j, v))
+                        self._set_parameter(items_idx + j, <bytes> k, len(k))
+                        stack.append((items_idx + j, v))
 
             elif isinstance(val, Sequence):
-                obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY
                 n = len(val)
-                idx = self._reserve_obj(n)
-                stack.extend([(idx + j, val[j]) for j in range(n)])
-                obj.array = self._ptr + idx
-                obj.nbEntries = n
+                items_idx = self._reserve_obj(n)
+                self._make_array(idx, items_idx, n)
+                stack.extend([(items_idx + j, val[j]) for j in range(n)])
 
             i += 1
 
@@ -141,6 +170,17 @@ cdef class DDWaf(object):
         self._handle = ddwaf_init(rule_objects, NULL)
         if <void *> self._handle == NULL:
             raise ValueError("invalid rules")
+
+    @property
+    def required_data(self):
+        cdef uint32_t size
+        cdef const char* const* ptr
+
+        addresses = []
+        ptr = ddwaf_required_addresses(self._handle, &size)
+        for i in range(size):
+            addresses.append((<bytes> ptr[i]).decode("utf-8"))
+        return addresses
 
     def run(self, data, timeout_ms=1000):
         cdef ddwaf_context ctx
