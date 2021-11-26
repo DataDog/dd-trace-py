@@ -77,7 +77,7 @@ class CMake(BuildExtCommand):
             if os.path.exists(os.path.join(source_dir, "CMakeLists.txt")):
                 to_build.add(source_dir)
 
-        for idx, source_dir in enumerate(to_build):
+        for source_dir in to_build:
             if "DD_COMPILE_DEBUG" in os.environ:
                 build_type = "RelWithDebInfo"
             else:
@@ -85,12 +85,10 @@ class CMake(BuildExtCommand):
             opts = ["-DCMAKE_BUILD_TYPE={}".format(build_type)]
             if platform.system() == "Windows":
                 opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-                # self.build_temp is too long on Windows and some Visual Studio versions are
-                # limited to 255 characters file paths.
-                build_dir = tempfile.mkdtemp()
             else:
                 opts.extend(["-G", "Ninja"])
-                build_dir = os.path.join(self.build_temp, "_".join([ext.name, str(idx)]))
+            build_dir = tempfile.mkdtemp()
+            # TODO remove build_dir
             subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir] + opts)
             subprocess.check_call(["cmake", "--build", build_dir, "--config", build_type])
 
