@@ -151,12 +151,11 @@ else:
     extra_compile_args = ["-DPy_BUILD_CORE"]
     if "DD_COMPILE_DEBUG" in os.environ:
         if linux:
-            debug_compile_args = ["-g", "-O0", "-Werror", "-Wall", "-Wextra", "-Wpedantic"]
+            debug_compile_args = ["-g", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
         else:
             debug_compile_args = [
                 "-g",
                 "-O0",
-                "-Werror",
                 "-Wall",
                 "-Wextra",
                 "-Wpedantic",
