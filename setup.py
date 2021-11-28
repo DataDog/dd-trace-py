@@ -166,7 +166,7 @@ else:
     else:
         debug_compile_args = []
     if linux:
-        ddwaf_libraries = ["ddwaf", "stdc++", "rt", "m", "dl", "pthread"]
+        ddwaf_libraries = ["ddwaf", "rt", "m", "dl", "pthread"]
     else:
         ddwaf_libraries = ["ddwaf"]
 
