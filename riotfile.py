@@ -170,6 +170,12 @@ venv = Venv(
             command="scripts/build-docs",
         ),
         Venv(
+            name="appsec",
+            command="pytest {cmdargs} tests/appsec/ddwaf_fuzzer.py",
+            venvs=[Venv(pys=select_pys())],
+            pkgs={"atheris": latest},
+        ),
+        Venv(
             name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
