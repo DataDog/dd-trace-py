@@ -170,11 +170,13 @@ venv = Venv(
             command="scripts/build-docs",
         ),
         Venv(
-            name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
-            command="pytest --no-cov --benchmark-warmup=on {cmdargs} tests/benchmarks",
             venvs=[
+                Venv(
+                    name="benchmarks",
+                    command="pytest --no-cov --benchmark-warmup=on {cmdargs} tests/benchmarks",
+                ),
                 Venv(
                     name="benchmarks-nogc",
                     command="pytest --no-cov --benchmark-warmup=on --benchmark-disable-gc {cmdargs} tests/benchmarks",
