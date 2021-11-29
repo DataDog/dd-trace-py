@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import pytest
 
 from ddtrace.internal._tagset import TagsetDecodeError
@@ -82,7 +84,8 @@ def test_decode_tagset_string_malformed(header):
         # Single key/value
         ({"key": "value"}, "key=value"),
         # Multiple key/values
-        ({"a": "1", "b": "2", "c": "3"}, "a=1,b=2,c=3"),
+        # DEV: Use OrderedDict to ensure consistent iteration for encoding
+        (OrderedDict([("a", "1"), ("b", "2"), ("c", "3")]), "a=1,b=2,c=3"),
     ],
 )
 def test_encode_tagset_values(values, expected):
@@ -127,12 +130,15 @@ def test_encode_tagset_values_malformed(values):
 
 def test_encode_tagset_values_max_size():
     """Test that exceeding the max size raises an exception"""
-    values = {
-        # Short values we know will pack into the final result
-        "a": "1",
-        "b": "2",
-        "somereallylongkey": "somereallyreallylongvalue",
-    }
+    # DEV: Use OrderedDict to ensure consistent iteration for encoding
+    values = OrderedDict(
+        [
+            # Short values we know will pack into the final result
+            ("a", "1"),
+            ("b", "2"),
+            ("somereallylongkey", "somereallyreallylongvalue"),
+        ]
+    )
     with pytest.raises(TagsetMaxSizeError) as ex_info:
         encode_tagset_values(values, max_size=10)
 
@@ -140,3 +146,19 @@ def test_encode_tagset_values_max_size():
     assert ex.values == values
     assert ex.max_size == 10
     assert ex.current_results == "a=1,b=2"
+
+
+def test_encode_tagset_values_invalid_type():
+    """
+    encode_tagset_values accepts `values` as an `object` instead of `dict`
+    so we can allow subclasses like `collections.OrderedDict` ensure that
+    we properly raise a `TypeError` when a non-dict is passed
+    """
+    # Allowed
+    encode_tagset_values({})
+    encode_tagset_values(OrderedDict())
+
+    # Not allowed
+    for values in (None, True, 10, object(), []):
+        with pytest.raises(TypeError):
+            encode_tagset_values(values)

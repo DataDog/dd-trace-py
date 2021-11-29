@@ -141,7 +141,7 @@ cpdef dict decode_tagset_string(str tagset):
     return res
 
 
-cpdef str encode_tagset_values(dict values, int max_size=512):
+cpdef str encode_tagset_values(object values, int max_size=512):
     # type: (Dict[str, str], int) -> str
     """Convert a dictionary of tag key/values into a tagset compatible string
 
@@ -159,6 +159,10 @@ cpdef str encode_tagset_values(dict values, int max_size=512):
     :raises TagsetMaxSizeError: Raised when we will exceed the provided max size
     :raises TagsetEncodeError: Raised when we encounter an exception character in a key or value
     """
+    # Allow subclasses of `dict` like `collections.OrderedDict`
+    if not isinstance(values, dict):
+        raise TypeError("Argument 'values' has incorrect type (expected dict, got %s)".format(type(values)))
+
     cdef str res = ""
     cdef str key
     cdef str value
