@@ -574,6 +574,26 @@ static inline int msgpack_pack_nil(msgpack_packer* x)
 }
 
 
+
+/*
+ * Boolean
+ */
+
+static inline int msgpack_pack_true(msgpack_packer* x)
+{
+    static const unsigned char d = 0xc3;
+    msgpack_pack_append_buffer(x, &d, 1);
+}
+
+
+static inline int msgpack_pack_false(msgpack_packer* x)
+{
+    static const unsigned char d = 0xc2;
+    msgpack_pack_append_buffer(x, &d, 1);
+}
+
+
+
 /*
  * Array
  */
