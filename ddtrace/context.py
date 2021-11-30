@@ -40,6 +40,7 @@ class Context(object):
         sampling_priority=None,  # type: Optional[float]
         meta=None,  # type: Optional[_MetaDictType]
         metrics=None,  # type: Optional[_MetricDictType]
+        lock=None,  # type: Optional[threading.RLock]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
@@ -52,16 +53,17 @@ class Context(object):
         if sampling_priority is not None:
             self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
 
-        self._lock = threading.RLock()
+        if lock is not None:
+            self._lock = lock
+        else:
+            self._lock = threading.RLock()
 
     def _with_span(self, span):
         # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
-        ctx = self.__class__(trace_id=span.trace_id, span_id=span.span_id)
-        ctx._lock = self._lock
-        ctx._meta = self._meta
-        ctx._metrics = self._metrics
-        return ctx
+        return self.__class__(
+            trace_id=span.trace_id, span_id=span.span_id, meta=self._meta, metrics=self._metrics, lock=self._lock
+        )
 
     def _update_tags(self, span):
         # type: (Span) -> None
