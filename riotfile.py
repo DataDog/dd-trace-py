@@ -420,8 +420,6 @@ venv = Venv(
                         ],
                     },
                 ),
-<<<<<<< HEAD
-=======
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
@@ -433,7 +431,6 @@ venv = Venv(
                         ],
                     },
                 ),
->>>>>>> b684836e (tests(pymongo) support pymongo 4.0 in tests (#3037))
             ],
         ),
         # Django  Python version support
