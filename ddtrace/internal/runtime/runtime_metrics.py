@@ -14,9 +14,9 @@ import ddtrace
 from ddtrace.internal import forksafe
 
 from .. import periodic
-from ...utils.formats import get_env
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
+from ..utils.formats import get_env
 from .constants import DEFAULT_RUNTIME_METRICS
 from .constants import DEFAULT_RUNTIME_TAGS
 from .metric_collectors import GCRuntimeMetricCollector

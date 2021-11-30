@@ -40,7 +40,7 @@ explicitly to the list. For example::
 
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["pyramid"]

@@ -1,4 +1,5 @@
 import abc
+import binascii
 from collections import defaultdict
 from json import loads
 import logging
@@ -20,11 +21,12 @@ from . import compat
 from . import periodic
 from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
+from ..internal.utils.formats import asbool
+from ..internal.utils.formats import get_env
+from ..internal.utils.formats import parse_tags_str
+from ..internal.utils.time import StopWatch
 from ..sampler import BasePrioritySampler
 from ..sampler import BaseSampler
-from ..utils.formats import get_env
-from ..utils.formats import parse_tags_str
-from ..utils.time import StopWatch
 from ._encoding import BufferFull
 from ._encoding import BufferItemTooLarge
 from .agent import get_connection
@@ -256,19 +258,18 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
         }
         self._timeout = timeout
-
-        encoding_version = (
+        self._api_version = (
             api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
         )
         try:
-            Encoder = MSGPACK_ENCODERS[encoding_version]
+            Encoder = MSGPACK_ENCODERS[self._api_version]
         except KeyError:
             raise ValueError(
-                "Unsupported encoding version: '%s'. The supported versions are: %r"
-                % (encoding_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
+                "Unsupported api version: '%s'. The supported versions are: %r"
+                % (self._api_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
             )
 
-        self._endpoint = "%s/traces" % encoding_version
+        self._endpoint = "%s/traces" % self._api_version
 
         self._container_info = container.get_container_info()
         if self._container_info and self._container_info.container_id:
@@ -300,6 +301,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
+        self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
+
+    @property
+    def _agent_endpoint(self):
+        return "{}/{}".format(self.agent_url, self._endpoint)
 
     def _metrics_dist(self, name, count=1, tags=None):
         self._metrics[name]["count"] += count
@@ -330,14 +336,19 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def recreate(self):
         # type: () -> AgentWriter
-        writer = self.__class__(
+        return self.__class__(
             agent_url=self.agent_url,
+            sampler=self._sampler,
             priority_sampler=self._priority_sampler,
+            processing_interval=self._interval,
+            buffer_size=self._buffer_size,
+            max_payload_size=self._max_payload_size,
+            timeout=self._timeout,
+            dogstatsd=self.dogstatsd,
+            report_metrics=self._report_metrics,
             sync_mode=self._sync_mode,
+            api_version=self._api_version,
         )
-        writer._headers = self._headers
-        writer._endpoint = self._endpoint
-        return writer
 
     def _put(self, data, headers):
         conn = get_connection(self.agent_url, self._timeout)
@@ -351,7 +362,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self.agent_url)
+                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._agent_endpoint)
                 return Response.from_http_response(resp)
             finally:
                 conn.close()
@@ -407,12 +418,22 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 if payload is not None:
                     self._send_payload(payload, count)
         elif response.status >= 400:
-            log.error(
-                "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
-                self.agent_url,
+            msg = "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s"
+            log_args = (
+                self._agent_endpoint,
                 response.status,
                 response.reason,
             )
+            # Append the payload if requested
+            if self._log_error_payloads:
+                msg += ", payload %s"
+                # If the payload is bytes then hex encode the value before logging
+                if isinstance(payload, six.binary_type):
+                    log_args += (binascii.hexlify(payload).decode(),)
+                else:
+                    log_args += (payload,)
+
+            log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
         elif self._priority_sampler or isinstance(self._sampler, BasePrioritySampler):
@@ -496,7 +517,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 if raise_exc:
                     e.reraise()
                 else:
-                    log.error("failed to send traces to Datadog Agent at %s", self.agent_url, exc_info=True)
+                    log.error("failed to send traces to Datadog Agent at %s", self._agent_endpoint, exc_info=True)
             finally:
                 if self._report_metrics and self.dogstatsd:
                     # Note that we cannot use the batching functionality of dogstatsd because

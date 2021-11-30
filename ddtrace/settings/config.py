@@ -4,14 +4,14 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.utils.cache import cachedmethod
+from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.logger import get_logger
+from ..internal.utils.deprecation import get_service_legacy
+from ..internal.utils.formats import asbool
+from ..internal.utils.formats import get_env
+from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
-from ..utils.deprecation import get_service_legacy
-from ..utils.formats import asbool
-from ..utils.formats import get_env
-from ..utils.formats import parse_tags_str
 from .http import HttpConfig
 from .integration import IntegrationConfig
 

@@ -1,5 +1,6 @@
 from functools import partial
 import os
+import sys
 import typing
 import unittest
 import warnings
@@ -7,19 +8,19 @@ import warnings
 import mock
 import pytest
 
-from ddtrace.utils import ArgumentError
-from ddtrace.utils import get_argument_value
-from ddtrace.utils import time
-from ddtrace.utils.cache import cached
-from ddtrace.utils.cache import cachedmethod
-from ddtrace.utils.deprecation import deprecated
-from ddtrace.utils.deprecation import deprecation
-from ddtrace.utils.deprecation import format_message
-from ddtrace.utils.formats import asbool
-from ddtrace.utils.formats import get_env
-from ddtrace.utils.formats import parse_tags_str
-from ddtrace.utils.importlib import func_name
-from ddtrace.utils.version import parse_version
+from ddtrace.internal.utils import ArgumentError
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import time
+from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecation import deprecated
+from ddtrace.internal.utils.deprecation import deprecation
+from ddtrace.internal.utils.deprecation import format_message
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import get_env
+from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.importlib import func_name
+from ddtrace.internal.utils.version import parse_version
 
 
 class TestUtils(unittest.TestCase):
@@ -205,7 +206,7 @@ _LOG_ERROR_FAIL_SEPARATOR = (
     ],
 )
 def test_parse_env_tags(tag_str, expected_tags, error_calls):
-    with mock.patch("ddtrace.utils.formats.log") as log:
+    with mock.patch("ddtrace.internal.utils.formats.log") as log:
         tags = parse_tags_str(tag_str)
         assert tags == expected_tags
         if error_calls:
@@ -318,7 +319,10 @@ class TestContrib(object):
 
         assert "tests.tracer.test_utils.minus" == func_name(minus)
         assert 5 == minus_two(7)
-        assert "partial" == func_name(minus_two)
+        if sys.version_info >= (3, 10, 0):
+            assert "functools.partial" == func_name(minus_two)
+        else:
+            assert "partial" == func_name(minus_two)
         assert 10 == plus_three(7)
         assert "tests.tracer.test_utils.<lambda>" == func_name(plus_three)
 

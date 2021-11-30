@@ -18,7 +18,7 @@ You can also use the autopatching functionality::
     app = falcon.API()
 
 To disable distributed tracing when using autopatching, set the
-``DATADOG_FALCON_DISTRIBUTED_TRACING`` environment variable to ``False``.
+``DD_FALCON_DISTRIBUTED_TRACING`` environment variable to ``False``.
 
 **Supported span hooks**
 
@@ -44,7 +44,7 @@ Example::
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["falcon"]

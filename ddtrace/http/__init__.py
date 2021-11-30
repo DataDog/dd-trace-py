@@ -1,4 +1,4 @@
-from ddtrace.utils.deprecation import deprecation
+from ddtrace.internal.utils.deprecation import deprecation
 
 from .headers import store_request_headers
 from .headers import store_response_headers

@@ -10,9 +10,9 @@ from . import context_provider
 from . import decorators
 from . import handlers
 from . import template
-from ...utils.formats import asbool
-from ...utils.formats import get_env
-from ...utils.wrappers import unwrap as _u
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import get_env
+from ...internal.utils.wrappers import unwrap as _u
 
 
 config._add(
