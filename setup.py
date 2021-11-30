@@ -174,7 +174,6 @@ setup(
         "attrs>=19.2.0",
         "six>=1.12.0",
         "pep562; python_version<'3.7'",
-        "msgpack",
     ],
     extras_require={
         # users can include opentracing by having:

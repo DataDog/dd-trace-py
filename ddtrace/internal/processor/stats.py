@@ -2,8 +2,6 @@ from collections import defaultdict
 import threading
 import typing
 
-import msgpack
-
 import ddtrace
 from ddtrace import config
 from ddtrace.vendor.ddsketch.ddsketch import LogCollapsingLowestDenseDDSketch
@@ -11,6 +9,7 @@ from ddtrace.vendor.ddsketch.pb.proto import DDSketchProto
 
 from . import SpanProcessor
 from ...constants import SPAN_MEASURED_KEY
+from .._encoding import packb
 from ..agent import get_connection
 from ..compat import get_connection_response
 from ..compat import time_ns
@@ -206,7 +205,7 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
         if config.version:
             raw_payload["Version"] = config.version
 
-        payload = msgpack.packb(raw_payload, use_bin_type=True)
+        payload = packb(raw_payload)
         headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
