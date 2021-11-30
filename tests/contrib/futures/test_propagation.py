@@ -68,6 +68,28 @@ class PropagationTestCase(TracerTestCase):
             (dict(name="executor.thread"),),
         )
 
+    def test_propagation_with_kwargs(self):
+        # instrumentation must work if only kwargs are provided
+
+        def fn(value, key=None):
+            with self.tracer.trace("executor.thread"):
+                return value, key
+
+        with self.override_global_tracer():
+            with self.tracer.trace("main.thread"):
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                    future = executor.submit(fn=fn, value=42, key="CheeseShop")
+                    value, key = future.result()
+                    # assert the right result
+                    self.assertEqual(value, 42)
+                    self.assertEqual(key, "CheeseShop")
+
+        # the trace must be completed
+        self.assert_structure(
+            dict(name="main.thread"),
+            (dict(name="executor.thread"),),
+        )
+
     def test_disabled_instrumentation(self):
         # it must not propagate if the module is disabled
         unpatch()
