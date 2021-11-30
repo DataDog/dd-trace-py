@@ -117,6 +117,7 @@ commands:
           condition:
               << parameters.snapshot >>
           steps:
+            - setup_riot
             - run: SNAPSHOT_CI=1 docker-compose up -d testagent << parameters.docker_services >>
             - run:
                 command: docker-compose logs -f
@@ -127,7 +128,7 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'
+                  ./scripts/tested_pythons | circleci tests split | xargs -I PY ./scripts/ddtest riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'
       - unless:
           condition:
               << parameters.snapshot >>
@@ -142,7 +143,7 @@ commands:
                       command: tox -e 'wait' << parameters.wait >>
             - setup_riot
             - run:
-                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - when:
           condition:
             << parameters.store_coverage >>
@@ -342,7 +343,7 @@ jobs:
           command: riot run -s riot-helpers
       - run:
           name: "Generate base virtual environments."
-          command: "echo '2.7,3.5,3.6,3.7,3.8,3.9' | tr ',' '\n' | circleci tests split | xargs -I PY riot -v generate --python=PY"
+          command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v generate --python=PY"
       - persist_to_workspace:
           root: .
           paths:
