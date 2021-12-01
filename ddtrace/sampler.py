@@ -277,10 +277,10 @@ class DatadogSampler(BasePrioritySampler):
                 else:
                     self._set_priority(span, AUTO_REJECT)
                     return False
-
-            # If no rules match, use our default rule sampler
-            # DEV: If it isn't a RateByServiceSampler then it must be a SamplingRule
-            matching_rule = cast(SamplingRule, self.default_sampler)
+            else:
+                # If no rules match, use our default rule sampler
+                # DEV: If it isn't a RateByServiceSampler then it must be a SamplingRule
+                matching_rule = cast(SamplingRule, self.default_sampler)
 
         # Set a metric saying we sampled with a user defined rule
         # DEV: Avoid `span.set_metric()` which adds constraint checking overhead
