@@ -1,3 +1,4 @@
+import threading
 from typing import Any
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -40,7 +41,7 @@ class Context(object):
         sampling_priority=None,  # type: Optional[float]
         meta=None,  # type: Optional[_MetaDictType]
         metrics=None,  # type: Optional[_MetricDictType]
-        lock=None,  # type: Optional[forksafe.RLock]
+        lock=None,  # type: Optional[forksafe.ResetObject[threading.RLock]]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
