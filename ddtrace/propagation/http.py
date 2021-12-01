@@ -3,6 +3,11 @@ from typing import FrozenSet
 from typing import Optional
 
 from ..context import Context
+from ..internal._tagset import TagsetDecodeError
+from ..internal._tagset import TagsetEncodeError
+from ..internal._tagset import TagsetMaxSizeError
+from ..internal._tagset import decode_tagset_string
+from ..internal._tagset import encode_tagset_values
 from ..internal.logger import get_logger
 from .utils import get_wsgi_header
 
@@ -15,6 +20,7 @@ HTTP_HEADER_TRACE_ID = "x-datadog-trace-id"
 HTTP_HEADER_PARENT_ID = "x-datadog-parent-id"
 HTTP_HEADER_SAMPLING_PRIORITY = "x-datadog-sampling-priority"
 HTTP_HEADER_ORIGIN = "x-datadog-origin"
+HTTP_HEADER_TAGS = "x-datadog-tags"
 
 
 # Note that due to WSGI spec we have to also check for uppercased and prefixed
@@ -25,6 +31,7 @@ POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = frozenset(
     [HTTP_HEADER_SAMPLING_PRIORITY, get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY).lower()]
 )
 POSSIBLE_HTTP_HEADER_ORIGIN = frozenset([HTTP_HEADER_ORIGIN, get_wsgi_header(HTTP_HEADER_ORIGIN).lower()])
+POSSIBLE_HTTP_HEADER_TAGS = frozenset([HTTP_HEADER_TAGS, get_wsgi_header(HTTP_HEADER_TAGS).lower()])
 
 
 class HTTPPropagator(object):
@@ -59,6 +66,25 @@ class HTTPPropagator(object):
         # Propagate origin only if defined
         if span_context.dd_origin is not None:
             headers[HTTP_HEADER_ORIGIN] = str(span_context.dd_origin)
+
+        # Only propagate tags that start with `_dd.p.`
+        tags_to_encode = {key: value for key, value in span_context._meta.items() if key.startswith("_dd.p.")}
+        if tags_to_encode:
+            encoded_tags = None
+
+            try:
+                encoded_tags = encode_tagset_values(tags_to_encode)
+            except TagsetMaxSizeError as ex:
+                # We hit the max size allowed:
+                #   - add a tag to the context to indicate this happened
+                #   - pass along whatever we were able to encode
+                span_context._meta["_dd.propagation_error"] = "max_size"
+                encoded_tags = ex.current_results
+            except TagsetEncodeError:
+                # We hit an encoding error, add a tag to the context to indicate this happened
+                span_context._meta["_dd.propagation_error"] = "encoding_error"
+            if encoded_tags:
+                headers[HTTP_HEADER_TAGS] = encoded_tags
 
     @staticmethod
     def _extract_header_value(possible_header_names, headers, default=None):
@@ -117,6 +143,18 @@ class HTTPPropagator(object):
                 POSSIBLE_HTTP_HEADER_ORIGIN,
                 normalized_headers,
             )
+            meta = None
+            tags_value = HTTPPropagator._extract_header_value(
+                POSSIBLE_HTTP_HEADER_TAGS,
+                normalized_headers,
+                default="",
+            )
+            if tags_value:
+                try:
+                    meta = decode_tagset_string(tags_value)
+                except TagsetDecodeError:
+                    # TODO: Log?
+                    pass
 
             # Try to parse values into their expected types
             try:
@@ -131,6 +169,7 @@ class HTTPPropagator(object):
                     span_id=int(parent_span_id) or None,  # type: ignore[arg-type]
                     sampling_priority=sampling_priority,  # type: ignore[arg-type]
                     dd_origin=origin,
+                    meta=meta,
                 )
             # If headers are invalid and cannot be parsed, return a new context and log the issue.
             except (TypeError, ValueError):
