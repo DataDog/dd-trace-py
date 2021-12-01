@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fix error when calling ``concurrent.futures.ThreadPoolExecutor.submit`` with ``fn`` keyword argument.
