@@ -10,6 +10,7 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
+from typing import Union
 from typing import cast
 
 import six
@@ -159,6 +160,10 @@ class DatadogSampler(BasePrioritySampler):
     NO_RATE_LIMIT = -1
     DEFAULT_RATE_LIMIT = 100
 
+    default_sampler = None  # type: Union[RateByServiceSampler, SamplingRule]
+    limiter = None  # type: RateLimiter
+    rules = None  # type: List[SamplingRule]
+
     def __init__(
         self,
         rules=None,  # type: Optional[List[SamplingRule]]
@@ -206,7 +211,7 @@ class DatadogSampler(BasePrioritySampler):
         if default_sample_rate is None:
             log.debug("initialized DatadogSampler, limit %r traces per second", rate_limit)
             # Default to previous default behavior of RateByServiceSampler
-            self.default_sampler = RateByServiceSampler()  # type: BaseSampler
+            self.default_sampler = RateByServiceSampler()
         else:
             log.debug(
                 "initialized DatadogSampler, sample %s%% traces, limit %r traces per second",
@@ -278,7 +283,8 @@ class DatadogSampler(BasePrioritySampler):
                     return False
 
             # If no rules match, use our default rule sampler
-            matching_rule = cast(self.default_sampler, SamplingRule)
+            # DEV: If it isn't a RateByServiceSampler then it must be a SamplingRule
+            matching_rule = cast(SamplingRule, self.default_sampler)
 
         # Set a metric saying we sampled with a user defined rule
         # DEV: Avoid `span.set_metric()` which adds constraint checking overhead
