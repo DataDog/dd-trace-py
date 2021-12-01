@@ -160,10 +160,6 @@ class DatadogSampler(BasePrioritySampler):
     NO_RATE_LIMIT = -1
     DEFAULT_RATE_LIMIT = 100
 
-    default_sampler = None  # type: Union[RateByServiceSampler, SamplingRule]
-    limiter = None  # type: RateLimiter
-    rules = None  # type: List[SamplingRule]
-
     def __init__(
         self,
         rules=None,  # type: Optional[List[SamplingRule]]
@@ -211,7 +207,7 @@ class DatadogSampler(BasePrioritySampler):
         if default_sample_rate is None:
             log.debug("initialized DatadogSampler, limit %r traces per second", rate_limit)
             # Default to previous default behavior of RateByServiceSampler
-            self.default_sampler = RateByServiceSampler()
+            self.default_sampler = RateByServiceSampler()  # type: Union[RateByServiceSampler, SamplingRule]
         else:
             log.debug(
                 "initialized DatadogSampler, sample %s%% traces, limit %r traces per second",
