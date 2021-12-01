@@ -259,7 +259,7 @@ class DatadogSampler(BasePrioritySampler):
         :rtype: :obj:`bool`
         """
         # If there are rules defined, then iterate through them and find one that wants to sample
-        matching_rule = None  # type: Optional[BaseSampler]
+        matching_rule = None  # type: Optional[SamplingRule]
         # Go through all rules and grab the first one that matched
         # DEV: This means rules should be ordered by the user from most specific to least specific
         for rule in self.rules:
@@ -276,25 +276,25 @@ class DatadogSampler(BasePrioritySampler):
                     self._set_priority(span, AUTO_REJECT)
                     return False
 
-            # If no rules match, use our default sampler
-            matching_rule = self.default_sampler
+            # If no rules match, use our default rule sampler
+            matching_rule = typing.cast(self.default_sampler, SamplingRule)
+
+        # Set a metric saying we sampled with a user defined rule
+        # DEV: Avoid `span.set_metric()` which adds constraint checking overhead
+        span.metrics[SAMPLING_RULE_DECISION] = matching_rule.sample_rate
 
         # Sample with the matching sampling rule
-        if isinstance(matching_rule, (RateSampler, SamplingRule)):
-            span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
         if not matching_rule.sample(span):
             self._set_priority(span, USER_REJECT)
             return False
-        else:
-            # Do not return here, we need to apply rate limit
-            self._set_priority(span, USER_KEEP)
 
         # Ensure all allowed traces adhere to the global rate limit
         allowed = self.limiter.is_allowed()
         # Always set the sample rate metric whether it was allowed or not
         # DEV: Setting this allows us to properly compute metrics and debug the
         #      various sample rates that are getting applied to this span
-        span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+        # DEV: Avoid `span.set_metric()` which adds constraint checking overhead
+        span.metrics[SAMPLING_LIMIT_DECISION] = self.limiter.effective_rate
         if not allowed:
             self._set_priority(span, USER_REJECT)
             return False
