@@ -1,0 +1,72 @@
+default: &default
+  iterations: 5000
+  default_sample_rate: -1
+  sampling_rules: ""
+  rates_by_service: ""
+  rate_limit: -1
+  service_name: "benchmark"
+  operation_name: "benchmark.run"
+
+agent_sampling_no_rates:
+  <<: *default
+100p_agent_sampling:
+  <<: *default
+  rates_by_service: |
+    {"service:benchmark,env:": 1.0}
+50p_agent_sampling:
+  <<: *default
+  rates_by_service: |
+    {"service:benchmark,env:": 0.5}
+0p_agent_sampling:
+  <<: *default
+  rates_by_service: |
+    {"service:benchmark,env:": 0.0}
+100p_agent_sampling_no_match:
+  <<: *default
+  rates_by_service: |
+    {"service:wrong,env:": 1.0, "service:,env:": 1.0}
+50p_agent_sampling_no_match:
+  <<: *default
+  rates_by_service: |
+    {"service:wrong,env:": 0.5, "service:,env:": 0.5}
+0p_agent_sampling_no_match:
+  <<: *default
+  rates_by_service: |
+    {"service:wrong,env:": 0.0, "service:,env:": 0.0}
+
+100p_user_sample_rate:
+  <<: *default
+  default_sample_rate: 1.0
+50p_user_sample_rate:
+  <<: *default
+  default_sample_rate: 0.5
+0p_user_sample_rate:
+  <<: *default
+  default_sample_rate: 0.0
+
+user_rule_no_match:
+  <<: *default
+  sampling_rules: |
+    [{"service": "wrong", "sample_rate": 1.0}]
+100p_user_rule:
+  <<: *default
+  sampling_rules: |
+    [{"service": "benchmark", "sample_rate": 1.0}]
+50p_user_rule:
+  <<: *default
+  sampling_rules: |
+    [{"service": "benchmark", "sample_rate": 0.5}]
+0p_user_rule:
+  <<: *default
+  sampling_rules: |
+    [{"service": "benchmark", "sample_rate": 0.0}]
+
+rate_limit_default: &rate_limit_default
+  <<: *default
+  default_sample_rate: 1.0
+rate_limit_no_limit:
+  <<: *rate_limit_default
+  rate_limit: 5000
+rate_limit_disallow_all:
+  <<: *rate_limit_default
+  rate_limit: 0
