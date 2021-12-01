@@ -10,6 +10,7 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
+from typing import cast
 
 import six
 
@@ -277,7 +278,7 @@ class DatadogSampler(BasePrioritySampler):
                     return False
 
             # If no rules match, use our default rule sampler
-            matching_rule = typing.cast(self.default_sampler, SamplingRule)
+            matching_rule = cast(self.default_sampler, SamplingRule)
 
         # Set a metric saying we sampled with a user defined rule
         # DEV: Avoid `span.set_metric()` which adds constraint checking overhead
