@@ -1,13 +1,16 @@
 from typing import Dict
 from typing import FrozenSet
 from typing import Optional
+from typing import cast
 
 from ..context import Context
+from ..context import _MetaDictType
 from ..internal._tagset import TagsetDecodeError
 from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
+from ..internal.compat import ensure_text
 from ..internal.logger import get_logger
 from .utils import get_wsgi_header
 
@@ -68,7 +71,13 @@ class HTTPPropagator(object):
             headers[HTTP_HEADER_ORIGIN] = str(span_context.dd_origin)
 
         # Only propagate tags that start with `_dd.p.`
-        tags_to_encode = {key: value for key, value in span_context._meta.items() if key.startswith("_dd.p.")}
+        tags_to_encode = {}  # type: Dict[str, str]
+        for key, value in span_context._meta.items():
+            # Context._meta keys can be str or bytes, we require str
+            key = ensure_text(key)
+            if key.startswith("_dd.p."):
+                tags_to_encode[key] = value
+
         if tags_to_encode:
             encoded_tags = None
 
@@ -150,11 +159,12 @@ class HTTPPropagator(object):
                 default="",
             )
             if tags_value:
+                # Do not fail if the tags are malformed
                 try:
-                    meta = decode_tagset_string(tags_value)
+                    # We get a Dict[str, str], but need it to be Dict[Union[str, bytes], str]
+                    meta = cast(_MetaDictType, decode_tagset_string(tags_value))
                 except TagsetDecodeError:
-                    # TODO: Log?
-                    pass
+                    log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
 
             # Try to parse values into their expected types
             try:
@@ -174,11 +184,12 @@ class HTTPPropagator(object):
             # If headers are invalid and cannot be parsed, return a new context and log the issue.
             except (TypeError, ValueError):
                 log.debug(
-                    "received invalid x-datadog-* headers, trace-id: %r, parent-id: %r, priority: %r, origin: %r",
+                    "received invalid x-datadog-* headers, trace-id: %r, parent-id: %r, priority: %r, origin: %r, tags: %r",
                     trace_id,
                     parent_span_id,
                     sampling_priority,
                     origin,
+                    tags_value,
                 )
                 return Context()
         except Exception:

@@ -90,6 +90,28 @@ class TestHttpPropagation(TestCase):
                 "any": "tag",
             }
 
+    def test_extract_invalid_tags(self):
+        # Malformed tags do not fail to extract the rest of the context
+        tracer = DummyTracer()
+
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": "1",
+            "x-datadog-origin": "synthetics",
+            "x-datadog-tags": "malformed=,=tags,",
+        }
+
+        context = HTTPPropagator.extract(headers)
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            assert span.context.sampling_priority == 1
+            assert span.context.dd_origin == "synthetics"
+            assert span.context._meta == {"_dd.origin": "synthetics"}
+
 
 @pytest.mark.parametrize("trace_id", ["one", None, "123.4", "", NOT_SET])
 # DEV: 10 is valid for parent id but is ignored if trace id is ever invalid
