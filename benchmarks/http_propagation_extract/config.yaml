@@ -1,0 +1,26 @@
+empty_headers: &default_values
+  headers: "{}"
+  extra_headers: 0
+  wsgi_style: False
+
+wsgi_empty_headers:
+  <<: *default_values
+  wsgi_style: True
+
+valid_headers_basic: &valid_headers_basic
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1"}
+
+valid_headers_all: &valid_headers_all
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.tag=value,_dd.p.some_long_key=some_long_value"}
+
+wsgi_valid_headers_basic:
+  <<: *valid_headers_basic
+  wsgi_style: True
+
+wsgi_valid_headers_all:
+  <<: *valid_headers_all
+  wsgi_style: True
