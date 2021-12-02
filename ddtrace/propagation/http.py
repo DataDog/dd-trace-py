@@ -1,10 +1,10 @@
 from typing import Dict
 from typing import FrozenSet
 from typing import Optional
+from typing import Union
 from typing import cast
 
 from ..context import Context
-from ..context import _MetaDictType
 from ..internal._tagset import TagsetDecodeError
 from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeError
@@ -161,8 +161,8 @@ class HTTPPropagator(object):
             if tags_value:
                 # Do not fail if the tags are malformed
                 try:
-                    # We get a Dict[str, str], but need it to be Dict[Union[str, bytes], str]
-                    meta = cast(_MetaDictType, decode_tagset_string(tags_value))
+                    # We get a Dict[str, str], but need it to be Dict[Union[str, bytes], str] (e.g. _MetaDictType)
+                    meta = cast(Dict[Union[str, bytes], str], decode_tagset_string(tags_value))
                 except TagsetDecodeError:
                     log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
 
