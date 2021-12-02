@@ -184,7 +184,10 @@ class HTTPPropagator(object):
             # If headers are invalid and cannot be parsed, return a new context and log the issue.
             except (TypeError, ValueError):
                 log.debug(
-                    "received invalid x-datadog-* headers, trace-id: %r, parent-id: %r, priority: %r, origin: %r, tags: %r",
+                    (
+                        "received invalid x-datadog-* headers, "
+                        "trace-id: %r, parent-id: %r, priority: %r, origin: %r, tags: %r"
+                    ),
                     trace_id,
                     parent_span_id,
                     sampling_priority,
