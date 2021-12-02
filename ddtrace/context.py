@@ -56,6 +56,9 @@ class Context(object):
         if lock is not None:
             self._lock = lock
         else:
+            # DEV: A `forksafe.RLock` is not necessary here since Contexts
+            # are recreated by the tracer after fork
+            # https://github.com/DataDog/dd-trace-py/blob/a1932e8ddb704d259ea8a3188d30bf542f59fd8d/ddtrace/tracer.py#L489-L508
             self._lock = threading.RLock()
 
     def _with_span(self, span):
