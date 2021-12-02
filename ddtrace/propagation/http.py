@@ -10,7 +10,7 @@ from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
-from ..internal.compat import ensure_text
+from ..internal.compat import ensure_str
 from ..internal.logger import get_logger
 from .utils import get_wsgi_header
 
@@ -74,7 +74,7 @@ class HTTPPropagator(object):
         tags_to_encode = {}  # type: Dict[str, str]
         for key, value in span_context._meta.items():
             # Context._meta keys can be str or bytes, we require str
-            key = ensure_text(key)
+            key = ensure_str(key)
             if key.startswith("_dd.p."):
                 tags_to_encode[key] = value
 
