@@ -39,6 +39,47 @@ class TestHttpPropagation(TestCase):
             assert headers[HTTP_HEADER_ORIGIN] == span.context.dd_origin
             assert headers[HTTP_HEADER_TAGS] == "_dd.p.test=value"
 
+    def test_inject_tags_bytes(self):
+        tracer = DummyTracer()
+
+        # Context._meta allows str and bytes for keys
+        meta = {b"_dd.p.test": "value"}
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+
+            assert headers[HTTP_HEADER_TAGS] == "_dd.p.test=value"
+
+    def test_inject_tags_large(self):
+        tracer = DummyTracer()
+
+        # DEV: Limit is 512
+        meta = {"_dd.p.test": "long" * 200}
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+
+            assert HTTP_HEADER_TAGS not in headers
+            assert ctx._meta["_dd.propagation_error"] == "max_size"
+
+    def test_inject_tags_invalid(self):
+        tracer = DummyTracer()
+
+        # DEV: "=" and "," are not allowed in keys or values
+        meta = {"_dd.p.test=": ",value="}
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+
+            assert HTTP_HEADER_TAGS not in headers
+            assert ctx._meta["_dd.propagation_error"] == "encoding_error"
+
     def test_extract(self):
         tracer = DummyTracer()
 
