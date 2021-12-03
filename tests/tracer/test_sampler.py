@@ -758,7 +758,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
     sampler = DatadogSampler(rules=[rule])
     dummy_tracer.configure(sampler=sampler)
 
-    with dummy_tracer.trace("test.span") as span:
+    with dummy_tracer.trace("test.span"):
         pass
 
     spans = dummy_tracer.pop()
@@ -776,7 +776,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer, mock_rate_limiter, mo
     sampler.limiter.is_allowed.return_value = False
     mock_effective_rate.return_value = 0.5
 
-    with dummy_tracer.trace("test.span") as span:
+    with dummy_tracer.trace("test.span"):
         pass
 
     spans = dummy_tracer.pop()
@@ -791,7 +791,7 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
     sampler = DatadogSampler(rules=[rule])
     dummy_tracer.configure(sampler=sampler)
 
-    with dummy_tracer.trace("test.span") as span:
+    with dummy_tracer.trace("test.span"):
         pass
 
     spans = dummy_tracer.pop()
@@ -806,7 +806,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     sampler = DatadogSampler(rules=[rule])
     dummy_tracer.configure(sampler=sampler)
 
-    with dummy_tracer.trace("parent.span") as parent:
+    with dummy_tracer.trace("parent.span"):
         with dummy_tracer.trace("child.span"):
             pass
 
