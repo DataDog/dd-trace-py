@@ -128,6 +128,14 @@ span has to be propagated as a context::
         time.sleep(1)
         proc.join()
 
+
+.. important::
+
+   A :class:`ddtrace.Span` should only be accessed or modified in the process
+   that it was created in. Using a :class:`ddtrace.Span` from within a child process
+   could result in a deadlock or unexpected behavior.
+
+
 fork
 ****
 If using `fork()`, any open spans from the parent process must be finished by
