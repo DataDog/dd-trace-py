@@ -89,9 +89,11 @@ class HTTPPropagator(object):
                 #   - pass along whatever we were able to encode
                 span_context._meta["_dd.propagation_error"] = "max_size"
                 encoded_tags = ex.current_results
+                log.warning("failed to encode x-datadog-tags", exc_info=True)
             except TagsetEncodeError:
                 # We hit an encoding error, add a tag to the context to indicate this happened
                 span_context._meta["_dd.propagation_error"] = "encoding_error"
+                log.warning("failed to encode x-datadog-tags", exc_info=True)
             if encoded_tags:
                 headers[HTTP_HEADER_TAGS] = encoded_tags
 
