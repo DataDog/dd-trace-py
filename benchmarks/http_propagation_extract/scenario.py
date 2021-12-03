@@ -29,7 +29,6 @@ class HTTPPropagationExtract(bm.Scenario):
 
         def _(loops):
             for _ in range(loops):
-                for _ in range(1000):
-                    http.HTTPPropagator.extract(headers)
+                http.HTTPPropagator.extract(headers)
 
         yield _
