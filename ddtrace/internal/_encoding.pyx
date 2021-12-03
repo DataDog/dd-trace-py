@@ -29,6 +29,7 @@ cdef extern from "pack.h":
     int msgpack_pack_array(msgpack_packer* pk, size_t l)
     int msgpack_pack_map(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw(msgpack_packer* pk, size_t l)
+    int msgpack_pack_bin(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw_body(msgpack_packer* pk, char* body, size_t l)
     int msgpack_pack_unicode(msgpack_packer* pk, object o, long long limit)
     int msgpack_pack_uint32(msgpack_packer* pk, stdint.uint32_t d)
@@ -750,7 +751,7 @@ cdef class Packer(object):
     are not supported.
 
     - strict_type argument is removed and assumed to be True
-    - use_bin_type argument is removed and assumed to be False (does not support the msgpack 2.0 bin type fields)
+    - use_bin_type argument is removed and assumed to be True (use the msgpack 2.0 bin type fields when possible)
     - use_single_float is removed and assumed to be False
     - autoreset is removed and assumed to be True (bytes are always returned from pack and the buffer reset)
 
@@ -830,7 +831,7 @@ cdef class Packer(object):
                 if L > ITEM_LIMIT:
                     PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(o).tp_name)
                 rawval = o
-                ret = msgpack_pack_raw(&self.pk, L)
+                ret = msgpack_pack_bin(&self.pk, L)
                 if ret == 0:
                     ret = msgpack_pack_raw_body(&self.pk, rawval, L)
             elif PyUnicode_CheckExact(o):

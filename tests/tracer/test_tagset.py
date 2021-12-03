@@ -21,14 +21,10 @@ from ddtrace.internal._tagset import encode_tagset_values
         ("12345=678910", {"12345": "678910"}),
         # Single character key and value
         ("a=b", {"a": "b"}),
-        # Only a comma
-        (",", {}),
         # Empty value
         ("", {}),
         # Extra trailing comma
         ("key=value,", {"key": "value"}),
-        # Leading and trailing extra comma without tag pairs
-        (",key=value,", {"key": "value"}),
         # Values can have spaces
         ("key=value can have spaces", {"key": "value can have spaces"}),
         # Remove leading/trailing spaces from values
@@ -57,9 +53,12 @@ def test_decode_tagset_string(header, expected):
         "key=",
         "key=,",
         "=",
+        ",",
         ",=,",
         ",=value",
         "=value",
+        # Extra leading comma
+        ",key=value",
         "key=value=value",
         "key=value,=value",
         "key=value,value",
@@ -158,7 +157,7 @@ def test_encode_tagset_values_invalid_type():
     encode_tagset_values({})
     encode_tagset_values(OrderedDict())
 
-    # Not allowed
+    # Not allowed, AttributeError
     for values in (None, True, 10, object(), []):
-        with pytest.raises(TypeError):
+        with pytest.raises(AttributeError):
             encode_tagset_values(values)

@@ -102,11 +102,6 @@ cpdef dict decode_tagset_string(str tagset):
     #      right or left side of an `=`
     for c in tagset:
         o = ord(c)
-        if is_comma(o):
-            # Allow leading/trailing commas without key/value pairs
-            if is_parsing_key and not cur_key:
-                continue
-
         if is_parsing_key:
             if is_equal(o):
                 if not cur_key:
@@ -159,10 +154,6 @@ cpdef str encode_tagset_values(object values, int max_size=512):
     :raises TagsetMaxSizeError: Raised when we will exceed the provided max size
     :raises TagsetEncodeError: Raised when we encounter an exception character in a key or value
     """
-    # Allow subclasses of `dict` like `collections.OrderedDict`
-    if not isinstance(values, dict):
-        raise TypeError("Argument 'values' has incorrect type (expected dict, got %s)".format(type(values)))
-
     cdef str res = ""
     cdef str key
     cdef str value
