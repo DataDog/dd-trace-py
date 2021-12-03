@@ -10,7 +10,6 @@ import struct
 
 from msgpack import Unpacker
 from msgpack import unpackb
-import pytest
 
 from ddtrace.internal._encoding import Packer
 from ddtrace.internal._encoding import packb
@@ -75,12 +74,6 @@ def testPackBytes():
     ]
     for td in test_data:
         check(td)
-
-
-def testStrictUnicodeUnpack():
-    packed = packb(b"abc\xeddef")
-    with pytest.raises(UnicodeDecodeError):
-        unpackb(packed, raw=False, use_list=1)
 
 
 def testDecodeBinary():
