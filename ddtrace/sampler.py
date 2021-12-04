@@ -10,8 +10,6 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
-from typing import Union
-from typing import cast
 
 import six
 
@@ -29,6 +27,7 @@ from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.utils.cache import cachedmethod
 from .internal.utils.formats import get_env
+from .vendor.debtcollector.removals import removed_property
 
 
 try:
@@ -155,7 +154,7 @@ class RateByServiceSampler(BasePrioritySampler):
 
 
 class DatadogSampler(BasePrioritySampler):
-    __slots__ = ("default_sampler", "limiter", "rules")
+    __slots__ = ("default_rule", "legacy_sampler", "limiter", "rules")
 
     NO_RATE_LIMIT = -1
     DEFAULT_RATE_LIMIT = 100
@@ -204,17 +203,34 @@ class DatadogSampler(BasePrioritySampler):
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
 
+        self.legacy_sampler = None  # type: Optional[RateByServiceSampler]
+        self.default_rule = None  # type: Optional[SamplingRule]
         if default_sample_rate is None:
             log.debug("initialized DatadogSampler, limit %r traces per second", rate_limit)
             # Default to previous default behavior of RateByServiceSampler
-            self.default_sampler = RateByServiceSampler()  # type: Union[RateByServiceSampler, SamplingRule]
+            self.legacy_sampler = RateByServiceSampler()
         else:
             log.debug(
                 "initialized DatadogSampler, sample %s%% traces, limit %r traces per second",
                 100 * default_sample_rate,
                 rate_limit,
             )
-            self.default_sampler = SamplingRule(sample_rate=default_sample_rate)
+            self.default_rule = SamplingRule(sample_rate=default_sample_rate)
+
+        # This shouldn't ever happen, but let's just be 100% sure
+        if not self.default_rule and not self.legacy_sampler:
+            raise ValueError("DatadogSampler configured without a default rule or fallback sampler: {!r}".format(self))
+
+    @removed_property
+    def default_sampler(self):
+        return self.default_rule or self.legacy_sampler
+
+    def __str__(self):
+        return "{}(default_rule={!r}, legacy_sampler={!r}, limiter={!r}, rules={!r})".format(
+            self.__class__.__name__, self.default_rule, self.legacy_sampler, self.limiter, self.rules
+        )
+
+    __repr__ = __str__
 
     def _parse_rules_from_env_variable(self, rules):
         sampling_rules = []
@@ -240,8 +256,8 @@ class DatadogSampler(BasePrioritySampler):
     def update_rate_by_service_sample_rates(self, sample_rates):
         # type: (Dict[str, float]) -> None
         # Pass through the call to our RateByServiceSampler
-        if isinstance(self.default_sampler, RateByServiceSampler):
-            self.default_sampler.update_rate_by_service_sample_rates(sample_rates)
+        if self.legacy_sampler:
+            self.legacy_sampler.update_rate_by_service_sample_rates(sample_rates)
 
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None
@@ -270,17 +286,23 @@ class DatadogSampler(BasePrioritySampler):
                 break
         else:
             # If this is the old sampler, sample and return
-            if isinstance(self.default_sampler, RateByServiceSampler):
-                if self.default_sampler.sample(span):
+            # DEV: We will always have either self.legacy_sampler or self.default_rule
+            if self.legacy_sampler is not None:
+                if self.legacy_sampler.sample(span):
                     self._set_priority(span, AUTO_KEEP)
                     return True
                 else:
                     self._set_priority(span, AUTO_REJECT)
                     return False
-            else:
-                # If no rules match, use our default rule sampler
-                # DEV: If it isn't a RateByServiceSampler then it must be a SamplingRule
-                matching_rule = cast(SamplingRule, self.default_sampler)
+            elif self.default_rule is not None:
+                matching_rule = self.default_rule
+
+        # DEV: This should never happen, we have a check in __init__ that raises an exception
+        # but we check to be 100% sure (and to make mypy happy)
+        if not matching_rule:
+            log.error("Misconfigured DatadogSampler, no default rule or fallback sampler: %r", self)
+            self._set_priority(span, USER_REJECT)
+            return False
 
         # Set a metric saying we sampled with a user defined rule
         # DEV: Avoid `span.set_metric()` which adds constraint checking overhead

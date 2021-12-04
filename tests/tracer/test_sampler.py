@@ -547,39 +547,45 @@ def test_datadog_sampler_init():
     assert sampler.rules == []
     assert isinstance(sampler.limiter, RateLimiter)
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler.default_sampler, RateByServiceSampler)
+    assert isinstance(sampler.legacy_sampler, RateByServiceSampler)
+    assert sampler.default_rule is None
 
     # With rules
     rule = SamplingRule(sample_rate=1)
     sampler = DatadogSampler(rules=[rule])
     assert sampler.rules == [rule]
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler.default_sampler, RateByServiceSampler)
+    assert isinstance(sampler.legacy_sampler, RateByServiceSampler)
+    assert sampler.default_rule is None
 
     # With rate limit
     sampler = DatadogSampler(rate_limit=10)
     assert sampler.limiter.rate_limit == 10
-    assert isinstance(sampler.default_sampler, RateByServiceSampler)
+    assert isinstance(sampler.legacy_sampler, RateByServiceSampler)
+    assert sampler.default_rule is None
 
     # With default_sample_rate
     sampler = DatadogSampler(default_sample_rate=0.5)
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler.default_sampler, SamplingRule)
-    assert sampler.default_sampler.sample_rate == 0.5
+    assert isinstance(sampler.default_rule, SamplingRule)
+    assert sampler.legacy_sampler is None
+    assert sampler.default_rule.sample_rate == 0.5
 
     # From env variables
     with override_env(dict(DD_TRACE_SAMPLE_RATE="0.5", DD_TRACE_RATE_LIMIT="10")):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == 10
-        assert isinstance(sampler.default_sampler, SamplingRule)
-        assert sampler.default_sampler.sample_rate == 0.5
+        assert isinstance(sampler.default_rule, SamplingRule)
+        assert sampler.legacy_sampler is None
+        assert sampler.default_rule.sample_rate == 0.5
 
     # DD_TRACE_SAMPLE_RATE=0
     with override_env(dict(DD_TRACE_SAMPLE_RATE="0")):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-        assert isinstance(sampler.default_sampler, SamplingRule)
-        assert sampler.default_sampler.sample_rate == 0
+        assert isinstance(sampler.default_rule, SamplingRule)
+        assert sampler.legacy_sampler is None
+        assert sampler.default_rule.sample_rate == 0
 
     # Invalid env vars
     with override_env(dict(DD_TRACE_SAMPLE_RATE="asdf")):
@@ -855,7 +861,7 @@ def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
     for case in cases:
         sampler.update_rate_by_service_sample_rates(case)
         rates = {}
-        for k, v in iteritems(sampler.default_sampler._by_service_samplers):
+        for k, v in iteritems(sampler.legacy_sampler._by_service_samplers):
             rates[k] = v.sample_rate
         assert case == rates, "%s != %s" % (case, rates)
 
@@ -865,6 +871,6 @@ def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
     for case in cases:
         sampler.update_rate_by_service_sample_rates(case)
         rates = {}
-        for k, v in iteritems(sampler.default_sampler._by_service_samplers):
+        for k, v in iteritems(sampler.legacy_sampler._by_service_samplers):
             rates[k] = v.sample_rate
         assert case == rates, "%s != %s" % (case, rates)
