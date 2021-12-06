@@ -9,6 +9,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
+from typing import Tuple
 
 import six
 
@@ -18,10 +19,13 @@ from .constants import ENV_KEY
 from .constants import SAMPLING_AGENT_DECISION
 from .constants import SAMPLING_LIMIT_DECISION
 from .constants import SAMPLING_RULE_DECISION
+from .constants import USER_KEEP
+from .constants import USER_REJECT
 from .internal.compat import iteritems
 from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
+from .internal.utils.cache import cachedmethod
 from .internal.utils.formats import get_env
 
 
@@ -240,7 +244,7 @@ class DatadogSampler(BasePrioritySampler):
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None
         span.context.sampling_priority = priority
-        span.sampled = priority is AUTO_KEEP
+        span.sampled = priority > 0  # Positive priorities mean it was kept
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -279,11 +283,11 @@ class DatadogSampler(BasePrioritySampler):
         if isinstance(matching_rule, (RateSampler, SamplingRule)):
             span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
         if not matching_rule.sample(span):
-            self._set_priority(span, AUTO_REJECT)
+            self._set_priority(span, USER_REJECT)
             return False
         else:
             # Do not return here, we need to apply rate limit
-            self._set_priority(span, AUTO_KEEP)
+            self._set_priority(span, USER_KEEP)
 
         # Ensure all allowed traces adhere to the global rate limit
         allowed = self.limiter.is_allowed()
@@ -292,11 +296,11 @@ class DatadogSampler(BasePrioritySampler):
         #      various sample rates that are getting applied to this span
         span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         if not allowed:
-            self._set_priority(span, AUTO_REJECT)
+            self._set_priority(span, USER_REJECT)
             return False
 
         # We made it by all of checks, sample this trace
-        self._set_priority(span, AUTO_KEEP)
+        self._set_priority(span, USER_KEEP)
         return True
 
 
@@ -394,6 +398,16 @@ class SamplingRule(BaseSampler):
         # Exact match on the values
         return prop == pattern
 
+    @cachedmethod()
+    def _matches(self, key):
+        # type: (Tuple[Optional[str], str]) -> bool
+        service, name = key
+        for prop, pattern in [(service, self.service), (name, self.name)]:
+            if not self._pattern_matches(prop, pattern):
+                return False
+        else:
+            return True
+
     def matches(self, span):
         # type: (Span) -> bool
         """
@@ -404,13 +418,9 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return all(
-            self._pattern_matches(prop, pattern)
-            for prop, pattern in [
-                (span.service, self.service),
-                (span.name, self.name),
-            ]
-        )
+        # Our MFU cache expects a single key, convert the
+        # provided Span into a hashable tuple for the cache
+        return self._matches((span.service, span.name))
 
     def sample(self, span):
         # type: (Span) -> bool
