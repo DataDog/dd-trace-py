@@ -140,17 +140,22 @@ class PymongoCore(object):
         songs = db[collection_name]
         songs.insert_many(input_songs)
 
+        def count(col, *args, **kwargs):
+            if pymongo.version_tuple >= (4, 0):
+                return col.count_documents(*args, **kwargs)
+            return col.count(*args, **kwargs)
+
         # test delete one
         af = {"artist": "Neil"}
-        assert songs.count(af) == 2
+        assert count(songs, af) == 2
         songs.delete_one(af)
-        assert songs.count(af) == 1
+        assert count(songs, af) == 1
 
         # test delete many
         af = {"artist": "Leonard"}
-        assert songs.count(af) == 2
+        assert count(songs, af) == 2
         songs.delete_many(af)
-        assert songs.count(af) == 0
+        assert count(songs, af) == 0
 
         # ensure all is traced.
         spans = tracer.pop()
@@ -165,16 +170,28 @@ class PymongoCore(object):
             assert span.meta.get("out.host")
             assert span.metrics.get("out.port")
 
-        expected_resources = [
-            "drop here.are.songs",
-            "count here.are.songs",
-            "count here.are.songs",
-            "count here.are.songs",
-            "count here.are.songs",
-            'delete here.are.songs {"artist": "?"}',
-            'delete here.are.songs {"artist": "?"}',
-            "insert here.are.songs",
-        ]
+        if pymongo.version_tuple >= (4, 0):
+            expected_resources = [
+                "drop here.are.songs",
+                "aggregate here.are.songs",
+                "aggregate here.are.songs",
+                "aggregate here.are.songs",
+                "aggregate here.are.songs",
+                'delete here.are.songs {"artist": "?"}',
+                'delete here.are.songs {"artist": "?"}',
+                "insert here.are.songs",
+            ]
+        else:
+            expected_resources = [
+                "drop here.are.songs",
+                "count here.are.songs",
+                "count here.are.songs",
+                "count here.are.songs",
+                "count here.are.songs",
+                'delete here.are.songs {"artist": "?"}',
+                'delete here.are.songs {"artist": "?"}',
+                "insert here.are.songs",
+            ]
 
         assert sorted(expected_resources) == sorted(s.resource for s in spans)
 

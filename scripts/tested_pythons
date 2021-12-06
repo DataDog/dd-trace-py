@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# This script is to be run from the root of the repository (where riotfile.py is)
+
+python3 -c "from riotfile import select_pys;print('\n'.join(select_pys()))"

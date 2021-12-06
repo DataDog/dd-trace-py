@@ -38,16 +38,16 @@ def test_9():
 
 
 def check_raw(overhead, num):
-    check(num + overhead, " " * num)
+    check(num + overhead, b" " * num)
 
 
 def test_fixraw():
-    check_raw(1, 0)
-    check_raw(1, (1 << 5) - 1)
+    check_raw(2, 0)
+    check_raw(2, (1 << 5) - 1)
 
 
 def test_raw16():
-    check_raw(3, 1 << 5)
+    check_raw(2, 1 << 5)
     check_raw(3, (1 << 16) - 1)
 
 
