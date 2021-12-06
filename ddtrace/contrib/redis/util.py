@@ -30,7 +30,7 @@ def _extract_conn_tags(conn_kwargs):
         return {}
 
 
-def format_command_args(args):
+def format_command_args(args, to_string=stringify):
     """Format a command by removing unwanted values
 
     Restrict what we keep from the values sent (with a SET, HGET, LPUSH, ...):
@@ -41,10 +41,7 @@ def format_command_args(args):
     out = []
     for arg in args:
         try:
-            if isinstance(arg, bytes):
-                cmd = arg.decode()
-            else:
-                cmd = stringify(arg)
+            cmd = to_string(arg)
 
             if len(cmd) > VALUE_MAX_LEN:
                 cmd = cmd[:VALUE_MAX_LEN] + VALUE_TOO_LONG_MARK
