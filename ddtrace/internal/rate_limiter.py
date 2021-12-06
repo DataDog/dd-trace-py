@@ -38,7 +38,7 @@ class RateLimiter(object):
         self.tokens = rate_limit  # type: float
         self.max_tokens = rate_limit
 
-        self.last_update_ns = compat.monotonic()
+        self.last_update_ns = compat.monotonic_ns()
 
         self.current_window_ns = 0  # type: float
         self.tokens_allowed = 0
