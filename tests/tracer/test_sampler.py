@@ -33,19 +33,6 @@ def dummy_tracer():
     return DummyTracer()
 
 
-@pytest.fixture
-def mock_rate_limiter(mocker, mock_effective_rate):
-    mocker.patch.object(RateLimiter, "is_allowed")
-    yield RateLimiter
-
-
-@pytest.fixture
-def mock_effective_rate(mocker):
-    effective_rate = mocker.patch("ddtrace.sampler.RateLimiter.effective_rate", new_callable=mock.PropertyMock)
-    effective_rate.return_value = 1.0
-    yield effective_rate
-
-
 def assert_sampling_decision_tags(span, agent=None, limit=None, rule=None):
     assert span.get_metric(SAMPLING_AGENT_DECISION) == agent
     assert span.get_metric(SAMPLING_LIMIT_DECISION) == limit
@@ -767,14 +754,10 @@ def test_datadog_sampler_tracer(dummy_tracer):
     assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
 
 
-def test_datadog_sampler_tracer_rate_limited(dummy_tracer, mock_rate_limiter, mock_effective_rate):
+def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0, name="test.span")
-    sampler = DatadogSampler(rules=[rule])
+    sampler = DatadogSampler(rules=[rule], rate_limit=0)
     dummy_tracer.configure(sampler=sampler)
-
-    # Have the limiter deny the span
-    sampler.limiter.is_allowed.return_value = False
-    mock_effective_rate.return_value = 0.5
 
     with dummy_tracer.trace("test.span"):
         pass
@@ -782,7 +765,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer, mock_rate_limiter, mo
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
-    assert_sampling_decision_tags(spans[0], rule=1.0, limit=0.5)
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=0.0)
 
 
 def test_datadog_sampler_tracer_rate_0(dummy_tracer):
