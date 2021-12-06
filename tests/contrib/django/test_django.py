@@ -1,4 +1,5 @@
 import itertools
+import os
 import subprocess
 
 import django
@@ -1539,20 +1540,19 @@ def test_django_use_handler_resource_format_env(client, test_spans):
         ("DD_DJANGO_INSTRUMENT_MIDDLEWARE", "instrument_middleware"),
     ],
 )
-def test_enable_django_instrument_env(env_var, instrument_x):
+def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_code_in_subprocess):
     """
     Test that {env} enables instrumentation
     """
-    with override_env({env_var: "true"}):
-        out = subprocess.check_output(
-            [
-                "ddtrace-run",
-                "python",
-                "-c",
-                "from ddtrace import config; assert config.django.%s" % instrument_x,
-            ],
-        )
-        assert out.startswith(b"")
+
+    env = os.environ.copy()
+    env[env_var] = "true"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        "import ddtrace;assert ddtrace.config.django.{}".format(instrument_x),
+        env=env,
+    )
+
+    assert status == 0, (out, err)
 
 
 @pytest.mark.parametrize(
@@ -1563,20 +1563,19 @@ def test_enable_django_instrument_env(env_var, instrument_x):
         ("DD_DJANGO_INSTRUMENT_MIDDLEWARE", "instrument_middleware"),
     ],
 )
-def test_disable_django_instrument_env(env_var, instrument_x):
+def test_disable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_code_in_subprocess):
     """
     Test that {env} disables instrumentation
     """
-    with override_env({env_var: "false"}):
-        out = subprocess.check_output(
-            [
-                "ddtrace-run",
-                "python",
-                "-c",
-                "from ddtrace import config; assert not config.django.%s" % instrument_x,
-            ],
-        )
-        assert out == b""
+
+    env = os.environ.copy()
+    env[env_var] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        "import ddtrace;assert not ddtrace.config.django.{}".format(instrument_x),
+        env=env,
+    )
+
+    assert status == 0, (out, err)
 
 
 def test_django_use_legacy_resource_format(client, test_spans):
