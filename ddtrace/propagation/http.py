@@ -73,10 +73,10 @@ class HTTPPropagator(object):
         # Only propagate tags that start with `_dd.p.`
         tags_to_encode = {}  # type: Dict[str, str]
         for key, value in span_context._meta.items():
-            # Context._meta keys can be str or bytes, we require str
+            # DEV: encoding will fail if the key or value are not `str`
             key = ensure_str(key)
             if key.startswith("_dd.p."):
-                tags_to_encode[key] = value
+                tags_to_encode[key] = ensure_str(value)
 
         if tags_to_encode:
             encoded_tags = None
