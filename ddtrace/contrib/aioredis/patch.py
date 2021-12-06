@@ -5,10 +5,10 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ...internal.compat import stringify
 from ..redis.util import _trace_redis_cmd
 from ..redis.util import _trace_redis_execute_pipeline
 from ..redis.util import format_command_args
-from ...internal.compat import stringify
 
 
 config._add("aioredis", dict(_default_service="redis"))
