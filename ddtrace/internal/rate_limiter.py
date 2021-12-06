@@ -47,8 +47,8 @@ class RateLimiter(object):
 
         self._lock = threading.Lock()
 
-    def is_allowed(self):
-        # type: () -> bool
+    def is_allowed(self, timestamp=None):
+        # type: (Optional[int]) -> bool
         """
         Check whether the current request is allowed or not
 
@@ -57,8 +57,10 @@ class RateLimiter(object):
         :returns: Whether the current request is allowed or not
         :rtype: :obj:`bool`
         """
+        if timestamp is None:
+            timestamp = compat.monotonic()
         # Determine if it is allowed
-        allowed = self._is_allowed()
+        allowed = self._is_allowed(timestamp)
         # Update counts used to determine effective rate
         self._update_rate_counts(allowed)
         return allowed
@@ -84,8 +86,8 @@ class RateLimiter(object):
             self.tokens_allowed += 1
         self.tokens_total += 1
 
-    def _is_allowed(self):
-        # type: () -> bool
+    def _is_allowed(self, timestamp):
+        # type: (int) -> bool
         # Rate limit of 0 blocks everything
         if self.rate_limit == 0:
             return False
@@ -96,7 +98,7 @@ class RateLimiter(object):
 
         # Lock, we need this to be thread safe, it should be shared by all threads
         with self._lock:
-            self._replenish()
+            self._replenish(timestamp)
 
             if self.tokens >= 1:
                 self.tokens -= 1
@@ -104,16 +106,15 @@ class RateLimiter(object):
 
             return False
 
-    def _replenish(self):
-        # type: () -> None
+    def _replenish(self, timestamp):
+        # type: (int) -> None
         # If we are at the max, we do not need to add any more
         if self.tokens == self.max_tokens:
             return
 
         # Add more available tokens based on how much time has passed
-        now = compat.monotonic()
-        elapsed = now - self.last_update
-        self.last_update = now
+        elapsed = timestamp - self.last_update
+        self.last_update = timestamp
 
         # Update the number of available tokens, but ensure we do not exceed the max
         self.tokens = min(
