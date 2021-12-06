@@ -5,7 +5,6 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ...internal.compat import stringify
 from ..redis.util import _trace_redis_cmd
 from ..redis.util import _trace_redis_execute_pipeline
 from ..redis.util import format_command_args
@@ -50,7 +49,8 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.aioredis, instance, args):
+    decoded_args = [arg.decode() if isinstance(arg, bytes) else arg for arg in args]
+    with _trace_redis_cmd(pin, config.aioredis, instance, decoded_args):
         return await func(*args, **kwargs)
 
 
@@ -63,16 +63,11 @@ async def traced_pipeline(func, instance, args, kwargs):
 
 
 async def traced_execute_pipeline(func, instance, args, kwargs):
-    def string_formatter(arg):
-        if isinstance(arg, bytes):
-            return arg.decode()
-        return stringify(arg)
-
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    cmds = [format_command_args(c, to_string=string_formatter) for c, _ in instance.command_stack]
+    cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
     with _trace_redis_execute_pipeline(pin, config.aioredis, resource, instance):
 
