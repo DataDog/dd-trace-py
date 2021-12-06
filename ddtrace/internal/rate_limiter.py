@@ -13,8 +13,8 @@ class RateLimiter(object):
 
     __slots__ = (
         "_lock",
-        "current_window",
-        "last_update",
+        "current_window_ns",
+        "last_update_ns",
         "max_tokens",
         "prev_window_rate",
         "rate_limit",
@@ -38,55 +38,56 @@ class RateLimiter(object):
         self.tokens = rate_limit  # type: float
         self.max_tokens = rate_limit
 
-        self.last_update = compat.monotonic()
+        self.last_update_ns = compat.monotonic()
 
-        self.current_window = 0  # type: float
+        self.current_window_ns = 0  # type: float
         self.tokens_allowed = 0
         self.tokens_total = 0
         self.prev_window_rate = None  # type: Optional[float]
 
         self._lock = threading.Lock()
 
-    def is_allowed(self, timestamp=None):
+    def is_allowed(self, timestamp_ns=None):
         # type: (Optional[int]) -> bool
         """
         Check whether the current request is allowed or not
 
         This method will also reduce the number of available tokens by 1
 
+        :param int timestamp_ns: Optional timestamp in nanoseconds for the current request.
+            If not provided `compat.monotonic_ns()` is used.
         :returns: Whether the current request is allowed or not
         :rtype: :obj:`bool`
         """
-        if timestamp is None:
-            timestamp = compat.monotonic()
+        if timestamp_ns is None:
+            timestamp_ns = compat.monotonic_ns()
         # Determine if it is allowed
-        allowed = self._is_allowed(timestamp)
+        allowed = self._is_allowed(timestamp_ns)
         # Update counts used to determine effective rate
-        self._update_rate_counts(allowed)
+        self._update_rate_counts(allowed, timestamp_ns)
         return allowed
 
-    def _update_rate_counts(self, allowed):
-        # type: (bool) -> None
-        now = compat.monotonic()
-
+    def _update_rate_counts(self, allowed, timestamp_ns):
+        # type: (bool, int) -> None
         # No tokens have been seen yet, start a new window
-        if not self.current_window:
-            self.current_window = now
+        if not self.current_window_ns:
+            self.current_window_ns = timestamp_ns
 
         # If more than 1 second has past since last window, reset
-        elif now - self.current_window >= 1.0:
+        # DEV: We are comparing nanoseconds, so 1e9 is 1 second
+        elif timestamp_ns - self.current_window_ns >= 1e9:
             # Store previous window's rate to average with current for `.effective_rate`
             self.prev_window_rate = self._current_window_rate()
             self.tokens_allowed = 0
             self.tokens_total = 0
-            self.current_window = now
+            self.current_window_ns = timestamp_ns
 
         # Keep track of total tokens seen vs allowed
         if allowed:
             self.tokens_allowed += 1
         self.tokens_total += 1
 
-    def _is_allowed(self, timestamp):
+    def _is_allowed(self, timestamp_ns):
         # type: (int) -> bool
         # Rate limit of 0 blocks everything
         if self.rate_limit == 0:
@@ -98,7 +99,7 @@ class RateLimiter(object):
 
         # Lock, we need this to be thread safe, it should be shared by all threads
         with self._lock:
-            self._replenish(timestamp)
+            self._replenish(timestamp_ns)
 
             if self.tokens >= 1:
                 self.tokens -= 1
@@ -106,15 +107,16 @@ class RateLimiter(object):
 
             return False
 
-    def _replenish(self, timestamp):
+    def _replenish(self, timestamp_ns):
         # type: (int) -> None
         # If we are at the max, we do not need to add any more
         if self.tokens == self.max_tokens:
             return
 
         # Add more available tokens based on how much time has passed
-        elapsed = timestamp - self.last_update
-        self.last_update = timestamp
+        # DEV: We store as nanoseconds, convert to seconds
+        elapsed = (timestamp_ns - self.last_update_ns) / 1e9
+        self.last_update_ns = timestamp_ns
 
         # Update the number of available tokens, but ensure we do not exceed the max
         self.tokens = min(
@@ -148,11 +150,11 @@ class RateLimiter(object):
         return (self._current_window_rate() + self.prev_window_rate) / 2.0
 
     def __repr__(self):
-        return "{}(rate_limit={!r}, tokens={!r}, last_update={!r}, effective_rate={!r})".format(
+        return "{}(rate_limit={!r}, tokens={!r}, last_update_ns={!r}, effective_rate={!r})".format(
             self.__class__.__name__,
             self.rate_limit,
             self.tokens,
-            self.last_update,
+            self.last_update_ns,
             self.effective_rate,
         )
 
