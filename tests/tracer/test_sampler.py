@@ -814,7 +814,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     assert len(spans) == 2, "Trace should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
     assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
-    assert_sampling_decision_tags(spans[1])  # No tags are set on children
+    assert_sampling_decision_tags(spans[1], agent=None, rule=None, limit=None)
 
 
 def test_datadog_sampler_tracer_start_span(dummy_tracer):
