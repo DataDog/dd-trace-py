@@ -1576,7 +1576,7 @@ def test_disable_django_instrument_env(env_var, instrument_x):
                 "from ddtrace import config; assert not config.django.%s" % instrument_x,
             ],
         )
-        assert out.startswith(b"")
+        assert out == b""
 
 
 def test_django_use_legacy_resource_format(client, test_spans):
