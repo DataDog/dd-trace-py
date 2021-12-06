@@ -223,6 +223,9 @@ venv = Venv(
             name="vendor",
             command="pytest {cmdargs} tests/vendor/",
             pys=select_pys(),
+            pkgs={
+                "msgpack": ["~=1.0.0", latest],
+            },
         ),
         Venv(
             name="test_logging",
