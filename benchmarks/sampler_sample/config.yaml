@@ -3,7 +3,7 @@ default: &default
   default_sample_rate: -1
   sampling_rules: ""
   rates_by_service: ""
-  rate_limit: -1
+  rate_limit: 100
   service_name: "benchmark"
   operation_name: "benchmark.run"
 
@@ -64,9 +64,15 @@ user_rule_no_match:
 rate_limit_default: &rate_limit_default
   <<: *default
   default_sample_rate: 1.0
-rate_limit_no_limit:
+rate_limit_1:
   <<: *rate_limit_default
-  rate_limit: 5000
-rate_limit_disallow_all:
+  rate_limit: 1
+rate_limit_1000:
+  <<: *rate_limit_default
+  rate_limit: 1000
+rate_limit_neg_1:
+  <<: *rate_limit_default
+  rate_limit: -1
+rate_limit_0:
   <<: *rate_limit_default
   rate_limit: 0

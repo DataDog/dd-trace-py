@@ -24,8 +24,7 @@ class DatadogSamplerSample(bm.Scenario):
 
     def create_sampler(self):
         default_sample_rate = self.default_sample_rate if self.default_sample_rate >= 0 else None
-        rate_limit = self.rate_limit if self.rate_limit >= 0 else None
-        sampler = DatadogSampler(rules=None, default_sample_rate=default_sample_rate, rate_limit=rate_limit)
+        sampler = DatadogSampler(rules=None, default_sample_rate=default_sample_rate, rate_limit=self.rate_limit)
         if self.sampling_rules:
             sampler.rules = sampler._parse_rules_from_env_variable(self.sampling_rules)
         rates_by_service = self.get_rates_by_service()
