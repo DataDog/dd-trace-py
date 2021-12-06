@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
-import sys
 from unittest import TestCase
 
 import pytest
 
 from ddtrace.context import Context
-from ddtrace.internal.compat import ensure_str
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
