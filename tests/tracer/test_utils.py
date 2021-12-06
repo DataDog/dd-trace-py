@@ -1,5 +1,6 @@
 from functools import partial
 import os
+import sys
 import typing
 import unittest
 import warnings
@@ -318,7 +319,10 @@ class TestContrib(object):
 
         assert "tests.tracer.test_utils.minus" == func_name(minus)
         assert 5 == minus_two(7)
-        assert "partial" == func_name(minus_two)
+        if sys.version_info >= (3, 10, 0):
+            assert "functools.partial" == func_name(minus_two)
+        else:
+            assert "partial" == func_name(minus_two)
         assert 10 == plus_three(7)
         assert "tests.tracer.test_utils.<lambda>" == func_name(plus_three)
 
