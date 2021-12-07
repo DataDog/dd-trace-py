@@ -109,7 +109,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
 
     decoded_args = [arg.decode() if isinstance(arg, bytes) else arg for arg in args]
     span = pin.tracer.trace(
-        redisx.CMD, service=trace_utils.ext_service(pin, config.aioredis), span_type=SpanTypes.REDIS
+        redisx.CMD, service=trace_utils.ext_service(pin, config.aioredis), span_type=SpanTypes.REDIS, activate=False
     )
     span.set_tag(SPAN_MEASURED_KEY)
     query = format_command_args(decoded_args)
