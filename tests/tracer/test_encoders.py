@@ -2,6 +2,7 @@
 import json
 import random
 import string
+import threading
 from unittest import TestCase
 
 from hypothesis import given
@@ -565,3 +566,65 @@ def test_list_string_table():
     string_table_test(t)
 
     assert list(t) == ["", "foobar", "foobaz"]
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"trace_id": "trace_id"},
+        {"span_id": "span_id"},
+        {"parent_id": "parent_id"},
+        {"service": True},
+        {"resource": 50},
+        {"name": [1, 2, 3]},
+        {"start_ns": "start_time"},
+        {"duration_ns": "duration_time"},
+        {"span_type": 100},
+        {"meta": {"num": 100}},
+        {"metrics": {"key": "value"}},
+    ],
+)
+def test_encoding_invalid_data(data):
+    encoder = MsgpackEncoderV03(1 << 20, 1 << 20)
+
+    span = Span(tracer=None, name="test")
+    for key, value in data.items():
+        setattr(span, key, value)
+
+    trace = [span]
+    with pytest.raises(TypeError):
+        encoder.put(trace)
+
+    assert encoder.encode() is None
+
+
+@allencodings
+def test_custom_msgpack_encode_thread_safe(encoding):
+    class TracingThread(threading.Thread):
+        def __init__(self, encoder, span_count, trace_count):
+            super(TracingThread, self).__init__()
+            trace = [
+                Span(tracer=None, name="span-{}-{}".format(self.name, _), service="threads", resource="TEST")
+                for _ in range(span_count)
+            ]
+            self._encoder = encoder
+            self._trace = trace
+            self._trace_count = trace_count
+
+        def run(self):
+            for _ in range(self._trace_count):
+                self._encoder.put(self._trace)
+
+    THREADS = 40
+    SPANS = 15
+    TRACES = 10
+    encoder = MSGPACK_ENCODERS[encoding](2 << 20, 2 << 20)
+
+    ts = [TracingThread(encoder, random.randint(1, SPANS), random.randint(1, TRACES)) for _ in range(THREADS)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+
+    unpacked = decode(encoder.encode(), reconstruct=True)
+    assert unpacked is not None
