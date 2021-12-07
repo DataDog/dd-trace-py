@@ -20,7 +20,7 @@ async def redis_client():
 
 def get_redis_instance():
     if aioredis_version >= (2, 0):
-        return aioredis.from_url("redis://localhost:%s" % REDIS_CONFIG["port"])
+        return aioredis.from_url("redis://127.0.0.1:%s" % REDIS_CONFIG["port"])
     return aioredis.create_redis(("localhost", REDIS_CONFIG["port"]))
 
 
@@ -97,14 +97,21 @@ async def test_pin(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
-@pytest.mark.skipif(aioredis_version < (2, 0), reason="Pipeline methods are not instrumented in versions < 2.0")
+@pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
 async def test_pipeline_traced(redis_client):
-    p = await redis_client.pipeline(transaction=False)
-    await p.set("blah", "boo")
-    await p.set("foo", "bar")
-    await p.get("blah")
-    await p.get("foo")
+    if aioredis_version >= (2, 0):
+        p = await redis_client.pipeline(transaction=False)
+        await p.set("blah", "boo")
+        await p.set("foo", "bar")
+        await p.get("blah")
+        await p.get("foo")
+    else:
+        p = redis_client.pipeline()
+        p.set("blah", "boo")
+        p.set("foo", "bar")
+        p.get("blah")
+        p.get("foo")
+
     response_list = await p.execute()
     assert response_list[0] is True  # response from redis.set is OK if successfully pushed
     assert response_list[1] is True

@@ -24,7 +24,7 @@ def _extract_conn_tags(conn_kwargs):
         return {
             net.TARGET_HOST: conn_kwargs["host"],
             net.TARGET_PORT: conn_kwargs["port"],
-            redisx.DB: conn_kwargs["db"] or 0,
+            redisx.DB: conn_kwargs.get("db") or 0,
         }
     except Exception:
         return {}
