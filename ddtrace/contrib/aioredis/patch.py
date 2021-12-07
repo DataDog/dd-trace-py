@@ -108,7 +108,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     decoded_args = [arg.decode() if isinstance(arg, bytes) else arg for arg in args]
-    span = pin.tracer._start_span(
+    span = pin.tracer.start_span(
         redisx.CMD, service=trace_utils.ext_service(pin, config.aioredis), span_type=SpanTypes.REDIS, activate=False
     )
 
