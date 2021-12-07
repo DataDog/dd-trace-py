@@ -14,9 +14,6 @@ from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
 
-from ...constants import AUTO_REJECT
-from ...constants import USER_REJECT
-
 
 log = get_logger(__name__)
 
@@ -67,7 +64,7 @@ class TraceSamplingProcessor(TraceProcessor):
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled:
-                if trace[0]._context.sampling_priority in (AUTO_REJECT, USER_REJECT):
+                if trace[0]._context.sampling_priority <= 0:
                     return None
 
             for span in trace:

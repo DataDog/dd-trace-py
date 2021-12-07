@@ -258,6 +258,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
         }
+        if compute_stats_enabled:
+            headers["Datadog-Client-Computed-Stats"] = "yes"
         self._timeout = timeout
         self._api_version = (
             api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
@@ -269,8 +271,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 "Unsupported api version: '%s'. The supported versions are: %r"
                 % (self._api_version, ", ".join(sorted(MSGPACK_ENCODERS.keys())))
             )
-
-        self._compute_stats = compute_stats_enabled
 
         self._endpoint = "%s/traces" % self._api_version
 
@@ -396,8 +396,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     def _send_payload(self, payload, count):
         headers = self._headers.copy()
         headers["X-Datadog-Trace-Count"] = str(count)
-        if self._compute_stats:
-            headers["Datadog-Client-Computed-Stats"] = "yes"
 
         self._metrics_dist("http.requests")
 

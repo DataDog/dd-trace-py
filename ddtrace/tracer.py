@@ -669,8 +669,8 @@ class Tracer(object):
     def _initialize_span_processors(self):
         # type: () -> None
         trace_processors = []  # type: List[TraceProcessor]
-        trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor(self._compute_stats)]
+        trace_processors += [TraceTagsProcessor()]
         if not self._compute_stats:
             trace_processors += [TraceTopLevelSpanProcessor()]
         trace_processors += self._filters
