@@ -22,6 +22,8 @@ from .jobs import job_fail
 # Span data which isn't static to ignore in the snapshots.
 snapshot_ignores = ["meta.job.id", "meta.error.stack"]
 
+rq_version = tuple(int(x) for x in rq.__version__.split(".")[:3])
+
 
 @pytest.fixture()
 def connection():
@@ -53,8 +55,14 @@ def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
 
 
-@snapshot(ignores=snapshot_ignores)
+@snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
 def test_queue_failing_job(sync_queue):
+    # Exception raising behavior was changed in 1.10.1
+    # https://github.com/rq/rq/commit/93f34c796f541ea4b1c156426d6524df05753826
+    if rq_version >= (1, 10, 1):
+        sync_queue.enqueue(job_fail)
+        return
+
     with pytest.raises(Exception):
         sync_queue.enqueue(job_fail)
 
