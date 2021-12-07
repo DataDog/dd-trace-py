@@ -4,9 +4,7 @@ import atheris
 from hypothesis import given
 from hypothesis import strategies as st
 
-
-with atheris.instrument_imports():
-    from ddtrace.appsec._ddwaf import _Wrapper
+from ddtrace.appsec._ddwaf import _Wrapper
 
 
 PYTHON_OBJECTS = st.recursive(

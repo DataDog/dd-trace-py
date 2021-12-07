@@ -171,7 +171,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec",
-            command="pytest {cmdargs} tests/appsec/ddwaf_fuzzer.py",
+            command="pytest {cmdargs} tests/appsec",
             venvs=[Venv(pys=select_pys())],
             pkgs={"atheris": latest},
         ),
