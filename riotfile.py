@@ -176,7 +176,6 @@ venv = Venv(
             pkgs={"atheris": latest},
         ),
         Venv(
-            name="benchmarks",
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             venvs=[
