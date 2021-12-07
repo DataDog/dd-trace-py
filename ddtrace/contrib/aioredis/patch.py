@@ -1,3 +1,5 @@
+import sys
+
 import aioredis
 
 from ddtrace import config
