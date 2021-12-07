@@ -484,7 +484,8 @@ def _patch(django):
     # DEV: this check will be replaced with import hooks in the future
     if "django.conf.urls.static" not in sys.modules:
         import django.conf.urls.static
-    trace_utils.wrap(django, "conf.urls.url", traced_urls_path(django))
+    if django.VERSION < (4, 0, 0):
+        trace_utils.wrap(django, "conf.urls.url", traced_urls_path(django))
     if django.VERSION >= (2, 0, 0):
         trace_utils.wrap(django, "urls.path", traced_urls_path(django))
         trace_utils.wrap(django, "urls.re_path", traced_urls_path(django))
@@ -520,7 +521,8 @@ def _unpatch(django):
     trace_utils.unwrap(django.core.handlers.base.BaseHandler, "get_response_async")
     trace_utils.unwrap(django.template.base.Template, "render")
     trace_utils.unwrap(django.conf.urls.static, "static")
-    trace_utils.unwrap(django.conf.urls, "url")
+    if django.VERSION < (4, 0, 0):
+        trace_utils.unwrap(django.conf.urls, "url")
     if django.VERSION >= (2, 0, 0):
         trace_utils.unwrap(django.urls, "path")
         trace_utils.unwrap(django.urls, "re_path")
