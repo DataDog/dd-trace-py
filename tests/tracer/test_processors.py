@@ -163,8 +163,10 @@ def test_aggregator_partial_flush_0_spans():
     assert writer.pop() == []
     parent.finish()
     assert writer.pop() == [parent]
+    assert parent.get_metric("_dd.py.partial_flush") == 1
     child.finish()
     assert writer.pop() == [child]
+    assert child.get_metric("_dd.py.partial_flush") == 1
 
 
 def test_aggregator_partial_flush_2_spans():
@@ -216,8 +218,11 @@ def test_aggregator_partial_flush_2_spans():
     assert writer.pop() == []
     child2.finish()
     assert writer.pop() == [child1, child2]
+    assert child1.get_metric("_dd.py.partial_flush") == 2
+    assert child2.get_metric("_dd.py.partial_flush") is None
     parent.finish()
     assert writer.pop() == [parent]
+    assert parent.get_metric("_dd.py.partial_flush") is None
 
 
 def test_trace_top_level_span_processor_partial_flushing():
