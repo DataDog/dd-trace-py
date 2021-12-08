@@ -8,8 +8,9 @@
     "parent_id": 0,
     "type": "redis",
     "meta": {
+      "out.host": "127.0.0.1",
       "redis.raw_command": "SET blah boo\nSET foo bar\nGET blah\nGET foo",
-      "runtime-id": "b5c1efc8550f4a22953a5cb97cc98759"
+      "runtime-id": "986951e851a34024ae23282a5ba9fa33"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -17,9 +18,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "out.port": 6379,
+      "out.redis_db": 0,
       "redis.pipeline_length": 4,
-      "system.pid": 65726
+      "system.pid": 245
     },
-    "duration": 1779000,
-    "start": 1638887102591234000
+    "duration": 5134000,
+    "start": 1638998846633476000
   }]]

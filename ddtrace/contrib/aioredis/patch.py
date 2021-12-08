@@ -167,6 +167,15 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.aioredis),
         span_type=SpanTypes.REDIS,
     ) as span:
+
+        span.set_tags(
+            {
+                net.TARGET_HOST: instance._pool_or_conn.address[0],
+                net.TARGET_PORT: instance._pool_or_conn.address[1],
+                redisx.DB: instance._pool_or_conn.db or 0,
+            }
+        )
+
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag(redisx.RAWCMD, resource)
         span.set_metric(redisx.PIPELINE_LEN, len(instance._pipeline))
