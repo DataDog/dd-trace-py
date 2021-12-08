@@ -47,20 +47,17 @@ class RateLimiter(object):
 
         self._lock = threading.Lock()
 
-    def is_allowed(self, timestamp_ns=None):
-        # type: (Optional[int]) -> bool
+    def is_allowed(self, timestamp_ns):
+        # type: (int) -> bool
         """
         Check whether the current request is allowed or not
 
         This method will also reduce the number of available tokens by 1
 
-        :param int timestamp_ns: Optional timestamp in nanoseconds for the current request.
-            If not provided `compat.monotonic_ns()` is used.
+        :param int timestamp_ns: timestamp in nanoseconds for the current request.
         :returns: Whether the current request is allowed or not
         :rtype: :obj:`bool`
         """
-        if timestamp_ns is None:
-            timestamp_ns = compat.monotonic_ns()
         # Determine if it is allowed
         allowed = self._is_allowed(timestamp_ns)
         # Update counts used to determine effective rate
