@@ -2,6 +2,7 @@ import aioredis
 import pytest
 
 from ddtrace import Pin
+from ddtrace import tracer
 from ddtrace.contrib.aioredis.patch import aioredis_version
 from ddtrace.contrib.aioredis.patch import patch
 from ddtrace.contrib.aioredis.patch import unpatch
@@ -124,23 +125,25 @@ async def test_pipeline_traced(redis_client):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
 async def test_two_traced_pipelines(redis_client):
-    if aioredis_version >= (2, 0):
-        p1 = await redis_client.pipeline(transaction=False)
-        p2 = await redis_client.pipeline(transaction=False)
-        await p1.set("blah", "boo")
-        await p2.set("foo", "bar")
-        await p1.get("blah")
-        await p2.get("foo")
-    else:
-        p1 = redis_client.pipeline()
-        p2 = redis_client.pipeline()
-        p1.set("blah", "boo")
-        p2.set("foo", "bar")
-        p1.get("blah")
-        p2.get("foo")
 
-    response_list1 = await p1.execute()
-    response_list2 = await p2.execute()
+    with tracer.trace("web-request"):
+        if aioredis_version >= (2, 0):
+            p1 = await redis_client.pipeline(transaction=False)
+            p2 = await redis_client.pipeline(transaction=False)
+            await p1.set("blah", "boo")
+            await p2.set("foo", "bar")
+            await p1.get("blah")
+            await p2.get("foo")
+        else:
+            p1 = redis_client.pipeline()
+            p2 = redis_client.pipeline()
+            p1.set("blah", "boo")
+            p2.set("foo", "bar")
+            p1.get("blah")
+            p2.get("foo")
+
+        response_list1 = await p1.execute()
+        response_list2 = await p2.execute()
 
     assert response_list1[0] is True  # response from redis.set is OK if successfully pushed
     assert response_list2[0] is True

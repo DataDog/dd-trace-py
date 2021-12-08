@@ -1,56 +1,65 @@
 [[
   {
-    "name": "redis.command",
-    "service": "redis",
-    "resource": "SET blah boo\nGET blah",
+    "name": "web-request",
+    "service": null,
+    "resource": "web-request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "redis",
     "meta": {
-      "out.host": "127.0.0.1",
-      "redis.raw_command": "SET blah boo\nGET blah",
-      "runtime-id": "658843824ec34d6dac0d6689ee236654"
+      "runtime-id": "bfe77591624a462ca4c902215a7e69bc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
-      "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "out.port": 6379,
-      "out.redis_db": 0,
-      "redis.pipeline_length": 2,
-      "system.pid": 622
+      "system.pid": 702
     },
-    "duration": 1196000,
-    "start": 1638918535872120000
-  }],
-[
-  {
-    "name": "redis.command",
-    "service": "redis",
-    "resource": "SET foo bar\nGET foo",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "redis",
-    "meta": {
-      "out.host": "127.0.0.1",
-      "redis.raw_command": "SET foo bar\nGET foo",
-      "runtime-id": "658843824ec34d6dac0d6689ee236654"
-    },
-    "metrics": {
-      "_dd.agent_psr": 1.0,
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "out.port": 6379,
-      "out.redis_db": 0,
-      "redis.pipeline_length": 2,
-      "system.pid": 622
-    },
-    "duration": 1210000,
-    "start": 1638918535873496000
-  }]]
+    "duration": 2330000,
+    "start": 1638921562927674000
+  },
+     {
+       "name": "redis.command",
+       "service": "redis",
+       "resource": "SET blah boo\nGET blah",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "redis",
+       "meta": {
+         "out.host": "127.0.0.1",
+         "redis.raw_command": "SET blah boo\nGET blah"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "out.port": 6379,
+         "out.redis_db": 0,
+         "redis.pipeline_length": 2
+       },
+       "duration": 992000,
+       "start": 1638921562927986000
+     },
+     {
+       "name": "redis.command",
+       "service": "redis",
+       "resource": "SET foo bar\nGET foo",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "redis",
+       "meta": {
+         "out.host": "127.0.0.1",
+         "redis.raw_command": "SET foo bar\nGET foo"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "out.port": 6379,
+         "out.redis_db": 0,
+         "redis.pipeline_length": 2
+       },
+       "duration": 867000,
+       "start": 1638921562929093000
+     }]]

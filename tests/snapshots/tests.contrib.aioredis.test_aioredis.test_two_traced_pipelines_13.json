@@ -1,50 +1,59 @@
 [[
   {
-    "name": "redis.command",
-    "service": "redis",
-    "resource": "SET foo bar\nGET foo",
+    "name": "web-request",
+    "service": null,
+    "resource": "web-request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "redis",
     "meta": {
-      "redis.raw_command": "SET foo bar\nGET foo",
-      "runtime-id": "704c58cae589446fb5b3f03ca2943a4e"
+      "runtime-id": "0f263ccb06314f2aa61f03a55e376117"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
-      "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "redis.pipeline_length": 2,
-      "system.pid": 241
+      "system.pid": 690
     },
-    "duration": 3851000,
-    "start": 1638917851374994000
-  }],
-[
-  {
-    "name": "redis.command",
-    "service": "redis",
-    "resource": "SET blah boo\nGET blah",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "redis",
-    "meta": {
-      "redis.raw_command": "SET blah boo\nGET blah",
-      "runtime-id": "704c58cae589446fb5b3f03ca2943a4e"
-    },
-    "metrics": {
-      "_dd.agent_psr": 1.0,
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "redis.pipeline_length": 2,
-      "system.pid": 241
-    },
-    "duration": 4693000,
-    "start": 1638917849663994000
-  }]]
+    "duration": 2090000,
+    "start": 1638921548561477000
+  },
+     {
+       "name": "redis.command",
+       "service": "redis",
+       "resource": "SET blah boo\nGET blah",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "redis",
+       "meta": {
+         "redis.raw_command": "SET blah boo\nGET blah"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "redis.pipeline_length": 2
+       },
+       "duration": 833000,
+       "start": 1638921548561822000
+     },
+     {
+       "name": "redis.command",
+       "service": "redis",
+       "resource": "SET foo bar\nGET foo",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "redis",
+       "meta": {
+         "redis.raw_command": "SET foo bar\nGET foo"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "redis.pipeline_length": 2
+       },
+       "duration": 758000,
+       "start": 1638921548562756000
+     }]]
