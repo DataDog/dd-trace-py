@@ -784,12 +784,8 @@ def test_datadog_sampler_tracer(dummy_tracer):
 
 def test_datadog_sampler_tracer_rate_limited(dummy_tracer, mock_rate_limiter, mock_effective_rate):
     rule = SamplingRule(sample_rate=1.0, name="test.span")
-    sampler = DatadogSampler(rules=[rule])
+    sampler = DatadogSampler(rules=[rule], rate_limit=0)
     dummy_tracer.configure(sampler=sampler)
-
-    # Have the limiter deny the span
-    sampler.limiter.is_allowed.return_value = False
-    mock_effective_rate.return_value = 0.5
 
     with dummy_tracer.trace("test.span"):
         pass
@@ -797,7 +793,7 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer, mock_rate_limiter, mo
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
-    assert_sampling_decision_tags(spans[0], rule=1.0, limit=0.5)
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=0.0)
 
 
 def test_datadog_sampler_tracer_rate_0(dummy_tracer):
@@ -829,7 +825,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     assert len(spans) == 2, "Trace should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
     assert_sampling_decision_tags(spans[0], rule=1.0, limit=None)
-    assert_sampling_decision_tags(spans[1])  # No tags are set on children
+    assert_sampling_decision_tags(spans[1], agent=None, rule=None, limit=None)
 
 
 def test_datadog_sampler_tracer_start_span(dummy_tracer):
