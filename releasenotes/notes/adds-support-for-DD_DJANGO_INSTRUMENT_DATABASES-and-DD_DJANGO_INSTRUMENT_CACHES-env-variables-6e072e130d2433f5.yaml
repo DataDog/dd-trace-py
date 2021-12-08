@@ -1,0 +1,7 @@
+---
+features:
+  - |
+
+    Add new environment variables to enable/disable django database and cache instrumentation.
+
+    ``DD_DJANGO_INSTRUMENT_DATABASES``, ``DD_DJANGO_INSTRUMENT_CACHES``
