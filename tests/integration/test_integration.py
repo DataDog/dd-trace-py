@@ -788,6 +788,9 @@ def test_no_warnings():
     else:
         assert (
             err
-            == b"<frozen importlib._bootstrap>:914: ImportWarning: ImportHookFinder.find_spec() not found; falling back to find_module()"
+            == (
+                b"<frozen importlib._bootstrap>:914: ImportWarning: "
+                b"ImportHookFinder.find_spec() not found; falling back to find_module()"
+            )
             * 258
         ), err

@@ -454,18 +454,16 @@ venv = Venv(
                             ">=3.7,<3.8",
                             ">=3.8,<3.9",
                             ">=3.9,<3.10",
-                            ">=3.10,<3.11",
-                            ">=3.12,<3.13",
-                            latest,
                         ],
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.6"),
                     pkgs={
                         "pymongo": [
                             ">=3.10,<3.11",
                             ">=3.12,<3.13",
+                            ">=4.0,<4.1",
                             latest,
                         ],
                     },
@@ -479,6 +477,7 @@ venv = Venv(
         # 2.2     3.5, 3.6, 3.7, 3.8 (added in 2.2.8)
         # 3.0     3.6, 3.7, 3.8
         # 3.1     3.6, 3.7, 3.8
+        # 4.0     3.8, 3.9, 3.10
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
         Venv(
             name="django",
@@ -521,10 +520,19 @@ venv = Venv(
                             "~=3.0.0",
                             "~=3.1.0",
                             "~=3.2.0",
-                            latest,
                         ],
                     },
                 ),
+                # TODO: Add support for Django 4.0 in tests
+                # Venv(
+                #     pys=select_pys(min_version="3.8"),
+                #     pkgs={
+                #         "django": [
+                #             "~=4.0.0",
+                #             latest,
+                #         ],
+                #     },
+                # ),
             ],
         ),
         Venv(
@@ -549,10 +557,19 @@ venv = Venv(
                         "django": [
                             "~=2.2",
                             "~=3.2",
-                            latest,
                         ],
                     },
                 ),
+                # TODO: Add support for Django 4.0 in tests
+                # Venv(
+                #     pys=select_pys(min_version="3.8"),
+                #     pkgs={
+                #         "django": [
+                #             "~=4.0",
+                #             latest,
+                #         ],
+                #     },
+                # ),
             ],
         ),
         Venv(
@@ -586,11 +603,20 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
-                        "django": latest,
+                        "django": "~=3.2",
                         "djangorestframework": ">=3.11,<3.12",
                         "pytest-django": "==3.10.0",
                     },
                 ),
+                # TODO: Add support for Django 4.0 in tests
+                # Venv(
+                #     pys=select_pys(min_version="3.8"),
+                #     pkgs={
+                #         "django": latest,
+                #         "djangorestframework": ">=3.11,<3.12",
+                #         "pytest-django": "==3.10.0",
+                #     },
+                # ),
             ],
         ),
         Venv(
@@ -1196,6 +1222,7 @@ venv = Venv(
                             "~=1.7.0",
                             "~=1.8.0",
                             "~=1.9.0",
+                            "~=1.10.0",
                             latest,
                         ],
                         # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+

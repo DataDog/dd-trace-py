@@ -264,8 +264,8 @@ jobs:
       - checkout
       - setup_riot
       - run:
-          name: "Black check"
-          command: riot run -s black --check .
+          name: "Formatting check"
+          command: riot run -s fmt && git diff --exit-code
       - run:
           name: "Flake8 check"
           command: riot run -s flake8
