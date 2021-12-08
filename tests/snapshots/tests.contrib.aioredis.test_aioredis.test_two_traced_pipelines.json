@@ -1,23 +1,23 @@
 [[
   {
     "name": "web-request",
-    "service": null,
+    "service": "test",
     "resource": "web-request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "meta": {
-      "runtime-id": "bfe77591624a462ca4c902215a7e69bc"
+      "runtime-id": "c121cb35b47a4dbf8f2fce11afea6620"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 702
+      "system.pid": 782
     },
-    "duration": 2330000,
-    "start": 1638921562927674000
+    "duration": 2223000,
+    "start": 1638921889729678000
   },
      {
        "name": "redis.command",
@@ -38,8 +38,8 @@
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
-       "duration": 992000,
-       "start": 1638921562927986000
+       "duration": 926000,
+       "start": 1638921889729902000
      },
      {
        "name": "redis.command",
@@ -60,6 +60,6 @@
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
-       "duration": 867000,
-       "start": 1638921562929093000
+       "duration": 943000,
+       "start": 1638921889730915000
      }]]

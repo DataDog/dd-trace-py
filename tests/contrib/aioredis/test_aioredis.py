@@ -126,7 +126,7 @@ async def test_pipeline_traced(redis_client):
 @pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
 async def test_two_traced_pipelines(redis_client):
 
-    with tracer.trace("web-request"):
+    with tracer.trace("web-request", service="test"):
         if aioredis_version >= (2, 0):
             p1 = await redis_client.pipeline(transaction=False)
             p2 = await redis_client.pipeline(transaction=False)
