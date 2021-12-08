@@ -1,0 +1,7 @@
+---
+deprecations:
+  - |
+    The contents of ``ddtrace.propagation.utils.py`` have been moved into ``ddtrace.propagation._utils.py`` in an
+    effort to internalize the module. Public methods have been imported back
+    into ``ddtrace.propagation.utils.py`` in order to retain compatibility, but this module will be
+    removed entirely in version 1.0.0.
