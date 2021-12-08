@@ -1,7 +1,7 @@
 from ..internal.utils.deprecation import deprecation
-
 from ._utils import from_wsgi_header  # noqa
 from ._utils import get_wsgi_header  # noqa
+
 
 deprecation(
     name="ddtrace.propagation.utils",
