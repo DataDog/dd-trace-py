@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    Add tracing support for the ``aioredis`` library. Version 2.0+ is fully
+    Add tracing support for the ``aioredis`` library. Version 1.3+ is fully
     supported. Version 1.3.x is partially supported (see the integration documentation for details).
