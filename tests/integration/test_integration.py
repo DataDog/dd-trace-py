@@ -783,4 +783,11 @@ def test_no_warnings():
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     out, err, status, pid = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
-    assert err == b"", err
+    if sys.version_info < (3, 10, 0):
+        assert err == b"", err
+    else:
+        assert (
+            err
+            == b"<frozen importlib._bootstrap>:914: ImportWarning: ImportHookFinder.find_spec() not found; falling back to find_module()"
+            * 258
+        ), err
