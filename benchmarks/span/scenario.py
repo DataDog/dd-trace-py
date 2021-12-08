@@ -9,7 +9,7 @@ class Span(bm.Scenario):
     ntags = bm.var(type=int)
     ltags = bm.var(type=int)
     nmetrics = bm.var(type=int)
-    finishspan = bm.var(type=bool)
+    finishspan = bm.var_bool()
 
     def run(self):
         # run scenario to also set tags on spans

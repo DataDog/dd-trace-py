@@ -53,7 +53,7 @@ Here is the end result, in a sample app::
     cherrypy.quickstart(HelloWorld())
 """
 
-from ..util import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["cherrypy"]

@@ -1,10 +1,13 @@
 # -*- encoding: utf-8 -*-
 import collections
+import typing
 
 import attr
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import nogevent
+
+from . import event
 
 
 class _defaultdictkey(dict):
@@ -20,6 +23,9 @@ class _defaultdictkey(dict):
         raise KeyError(key)
 
 
+EventsType = typing.Dict[event.Event, typing.Sequence[event.Event]]
+
+
 @attr.s
 class Recorder(object):
     """An object that records program activity."""
@@ -32,7 +38,7 @@ class Recorder(object):
     max_events = attr.ib(factory=dict)
     """A dict of {event_type_class: max events} to limit the number of events to record."""
 
-    events = attr.ib(init=False, repr=False, eq=False)
+    events = attr.ib(init=False, repr=False, eq=False, type=EventsType)
     _events_lock = attr.ib(init=False, repr=False, factory=nogevent.DoubleLock, eq=False)
 
     def __attrs_post_init__(self):

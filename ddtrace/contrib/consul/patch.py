@@ -7,9 +7,9 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import consul as consulx
+from ...internal.utils import get_argument_value
+from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
-from ...utils import get_argument_value
-from ...utils.wrappers import unwrap as _u
 
 
 _KV_FUNCS = ["put", "get", "delete"]

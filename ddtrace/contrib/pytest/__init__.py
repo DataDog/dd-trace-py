@@ -11,9 +11,11 @@ file read by pytest (``pytest.ini``, ``setup.cfg``, ...)::
     [pytest]
     ddtrace = 1
 
-You can enable all integrations by using the ``--ddtrace-patch-all`` option or by adding this to your configuration::
+You can enable all integrations by using the ``--ddtrace-patch-all`` option
+alongside ``--ddtrace`` or by adding this to your configuration::
 
     [pytest]
+    ddtrace = 1
     ddtrace-patch-all = 1
 
 Global Configuration
@@ -41,7 +43,7 @@ Global Configuration
 
 from ddtrace import config
 
-from ...utils.formats import get_env
+from ...internal.utils.formats import get_env
 
 
 # pytest default settings

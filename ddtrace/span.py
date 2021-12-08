@@ -98,6 +98,10 @@ class Span(object):
         """
         Create a new span. Call `finish` once the traced operation is over.
 
+        **Note:** A ``Span`` should only be accessed or modified in the process
+        that it was created in. Using a ``Span`` from within a child process
+        could result in a deadlock or unexpected behavior.
+
         :param ddtrace.Tracer tracer: the tracer that will submit this span when
             finished.
         :param str name: the name of the traced operation.

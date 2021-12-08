@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from typing import Tuple
 
 import ddtrace
-from ddtrace.utils.deprecation import deprecated
+from ddtrace.internal.utils.deprecation import deprecated
 
 
 if TYPE_CHECKING:

@@ -91,11 +91,15 @@ Configuration
 
    Whether or not to instrument databases.
 
+   Can also be enabled with the ``DD_DJANGO_INSTRUMENT_DATABASES`` environment variable.
+
    Default: ``True``
 
 .. py:data:: ddtrace.config.django['instrument_caches']
 
    Whether or not to instrument caches.
+
+    Can also be enabled with the ``DD_DJANGO_INSTRUMENT_CACHES`` environment variable.
 
    Default: ``True``
 
@@ -146,7 +150,7 @@ Example::
 
 .. __: https://www.djangoproject.com/
 """  # noqa: E501
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["django"]

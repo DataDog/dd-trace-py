@@ -7,7 +7,7 @@ import pytest
 
 from ddtrace.internal import compat
 from ddtrace.profiling import profiler
-from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import stack_event
 
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
@@ -82,7 +82,7 @@ def test_accuracy(monkeypatch):
     # First index is the stack position, second is the function name
     time_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
     cpu_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
-    for event in p._profiler._recorder.events[stack.StackSampleEvent]:
+    for event in p._profiler._recorder.events[stack_event.StackSampleEvent]:
         for idx, frame in enumerate(reversed(event.frames)):
             time_spent_ns[idx][frame[2]] += event.wall_time_ns
             cpu_spent_ns[idx][frame[2]] += event.cpu_time_ns

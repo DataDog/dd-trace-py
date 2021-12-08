@@ -3,7 +3,7 @@ import celery
 from ddtrace import config
 import ddtrace.internal.forksafe as forksafe
 
-from ...utils.formats import get_env
+from ...internal.utils.formats import get_env
 from .app import patch_app
 from .app import unpatch_app
 from .constants import PRODUCER_SERVICE

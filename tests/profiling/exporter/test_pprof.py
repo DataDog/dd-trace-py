@@ -5,14 +5,14 @@ import six
 
 from ddtrace import ext
 from ddtrace.profiling.collector import memalloc
-from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof
 
 
 TEST_EVENTS = {
-    stack.StackExceptionSampleEvent: [
-        stack.StackExceptionSampleEvent(
+    stack_event.StackExceptionSampleEvent: [
+        stack_event.StackExceptionSampleEvent(
             timestamp=1,
             thread_id=67892304,
             thread_native_id=123987,
@@ -26,7 +26,7 @@ TEST_EVENTS = {
             sampling_period=1000000,
             nframes=3,
         ),
-        stack.StackExceptionSampleEvent(
+        stack_event.StackExceptionSampleEvent(
             timestamp=2,
             thread_id=67892304,
             thread_native_id=123987,
@@ -40,7 +40,7 @@ TEST_EVENTS = {
             exc_type=TypeError,
             nframes=3,
         ),
-        stack.StackExceptionSampleEvent(
+        stack_event.StackExceptionSampleEvent(
             timestamp=3,
             thread_id=67892304,
             thread_native_id=123987,
@@ -54,7 +54,7 @@ TEST_EVENTS = {
             exc_type=TypeError,
             nframes=4,
         ),
-        stack.StackExceptionSampleEvent(
+        stack_event.StackExceptionSampleEvent(
             timestamp=4,
             thread_id=67892304,
             thread_native_id=123987,
@@ -68,7 +68,7 @@ TEST_EVENTS = {
             exc_type=TypeError,
             nframes=6,
         ),
-        stack.StackExceptionSampleEvent(
+        stack_event.StackExceptionSampleEvent(
             timestamp=5,
             thread_id=67892304,
             thread_native_id=123987,
@@ -82,7 +82,7 @@ TEST_EVENTS = {
             exc_type=ValueError,
             nframes=3,
         ),
-        stack.StackExceptionSampleEvent(
+        stack_event.StackExceptionSampleEvent(
             timestamp=6,
             thread_id=67892304,
             thread_native_id=123987,
@@ -96,7 +96,7 @@ TEST_EVENTS = {
             exc_type=IOError,
             nframes=3,
         ),
-        stack.StackExceptionSampleEvent(
+        stack_event.StackExceptionSampleEvent(
             timestamp=7,
             thread_id=67892304,
             thread_native_id=123987,
@@ -323,8 +323,8 @@ TEST_EVENTS = {
             sample_size=512 * 1024,
         ),
     ],
-    stack.StackSampleEvent: [
-        stack.StackSampleEvent(
+    stack_event.StackSampleEvent: [
+        stack_event.StackSampleEvent(
             timestamp=1,
             thread_id=67892304,
             thread_native_id=123987,
@@ -345,7 +345,7 @@ TEST_EVENTS = {
             sampling_period=1000000,
             nframes=3,
         ),
-        stack.StackSampleEvent(
+        stack_event.StackSampleEvent(
             timestamp=2,
             thread_id=67892304,
             thread_native_id=123987,
@@ -364,7 +364,7 @@ TEST_EVENTS = {
             sampling_period=1000000,
             nframes=3,
         ),
-        stack.StackSampleEvent(
+        stack_event.StackSampleEvent(
             timestamp=3,
             thread_id=67892304,
             thread_native_id=123987,
@@ -381,7 +381,7 @@ TEST_EVENTS = {
             sampling_period=1000000,
             nframes=4,
         ),
-        stack.StackSampleEvent(
+        stack_event.StackSampleEvent(
             timestamp=4,
             thread_id=67892304,
             thread_native_id=123987,
@@ -396,7 +396,7 @@ TEST_EVENTS = {
             sampling_period=1000000,
             nframes=6,
         ),
-        stack.StackSampleEvent(
+        stack_event.StackSampleEvent(
             timestamp=5,
             thread_id=67892304,
             thread_native_id=123987,
@@ -413,7 +413,7 @@ TEST_EVENTS = {
             sampling_period=1000000,
             nframes=3,
         ),
-        stack.StackSampleEvent(
+        stack_event.StackSampleEvent(
             timestamp=6,
             thread_id=67892304,
             thread_native_id=123987,
@@ -428,7 +428,7 @@ TEST_EVENTS = {
             sampling_period=1000000,
             nframes=3,
         ),
-        stack.StackSampleEvent(
+        stack_event.StackSampleEvent(
             timestamp=7,
             thread_id=67892304,
             thread_native_id=123987,
@@ -688,7 +688,7 @@ def test_to_str_none():
     assert id1 == id2 != id_o
 
 
-@mock.patch("ddtrace.utils.config.get_application_name")
+@mock.patch("ddtrace.internal.utils.config.get_application_name")
 def test_pprof_exporter(gan):
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()

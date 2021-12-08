@@ -13,13 +13,14 @@ from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
 from ddtrace.internal import nogevent
+from ddtrace.internal.utils import attr as attr_utils
+from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
-from ddtrace.utils import attr as attr_utils
-from ddtrace.utils import formats
+from ddtrace.profiling.collector import stack_event
 
 
 # NOTE: Do not use LOG here. This code runs under a real OS thread and is unable to acquire any lock of the `logging`
@@ -137,22 +138,6 @@ ELSE:
                 for pthread_id in pthread_ids
             }
 
-
-@event.event_class
-class StackSampleEvent(event.StackBasedEvent):
-    """A sample storing executions frames for a thread."""
-
-    # Wall clock
-    wall_time_ns = attr.ib(default=0)
-    # CPU time in nanoseconds
-    cpu_time_ns = attr.ib(default=0)
-
-
-@event.event_class
-class StackExceptionSampleEvent(event.StackBasedEvent):
-    """A a sample storing raised exceptions and their stack frames."""
-
-    exc_type = attr.ib(default=None)
 
 from cpython.object cimport PyObject
 
@@ -319,7 +304,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
         frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
 
-        event = StackSampleEvent(
+        event = stack_event.StackSampleEvent(
             thread_id=thread_id,
             thread_native_id=thread_native_id,
             thread_name=thread_name,
@@ -338,7 +323,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if exception is not None:
             exc_type, exc_traceback = exception
             frames, nframes = _traceback.traceback_to_frames(exc_traceback, max_nframes)
-            exc_event = StackExceptionSampleEvent(
+            exc_event = stack_event.StackExceptionSampleEvent(
                 thread_id=thread_id,
                 thread_name=thread_name,
                 thread_native_id=thread_native_id,

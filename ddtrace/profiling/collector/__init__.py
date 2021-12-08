@@ -5,7 +5,7 @@ import attr
 
 from ddtrace.internal import periodic
 from ddtrace.internal import service
-from ddtrace.utils import attr as attr_utils
+from ddtrace.internal.utils import attr as attr_utils
 
 from .. import event
 

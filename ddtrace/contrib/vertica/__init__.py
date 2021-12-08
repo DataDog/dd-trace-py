@@ -39,7 +39,7 @@ To configure the Vertica integration on an instance-per-instance basis use the
     Pin.override(conn, service='myverticaservice', tracer=custom_tracer)
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["vertica_python"]

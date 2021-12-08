@@ -8,9 +8,13 @@ from ddtrace.internal import compat
 
 _T = typing.TypeVar("_T")
 
+# (filename, line number, function name)
+FrameType = typing.Tuple[str, int, typing.Optional[str]]
+StackTraceType = typing.List[FrameType]
+
 
 def event_class(
-        klass  # type: typing.Type[_T]
+    klass,  # type: typing.Type[_T]
 ):
     # type: (...) -> typing.Type[_T]
     return attr.s(slots=True)(klass)
@@ -45,23 +49,24 @@ class SampleEvent(Event):
 
 @event_class
 class StackBasedEvent(SampleEvent):
-    thread_id = attr.ib(default=None)
-    thread_name = attr.ib(default=None)
-    thread_native_id = attr.ib(default=None)
-    task_id = attr.ib(default=None)
-    task_name = attr.ib(default=None)
-    frames = attr.ib(default=None)
-    nframes = attr.ib(default=None)
+    thread_id = attr.ib(default=None, type=typing.Optional[int])
+    thread_name = attr.ib(default=None, type=typing.Optional[str])
+    thread_native_id = attr.ib(default=None, type=typing.Optional[int])
+    task_id = attr.ib(default=None, type=typing.Optional[int])
+    task_name = attr.ib(default=None, type=typing.Optional[str])
+    frames = attr.ib(default=None, type=StackTraceType)
+    nframes = attr.ib(default=0, type=int)
     local_root_span_id = attr.ib(default=None, type=typing.Optional[int])
     span_id = attr.ib(default=None, type=typing.Optional[int])
     trace_type = attr.ib(default=None, type=typing.Optional[str])
-    trace_resource_container = attr.ib(default=None)
+    trace_resource_container = attr.ib(default=None, type=typing.List[str])
 
     def set_trace_info(
         self,
         span,  # type: typing.Optional[ddspan.Span]
         endpoint_collection_enabled,  # type: bool
     ):
+        # type: (...) -> None
         if span:
             self.span_id = span.span_id
             if span._local_root is not None:

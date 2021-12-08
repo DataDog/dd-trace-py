@@ -9,15 +9,16 @@ from typing import List
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
+from .internal.utils import formats
+from .internal.utils.deprecation import deprecated
 from .settings import _config as config
-from .utils import formats
-from .utils.deprecation import deprecated
 
 
 log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
+    "aredis": True,
     "asyncio": True,
     "boto": True,
     "botocore": True,
@@ -70,6 +71,7 @@ PATCH_MODULES = {
     "pyodbc": True,
     "fastapi": True,
     "dogpile_cache": True,
+    "yaaredis": True,
 }
 
 _LOCK = threading.Lock()

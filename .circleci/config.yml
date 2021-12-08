@@ -22,7 +22,7 @@ orbs:
 
 machine_executor: &machine_executor
   machine:
-    image: ubuntu-1604:201903-01
+    image: ubuntu-2004:202107-02
   environment:
     - BOTO_CONFIG: /dev/null
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
@@ -32,7 +32,7 @@ machine_executor: &machine_executor
       run:
         name: Set global pyenv
         command: |
-          pyenv global 3.6.5
+          pyenv global 3.9.4
 
 contrib_job: &contrib_job
   executor: ddtrace_dev
@@ -117,6 +117,7 @@ commands:
           condition:
               << parameters.snapshot >>
           steps:
+            - setup_riot
             - run: SNAPSHOT_CI=1 docker-compose up -d testagent << parameters.docker_services >>
             - run:
                 command: docker-compose logs -f
@@ -127,7 +128,7 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'
+                  ./scripts/tested_pythons | circleci tests split | xargs -I PY ./scripts/ddtest riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'
       - unless:
           condition:
               << parameters.snapshot >>
@@ -142,7 +143,7 @@ commands:
                       command: tox -e 'wait' << parameters.wait >>
             - setup_riot
             - run:
-                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - when:
           condition:
             << parameters.store_coverage >>
@@ -218,14 +219,6 @@ commands:
       - store_artifacts:
           path: test-results
 
-  build_docs:
-    steps:
-      - setup_riot
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libenchant-dev
-      - run: riot run docs
-
 executors:
   cimg_base:
     docker:
@@ -281,8 +274,8 @@ jobs:
       - checkout
       - setup_riot
       - run:
-          name: "Black check"
-          command: riot run -s black --check .
+          name: "Formatting check"
+          command: riot run -s fmt && git diff --exit-code
       - run:
           name: "Flake8 check"
           command: riot run -s flake8
@@ -350,7 +343,7 @@ jobs:
           command: riot run -s riot-helpers
       - run:
           name: "Generate base virtual environments."
-          command: "echo '2.7,3.5,3.6,3.7,3.8,3.9' | tr ',' '\n' | circleci tests split | xargs -I PY riot -v generate --python=PY"
+          command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v generate --python=PY"
       - persist_to_workspace:
           root: .
           paths:
@@ -722,10 +715,11 @@ jobs:
           pattern: '^pyodbc_contrib-'
 
   pyramid:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^pyramid_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: 'pyramid'
+          snapshot: true
 
   requests:
     <<: *contrib_job
@@ -816,6 +810,16 @@ jobs:
           docker_services: 'redis'
           pattern: 'aredis$'
           snapshot: true
+
+  yaaredis:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'yaaredis$'
+          snapshot: true
+
   redis:
     <<: *machine_executor
     parallelism: 4
@@ -845,12 +849,10 @@ jobs:
   urllib3:
     <<: *machine_executor
     steps:
-      - checkout
-      # `snapshot: true` will run `docker-compose logs -f` for us
-      - run: docker-compose up -d httpbin_local
       - run_test:
           pattern: 'urllib3'
           snapshot: true
+          docker_services: "httpbin_local"
 
   vertica:
     <<: *contrib_job
@@ -916,13 +918,13 @@ jobs:
 
   build_docs:
     # build documentation and store as an artifact
-    <<: *machine_executor
+    executor: ddtrace_dev
     steps:
+      - setup_riot
       - checkout
-      - *pyenv-set-global
-      - build_docs
       - run:
           command: |
+             riot -v run docs
              mkdir -p /tmp/docs
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
@@ -994,6 +996,7 @@ requires_tests: &requires_tests
     - pyramid
     - pytest
     - aredis
+    - yaaredis
     - redis
     - rediscluster
     - requests
@@ -1078,6 +1081,7 @@ workflows:
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
       - aredis: *requires_base_venvs
+      - yaaredis: *requires_base_venvs
       - redis: *requires_base_venvs
       - rediscluster: *requires_base_venvs
       - requests: *requires_base_venvs

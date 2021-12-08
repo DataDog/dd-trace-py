@@ -17,7 +17,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 
-from ...utils import get_argument_value
+from ...internal.utils import get_argument_value
 
 
 try:
@@ -33,8 +33,8 @@ from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
-from ddtrace.utils.formats import asbool
-from ddtrace.utils.formats import get_env
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import get_env
 from ddtrace.vendor import wrapt
 
 from . import utils
@@ -53,8 +53,8 @@ config._add(
         trace_fetch_methods=asbool(get_env("django", "trace_fetch_methods", default=False)),
         distributed_tracing_enabled=True,
         instrument_middleware=asbool(get_env("django", "instrument_middleware", default=True)),
-        instrument_databases=True,
-        instrument_caches=True,
+        instrument_databases=asbool(get_env("django", "instrument_databases", default=True)),
+        instrument_caches=asbool(get_env("django", "instrument_caches", default=True)),
         analytics_enabled=None,  # None allows the value to be overridden by the global config
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config

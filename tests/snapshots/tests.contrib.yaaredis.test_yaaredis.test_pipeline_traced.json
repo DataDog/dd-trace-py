@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "redis",
+    "resource": "SET blah 32\nRPUSH foo \u00e9\u00e9\nHGETALL xxx",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "meta": {
+      "out.host": "localhost",
+      "redis.raw_command": "SET blah 32\nRPUSH foo \u00e9\u00e9\nHGETALL xxx",
+      "runtime-id": "c8761163067f4de3abf2d4fab35e3194"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 6379,
+      "out.redis_db": 0,
+      "redis.pipeline_length": 3,
+      "system.pid": 627
+    },
+    "duration": 4852815,
+    "start": 1635167387928444662
+  }]]

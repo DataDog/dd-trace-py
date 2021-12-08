@@ -1,5 +1,7 @@
+# -*- coding: utf-8 -*-
 import multiprocessing
 
+import mock
 import pytest
 
 from ddtrace import Tracer
@@ -221,3 +223,53 @@ def test_tracer_trace_across_multiple_forks():
         p.start()
         p.join()
     tracer.shutdown()
+
+
+@snapshot()
+def test_wrong_span_name_type_not_sent():
+    """Span names should be a text type."""
+    tracer = Tracer()
+    with mock.patch("ddtrace.span.log") as log:
+        with tracer.trace(123):
+            pass
+        log.exception.assert_called_once_with("error closing trace")
+
+
+@pytest.mark.parametrize(
+    "meta",
+    [
+        ({"env": "my-env", "tag1": "some_str_1", "tag2": "some_str_2", "tag3": [1, 2, 3]}),
+        ({"env": "test-env", b"tag1": {"wrong_type": True}, b"tag2": "some_str_2", b"tag3": "some_str_3"}),
+        ({"env": "my-test-env", u"😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
+    ],
+)
+@snapshot()
+def test_trace_with_wrong_meta_types_not_sent(meta):
+    tracer = Tracer()
+    with mock.patch("ddtrace.span.log") as log:
+        with tracer.trace("root") as root:
+            root.meta = meta
+            for _ in range(499):
+                with tracer.trace("child") as child:
+                    child.meta = meta
+        log.exception.assert_called_once_with("error closing trace")
+
+
+@pytest.mark.parametrize(
+    "metrics",
+    [
+        ({"num1": 12345, "num2": 53421, "num3": 1, "num4": "not-a-number"}),
+        ({b"num1": 123.45, b"num2": [1, 2, 3], b"num3": 11.0, b"num4": 1.20}),
+        ({u"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}),
+    ],
+)
+@snapshot()
+def test_trace_with_wrong_metrics_types_not_sent(metrics):
+    tracer = Tracer()
+    with mock.patch("ddtrace.span.log") as log:
+        with tracer.trace("root") as root:
+            root.metrics = metrics
+            for _ in range(499):
+                with tracer.trace("child") as child:
+                    child.metrics = metrics
+        log.exception.assert_called_once_with("error closing trace")

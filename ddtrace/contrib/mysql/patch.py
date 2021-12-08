@@ -7,8 +7,8 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
-from ...utils.formats import asbool
-from ...utils.formats import get_env
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import get_env
 
 
 config._add(
