@@ -1,7 +1,6 @@
 """
 The aioredis integration instruments aioredis requests. Version 1.3 and above are fully
-supported. In version 1.3, basic commands are supported but pipeline
-functionality is not supported.
+supported.
 
 
 Enabling
