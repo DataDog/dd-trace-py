@@ -42,7 +42,7 @@ from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
-from .internal.processor.stats import SpanStatsProcessor
+from .internal.processor.stats import SpanStatsProcessorV06
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
@@ -302,7 +302,7 @@ class Tracer(object):
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
         api_version=None,  # type: Optional[str]
-        compute_stats_enabled=None,
+        compute_stats_enabled=None,  # type: Optional[bool],
     ):
         # type: (...) -> None
         """
@@ -684,7 +684,7 @@ class Tracer(object):
             ),
         ]  # type: List[SpanProcessor]
         if self._compute_stats:
-            self._span_processors.append(SpanStatsProcessor(self.writer.agent_url))
+            self._span_processors.append(SpanStatsProcessorV06(self.writer.agent_url))
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

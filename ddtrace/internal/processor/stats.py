@@ -1,5 +1,4 @@
 from collections import defaultdict
-import threading
 import typing
 
 import ddtrace
@@ -13,6 +12,7 @@ from .._encoding import packb
 from ..agent import get_connection
 from ..compat import get_connection_response
 from ..compat import time_ns
+from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
@@ -21,6 +21,7 @@ from ..writer import _human_size
 
 if typing.TYPE_CHECKING:
     from typing import DefaultDict
+    from typing import Dict
     from typing import List
     from typing import Optional
 
@@ -43,7 +44,7 @@ def _is_top_level(span):
 def _is_measured(span):
     # type: (Span) -> bool
     """Return whether the span is flagged to be measured or not."""
-    return SPAN_MEASURED_KEY in span.metrics
+    return span.metrics.get(SPAN_MEASURED_KEY) == 1
 
 
 """
@@ -71,6 +72,8 @@ class SpanAggrStats(object):
         self.top_level_hits = 0
         self.errors = 0
         self.duration = 0
+        # Match the relative accuracy of the sketch implementation used in the backend
+        # which is 0.775%.
         self.ok_distribution = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
         self.err_distribution = LogCollapsingLowestDenseDDSketch(0.00775, bin_limit=2048)
 
@@ -88,25 +91,31 @@ def _span_aggr_key(span):
     if _type and len(_type) > 100:
         _type = _type[:100]
 
-    status_code = span.metrics.get("http.status_code", None)
+    status_code = span.meta.get("http.status_code", None)
     synthetics = span.context.dd_origin == "synthetics"  # TODO: verify this is the right variant
     return span.name, service, resource, _type, status_code, synthetics
 
 
-class SpanStatsProcessor(PeriodicService, SpanProcessor):
+class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
     def __init__(self, agent_url, interval=10.0, timeout=1.0):
         # type: (str, float, float) -> None
         super(SpanStatsProcessor, self).__init__(interval=interval)
         self.start()
         self._agent_url = agent_url
         self._timeout = timeout
-        self._bucket_size_ns = int(10 * 1e9)  # type: int
+        # Have the bucket size match the interval in which flushes occur.
+        self._bucket_size_ns = int(interval * 1e9)  # type: int
         self._buckets = defaultdict(
             lambda: defaultdict(SpanAggrStats)
         )  # type: DefaultDict[int, DefaultDict[SpanAggrKey, SpanAggrStats]]
         self._endpoint = "/v0.6/stats"
         self._connection = None  # type: Optional[ConnectionType]
-        self._lock = threading.Lock()
+        self._headers = {
+            "Datadog-Meta-Lang": "python",
+            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Content-Type": "application/msgpack",
+        }  # type: Dict[str, str]
+        self._lock = Lock()
 
     def on_span_start(self, span):
         # type: (Span) -> None
@@ -206,14 +215,9 @@ class SpanStatsProcessor(PeriodicService, SpanProcessor):
             raw_payload["Version"] = config.version
 
         payload = packb(raw_payload)
-        headers = {
-            "Datadog-Meta-Lang": "python",
-            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
-            "Content-Type": "application/msgpack",
-        }
         try:
             self._connection = get_connection(self._agent_url, self._timeout)
-            self._connection.request("PUT", self._endpoint, payload, headers)
+            self._connection.request("PUT", self._endpoint, payload, self._headers)
         except Exception:
             log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
         else:
