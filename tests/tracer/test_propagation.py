@@ -52,7 +52,9 @@ class TestHttpPropagation(TestCase):
             headers = {}
             HTTPPropagator.inject(span.context, headers)
 
-            assert headers[HTTP_HEADER_TAGS] == "_dd.p.unicode=unicode,_dd.p.bytes=bytes"
+            # The ordering is non-deterministic, so compare as a list of tags
+            tags = set(headers[HTTP_HEADER_TAGS].split(","))
+            assert tags == set(["_dd.p.unicode=unicode", "_dd.p.bytes=bytes"])
 
     def test_inject_tags_unicode(self):
         """Unicode characters are not allowed"""
