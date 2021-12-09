@@ -39,6 +39,7 @@ from .internal.compat import iteritems
 from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
+from .internal.compat import to_unicode
 from .internal.logger import get_logger
 
 
@@ -478,7 +479,7 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self.meta[ERROR_MSG] = str(exc_val) if six.PY2 and isinstance(exc_val.message, str) else stringify(exc_val)
+        self.meta[ERROR_MSG] = str(exc_val) if six.PY2 and isinstance(exc_val.message, str) else to_unicode(exc_val)
         self.meta[ERROR_TYPE] = exc_type_str
         self.meta[ERROR_STACK] = tb
 
