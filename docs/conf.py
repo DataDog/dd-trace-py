@@ -56,11 +56,11 @@ extensions = [
     "sphinx.ext.extlinks",
     "reno.sphinxext",
     "sphinxcontrib.spelling",
-    "sphinxcontrib.blockdiag",
+    "sphinxcontrib.seqdiag",
 ]
 
-# Fontpath for blockdiag (truetype font)
-blockdiag_fontpath = "/usr/share/fonts/truetype/ipafont/ipagp.ttf"
+# Fontpath for seqdiag (truetype font)
+seqdiag_fontpath = "/usr/share/fonts/truetype/ipafont/ipagp.ttf"
 
 # Add filters for sphinxcontrib.spelling
 spelling_filters = [VersionTagFilter]
