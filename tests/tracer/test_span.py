@@ -691,5 +691,6 @@ def test_set_exc_info_with_unicode():
     exception_span = get_exception_span(Exception(u"DataDog/水"))
     assert u"DataDog/水" == exception_span.get_tag(ERROR_MSG)
 
-    exception_span = get_exception_span(Exception("DataDog/水"))
-    assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)
+    if six.PY3:
+        exception_span = get_exception_span(Exception("DataDog/水"))
+        assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)
