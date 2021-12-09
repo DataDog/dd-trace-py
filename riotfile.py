@@ -209,6 +209,33 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="integration",
+            pys=select_pys(),
+            command="pytest --no-cov {cmdargs} tests/integration/",
+            pkgs={"msgpack": [latest]},
+            venvs=[
+                Venv(
+                    name="integration-v5",
+                    env={
+                        "AGENT_VERSION": "v5",
+                    },
+                ),
+                Venv(
+                    name="integration-latest",
+                    env={
+                        "AGENT_VERSION": "latest",
+                    },
+                ),
+                Venv(
+                    name="integration-snapshot",
+                    env={
+                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                        "AGENT_VERSION": "testagent",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
