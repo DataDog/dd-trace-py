@@ -678,15 +678,12 @@ def test_manual_context_usage():
     assert span1.context.sampling_priority == 1
 
 
-def test_set_exc_info_with_unicode():
-    def get_exception_span(exception):
-        try:
-            raise exception
-        except Exception:
-            type_, value_, traceback_ = sys.exc_info()
-        span = Span(None, "span1")
-        span.set_exc_info(type_, value_, traceback_)
-        return span
+def test_set_exc_info_with_unicode(): 
+    span = Span(None, "span1")
+    try:
+        raise Exception(u"DataDog/水")
+    except Exception:
+        type_, value_, traceback_ = sys.exc_info()
+        exception_span.set_exc_info(type_, value_, traceback_)
 
-    exception_span = get_exception_span(Exception(u"DataDog/水"))
-    assert u"DataDog/水" == exception_span.get_tag(ERROR_MSG)
+    assert u"DataDog/水" == span.get_tag(ERROR_MSG)
