@@ -802,6 +802,15 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
+  aioredis:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'aioredis$'
+          snapshot: true
+
   aredis:
     <<: *machine_executor
     parallelism: 4
@@ -946,6 +955,7 @@ requires_tests: &requires_tests
     - aiobotocore
     - aiohttp
     - aiopg
+    - aioredis
     - asyncio
     - algoliasearch
     - asgi
@@ -1031,6 +1041,7 @@ workflows:
       - aiobotocore: *requires_base_venvs
       - aiohttp: *requires_base_venvs
       - aiopg: *requires_base_venvs
+      - aioredis: *requires_base_venvs
       - asyncio: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
