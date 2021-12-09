@@ -51,7 +51,16 @@ class VersionTagFilter(Filter):
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["sphinx.ext.autodoc", "sphinx.ext.extlinks", "reno.sphinxext", "sphinxcontrib.spelling"]
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.extlinks",
+    "reno.sphinxext",
+    "sphinxcontrib.spelling",
+    "sphinxcontrib.blockdiag",
+]
+
+# Fontpath for blockdiag (truetype font)
+blockdiag_fontpath = "/usr/share/fonts/truetype/ipafont/ipagp.ttf"
 
 # Add filters for sphinxcontrib.spelling
 spelling_filters = [VersionTagFilter]
