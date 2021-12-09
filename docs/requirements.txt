@@ -3,4 +3,5 @@ sphinx
 opentracing
 reno
 sphinxcontrib-spelling
+sphinxcontrib-seqdiag
 PyEnchant
