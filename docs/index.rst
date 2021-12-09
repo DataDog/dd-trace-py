@@ -191,3 +191,4 @@ Indices and tables
     contributing
     release_notes
     troubleshooting
+    span_sequence_diagram
