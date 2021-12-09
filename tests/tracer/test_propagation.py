@@ -41,19 +41,21 @@ class TestHttpPropagation(TestCase):
             assert headers[HTTP_HEADER_TAGS] == "_dd.p.test=value"
 
     def test_inject_tags_bytes(self):
+        """We properly encode when the meta key as long as it is just ascii characters"""
         tracer = DummyTracer()
 
         # Context._meta allows str and bytes for keys
-        meta = {b"_dd.p.test": "value"}
+        meta = {u"_dd.p.unicode": u"unicode", b"_dd.p.bytes": b"bytes"}
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
             headers = {}
             HTTPPropagator.inject(span.context, headers)
 
-            assert headers[HTTP_HEADER_TAGS] == "_dd.p.test=value"
+            assert headers[HTTP_HEADER_TAGS] == "_dd.p.unicode=unicode,_dd.p.bytes=bytes"
 
     def test_inject_tags_unicode(self):
+        """Unicode characters are not allowed"""
         tracer = DummyTracer()
 
         meta = {u"_dd.p.unicode_☺️": u"unicode value ☺️"}
@@ -67,10 +69,25 @@ class TestHttpPropagation(TestCase):
             assert ctx._meta["_dd.propagation_error"] == "encoding_error"
 
     def test_inject_tags_large(self):
+        """When we have a single large tag that won't fit"""
         tracer = DummyTracer()
 
         # DEV: Limit is 512
         meta = {"_dd.p.test": "long" * 200}
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+
+            assert HTTP_HEADER_TAGS not in headers
+            assert ctx._meta["_dd.propagation_error"] == "max_size"
+
+    def test_inject_tags_many_large(self):
+        """When we have too many tags that cause us to reach the max size limit"""
+        tracer = DummyTracer()
+
+        meta = {"_dd.p.test_{}".format(i): "test" * 10 for i in range(100)}
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
