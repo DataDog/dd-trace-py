@@ -12,10 +12,9 @@ seqdiag {
   tracer --> context [label = "active span"];
   tracer -> spanproccessor [label = "on_span_start()"];
   tracer -> hooks [label = "emit on_span_start"];
-  application <-- tracer [label = "span object"];
 
   // Delay separator
-  ... Span Created ...
+  === Span Created ===
 
   application -> span [label = "finish()"];
   tracer <-  span [label = "_on_finish_callbacks()"];
