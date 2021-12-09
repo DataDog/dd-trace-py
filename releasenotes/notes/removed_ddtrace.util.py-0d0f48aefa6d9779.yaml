@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Removed ``ddtrace/util.py``. Please use modules in ddtrace/utils instead.
