@@ -127,6 +127,7 @@ def test_configure_service_name_env(run_python_code_in_subprocess):
     """
     code = """
 import asyncio
+import sys
 
 import httpx
 
@@ -146,7 +147,10 @@ async def test():
         async with httpx.AsyncClient() as client:
             await client.get(url)
 
-asyncio.get_event_loop().run_until_complete(test())
+if sys.version_info >= (3, 7, 0):
+    asyncio.run(test())
+else:
+    asyncio.get_event_loop().run_until_complete(test())
     """
     env = os.environ.copy()
     env["DD_HTTPX_SERVICE_NAME"] = "env-overridden-service-name"
@@ -163,6 +167,7 @@ def test_configure_global_service_name_env(run_python_code_in_subprocess):
     """
     code = """
 import asyncio
+import sys
 
 import httpx
 
@@ -182,7 +187,10 @@ async def test():
         async with httpx.AsyncClient() as client:
             await client.get(url)
 
-asyncio.get_event_loop().run_until_complete(test())
+if sys.version_info >= (3, 7, 0):
+    asyncio.run(test())
+else:
+    asyncio.get_event_loop().run_until_complete(test())
     """
     env = os.environ.copy()
     env["DD_SERVICE"] = "global-service-name"
@@ -324,6 +332,7 @@ def test_distributed_tracing_disabled_env(run_python_code_in_subprocess):
     """
     code = """
 import asyncio
+import sys
 
 import httpx
 
@@ -347,7 +356,10 @@ async def test():
         resp = await client.get(url)
         assert_request_headers(resp)
 
-asyncio.get_event_loop().run_until_complete(test())
+if sys.version_info >= (3, 7, 0):
+    asyncio.run(test())
+else:
+    asyncio.get_event_loop().run_until_complete(test())
     """
     env = os.environ.copy()
     env["DD_HTTPX_DISTRIBUTED_TRACING"] = "false"
