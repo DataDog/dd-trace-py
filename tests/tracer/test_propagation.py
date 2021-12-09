@@ -113,6 +113,20 @@ class TestHttpPropagation(TestCase):
             assert HTTP_HEADER_TAGS not in headers
             assert ctx._meta["_dd.propagation_error"] == "encoding_error"
 
+    def test_inject_tags_previous_error(self):
+        """When we have previously gotten an error, do not try to propagate tags"""
+        tracer = DummyTracer()
+
+        # This value is valid
+        meta = {"_dd.p.key": "value", "_dd.propagation_error": "some fake test value"}
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+
+            assert HTTP_HEADER_TAGS not in headers
+
     def test_extract(self):
         tracer = DummyTracer()
 

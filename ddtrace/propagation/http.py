@@ -70,6 +70,10 @@ class HTTPPropagator(object):
         if span_context.dd_origin is not None:
             headers[HTTP_HEADER_ORIGIN] = str(span_context.dd_origin)
 
+        # Do not try to encode tags if we have already tried and received an error
+        if "_dd.propagation_error" in span_context._meta:
+            return
+
         # Only propagate tags that start with `_dd.p.`
         tags_to_encode = {}  # type: Dict[str, str]
         for key, value in span_context._meta.items():
