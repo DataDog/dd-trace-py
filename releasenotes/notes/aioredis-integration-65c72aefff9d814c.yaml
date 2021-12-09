@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Add tracing support for the ``aioredis`` library. Version 1.3+ is fully
+    supported.
