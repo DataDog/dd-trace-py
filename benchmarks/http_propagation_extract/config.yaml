@@ -94,12 +94,16 @@ wsgi_large_valid_headers_all:
 
 wsgi_invalid_trace_id_header:
   <<: *invalid_trace_id_header
+  wsgi_style: True
 
 wsgi_invalid_span_id_header:
   <<: *default_values
+  wsgi_style: True
 
 wsgi_invalid_priority_header:
   <<: *invalid_priority_header
+  wsgi_style: True
 
 wsgi_invalid_tags_header:
   <<: *invalid_tags_header
+  wsgi_style: True
