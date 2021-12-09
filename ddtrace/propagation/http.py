@@ -83,7 +83,7 @@ class HTTPPropagator(object):
 
             try:
                 encoded_tags = encode_tagset_values(tags_to_encode)
-            except TagsetMaxSizeError as ex:
+            except TagsetMaxSizeError:
                 # We hit the max size allowed, add a tag to the context to indicate this happened
                 span_context._meta["_dd.propagation_error"] = "max_size"
                 log.warning("failed to encode x-datadog-tags", exc_info=True)
