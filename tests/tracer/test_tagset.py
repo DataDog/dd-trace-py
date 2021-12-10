@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from collections import OrderedDict
 
 import pytest
@@ -7,6 +8,7 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import TagsetMaxSizeError
 from ddtrace.internal._tagset import decode_tagset_string
 from ddtrace.internal._tagset import encode_tagset_values
+from ddtrace.internal.compat import ensure_str
 
 
 @pytest.mark.parametrize(
@@ -119,6 +121,9 @@ def test_encode_tagset_values_strip_spaces():
         # Empty key or value
         {"": "value"},
         {"key": ""},
+        # Unicode
+        {ensure_str(u"☺️"): "value"},
+        {"key": ensure_str(u"☺️")},
     ],
 )
 def test_encode_tagset_values_malformed(values):
