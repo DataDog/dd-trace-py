@@ -149,7 +149,6 @@ unvendored
 url
 urls
 username
-utils
 uvicorn
 versioned
 vertica
