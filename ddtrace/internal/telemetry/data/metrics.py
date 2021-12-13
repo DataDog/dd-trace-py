@@ -19,7 +19,7 @@ class MetricType:
 class Series:
     """stores metrics which will be sent to the Telemetry Intake metrics to the Datadog Instrumentation Telemetry Org"""
 
-    def __init__(self, metric, metric_type=MetricType.COUNT, common=False, interval=None):
+    def __init__(self, metric, metric_type="count", common=False, interval=None):
         # type: (str, Literal["count", "gauge", "rate"], bool, Optional[int]) -> None
         """
         :param str metric: metric name
