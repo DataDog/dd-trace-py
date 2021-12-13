@@ -1,5 +1,5 @@
 from cpython cimport *
-from cpython.bytearray cimport PyByteArray_Check
+from cpython.bytearray cimport PyByteArray_CheckExact
 from libc cimport stdint
 from libc.string cimport strlen
 import threading
@@ -29,15 +29,22 @@ cdef extern from "pack.h":
     int msgpack_pack_array(msgpack_packer* pk, size_t l)
     int msgpack_pack_map(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw(msgpack_packer* pk, size_t l)
+    int msgpack_pack_bin(msgpack_packer* pk, size_t l)
     int msgpack_pack_raw_body(msgpack_packer* pk, char* body, size_t l)
     int msgpack_pack_unicode(msgpack_packer* pk, object o, long long limit)
     int msgpack_pack_uint32(msgpack_packer* pk, stdint.uint32_t d)
     int msgpack_pack_uint64(msgpack_packer* pk, stdint.uint64_t d)
     int msgpack_pack_int32(msgpack_packer* pk, stdint.int32_t d)
     int msgpack_pack_int64(msgpack_packer* pk, stdint.int64_t d)
+    int msgpack_pack_true(msgpack_packer* pk)
+    int msgpack_pack_false(msgpack_packer* pk)
 
 
 cdef long long ITEM_LIMIT = (2**32)-1
+
+
+cdef inline int PyBytesLike_CheckExact(object o):
+    return PyBytes_CheckExact(o) or PyByteArray_CheckExact(o)
 
 
 class BufferFull(Exception):
@@ -208,7 +215,7 @@ cdef class MsgpackStringTable(StringTable):
         self.max_size = max_size
         self.pk.length = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE
         self._sp_len = 0
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         super(MsgpackStringTable, self).__init__()
 
         assert self.index(ORIGIN_KEY) == 1
@@ -264,7 +271,8 @@ cdef class MsgpackStringTable(StringTable):
 
     @property
     def size(self):
-        return self.pk.length - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE + array_prefix_size(self._next_id)
+        with self._lock:
+            return self.pk.length - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE + array_prefix_size(self._next_id)
 
     cdef append_raw(self, long src, Py_ssize_t size):
         cdef int res
@@ -284,10 +292,11 @@ cdef class MsgpackStringTable(StringTable):
         self._sp_len = 0
 
     cpdef flush(self):
-        try:
-            return self.get_bytes()
-        finally:
-            self.reset()
+        with self._lock:
+            try:
+                return self.get_bytes()
+            finally:
+                self.reset()
 
 
 cdef class BufferedEncoder(object):
@@ -372,7 +381,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         self.max_size = max_size
         self.pk.buf_size = buf_size
         self.max_item_size = max_item_size if max_item_size < max_size else max_size
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._reset_buffer()
 
     def __dealloc__(self):
@@ -393,10 +402,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         self.pk.length = MSGPACK_ARRAY_LENGTH_PREFIX_SIZE  # Leave room for array length prefix
 
     cpdef encode(self):
-        if not self._count:
-            return None
+        with self._lock:
+            if not self._count:
+                return None
 
-        return self.flush()
+            return self.flush()
 
     cdef inline int _update_array_len(self):
         """Update traces array size prefix"""
@@ -437,10 +447,9 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         if L > 0 and trace[0].context is not None and trace[0].context.dd_origin is not None:
             dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
 
-        with self._lock:
-            for span in trace:
-                ret = self.pack_span(span, dd_origin)
-                if ret != 0: raise RuntimeError("Couldn't pack span")
+        for span in trace:
+            ret = self.pack_span(span, dd_origin)
+            if ret != 0: raise RuntimeError("Couldn't pack span")
 
         return ret
 
@@ -448,34 +457,36 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         """Put a trace (i.e. a list of spans) in the buffer."""
         cdef int ret
 
-        len_before = self.pk.length
-        size_before = self.size
-        try:
-            ret = self._pack_trace(trace)
-            if ret:  # should not happen.
-                raise RuntimeError("internal error")
+        with self._lock:
+            len_before = self.pk.length
+            size_before = self.size
+            try:
+                ret = self._pack_trace(trace)
+                if ret:  # should not happen.
+                    raise RuntimeError("internal error")
 
-            # DEV: msgpack avoids buffer overflows by calling PyMem_Realloc so
-            # we must check sizes manually.
-            # TODO: We should probably ensure that the buffer size doesn't
-            # grow arbitrarily because of the PyMem_Realloc and if it does then
-            # free and reallocate with the appropriate size.
-            if self.size - size_before > self.max_item_size:
-                raise BufferItemTooLarge(self.size - size_before)
+                # DEV: msgpack avoids buffer overflows by calling PyMem_Realloc so
+                # we must check sizes manually.
+                # TODO: We should probably ensure that the buffer size doesn't
+                # grow arbitrarily because of the PyMem_Realloc and if it does then
+                # free and reallocate with the appropriate size.
+                if self.size - size_before > self.max_item_size:
+                    raise BufferItemTooLarge(self.size - size_before)
 
-            if self.size > self.max_size:
-                raise BufferFull(self.size - size_before)
+                if self.size > self.max_size:
+                    raise BufferFull(self.size - size_before)
 
-            self._count += 1
-        except:
-            # rollback
-            self.pk.length = len_before
-            raise
+                self._count += 1
+            except:
+                # rollback
+                self.pk.length = len_before
+                raise
 
     @property
     def size(self):
         """Return the size in bytes of the encoder buffer."""
-        return self.pk.length + array_prefix_size(self._count) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
+        with self._lock:
+            return self.pk.length + array_prefix_size(self._count) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
 
     # ---- Abstract methods ----
 
@@ -488,10 +499,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
 cdef class MsgpackEncoderV03(MsgpackEncoderBase):
     cpdef flush(self):
-        try:
-            return self.get_bytes()
-        finally:
-            self._reset_buffer()
+        with self._lock:
+            try:
+                return self.get_bytes()
+            finally:
+                self._reset_buffer()
 
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
@@ -637,24 +649,27 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         self._st = MsgpackStringTable(max_size)
 
     cpdef flush(self):
-        try:
-            self._st.append_raw(PyLong_FromLong(<long> self.get_buffer()), <Py_ssize_t> super(MsgpackEncoderV05, self).size)
-            return self._st.flush()
-        finally:
-            self._reset_buffer()
+        with self._lock:
+            try:
+                self._st.append_raw(PyLong_FromLong(<long> self.get_buffer()), <Py_ssize_t> super(MsgpackEncoderV05, self).size)
+                return self._st.flush()
+            finally:
+                self._reset_buffer()
 
     @property
     def size(self):
         """Return the size in bytes of the encoder buffer."""
-        return self._st.size + super(MsgpackEncoderV05, self).size
+        with self._lock:
+            return self._st.size + super(MsgpackEncoderV05, self).size
 
     cpdef put(self, list trace):
-        try:
-            self._st.savepoint()
-            super(MsgpackEncoderV05, self).put(trace)
-        except Exception:
-            self._st.rollback()
-            raise
+        with self._lock:
+            try:
+                self._st.savepoint()
+                super(MsgpackEncoderV05, self).put(trace)
+            except Exception:
+                self._st.rollback()
+                raise
 
     cdef inline int _pack_string(self, object string):
         return msgpack_pack_uint32(&self.pk, self._st._index(string))
@@ -726,3 +741,167 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0: return ret
 
         return 0
+
+
+cdef class Packer(object):
+    """Slightly modified version of the v0.6.2 msgpack Packer
+    which only supports basic Python types (int, bool, float, dict, list).
+
+    Note that _only_ the basic types can be encoded. Subtypes of these types
+    are not supported.
+
+    - strict_type argument is removed and assumed to be True
+    - use_bin_type argument is removed and assumed to be True (use the msgpack 2.0 bin type fields when possible)
+    - use_single_float is removed and assumed to be False
+    - autoreset is removed and assumed to be True (bytes are always returned from pack and the buffer reset)
+
+    https://github.com/msgpack/msgpack-python/tree/v0.6.2
+    """
+    cdef msgpack_packer pk
+    cdef object _default
+    cdef object _berrors
+    cdef const char *encoding
+    cdef const char *unicode_errors
+
+    def __cinit__(self):
+        cdef int buf_size = 1024*1024
+        self.pk.buf = <char*> PyMem_Malloc(buf_size)
+        if self.pk.buf == NULL:
+            raise MemoryError("Unable to allocate internal buffer.")
+        self.pk.buf_size = buf_size
+        self.pk.length = 0
+
+    def __init__(self, default=None):
+        if default is not None:
+            if not PyCallable_Check(default):
+                raise TypeError("default must be a callable.")
+        self._default = default
+
+        if PY_MAJOR_VERSION < 3:
+            self.encoding = "utf-8"
+        else:
+            self.encoding = NULL
+
+    def __dealloc__(self):
+        PyMem_Free(self.pk.buf)
+        self.pk.buf = NULL
+
+    cdef int _pack(self, object o) except -1:
+        cdef long long llval
+        cdef unsigned long long ullval
+        cdef long longval
+        cdef float fval
+        cdef double dval
+        cdef char* rawval
+        cdef int ret
+        cdef dict d
+        cdef Py_ssize_t L
+        cdef int default_used = 0
+        cdef Py_buffer view
+        cdef long i
+
+        while True:
+            if o is None:
+                ret = msgpack_pack_nil(&self.pk)
+            elif PyLong_CheckExact(o):
+                # PyInt_Check(long) is True for Python 3.
+                # So we should test long before int.
+                try:
+                    if o > 0:
+                        ullval = o
+                        ret = msgpack_pack_unsigned_long_long(&self.pk, ullval)
+                    else:
+                        llval = o
+                        ret = msgpack_pack_long_long(&self.pk, llval)
+                except OverflowError as oe:
+                    if not default_used and self._default is not None:
+                        o = self._default(o)
+                        default_used = True
+                        continue
+                    else:
+                        raise OverflowError("Integer value out of range")
+            elif PyInt_CheckExact(o):
+                longval = o
+                ret = msgpack_pack_long(&self.pk, longval)
+            elif PyFloat_CheckExact(o):
+                dval = o
+                ret = msgpack_pack_double(&self.pk, dval)
+            elif PyBytesLike_CheckExact(o):
+                L = len(o)
+                if L > ITEM_LIMIT:
+                    PyErr_Format(ValueError, b"%.200s object is too large", Py_TYPE(o).tp_name)
+                rawval = o
+                ret = msgpack_pack_bin(&self.pk, L)
+                if ret == 0:
+                    ret = msgpack_pack_raw_body(&self.pk, rawval, L)
+            elif PyUnicode_CheckExact(o):
+                if self.encoding == NULL:
+                    ret = msgpack_pack_unicode(&self.pk, o, ITEM_LIMIT)
+                    if ret == -2:
+                        raise ValueError("unicode string is too large")
+                else:
+                    o = PyUnicode_AsEncodedString(o, self.encoding, self.unicode_errors)
+                    L = len(o)
+                    if L > ITEM_LIMIT:
+                        raise ValueError("unicode string is too large")
+                    ret = msgpack_pack_raw(&self.pk, L)
+                    if ret == 0:
+                        rawval = o
+                        ret = msgpack_pack_raw_body(&self.pk, rawval, L)
+            elif PyDict_CheckExact(o):
+                d = <dict>o
+                L = len(d)
+                if L > ITEM_LIMIT:
+                    raise ValueError("dict is too large")
+                ret = msgpack_pack_map(&self.pk, L)
+                if ret == 0:
+                    for k, v in d.items():
+                       ret = self._pack(k)
+                       if ret != 0: break
+                       ret = self._pack(v)
+                       if ret != 0: break
+            elif PyList_CheckExact(o):
+                L = Py_SIZE(o)
+                if L > ITEM_LIMIT:
+                    raise ValueError("list is too large")
+                ret = msgpack_pack_array(&self.pk, L)
+                if ret == 0:
+                    for v in o:
+                        ret = self._pack(v)
+                        if ret != 0: break
+            elif PyBool_Check(o):
+                if o:
+                    ret = msgpack_pack_true(&self.pk)
+                else:
+                    ret = msgpack_pack_false(&self.pk)
+            else:
+                PyErr_Format(TypeError, b"can not serialize '%.200s' object", Py_TYPE(o).tp_name)
+            return ret
+
+    cpdef pack(self, object obj):
+        cdef int ret
+        try:
+            ret = self._pack(obj)
+        except:
+            self.pk.length = 0
+
+            raise
+        if ret:  # should not happen.
+            raise RuntimeError("internal error")
+
+        # Reset the buffer.
+        buf = PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
+        self.pk.length = 0
+        return buf
+
+    def bytes(self):
+        """Return internal buffer contents as bytes object"""
+        return PyBytes_FromStringAndSize(self.pk.buf, self.pk.length)
+
+
+def packb(o, **kwargs):
+    """
+    Pack object `o` and return packed bytes
+    See :class:`Packer` for options.
+    """
+    return Packer(**kwargs).pack(o)
