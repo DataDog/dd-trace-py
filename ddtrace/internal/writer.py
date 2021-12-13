@@ -324,8 +324,12 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
         if dropped > accepted:
             # Sanity check, we cannot drop more traces than we accepted.
-            log.error("dropped more traces than accepted (dropped: %d, accepted: %d)", dropped, accepted)
-
+            log.debug(
+                "dropped.traces metric is greater than accepted.traces metric"
+                "This difference may be reconciled in future metric uploads (dropped.traces: %d, accepted.traces: %d)",
+                dropped,
+                accepted,
+            )
             accepted = dropped
 
         self._drop_sma.set(dropped, accepted)

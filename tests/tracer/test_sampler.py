@@ -742,143 +742,77 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, rule, limit, d
 
 def test_datadog_sampler_tracer(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0, name="test.span")
-    rule_spy = mock.Mock(spec=rule, wraps=rule)
-    rule_spy.sample_rate = rule.sample_rate
+    sampler = DatadogSampler(rules=[rule])
+    dummy_tracer.configure(sampler=sampler)
 
-    sampler = DatadogSampler(rules=[rule_spy])
-    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
-    sampler.limiter = limiter_spy
-    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
-
-    dummy_tracer.configure(sampler=sampler_spy)
-
-    assert dummy_tracer.sampler is sampler_spy
-
-    with dummy_tracer.trace("test.span") as span:
-        # Assert all of our expected functions were called
-        sampler_spy.sample.assert_called_once_with(span)
-        rule_spy.matches.assert_called_once_with(span)
-        rule_spy.sample.assert_called_once_with(span)
-        limiter_spy.is_allowed.assert_called_once_with()
+    with dummy_tracer.trace("test.span"):
+        pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
 
 
 def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0, name="test.span")
-    rule_spy = mock.Mock(spec=rule, wraps=rule)
-    rule_spy.sample_rate = rule.sample_rate
+    sampler = DatadogSampler(rules=[rule], rate_limit=0)
+    dummy_tracer.configure(sampler=sampler)
 
-    sampler = DatadogSampler(rules=[rule_spy])
-    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
-    limiter_spy.is_allowed.return_value = False  # Have the limiter deny the span
-    sampler.limiter = limiter_spy
-    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
-
-    dummy_tracer.configure(sampler=sampler_spy)
-
-    assert dummy_tracer.sampler is sampler_spy
-
-    with dummy_tracer.trace("test.span") as span:
-        # Assert all of our expected functions were called
-        sampler_spy.sample.assert_called_once_with(span)
-        rule_spy.matches.assert_called_once_with(span)
-        rule_spy.sample.assert_called_once_with(span)
-        limiter_spy.is_allowed.assert_called_once_with()
+    with dummy_tracer.trace("test.span"):
+        pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
-    assert spans[0].get_metric(SAMPLING_LIMIT_DECISION) is None
-    assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=0.0)
 
 
 def test_datadog_sampler_tracer_rate_0(dummy_tracer):
-    rule = SamplingRule(sample_rate=0, name="test.span")  # Sample rate of 0 means never sample
-    rule_spy = mock.Mock(spec=rule, wraps=rule)
-    rule_spy.sample_rate = rule.sample_rate
+    # Sample rate of 0 means never sample
+    rule = SamplingRule(sample_rate=0, name="test.span")
+    sampler = DatadogSampler(rules=[rule])
+    dummy_tracer.configure(sampler=sampler)
 
-    sampler = DatadogSampler(rules=[rule_spy])
-    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
-    sampler.limiter = limiter_spy
-    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
-
-    dummy_tracer.configure(sampler=sampler_spy)
-
-    assert dummy_tracer.sampler is sampler_spy
-
-    with dummy_tracer.trace("test.span") as span:
-        # Assert all of our expected functions were called
-        sampler_spy.sample.assert_called_once_with(span)
-        rule_spy.matches.assert_called_once_with(span)
-        rule_spy.sample.assert_called_once_with(span)
-        limiter_spy.is_allowed.assert_not_called()
+    with dummy_tracer.trace("test.span"):
+        pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
-    assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 0
+    assert_sampling_decision_tags(spans[0], rule=0.0)
 
 
 def test_datadog_sampler_tracer_child(dummy_tracer):
-    rule = SamplingRule(sample_rate=1.0)  # No rules means it gets applied to every span
-    rule_spy = mock.Mock(spec=rule, wraps=rule)
-    rule_spy.sample_rate = rule.sample_rate
+    # No rules means it gets applied to every span
+    rule = SamplingRule(sample_rate=1.0)
+    sampler = DatadogSampler(rules=[rule])
+    dummy_tracer.configure(sampler=sampler)
 
-    sampler = DatadogSampler(rules=[rule_spy])
-    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
-    sampler.limiter = limiter_spy
-    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
-
-    dummy_tracer.configure(sampler=sampler_spy)
-
-    assert dummy_tracer.sampler is sampler_spy
-
-    with dummy_tracer.trace("parent.span") as parent:
+    with dummy_tracer.trace("parent.span"):
         with dummy_tracer.trace("child.span"):
-            # Assert all of our expected functions were called
-            # DEV: `assert_called_once_with` ensures we didn't also call with the child span
-            sampler_spy.sample.assert_called_once_with(parent)
-            rule_spy.matches.assert_called_once_with(parent)
-            rule_spy.sample.assert_called_once_with(parent)
-            limiter_spy.is_allowed.assert_called_once_with()
+            pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 2, "Trace should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
+    assert_sampling_decision_tags(spans[1], agent=None, rule=None, limit=None)
 
 
 def test_datadog_sampler_tracer_start_span(dummy_tracer):
-    rule = SamplingRule(sample_rate=1.0)  # No rules means it gets applied to every span
-    rule_spy = mock.Mock(spec=rule, wraps=rule)
-    rule_spy.sample_rate = rule.sample_rate
-
-    sampler = DatadogSampler(rules=[rule_spy])
-    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
-    sampler.limiter = limiter_spy
-    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
-
-    dummy_tracer.configure(sampler=sampler_spy)
-
-    assert dummy_tracer.sampler is sampler_spy
+    # No rules means it gets applied to every span
+    rule = SamplingRule(sample_rate=1.0)
+    sampler = DatadogSampler(rules=[rule])
+    dummy_tracer.configure(sampler=sampler)
 
     span = dummy_tracer.start_span("test.span")
     span.finish()
 
-    # Assert all of our expected functions were called
-    sampler_spy.sample.assert_called_once_with(span)
-    rule_spy.matches.assert_called_once_with(span)
-    rule_spy.sample.assert_called_once_with(span)
-    limiter_spy.is_allowed.assert_called_once_with()
-
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
 
 
 def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
