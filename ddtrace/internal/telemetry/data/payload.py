@@ -11,7 +11,7 @@ from .integration import Integration
 from .metrics import Series
 
 
-RequestTypesLiteral = Literal[
+RequestType = Literal[
     "app-closed",
     "app-started",
     "app-dendencies-load",
