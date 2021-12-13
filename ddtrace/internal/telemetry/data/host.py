@@ -21,7 +21,7 @@ Host = TypedDict(
 )
 
 
-def get_containter_id():
+def get_container_id():
     # type: () -> str
     """Get ID from docker container"""
     container_info = get_container_info()
