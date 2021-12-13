@@ -5,13 +5,13 @@ from typing import Union
 from typing import cast
 
 from ..context import Context
+from ..contrib.trace_utils import get_wsgi_header
 from ..internal._tagset import TagsetDecodeError
 from ..internal._tagset import TagsetEncodeError
 from ..internal._tagset import TagsetMaxSizeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
-from ..contrib.trace_utils import get_wsgi_header
 from ..internal.logger import get_logger
 
 
