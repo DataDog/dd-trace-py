@@ -468,7 +468,7 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self.meta[ERROR_MSG] = str(exc_val)
+        self.meta[ERROR_MSG] = stringify(exc_val)
         self.meta[ERROR_TYPE] = exc_type_str
         self.meta[ERROR_STACK] = tb
 

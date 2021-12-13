@@ -676,3 +676,21 @@ def test_manual_context_usage():
     span1.context.sampling_priority = 1
     assert span2.context.sampling_priority == 1
     assert span1.context.sampling_priority == 1
+
+
+def test_set_exc_info_with_unicode():
+    def get_exception_span(exception):
+        span = Span(None, "span1")
+        try:
+            raise exception
+        except Exception:
+            type_, value_, traceback_ = sys.exc_info()
+            span.set_exc_info(type_, value_, traceback_)
+        return span
+
+    exception_span = get_exception_span(Exception(u"DataDog/水"))
+    assert u"DataDog/水" == exception_span.get_tag(ERROR_MSG)
+
+    if six.PY3:
+        exception_span = get_exception_span(Exception("DataDog/水"))
+        assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)
