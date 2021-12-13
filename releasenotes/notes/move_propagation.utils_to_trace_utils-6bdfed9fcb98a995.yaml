@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The ``propagation.utils`` module has been removed. Public methods have been moved to ``trace_utils.py``
