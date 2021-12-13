@@ -11,8 +11,8 @@ from ..internal._tagset import TagsetMaxSizeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
+from ..contrib.trace_utils import get_wsgi_header
 from ..internal.logger import get_logger
-from .utils import get_wsgi_header
 
 
 log = get_logger(__name__)

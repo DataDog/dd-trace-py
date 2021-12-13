@@ -4,13 +4,13 @@ from unittest import TestCase
 import pytest
 
 from ddtrace.context import Context
+from ddtrace.contrib.trace_utils import get_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TAGS
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.propagation.utils import get_wsgi_header
 from tests.utils import DummyTracer
 
 

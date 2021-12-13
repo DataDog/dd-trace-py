@@ -24,6 +24,7 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
+from ddtrace.contrib.trace_utils import get_wsgi_header
 from ddtrace.ext import http
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
@@ -31,7 +32,6 @@ from ddtrace.internal.compat import string_type
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.propagation.utils import get_wsgi_header
 from ddtrace.vendor import wrapt
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_dict_issuperset
