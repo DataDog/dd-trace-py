@@ -4,7 +4,6 @@ default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
 python39_image: &python39_image cimg/python:3.9
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
-datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
@@ -243,15 +242,6 @@ httpbin_local: &httpbin_local
   image: *httpbin_image
   name: httpbin.org
 
-datadog_agent: &datadog_agent
-  image: *datadog_agent_image
-  environment:
-    DD_API_KEY: invalid_key_but_this_is_fine
-    DD_APM_ENABLED: true
-    DD_APM_RECEIVER_SOCKET: /tmp/ddagent/trace.sock
-    DD_BIND_HOST: 0.0.0.0
-    DD_LOG_LEVEL: DEBUG
-
 mysql_server: &mysql_server
   image: *mysql_image
   environment:
@@ -372,28 +362,38 @@ jobs:
   integration_agent5:
     <<: *machine_executor
     steps:
+      - attach_workspace:
+          at: .
       - checkout
       - run: docker-compose up -d ddagent5
       - run:
           command: docker-compose logs -f
           background: true
       - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-v5'
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
     steps:
+      - attach_workspace:
+          at: .
       - checkout
       - run: docker-compose up -d ddagent
       - run:
           command: docker-compose logs -f
           background: true
       - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-latest'
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
 
   integration_testagent:
     <<: *machine_executor
     steps:
+      - attach_workspace:
+          at: .
       - checkout
       - run: SNAPSHOT_CI=1 docker-compose up -d testagent
       - run:
@@ -402,7 +402,9 @@ jobs:
       - run:
           environment:
             DD_TRACE_AGENT_URL: http://localhost:9126
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
@@ -802,6 +804,15 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
+  aioredis:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'aioredis$'
+          snapshot: true
+
   aredis:
     <<: *machine_executor
     parallelism: 4
@@ -946,6 +957,7 @@ requires_tests: &requires_tests
     - aiobotocore
     - aiohttp
     - aiopg
+    - aioredis
     - asyncio
     - algoliasearch
     - asgi
@@ -1031,6 +1043,7 @@ workflows:
       - aiobotocore: *requires_base_venvs
       - aiohttp: *requires_base_venvs
       - aiopg: *requires_base_venvs
+      - aioredis: *requires_base_venvs
       - asyncio: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
