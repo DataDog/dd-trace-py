@@ -26,7 +26,7 @@ class Payload(ABC):
 
     @abstractmethod
     def request_type(self):
-        # type: () -> RequestTypesLiteral
+        # type: () -> RequestType
         """
         every payload must return one of the following request types:
         app-closed, app-started, app-dendencies-load, app-integrations-changed, app-heartbeat, app-generate-metrics

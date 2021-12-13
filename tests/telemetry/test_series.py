@@ -1,6 +1,5 @@
 import mock
 
-from ddtrace.internal.telemetry.data.metrics import MetricType
 from ddtrace.internal.telemetry.data.metrics import Series
 
 
@@ -9,7 +8,7 @@ def test_default_series():
     series = Series("test.metric")
 
     assert series.metric == "test.metric"
-    assert series.type == MetricType.COUNT
+    assert series.type == "count"
     assert series.common is False
     assert series.interval is None
     assert series.tags == {}
@@ -18,27 +17,27 @@ def test_default_series():
 
 def test_guage_series():
     """tests initializing a Series object with a gauge metric"""
-    series = Series("test.guage_metric", MetricType.GAUGE, interval=20, common=False)
+    series = Series("test.guage_metric", "gauge", interval=20, common=False)
 
     assert series.metric == "test.guage_metric"
-    assert series.type == MetricType.GAUGE
+    assert series.type == "gauge"
     assert series.common is False
     assert series.interval == 20
 
 
 def test_rate_series():
     """tests initializing a Series object with a rate metric"""
-    series = Series("test.common_rate_metric", MetricType.RATE, interval=30, common=True)
+    series = Series("test.common_rate_metric", "rate", interval=30, common=True)
 
     assert series.metric == "test.common_rate_metric"
-    assert series.type == MetricType.RATE
+    assert series.type == "rate"
     assert series.common is True
     assert series.interval == 30
 
 
 def test_series_set_tag():
     """tests adding tags to a metric"""
-    series = Series("test.rate_metric", metric_type=MetricType.RATE)
+    series = Series("test.rate_metric", metric_type="rate")
 
     series.set_tag("foo", "bar")
     series.set_tag("foo", "moo")
@@ -50,7 +49,7 @@ def test_series_set_tag():
 
 def test_series_add_point():
     """tests adding points to a metric"""
-    series = Series("test.guage_metric", MetricType.GAUGE, interval=10)
+    series = Series("test.guage_metric", "gauge", interval=10)
 
     with mock.patch("time.time") as t:
         t.return_value = 888366600
@@ -62,7 +61,7 @@ def test_series_add_point():
 
 def test_series_to_dict():
     """tests converting a series object to a dict and validates the set fields"""
-    series = Series("test.metric", MetricType.GAUGE, True, interval=10)
+    series = Series("test.metric", "gauge", True, interval=10)
 
     with mock.patch("time.time") as t:
         t.return_value = 888366600

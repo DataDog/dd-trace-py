@@ -2,7 +2,6 @@ import pytest
 
 from ddtrace.internal.telemetry.data.application import get_version
 from ddtrace.internal.telemetry.data.integration import create_integration
-from ddtrace.internal.telemetry.data.metrics import MetricType
 from ddtrace.internal.telemetry.data.metrics import Series
 from ddtrace.internal.telemetry.data.metrics import get_hostname
 from ddtrace.internal.telemetry.data.payload import AppClosedPayload
@@ -33,7 +32,7 @@ def test_app_closed_payload_to_dict():
 
 def test_generate_metrics_payload_to_dict():
     """validates the return value of AppGenerateMetricsPayload.to_dict"""
-    series_array = [Series("test.metric", MetricType.COUNT, False, 10)]
+    series_array = [Series("test.metric", "count", False, 10)]
     payload = AppGenerateMetricsPayload(series_array)
 
     assert len(payload.series) == 1
@@ -46,7 +45,7 @@ def test_generate_metrics_payload_to_dict():
                 "metric": "test.metric",
                 "points": [],
                 "tags": {},
-                "type": MetricType.COUNT,
+                "type": "count",
                 "common": False,
                 "interval": 10,
                 "host": get_hostname(),

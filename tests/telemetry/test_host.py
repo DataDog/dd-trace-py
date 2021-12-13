@@ -6,7 +6,7 @@ import pytest
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data.host import HOST
 from ddtrace.internal.telemetry.data.host import Host
-from ddtrace.internal.telemetry.data.host import get_containter_id
+from ddtrace.internal.telemetry.data.host import get_container_id
 from ddtrace.internal.telemetry.data.host import get_hostname
 from ddtrace.internal.telemetry.data.host import get_os_version
 
@@ -20,7 +20,7 @@ def test_host_fields():
         "kernel_name": platform.system(),
         "kernel_release": platform.release(),
         "kernel_version": platform.version(),
-        "container_id": get_containter_id(),
+        "container_id": get_container_id(),
     }  # type: Host
 
     assert HOST == expected_host
@@ -45,21 +45,21 @@ def test_get_os_version(mac_ver, win32_ver, expected):
 
 def test_get_container_id_when_container_exists():
     """
-    validates the return value of get_containter_id when get_container_info()
+    validates the return value of get_container_id when get_container_info()
     can parse /proc/{pid}/cgroup
     """
     with mock.patch("ddtrace.internal.telemetry.data.host.get_container_info") as gci:
         cgroupInfo = CGroupInfo()
         cgroupInfo.container_id = "1641"
         gci.return_value = cgroupInfo
-        assert get_containter_id() == "1641"
+        assert get_container_id() == "1641"
 
 
 def test_get_container_id_when_container_does_not_exists():
     """
-    validates the return value of get_containter_id when get_container_info() CAN NOT
+    validates the return value of get_container_id when get_container_info() CAN NOT
     parse /proc/{pid}/cgroup
     """
     with mock.patch("ddtrace.internal.telemetry.data.host.get_container_info") as gci:
         gci.return_value = None
-        assert get_containter_id() == ""
+        assert get_container_id() == ""

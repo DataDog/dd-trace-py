@@ -8,14 +8,6 @@ from typing import Tuple
 from ...hostname import get_hostname
 
 
-class MetricType:
-    """gauge, count, and rate are the 3 metric types accepted by the Telemetry Instrumentation"""
-
-    COUNT = "count"  # type: Literal['count']
-    GAUGE = "gauge"  # type: Literal['gauge']
-    RATE = "rate"  # type: Literal['rate']
-
-
 class Series:
     """stores metrics which will be sent to the Telemetry Intake metrics to the Datadog Instrumentation Telemetry Org"""
 
@@ -27,7 +19,7 @@ class Series:
         :param bool common: set to True if a metric is common to all tracers, false if it is python specific
         :param int interval: field set for gauge and rate metrics, any field set is ignored for count metrics (in secs)
 
-        >>> Series(metric=True, metric_type=MetricType.GAUGE, common=True, interval=10)
+        >>> Series(metric=True, metric_type="gauge", common=True, interval=10)
         """
         self.metric = metric
         self.type = metric_type

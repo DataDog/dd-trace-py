@@ -52,7 +52,7 @@ def get_host():
         "kernel_name": platform.system(),
         "kernel_release": platform.release(),
         "kernel_version": platform.version(),
-        "container_id": get_containter_id(),
+        "container_id": get_container_id(),
     }
 
 
