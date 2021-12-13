@@ -67,6 +67,7 @@ def test_create_telemetry_request():
                     "Content-type": "application/json",
                     "DD-Telemetry-Request-Type": "app-closed",
                     "DD-Telemetry-API-Version": "v1",
+                    "DD-API-KEY": "",
                 },
                 "body": {
                     "tracer_time": 888366600,

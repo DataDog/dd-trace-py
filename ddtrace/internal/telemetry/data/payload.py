@@ -4,11 +4,9 @@ from typing import Dict
 from typing import List
 from typing import Literal
 
-from ....version import get_version
 from .dependency import Dependency
 from .dependency import create_dependency
 from .integration import Integration
-from .metrics import Series
 
 
 RequestType = Literal[
@@ -80,29 +78,6 @@ class AppStartedPayload(Payload):
         import pkg_resources
 
         return [create_dependency(pkg.project_name, pkg.version) for pkg in pkg_resources.working_set]
-
-
-class AppGenerateMetricsPayload(Payload):
-    """Telemetry Payload for sending metrics to the Instrumentation Telemetry Datadog Org"""
-
-    def __init__(self, series):
-        # type: (List[Series]) -> None
-        super().__init__()
-        self.namespace = "tracers"  # type: str
-        self.lib_language = "python"  # type: str
-        self.lib_version = get_version()  # type: str
-        self.series = series  # type: List[Series]
-
-    def request_type(self):
-        return "generate-metrics"
-
-    def to_dict(self):
-        return {
-            "namespace": self.namespace,
-            "lib_language": self.lib_language,
-            "lib_version": self.lib_version,
-            "series": [s.to_dict() for s in self.series],
-        }
 
 
 class AppClosedPayload(Payload):

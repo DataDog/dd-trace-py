@@ -2,10 +2,7 @@ import pytest
 
 from ddtrace.internal.telemetry.data.application import get_version
 from ddtrace.internal.telemetry.data.integration import create_integration
-from ddtrace.internal.telemetry.data.metrics import Series
-from ddtrace.internal.telemetry.data.metrics import get_hostname
 from ddtrace.internal.telemetry.data.payload import AppClosedPayload
-from ddtrace.internal.telemetry.data.payload import AppGenerateMetricsPayload
 from ddtrace.internal.telemetry.data.payload import AppIntegrationsChangedPayload
 from ddtrace.internal.telemetry.data.payload import AppStartedPayload
 from ddtrace.internal.telemetry.data.payload import Payload
@@ -15,7 +12,6 @@ def test_payload_request_type():
     """validates the return value of Payload.request_type"""
     assert AppClosedPayload().request_type() == "app-closed"
     assert AppStartedPayload().request_type() == "app-started"
-    assert AppGenerateMetricsPayload([]).request_type() == "generate-metrics"
     assert AppIntegrationsChangedPayload([]).request_type() == "app-integrations-changed"
 
 
@@ -28,30 +24,6 @@ def test_app_started_payload_to_dict():
 def test_app_closed_payload_to_dict():
     """validates the return value of AppClosedPayload.to_dict"""
     assert AppClosedPayload().to_dict() == {}
-
-
-def test_generate_metrics_payload_to_dict():
-    """validates the return value of AppGenerateMetricsPayload.to_dict"""
-    series_array = [Series("test.metric", "count", False, 10)]
-    payload = AppGenerateMetricsPayload(series_array)
-
-    assert len(payload.series) == 1
-    assert payload.to_dict() == {
-        "namespace": "tracers",
-        "lib_language": "python",
-        "lib_version": get_version(),
-        "series": [
-            {
-                "metric": "test.metric",
-                "points": [],
-                "tags": {},
-                "type": "count",
-                "common": False,
-                "interval": 10,
-                "host": get_hostname(),
-            },
-        ],
-    }
 
 
 def test_app_integrations_changed_to_dict():

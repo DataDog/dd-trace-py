@@ -55,6 +55,7 @@ def create_telemetry_request(payload, seq_id):
             "Content-type": "application/json",
             "DD-Telemetry-Request-Type": payload.request_type(),
             "DD-Telemetry-API-Version": "v1",
+            "DD-API-KEY": "",
         },
         "body": {
             "tracer_time": int(time.time()),
