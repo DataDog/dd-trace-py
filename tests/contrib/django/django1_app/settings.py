@@ -1,5 +1,6 @@
-import django
 import os
+
+import django
 
 
 ALLOWED_HOSTS = [

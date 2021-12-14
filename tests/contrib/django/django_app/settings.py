@@ -1,5 +1,6 @@
-import django
 import os
+
+import django
 
 from ddtrace import tracer
 from tests.webclient import PingFilter

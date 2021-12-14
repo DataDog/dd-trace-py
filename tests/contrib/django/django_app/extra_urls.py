@@ -1,5 +1,5 @@
-from django.urls import re_path
 from django.http import HttpResponse
+from django.urls import re_path
 
 
 def include_view(request):
