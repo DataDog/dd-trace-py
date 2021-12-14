@@ -1,7 +1,7 @@
 from ddtrace.internal.telemetry.data import create_integration
 from ddtrace.internal.telemetry.telemetry_request import app_started_telemetry_request
+from ddtrace.internal.telemetry.telemetry_writer import DEFAULT_TELEMETRY_ENDPOINT_TEST
 from ddtrace.internal.telemetry.telemetry_writer import TelemetryWriter
-from ddtrace.telemetry import DEFAULT_TELEMETRY_ENDPOINT_TEST
 
 
 def test_telemetry_writer_app_started():

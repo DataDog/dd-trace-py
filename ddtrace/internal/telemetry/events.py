@@ -1,31 +1,32 @@
 from typing import Dict
 from typing import List
-from typing import TypedDict
 from typing import Union
+
+from ddtrace.internal.compat import TypedDict
 
 from .data import Dependency
 from .data import Integration
 from .data import create_dependency
 
 
-AppStartedPayload = TypedDict(
-    "AppStartedPayload",
+AppStartedEvent = TypedDict(
+    "AppStartedEvent",
     {
         "dependencies": List[Dependency],
         "configurations": Dict[str, str],
     },
 )
 
-AppIntegrationsChangedPayload = TypedDict(
-    "AppIntegrationsChangedPayload",
+AppIntegrationsChangedEvent = TypedDict(
+    "AppIntegrationsChangedEvent",
     {
         "integrations": List[Integration],
     },
 )
 
-AppClosedPayload = TypedDict("AppClosedPayload", {})
+AppClosedEvent = TypedDict("AppClosedEvent", {})
 
-Event = Union[AppStartedPayload, AppIntegrationsChangedPayload, AppClosedPayload]
+Event = Union[AppStartedEvent, AppIntegrationsChangedEvent, AppClosedEvent]
 
 
 def get_app_dependencies():

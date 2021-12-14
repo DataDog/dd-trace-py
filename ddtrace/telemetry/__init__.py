@@ -5,11 +5,6 @@ import six
 import ddtrace.internal.telemetry.telemetry_writer
 
 
-# TO DO: USE AGENT ENDPOINT
-DEFAULT_TELEMETRY_ENDPOINT = "https://instrumentation-telemetry-intake.datadoghq.com"
-DEFAULT_TELEMETRY_ENDPOINT_TEST = "https://all-http-intake.logs.datad0g.com/api/v2/apmtelemetry"
-
-
 class _InstrumentationTelemetryStatus(type):
     @property
     def _enabled(_):
@@ -38,7 +33,7 @@ class InstrumentationTelemetry(six.with_metaclass(_InstrumentationTelemetryStatu
         :param endpoint: instrumentation-telemetry-intake public api (will be replaced with an agent endpoint)
         """
 
-        ddtrace.internal.telemetry.telemetry_writer.TelemetryWriter.enable(endpoint=DEFAULT_TELEMETRY_ENDPOINT)
+        ddtrace.internal.telemetry.telemetry_writer.TelemetryWriter.enable()
 
     @staticmethod
     def disable():

@@ -2,10 +2,11 @@ import platform
 import sys
 from typing import Dict
 from typing import List
-from typing import TypedDict
 from typing import Union
 
 from ddtrace import config  # noqa: E402
+from ddtrace.internal.compat import PY3
+from ddtrace.internal.compat import TypedDict
 from ddtrace.internal.runtime.container import get_container_info
 
 from ...version import get_version
@@ -50,24 +51,24 @@ Host = TypedDict(
     },
 )
 
-AppStartedPayload = TypedDict(
-    "AppStartedPayload",
+AppStartedEvent = TypedDict(
+    "AppStartedEvent",
     {
         "dependencies": List[Dependency],
         "configurations": Dict[str, str],
     },
 )
 
-AppIntegrationsChangedPayload = TypedDict(
-    "AppIntegrationsChangedPayload",
+AppIntegrationsChangedEvent = TypedDict(
+    "AppIntegrationsChangedEvent",
     {
         "integrations": List[Integration],
     },
 )
 
-AppClosedPayload = TypedDict("AppClosedPayload", {})
+AppClosedEvent = TypedDict("AppClosedEvent", {})
 
-Event = Union[AppStartedPayload, AppIntegrationsChangedPayload, AppClosedPayload]
+Event = Union[AppStartedEvent, AppIntegrationsChangedEvent, AppClosedEvent]
 
 
 def create_dependency(name, version):
@@ -109,13 +110,18 @@ def get_container_id():
 
 def get_os_version():
     # type: () -> str
-    """returns the os version for applications running on Mac or Windows 32-bit"""
+    """returns the os version for applications running on Unix, Mac or Windows 32-bit"""
     ver, _, _ = platform.mac_ver()
     if ver:
         return ver
     _, ver, _, _ = platform.win32_ver()
     if ver:
         return ver
+
+    _, ver = platform.libc_ver()
+    if ver:
+        return ver
+
     return ""
 
 
@@ -143,8 +149,8 @@ def get_application():
         "language_name": "python",
         "language_version": format_version_info(sys.version_info),
         "tracer_version": get_version(),
-        "runtime_name": sys.implementation.name,
-        "runtime_version": format_version_info(sys.implementation.version),
+        "runtime_name": platform.python_implementation(),
+        "runtime_version": format_version_info(sys.implementation.version) if PY3 else "",
     }
 
 

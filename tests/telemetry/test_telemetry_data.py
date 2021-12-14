@@ -4,6 +4,7 @@ import sys
 import mock
 import pytest
 
+from ddtrace.internal.compat import PY3
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import APPLICATION
 from ddtrace.internal.telemetry.data import Application
@@ -63,6 +64,11 @@ def test_create_integration_with_default_args():
 
 def test_application():
     """validates whether the APPLICATION singleton contains the expected fields"""
+
+    runtime_v = ""
+    if PY3:
+        runtime_v = format_version_info(sys.implementation.version)
+
     expected_application = {
         "service_name": "unnamed_python_service",
         "service_version": "",
@@ -70,8 +76,8 @@ def test_application():
         "language_name": "python",
         "language_version": format_version_info(sys.version_info),
         "tracer_version": get_version(),
-        "runtime_name": sys.implementation.name,
-        "runtime_version": format_version_info(sys.implementation.version),
+        "runtime_name": platform.python_implementation(),
+        "runtime_version": runtime_v,
     }  # type: Application
 
     assert APPLICATION == expected_application
@@ -120,20 +126,23 @@ def test_host_fields():
 
 
 @pytest.mark.parametrize(
-    "mac_ver,win32_ver,expected",
+    "mac_ver,win32_ver,libc_ver,expected",
     [
-        ((None, None, None), (None, "4.1.6", None, None), "4.1.6"),
-        (("3.5.6", None, None), (None, "", None, None), "3.5.6"),
-        ((None, None, None), (None, None, None, None), ""),
+        ((None, None, None), (None, "4.1.6", None, None), (None, None), "4.1.6"),
+        (("3.5.6", None, None), (None, "", None, None), (None, None), "3.5.6"),
+        ((None, None, None), (None, None, None, None), (None, "1.2.7"), "1.2.7"),
+        ((None, None, None), (None, None, None, None), (None, None), ""),
     ],
 )
-def test_get_os_version(mac_ver, win32_ver, expected):
+def test_get_os_version(mac_ver, win32_ver, libc_ver, expected):
     """test retrieving the os version on a mac and windows 32-bit operating systems"""
     with mock.patch("platform.mac_ver") as macos:
         macos.return_value = mac_ver
         with mock.patch("platform.win32_ver") as win32:
             win32.return_value = win32_ver
-            assert get_os_version() == expected
+            with mock.patch("platform.libc_ver") as libc:
+                libc.return_value = libc_ver
+                assert get_os_version() == expected
 
 
 def test_get_container_id_when_container_exists():

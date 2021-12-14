@@ -117,6 +117,16 @@ except ImportError:
         return int(_process_time() * 1e9)
 
 
+if sys.version_info < (3, 8):
+    import typing_extensions
+
+    TypedDict = typing_extensions.TypedDict
+else:
+    import typing
+
+    TypedDict = typing.TypedDict
+
+
 if sys.version_info.major < 3:
     getrandbits = random.SystemRandom().getrandbits
 else:
