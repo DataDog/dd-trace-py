@@ -3,12 +3,17 @@ from typing import Any
 from typing import Dict
 from typing import TypedDict
 
-from ...runtime import get_runtime_id
-from .application import APPLICATION
-from .application import Application
-from .host import HOST
-from .host import Host
-from .payload import Payload
+from ..runtime import get_runtime_id
+from .data import APPLICATION
+from .data import Application
+from .data import HOST
+from .data import Host
+from .events import AppClosedPayload
+from .events import AppIntegrationsChangedPayload
+from .events import AppStartedPayload
+from .events import Event
+from .events import get_app_configurations
+from .events import get_app_dependencies
 
 
 # Contains all the body fields required by v1 of the Telemetry Intake API
@@ -40,8 +45,8 @@ TelemetryRequest = TypedDict(
 )
 
 
-def create_telemetry_request(payload, seq_id):
-    # type: (Payload, int) -> TelemetryRequest
+def create_telemetry_request(event, event_type, seq_id):
+    # type: (Event, str, int) -> TelemetryRequest
     """
     Initializes the required fields for a generic Telemetry Intake Request
 
@@ -53,7 +58,7 @@ def create_telemetry_request(payload, seq_id):
     return {
         "headers": {
             "Content-type": "application/json",
-            "DD-Telemetry-Request-Type": payload.request_type(),
+            "DD-Telemetry-Request-Type": event_type,
             "DD-Telemetry-API-Version": "v1",
             "DD-API-KEY": "",
         },
@@ -64,7 +69,31 @@ def create_telemetry_request(payload, seq_id):
             "seq_id": seq_id,
             "application": APPLICATION,
             "host": HOST,
-            "payload": payload.to_dict(),
-            "request_type": payload.request_type(),
+            "payload": event,
+            "request_type": event_type,
         },
     }
+
+
+def app_started_telemetry_request(seq_id=0):
+    """returns a TelemetryRequest which contains a list of application dependencies and configurations"""
+
+    payload = {
+        "dependencies": get_app_dependencies(),
+        "configurations": get_app_configurations(),  # will set configurations in future comits
+    }  # type: AppStartedPayload
+    return create_telemetry_request(payload, "app-closed", seq_id)
+
+
+def app_closed_telemetry_request(seq_id=0):
+    """returns a TelemetryRequest which notifies the agent that an application instance has terminated"""
+    payload = {}  # type: AppClosedPayload
+    return create_telemetry_request(payload, "app-started", seq_id)
+
+
+def app_integrations_changed_telemetry_request(integrations, seq_id=0):
+    """returns a TelemetryRequest which sends a list of configured integrations to the agent"""
+    payload = {
+        "integrations": integrations,
+    }  # type: AppIntegrationsChangedPayload
+    return create_telemetry_request(payload, "app-integrations-changed", seq_id)

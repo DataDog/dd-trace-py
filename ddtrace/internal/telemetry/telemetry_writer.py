@@ -13,11 +13,13 @@ from ..agent import get_connection
 from ..compat import get_connection_response
 from ..logger import get_logger
 from ..periodic import PeriodicService
-from .data.integration import Integration
-from .data.payload import AppClosedPayload
-from .data.payload import AppIntegrationsChangedPayload
-from .data.telemetry_request import TelemetryRequest
-from .data.telemetry_request import create_telemetry_request
+from .data import Integration
+from .events import AppClosedPayload
+from .events import AppIntegrationsChangedPayload
+from .telemetry_request import TelemetryRequest
+from .telemetry_request import app_closed_telemetry_request
+from .telemetry_request import app_integrations_changed_telemetry_request
+from .telemetry_request import app_started_telemetry_request
 
 
 log = get_logger(__name__)
@@ -52,7 +54,7 @@ class TelemetryWriter(PeriodicService):
             self.integrations_request["body"]["payload"]["integrations"].append(integration)
         else:
             integrations = [integration]
-            self.integrations_request = create_telemetry_request(AppIntegrationsChangedPayload(integrations), 0)
+            self.integrations_request = app_integrations_changed_telemetry_request(integrations, 0)
 
     def _send_request(self, request):
         # type: (TelemetryRequest) -> http.client.HTTPResponse
@@ -103,7 +105,7 @@ class TelemetryWriter(PeriodicService):
 
     def shutdown(self):
         # type: () -> None
-        appclosed_request = create_telemetry_request(AppClosedPayload(), 0)
+        appclosed_request = app_closed_telemetry_request()
         self.requests.append(appclosed_request)
         self.periodic()
 

@@ -1,14 +1,12 @@
-from ddtrace.internal.telemetry.data.integration import create_integration
-from ddtrace.internal.telemetry.data.payload import AppStartedPayload
-from ddtrace.internal.telemetry.data.telemetry_request import create_telemetry_request
+from ddtrace.internal.telemetry.data import create_integration
+from ddtrace.internal.telemetry.telemetry_request import app_started_telemetry_request
 from ddtrace.internal.telemetry.telemetry_writer import TelemetryWriter
 from ddtrace.telemetry import DEFAULT_TELEMETRY_ENDPOINT_TEST
 
 
 def test_telemetry_writer_app_started():
 
-    apps = AppStartedPayload()
-    rb1 = create_telemetry_request(apps, 0)
+    rb1 = app_started_telemetry_request()
 
     telemetry_writer = TelemetryWriter(endpoint=DEFAULT_TELEMETRY_ENDPOINT_TEST)
     telemetry_writer.add_request(rb1)
