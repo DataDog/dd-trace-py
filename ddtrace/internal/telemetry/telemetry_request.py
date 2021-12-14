@@ -4,8 +4,8 @@ from typing import List
 
 from ddtrace.internal.compat import TypedDict
 
-from ..runtime import get_runtime_id
 from ...compat import monotonic
+from ..runtime import get_runtime_id
 from .data import APPLICATION
 from .data import Application
 from .data import HOST
