@@ -1,4 +1,4 @@
-from django.conf.urls import url
+from django.urls import re_path
 from django.http import HttpResponse
 
 
@@ -7,5 +7,5 @@ def include_view(request):
 
 
 urlpatterns = [
-    url("test/", include_view),
+    re_path("test/", include_view),
 ]

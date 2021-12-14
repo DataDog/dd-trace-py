@@ -101,7 +101,8 @@ def test_middleware_trace_partial_based_view(client):
         "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
         "21x": (1, 12) < django.VERSION < (2, 2),
-        "": django.VERSION >= (2, 2),
+        "22x": (2, 2) < django.VERSION < (4, 0),
+        "4x": django.VERSION >= (4, 0),
     }
 )
 def test_safe_string_encoding(client):

@@ -1,3 +1,4 @@
+import django
 import os
 
 from ddtrace import tracer
@@ -48,6 +49,10 @@ CACHES = {
         "LOCATION": "127.0.0.1:11211",
     },
 }
+
+if django.VERSION >= (4, 0, 0):
+    CACHES["redis"]["BACKEND"] = "django.core.cache.backends.redis.RedisCache"
+
 
 SITE_ID = 1
 SECRET_KEY = "not_very_secret_in_tests"
