@@ -1,6 +1,5 @@
 import pytest
 
-from ddtrace.internal.telemetry.data.application import get_version
 from ddtrace.internal.telemetry.data.integration import create_integration
 from ddtrace.internal.telemetry.data.payload import AppClosedPayload
 from ddtrace.internal.telemetry.data.payload import AppIntegrationsChangedPayload

@@ -1,9 +1,13 @@
 import http
 import json
 import logging
-from typing import Dict
+from typing import ClassVar
 from typing import List
+from typing import Optional
 
+from ddtrace.internal import forksafe
+
+from ...utils.formats import get_env
 from ...utils.time import StopWatch
 from ..agent import get_connection
 from ..compat import get_connection_response
@@ -16,23 +20,27 @@ from .data.telemetry_request import TelemetryRequest
 from .data.telemetry_request import create_telemetry_request
 
 
-# TO DO: USE AGENT ENDPOINT
-DEFAULT_TELEMETRY_ENDPOINT = "https://instrumentation-telemetry-intake.datadoghq.com"
-DEFAULT_TELEMETRY_ENDPOINT_TEST = "https://all-http-intake.logs.datad0g.com/api/v2/apmtelemetry"
-
 log = get_logger(__name__)
 
 
+def _get_interval_or_default():
+    return float(get_env("instrumentation_telemetry", "interval", default=60))
+
+
 class TelemetryWriter(PeriodicService):
-    def __init__(self, endpoint=DEFAULT_TELEMETRY_ENDPOINT_TEST, interval=60):
+    enabled = False
+    _instance = None  # type: ClassVar[Optional[TelemetryWriter]]
+    _lock = forksafe.Lock()
+
+    def __init__(self, endpoint):
         # type: (str, int) -> None
-        super().__init__(interval=interval)
+        super().__init__(interval=_get_interval_or_default())
 
         self.url = endpoint  # type: str
         self.sequence = 0  # type: int
 
         self.requests = []  # type: List[TelemetryRequest]
-        self.integrations_queue = []  # type: List[Integration]
+        self.integrations_request = None  # type: Optional[TelemetryRequest]
 
     def add_request(self, request):
         # type: (TelemetryRequest) -> None
@@ -40,7 +48,11 @@ class TelemetryWriter(PeriodicService):
 
     def add_integration(self, integration):
         # type: (Integration) -> None
-        self.integrations_queue.append(integration)
+        if self.integrations_request:
+            self.integrations_request["body"]["payload"]["integrations"].append(integration)
+        else:
+            integrations = [integration]
+            self.integrations_request = create_telemetry_request(AppIntegrationsChangedPayload(integrations), 0)
 
     def _send_request(self, request):
         # type: (TelemetryRequest) -> http.client.HTTPResponse
@@ -66,16 +78,16 @@ class TelemetryWriter(PeriodicService):
 
         return resp
 
-    def _add_integrations_to_requests(self):
-        # type: () -> None
-        if self.integrations_queue:
-            integrations_request = create_telemetry_request(AppIntegrationsChangedPayload(self.integrations_queue), 0)
-            self.requests.append(integrations_request)
-            self.integrations_queue = []
+    @classmethod
+    def get_instance(cls):
+        # type: () -> Optional[TelemetryWriter]
+        return cls._instance
 
     def periodic(self):
         # type: () -> None
-        self._add_integrations_to_requests()
+        if self.integrations_request:
+            self.add_request(self.integrations_request)
+            self.integrations_request = None
 
         requests_failed = []  # type: List[TelemetryRequest]
         for request in self.requests:
@@ -94,3 +106,37 @@ class TelemetryWriter(PeriodicService):
         appclosed_request = create_telemetry_request(AppClosedPayload(), 0)
         self.requests.append(appclosed_request)
         self.periodic()
+
+    @classmethod
+    def _restart(cls):
+        cls.disable()
+        cls.enable()
+
+    @classmethod
+    def disable(cls):
+        # type: () -> None
+        with cls._lock:
+            if cls._instance is None:
+                return
+
+            forksafe.unregister(cls._restart)
+
+            cls._instance.stop()
+            cls._instance.join()
+            cls._instance = None
+            cls.enabled = False
+
+    @classmethod
+    def enable(cls, endpoint=None):
+        # type: (Optional[str]) -> None
+        with cls._lock:
+            if cls._instance is not None:
+                return
+
+            instrumentation_telemetry = cls(endpoint)  # type: ignore[arg-type]
+            instrumentation_telemetry.start()
+
+            forksafe.register(cls._restart)
+
+            cls._instance = instrumentation_telemetry
+            cls.enabled = True
