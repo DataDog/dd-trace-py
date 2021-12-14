@@ -43,23 +43,14 @@ class TelemetryWriter(PeriodicService):
         self.url = endpoint  # type: str
         self.sequence = 0  # type: int
 
-        self.requests = []  # type: List[TelemetryRequest]
+        self.requests_buffer = []  # type: List[TelemetryRequest]
         self._integrations_request = None  # type: Optional[TelemetryRequest]
-
-    def add_request(self, request):
-        # type: (TelemetryRequest) -> None
-        self.requests.append(request)
-
-    def add_integration(self, integration):
-        # type: (Integration) -> None
-        if self._integrations_request:
-            self._integrations_request["body"]["payload"]["integrations"].append(integration)
-        else:
-            integrations = [integration]
-            self._integrations_request = app_integrations_changed_telemetry_request(integrations, 0)
 
     def _send_request(self, request):
         # type: (TelemetryRequest) -> httplib.HTTPResponse
+        """
+        Sends a telemetry request to telemetry intake [this will be switched the agent]
+        """
 
         conn = get_connection(self.url)
 
@@ -85,11 +76,11 @@ class TelemetryWriter(PeriodicService):
     def periodic(self):
         # type: () -> None
         if self._integrations_request:
-            self.add_request(self._integrations_request)
+            self.requests_buffer.append(self._integrations_request)
             self._integrations_request = None
 
         requests_failed = []  # type: List[TelemetryRequest]
-        for request in self.requests:
+        for request in self.requests_buffer:
             request["body"]["seq_id"] = self.sequence
 
             resp = self._send_request(request)
@@ -98,18 +89,43 @@ class TelemetryWriter(PeriodicService):
             else:
                 requests_failed.append(request)
 
-        self.requests = requests_failed
+        self.requests_buffer = requests_failed
 
     def shutdown(self):
         # type: () -> None
         appclosed_request = app_closed_telemetry_request(self.sequence)
-        self.requests.append(appclosed_request)
+        self.requests_buffer.append(appclosed_request)
         self.periodic()
 
     @classmethod
-    def get_instance(cls):
-        # type: () -> Optional[TelemetryWriter]
-        return cls._instance
+    def add_request(cls, request):
+        """
+        Adds a Telemetry Request to the TelemetryWriter request buffer
+
+         :param TelemetryRequest request: dictionary which stores a formatted telemetry request body and header
+        """
+        # type: (TelemetryRequest) -> None
+        with cls._lock:
+            if cls._instance:
+                cls._instance.requests_buffer.append(request)
+
+    @classmethod
+    def add_integration(cls, integration):
+        # type: (Integration) -> None
+        """
+        Generates a Telemetry request with an AppIntegrationsChangedEvent payload
+          - If an integrations changed event exists then it add the integation
+            to the integrations buffers
+
+        :param Integration integration: dictionary which stores the name and configurations of a dd-trace Integration
+        """
+        with cls._lock:
+            if cls._instance:
+                if cls._instance._integrations_request:
+                    cls._instance._integrations_request["body"]["payload"]["integrations"].append(integration)
+                else:
+                    integrations = [integration]
+                    cls._instance._integrations_request = app_integrations_changed_telemetry_request(integrations, 0)
 
     @classmethod
     def _restart(cls):

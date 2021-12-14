@@ -21,6 +21,7 @@ from ddtrace import config  # noqa
 from ddtrace import constants
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+from ddtrace.internal.telemetry.telemetry_request import app_started_telemetry_request
 from ddtrace.internal.telemetry.telemetry_writer import TelemetryWriter
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import get_env
@@ -122,6 +123,8 @@ try:
 
     if asbool(get_env("instrumentation_telemetry", "enabled")):
         TelemetryWriter.enable()
+        request = app_started_telemetry_request()
+        TelemetryWriter.add_request(request)
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.

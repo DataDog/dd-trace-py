@@ -1,13 +1,10 @@
 import platform
 import sys
-from typing import Dict
-from typing import List
-from typing import Union
 
-from ddtrace import config  # noqa: E402
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import TypedDict
 from ddtrace.internal.runtime.container import get_container_info
+from ddtrace.settings import _config as config
 
 from ...version import get_version
 from ..hostname import get_hostname
@@ -50,25 +47,6 @@ Host = TypedDict(
         "container_id": str,
     },
 )
-
-AppStartedEvent = TypedDict(
-    "AppStartedEvent",
-    {
-        "dependencies": List[Dependency],
-        "configurations": Dict[str, str],
-    },
-)
-
-AppIntegrationsChangedEvent = TypedDict(
-    "AppIntegrationsChangedEvent",
-    {
-        "integrations": List[Integration],
-    },
-)
-
-AppClosedEvent = TypedDict("AppClosedEvent", {})
-
-Event = Union[AppStartedEvent, AppIntegrationsChangedEvent, AppClosedEvent]
 
 
 def create_dependency(name, version):

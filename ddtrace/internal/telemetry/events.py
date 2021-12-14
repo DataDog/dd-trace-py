@@ -9,6 +9,7 @@ from .data import Integration
 from .data import create_dependency
 
 
+# Payload of a TelemetryRequest which is sent at the start of the an application
 AppStartedEvent = TypedDict(
     "AppStartedEvent",
     {
@@ -17,6 +18,7 @@ AppStartedEvent = TypedDict(
     },
 )
 
+# Payload of a TelemetryRequest which is sent after we attempt to instrument a module
 AppIntegrationsChangedEvent = TypedDict(
     "AppIntegrationsChangedEvent",
     {
@@ -24,8 +26,10 @@ AppIntegrationsChangedEvent = TypedDict(
     },
 )
 
+# Payload of a TelemetryRequest which is sent after an application or process is terminated
 AppClosedEvent = TypedDict("AppClosedEvent", {})
 
+# Union type which ensures all telemetry request contain a valid payload type
 Event = Union[AppStartedEvent, AppIntegrationsChangedEvent, AppClosedEvent]
 
 
