@@ -12,7 +12,7 @@ from ddtrace.internal.telemetry.telemetry_request import app_started_telemetry_r
 
 def test_create_telemetry_request():
     """validates the return value of _create_telemetry_request"""
-    with mock.patch("time.time") as t:
+    with mock.patch("ddtrace.internal.telemetry.telemetry_request.monotonic") as t:
         t.return_value = 888366600
         with mock.patch("ddtrace.internal.telemetry.telemetry_request.get_runtime_id") as get_rt_id:
             get_rt_id.return_value = "1234-567"

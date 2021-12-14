@@ -49,15 +49,6 @@ Host = TypedDict(
 )
 
 
-def create_dependency(name, version):
-    # type: (str, str) -> Dependency
-    """helper for creating a Dependency Dict"""
-    return {
-        "name": name,
-        "version": version,
-    }
-
-
 def create_integration(name, version="", enabled=True, auto_enabled=True, compatible="", error=""):
     # type: (str, str, bool, bool, str, str) -> Integration
     """creates an Integration Dict and sets default values"""

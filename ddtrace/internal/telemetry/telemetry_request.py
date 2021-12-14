@@ -1,4 +1,3 @@
-import time
 from typing import Any
 from typing import Dict
 from typing import List
@@ -6,6 +5,7 @@ from typing import List
 from ddtrace.internal.compat import TypedDict
 
 from ..runtime import get_runtime_id
+from ...compat import monotonic
 from .data import APPLICATION
 from .data import Application
 from .data import HOST
@@ -66,7 +66,7 @@ def _create_telemetry_request(event, event_type, seq_id):
             "DD-API-KEY": "",
         },
         "body": {
-            "tracer_time": int(time.time()),
+            "tracer_time": int(monotonic()),
             "runtime_id": get_runtime_id(),
             "api_version": "v1",
             "seq_id": seq_id,

@@ -12,7 +12,6 @@ from ddtrace.internal.telemetry.data import Dependency
 from ddtrace.internal.telemetry.data import HOST
 from ddtrace.internal.telemetry.data import Host
 from ddtrace.internal.telemetry.data import Integration
-from ddtrace.internal.telemetry.data import create_dependency
 from ddtrace.internal.telemetry.data import create_integration
 from ddtrace.internal.telemetry.data import format_version_info
 from ddtrace.internal.telemetry.data import get_container_id
@@ -22,10 +21,10 @@ from ddtrace.internal.telemetry.data import get_version
 
 
 def test_create_dependency():
-    """tests create_dependency and validates return type"""
+    """tests creating a Dependency dictionary"""
     name = "dependency_name"
     version = "0.0.0"
-    dependency = create_dependency(name, version)
+    dependency = Dependency(name=name, version=version)
 
     assert dependency == {
         "name": name,
