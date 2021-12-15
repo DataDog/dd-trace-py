@@ -99,12 +99,12 @@ class TelemetryWriter(PeriodicService):
 
     @classmethod
     def add_request(cls, request):
+        # type: (TelemetryRequest) -> None
         """
         Adds a Telemetry Request to the TelemetryWriter request buffer
 
          :param TelemetryRequest request: dictionary which stores a formatted telemetry request body and header
         """
-        # type: (TelemetryRequest) -> None
         with cls._lock:
             if cls._instance:
                 cls._instance.requests_buffer.append(request)
