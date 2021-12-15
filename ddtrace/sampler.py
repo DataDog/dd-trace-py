@@ -214,7 +214,7 @@ class DatadogSampler(BasePrioritySampler):
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
 
-        log.debug("initialized {!r}", self)
+        log.debug("initialized %r", self)
 
     @removed_property(removal_version="1.0.0")
     def default_sampler(self):
