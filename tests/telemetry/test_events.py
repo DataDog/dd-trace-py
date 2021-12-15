@@ -1,5 +1,5 @@
-from ddtrace.internal.telemetry.data import create_integration
 from ddtrace.internal.telemetry.data import Dependency
+from ddtrace.internal.telemetry.data import create_integration
 from ddtrace.internal.telemetry.events import AppClosedEvent
 from ddtrace.internal.telemetry.events import AppIntegrationsChangedEvent
 from ddtrace.internal.telemetry.events import AppStartedEvent
