@@ -1,9 +1,15 @@
+import django
 from django.conf.urls import include
-from django.conf.urls import url
 from django.contrib.auth.models import User
 from rest_framework import routers
 from rest_framework import serializers
 from rest_framework import viewsets
+
+
+if django.VERSION < (2, 0, 0):
+    from django.conf.urls import url
+else:
+    from django.urls import re_path as url
 
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
