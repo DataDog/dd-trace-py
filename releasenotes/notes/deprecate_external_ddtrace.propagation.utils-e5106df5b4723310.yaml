@@ -1,7 +1,5 @@
 ---
 deprecations:
   - |
-    The contents of ``ddtrace.propagation.utils.py`` have been moved into ``ddtrace.propagation._utils.py`` in an
-    effort to internalize the module. Public methods have been imported back
-    into ``ddtrace.propagation.utils.py`` in order to retain compatibility, but this module will be
-    removed entirely in version 1.0.0.
+    ``ddtrace.propagation.utils.from_wsgi_header`` and ``ddtrace.propagation.utils.get_wsgi_header`` have been 
+    deprecated and will be removed in version 1.0.0.
