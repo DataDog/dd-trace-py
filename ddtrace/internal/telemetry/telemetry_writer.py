@@ -14,8 +14,10 @@ from ..compat import httplib
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from .data import Integration
+from .metrics import Series
 from .telemetry_request import TelemetryRequest
 from .telemetry_request import app_closed_telemetry_request
+from .telemetry_request import app_generate_metrics_telemetry_request
 from .telemetry_request import app_integrations_changed_telemetry_request
 
 
@@ -45,6 +47,7 @@ class TelemetryWriter(PeriodicService):
 
         self.requests_buffer = []  # type: List[TelemetryRequest]
         self._integrations_request = None  # type: Optional[TelemetryRequest]
+        self.series_map = []  # type Dict[str, Series]
 
     def _send_request(self, request):
         # type: (TelemetryRequest) -> httplib.HTTPResponse
@@ -78,6 +81,12 @@ class TelemetryWriter(PeriodicService):
         if self._integrations_request:
             self.requests_buffer.append(self._integrations_request)
             self._integrations_request = None
+
+        if self.series_map:
+            series_queue = self.series_map.values()
+            self.series_map = {}  # type: Dict[str, Series]
+            metrics_request = app_generate_metrics_telemetry_request(series_queue, self.sequence)
+            self.requests_buffer.append(metrics_request)
 
         requests_failed = []  # type: List[TelemetryRequest]
         for request in self.requests_buffer:
@@ -126,6 +135,26 @@ class TelemetryWriter(PeriodicService):
                 else:
                     integrations = [integration]
                     cls._instance._integrations_request = app_integrations_changed_telemetry_request(integrations, 0)
+
+    @classmethod
+    def add_metric(cls, series):
+        # type: (Series) -> None
+        """
+        Add series object to series map. If the metric already
+        exists in the series map then update its values.
+        """
+        with cls._lock:
+            if cls._instance is None:
+                return
+
+            writer_instance = cls._instance
+            metric_name = series.metric
+            if metric_name in writer_instance.series_map:
+                current_series = writer_instance.series_map[metric_name]
+                current_series.combine(series)
+                return
+
+            writer_instance.series_map[metric_name] = series
 
     @classmethod
     def _restart(cls):

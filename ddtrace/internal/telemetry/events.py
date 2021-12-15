@@ -6,6 +6,7 @@ from ddtrace.internal.compat import TypedDict
 
 from .data import Dependency
 from .data import Integration
+from .metrics import Series
 
 
 # Payload of a TelemetryRequest which is sent at the start of the an application
@@ -28,8 +29,20 @@ AppIntegrationsChangedEvent = TypedDict(
 # Payload of a TelemetryRequest which is sent after an application or process is terminated
 AppClosedEvent = TypedDict("AppClosedEvent", {})
 
+# Telemetry Payload for sending metrics to the Instrumentation Telemetry Datadog Org
+AppGenerateMetricsPayload = TypedDict(
+    "AppGenerateMetricsPayload",
+    {
+        "namespace": str,
+        "lib_language": str,
+        "lib_version": str,
+        "series": List[Series],
+    },
+)
+
+
 # Union type which ensures all telemetry request contain a valid payload type
-Event = Union[AppStartedEvent, AppIntegrationsChangedEvent, AppClosedEvent]
+Event = Union[AppStartedEvent, AppIntegrationsChangedEvent, AppClosedEvent, AppGenerateMetricsPayload]
 
 
 def get_app_dependencies():

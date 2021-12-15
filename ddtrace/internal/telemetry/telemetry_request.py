@@ -12,6 +12,7 @@ from .data import HOST
 from .data import Host
 from .data import Integration
 from .events import AppClosedEvent
+from .events import AppGenerateMetricsPayload
 from .events import AppIntegrationsChangedEvent
 from .events import AppStartedEvent
 from .events import Event
@@ -111,3 +112,23 @@ def app_integrations_changed_telemetry_request(integrations, seq_id):
     """
     event = AppIntegrationsChangedEvent(integrations=integrations)
     return _create_telemetry_request(event, "app-integrations-changed", seq_id)
+
+
+def app_generate_metrics_telemetry_request(series, seq_id):
+    # type: (List[Series], int) -> TelemetryRequest
+    """
+    returns a TelemetryRequest which sends a list of metrics to the agent
+
+    :param seq_id int: arg is a counter representing the number of requests sent by the writer
+    """
+
+    # To Do: Optimization bucket metrics together to reduce payload size
+    # - plan is to map metric names to series objects
+
+    event = AppGenerateMetricsPayload(
+        namespace="tracer",
+        lib_language=APPLICATION["language_name"],
+        lib_version=APPLICATION["language_version"],
+        series=series,
+    )
+    return _create_telemetry_request(event, "generate-metrics", seq_id)
