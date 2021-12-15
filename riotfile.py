@@ -608,8 +608,8 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "django": latest,
-                        "djangorestframework": ">=3.11,<3.12",
+                        "django": "~=4.0",
+                        "djangorestframework": "~=3.13",
                         "pytest-django": "==3.10.0",
                     },
                 ),
