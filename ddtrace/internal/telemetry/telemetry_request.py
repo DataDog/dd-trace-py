@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 
 from ddtrace.internal.compat import TypedDict
 
@@ -28,8 +29,9 @@ RequestBody = TypedDict(
         "api_version": str,
         # seq_id (sequence id) should be incremented every time a telemetry request is
         # sent to the agent. This field will be used to monitor dropped payloads and
-        # reorder requests on the backend
-        "seq_id": int,
+        # reorder requests on the backend.
+        # The value is set in TelemetryWriter.add_request() to ensure seq_id is monotonically increasing
+        "seq_id": Optional[int],
         "application": Application,
         "host": Host,
         "payload": Dict[Any, Any],
@@ -91,7 +93,7 @@ def app_started_telemetry_request():
     return _create_telemetry_request(event, "app-started", 0)
 
 
-def app_closed_telemetry_request(seq_id):
+def app_closed_telemetry_request(seq_id=None):
     # type: (int) -> TelemetryRequest
     """
     returns a TelemetryRequest which notifies the agent that an application instance has terminated
@@ -102,7 +104,7 @@ def app_closed_telemetry_request(seq_id):
     return _create_telemetry_request(event, "app-closed", seq_id)
 
 
-def app_integrations_changed_telemetry_request(integrations, seq_id):
+def app_integrations_changed_telemetry_request(integrations, seq_id=None):
     # type: (List[Integration], int) -> TelemetryRequest
     """
     returns a TelemetryRequest which sends a list of configured integrations to the agent
