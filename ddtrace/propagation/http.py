@@ -4,7 +4,7 @@ from typing import Optional
 
 from ..context import Context
 from ..internal.logger import get_logger
-from .utils import get_wsgi_header
+from ._utils import get_wsgi_header
 
 
 log = get_logger(__name__)
