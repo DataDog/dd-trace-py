@@ -37,16 +37,16 @@ class TelemetryWriter(PeriodicService):
     enabled = False
     _instance = None  # type: ClassVar[Optional[TelemetryWriter]]
     _lock = forksafe.Lock()
+    sequence = 0  # type: int
 
     def __init__(self, endpoint=DEFAULT_TELEMETRY_ENDPOINT):
         # type: (str, int) -> None
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
         self.url = endpoint  # type: str
-        self.sequence = 0  # type: int
-
-        self.requests_buffer = []  # type: List[TelemetryRequest]
-        self._integrations_request = None  # type: Optional[TelemetryRequest]
+        
+        self._requests_queue = []  # type: List[TelemetryRequest]
+        self._integrations_queue = []  # type: List[Integration]
         self.series_map = []  # type Dict[str, Series]
 
     def _send_request(self, request):
@@ -78,32 +78,37 @@ class TelemetryWriter(PeriodicService):
 
     def periodic(self):
         # type: () -> None
-        if self._integrations_request:
-            self.requests_buffer.append(self._integrations_request)
-            self._integrations_request = None
-
-        if self.series_map:
-            series_queue = self.series_map.values()
+        with self._lock:
+            # copy requests and integrations queued by classmethods to a local variable
+            requests = self._requests_queue
+            integrations = self._integrations_queue
+            series = self.series_map.values()
+            self._requests_queue = []
+            self._integrations_queue = []
             self.series_map = {}  # type: Dict[str, Series]
-            metrics_request = app_generate_metrics_telemetry_request(series_queue, self.sequence)
-            self.requests_buffer.append(metrics_request)
+
+        if series:
+            metrics_request = app_generate_metrics_telemetry_request(series)
+            self.add_request(metrics_request)
+
+        if integrations:
+            integrations_request = app_integrations_changed_telemetry_request(integrations)
+            self.add_request(integrations_request)
 
         requests_failed = []  # type: List[TelemetryRequest]
-        for request in self.requests_buffer:
-            request["body"]["seq_id"] = self.sequence
-
+        for request in requests:
             resp = self._send_request(request)
-            if resp.status == 202:
-                self.sequence += 1
-            else:
+            if resp.status >= 300:
                 requests_failed.append(request)
 
-        self.requests_buffer = requests_failed
+        with self._lock:
+            # add failed requests back to the requests queue
+            self._requests_queue.extend(requests_failed)
 
     def shutdown(self):
         # type: () -> None
-        appclosed_request = app_closed_telemetry_request(self.sequence)
-        self.requests_buffer.append(appclosed_request)
+        appclosed_request = app_closed_telemetry_request()
+        self.add_request(appclosed_request)
         self.periodic()
 
     @classmethod
@@ -116,7 +121,9 @@ class TelemetryWriter(PeriodicService):
         """
         with cls._lock:
             if cls._instance:
-                cls._instance.requests_buffer.append(request)
+                request["body"]["seq_id"] = cls.sequence
+                cls.sequence += 1
+                cls._instance._requests_queue.append(request)
 
     @classmethod
     def add_integration(cls, integration):
@@ -129,12 +136,9 @@ class TelemetryWriter(PeriodicService):
         :param Integration integration: dictionary which stores the name and configurations of a dd-trace Integration
         """
         with cls._lock:
-            if cls._instance:
-                if cls._instance._integrations_request:
-                    cls._instance._integrations_request["body"]["payload"]["integrations"].append(integration)
-                else:
-                    integrations = [integration]
-                    cls._instance._integrations_request = app_integrations_changed_telemetry_request(integrations, 0)
+            if cls._instance is None:
+                return
+            cls._instance._integrations_queue.append(integration)
 
     @classmethod
     def add_metric(cls, series):
