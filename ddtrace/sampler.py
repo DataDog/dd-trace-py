@@ -48,6 +48,10 @@ MAX_TRACE_ID = 2 ** 64
 KNUTH_FACTOR = 1111111111111111111
 
 
+class SamplingError(Exception):
+    pass
+
+
 class BaseSampler(six.with_metaclass(abc.ABCMeta)):
     @abc.abstractmethod
     def sample(self, span):
@@ -154,7 +158,7 @@ class RateByServiceSampler(BasePrioritySampler):
 
 
 class DatadogSampler(BasePrioritySampler):
-    __slots__ = ("_default_rule", "_legacy_sampler", "limiter", "rules")
+    __slots__ = ("_agent_sampler", "limiter", "rules")
 
     NO_RATE_LIMIT = -1
     DEFAULT_RATE_LIMIT = 100
@@ -187,6 +191,7 @@ class DatadogSampler(BasePrioritySampler):
             rate_limit = int(get_env("trace", "rate_limit", default=self.DEFAULT_RATE_LIMIT))  # type: ignore[arg-type]
 
         # Ensure rules is a list
+        self.rules = []  # type: List[SamplingRule]
         if rules is None:
             env_sampling_rules = get_env("trace", "sampling_rules")
             if env_sampling_rules:
@@ -199,35 +204,27 @@ class DatadogSampler(BasePrioritySampler):
             if not isinstance(rule, SamplingRule):
                 raise TypeError("Rule {!r} must be a sub-class of type ddtrace.sampler.SamplingRules".format(rule))
         self.rules = rules
+        # DEV: Default sampling rule must come last
+        if default_sample_rate is not None:
+            self.rules.append(SamplingRule(sample_rate=default_sample_rate))
+
+        # If no rules are configured (or match), fallback to agent based sampling
+        self._agent_sampler = RateByServiceSampler()
 
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
 
-        self._legacy_sampler = None  # type: Optional[RateByServiceSampler]
-        self._default_rule = None  # type: Optional[SamplingRule]
-        if default_sample_rate is None:
-            log.debug("initialized DatadogSampler, limit %r traces per second", rate_limit)
-            # Default to previous default behavior of RateByServiceSampler
-            self._legacy_sampler = RateByServiceSampler()
-        else:
-            log.debug(
-                "initialized DatadogSampler, sample %s%% traces, limit %r traces per second",
-                100 * default_sample_rate,
-                rate_limit,
-            )
-            self._default_rule = SamplingRule(sample_rate=default_sample_rate)
+        log.debug("initialized {!r}", self)
 
-        # This shouldn't ever happen, but let's just be 100% sure
-        if not self._default_rule and not self._legacy_sampler:
-            raise ValueError("DatadogSampler configured without a default rule or fallback sampler: {!r}".format(self))
-
-    @removed_property
+    @removed_property(removal_version="1.0.0")
     def default_sampler(self):
-        return self._default_rule or self._legacy_sampler
+        if self.rules:
+            return self.rules[-1]
+        return self._agent_sampler
 
     def __str__(self):
-        return "{}(default_rule={!r}, legacy_sampler={!r}, limiter={!r}, rules={!r})".format(
-            self.__class__.__name__, self._default_rule, self._legacy_sampler, self.limiter, self.rules
+        return "{}(agent_sampler={!r}, limiter={!r}, rules={!r})".format(
+            self.__class__.__name__, self._agent_sampler, self.limiter, self.rules
         )
 
     __repr__ = __str__
@@ -256,8 +253,7 @@ class DatadogSampler(BasePrioritySampler):
     def update_rate_by_service_sample_rates(self, sample_rates):
         # type: (Dict[str, float]) -> None
         # Pass through the call to our RateByServiceSampler
-        if self._legacy_sampler:
-            self._legacy_sampler.update_rate_by_service_sample_rates(sample_rates)
+        self._agent_sampler.update_rate_by_service_sample_rates(sample_rates)
 
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None
@@ -286,24 +282,17 @@ class DatadogSampler(BasePrioritySampler):
                 matching_rule = rule
                 break
         else:
-            # If this is the old sampler, sample and return
-            # DEV: We will always have either self.legacy_sampler or self.default_rule
-            if self._legacy_sampler is not None:
-                if self._legacy_sampler.sample(span):
-                    self._set_priority(span, AUTO_KEEP)
-                    return True
-                else:
-                    self._set_priority(span, AUTO_REJECT)
-                    return False
-            elif self._default_rule is not None:
-                matching_rule = self._default_rule
+            # No rules matches so use agent based sampling
+            if self._agent_sampler.sample(span):
+                self._set_priority(span, AUTO_KEEP)
+                return True
+            else:
+                self._set_priority(span, AUTO_REJECT)
+                return False
 
-        # DEV: This should never happen, we have a check in __init__ that raises an exception
-        # but we check to be 100% sure (and to make mypy happy)
+        # DEV: This should never happen, but since the type is Optional we have to check
         if not matching_rule:
-            log.error("Misconfigured DatadogSampler, no default rule or fallback sampler: %r", self)
-            self._set_priority(span, USER_REJECT)
-            return False
+            raise SamplingError("No sampler found for span {!r} from {!r}".format(span, self))
 
         # Sample with the matching sampling rule
         span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
@@ -476,3 +465,10 @@ class SamplingRule(BaseSampler):
         )
 
     __str__ = __repr__
+
+    def __eq__(self, other):
+        # type: (Any) -> bool
+        if not isinstance(other, SamplingRule):
+            raise TypeError("Cannot compare SamplingRule to {}".format(type(other)))
+
+        return self.sample_rate == other.sample_rate and self.service == other.service and self.name == other.name
