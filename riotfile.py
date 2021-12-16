@@ -985,7 +985,7 @@ venv = Venv(
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
-            pkgs={"botocore": "<1.22.0"},
+            pkgs={"botocore": latest},
             venvs=[
                 Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": latest}),
                 Venv(pys=["2.7"], pkgs={"moto": [">=1.0,<2.0"], "rsa": ["<4.7.1"]}),

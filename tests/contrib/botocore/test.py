@@ -7,6 +7,7 @@ import zipfile
 
 import botocore.session
 from moto import mock_ec2
+from moto import mock_firehose
 from moto import mock_kinesis
 from moto import mock_kms
 from moto import mock_lambda
@@ -761,7 +762,7 @@ class BotocoreTest(TracerTestCase):
             service_response = s3.list_buckets()
             assert service_response == response
 
-    @mock_kinesis
+    @mock_firehose
     def test_firehose_no_records_arg(self):
         firehose = self.session.create_client("firehose", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(firehose)
