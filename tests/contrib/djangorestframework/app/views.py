@@ -6,10 +6,12 @@ from rest_framework import serializers
 from rest_framework import viewsets
 
 
+# django version < 2 does not support django.urls.re_path
+# django version > 3 does not support django.conf.urls.url
 if django.VERSION < (2, 0, 0):
-    from django.conf.urls import url
+    from django.conf.urls import url as handler
 else:
-    from django.urls import re_path as url
+    from django.urls import re_path as handler
 
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
@@ -33,6 +35,6 @@ router.register(r"users", UserViewSet)
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browsable API.
 urlpatterns = [
-    url(r"^", include(router.urls)),
-    url(r"^api-auth/", include("rest_framework.urls", namespace="rest_framework")),
+    handler(r"^", include(router.urls)),
+    handler(r"^api-auth/", include("rest_framework.urls", namespace="rest_framework")),
 ]

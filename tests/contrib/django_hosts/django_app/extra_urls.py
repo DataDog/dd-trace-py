@@ -1,11 +1,5 @@
-import django
 from django.http import HttpResponse
-
-
-if django.VERSION < (2, 0, 0):
-    from django.conf.urls import url
-else:
-    from django.urls import re_path as url
+from django.urls import re_path
 
 
 def include_view(request):
@@ -13,5 +7,5 @@ def include_view(request):
 
 
 urlpatterns = [
-    url("test/", include_view),
+    re_path("test/", include_view),
 ]

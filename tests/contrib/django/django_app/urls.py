@@ -13,10 +13,10 @@ from ddtrace import tracer
 from .. import views
 
 
-if django.VERSION < (2, 0, 0):
-    from django.conf.urls import url
+if django.VERSION < (3, 0, 0):
+    from django.conf.urls import url as handler
 else:
-    from django.urls import re_path as url
+    from django.urls import re_path as handler
 
 
 def repath_view(request):
@@ -47,32 +47,32 @@ def shutdown(request):
 
 
 urlpatterns = [
-    url(r"^$", views.index),
-    url(r"^simple/$", views.BasicView.as_view()),
-    url(r"^users/$", views.UserList.as_view(), name="users-list"),
-    url(r"^cached-template/$", views.TemplateCachedUserList.as_view(), name="cached-template-list"),
-    url(r"^safe-template/$", views.SafeTemplateUserList.as_view(), name="safe-template-list"),
-    url(r"^cached-users/$", cache_page(60)(views.UserList.as_view()), name="cached-users-list"),
-    url(r"^fail-view/$", views.ForbiddenView.as_view(), name="forbidden-view"),
-    url(r"^authenticated/$", authenticated_view, name="authenticated-view"),
-    url(r"^static-method-view/$", views.StaticMethodView.as_view(), name="static-method-view"),
-    url(r"^fn-view/$", views.function_view, name="fn-view"),
-    url(r"^feed-view/$", views.FeedView(), name="feed-view"),
-    url(r"^partial-view/$", views.partial_view, name="partial-view"),
-    url(r"^lambda-view/$", views.lambda_view, name="lambda-view"),
-    url(r"^error-500/$", views.error_500, name="error-500"),
-    url(r"^template-view/$", views.template_view, name="template-view"),
-    url(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
-    url(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
+    handler(r"^$", views.index),
+    handler(r"^simple/$", views.BasicView.as_view()),
+    handler(r"^users/$", views.UserList.as_view(), name="users-list"),
+    handler(r"^cached-template/$", views.TemplateCachedUserList.as_view(), name="cached-template-list"),
+    handler(r"^safe-template/$", views.SafeTemplateUserList.as_view(), name="safe-template-list"),
+    handler(r"^cached-users/$", cache_page(60)(views.UserList.as_view()), name="cached-users-list"),
+    handler(r"^fail-view/$", views.ForbiddenView.as_view(), name="forbidden-view"),
+    handler(r"^authenticated/$", authenticated_view, name="authenticated-view"),
+    handler(r"^static-method-view/$", views.StaticMethodView.as_view(), name="static-method-view"),
+    handler(r"^fn-view/$", views.function_view, name="fn-view"),
+    handler(r"^feed-view/$", views.FeedView(), name="feed-view"),
+    handler(r"^partial-view/$", views.partial_view, name="partial-view"),
+    handler(r"^lambda-view/$", views.lambda_view, name="lambda-view"),
+    handler(r"^error-500/$", views.error_500, name="error-500"),
+    handler(r"^template-view/$", views.template_view, name="template-view"),
+    handler(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
+    handler(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
     re_path(r"re-path.*/", repath_view),
     path("path/", path_view),
     path("include/", include("tests.contrib.django.django_app.extra_urls")),
     # This must precede composed-view.
-    url(r"^some-static-view/$", TemplateView.as_view(template_name="my-template.html")),
-    url(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
-    url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
-    url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
-    url(r"^404-view/$", views.not_found_view, name="404-view"),
-    url(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
-    url(r"^alter-resource/$", views.alter_resource),
+    handler(r"^some-static-view/$", TemplateView.as_view(template_name="my-template.html")),
+    handler(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
+    handler(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
+    handler(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
+    handler(r"^404-view/$", views.not_found_view, name="404-view"),
+    handler(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
+    handler(r"^alter-resource/$", views.alter_resource),
 ]

@@ -1,14 +1,10 @@
 import django
+from django.conf.urls import url
 from django.views.decorators.cache import cache_page
 from django.views.generic import TemplateView
 
 from .. import views
 
-
-if django.VERSION < (2, 0, 0):
-    from django.conf.urls import url
-else:
-    from django.urls import re_path as url
 
 urlpatterns = [
     url(r"^$", views.index),
