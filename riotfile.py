@@ -980,7 +980,7 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto[all]": latest})],
+            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
         ),
         Venv(
             name="botocore",
@@ -988,7 +988,7 @@ venv = Venv(
             pkgs={"botocore": latest},
             venvs=[
                 Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": latest}),
-                Venv(pys=["2.7"], pkgs={"moto": [">=1.0,<2.0"], "rsa": ["<4.7.1"]}),
+                Venv(pys=["2.7"], pkgs={"moto": ["~=1.0"], "rsa": ["<4.7.1"]}),
             ],
         ),
         Venv(
