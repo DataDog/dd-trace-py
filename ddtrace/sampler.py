@@ -168,8 +168,10 @@ class DatadogSampler(BasePrioritySampler):
     When a ``default_sample_rate`` is configured, that is the only sample rate used, the agent
     provided rates are ignored.
 
-    You may also supply a list of ``SamplingRule``s to determine sample rates for specific
-    services or operation names. For example::
+    You may also supply a list of ``SamplingRule`` to determine sample rates for specific
+    services or operation names.
+
+    Example rules::
 
         DatadogSampler(rules=[
             SamplingRule(sample_rate=1.0, service="my-svc"),
