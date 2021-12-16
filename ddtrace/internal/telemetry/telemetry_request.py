@@ -126,11 +126,12 @@ def app_generate_metrics_telemetry_request(series, seq_id):
 
     # To Do: Optimization bucket metrics together to reduce payload size
     # - plan is to map metric names to series objects
-
+    
+    series_as_dicts = [s.to_dict() for s in series]
     event = AppGenerateMetricsPayload(
         namespace="tracer",
         lib_language=APPLICATION["language_name"],
         lib_version=APPLICATION["language_version"],
-        series=series,
+        series=series_as_dicts,
     )
     return _create_telemetry_request(event, "generate-metrics", seq_id)
