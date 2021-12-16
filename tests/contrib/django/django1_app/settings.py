@@ -1,7 +1,5 @@
 import os
 
-import django
-
 
 ALLOWED_HOSTS = [
     "testserver",
