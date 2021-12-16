@@ -1,6 +1,5 @@
 import django
 from django.http import HttpResponse
-from django.urls import re_path
 
 
 if django.VERSION < (4, 0, 0):
