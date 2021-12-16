@@ -34,7 +34,7 @@ RequestBody = TypedDict(
         "seq_id": Optional[int],
         "application": Application,
         "host": Host,
-        "payload": Dict[Any, Any],
+        "payload": Event,
         "request_type": str,
     },
 )
@@ -51,7 +51,7 @@ TelemetryRequest = TypedDict(
 
 
 def _create_telemetry_request(event, event_type, seq_id):
-    # type: (Event, str, int) -> TelemetryRequest
+    # type: (Event, str, Optional[int]) -> TelemetryRequest
     """
     Initializes the required fields for a generic Telemetry Intake Request
 
@@ -94,7 +94,7 @@ def app_started_telemetry_request():
 
 
 def app_closed_telemetry_request(seq_id=None):
-    # type: (int) -> TelemetryRequest
+    # type: (Optional[int]) -> TelemetryRequest
     """
     returns a TelemetryRequest which notifies the agent that an application instance has terminated
 
@@ -105,7 +105,7 @@ def app_closed_telemetry_request(seq_id=None):
 
 
 def app_integrations_changed_telemetry_request(integrations, seq_id=None):
-    # type: (List[Integration], int) -> TelemetryRequest
+    # type: (List[Integration], Optional[int]) -> TelemetryRequest
     """
     returns a TelemetryRequest which sends a list of configured integrations to the agent
 

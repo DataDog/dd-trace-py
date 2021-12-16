@@ -121,6 +121,8 @@ try:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
         tracer.set_tags(parse_tags_str(env_tags))
 
+    # instrumentation telemetry writer should be enabled/started after the global tracer and configs
+    # are initialized
     if asbool(get_env("instrumentation_telemetry", "enabled")):
         TelemetryWriter.enable()
         request = app_started_telemetry_request()

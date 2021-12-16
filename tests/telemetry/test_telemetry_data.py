@@ -12,11 +12,11 @@ from ddtrace.internal.telemetry.data import Dependency
 from ddtrace.internal.telemetry.data import HOST
 from ddtrace.internal.telemetry.data import Host
 from ddtrace.internal.telemetry.data import Integration
+from ddtrace.internal.telemetry.data import _format_version_info
+from ddtrace.internal.telemetry.data import _get_container_id
+from ddtrace.internal.telemetry.data import _get_os_version
 from ddtrace.internal.telemetry.data import create_integration
-from ddtrace.internal.telemetry.data import format_version_info
-from ddtrace.internal.telemetry.data import get_container_id
 from ddtrace.internal.telemetry.data import get_hostname
-from ddtrace.internal.telemetry.data import get_os_version
 from ddtrace.internal.telemetry.data import get_version
 
 
@@ -66,14 +66,14 @@ def test_application():
 
     runtime_v = ""
     if PY3:
-        runtime_v = format_version_info(sys.implementation.version)
+        runtime_v = _format_version_info(sys.implementation.version)
 
     expected_application = {
         "service_name": "unnamed_python_service",
         "service_version": "",
         "env": "",
         "language_name": "python",
-        "language_version": format_version_info(sys.version_info),
+        "language_version": _format_version_info(sys.version_info),
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
         "runtime_version": runtime_v,
@@ -102,10 +102,10 @@ assert APPLICATION["env"] == "prod"
 
 
 def test_format_version_info():
-    """ensures the return value of format_version_info() has the format x.x.x"""
+    """ensures the return value of _format_version_info() has the format x.x.x"""
     sys_vi = sys.version_info
 
-    version_str = format_version_info(sys_vi)
+    version_str = _format_version_info(sys_vi)
     assert version_str == "{}.{}.{}".format(sys_vi.major, sys_vi.minor, sys_vi.micro)
 
 
@@ -114,11 +114,11 @@ def test_host_fields():
     expected_host = {
         "os": platform.platform(aliased=1, terse=1),
         "hostname": get_hostname(),
-        "os_version": get_os_version(),
+        "os_version": _get_os_version(),
         "kernel_name": platform.system(),
         "kernel_release": platform.release(),
         "kernel_version": platform.version(),
-        "container_id": get_container_id(),
+        "container_id": _get_container_id(),
     }  # type: Host
 
     assert HOST == expected_host
@@ -141,26 +141,26 @@ def test_get_os_version(mac_ver, win32_ver, libc_ver, expected):
             win32.return_value = win32_ver
             with mock.patch("platform.libc_ver") as libc:
                 libc.return_value = libc_ver
-                assert get_os_version() == expected
+                assert _get_os_version() == expected
 
 
 def test_get_container_id_when_container_exists():
     """
-    validates the return value of get_container_id when get_container_info()
+    validates the return value of _get_container_id when get_container_info()
     can parse /proc/{pid}/cgroup
     """
     with mock.patch("ddtrace.internal.telemetry.data.get_container_info") as gci:
         cgroupInfo = CGroupInfo()
         cgroupInfo.container_id = "1641"
         gci.return_value = cgroupInfo
-        assert get_container_id() == "1641"
+        assert _get_container_id() == "1641"
 
 
 def test_get_container_id_when_container_does_not_exists():
     """
-    validates the return value of get_container_id when get_container_info() CAN NOT
+    validates the return value of _get_container_id when get_container_info() CAN NOT
     parse /proc/{pid}/cgroup
     """
     with mock.patch("ddtrace.internal.telemetry.data.get_container_info") as gci:
         gci.return_value = None
-        assert get_container_id() == ""
+        assert _get_container_id() == ""
