@@ -6,9 +6,8 @@ from rest_framework import serializers
 from rest_framework import viewsets
 
 
-# django version < 2 does not support django.urls.re_path
-# django version > 3 does not support django.conf.urls.url
-if django.VERSION < (2, 0, 0):
+# django.conf.urls.url was deprecated in django 3 and removed in django 4
+if django.VERSION < (4, 0, 0):
     from django.conf.urls import url as handler
 else:
     from django.urls import re_path as handler
