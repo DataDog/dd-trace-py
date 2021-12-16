@@ -8,6 +8,7 @@ from typing import Any
 from typing import AnyStr
 from typing import Optional
 from typing import Text
+from typing import Type
 from typing import Union
 
 import six
@@ -117,14 +118,12 @@ except ImportError:
         return int(_process_time() * 1e9)
 
 
+# typing_extensions backports TypedDict for python versions < 3.8
+# this type is used in ddtrace/internal/telemetry
 if sys.version_info < (3, 8):
-    import typing_extensions
-
-    TypedDict = typing_extensions.TypedDict
+    from typing import TypedDict
 else:
-    import typing
-
-    TypedDict = typing.TypedDict
+    from typing_extensions import TypedDict
 
 
 if sys.version_info.major < 3:

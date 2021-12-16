@@ -62,13 +62,13 @@ def create_integration(name, version="", enabled=True, auto_enabled=True, compat
     }
 
 
-def format_version_info(vi):
+def _format_version_info(vi):
     # type: (sys._version_info) -> str
     """Converts sys.version_info into a string with the format x.x.x"""
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
 
-def get_container_id():
+def _get_container_id():
     # type: () -> str
     """Get ID from docker container"""
     container_info = get_container_info()
@@ -77,7 +77,7 @@ def get_container_id():
     return ""
 
 
-def get_os_version():
+def _get_os_version():
     # type: () -> str
     """returns the os version for applications running on Unix, Mac or Windows 32-bit"""
     ver, _, _ = platform.mac_ver()
@@ -94,21 +94,21 @@ def get_os_version():
     return ""
 
 
-def get_host():
+def _get_host():
     # type: () -> Host
     """creates a Host Dict using the platform module"""
     return {
         "os": platform.platform(aliased=True, terse=True),
         "hostname": get_hostname(),
-        "os_version": get_os_version(),
+        "os_version": _get_os_version(),
         "kernel_name": platform.system(),
         "kernel_release": platform.release(),
         "kernel_version": platform.version(),
-        "container_id": get_container_id(),
+        "container_id": _get_container_id(),
     }
 
 
-def get_application():
+def _get_application():
     # type: () -> Application
     """Creates an Application Dictionary using ddtrace configurations and the System-Specific module"""
     return {
@@ -116,12 +116,12 @@ def get_application():
         "service_version": config.version or "",
         "env": config.env or "",
         "language_name": "python",
-        "language_version": format_version_info(sys.version_info),
+        "language_version": _format_version_info(sys.version_info),
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
-        "runtime_version": format_version_info(sys.implementation.version) if PY3 else "",
+        "runtime_version": _format_version_info(sys.implementation.version) if PY3 else "",
     }
 
 
-APPLICATION = get_application()
-HOST = get_host()
+APPLICATION = _get_application()
+HOST = _get_host()

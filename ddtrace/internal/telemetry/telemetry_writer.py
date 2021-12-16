@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import ClassVar
 from typing import List
@@ -11,6 +10,7 @@ from ...utils.time import StopWatch
 from ..agent import get_connection
 from ..compat import get_connection_response
 from ..compat import httplib
+from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from .data import Integration
@@ -39,12 +39,14 @@ class TelemetryWriter(PeriodicService):
     _lock = forksafe.Lock()
     sequence = 0  # type: int
 
-    def __init__(self, endpoint=DEFAULT_TELEMETRY_ENDPOINT):
-        # type: (str, int) -> None
+    def __init__(self, endpoint):
+        # type: (str) -> None
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
+        # switch endpoint to agent endpoint
         self.url = endpoint  # type: str
-        
+
+        self.encoder = JSONEncoderV2()
         self._requests_queue = []  # type: List[TelemetryRequest]
         self._integrations_queue = []  # type: List[Integration]
         self.series_map = []  # type Dict[str, Series]
@@ -57,7 +59,7 @@ class TelemetryWriter(PeriodicService):
 
         conn = get_connection(self.url)
 
-        rb_json = json.dumps(request["body"])
+        rb_json = self.encoder.encode(request["body"])
         resp = None
         with StopWatch() as sw:
             try:
@@ -75,26 +77,46 @@ class TelemetryWriter(PeriodicService):
                 conn.close()
 
         return resp
+     
+    def flush_metrics_map(self):
+        with self._lock:
+            series = self.series_map.values()
+            self.series_map = {}  # type: Dict[str, Series]
+        return series
+
+    def flush_integrations_queue(self):
+        # type () -> List[Integration]
+        """returns a list of all integrations queued by classmethods"""
+        with self._lock:
+            integrations = self._integrations_queue
+            self._integrations_queue = []
+            return integrations
+
+    def flush_requests_queue(self):
+        # type () -> List[TelemetryRequest]
+        """returns a list of all integrations queued by classmethods"""
+        with self._lock:
+            requests = self._requests_queue
+            self._requests_queue = []
+            return requests
 
     def periodic(self):
         # type: () -> None
-        with self._lock:
-            # copy requests and integrations queued by classmethods to a local variable
-            requests = self._requests_queue
-            integrations = self._integrations_queue
-            series = self.series_map.values()
-            self._requests_queue = []
-            self._integrations_queue = []
-            self.series_map = {}  # type: Dict[str, Series]
+        # import pdb
 
-        if series:
-            metrics_request = app_generate_metrics_telemetry_request(series)
-            self.add_request(metrics_request)
+        # pdb.set_trace()
 
+        integrations = self.flush_integrations_queue()
         if integrations:
             integrations_request = app_integrations_changed_telemetry_request(integrations)
-            self.add_request(integrations_request)
+            TelemetryWriter.add_request(integrations_request)
+        
+        series = self.flush_metrics_map()
+        if series:
+            metrics_request = app_generate_metrics_telemetry_request(series)
+            TelemetryWriter.add_request(metrics_request)
 
+        requests = self.flush_requests_queue()
         requests_failed = []  # type: List[TelemetryRequest]
         for request in requests:
             resp = self._send_request(request)
@@ -123,6 +145,7 @@ class TelemetryWriter(PeriodicService):
             if cls._instance:
                 request["body"]["seq_id"] = cls.sequence
                 cls.sequence += 1
+                # TO DO: replace list with a dead letter queue
                 cls._instance._requests_queue.append(request)
 
     @classmethod
@@ -180,13 +203,13 @@ class TelemetryWriter(PeriodicService):
             cls.enabled = False
 
     @classmethod
-    def enable(cls):
-        # type: () -> None
+    def enable(cls, endpoint=DEFAULT_TELEMETRY_ENDPOINT):
+        # type: (str) -> None
         with cls._lock:
             if cls._instance is not None:
                 return
 
-            telemetry_writer = cls()  # type: ignore[arg-type]
+            telemetry_writer = cls(endpoint)
             telemetry_writer.start()
 
             forksafe.register(cls._restart)
