@@ -1,5 +1,4 @@
 ---
 deprecations:
   - |
-    ``ddtrace.propagation.utils.from_wsgi_header`` and ``ddtrace.propagation.utils.get_wsgi_header`` have been 
-    deprecated and will be removed in version 1.0.0.
+    ``ddtrace.propagation.utils`` has been deprecated and will be removed in version 1.0.``
