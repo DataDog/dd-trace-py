@@ -2,6 +2,7 @@ import django
 from django.http import HttpResponse
 
 
+# django.conf.urls.url was deprecated in django 3 and removed in django 4
 if django.VERSION < (4, 0, 0):
     from django.conf.urls import url as handler
 else:
