@@ -20,8 +20,8 @@ import ddtrace
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.propagation.utils import from_wsgi_header
 
 from .. import trace_utils
 
