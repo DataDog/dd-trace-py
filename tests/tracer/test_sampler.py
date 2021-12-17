@@ -271,7 +271,7 @@ def test_sampling_rule_init():
         (SamplingRule(sample_rate=0.5), SamplingRule(sample_rate=0.5), True),
         (SamplingRule(sample_rate=0.0), SamplingRule(sample_rate=0.0), True),
         (SamplingRule(sample_rate=0.5), SamplingRule(sample_rate=1.0), False),
-        # Sample rat,e and service name
+        # Sample rate, and service name
         (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=1.0, service="my-svc"), True),
         (
             SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
