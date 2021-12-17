@@ -322,7 +322,7 @@ class DatadogSampler(BasePrioritySampler):
 
         # DEV: This should never happen, but since the type is Optional we have to check
         if not matching_rule:
-            raise SamplingError("No sampler found for span {!r} from {!r}".format(span, self))
+            raise SamplingError("No sampling rule found for span {!r} from {!r}".format(span, self))
 
         # Sample with the matching sampling rule
         span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
