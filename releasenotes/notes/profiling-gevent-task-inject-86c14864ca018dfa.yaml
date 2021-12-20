@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The profiler now automatically injects running greenlets as tasks into the
+    main thread. They can be seen within the wall time profiles.
