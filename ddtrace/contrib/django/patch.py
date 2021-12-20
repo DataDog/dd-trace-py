@@ -435,7 +435,7 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     except Exception:
         log.debug("Failed to instrument Django view %r", instance, exc_info=True)
     view = func(*args, **kwargs)
-    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
 
 
 @trace_utils.with_traced_module
