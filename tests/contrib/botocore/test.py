@@ -13,6 +13,13 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sqs
 
+
+# Older version of moto used kinesis to mock firehose
+try:
+    from moto import mock_firehose
+except ImportError:
+    from moto import mock_kinesis as mock_firehose
+
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -761,7 +768,7 @@ class BotocoreTest(TracerTestCase):
             service_response = s3.list_buckets()
             assert service_response == response
 
-    @mock_kinesis
+    @mock_firehose
     def test_firehose_no_records_arg(self):
         firehose = self.session.create_client("firehose", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(firehose)
