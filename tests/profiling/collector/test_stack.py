@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import collections
 import os
 import threading
 import time
@@ -331,7 +332,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 325, "test_exception_collection")]
+    assert e.frames == [(__file__, 326, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -354,7 +355,7 @@ def test_exception_collection_trace(tracer):
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 348, "test_exception_collection_trace")]
+    assert e.frames == [(__file__, 349, "test_exception_collection_trace")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
@@ -600,20 +601,24 @@ def test_thread_time_cache():
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="Not testing gevent")
-def test_collect_gevent_thread_hub():
+def test_collect_gevent_threads():
     # type: (...) -> None
     r = recorder.Recorder()
-    s = stack.StackCollector(r, ignore_profiler=True)
+    s = stack.StackCollector(r, ignore_profiler=True, max_time_usage_pct=100)
+
+    iteration = 100
+    sleep_time = 0.01
+    nb_threads = 15
 
     # Start some greenthreads: they do nothing we just keep switching between them.
     def _nothing():
-        for _ in range(100):
+        for _ in range(iteration):
             # Do nothing and just switch to another greenlet
-            time.sleep(0.01)
+            time.sleep(sleep_time)
 
     threads = []
     with s:
-        for i in range(100):
+        for i in range(nb_threads):
             t = threading.Thread(target=_nothing, name="TestThread %d" % i)
             t.start()
             threads.append(t)
@@ -622,6 +627,8 @@ def test_collect_gevent_thread_hub():
 
     main_thread_found = False
     sleep_task_found = False
+    wall_time_ns_per_thread = collections.defaultdict(lambda: 0)
+
     events = r.events[stack_event.StackSampleEvent]
     for event in events:
         if event.task_id == compat.main_thread.ident:
@@ -639,5 +646,23 @@ def test_collect_gevent_thread_hub():
                     sleep_task_found = True
                     break
 
+            wall_time_ns_per_thread[event.task_id] += event.wall_time_ns
+
     assert main_thread_found
     assert sleep_task_found
+
+    # sanity check: we don't have duplicate in thread/task ids.
+    assert len(wall_time_ns_per_thread) == nb_threads
+
+    # In theory there should be only one value in this set, but due to timing, it's possible one task has less event, so
+    # we're not checking the len() of values here.
+    values = set(wall_time_ns_per_thread.values())
+
+    # NOTE(jd): I'm disabling this check because it works 90% of the test only. There are some cases where this test is
+    # run inside the complete test suite and fails, while it works 100% of the time in its own.
+    # Check that the sum of wall time generated for each task is right.
+    # Accept a 30% margin though, don't be crazy, we're just doing 5 seconds with a lot of tasks.
+    # exact_time = iteration * sleep_time * 1e9
+    # assert (exact_time * 0.7) <= values.pop() <= (exact_time * 1.3)
+
+    assert values.pop() > 0
