@@ -296,29 +296,90 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if task_id in thread_id_ignore_list:
             continue
 
-        # Inject the task frame and replace the thread frame: this is especially handy for gevent as it allows us to
-        # replace the "hub" stack trace by the latest active greenlet, which is more interesting to show and account
-        # resources for.
-        if task_frame is not None:
-           frame = task_frame
+        # Inject wall time for all running tasks
+        if thread_id == nogevent.main_thread_id:
+            main_thread_is_a_task = False
 
-        frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
+            for task_id, task_name, task_frame in _task.list_tasks():
+                if task_id == compat.main_thread.ident:
+                    main_thread_is_a_task = True
 
-        event = stack_event.StackSampleEvent(
-            thread_id=thread_id,
-            thread_native_id=thread_native_id,
-            thread_name=thread_name,
-            task_id=task_id,
-            task_name=task_name,
-            nframes=nframes, frames=frames,
-            wall_time_ns=wall_time,
-            cpu_time_ns=cpu_time,
-            sampling_period=int(interval * 1e9),
-        )
+                    # task_frame is None, so use the thread frames list here
+                    frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
 
-        event.set_trace_info(span, collect_endpoint)
+                    event = stack_event.StackSampleEvent(
+                        thread_id=thread_id,
+                        thread_native_id=thread_native_id,
+                        thread_name=thread_name,
+                        task_id=task_id,
+                        task_name=task_name,
+                        nframes=nframes, frames=frames,
+                        wall_time_ns=wall_time,
+                        cpu_time_ns=cpu_time,
+                        sampling_period=int(interval * 1e9),
+                    )
 
-        stack_events.append(event)
+                    # FIXME: we only trace spans per thread, so we assign the span to the main thread for now
+                    # we'd need to leverage the greenlet tracer to also store the active span
+                    event.set_trace_info(span, collect_endpoint)
+                else:
+                    frames, nframes = _traceback.pyframe_to_frames(task_frame, max_nframes)
+
+                    event = stack_event.StackSampleEvent(
+                        thread_id=thread_id,
+                        thread_native_id=thread_native_id,
+                        thread_name=thread_name,
+                        task_id=task_id,
+                        task_name=task_name,
+                        nframes=nframes, frames=frames,
+                        wall_time_ns=wall_time,
+                        # we don't have CPU time per task
+                        sampling_period=int(interval * 1e9),
+                    )
+
+                stack_events.append(event)
+
+            if not main_thread_is_a_task:
+                frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
+
+                event = stack_event.StackSampleEvent(
+                    thread_id=thread_id,
+                    thread_native_id=thread_native_id,
+                    thread_name=thread_name,
+                    nframes=nframes,
+                    frames=frames,
+                    wall_time_ns=wall_time,
+                    cpu_time_ns=cpu_time,
+                    sampling_period=int(interval * 1e9),
+                )
+
+                event.set_trace_info(span, collect_endpoint)
+
+                stack_events.append(event)
+        else:
+            # Inject the task frame and replace the thread frame: this is especially handy for gevent as it allows us to
+            # replace the "hub" stack trace by the latest active greenlet, which is more interesting to show and account
+            # resources for.
+            if task_frame is not None:
+               frame = task_frame
+
+            frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
+
+            event = stack_event.StackSampleEvent(
+                thread_id=thread_id,
+                thread_native_id=thread_native_id,
+                thread_name=thread_name,
+                task_id=task_id,
+                task_name=task_name,
+                nframes=nframes, frames=frames,
+                wall_time_ns=wall_time,
+                cpu_time_ns=cpu_time,
+                sampling_period=int(interval * 1e9),
+            )
+
+            event.set_trace_info(span, collect_endpoint)
+
+            stack_events.append(event)
 
         if exception is not None:
             exc_type, exc_traceback = exception
