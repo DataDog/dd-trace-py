@@ -17,6 +17,7 @@ from ddtrace.ext import test
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
+from ddtrace.internal.processor.trace import SpanSetOriginTagProcessor
 
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
@@ -81,6 +82,11 @@ def pytest_configure(config):
             repository_name = _extract_repository_name(ci_tags[ci.git.REPOSITORY_URL])
             ddtrace.config.pytest["service"] = repository_name
         Pin(tags=ci_tags, _config=ddtrace.config.pytest).onto(config)
+
+
+def pytest_sessionstart(session):
+    pin = Pin.get_from(session.config)
+    pin.tracer._span_processors.append(SpanSetOriginTagProcessor(origin_tag=ci.CI_APP_TEST_ORIGIN))
 
 
 def pytest_sessionfinish(session, exitstatus):
