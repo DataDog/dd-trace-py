@@ -201,10 +201,11 @@ class SpanAggregator(SpanProcessor):
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
 
+
 @attr.s
 class SpanSetOriginTagProcessor(SpanProcessor):
-    """Processor that sets the passed dd_origin tag to every span
-    """
+    """Processor that sets the passed dd_origin tag to every span"""
+
     _origin_tag = attr.ib(type=str)
     # type: (Span) -> None
     def on_span_finish(self, span):
