@@ -4,7 +4,6 @@ from __future__ import absolute_import
 import sys
 import threading
 import typing
-import weakref
 
 import attr
 import six
@@ -403,74 +402,10 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     return stack_events, exc_events
 
 
-# cython does not play well with mypy
 if typing.TYPE_CHECKING:
-    _T = typing.TypeVar("_T")
-    _thread_link_base = typing.Generic[_T]
-    _weakref_type = weakref.ReferenceType[_T]
+    _thread_span_links_base = _threading._ThreadLink[ddspan.Span]
 else:
-    _thread_link_base = object
-    _weakref_type = typing.Any
-
-
-@attr.s(slots=True, eq=False)
-class _ThreadLink(_thread_link_base):
-    """Link a thread with an object.
-
-    Object is removed when the thread disappears.
-    """
-
-    # Key is a thread_id
-    # Value is a weakref to an object
-    _thread_id_to_object = attr.ib(factory=dict, repr=False, init=False, type=typing.Dict[int, _weakref_type])
-    _lock = attr.ib(factory=nogevent.Lock, repr=False, init=False, type=nogevent.Lock)
-
-    def link_object(
-            self,
-            obj  # type: _T
-    ):
-        # type: (...) -> None
-        """Link an object to the current running thread."""
-        # Since we're going to iterate over the set, make sure it's locked
-        with self._lock:
-            self._thread_id_to_object[nogevent.thread_get_ident()] = weakref.ref(obj)
-
-    def clear_threads(self,
-                      existing_thread_ids,  # type: typing.Set[int]
-                      ):
-        """Clear the stored list of threads based on the list of existing thread ids.
-
-        If any thread that is part of this list was stored, its data will be deleted.
-
-        :param existing_thread_ids: A set of thread ids to keep.
-        """
-        with self._lock:
-            # Iterate over a copy of the list of keys since it's mutated during our iteration.
-            for thread_id in list(self._thread_id_to_object.keys()):
-                if thread_id not in existing_thread_ids:
-                    del self._thread_id_to_object[thread_id]
-
-    def get_object(
-            self,
-            thread_id  # type: int
-    ):
-        # type: (...) -> _T
-        """Return the object attached to thread.
-
-        :param thread_id: The thread id.
-        :return: The attached object.
-        """
-
-        with self._lock:
-            obj_ref = self._thread_id_to_object.get(thread_id)
-            if obj_ref is not None:
-                return obj_ref()
-
-
-if typing.TYPE_CHECKING:
-    _thread_span_links_base = _ThreadLink[ddspan.Span]
-else:
-    _thread_span_links_base = _ThreadLink
+    _thread_span_links_base = _threading._ThreadLink
 
 
 @attr.s(slots=True, eq=False)
