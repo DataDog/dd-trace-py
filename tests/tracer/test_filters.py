@@ -2,7 +2,6 @@ from unittest import TestCase
 
 import pytest
 
-from ddtrace.ext import SpanTypes
 from ddtrace.ext.http import URL
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.filters import TraceCiVisibilityFilter
