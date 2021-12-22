@@ -14,6 +14,8 @@ import Cython.Distutils
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
+
 
 def load_module_from_project_file(mod_name, fname):
     """
@@ -74,29 +76,39 @@ class CMake(BuildExtCommand):
         import tempfile
 
         to_build = set()
+        # Detect if any source file sits next to a CMakeLists.txt file
         for source in ext.sources:
             source_dir = os.path.dirname(os.path.realpath(source))
             if os.path.exists(os.path.join(source_dir, "CMakeLists.txt")):
                 to_build.add(source_dir)
 
-        debug_compile = "DD_COMPILE_DEBUG" in os.environ
+        if not to_build:
+            # Build the extension as usual
+            BuildExtCommand.build_extension(self, ext)
+            return
 
-        for source_dir in to_build:
-            build_type = "RelWithDebInfo" if debug_compile else "Release"
-            opts = ["-DCMAKE_BUILD_TYPE={}".format(build_type)]
-            if platform.system() == "Windows":
-                opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-            else:
-                opts.extend(["-G", "Ninja"])
-            try:
-                build_dir = tempfile.mkdtemp()
-                subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir] + opts)
-                subprocess.check_call(["cmake", "--build", build_dir, "--config", build_type])
-            finally:
-                if not debug_compile:
-                    shutil.rmtree(build_dir, ignore_errors=True)
+        try:
+            for source_dir in to_build:
+                build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
+                opts = ["-DCMAKE_BUILD_TYPE={}".format(build_type)]
+                if platform.system() == "Windows":
+                    opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+                else:
+                    opts.extend(["-G", "Ninja"])
+                try:
+                    build_dir = tempfile.mkdtemp()
+                    subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir] + opts)
+                    subprocess.check_call(["cmake", "--build", build_dir, "--config", build_type])
+                finally:
+                    if not DEBUG_COMPILE:
+                        shutil.rmtree(build_dir, ignore_errors=True)
 
-        return BuildExtCommand.build_extension(self, ext)
+            BuildExtCommand.build_extension(self, ext)
+        except Exception as e:
+            print("WARNING: building extension \"%s\" failed: %s" % (ext.name, e))
+            # Remove this extension from the extension list to avoid errors
+            # during the install phase.
+            self.extensions = [item for item in self.extensions if item.name != ext.name]
 
 
 long_description = """
@@ -139,7 +151,6 @@ if sys.byteorder == "big":
 else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
-
 if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
@@ -149,7 +160,7 @@ else:
     linux = platform.system() == "Linux"
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
-    if "DD_COMPILE_DEBUG" in os.environ:
+    if DEBUG_COMPILE:
         if linux:
             debug_compile_args = ["-g", "-O0", "-Wall", "-Wextra", "-Wpedantic"]
         else:
