@@ -70,3 +70,15 @@ class FilterRequestsOnUrl(TraceFilter):
                     if regexp.match(url):
                         return None
         return trace
+
+
+class TraceCiVisibilityFilter(TraceFilter):
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        for span in trace:
+            if span is span._local_root:
+                if span.span_type == SpanTypes.TEST.value:
+                    return trace
+                return None
+
+        return trace

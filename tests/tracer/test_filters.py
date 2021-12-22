@@ -5,7 +5,24 @@ import pytest
 from ddtrace.ext.http import URL
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.filters import TraceFilter
+from ddtrace.filters import TraceCiVisibilityFilter
 from ddtrace.span import Span
+
+
+class TraceCiVisibilityFilterTests(TestCase):
+    def test_filters_non_test_root_spans(self):
+        trace_filter = TraceCiVisibilityFilter()
+        root_test_span = Span(tracer=None, name="span1", span_type="test")
+        root_test_span._local_root = root_test_span
+        # Root span in trace is a test
+        trace = [root_test_span]
+        self.assertEqual(trace_filter.process_trace(trace), trace)
+
+        root_span = Span(tracer=None, name="span1")
+        root_span._local_root = root_span
+        # Root span in trace is not a test
+        trace = [root_span]
+        self.assertEqual(trace_filter.process_trace(trace), None)
 
 
 class FilterRequestOnUrlTests(TestCase):

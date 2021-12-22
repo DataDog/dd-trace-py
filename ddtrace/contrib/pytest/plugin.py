@@ -14,10 +14,11 @@ from ddtrace.contrib.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.filters import TraceCiVisibilityFilter
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
-from ddtrace.internal.processor.trace import SpanSetOriginTagProcessor
+from ddtrace.internal.processor.trace import TraceCiVisibilityProcessor
 
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
@@ -86,7 +87,8 @@ def pytest_configure(config):
 
 def pytest_sessionstart(session):
     pin = Pin.get_from(session.config)
-    pin.tracer._span_processors.append(SpanSetOriginTagProcessor(origin_tag=ci.CI_APP_TEST_ORIGIN))
+    if pin is not None:
+        pin.tracer.configure(settings={"FILTERS": [TraceCiVisibilityFilter()]})
 
 
 def pytest_sessionfinish(session, exitstatus):
