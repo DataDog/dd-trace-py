@@ -214,6 +214,33 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="integration",
+            pys=select_pys(),
+            command="pytest --no-cov {cmdargs} tests/integration/",
+            pkgs={"msgpack": [latest]},
+            venvs=[
+                Venv(
+                    name="integration-v5",
+                    env={
+                        "AGENT_VERSION": "v5",
+                    },
+                ),
+                Venv(
+                    name="integration-latest",
+                    env={
+                        "AGENT_VERSION": "latest",
+                    },
+                ),
+                Venv(
+                    name="integration-snapshot",
+                    env={
+                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                        "AGENT_VERSION": "testagent",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
@@ -502,23 +529,21 @@ venv = Venv(
                         ],
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": [
-                #             "~=4.0.0",
-                #             latest,
-                #         ],
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": [
+                            "~=4.0.0",
+                            latest,
+                        ],
+                    },
+                ),
             ],
         ),
         Venv(
             name="django_hosts",
             command="pytest {cmdargs} tests/contrib/django_hosts",
             pkgs={
-                "django_hosts": ["~=4.0", latest],
                 "pytest-django": [
                     "==3.10.0",
                 ],
@@ -527,28 +552,27 @@ venv = Venv(
                 Venv(
                     pys=["3.5"],
                     pkgs={
+                        "django_hosts": ["~=4.0"],
                         "django": ["~=2.2"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
+                        "django_hosts": ["~=4.0"],
                         "django": [
                             "~=2.2",
                             "~=3.2",
                         ],
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": [
-                #             "~=4.0",
-                #             latest,
-                #         ],
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django_hosts": ["~=5.0", latest],
+                        "django": "~=4.0",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -587,15 +611,14 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": latest,
-                #         "djangorestframework": ">=3.11,<3.12",
-                #         "pytest-django": "==3.10.0",
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": "~=4.0",
+                        "djangorestframework": ["~=3.13", latest],
+                        "pytest-django": "==3.10.0",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -959,15 +982,15 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": ["<1.0"]})],
+            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
         ),
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={"botocore": latest},
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": [">=1.0,<2.0"]}),
-                Venv(pys=["2.7"], pkgs={"moto": [">=1.0,<2.0"], "rsa": ["<4.7.1"]}),
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": latest}),
+                Venv(pys=["2.7"], pkgs={"moto": ["~=1.0"], "rsa": ["<4.7.1"]}),
             ],
         ),
         Venv(
@@ -1428,6 +1451,18 @@ venv = Venv(
                 "reno": latest,
             },
             command="reno {cmdargs}",
+        ),
+        Venv(
+            name="aioredis",
+            pys=select_pys(min_version="3.6"),
+            command="pytest {cmdargs} tests/contrib/aioredis",
+            pkgs={
+                "pytest-asyncio": latest,
+                "aioredis": [
+                    "~=1.3.0",
+                    latest,
+                ],
+            },
         ),
     ],
 )

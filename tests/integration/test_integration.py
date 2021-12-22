@@ -783,4 +783,17 @@ def test_no_warnings():
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     out, err, status, pid = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
-    assert err == b"", err
+
+    # Wrapt is using features deprecated in Python 3.10
+    # See https://github.com/GrahamDumpleton/wrapt/issues/200
+    if sys.version_info < (3, 10, 0):
+        assert err == b"", err
+    else:
+        assert (
+            err
+            == (
+                b"<frozen importlib._bootstrap>:914: ImportWarning: "
+                b"ImportHookFinder.find_spec() not found; falling back to find_module()\n"
+            )
+            * 75
+        ), err

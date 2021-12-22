@@ -6,7 +6,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
-from ddtrace.propagation.utils import from_wsgi_header
+from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
 from ...internal.logger import get_logger

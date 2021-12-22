@@ -263,6 +263,94 @@ def test_sampling_rule_init():
     assert rule.name == name_regex
 
 
+@pytest.mark.parametrize(
+    "rule_1,rule_2,expected",
+    [
+        # Sample rate only
+        (SamplingRule(sample_rate=1.0), SamplingRule(sample_rate=1.0), True),
+        (SamplingRule(sample_rate=0.5), SamplingRule(sample_rate=0.5), True),
+        (SamplingRule(sample_rate=0.0), SamplingRule(sample_rate=0.0), True),
+        (SamplingRule(sample_rate=0.5), SamplingRule(sample_rate=1.0), False),
+        # Sample rate, and service name
+        (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=1.0, service="my-svc"), True),
+        (
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
+            True,
+        ),
+        (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=1.0, service="other-svc"), False),
+        (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=0.5, service="my-svc"), False),
+        (
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
+            SamplingRule(sample_rate=0.5, service=re.compile("my-svc")),
+            False,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
+            SamplingRule(sample_rate=1.0, service=re.compile("other")),
+            False,
+        ),
+        # Sample rate, and operation name
+        (
+            SamplingRule(sample_rate=1.0, name="span.name"),
+            SamplingRule(sample_rate=1.0, name="span.name"),
+            True,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, name=re.compile("span.name")),
+            SamplingRule(sample_rate=1.0, name=re.compile("span.name")),
+            True,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, name=re.compile("span.name")),
+            SamplingRule(sample_rate=1.0, name=re.compile("span.other")),
+            False,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, name="span.name"),
+            SamplingRule(sample_rate=0.5, name="span.name"),
+            False,
+        ),
+        (SamplingRule(sample_rate=1.0, name="span.name"), SamplingRule(sample_rate=1.0, name="span.other"), False),
+        (SamplingRule(sample_rate=1.0, name="span.name"), SamplingRule(sample_rate=0.5, name="span.name"), False),
+        # Sample rate, service, and operation name
+        (
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
+            True,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service="my-svc", name=re.compile("span.name")),
+            SamplingRule(sample_rate=1.0, service="my-svc", name=re.compile("span.name")),
+            True,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc"), name=re.compile("span.name")),
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc"), name=re.compile("span.name")),
+            True,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
+            SamplingRule(sample_rate=0.5, service="my-svc", name="span.name"),
+            False,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
+            SamplingRule(sample_rate=1.0, service="other", name="span.name"),
+            False,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.other"),
+            False,
+        ),
+    ],
+)
+def test_sampling_rule_eq(rule_1, rule_2, expected):
+    result = rule_1 == rule_2
+    assert result == expected
+
+
 def test_sampling_rule_init_via_env():
     # Testing single sampling rule
     with override_env(dict(DD_TRACE_SAMPLING_RULES='[{"sample_rate":1.0,"service":"xyz","name":"abc"}]')):
@@ -534,39 +622,39 @@ def test_datadog_sampler_init():
     assert sampler.rules == []
     assert isinstance(sampler.limiter, RateLimiter)
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler.default_sampler, RateByServiceSampler)
+    assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # With rules
     rule = SamplingRule(sample_rate=1)
     sampler = DatadogSampler(rules=[rule])
     assert sampler.rules == [rule]
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler.default_sampler, RateByServiceSampler)
+    assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # With rate limit
     sampler = DatadogSampler(rate_limit=10)
     assert sampler.limiter.rate_limit == 10
-    assert isinstance(sampler.default_sampler, RateByServiceSampler)
+    assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # With default_sample_rate
     sampler = DatadogSampler(default_sample_rate=0.5)
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler.default_sampler, SamplingRule)
-    assert sampler.default_sampler.sample_rate == 0.5
+    assert sampler.rules == [SamplingRule(sample_rate=0.5)]
+    assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # From env variables
     with override_env(dict(DD_TRACE_SAMPLE_RATE="0.5", DD_TRACE_RATE_LIMIT="10")):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == 10
-        assert isinstance(sampler.default_sampler, SamplingRule)
-        assert sampler.default_sampler.sample_rate == 0.5
+        assert sampler.rules == [SamplingRule(sample_rate=0.5)]
+        assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # DD_TRACE_SAMPLE_RATE=0
     with override_env(dict(DD_TRACE_SAMPLE_RATE="0")):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-        assert isinstance(sampler.default_sampler, SamplingRule)
-        assert sampler.default_sampler.sample_rate == 0
+        assert sampler.rules == [SamplingRule(sample_rate=0)]
+        assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # Invalid env vars
     with override_env(dict(DD_TRACE_SAMPLE_RATE="asdf")):
@@ -589,6 +677,10 @@ def test_datadog_sampler_init():
     rule_3 = SamplingRule(sample_rate=0.25, name="flask.request")
     sampler = DatadogSampler(rules=[rule_1, rule_2, rule_3])
     assert sampler.rules == [rule_1, rule_2, rule_3]
+
+    # Ensure default rule is appended
+    sampler = DatadogSampler(rules=[rule_1, rule_2, rule_3], default_sample_rate=0.75)
+    assert sampler.rules == [rule_1, rule_2, rule_3, SamplingRule(sample_rate=0.75)]
 
 
 @mock.patch("ddtrace.sampler.RateByServiceSampler.sample")
@@ -742,143 +834,77 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, rule, limit, d
 
 def test_datadog_sampler_tracer(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0, name="test.span")
-    rule_spy = mock.Mock(spec=rule, wraps=rule)
-    rule_spy.sample_rate = rule.sample_rate
+    sampler = DatadogSampler(rules=[rule])
+    dummy_tracer.configure(sampler=sampler)
 
-    sampler = DatadogSampler(rules=[rule_spy])
-    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
-    sampler.limiter = limiter_spy
-    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
-
-    dummy_tracer.configure(sampler=sampler_spy)
-
-    assert dummy_tracer.sampler is sampler_spy
-
-    with dummy_tracer.trace("test.span") as span:
-        # Assert all of our expected functions were called
-        sampler_spy.sample.assert_called_once_with(span)
-        rule_spy.matches.assert_called_once_with(span)
-        rule_spy.sample.assert_called_once_with(span)
-        limiter_spy.is_allowed.assert_called_once_with()
+    with dummy_tracer.trace("test.span"):
+        pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
 
 
 def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
     rule = SamplingRule(sample_rate=1.0, name="test.span")
-    rule_spy = mock.Mock(spec=rule, wraps=rule)
-    rule_spy.sample_rate = rule.sample_rate
+    sampler = DatadogSampler(rules=[rule], rate_limit=0)
+    dummy_tracer.configure(sampler=sampler)
 
-    sampler = DatadogSampler(rules=[rule_spy])
-    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
-    limiter_spy.is_allowed.return_value = False  # Have the limiter deny the span
-    sampler.limiter = limiter_spy
-    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
-
-    dummy_tracer.configure(sampler=sampler_spy)
-
-    assert dummy_tracer.sampler is sampler_spy
-
-    with dummy_tracer.trace("test.span") as span:
-        # Assert all of our expected functions were called
-        sampler_spy.sample.assert_called_once_with(span)
-        rule_spy.matches.assert_called_once_with(span)
-        rule_spy.sample.assert_called_once_with(span)
-        limiter_spy.is_allowed.assert_called_once_with()
+    with dummy_tracer.trace("test.span"):
+        pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
-    assert spans[0].get_metric(SAMPLING_LIMIT_DECISION) is None
-    assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=0.0)
 
 
 def test_datadog_sampler_tracer_rate_0(dummy_tracer):
-    rule = SamplingRule(sample_rate=0, name="test.span")  # Sample rate of 0 means never sample
-    rule_spy = mock.Mock(spec=rule, wraps=rule)
-    rule_spy.sample_rate = rule.sample_rate
+    # Sample rate of 0 means never sample
+    rule = SamplingRule(sample_rate=0, name="test.span")
+    sampler = DatadogSampler(rules=[rule])
+    dummy_tracer.configure(sampler=sampler)
 
-    sampler = DatadogSampler(rules=[rule_spy])
-    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
-    sampler.limiter = limiter_spy
-    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
-
-    dummy_tracer.configure(sampler=sampler_spy)
-
-    assert dummy_tracer.sampler is sampler_spy
-
-    with dummy_tracer.trace("test.span") as span:
-        # Assert all of our expected functions were called
-        sampler_spy.sample.assert_called_once_with(span)
-        rule_spy.matches.assert_called_once_with(span)
-        rule_spy.sample.assert_called_once_with(span)
-        limiter_spy.is_allowed.assert_not_called()
+    with dummy_tracer.trace("test.span"):
+        pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
-    assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 0
+    assert_sampling_decision_tags(spans[0], rule=0.0)
 
 
 def test_datadog_sampler_tracer_child(dummy_tracer):
-    rule = SamplingRule(sample_rate=1.0)  # No rules means it gets applied to every span
-    rule_spy = mock.Mock(spec=rule, wraps=rule)
-    rule_spy.sample_rate = rule.sample_rate
+    # No rules means it gets applied to every span
+    rule = SamplingRule(sample_rate=1.0)
+    sampler = DatadogSampler(rules=[rule])
+    dummy_tracer.configure(sampler=sampler)
 
-    sampler = DatadogSampler(rules=[rule_spy])
-    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
-    sampler.limiter = limiter_spy
-    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
-
-    dummy_tracer.configure(sampler=sampler_spy)
-
-    assert dummy_tracer.sampler is sampler_spy
-
-    with dummy_tracer.trace("parent.span") as parent:
+    with dummy_tracer.trace("parent.span"):
         with dummy_tracer.trace("child.span"):
-            # Assert all of our expected functions were called
-            # DEV: `assert_called_once_with` ensures we didn't also call with the child span
-            sampler_spy.sample.assert_called_once_with(parent)
-            rule_spy.matches.assert_called_once_with(parent)
-            rule_spy.sample.assert_called_once_with(parent)
-            limiter_spy.is_allowed.assert_called_once_with()
+            pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 2, "Trace should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
+    assert_sampling_decision_tags(spans[1], agent=None, rule=None, limit=None)
 
 
 def test_datadog_sampler_tracer_start_span(dummy_tracer):
-    rule = SamplingRule(sample_rate=1.0)  # No rules means it gets applied to every span
-    rule_spy = mock.Mock(spec=rule, wraps=rule)
-    rule_spy.sample_rate = rule.sample_rate
-
-    sampler = DatadogSampler(rules=[rule_spy])
-    limiter_spy = mock.Mock(spec=sampler.limiter, wraps=sampler.limiter)
-    sampler.limiter = limiter_spy
-    sampler_spy = mock.Mock(spec=sampler, wraps=sampler)
-
-    dummy_tracer.configure(sampler=sampler_spy)
-
-    assert dummy_tracer.sampler is sampler_spy
+    # No rules means it gets applied to every span
+    rule = SamplingRule(sample_rate=1.0)
+    sampler = DatadogSampler(rules=[rule])
+    dummy_tracer.configure(sampler=sampler)
 
     span = dummy_tracer.start_span("test.span")
     span.finish()
 
-    # Assert all of our expected functions were called
-    sampler_spy.sample.assert_called_once_with(span)
-    rule_spy.matches.assert_called_once_with(span)
-    rule_spy.sample.assert_called_once_with(span)
-    limiter_spy.is_allowed.assert_called_once_with()
-
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert spans[0].get_metric(SAMPLING_RULE_DECISION) == 1.0
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
 
 
 def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
@@ -904,7 +930,7 @@ def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
     for case in cases:
         sampler.update_rate_by_service_sample_rates(case)
         rates = {}
-        for k, v in iteritems(sampler.default_sampler._by_service_samplers):
+        for k, v in iteritems(sampler._agent_sampler._by_service_samplers):
             rates[k] = v.sample_rate
         assert case == rates, "%s != %s" % (case, rates)
 
@@ -914,6 +940,6 @@ def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
     for case in cases:
         sampler.update_rate_by_service_sample_rates(case)
         rates = {}
-        for k, v in iteritems(sampler.default_sampler._by_service_samplers):
+        for k, v in iteritems(sampler._agent_sampler._by_service_samplers):
             rates[k] = v.sample_rate
         assert case == rates, "%s != %s" % (case, rates)

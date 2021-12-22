@@ -89,7 +89,7 @@ below:
        .. _dd-logs-injection:
    * - ``DD_LOGS_INJECTION``
      - Boolean
-     - True
+     - False
      - Enables :ref:`Logs Injection`.
 
        .. _dd-call-basic-config:
