@@ -523,23 +523,21 @@ venv = Venv(
                         ],
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": [
-                #             "~=4.0.0",
-                #             latest,
-                #         ],
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": [
+                            "~=4.0.0",
+                            latest,
+                        ],
+                    },
+                ),
             ],
         ),
         Venv(
             name="django_hosts",
             command="pytest {cmdargs} tests/contrib/django_hosts",
             pkgs={
-                "django_hosts": ["~=4.0", latest],
                 "pytest-django": [
                     "==3.10.0",
                 ],
@@ -548,28 +546,27 @@ venv = Venv(
                 Venv(
                     pys=["3.5"],
                     pkgs={
+                        "django_hosts": ["~=4.0"],
                         "django": ["~=2.2"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
+                        "django_hosts": ["~=4.0"],
                         "django": [
                             "~=2.2",
                             "~=3.2",
                         ],
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": [
-                #             "~=4.0",
-                #             latest,
-                #         ],
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django_hosts": ["~=5.0", latest],
+                        "django": "~=4.0",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -608,15 +605,14 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": latest,
-                #         "djangorestframework": ">=3.11,<3.12",
-                #         "pytest-django": "==3.10.0",
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": "~=4.0",
+                        "djangorestframework": ["~=3.13", latest],
+                        "pytest-django": "==3.10.0",
+                    },
+                ),
             ],
         ),
         Venv(
