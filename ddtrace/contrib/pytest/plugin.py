@@ -17,8 +17,8 @@ from ddtrace.ext import test
 from ddtrace.filters import TraceCiVisibilityFilter
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
-from ddtrace.pin import Pin
 from ddtrace.internal.processor.trace import TraceCiVisibilityProcessor
+from ddtrace.pin import Pin
 
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
