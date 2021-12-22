@@ -8,8 +8,8 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
-from ddtrace.internal.processor.trace import TraceCiVisibilityProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
+from ddtrace.internal.processor.trace import TraceTopLevelSpanProcessor
 from tests.utils import DummyWriter
 
 
