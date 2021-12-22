@@ -87,7 +87,9 @@ def pytest_configure(config):
 def pytest_sessionstart(session):
     pin = Pin.get_from(session.config)
     if pin is not None:
-        pin.tracer.configure(settings={"FILTERS": [TraceCiVisibilityFilter()]})
+        filters = pin.tracer._filters
+        filters += [TraceCiVisibilityFilter()]
+        pin.tracer.configure(settings={"FILTERS": filters})
 
 
 def pytest_sessionfinish(session, exitstatus):

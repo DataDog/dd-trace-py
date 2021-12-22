@@ -76,10 +76,8 @@ class FilterRequestsOnUrl(TraceFilter):
 class TraceCiVisibilityFilter(TraceFilter):
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
-        for span in trace:
-            if span is span._local_root:
-                if span.span_type == SpanTypes.TEST.value:
-                    return trace
-                return None
+        if not trace:
+            return trace
 
-        return trace
+        local_root = trace[0]._local_root
+        return trace if local_root and local_root.span_type == SpanTypes.TEST.value else None
