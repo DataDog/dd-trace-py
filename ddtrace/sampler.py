@@ -335,12 +335,12 @@ class DatadogSampler(BasePrioritySampler):
 
         # Ensure all allowed traces adhere to the global rate limit
         allowed = self.limiter.is_allowed(span.start_ns)
-        # Always set the sample rate metric whether it was allowed or not
-        # DEV: Setting this allows us to properly compute metrics and debug the
-        #      various sample rates that are getting applied to this span
-        span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
         if not allowed:
             self._set_priority(span, USER_REJECT)
+            # We only need to set the rate limit metric if the limiter is rejecting the span
+            # DEV: Setting this allows us to properly compute metrics and debug the
+            #      various sample rates that are getting applied to this span
+            span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
             return False
 
         # We made it by all of checks, sample this trace
