@@ -182,7 +182,7 @@ cdef class DDWaf(object):
             addresses.append((<bytes> ptr[i]).decode("utf-8"))
         return addresses
 
-    def run(self, data, timeout_ms=1000):
+    def run(self, data, timeout_ms=10000):
         cdef ddwaf_context ctx
         cdef ddwaf_result result
 
