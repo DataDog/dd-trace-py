@@ -88,24 +88,31 @@ class CMake(BuildExtCommand):
             return
 
         try:
+            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
+            build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
+            opts = ["-DCMAKE_BUILD_TYPE={}".format(build_type)]
+            if platform.system() == "Windows":
+                opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
+            else:
+                opts.extend(["-G", "Ninja"])
+                ninja_command = os.environ.get("NINJA_COMMAND", "")
+                if ninja_command:
+                    opts.append("-DCMAKE_MAKE_PROGRAM={}".format(ninja_command))
+
             for source_dir in to_build:
-                build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
-                opts = ["-DCMAKE_BUILD_TYPE={}".format(build_type)]
-                if platform.system() == "Windows":
-                    opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-                else:
-                    opts.extend(["-G", "Ninja"])
                 try:
                     build_dir = tempfile.mkdtemp()
-                    subprocess.check_call(["cmake", "-S", source_dir, "-B", build_dir] + opts)
-                    subprocess.check_call(["cmake", "--build", build_dir, "--config", build_type])
+                    subprocess.check_call([cmake_command, "-S", source_dir, "-B", build_dir] + opts)
+                    subprocess.check_call([cmake_command, "--build", build_dir, "--config", build_type])
                 finally:
                     if not DEBUG_COMPILE:
                         shutil.rmtree(build_dir, ignore_errors=True)
 
             BuildExtCommand.build_extension(self, ext)
         except Exception as e:
-            print("WARNING: building extension \"%s\" failed: %s" % (ext.name, e))
+            if "DD_TESTING_RAISE" in os.environ:
+                raise
+            print('WARNING: building extension "%s" failed: %s' % (ext.name, e))
             # Remove this extension from the extension list to avoid errors
             # during the install phase.
             self.extensions = [item for item in self.extensions if item.name != ext.name]
