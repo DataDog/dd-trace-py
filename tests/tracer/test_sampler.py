@@ -751,7 +751,7 @@ class MatchNoSample(SamplingRule):
             ),
             USER_KEEP,
             1.0,
-            1.0,
+            None,
         ),
         (
             DatadogSampler(
@@ -764,7 +764,7 @@ class MatchNoSample(SamplingRule):
             ),
             USER_KEEP,
             0.5,
-            1.0,
+            None,
         ),
         (
             DatadogSampler(
@@ -777,7 +777,7 @@ class MatchNoSample(SamplingRule):
             ),
             USER_KEEP,
             0.5,
-            1.0,
+            None,
         ),
         (
             DatadogSampler(
@@ -813,6 +813,15 @@ class MatchNoSample(SamplingRule):
             0,
             None,
         ),
+        (
+            DatadogSampler(
+                default_sample_rate=1.0,
+                rate_limit=0,
+            ),
+            AUTO_REJECT,
+            1.0,
+            0.0,
+        ),
     ],
 )
 def test_datadog_sampler_sample_rules(sampler, sampling_priority, rule, limit, dummy_tracer):
@@ -843,7 +852,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=None)
 
 
 def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
@@ -888,7 +897,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     spans = dummy_tracer.pop()
     assert len(spans) == 2, "Trace should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=None)
     assert_sampling_decision_tags(spans[1], agent=None, rule=None, limit=None)
 
 
@@ -904,7 +913,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=None)
 
 
 def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
