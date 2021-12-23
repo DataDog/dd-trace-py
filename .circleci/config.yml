@@ -222,7 +222,7 @@ executors:
   cimg_base:
     docker:
       - image: *cimg_base_image
-    resource_class: small
+    resource_class: medium
   python39:
     docker:
       - image: *python39_image
