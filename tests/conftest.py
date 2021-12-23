@@ -89,3 +89,16 @@ def snapshot_context(request):
             yield snapshot
 
     return _snapshot
+
+
+@pytest.fixture
+def appsec():
+    """
+    Fixture for the AppSec module that disables it after each test.
+    """
+    import ddtrace.appsec
+
+    try:
+        yield ddtrace.appsec
+    finally:
+        ddtrace.appsec.disable()

@@ -339,6 +339,12 @@ jobs:
           paths:
             - "."
 
+  appsec:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'appsec'
+
   tracer:
     <<: *contrib_job
     steps:
@@ -1020,6 +1026,7 @@ requires_tests: &requires_tests
     - starlette
     - test_logging
     - tracer
+    - appsec
     - tornado
     - urllib3
     - vertica
@@ -1107,6 +1114,7 @@ workflows:
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
+      - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs

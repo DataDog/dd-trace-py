@@ -213,7 +213,10 @@ setup(
     long_description_content_type="text/markdown",
     license="BSD",
     packages=find_packages(exclude=["tests*"]),
-    package_data={"ddtrace": ["py.typed"]},
+    package_data={
+        "ddtrace": ["py.typed"],
+        "ddtrace.appsec": ["rules.json"],
+    },
     py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     zip_safe=False,
@@ -259,7 +262,7 @@ setup(
         "Programming Language :: Python :: 3.10",
     ],
     use_scm_version={"write_to": "ddtrace/_version.py"},
-    setup_requires=["setuptools_scm[toml]>=4,<6.1", "cython"],
+    setup_requires=["setuptools_scm[toml]>=4,<6.1", "cython", "cmake", "ninja"],
     ext_modules=ext_modules
     + cythonize(
         [

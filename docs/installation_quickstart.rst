@@ -31,7 +31,7 @@ Binary distributions are not available for Alpine so build dependencies must be 
 
 .. code-block:: bash
 
-    apk add gcc g++ musl-dev linux-headers
+    apk add gcc g++ git musl-dev linux-headers
     pip install ddtrace
 
 

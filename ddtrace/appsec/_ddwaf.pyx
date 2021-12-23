@@ -35,21 +35,33 @@ from libc.stdint cimport uintptr_t
 from libc.string cimport memset
 
 
-cdef void print_trace(DDWAF_LOG_LEVEL level, const char *function, const char *file, unsigned line, const char *message, uint64_t len):
-    print("[ddwaf] {}".format(message))
-
-
-ddwaf_set_log_cb(print_trace, DDWAF_LOG_LEVEL.DDWAF_LOG_TRACE)
+DEFAULT_DDWAF_TIMEOUT_MS=20
 
 
 def version():
     # type: () -> Tuple[int, int, int]
+    """Get the version of libddwaf."""
     cdef ddwaf_version version
     ddwaf_get_version(&version)
     return (version.major, version.minor, version.patch)
 
 
 cdef class _Wrapper(object):
+    """
+    Wrapper to convert Python objects to ddwaf objects.
+
+    libddwaf represents scalar and composite values using ddwaf objects. This
+    wrapper converts Python objects to ddwaf objects by traversing all values
+    and their children. By default, the number of objects is limited to avoid
+    infinite loops. This limitation can be lifted on trusted data by setting
+    `max_objects` to `None`.
+
+    Under the hood, the wrapper uses an array of `ddwaf_object` allocated as a
+    single buffer. Objects such as maps or arrays refer to other objects that
+    are only part of this buffer. Strings are not copied, they live in the
+    Python heap and are referenced by the wrapper to avoid garbage collection.
+    """
+
     cdef ddwaf_object *_ptr
     cdef readonly object _string_refs
     cdef readonly ssize_t _size
@@ -150,16 +162,21 @@ cdef class _Wrapper(object):
             i += 1
 
     def __repr__(self):
-        return "<_Wrapper for {0._next_idx} elements>".format(self)
+        return "<{0.__class__.__name__} for {0._next_idx} elements>".format(self)
 
     def __sizeof__(self):
-        return super(_Wrapper, self).__sizeof__() + self._size
+        return super(_Wrapper, self).__sizeof__() + self._size * sizeof(ddwaf_object)
 
     def __dealloc__(self):
         PyMem_Free(self._ptr)
 
 
 cdef class DDWaf(object):
+    """
+    A DDWaf instance performs a matching operation on provided data according
+    to some rules.
+    """
+
     cdef ddwaf_handle _handle
     cdef object _rules
 
@@ -182,7 +199,7 @@ cdef class DDWaf(object):
             addresses.append((<bytes> ptr[i]).decode("utf-8"))
         return addresses
 
-    def run(self, data, timeout_ms=10000):
+    def run(self, data, timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS):
         cdef ddwaf_context ctx
         cdef ddwaf_result result
 
@@ -191,7 +208,7 @@ cdef class DDWaf(object):
             raise RuntimeError
         try:
             wrapper = _Wrapper(data)
-            ddwaf_run(ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms)
+            ddwaf_run(ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms * 1000)
             if result.data != NULL:
                 return (<bytes> result.data).decode("utf-8")
         finally:

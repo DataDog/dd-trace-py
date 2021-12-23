@@ -87,6 +87,11 @@ try:
     if asbool(get_env("runtime_metrics", "enabled")):
         RuntimeWorker.enable()
 
+    if asbool(get_env("appsec", "enabled", default=False)):
+        import ddtrace.appsec
+
+        ddtrace.appsec.enable()
+
     opts = {}  # type: Dict[str, Any]
 
     dd_trace_enabled = get_env("trace", "enabled", default=True)
