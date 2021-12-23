@@ -29,7 +29,7 @@ class AppSecProcessor(object):
 
     tracer = attr.ib(type=ddtrace.Tracer, default=None)
     rules = attr.ib(type=str, default=None)
-    _ddwaf = attr.ib(type=DDWaf, init=False)
+    _ddwaf = attr.ib(type=DDWaf, default=None)
 
     enabled = False
     _instance = None  # type: ClassVar[Optional[AppSecProcessor]]
