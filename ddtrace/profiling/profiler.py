@@ -25,6 +25,9 @@ from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
 
+from . import _asyncio
+from ._asyncio import DdtraceProfilerEventLoopPolicy
+
 
 LOG = logging.getLogger(__name__)
 
@@ -122,6 +125,7 @@ class _ProfilerInstance(service.Service):
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_AGENTLESS", "False")), type=bool)
+    asyncio_loop_policy = attr.ib(factory=DdtraceProfilerEventLoopPolicy, repr=False, eq=False)
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
@@ -199,6 +203,12 @@ class _ProfilerInstance(service.Service):
             self._scheduler = scheduler.Scheduler(
                 recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
             )
+
+        self.set_asyncio_event_loop_policy()
+
+    def set_asyncio_event_loop_policy(self):
+        if self.asyncio_loop_policy is not None:
+            _asyncio.set_event_loop_policy(self.asyncio_loop_policy)
 
     def _collectors_snapshot(self):
         for c in self._collectors:

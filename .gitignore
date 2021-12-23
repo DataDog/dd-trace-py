@@ -5,7 +5,7 @@ __pycache__/
 
 # C extensions
 ddtrace/profiling/collector/_task.c
-ddtrace/profiling/collector/_threading.c
+ddtrace/profiling/_threading.c
 ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
 ddtrace/profiling/exporter/pprof.c
