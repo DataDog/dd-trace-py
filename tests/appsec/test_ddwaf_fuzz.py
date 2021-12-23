@@ -1,6 +1,5 @@
 import sys
 
-import atheris
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -18,7 +17,6 @@ WRAPPER_KWARGS = dict(
 
 
 @given(obj=PYTHON_OBJECTS, kwargs=st.fixed_dictionaries(WRAPPER_KWARGS))
-@atheris.instrument_func
 def test_ddwaf_objects_wrapper(obj, kwargs):
     obj = _Wrapper(obj, **kwargs)
     repr(obj)
@@ -26,5 +24,7 @@ def test_ddwaf_objects_wrapper(obj, kwargs):
 
 
 if __name__ == "__main__":
+    import atheris
+
     atheris.Setup(sys.argv, atheris.instrument_func(test_ddwaf_objects_wrapper.hypothesis.fuzz_one_input))
     atheris.Fuzz()
