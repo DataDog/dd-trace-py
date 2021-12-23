@@ -25,7 +25,7 @@ jobs:
            archs: x86_64 i686
          - os: ubuntu-18.04
            archs: aarch64
-         - os: windows-2022
+         - os: windows-latest
            archs: AMD64 x86
          - os: macos-latest
            archs: x86_64 universal2
@@ -75,7 +75,7 @@ jobs:
            archs: x86_64 i686
          - os: ubuntu-18.04
            archs: aarch64
-         - os: windows-2022
+         - os: windows-latest
            archs: AMD64 x86
          - os: macos-latest
            archs: x86_64 universal2

@@ -27,19 +27,15 @@ log = get_logger(__name__)
 @attr.s(eq=False)
 class AppSecProcessor(object):
 
-    tracer = attr.ib(type=ddtrace.Tracer, default=None)
-    rules = attr.ib(type=str, default=None)
+    tracer = attr.ib(type=ddtrace.Tracer, default=ddtrace.tracer)
+    rules = attr.ib(type=str, factory=lambda: get_env("appsec", "rules", default=DEFAULT_RULES))
     _ddwaf = attr.ib(type=DDWaf, default=None)
 
-    enabled = False
+    enabled = False  # type: ClassVar[bool]
     _instance = None  # type: ClassVar[Optional[AppSecProcessor]]
 
     def __attrs_post_init__(self):
         # type: () -> None
-        if self.tracer is None:
-            self.tracer = ddtrace.tracer
-        if self.rules is None:
-            self.rules = get_env("appsec", "rules", default=DEFAULT_RULES)
         if self._ddwaf is None:
             with open(self.rules, "r") as f:
                 rules = json.load(f)

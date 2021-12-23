@@ -16,8 +16,6 @@ ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
 *.so
 *.a
-*.cmake
-*.h
 
 # Cython annotate HTML files
 ddtrace/**/*.html
