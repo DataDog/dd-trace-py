@@ -435,7 +435,7 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     except Exception:
         log.debug("Failed to instrument Django view %r", instance, exc_info=True)
     view = func(*args, **kwargs)
-    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
 
 
 @trace_utils.with_traced_module
@@ -484,7 +484,10 @@ def _patch(django):
     # DEV: this check will be replaced with import hooks in the future
     if "django.conf.urls.static" not in sys.modules:
         import django.conf.urls.static
-    trace_utils.wrap(django, "conf.urls.url", traced_urls_path(django))
+
+    if django.VERSION < (4, 0, 0):
+        trace_utils.wrap(django, "conf.urls.url", traced_urls_path(django))
+
     if django.VERSION >= (2, 0, 0):
         trace_utils.wrap(django, "urls.path", traced_urls_path(django))
         trace_utils.wrap(django, "urls.re_path", traced_urls_path(django))
