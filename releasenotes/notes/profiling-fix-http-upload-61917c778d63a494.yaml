@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix broken HTTPS upload due to wrong class inheritance.
