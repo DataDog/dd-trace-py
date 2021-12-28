@@ -21,7 +21,7 @@ def test_get_task_main():
 
 @pytest.mark.skipif(TESTING_GEVENT, reason="only works without gevent")
 def test_list_tasks_nogevent():
-    assert _task.list_tasks() == []
+    assert _task.list_tasks(nogevent.main_thread_id) == []
 
 
 @pytest.mark.skipif(not TESTING_GEVENT, reason="only works with gevent")
@@ -39,7 +39,7 @@ def test_list_tasks_gevent():
     t1 = threading.Thread(target=wait, name="t1")
     t1.start()
 
-    tasks = _task.list_tasks()
+    tasks = _task.list_tasks(nogevent.main_thread_id)
     # can't check == 2 because there are left over from other tests
     assert len(tasks) >= 2
 
