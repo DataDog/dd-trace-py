@@ -157,7 +157,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
 
     cmds = []
     for _, cmd, cmd_args, _ in instance._pipeline:
-        parts = [cmd.decode(errors="backslashreplace") if isinstance(cmd, bytes) else cmd]
+        parts = [cmd.decode() if isinstance(cmd, bytes) else cmd]
         parts.extend(cmd_args)
         cmds.append(format_command_args(parts))
     resource = "\n".join(cmds)
