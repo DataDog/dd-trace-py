@@ -171,7 +171,12 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
 
         if write_callback is not None:
             new_kwargs["write_callback"] = _wrap_response_callback(span, write_callback)
+        elif SANIC_PRE_21:
+            new_kwargs["write_callback"] = None
+
         if stream_callback is not None:
             new_kwargs["stream_callback"] = _wrap_response_callback(span, stream_callback)
+        elif SANIC_PRE_21:
+            new_kwargs["stream_callback"] = None
 
         return await wrapped(request, **new_kwargs)
