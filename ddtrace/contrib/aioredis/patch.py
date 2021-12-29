@@ -66,7 +66,7 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    decoded_args = [arg.decode() if isinstance(arg, bytes) else arg for arg in args]
+    decoded_args = [arg.decode(errors="backslashreplace") if isinstance(arg, bytes) else arg for arg in args]
     with _trace_redis_cmd(pin, config.aioredis, instance, decoded_args):
         return await func(*args, **kwargs)
 
@@ -107,7 +107,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    decoded_args = [arg.decode() if isinstance(arg, bytes) else arg for arg in args]
+    decoded_args = [arg.decode(errors="backslashreplace") if isinstance(arg, bytes) else arg for arg in args]
     # Don't activate the span since this operation is performed as a future which concludes sometime later on in
     # execution so subsequent operations in the stack are not necessarily semantically related
     # (we don't want this span to be the parent of all other spans created before the future is resolved)
@@ -157,7 +157,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
 
     cmds = []
     for _, cmd, cmd_args, _ in instance._pipeline:
-        parts = [cmd.decode() if isinstance(cmd, bytes) else cmd]
+        parts = [cmd.decode(errors="backslashreplace") if isinstance(cmd, bytes) else cmd]
         parts.extend(cmd_args)
         cmds.append(format_command_args(parts))
     resource = "\n".join(cmds)
