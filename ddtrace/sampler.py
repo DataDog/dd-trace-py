@@ -138,6 +138,11 @@ class RateByServiceSampler(BasePrioritySampler):
         # type: (...) -> None
         self._by_service_samplers[self._key(service, env)] = RateSampler(sample_rate)
 
+    def _set_priority(self, span, priority):
+        # type: (Span, int) -> None
+        span.context.sampling_priority = priority
+        span.sampled = priority > 0  # Positive priorities mean it was kept
+
     def sample(self, span):
         # type: (Span) -> bool
         tags = span.tracer.tags if span.tracer else {}
@@ -145,8 +150,12 @@ class RateByServiceSampler(BasePrioritySampler):
         key = self._key(span.service, env)
 
         sampler = self._by_service_samplers.get(key, self._by_service_samplers[self._default_key])
+        sampled = sampler.sample(span)
+        priority = AUTO_KEEP if sampled else AUTO_REJECT
+
         span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
-        return sampler.sample(span)
+        self._set_priority(span, priority)
+        return sampled
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
         # type: (Dict[str, float]) -> None
@@ -157,7 +166,7 @@ class RateByServiceSampler(BasePrioritySampler):
         self._by_service_samplers = new_by_service_samplers
 
 
-class DatadogSampler(BasePrioritySampler):
+class DatadogSampler(RateByServiceSampler):
     """
     Default sampler used by Tracer for determining if a trace should be kept or dropped.
 
@@ -188,7 +197,7 @@ class DatadogSampler(BasePrioritySampler):
     provided. It is not used when the agent supplied sample rates are used.
     """
 
-    __slots__ = ("_agent_sampler", "limiter", "rules")
+    __slots__ = ("limiter", "rules")
 
     NO_RATE_LIMIT = -1
     DEFAULT_RATE_LIMIT = 100
@@ -212,6 +221,9 @@ class DatadogSampler(BasePrioritySampler):
             applied to them, (default: ``100``)
         :type rate_limit: :obj:`int`
         """
+        # Use default sample rate of 1.0
+        super(DatadogSampler, self).__init__()
+
         if default_sample_rate is None:
             sample_rate = get_env("trace", "sample_rate")
             if sample_rate is not None:
@@ -238,9 +250,6 @@ class DatadogSampler(BasePrioritySampler):
         if default_sample_rate is not None:
             self.rules.append(SamplingRule(sample_rate=default_sample_rate))
 
-        # If no rules are configured (or match), fallback to agent based sampling
-        self._agent_sampler = RateByServiceSampler()
-
         # Configure rate limiter
         self.limiter = RateLimiter(rate_limit)
 
@@ -250,11 +259,12 @@ class DatadogSampler(BasePrioritySampler):
     def default_sampler(self):
         if self.rules:
             return self.rules[-1]
-        return self._agent_sampler
+        return self
 
     def __str__(self):
-        return "{}(agent_sampler={!r}, limiter={!r}, rules={!r})".format(
-            self.__class__.__name__, self._agent_sampler, self.limiter, self.rules
+        rates = {key: sampler.sample_rate for key, sampler in self._by_service_samplers.items()}
+        return "{}(agent_rates={!r}, limiter={!r}, rules={!r})".format(
+            self.__class__.__name__, rates, self.limiter, self.rules
         )
 
     __repr__ = __str__
@@ -280,16 +290,6 @@ class DatadogSampler(BasePrioritySampler):
                 sampling_rules.append(sampling_rule)
         return sampling_rules
 
-    def update_rate_by_service_sample_rates(self, sample_rates):
-        # type: (Dict[str, float]) -> None
-        # Pass through the call to our RateByServiceSampler
-        self._agent_sampler.update_rate_by_service_sample_rates(sample_rates)
-
-    def _set_priority(self, span, priority):
-        # type: (Span, int) -> None
-        span.context.sampling_priority = priority
-        span.sampled = priority > 0  # Positive priorities mean it was kept
-
     def sample(self, span):
         # type: (Span) -> bool
         """
@@ -313,12 +313,7 @@ class DatadogSampler(BasePrioritySampler):
                 break
         else:
             # No rules matches so use agent based sampling
-            if self._agent_sampler.sample(span):
-                self._set_priority(span, AUTO_KEEP)
-                return True
-            else:
-                self._set_priority(span, AUTO_REJECT)
-                return False
+            return super(DatadogSampler, self).sample(span)
 
         # DEV: This should never happen, but since the type is Optional we have to check
         if not matching_rule:
