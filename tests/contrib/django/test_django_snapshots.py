@@ -172,6 +172,14 @@ def test_asgi_200(django_asgi):
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
+@snapshot()
+def test_simple_asgi_app():
+    resp = daphne_client_request("simple_application", "GET", "/")
+    assert resp.status_code == 200
+    assert resp.content == b"Hello World"
+
+
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
     ignores=["meta.error.stack"],
     variants={
