@@ -404,7 +404,7 @@ def _instrument_view(django, view):
 
     # If the view itself is not wrapped, wrap it
     if not isinstance(view, wrapt.ObjectProxy):
-        view = wrapt.FunctionWrapper(
+        view = utils.DjangoViewProxy(
             view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
         )
     return view
@@ -446,6 +446,22 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
         span.name = "django.request"
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
+
+
+def unwrap_views(func, instance, args, kwargs):
+    """
+    In django channels we asgi applications as views in our trace_url_paths helper
+    which causes django channels to fail on startup
+
+    This function unwraps django views
+    """
+    routes = get_argument_value(args, kwargs, 0, "routes")
+    for route in routes:
+        if isinstance(route.callback, utils.DjangoViewProxy):
+            route.callback = route.callback.__wrapped__
+
+    # URLRouter accepts one argument
+    return func(routes)
 
 
 def _patch(django):
@@ -496,6 +512,13 @@ def _patch(django):
     if "django.views.generic.base" not in sys.modules:
         import django.views.generic.base
     trace_utils.wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
+
+    try:
+        import channels.routing
+
+        trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
+    except Exception:
+        log.debug("Error patching django channels", exc_info=True)
 
 
 def patch():

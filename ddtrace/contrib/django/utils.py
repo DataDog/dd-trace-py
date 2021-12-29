@@ -10,6 +10,7 @@ from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
 from ...internal.logger import get_logger
+from ...vendor.wrapt import FunctionWrapper
 from .compat import get_resolver
 from .compat import user_is_authenticated
 
@@ -294,3 +295,7 @@ def _after_request_tags(pin, span, request, response):
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method
+
+
+class DjangoViewProxy(FunctionWrapper):
+    pass
