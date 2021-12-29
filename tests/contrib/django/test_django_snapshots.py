@@ -12,8 +12,7 @@ from tests.webclient import Client
 SERVER_PORT = 8000
 
 
-@pytest.fixture(scope="function")
-def daphne_client(snapshot):
+def daphne_client_request(django_asgi, method, path):
     """Runs a django app hosted with a daphne webserver in a subprocess and
     returns a client which can be used to query it.
 
@@ -25,15 +24,10 @@ def daphne_client(snapshot):
     # token) propagated to the new process.
     env = os.environ.copy()
     assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
-    env.update(
-        {
-            "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
-        }
-    )
 
     # ddtrace-run uses execl which replaces the process but the webserver process itself might spawn new processes.
     # Right now it doesn't but it's possible that it might in the future (ex. uwsgi).
-    cmd = ["ddtrace-run", "daphne", "-p", str(SERVER_PORT), "tests.contrib.django.asgi:application"]
+    cmd = ["ddtrace-run", "daphne", "-p", str(SERVER_PORT), "tests.contrib.django.asgi:" + django_asgi]
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -46,13 +40,14 @@ def daphne_client(snapshot):
 
     # Wait for the server to start up
     client.wait()
+    # send request
+    resp = client.request(method, path)
 
-    try:
-        yield client
-    finally:
-        resp = client.get_ignored("/shutdown-tracer")
-        assert resp.status_code == 200
-        proc.terminate()
+    shutdown = client.get_ignored("/shutdown-tracer/")
+    assert shutdown.status_code == 200
+    proc.terminate()
+
+    return resp
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
@@ -156,21 +151,23 @@ def test_psycopg_query_default(client, psycopg2_patched):
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@pytest.mark.snapshot(
+@snapshot(
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
+    token_override="tests.contrib.django.test_django_snapshots.test_asgi_200",
 )
-def test_asgi_200(daphne_client):
-    resp = daphne_client.get("/")
+@pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
+def test_asgi_200(django_asgi):
+    resp = daphne_client_request(django_asgi, "GET", "/")
     assert resp.status_code == 200
     assert resp.content == b"Hello, test app."
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@pytest.mark.snapshot(
+@snapshot(
     ignores=["meta.error.stack"],
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
@@ -178,6 +175,6 @@ def test_asgi_200(daphne_client):
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
-def test_asgi_500(daphne_client):
-    resp = daphne_client.get("/error-500/")
+def test_asgi_500():
+    resp = daphne_client_request("application", "GET", "/error-500/")
     assert resp.status_code == 500
