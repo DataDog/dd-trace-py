@@ -24,6 +24,12 @@ def daphne_client_request(django_asgi, method, path):
     # token) propagated to the new process.
     env = os.environ.copy()
     assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
+    # Application must be run in the project root to find this settings ex. ddtrace/
+    env.update(
+        {
+            "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
+        }
+    )
 
     # ddtrace-run uses execl which replaces the process but the webserver process itself might spawn new processes.
     # Right now it doesn't but it's possible that it might in the future (ex. uwsgi).
@@ -41,13 +47,12 @@ def daphne_client_request(django_asgi, method, path):
     # Wait for the server to start up
     client.wait()
     # send request
-    resp = client.request(method, path)
-
-    shutdown = client.get_ignored("/shutdown-tracer/")
-    assert shutdown.status_code == 200
-    proc.terminate()
-
-    return resp
+    try:
+        return client.request(method, path)
+    finally:
+        resp = client.get_ignored("/shutdown-tracer/")
+        assert resp.status_code == 200
+        proc.terminate()
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
