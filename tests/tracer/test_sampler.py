@@ -622,39 +622,33 @@ def test_datadog_sampler_init():
     assert sampler.rules == []
     assert isinstance(sampler.limiter, RateLimiter)
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # With rules
     rule = SamplingRule(sample_rate=1)
     sampler = DatadogSampler(rules=[rule])
     assert sampler.rules == [rule]
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # With rate limit
     sampler = DatadogSampler(rate_limit=10)
     assert sampler.limiter.rate_limit == 10
-    assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # With default_sample_rate
     sampler = DatadogSampler(default_sample_rate=0.5)
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
     assert sampler.rules == [SamplingRule(sample_rate=0.5)]
-    assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # From env variables
     with override_env(dict(DD_TRACE_SAMPLE_RATE="0.5", DD_TRACE_RATE_LIMIT="10")):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == 10
         assert sampler.rules == [SamplingRule(sample_rate=0.5)]
-        assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # DD_TRACE_SAMPLE_RATE=0
     with override_env(dict(DD_TRACE_SAMPLE_RATE="0")):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
         assert sampler.rules == [SamplingRule(sample_rate=0)]
-        assert isinstance(sampler._agent_sampler, RateByServiceSampler)
 
     # Invalid env vars
     with override_env(dict(DD_TRACE_SAMPLE_RATE="asdf")):
@@ -683,7 +677,7 @@ def test_datadog_sampler_init():
     assert sampler.rules == [rule_1, rule_2, rule_3, SamplingRule(sample_rate=0.75)]
 
 
-@mock.patch("ddtrace.sampler.RateByServiceSampler.sample")
+@mock.patch("ddtrace.sampler.RateSampler.sample")
 def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     sampler = DatadogSampler()
     dummy_tracer.configure(sampler=sampler)
@@ -939,7 +933,7 @@ def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
     for case in cases:
         sampler.update_rate_by_service_sample_rates(case)
         rates = {}
-        for k, v in iteritems(sampler._agent_sampler._by_service_samplers):
+        for k, v in iteritems(sampler._by_service_samplers):
             rates[k] = v.sample_rate
         assert case == rates, "%s != %s" % (case, rates)
 
@@ -949,6 +943,6 @@ def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
     for case in cases:
         sampler.update_rate_by_service_sample_rates(case)
         rates = {}
-        for k, v in iteritems(sampler._agent_sampler._by_service_samplers):
+        for k, v in iteritems(sampler._by_service_samplers):
             rates[k] = v.sample_rate
         assert case == rates, "%s != %s" % (case, rates)
