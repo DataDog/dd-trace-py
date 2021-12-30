@@ -281,7 +281,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
     if thread_span_links:
         # FIXME also use native thread id
-        thread_span_links.clear_threads(tuple(thread[0] for thread in running_threads))
+        thread_span_links.clear_threads(set(thread[0] for thread in running_threads))
 
     stack_events = []
     exc_events = []
