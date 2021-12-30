@@ -1,3 +1,5 @@
+import collections
+
 import aioredis
 import pytest
 
@@ -22,7 +24,7 @@ async def redis_client():
 def get_redis_instance():
     if aioredis_version >= (2, 0):
         return aioredis.from_url("redis://127.0.0.1:%s" % REDIS_CONFIG["port"])
-    return aioredis.create_redis(("localhost", REDIS_CONFIG["port"]))
+    return aioredis.create_redis_pool(("127.0.0.1", REDIS_CONFIG["port"]))
 
 
 @pytest.mark.asyncio
@@ -95,6 +97,19 @@ async def test_decoding_non_utf8_pipeline_args(redis_client):
     assert response_list[1] is True
     assert response_list[2].decode() == "boo"
     assert response_list[3] == b"\x80abc"
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_closed_connection_pool(redis_client):
+    # imitate an empty pool
+    original_pool = getattr(redis_client.connection, "_pool", None)
+    if original_pool:
+        redis_client.connection._pool = collections.deque(maxlen=1)
+    val = await redis_client.get("cheese")
+    assert val is None
+    if original_pool:
+        redis_client.connection._pool = original_pool
 
 
 @pytest.mark.asyncio
