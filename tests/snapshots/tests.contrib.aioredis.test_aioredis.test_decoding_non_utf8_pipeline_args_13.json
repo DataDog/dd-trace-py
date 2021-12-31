@@ -2,15 +2,15 @@
   {
     "name": "redis.command",
     "service": "redis",
-    "resource": "SET b'\\x80blah' boo\nSET foo b'\\x80abc'\nGET b'\\x80blah'\nGET foo",
+    "resource": "SET \\x80blah boo\nSET foo \\x80abc\nGET \\x80blah\nGET foo",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "redis",
     "meta": {
       "out.host": "127.0.0.1",
-      "redis.raw_command": "SET b'\\x80blah' boo\nSET foo b'\\x80abc'\nGET b'\\x80blah'\nGET foo",
-      "runtime-id": "af49d807abff41089eed43f05d099627"
+      "redis.raw_command": "SET \\x80blah boo\nSET foo \\x80abc\nGET \\x80blah\nGET foo",
+      "runtime-id": "2c1fc87edd3b44ea8e46fe3854500d3c"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -21,8 +21,8 @@
       "out.port": 6379,
       "out.redis_db": 0,
       "redis.pipeline_length": 4,
-      "system.pid": 36293
+      "system.pid": 60927
     },
-    "duration": 3099000,
-    "start": 1640819680991289000
+    "duration": 982000,
+    "start": 1640911730323059000
   }]]

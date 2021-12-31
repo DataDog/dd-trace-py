@@ -9,7 +9,7 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import net
 from ...ext import redis as redisx
-from ...internal.compat import stringify
+from ...internal.compat import ensure_text, stringify
 
 
 VALUE_PLACEHOLDER = "?"
@@ -41,7 +41,10 @@ def format_command_args(args):
     out = []
     for arg in args:
         try:
-            cmd = stringify(arg)
+            try:
+                cmd = ensure_text(arg, errors="backslashreplace")
+            except TypeError:
+                cmd = stringify(arg)
 
             if len(cmd) > VALUE_MAX_LEN:
                 cmd = cmd[:VALUE_MAX_LEN] + VALUE_TOO_LONG_MARK
