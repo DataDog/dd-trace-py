@@ -14,7 +14,6 @@ SERVICE_VERSION_KEY = "service.version"
 SPAN_KIND = "span.kind"
 SPAN_MEASURED_KEY = "_dd.measured"
 KEEP_SPANS_RATE_KEY = "_dd.tracer_kr"
-APPSEC_KEY = "appsec"
 
 NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
 

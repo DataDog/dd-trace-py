@@ -14,7 +14,6 @@ from typing import Union
 import six
 
 from . import config
-from .constants import APPSEC_KEY
 from .constants import ERROR_MSG
 from .constants import ERROR_STACK
 from .constants import ERROR_TYPE
@@ -49,7 +48,6 @@ if TYPE_CHECKING:
 
 _TagNameType = Union[Text, bytes]
 _MetaDictType = Dict[_TagNameType, Text]
-_MetaStructDictType = Dict[_TagNameType, Any]
 _MetricDictType = Dict[_TagNameType, NumericType]
 
 log = get_logger(__name__)
@@ -66,7 +64,6 @@ class Span(object):
         "trace_id",
         "parent_id",
         "meta",
-        "meta_struct",
         "error",
         "metrics",
         "_span_type",
@@ -139,7 +136,6 @@ class Span(object):
 
         # tags / metadata
         self.meta = {}  # type: _MetaDictType
-        self.meta_struct = {}  # type: _MetaStructDictType
         self.error = 0
         self.metrics = {}  # type: _MetricDictType
 
@@ -323,9 +319,6 @@ class Span(object):
                 value = 1
             self.set_metric(key, value)
             return
-        elif key == APPSEC_KEY:
-            self.meta_struct[APPSEC_KEY] = value
-            return
 
         try:
             self.meta[key] = stringify(value)
@@ -445,9 +438,6 @@ class Span(object):
         if self.meta:
             d["meta"] = self.meta
 
-        if self.meta_struct:
-            d["meta_struct"] = self.meta_struct
-
         if self.metrics:
             d["metrics"] = self.metrics
 
@@ -515,7 +505,7 @@ class Span(object):
             ("end", None if not self.duration else self.start + self.duration),
             ("duration", self.duration),
             ("error", self.error),
-            ("tags", dict(sorted(self.meta.items() + self.meta_struct.items()))),
+            ("tags", dict(sorted(self.meta.items()))),
             ("metrics", dict(sorted(self.metrics.items()))),
         ]
         return " ".join(
