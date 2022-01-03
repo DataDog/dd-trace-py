@@ -298,4 +298,16 @@ def _after_request_tags(pin, span, request, response):
 
 
 class DjangoViewProxy(FunctionWrapper):
-    pass
+    """
+    This custom function wrapper is used to wrap the callback passed to django views handlers (path/re_path/url).
+    This allows us to distinguish between wrapped django views and wrapped asgi applications in django channels.
+    """
+
+    @property
+    def __module__(self):
+        """
+        Overriding the __module__ property here is required to access the __module__ of a wrapped function when
+        __wrapped__.__module__ == None (this is the case for functools.partial()). In this case the __module__
+        of the wrapper is returned (ddtrace.contrib.django.utils) which effects the resource name of spans.
+        """
+        return self.__wrapped__.__module__
