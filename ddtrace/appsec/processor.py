@@ -1,3 +1,4 @@
+import errno
 import json
 import os.path
 from typing import Any
@@ -37,9 +38,31 @@ class AppSecProcessor(object):
     def __attrs_post_init__(self):
         # type: () -> None
         if self._ddwaf is None:
-            with open(self.rules, "r") as f:
-                rules = json.load(f)
-            self._ddwaf = DDWaf(rules)
+            try:
+                with open(self.rules, "r") as f:
+                    rules = json.load(f)
+            except EnvironmentError as err:
+                # DDAS-0001-03
+                if err.errno == errno.ENOENT:
+                    log.error("AppSec could not read the rule file %s. Reason: file does not exist", self.rules)
+                else:
+                    # DDAS-0001-03 - TODO: try to log reasons
+                    log.error("AppSec could not read the rule file %s.", self.rules)
+                raise
+            except json.decoder.JSONDecodeError:
+                # DDAS-0001-03
+                log.error("AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules)
+                raise
+            except Exception:
+                # DDAS-0001-03 - TODO: try to log reasons
+                log.error("AppSec could not read the rule file %s.", self.rules)
+                raise
+            try:
+                self._ddwaf = DDWaf(rules)
+            except ValueError:
+                # Partial of DDAS-0005-00
+                log.warning("WAF initialization failed")
+                raise
 
     @classmethod
     def enable(cls, *args, **kwargs):
@@ -80,12 +103,17 @@ class AppSecProcessor(object):
     def on_span_finish(self, span):
         # type: (Span) -> None
         span.set_metric("_dd.appsec.enabled", 1.0)
+        span.set_tag("_dd.runtime_family", "python")
         data = {
             "server.request.uri.raw": span.get_tag("http.url"),
             "server.response.status": span.get_tag("http.status_code"),
         }
+        # DDAS-001-00
+        log.debug("Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data)
         if res is not None:
+            # Partial DDAS-011-00
+            log.debug("AppSec In-App WAF returned: %s", res)
             span.set_tag("appsec.event", "true")
             span.set_tag("_dd.appsec.json", '{"triggers":%s}' % (res,))
             span.set_tag(MANUAL_KEEP_KEY)

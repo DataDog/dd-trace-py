@@ -222,7 +222,7 @@ cdef class DDWaf(object):
         rule_objects = (<_Wrapper?>self._rules)._ptr;
         self._handle = ddwaf_init(rule_objects, NULL)
         if <void *> self._handle == NULL:
-            raise ValueError("invalid rules")
+            raise ValueError("invalid rules") # TODO(@vdetuckheim) replace by custom InvalidRulesError
 
     @property
     def required_data(self):
