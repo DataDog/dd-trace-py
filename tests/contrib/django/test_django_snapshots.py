@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import os
 import subprocess
 import sys
@@ -12,7 +13,8 @@ from tests.webclient import Client
 SERVER_PORT = 8000
 
 
-def daphne_client_request(django_asgi, method, path):
+@contextmanager
+def daphne_client(django_asgi):
     """Runs a django app hosted with a daphne webserver in a subprocess and
     returns a client which can be used to query it.
 
@@ -46,9 +48,8 @@ def daphne_client_request(django_asgi, method, path):
 
     # Wait for the server to start up
     client.wait()
-    # send request
     try:
-        return client.request(method, path)
+        yield client
     finally:
         resp = client.get_ignored("/shutdown-tracer/")
         assert resp.status_code == 200
@@ -166,18 +167,20 @@ def test_psycopg_query_default(client, psycopg2_patched):
 )
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
 def test_asgi_200(django_asgi):
-    resp = daphne_client_request(django_asgi, "GET", "/")
-    assert resp.status_code == 200
-    assert resp.content == b"Hello, test app."
+    with daphne_client(django_asgi) as client:
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot()
 def test_asgi_200_simple_app():
     # Generates an empty snapshot
-    resp = daphne_client_request("channels_application", "GET", "/simple-asgi-app/")
-    assert resp.status_code == 200
-    assert resp.content == b"Hello World. It's me simple asgi app"
+    with daphne_client("channels_application") as client:
+        resp = client.get("/simple-asgi-app/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello World. It's me simple asgi app"
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
@@ -190,5 +193,6 @@ def test_asgi_200_simple_app():
     },
 )
 def test_asgi_500():
-    resp = daphne_client_request("application", "GET", "/error-500/")
-    assert resp.status_code == 500
+    with daphne_client("application") as client:
+        resp = client.get("/error-500/")
+        assert resp.status_code == 500
