@@ -1,3 +1,4 @@
+import errno
 import json
 import os.path
 from typing import Any
@@ -40,9 +41,13 @@ class AppSecProcessor(object):
             try:
                 with open(self.rules, "r") as f:
                     rules = json.load(f)
-            except FileNotFoundError:
+            except EnvironmentError as err:
                 # DDAS-0001-03
-                log.error("AppSec could not read the rule file %s. Reason: file does not exist", self.rules)
+                if err.errno == errno.ENOENT:
+                    log.error("AppSec could not read the rule file %s. Reason: file does not exist", self.rules)
+                else:
+                    # DDAS-0001-03 - TODO: try to log reasons
+                    log.error("AppSec could not read the rule file %s.", self.rules)
                 raise
             except json.decoder.JSONDecodeError:
                 # DDAS-0001-03
