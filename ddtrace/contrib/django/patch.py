@@ -517,8 +517,10 @@ def _patch(django):
         import channels.routing
 
         trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
+    except ImportError:
+        pass   # ? do we want to just ignore these if channels isn't installed?
     except Exception:
-        log.debug("Error patching django channels", exc_info=True)
+        pass  # I actually don't think we should catch `Exception` ?
 
 
 def patch():
