@@ -513,9 +513,13 @@ def _patch(django):
     trace_utils.wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
 
     try:
+        import channels
         import channels.routing
 
-        trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
+        channels_version = channels.__version__.split(".")
+        if len(channels_version) > 1 and int(channels_version[0]) >= 3:
+            # ASGI3 is only supported in channels v3.0+
+            trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
     except ImportError:
         pass  # channels is not installed
 
