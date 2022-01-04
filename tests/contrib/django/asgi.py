@@ -20,7 +20,8 @@ channels_application = ProtocolTypeRouter(
         "http": AuthMiddlewareStack(
             URLRouter(
                 [
-                    re_path(r"simple-asgi-app/", TraceMiddleware(simple_asgi_app)),
+                    re_path(r"traced-simple-asgi-app/", TraceMiddleware(simple_asgi_app)),
+                    re_path(r"simple-asgi-app/", simple_asgi_app),
                     re_path(r"", application),
                 ]
             ),

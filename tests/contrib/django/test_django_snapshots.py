@@ -176,9 +176,19 @@ def test_asgi_200(django_asgi):
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot()
 def test_asgi_200_simple_app():
-    # Generates an empty snapshot
+    # The path simple-asgi-app/ routes to an ASGI Application that is not traced
+    # This test should generate an empty snapshot
     with daphne_client("channels_application") as client:
         resp = client.get("/simple-asgi-app/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello World. It's me simple asgi app"
+
+
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
+@snapshot()
+def test_asgi_200_traced_simple_app():
+    with daphne_client("channels_application") as client:
+        resp = client.get("/traced-simple-asgi-app/")
         assert resp.status_code == 200
         assert resp.content == b"Hello World. It's me simple asgi app"
 
