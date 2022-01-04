@@ -26,7 +26,6 @@ def daphne_client(django_asgi):
     # token) propagated to the new process.
     env = os.environ.copy()
     assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
-    # Application must be run in the project root to find this settings ex. ddtrace/
     env.update(
         {
             "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
@@ -48,6 +47,7 @@ def daphne_client(django_asgi):
 
     # Wait for the server to start up
     client.wait()
+
     try:
         yield client
     finally:
