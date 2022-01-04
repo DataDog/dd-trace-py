@@ -173,10 +173,11 @@ def test_asgi_200(django_asgi):
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot()
-def test_simple_asgi_app():
-    resp = daphne_client_request("simple_application", "GET", "/")
+def test_asgi_200_simple_app():
+    # Generates an empty snapshot
+    resp = daphne_client_request("channels_application", "GET", "/simple-asgi-app/")
     assert resp.status_code == 200
-    assert resp.content == b"Hello World"
+    assert resp.content == b"Hello World. It's me simple asgi app"
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")

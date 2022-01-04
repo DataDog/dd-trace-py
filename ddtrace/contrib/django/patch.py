@@ -450,18 +450,17 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
 def unwrap_views(func, instance, args, kwargs):
     """
-    In django channels we asgi applications as views in our trace_url_paths helper
-    which causes django channels to fail on startup
+    Django channels URLRouter maps routes to asgi applications and not just views. This breaks our django views
+    instrumentation since we assume all routes wrapped by the trace_url_paths helper is a view.
 
-    This function unwraps django views
+    This function unwraps asgi applications if they were incorrectly wrapped as django views
     """
     routes = get_argument_value(args, kwargs, 0, "routes")
     for route in routes:
         if isinstance(route.callback, utils.DjangoViewProxy):
             route.callback = route.callback.__wrapped__
 
-    # URLRouter accepts one argument
-    return func(routes)
+    return func(*args, **kwargs)
 
 
 def _patch(django):
@@ -518,9 +517,7 @@ def _patch(django):
 
         trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
     except ImportError:
-        pass   # ? do we want to just ignore these if channels isn't installed?
-    except Exception:
-        pass  # I actually don't think we should catch `Exception` ?
+        pass  # channels is not installed
 
 
 def patch():

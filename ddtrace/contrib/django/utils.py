@@ -306,8 +306,10 @@ class DjangoViewProxy(FunctionWrapper):
     @property
     def __module__(self):
         """
-        Overriding the __module__ property here is required to access the __module__ of a wrapped function when
-        __wrapped__.__module__ == None (this is the case for functools.partial()). In this case the __module__
-        of the wrapper is returned (ddtrace.contrib.django.utils) which effects the resource name of spans.
+        DjangoViewProxy.__module__ defaults to ddtrace.contrib.django when a wrapped function does not have
+        a __module__ attribute. This method ensures that DjangoViewProxy.__module__ always returns the module
+        attribute of the wrapped function or an empty string if this attribute is not available.
+        The function Django.urls.path() does not have a __module__ attribute and would require this override
+        to resolve the correct module name.
         """
         return self.__wrapped__.__module__
