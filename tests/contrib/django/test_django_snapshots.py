@@ -51,7 +51,7 @@ def daphne_client(django_asgi):
     try:
         yield client
     finally:
-        resp = client.get_ignored("/shutdown-tracer/")
+        resp = client.get_ignored("/shutdown-tracer")
         assert resp.status_code == 200
         proc.terminate()
 
