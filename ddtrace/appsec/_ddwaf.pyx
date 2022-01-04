@@ -27,8 +27,11 @@ from _libddwaf cimport ddwaf_result_free
 from _libddwaf cimport ddwaf_run
 from _libddwaf cimport ddwaf_set_log_cb
 from _libddwaf cimport ddwaf_version
+from cpython.bytes cimport PyBytes_AsString
+from cpython.bytes cimport PyBytes_Size
 from cpython.mem cimport PyMem_Free
 from cpython.mem cimport PyMem_Realloc
+from cpython.unicode cimport PyUnicode_AsEncodedString
 from libc.stdint cimport uint32_t
 from libc.stdint cimport uint64_t
 from libc.stdint cimport uintptr_t
@@ -36,6 +39,10 @@ from libc.string cimport memset
 
 
 DEFAULT_DDWAF_TIMEOUT_MS=20
+
+
+cdef extern from "Python.h":
+    const char* PyUnicode_AsUTF8AndSize(object o, Py_ssize_t *size)
 
 
 def version():
@@ -93,12 +100,28 @@ cdef class _Wrapper(object):
         self._next_idx += n
         return idx
 
-    cdef void _make_string(self, ssize_t idx, const char* val, ssize_t length):
+    cdef int _make_string(self, ssize_t idx, object string) except -1:
+        cdef const char * ptr
+        cdef ssize_t length
         cdef ddwaf_object *obj
+
+        if isinstance(string, six.binary_type):
+            ptr = PyBytes_AsString(string)
+            length = PyBytes_Size(string)
+        elif isinstance(string, six.text_type):
+            IF PY_MAJOR_VERSION >= 3:
+                ptr = PyUnicode_AsUTF8AndSize(string, &length)
+            if ptr == NULL:
+                string = PyUnicode_AsEncodedString(string, "utf-8", "surrogatepass")
+                ptr = PyBytes_AsString(string)
+                length = PyBytes_Size(string)
+        self._string_refs.append(string)
+
         obj = self._ptr + idx
         obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING
-        obj.stringValue = val
+        obj.stringValue = ptr
         obj.nbEntries = length
+        return 0
 
     cdef void _make_array(self, ssize_t idx, ssize_t array_idx, ssize_t nb_entries):
         cdef ddwaf_object *obj
@@ -114,11 +137,27 @@ cdef class _Wrapper(object):
         obj.array = self._ptr + array_idx
         obj.nbEntries = nb_entries
 
-    cdef void _set_parameter(self, ssize_t idx, const char* name, ssize_t length):
+    cdef int _set_parameter(self, ssize_t idx, object string) except -1:
+        cdef const char * ptr
+        cdef ssize_t length
         cdef ddwaf_object *obj
+
+        if isinstance(string, six.binary_type):
+            ptr = PyBytes_AsString(string)
+            length = PyBytes_Size(string)
+        else:
+            IF PY_MAJOR_VERSION >= 3:
+                ptr = PyUnicode_AsUTF8AndSize(string, &length)
+            if ptr == NULL:
+                string = PyUnicode_AsEncodedString(string, "utf-8", "surrogatepass")
+                ptr = PyBytes_AsString(string)
+                length = PyBytes_Size(string)
+        self._string_refs.append(string)
+
         obj = self._ptr + idx
-        obj.parameterName = name
+        obj.parameterName = ptr
         obj.parameterNameLength = length
+        return 0
 
     cdef void _convert(self, value, max_objects) except *:
         cdef object stack
@@ -130,14 +169,10 @@ cdef class _Wrapper(object):
             idx, val = stack.popleft()
 
             if isinstance(val, (int, float)):
-                val = six.text_type(val)
+                val = str(val)
 
-            if isinstance(val, six.text_type):
-                val = val.encode("utf-8", errors="surrogatepass")
-
-            if isinstance(val, bytes):
-                self._string_refs.append(val)
-                self._make_string(idx, <bytes> val, len(val))
+            if isinstance(val, (six.binary_type, six.text_type)):
+                self._make_string(idx, val)
 
             elif isinstance(val, Mapping):
                 n = len(val)
@@ -146,12 +181,13 @@ cdef class _Wrapper(object):
                 # size of val must not change!! should not happen
                 # while holding the GIL?
                 for j, (k, v) in enumerate(six.iteritems(val)):
-                    if isinstance(k, six.text_type):
-                        k = k.encode("utf-8", errors="surrogatepass")
-                    if isinstance(k, bytes):
-                        self._string_refs.append(k)
-                        self._set_parameter(items_idx + j, <bytes> k, len(k))
-                        stack.append((items_idx + j, v))
+                    if not isinstance(k, (six.binary_type, six.text_type)):
+                        if isinstance(k, (int, float)):
+                            k = str(k)
+                        else:
+                            continue
+                    self._set_parameter(items_idx + j, k)
+                    stack.append((items_idx + j, v))
 
             elif isinstance(val, Sequence):
                 n = len(val)

@@ -46,3 +46,14 @@ exclude = '''
   | dist/
 )
 '''
+
+[tool.pyright]
+exclude = [
+  "**/__pycache__",
+  ".git",
+  ".ddriot",
+  ".ddtox",
+  ".riot",
+  ".tox",
+  ".venv",
+]

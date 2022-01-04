@@ -66,7 +66,7 @@ cpdef get_task(thread_id):
     return task_id, task_name, frame
 
 
-cpdef list_tasks():
+cpdef list_tasks(thread_id):
     # type: (...) -> typing.List[typing.Tuple[int, str, types.FrameType]]
     """Return the list of running tasks.
 
@@ -76,7 +76,7 @@ cpdef list_tasks():
     :return: [(task_id, task_name, task_frame), ...]"""
     # We consider all Thread objects to be greenlet
     # This should be true as nobody could use a half-monkey-patched gevent
-    if _gevent_tracer is not None:
+    if thread_id == nogevent.main_thread_id and _gevent_tracer is not None:
         return [
             (greenlet_id,
              _threading.get_thread_name(greenlet_id),

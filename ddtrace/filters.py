@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.processor.trace import TraceProcessor
 
 from .ext import http
@@ -70,3 +71,13 @@ class FilterRequestsOnUrl(TraceFilter):
                     if regexp.match(url):
                         return None
         return trace
+
+
+class TraceCiVisibilityFilter(TraceFilter):
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
+        if not trace:
+            return trace
+
+        local_root = trace[0]._local_root
+        return trace if local_root and local_root.span_type == SpanTypes.TEST.value else None

@@ -6,9 +6,11 @@ from hypothesis import strategies as st
 from ddtrace.appsec._ddwaf import _Wrapper
 
 
+SCALAR_OBJECTS = st.one_of(st.none(), st.booleans(), st.integers(), st.floats(), st.characters())
+
 PYTHON_OBJECTS = st.recursive(
-    base=st.one_of(st.none(), st.booleans(), st.integers(), st.floats(), st.text()),
-    extend=lambda inner: st.lists(inner) | st.dictionaries(st.text(), inner),
+    base=SCALAR_OBJECTS,
+    extend=lambda inner: st.lists(inner) | st.dictionaries(SCALAR_OBJECTS, inner),
 )
 
 WRAPPER_KWARGS = dict(
