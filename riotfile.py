@@ -528,7 +528,7 @@ venv = Venv(
                             "~=3.1.0",
                             "~=3.2.0",
                         ],
-                        "channels": latest,
+                        "channels": ["~=2.4", "~=3.0", latest],
                     },
                 ),
                 Venv(
@@ -538,7 +538,7 @@ venv = Venv(
                             "~=4.0.0",
                             latest,
                         ],
-                        "channels": latest,
+                        "channels": ["~=2.4", "~=3.0", latest],
                     },
                 ),
             ],
