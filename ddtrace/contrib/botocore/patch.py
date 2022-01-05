@@ -52,7 +52,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
         log.debug("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
-def inject_trace_to_sqs_batch_message(args, span):
+def inject_trace_to_sqs_or_sns_batch_message(args, span):
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
     params = args[1]
@@ -61,7 +61,7 @@ def inject_trace_to_sqs_batch_message(args, span):
         inject_trace_data_to_message_attributes(trace_data, entry)
 
 
-def inject_trace_to_sqs_message(args, span):
+def inject_trace_to_sqs_or_sns_message(args, span):
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
     params = args[1]
@@ -139,9 +139,13 @@ def patched_api_call(original_func, instance, args, kwargs):
                 if endpoint_name == "lambda" and operation == "Invoke":
                     inject_trace_to_client_context(args, span)
                 if endpoint_name == "sqs" and operation == "SendMessage":
-                    inject_trace_to_sqs_message(args, span)
+                    inject_trace_to_sqs_or_sns_message(args, span)
                 if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                    inject_trace_to_sqs_batch_message(args, span)
+                    inject_trace_to_sqs_or_sns_batch_message(args, span)
+                if endpoint_name == "sns" and operation == "Publish":
+                    inject_trace_to_sqs_or_sns_message(args, span)
+                if endpoint_name == "sns" and operation == "PublishBatch":
+                    inject_trace_to_sqs_or_sns_batch_message(args, span)
 
         else:
             span.resource = endpoint_name
