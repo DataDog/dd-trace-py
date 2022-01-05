@@ -21,6 +21,7 @@ from ddtrace import config  # noqa
 from ddtrace import constants
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+from ddtrace.internal.telemetry.telemetry_writer import TelemetryWriter
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import get_env
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -118,6 +119,11 @@ try:
     if "DD_TRACE_GLOBAL_TAGS" in os.environ:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
         tracer.set_tags(parse_tags_str(env_tags))
+
+    # instrumentation telemetry writer should be enabled/started after the global tracer and configs
+    # are initialized
+    if asbool(get_env("instrumentation_telemetry", "enabled")):
+        TelemetryWriter.enable()
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.
