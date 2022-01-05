@@ -9,7 +9,10 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import net
 from ...ext import redis as redisx
-from ...internal.compat import binary_type, ensure_text, stringify, text_type
+from ...internal.compat import binary_type
+from ...internal.compat import ensure_text
+from ...internal.compat import stringify
+from ...internal.compat import text_type
 
 
 VALUE_PLACEHOLDER = "?"
