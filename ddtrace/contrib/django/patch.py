@@ -516,8 +516,8 @@ def _patch(django):
         import channels
         import channels.routing
 
-        channels_version = channels.__version__.split(".")
-        if len(channels_version) > 1 and int(channels_version[0]) >= 3:
+        channels_version = tuple(int(x) for x in channels.__version__.split("."))
+        if channels_version >= (3, 0):
             # ASGI3 is only supported in channels v3.0+
             trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
     except ImportError:
