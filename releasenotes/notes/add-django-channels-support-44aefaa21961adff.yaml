@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fix application crash on startup when using ``django-channels``.
+    Fix application crash on startup when using ``channels >= 3.0``.
