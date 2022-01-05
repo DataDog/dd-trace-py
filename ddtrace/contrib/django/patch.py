@@ -453,7 +453,7 @@ def unwrap_views(func, instance, args, kwargs):
     Django channels URLRouter maps routes to asgi applications and not just views. This breaks our django views
     instrumentation since we assume all routes wrapped by the trace_url_paths helper is a view.
 
-    Ex. ``channels.routing.URLRouter([path('', get_asgi_application())])``\n
+    Ex. ``channels.routing.URLRouter([path('', get_asgi_application())])``
     On startup ddtrace.contrib.django.path.instrument_view() will wrap get_asgi_application in a DjangoViewProxy.
     Since get_asgi_application is not a django view callback this function will unwrap it.
     """
