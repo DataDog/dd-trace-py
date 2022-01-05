@@ -7,6 +7,7 @@ from typing import Optional
 from ddtrace.internal import forksafe
 
 from ..agent import get_connection
+from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..compat import httplib
 from ..encoding import JSONEncoderV2
@@ -27,27 +28,23 @@ def _get_interval_or_default():
     return float(get_env("instrumentation_telemetry", "interval", default=60))
 
 
-# TO DO: USE AGENT ENDPOINT
-DEFAULT_TELEMETRY_ENDPOINT = "https://instrumentation-telemetry-intake.datadoghq.com"
-DEFAULT_TELEMETRY_ENDPOINT_TEST = "https://all-http-intake.logs.datad0g.com/api/v2/apmtelemetry"
-
-
 class TelemetryWriter(PeriodicService):
     """
     Periodic service which sends TelemetryRequest payloads to the agent-proxy [not yet but soon]
     """
+
+    AGENT_URL = get_trace_url()
+    ENDPOINT = "telemetry/proxy/"
 
     enabled = False  # type: ClassVar[bool]
     _instance = None  # type: ClassVar[Optional[TelemetryWriter]]
     _lock = forksafe.Lock()  # type: ClassVar[forksafe.ResetObject]
     sequence = 0  # type: ClassVar[int]
 
-    def __init__(self, endpoint):
-        # type: (str) -> None
+    def __init__(self):
+        # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
-        # switch endpoint to agent endpoint
-        self.url = endpoint  # type: str
         self.encoder = JSONEncoderV2()
         self._events_queue = []  # type: List[TelemetryRequest]
         self._integrations_queue = []  # type: List[Dict]
@@ -55,14 +52,14 @@ class TelemetryWriter(PeriodicService):
     def _send_request(self, request):
         # type: (TelemetryRequest) -> httplib.HTTPResponse
         """
-        Sends a telemetry request to telemetry intake [this will be switched the agent]
+        Sends a telemetry request to the trace agent
         """
-        conn = get_connection(self.url)
+        conn = get_connection(self.AGENT_URL)
         rb_json = self.encoder.encode(request["body"])
         resp = None
         with StopWatch() as sw:
             try:
-                conn.request("POST", self.url, rb_json, request["headers"])
+                conn.request("POST", self.ENDPOINT, rb_json, request["headers"])
                 resp = get_connection_response(conn)
 
                 t = sw.elapsed()
@@ -71,7 +68,15 @@ class TelemetryWriter(PeriodicService):
                 else:
                     log_level = logging.DEBUG
 
-                log.log(log_level, "sent %d in %.5fs to %s. response: %s", len(rb_json), t, self.url, resp.status)
+                log.log(
+                    log_level,
+                    "sent %d in %.5fs to %s/%s. response: %s",
+                    len(rb_json),
+                    t,
+                    self.AGENT_URL,
+                    self.ENDPOINT,
+                    resp.status,
+                )
             finally:
                 conn.close()
         return resp
@@ -196,13 +201,13 @@ class TelemetryWriter(PeriodicService):
             cls.enabled = False
 
     @classmethod
-    def enable(cls, endpoint=DEFAULT_TELEMETRY_ENDPOINT):
-        # type: (str) -> None
+    def enable(cls):
+        # type: () -> None
         with cls._lock:
             if cls._instance is not None:
                 return
 
-            telemetry_writer = cls(endpoint)
+            telemetry_writer = cls()
             telemetry_writer.start()
 
             forksafe.register(cls._restart)

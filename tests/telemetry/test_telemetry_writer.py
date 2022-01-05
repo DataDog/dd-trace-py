@@ -1,4 +1,3 @@
-from ddtrace.internal.telemetry.telemetry_writer import DEFAULT_TELEMETRY_ENDPOINT_TEST
 from ddtrace.internal.telemetry.telemetry_writer import TelemetryWriter
 
 
@@ -9,7 +8,7 @@ from ddtrace.internal.telemetry.telemetry_writer import TelemetryWriter
 def test_telemetry_writer_app_started():
     """asserts that enabling the Telemetry writer queues and then sends an app-started telemetry request"""
     TelemetryWriter.disable()
-    TelemetryWriter.enable(endpoint=DEFAULT_TELEMETRY_ENDPOINT_TEST)
+    TelemetryWriter.enable()
 
     telemetry_writer = TelemetryWriter._instance
 
@@ -24,7 +23,7 @@ def test_telemetry_writer_app_started():
 def test_telemetry_writer_app_closed():
     """asserts that app_closed_event() queues an app-closed telemetry request"""
     TelemetryWriter.disable()
-    TelemetryWriter.enable(endpoint=DEFAULT_TELEMETRY_ENDPOINT_TEST)
+    TelemetryWriter.enable()
 
     telemetry_writer = TelemetryWriter._instance
     telemetry_writer.flush_events_queue()
@@ -39,7 +38,7 @@ def test_telemetry_writer_app_closed():
 def test_telemetry_writer_integration_changed():
     """asserts that integration_event() queues an integration dictionary"""
     TelemetryWriter.disable()
-    TelemetryWriter.enable(endpoint=DEFAULT_TELEMETRY_ENDPOINT_TEST)
+    TelemetryWriter.enable()
 
     telemetry_writer = TelemetryWriter._instance
     telemetry_writer.flush_events_queue()

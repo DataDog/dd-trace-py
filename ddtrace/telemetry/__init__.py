@@ -1,5 +1,3 @@
-from typing import Optional
-
 import six
 
 import ddtrace.internal.telemetry.telemetry_writer
@@ -24,8 +22,8 @@ class InstrumentationTelemetry(six.with_metaclass(_InstrumentationTelemetryStatu
     """
 
     @staticmethod
-    def enable(tracer=None, dogstatsd_url=None, flush_interval=None):
-        # type: (Optional[ddtrace.Tracer], Optional[str], Optional[float]) -> None
+    def enable():
+        # type: () -> None
         """
         Enable the instrumentation telemetry collection service.
         If the service has already been activated before, this method does
