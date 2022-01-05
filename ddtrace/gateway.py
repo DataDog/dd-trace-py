@@ -2,15 +2,14 @@ from typing import Any
 
 
 class Subscription(object):
-
     def __init__(self, addresses):
         self.addresses = addresses
 
     def run(self, store):
         raise NotImplementedError("Please implement a proper subscription")
 
-class Gateway(object):
 
+class Gateway(object):
     def __init__(self):
         self.shortcuts = {}
 
@@ -20,7 +19,6 @@ class Gateway(object):
             if address not in self.shortcuts:
                 self.shortcuts[address] = []
             self.shortcuts[address].append(subscription)
-
 
     def propagate(self, store, data):
         # type: (dict, dict) -> map[Any]
