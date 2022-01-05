@@ -2,9 +2,8 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace.internal.compat import TypedDict
-
-from ...compat import monotonic
+from ..compat import TypedDict
+from ..compat import monotonic
 from ..runtime import get_runtime_id
 from .data import APPLICATION
 from .data import HOST

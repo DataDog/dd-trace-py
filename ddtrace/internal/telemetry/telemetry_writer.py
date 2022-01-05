@@ -6,14 +6,14 @@ from typing import Optional
 
 from ddtrace.internal import forksafe
 
-from ...utils.formats import get_env
-from ...utils.time import StopWatch
 from ..agent import get_connection
 from ..compat import get_connection_response
 from ..compat import httplib
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..periodic import PeriodicService
+from ..utils.formats import get_env
+from ..utils.time import StopWatch
 from .telemetry_request import TelemetryRequest
 from .telemetry_request import app_closed_telemetry_request
 from .telemetry_request import app_integrations_changed_telemetry_request
