@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class EVENTS(Enum):
     INCOMING_REQUEST_START = 0
     INCOMING_REQUEST_UPDATE = 1
@@ -7,7 +8,6 @@ class EVENTS(Enum):
 
 
 class Gateway2(object):
-
     def __init__(self):
         self.listeners = {}
 
@@ -15,7 +15,6 @@ class Gateway2(object):
         if event not in self.listeners:
             self.listeners[event] = set()
         self.listeners[event].add(callback)
-
 
     def emit(self, event, data):
         if event not in self.listeners:
