@@ -155,8 +155,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
 
     cmds = []
     for _, cmd, cmd_args, _ in instance._pipeline:
-        parts = [cmd]
-        parts.extend(cmd_args)
+        parts = [cmd] + cmd_args
         cmds.append(format_command_args(parts))
     resource = "\n".join(cmds)
     with pin.tracer.trace(
