@@ -110,7 +110,10 @@ class AppSecProcessor(object):
         }
         # DDAS-001-00
         log.debug("Executing AppSec In-App WAF with parameters: %s", data)
-        res = self._ddwaf.run(data)
+        # res = self._ddwaf.run(data)
+        context = self._ddwaf.create_waf_context()
+        res = context.run(data)
+        context.dispose()
         if res["data"] is not None:
             # Partial DDAS-011-00
             log.debug("AppSec In-App WAF returned: %s", res)
