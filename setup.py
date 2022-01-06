@@ -167,7 +167,7 @@ setup(
         "enum34; python_version<'3.4'",
         "funcsigs>=1.0.0; python_version=='2.7'",
         "typing; python_version<'3.5'",
-        "typing-extensions; python_version<'3.8'",
+        "typing-extensions>=3.7.4,<4.0; python_version<'3.8'",
         "packaging>=17.1",
         "protobuf>=3,<3.18; python_version<'3.6'",
         "protobuf>=3; python_version>='3.6'",

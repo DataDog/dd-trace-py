@@ -106,12 +106,12 @@ class TelemetryWriter(PeriodicService):
         return self._integrations_queue
 
     def periodic(self):
+        requests = self.flush_events_queue()
+
         integrations = self.flush_integrations_queue()
         if integrations:
-            integrations_request = app_integrations_changed_telemetry_request(integrations)
-            TelemetryWriter.add_event(integrations_request)
+            requests.append(app_integrations_changed_telemetry_request(integrations))
 
-        requests = self.flush_events_queue()
         requests_failed = []  # type: List[TelemetryRequest]
         for request in requests:
             resp = self._send_request(request)
