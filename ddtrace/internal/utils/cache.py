@@ -19,7 +19,7 @@ M = Callable[[Any, T], S]
 def cached(maxsize=256):
     # type: (int) -> Callable[[F], F]
     """
-    Decorator for caching the result of functions with a single argument.
+    Decorator for caching the result of functions with hashable arguments.
 
     The strategy is MFU, meaning that only the most frequently used values are
     retained. The amortized cost of shrinking the cache when it grows beyond
@@ -31,8 +31,12 @@ def cached(maxsize=256):
         cache = {}  # type: Dict[Any, Tuple[Any, int]]
         lock = RLock()
 
-        def cached_f(key):
-            # type: (T) -> S
+        def cached_f(*args, **kwargs):
+            # type: (Any, Any) -> S
+
+            # Does not handle non hashable types (ex. lists)
+            key = hash((args, tuple(sorted(kwargs.items()))))
+
             if len(cache) >= maxsize:
                 for _, h in zip(range(maxsize >> 1), sorted(cache, key=lambda h: cache[h][1])):
                     del cache[h]
@@ -50,7 +54,7 @@ def cached(maxsize=256):
                     cache[key] = (value, count + 1)
                     return value
 
-                result = f(key)
+                result = f(*args, **kwargs)
 
                 cache[key] = (result, 1)
 
