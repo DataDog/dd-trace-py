@@ -354,33 +354,33 @@ def test_infer_arg_value_miss(args, kwargs, pos, kw):
 
 
 def cached_test_recipe(expensive, cheap, witness, cache_size):
-    assert cheap("F", "o", "o") == expensive("F", "o", "o")
-    assert cheap("F", "o", "o") == expensive("F", "o", "o")
+    assert cheap("Foo") == expensive("Foo")
+    assert cheap("Foo") == expensive("Foo")
 
-    witness.assert_called_with("F")
+    witness.assert_called_with("Foo")
     assert witness.call_count == 1
 
     cheap.invalidate()
 
     for i in range(cache_size >> 1):
-        cheap("F", "o", str(i))
+        cheap("Foo%d" % i)
 
     assert witness.call_count == 1 + (cache_size >> 1)
 
     for i in range(cache_size):
-        cheap("F", "o", str(i))
+        cheap("Foo%d" % i)
 
     assert witness.call_count == 1 + cache_size
 
-    MAX_FOO = ("F", "o", str(cache_size - 1))
+    MAX_FOO = "Foo%d" % (cache_size - 1)
 
-    cheap("last", " ", "drop")  # Forces least frequent elements out of the cache
+    cheap("last drop")  # Forces least frequent elements out of the cache
     assert witness.call_count == 2 + cache_size
 
-    cheap(*MAX_FOO)  # Check MAX_FOO was dropped
+    cheap(MAX_FOO)  # Check MAX_FOO was dropped
     assert witness.call_count == 3 + cache_size
 
-    cheap("last", " ", "drop")  # Check last drop was retained
+    cheap("last drop")  # Check last drop was retained
     assert witness.call_count == 3 + cache_size
 
 
@@ -388,14 +388,13 @@ def test_cached():
     witness = mock.Mock()
     cache_size = 128
 
-    def expensive(key1, key2, key3):
-        key = key1 + key2 + key3
+    def expensive(key):
         return key[::-1].lower()
 
     @cached(cache_size)
-    def cheap(key1, key2, key3):
-        witness(key1)
-        return expensive(key1, key2, key3)
+    def cheap(key):
+        witness(key)
+        return expensive(key)
 
     cached_test_recipe(expensive, cheap, witness, cache_size)
 
@@ -404,17 +403,64 @@ def test_cachedmethod():
     witness = mock.Mock()
     cache_size = 128
 
-    def expensive(key1, key2, key3):
-        key = key1 + key2 + key3
+    def expensive(key):
         return key[::-1].lower()
 
     class Foo(object):
         @cachedmethod(cache_size)
-        def cheap(self, key1, key2, key3):
-            witness(key1)
-            return expensive(key1, key2, key3)
+        def cheap(self, key):
+            witness(key)
+            return expensive(key)
 
     cached_test_recipe(expensive, Foo().cheap, witness, cache_size)
+
+
+def cached_test_recipe_multiple_args(expensive, cheap, witness, cache_size):
+    assert cheap("F", "o", "o") == expensive("F", "o", "o")
+    assert cheap("F", "o", "o") == expensive("F", "o", "o")
+
+    cheap.invalidate()
+
+    for i in range(cache_size >> 1):
+        cheap("F", "o", "o", i)
+
+    assert witness.call_count == 1 + (cache_size >> 1)
+
+    for i in range(cache_size):
+        cheap("F", "o", "o", i)
+
+    assert witness.call_count == 1 + cache_size
+
+    MAX_FOO = ("F", "o", "o", str(cache_size - 1))
+
+    cheap("last", "drop")  # Forces least frequent elements out of the cache
+    assert witness.call_count == 2 + cache_size
+
+    cheap(*MAX_FOO)  # Check MAX_FOO was dropped
+    assert witness.call_count == 3 + cache_size
+
+    cheap("last", "drop")  # Check last drop was retained
+    assert witness.call_count == 3 + cache_size
+
+
+def test_cached_multiple_args():
+    witness = mock.Mock()
+
+    def expensive(*args):
+        arg_string = ""
+        for arg in args:
+            arg_string += str(arg)
+        return arg_string
+
+    cache_size = 32
+
+    @cached(cache_size)
+    def cheap(*args):
+        assert len(args) > 1
+        witness(args[0])
+        return expensive(*args)
+
+    cached_test_recipe_multiple_args(expensive, cheap, witness, cache_size)
 
 
 @pytest.mark.parametrize(
