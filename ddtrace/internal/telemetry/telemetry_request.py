@@ -2,11 +2,13 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace.settings import _config as config
+
 from ..compat import TypedDict
 from ..compat import monotonic
 from ..runtime import get_runtime_id
-from .data import APPLICATION
-from .data import HOST
+from .data import get_application
+from .data import get_host
 
 
 # Contains all the body fields required by v1 of the Telemetry Intake API
@@ -60,8 +62,8 @@ def _create_telemetry_request(payload, payload_type, seq_id):
             "runtime_id": get_runtime_id(),
             "api_version": "v1",
             "seq_id": seq_id,
-            "application": APPLICATION,
-            "host": HOST,
+            "application": get_application(config.service, config.version, config.env),
+            "host": get_host(),
             "payload": payload,
             "request_type": payload_type,
         },

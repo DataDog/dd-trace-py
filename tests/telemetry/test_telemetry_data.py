@@ -6,17 +6,17 @@ import pytest
 
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.runtime.container import CGroupInfo
-from ddtrace.internal.telemetry.data import APPLICATION
-from ddtrace.internal.telemetry.data import HOST
 from ddtrace.internal.telemetry.data import _format_version_info
 from ddtrace.internal.telemetry.data import _get_container_id
 from ddtrace.internal.telemetry.data import _get_os_version
+from ddtrace.internal.telemetry.data import get_application
+from ddtrace.internal.telemetry.data import get_host
 from ddtrace.internal.telemetry.data import get_hostname
 from ddtrace.internal.telemetry.data import get_version
 
 
-def test_application():
-    """validates whether the APPLICATION singleton contains the expected fields"""
+def test_get_application():
+    """validates return value of get_application"""
 
     runtime_v = ""
     if PY3:
@@ -33,22 +33,24 @@ def test_application():
         "runtime_version": runtime_v,
     }
 
-    assert APPLICATION == expected_application
+    assert get_application("unnamed_python_service", "", "") == expected_application
 
 
 def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
-    """tests the APPLICATION singleton when DD_SERVICE, DD_VERSION, and DD_ENV environment variables"""
+    """validates the return value of get_application when DD_SERVICE, DD_VERSION, and DD_ENV environment variables"""
     monkeypatch.setenv("DD_SERVICE", "test_service")
     monkeypatch.setenv("DD_VERSION", "12.34.56")
     monkeypatch.setenv("DD_ENV", "prod")
 
     out, err, status, _ = run_python_code_in_subprocess(
         """
-from ddtrace.internal.telemetry.data import APPLICATION
+from ddtrace.internal.telemetry.data import get_application
+from ddtrace import config
 
-assert APPLICATION["service_name"] == "test_service"
-assert APPLICATION["service_version"] == "12.34.56"
-assert APPLICATION["env"] == "prod"
+application = get_application(config.service, config.version, config.env)
+assert application["service_name"] == "test_service"
+assert application["service_version"] == "12.34.56"
+assert application["env"] == "prod"
 """
     )
 
@@ -63,7 +65,7 @@ def test_format_version_info():
     assert version_str == "{}.{}.{}".format(sys_vi.major, sys_vi.minor, sys_vi.micro)
 
 
-def test_host_fields():
+def test_get_host():
     """validates whether the HOST singleton contains the expected fields"""
     expected_host = {
         "os": platform.platform(aliased=1, terse=1),
@@ -75,7 +77,7 @@ def test_host_fields():
         "container_id": _get_container_id(),
     }
 
-    assert HOST == expected_host
+    assert get_host() == expected_host
 
 
 @pytest.mark.parametrize(

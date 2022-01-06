@@ -1,9 +1,11 @@
 import platform
 import sys
+from typing import Dict
+from typing import Tuple
 
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.runtime.container import get_container_info
-from ddtrace.settings import _config as config
+from ddtrace.internal.utils.cache import cached
 
 from ...version import get_version
 from ..hostname import get_hostname
@@ -12,7 +14,6 @@ from ..hostname import get_hostname
 def _format_version_info(vi):
     # type: (sys._version_info) -> str
     """
-    Helper function private to this module
     Converts sys.version_info into a string with the format x.x.x
     """
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
@@ -43,25 +44,51 @@ def _get_os_version():
     return mver or wver or lver or ""
 
 
-# A dictionary to store application data using ddtrace configurations and the System-Specific module
-APPLICATION = {
-    "service_name": config.service or "unnamed_python_service",
-    "service_version": config.version or "",
-    "env": config.env or "",
-    "language_name": "python",
-    "language_version": _format_version_info(sys.version_info),
-    "tracer_version": get_version(),
-    "runtime_name": platform.python_implementation(),
-    "runtime_version": _format_version_info(sys.implementation.version) if PY3 else "",
-}
+@cached()
+def _get_application(key):
+    # type: (Tuple[str, str, str]) -> Dict
+    """
+    This helper packs and unpacks get_application arguments to support caching.
+    Cached() annotation only supports functions with one argument
+    """
+    service, version, env = key
 
-# A dictionary to store host data using the platform module
-HOST = {
-    "os": platform.platform(aliased=True, terse=True),
-    "hostname": get_hostname(),
-    "os_version": _get_os_version(),
-    "kernel_name": platform.system(),
-    "kernel_release": platform.release(),
-    "kernel_version": platform.version(),
-    "container_id": _get_container_id(),
-}
+    return {
+        "service_name": service or "unnamed_python_service",
+        "service_version": version or "",
+        "env": env or "",
+        "language_name": "python",
+        "language_version": _format_version_info(sys.version_info),
+        "tracer_version": get_version(),
+        "runtime_name": platform.python_implementation(),
+        "runtime_version": _format_version_info(sys.implementation.version) if PY3 else "",
+    }
+
+
+def get_application(service, version, env):
+    """Creates a dictionary to store application data using ddtrace configurations and the System-Specific module"""
+    return _get_application((service, version, env))
+
+
+@cached()
+def _get_host(key):
+    # type: (str) -> Dict
+    """
+    This helper packs and unpacks get_host arguments to support caching.
+    Cached() annotation only supports functions with one argument
+    """
+    return {
+        "os": platform.platform(aliased=True, terse=True),
+        "hostname": get_hostname(),
+        "os_version": _get_os_version(),
+        "kernel_name": platform.system(),
+        "kernel_release": platform.release(),
+        "kernel_version": platform.version(),
+        "container_id": _get_container_id(),
+    }
+
+
+def get_host():
+    # type: () -> Dict
+    """Creates a dictionary to store host data using the platform module"""
+    return _get_host("telemtry_host")

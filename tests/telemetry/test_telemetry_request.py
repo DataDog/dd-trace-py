@@ -1,11 +1,12 @@
 import mock
 
-from ddtrace.internal.telemetry.data import APPLICATION
-from ddtrace.internal.telemetry.data import HOST
+from ddtrace.internal.telemetry.data import get_application
+from ddtrace.internal.telemetry.data import get_host
 from ddtrace.internal.telemetry.telemetry_request import _create_telemetry_request
 from ddtrace.internal.telemetry.telemetry_request import app_closed_telemetry_request
 from ddtrace.internal.telemetry.telemetry_request import app_integrations_changed_telemetry_request
 from ddtrace.internal.telemetry.telemetry_request import app_started_telemetry_request
+from ddtrace.settings import _config as config
 
 
 def test_create_telemetry_request():
@@ -27,8 +28,8 @@ def test_create_telemetry_request():
                     "runtime_id": "1234-567",
                     "api_version": "v1",
                     "seq_id": 1,
-                    "application": APPLICATION,
-                    "host": HOST,
+                    "application": get_application(config.service, config.version, config.env),
+                    "host": get_host(),
                     "payload": {},
                     "request_type": "app-closed",
                 },

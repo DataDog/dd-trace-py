@@ -133,7 +133,7 @@ class TelemetryWriter(PeriodicService):
         """
         Adds a Telemetry Request to the TelemetryWriter request buffer
 
-         :param TelemetryRequest request: dictionary which stores a formatted telemetry request body and header
+        :param TelemetryRequest request: dictionary which stores a formatted telemetry request body and header
         """
         with cls._lock:
             if cls._instance is None:
