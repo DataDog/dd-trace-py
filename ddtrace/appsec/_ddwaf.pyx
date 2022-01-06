@@ -12,8 +12,8 @@ else:
     from collections import Mapping, Sequence
 
 from _libddwaf cimport DDWAF_LOG_LEVEL
-from _libddwaf cimport DDWAF_RET_CODE
 from _libddwaf cimport DDWAF_OBJ_TYPE
+from _libddwaf cimport DDWAF_RET_CODE
 from _libddwaf cimport ddwaf_context
 from _libddwaf cimport ddwaf_context_destroy
 from _libddwaf cimport ddwaf_context_init
