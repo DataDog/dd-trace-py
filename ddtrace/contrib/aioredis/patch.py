@@ -71,8 +71,8 @@ async def traced_execute_command(func, instance, args, kwargs):
         return await func(*args, **kwargs)
 
 
-async def traced_pipeline(func, instance, args, kwargs):
-    pipeline = await func(*args, **kwargs)
+def traced_pipeline(func, instance, args, kwargs):
+    pipeline = func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
         pin.onto(pipeline)
