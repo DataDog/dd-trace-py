@@ -12,6 +12,7 @@ else:
     from collections import Mapping, Sequence
 
 from _libddwaf cimport DDWAF_LOG_LEVEL
+from _libddwaf cimport DDWAF_RET_CODE
 from _libddwaf cimport DDWAF_OBJ_TYPE
 from _libddwaf cimport ddwaf_context
 from _libddwaf cimport ddwaf_context_destroy
@@ -244,9 +245,23 @@ cdef class DDWaf(object):
             raise RuntimeError
         try:
             wrapper = _Wrapper(data)
-            ddwaf_run(ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms * 1000)
+            ret_code = ddwaf_run(ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms * 1000)
+            if ret_code == DDWAF_RET_CODE.DDWAF_ERR_INTERNAL:
+                raise RuntimeError
+            if ret_code == DDWAF_RET_CODE.DDWAF_ERR_INVALID_OBJECT or \
+                    ret_code == DDWAF_RET_CODE.DDWAF_ERR_INVALID_ARGUMENT:
+                raise ValueError
+            response = {
+                "timeout": result.timeout,
+                "data": None,
+                "perf_data": None,
+                # "action": None: will be used when we consider blocking
+            }
             if result.data != NULL:
-                return (<bytes> result.data).decode("utf-8")
+                response["data"] = (<bytes> result.data).decode("utf-8")
+            if result.perfData != NULL:
+                response["perf_data"] (<bytes> result.perfData).decode("utf-8")
+            return response
         finally:
             ddwaf_result_free(&result)
             ddwaf_context_destroy(ctx)
