@@ -1,3 +1,4 @@
+from collections import namedtuple
 import logging
 from typing import ClassVar
 from typing import Dict
@@ -20,6 +21,8 @@ from .telemetry_request import app_integrations_changed_telemetry_request
 from .telemetry_request import app_started_telemetry_request
 
 
+TelemetryRequest = namedtuple("TelemetryRequest", "request fail_count")
+
 log = get_logger(__name__)
 
 
@@ -34,6 +37,7 @@ class TelemetryWriter(PeriodicService):
 
     AGENT_URL = get_trace_url()
     ENDPOINT = "telemetry/proxy/"
+    MAX_FAIL_COUNT = 3
 
     enabled = False  # type: ClassVar[bool]
     _instance = None  # type: ClassVar[Optional[TelemetryWriter]]
@@ -45,7 +49,7 @@ class TelemetryWriter(PeriodicService):
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
         self.encoder = JSONEncoderV2()
-        self._events_queue = []  # type: List[Dict]
+        self._events_queue = []  # type: List[TelemetryRequest]
         self._integrations_queue = []  # type: List[Dict]
 
     def _get_headers(self, payload_type):
@@ -100,7 +104,7 @@ class TelemetryWriter(PeriodicService):
         return integrations
 
     def flush_events_queue(self):
-        # type () -> List[Dict]
+        # type () -> List[TelemetryRequest]
         """Returns a list of all integrations queued by classmethods"""
         with self._lock:
             requests = self._events_queue
@@ -116,17 +120,20 @@ class TelemetryWriter(PeriodicService):
         return self._integrations_queue
 
     def periodic(self):
-        requests = self.flush_events_queue()
+        telemetry_requests = self.flush_events_queue()
 
         integrations = self.flush_integrations_queue()
         if integrations:
-            requests.append(app_integrations_changed_telemetry_request(integrations))
+            integrations_request = TelemetryRequest(app_integrations_changed_telemetry_request(integrations), 0)
+            telemetry_requests.append(integrations_request)
 
         requests_failed = []  # type: List[Dict]
-        for request in requests:
+        for telemetry_request in telemetry_requests:
+            request, fail_count = telemetry_request
+
             resp = self._send_request(request)
-            if resp.status >= 300:
-                requests_failed.append(request)
+            if resp.status >= 300 and fail_count + 1 < self.MAX_FAIL_COUNT:
+                requests_failed.append(TelemetryRequest(request, fail_count + 1))
 
         with self._lock:
             # add failed requests back to the requests queue
@@ -150,8 +157,7 @@ class TelemetryWriter(PeriodicService):
                 return
             request["seq_id"] = cls.sequence
             cls.sequence += 1
-            # TO DO: replace list with a dead letter queue
-            cls._instance._events_queue.append(request)
+            cls._instance._events_queue.append(TelemetryRequest(request, 0))
 
     @classmethod
     def integration_event(cls, integration_name):
