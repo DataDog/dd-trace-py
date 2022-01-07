@@ -13,6 +13,7 @@ else:
 
 from _libddwaf cimport DDWAF_LOG_LEVEL
 from _libddwaf cimport DDWAF_OBJ_TYPE
+from _libddwaf cimport DDWAF_RET_CODE
 from _libddwaf cimport ddwaf_context
 from _libddwaf cimport ddwaf_context_destroy
 from _libddwaf cimport ddwaf_context_init
@@ -206,6 +207,55 @@ cdef class _Wrapper(object):
     def __dealloc__(self):
         PyMem_Free(self._ptr)
 
+cdef class DDWafContext(object):
+    cdef ddwaf_context _ctx
+    cdef object _disposed
+
+    def __init__(self):
+        self._disposed = False
+
+    cdef set_context(self, ddwaf_context ctx):
+        self._ctx = ctx
+
+    def run(self, data, timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS):
+        cdef ddwaf_result result
+        if self._disposed:
+            raise RuntimeError("Running a disposed context")
+        try:
+            wrapper = _Wrapper(data)
+            ret_code = ddwaf_run(self._ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms * 1000)
+            if ret_code == DDWAF_RET_CODE.DDWAF_ERR_INTERNAL:
+                raise RuntimeError
+            if ret_code == DDWAF_RET_CODE.DDWAF_ERR_INVALID_OBJECT or \
+                    ret_code == DDWAF_RET_CODE.DDWAF_ERR_INVALID_ARGUMENT:
+                raise ValueError
+            response = {
+                "timeout": result.timeout,
+                "data": None,
+                # "perf_data": None,
+                # "action": None: will be used when we consider blocking
+            }
+            if result.data != NULL:
+                response["data"] = (<bytes> result.data).decode("utf-8")
+            # if result.perfData != NULL:
+            #     response["perf_data"] (<bytes> result.perfData).decode("utf-8")
+            return response
+        finally:
+            ddwaf_result_free(&result)
+
+    @property
+    def disposed(self):
+        return self._disposed
+
+    def dispose(self):
+        if self._disposed:
+            return
+        self._disposed = True
+        ddwaf_context_destroy(self._ctx)
+
+    def __dealloc__(self):
+        self.dispose()
+
 
 cdef class DDWaf(object):
     """
@@ -235,21 +285,13 @@ cdef class DDWaf(object):
             addresses.append((<bytes> ptr[i]).decode("utf-8"))
         return addresses
 
-    def run(self, data, timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS):
-        cdef ddwaf_context ctx
-        cdef ddwaf_result result
-
+    def create_waf_context(self):
         ctx = ddwaf_context_init(self._handle, NULL)
         if <void *> ctx == NULL:
             raise RuntimeError
-        try:
-            wrapper = _Wrapper(data)
-            ddwaf_run(ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms * 1000)
-            if result.data != NULL:
-                return (<bytes> result.data).decode("utf-8")
-        finally:
-            ddwaf_result_free(&result)
-            ddwaf_context_destroy(ctx)
+        res = DDWafContext()
+        res.set_context(ctx)
+        return res
 
     def __dealloc__(self):
         ddwaf_destroy(self._handle)
