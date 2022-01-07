@@ -9,7 +9,9 @@ from ddtrace.ext import http
 
 from .. import trace_utils
 from ...internal.compat import reraise
+from ...internal.compat import to_unicode
 from ...internal.logger import get_logger
+from ...utils.http import Headers
 from .utils import guarantee_single_callable
 
 
@@ -17,6 +19,7 @@ if TYPE_CHECKING:
     from typing import Any
     from typing import Mapping
     from typing import Optional
+    from typing import Sequence
 
     from ddtrace import Span
 
@@ -30,10 +33,6 @@ config._add(
 
 ASGI_VERSION = "asgi.version"
 ASGI_SPEC_VERSION = "asgi.spec_version"
-
-
-def bytes_to_str(str_or_bytes):
-    return str_or_bytes.decode() if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
 def _extract_versions_from_scope(scope, integration_config):
@@ -55,11 +54,12 @@ def _extract_versions_from_scope(scope, integration_config):
 
 
 def _extract_headers(scope):
+    # type: (Mapping[str, Any]) -> Sequence[str, str]
     headers = scope.get("headers")
-    if headers:
-        # headers: (Iterable[[byte string, byte string]])
-        return dict((bytes_to_str(k), bytes_to_str(v)) for (k, v) in headers)
-    return {}
+    # according to https://asgi.readthedocs.io/en/latest/specs/www.html:
+    # The ASGI design decision is to transport both request and response headers as lists
+    # of 2-element [name, value] lists and preserve headers exactly as they were provided.
+    return [(to_unicode(k), to_unicode(v)) for (k, v) in headers]
 
 
 def _default_handle_exception_span(exc, span):
@@ -101,10 +101,10 @@ class TraceMiddleware:
             return await self.app(scope, receive, send)
 
         try:
-            headers = _extract_headers(scope)
+            headers = Headers(_extract_headers(scope))
         except Exception:
             log.warning("failed to decode headers for distributed tracing", exc_info=True)
-            headers = {}
+            headers = None
         else:
             trace_utils.activate_distributed_headers(
                 self.tracer, int_config=self.integration_config, request_headers=headers
@@ -141,7 +141,7 @@ class TraceMiddleware:
         if self.integration_config.trace_query_string:
             query_string = scope.get("query_string")
             if len(query_string) > 0:
-                query_string = bytes_to_str(query_string)
+                query_string = to_unicode(query_string)
         else:
             query_string = None
 
