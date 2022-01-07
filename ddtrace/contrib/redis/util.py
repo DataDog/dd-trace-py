@@ -9,7 +9,10 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import net
 from ...ext import redis as redisx
+from ...internal.compat import binary_type
+from ...internal.compat import ensure_text
 from ...internal.compat import stringify
+from ...internal.compat import text_type
 
 
 VALUE_PLACEHOLDER = "?"
@@ -41,7 +44,10 @@ def format_command_args(args):
     out = []
     for arg in args:
         try:
-            cmd = stringify(arg)
+            if isinstance(arg, (binary_type, text_type)):
+                cmd = ensure_text(arg, errors="backslashreplace")
+            else:
+                cmd = stringify(arg)
 
             if len(cmd) > VALUE_MAX_LEN:
                 cmd = cmd[:VALUE_MAX_LEN] + VALUE_TOO_LONG_MARK
