@@ -4,45 +4,14 @@ from typing import Optional
 
 from ddtrace.settings import _config as config
 
-from ..compat import TypedDict
 from ..compat import monotonic
 from ..runtime import get_runtime_id
 from .data import get_application
 from .data import get_host
 
 
-# Contains all the body fields required by v1 of the Telemetry Intake API
-RequestBody = TypedDict(
-    "RequestBody",
-    {
-        "tracer_time": int,
-        "runtime_id": str,
-        "api_version": str,
-        # seq_id (sequence id) should be incremented every time a telemetry request is
-        # sent to the agent. This field will be used to monitor dropped payloads and
-        # reorder requests on the backend.
-        # The value is set in TelemetryWriter.add_event() to ensure seq_id is monotonically increasing
-        "seq_id": Optional[int],
-        "application": Dict,
-        "host": Dict,
-        "payload": Dict,
-        "request_type": str,
-    },
-)
-
-# Contains all the header and body fields required to send a request to v1 of
-# the Telemetry Intake Service
-TelemetryRequest = TypedDict(
-    "TelemetryRequest",
-    {
-        "headers": Dict[str, str],
-        "body": RequestBody,
-    },
-)
-
-
 def _create_telemetry_request(payload, payload_type, seq_id):
-    # type: (Dict, str, Optional[int]) -> TelemetryRequest
+    # type: (Dict, str, Optional[int]) -> Dict
     """
     Initializes the required fields for a generic Telemetry Intake Request
 
@@ -71,9 +40,9 @@ def _create_telemetry_request(payload, payload_type, seq_id):
 
 
 def app_started_telemetry_request():
-    # type: () -> TelemetryRequest
+    # type: () -> Dict
     """
-    Returns a TelemetryRequest which contains a list of application dependencies and configurations
+    Returns a Telemetry request which contains a list of application dependencies and configurations
     """
     import pkg_resources
 
@@ -85,9 +54,9 @@ def app_started_telemetry_request():
 
 
 def app_closed_telemetry_request(seq_id=None):
-    # type: (Optional[int]) -> TelemetryRequest
+    # type: (Optional[int]) -> Dict
     """
-    Returns a TelemetryRequest which notifies the agent that an application instance has terminated
+    Returns a Telemetry request which notifies the agent that an application instance has terminated
 
     :param seq_id int: arg is a counter representing the number of requests sent by the writer
     """
@@ -96,9 +65,9 @@ def app_closed_telemetry_request(seq_id=None):
 
 
 def app_integrations_changed_telemetry_request(integrations, seq_id=None):
-    # type: (List[Dict], Optional[int]) -> TelemetryRequest
+    # type: (List[Dict], Optional[int]) -> Dict
     """
-    Returns a TelemetryRequest which sends a list of configured integrations to the agent
+    Returns a Telemetry request which sends a list of configured integrations to the agent
 
     :param seq_id int: arg is a counter representing the number of requests sent by the writer
     """

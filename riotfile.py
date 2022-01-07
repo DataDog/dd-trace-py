@@ -211,10 +211,6 @@ venv = Venv(
             name="telemetry",
             command="pytest {cmdargs} tests/telemetry/",
             pys=select_pys(),
-            pkgs={
-                # TypedDict was introduced in v3.7.4 and v4.0 drops support for python 2.7
-                "typing-extensions": ">=3.7.4,<4.0",
-            },
         ),
         Venv(
             name="integration",

@@ -117,14 +117,6 @@ except ImportError:
         return int(_process_time() * 1e9)
 
 
-# typing_extensions backports TypedDict for python versions < 3.8
-# this type is used in ddtrace/internal/telemetry
-if sys.version_info < (3, 8):
-    from typing_extensions import TypedDict
-else:
-    from typing import TypedDict
-TypedDict = TypedDict
-
 if sys.version_info.major < 3:
     getrandbits = random.SystemRandom().getrandbits
 else:

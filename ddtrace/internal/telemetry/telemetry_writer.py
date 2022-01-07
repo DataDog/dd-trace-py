@@ -15,7 +15,6 @@ from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..utils.formats import get_env
 from ..utils.time import StopWatch
-from .telemetry_request import TelemetryRequest
 from .telemetry_request import app_closed_telemetry_request
 from .telemetry_request import app_integrations_changed_telemetry_request
 from .telemetry_request import app_started_telemetry_request
@@ -30,7 +29,7 @@ def _get_interval_or_default():
 
 class TelemetryWriter(PeriodicService):
     """
-    Periodic service which sends TelemetryRequest payloads to the agent-proxy [not yet but soon]
+    Periodic service which sends Telemetry request payloads to the agent-proxy [not yet but soon]
     """
 
     AGENT_URL = get_trace_url()
@@ -46,11 +45,11 @@ class TelemetryWriter(PeriodicService):
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
         self.encoder = JSONEncoderV2()
-        self._events_queue = []  # type: List[TelemetryRequest]
+        self._events_queue = []  # type: List[Dict]
         self._integrations_queue = []  # type: List[Dict]
 
     def _send_request(self, request):
-        # type: (TelemetryRequest) -> httplib.HTTPResponse
+        # type: (Dict) -> httplib.HTTPResponse
         """
         Sends a telemetry request to the trace agent
         """
@@ -90,7 +89,7 @@ class TelemetryWriter(PeriodicService):
         return integrations
 
     def flush_events_queue(self):
-        # type () -> List[TelemetryRequest]
+        # type () -> List[Dict]
         """Returns a list of all integrations queued by classmethods"""
         with self._lock:
             requests = self._events_queue
@@ -98,7 +97,7 @@ class TelemetryWriter(PeriodicService):
         return requests
 
     def queued_events(self):
-        # type () -> List[TelemetryRequest]
+        # type () -> List[Dict]
         return self._events_queue
 
     def queued_integrations(self):
@@ -112,7 +111,7 @@ class TelemetryWriter(PeriodicService):
         if integrations:
             requests.append(app_integrations_changed_telemetry_request(integrations))
 
-        requests_failed = []  # type: List[TelemetryRequest]
+        requests_failed = []  # type: List[Dict]
         for request in requests:
             resp = self._send_request(request)
             if resp.status >= 300:
@@ -129,11 +128,11 @@ class TelemetryWriter(PeriodicService):
 
     @classmethod
     def add_event(cls, request):
-        # type: (TelemetryRequest) -> None
+        # type: (Dict) -> None
         """
         Adds a Telemetry Request to the TelemetryWriter request buffer
 
-        :param TelemetryRequest request: dictionary which stores a formatted telemetry request body and header
+        :param telemetry request: dictionary which stores a formatted telemetry request body and header
         """
         with cls._lock:
             if cls._instance is None:
