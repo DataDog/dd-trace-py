@@ -48,17 +48,28 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._integrations_queue = []  # type: List[Dict]
 
+    def _get_headers(self, payload_type):
+        # type: (str) -> Dict
+        """
+        Creates request headers
+        """
+        return {
+            "Content-type": "application/json",
+            "DD-Telemetry-Request-Type": payload_type,
+            "DD-Telemetry-API-Version": "v1",
+        }
+
     def _send_request(self, request):
         # type: (Dict) -> httplib.HTTPResponse
         """
         Sends a telemetry request to the trace agent
         """
         conn = get_connection(self.AGENT_URL)
-        rb_json = self.encoder.encode(request["body"])
+        rb_json = self.encoder.encode(request)
         resp = None
         with StopWatch() as sw:
             try:
-                conn.request("POST", self.ENDPOINT, rb_json, request["headers"])
+                conn.request("POST", self.ENDPOINT, rb_json, self._get_headers(request["request_type"]))
                 resp = get_connection_response(conn)
 
                 t = sw.elapsed()
@@ -132,12 +143,12 @@ class TelemetryWriter(PeriodicService):
         """
         Adds a Telemetry Request to the TelemetryWriter request buffer
 
-        :param telemetry request: dictionary which stores a formatted telemetry request body and header
+        :param Dict: stores a formatted telemetry request
         """
         with cls._lock:
             if cls._instance is None:
                 return
-            request["body"]["seq_id"] = cls.sequence
+            request["seq_id"] = cls.sequence
             cls.sequence += 1
             # TO DO: replace list with a dead letter queue
             cls._instance._events_queue.append(request)
