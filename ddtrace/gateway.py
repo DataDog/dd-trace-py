@@ -11,14 +11,19 @@ class Subscription(object):
 
 class Gateway(object):
     def __init__(self):
-        self.shortcuts = {}
+        self._shortcuts = {}
+        self._needed_addresses = set()
+    
+    def is_needed(self, address):
+        return address in self._needed_addresses
 
     def subscribe(self, subscription):
         # type: (Subscription) -> None
         for address in subscription.addresses:
-            if address not in self.shortcuts:
-                self.shortcuts[address] = []
-            self.shortcuts[address].append(subscription)
+            self._needed_addresses.add(address)
+            if address not in self._shortcuts:
+                self._shortcuts[address] = []
+            self._shortcuts[address].append(subscription)
 
     def propagate(self, store, data):
         # type: (dict, dict) -> map[Any]
@@ -27,9 +32,9 @@ class Gateway(object):
         all_keys = set(store.keys())
         todo = set()
         for key in new_keys:
-            if key not in self.shortcuts:
+            if key not in self._shortcuts:
                 continue
-            for subscription in self.shortcuts[key]:
+            for subscription in self._shortcuts[key]:
                 if subscription in todo:
                     continue
                 if all_keys < subscription.addresses:
