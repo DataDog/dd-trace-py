@@ -64,6 +64,7 @@ class Span(object):
         "trace_id",
         "parent_id",
         "meta",
+        "store",
         "error",
         "metrics",
         "_span_type",
@@ -138,6 +139,10 @@ class Span(object):
         self.meta = {}  # type: _MetaDictType
         self.error = 0
         self.metrics = {}  # type: _MetricDictType
+
+        # hack - let's have the transaction store on root spans for now
+        # TODO(vdeturckheim): this should probably be a class
+        self.store = {"meta": {}, "addresses": {}}  # type: dict
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int

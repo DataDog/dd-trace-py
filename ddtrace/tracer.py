@@ -745,6 +745,13 @@ class Tracer(object):
 
     trace = _trace
 
+    def current_store(self):
+        # type: () -> Optional[dict]
+        span = self.current_root_span()
+        if span is None:
+            return None
+        return span.store
+
     def current_root_span(self):
         # type: () -> Optional[Span]
         """Returns the root span of the current execution.
