@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Escape non-Unicode bytes when decoding aioredis args. This fixes a
+    ``UnicodeDecodeError`` that can be thrown from the aioredis integration
+    when interacting with binary-encoded data, as is done in channels-redis.
