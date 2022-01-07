@@ -37,11 +37,18 @@ cdef extern from "include/ddwaf.h":
         pass
 
     ctypedef enum DDWAF_RET_CODE:
+        DDWAF_ERR_INTERNAL
+        DDWAF_ERR_INVALID_OBJECT
+        DDWAF_ERR_INVALID_ARGUMENT
+        DDWAF_GOOD
+        DDWAF_MONITOR
+        DDWAF_BLOCK
         pass
 
     ctypedef struct ddwaf_result:
-        DDWAF_RET_CODE action
-        const char* data
+        bool timeout;
+        const char * data;
+        const char * perfData;
 
     ctypedef void (*ddwaf_object_free_fn)(ddwaf_object *object);
 
