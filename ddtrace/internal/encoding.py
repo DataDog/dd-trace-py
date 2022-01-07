@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV03
 from ._encoding import MsgpackEncoderV05
+from .compat import PY3
+from .compat import binary_type
+from .compat import ensure_text
+from .compat import text_type
 from .logger import get_logger
 
 
@@ -48,17 +52,26 @@ class _EncoderBase(object):
         raise NotImplementedError()
 
 
-class JSONEncoder(_EncoderBase):
+class JSONEncoder(json.JSONEncoder, _EncoderBase):
     content_type = "application/json"
+
+    # In Py2 "backslashreplace" is for encoding only
+    _unicode_errors = "backslashreplace" if PY3 else "replace"
+
+    def __init__(self):
+        # Reduce unnecessary whitespace
+        super(JSONEncoder, self).__init__(separators=(",", ":"), indent=None)
 
     def encode_traces(self, traces):
         normalized_traces = [[span.to_dict() for span in trace] for trace in traces]
         return self.encode(normalized_traces)
 
-    @staticmethod
-    def encode(obj):
-        # type: (Any) -> str
-        return json.dumps(obj)
+    def default(self, obj):
+        # type: (Any) -> Any
+        # Convert any bytes to
+        if isinstance(obj, (binary_type, text_type)):
+            return ensure_text(obj, errors=self._unicode_errors)
+        return super(JSONEncoder, self).default(obj)
 
 
 class JSONEncoderV2(JSONEncoder):
