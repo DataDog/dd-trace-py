@@ -9,8 +9,10 @@ from ddtrace.internal.hostname import get_hostname
 def reset_hostname():
     # Ensure _hostname is not set
     _reset()
-    yield
-    _reset()
+    try:
+        yield
+    finally:
+        _reset()
 
 
 @mock.patch("socket.gethostname")
