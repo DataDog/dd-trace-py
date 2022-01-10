@@ -145,6 +145,7 @@ uWSGI
 uninstrumented
 unix
 unpatch
+unpatched
 unregister
 unvendored
 url
