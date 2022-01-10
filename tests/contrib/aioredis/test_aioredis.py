@@ -153,6 +153,35 @@ async def test_pipeline_traced(redis_client):
     assert response_list[3].decode() == "bar"
 
 
+@pytest.mark.skipif(aioredis_version < (2, 0), reason="only supported in aioredis >= 2.0")
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_pipeline_traced_context_manager_transaction(redis_client):
+    """
+    Regression test for: https://github.com/DataDog/dd-trace-py/issues/3106
+
+    https://aioredis.readthedocs.io/en/latest/migration/#pipelines-and-transactions-multiexec
+
+    Example::
+
+        async def main():
+            redis = await aioredis.from_url("redis://localhost")
+            async with redis.pipeline(transaction=True) as pipe:
+                ok1, ok2 = await (pipe.set("key1", "value1").set("key2", "value2").execute())
+            assert ok1
+            assert ok2
+    """
+
+    async with redis_client.pipeline(transaction=True) as p:
+        set_1, set_2, get_1, get_2 = await (p.set("blah", "boo").set("foo", "bar").get("blah").get("foo").execute())
+
+    # response from redis.set is OK if successfully pushed
+    assert set_1 is True
+    assert set_2 is True
+    assert get_1.decode() == "boo"
+    assert get_2.decode() == "bar"
+
+
 @pytest.mark.asyncio
 @pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
 async def test_two_traced_pipelines(redis_client):
