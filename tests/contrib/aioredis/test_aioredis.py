@@ -1,5 +1,3 @@
-import collections
-
 import aioredis
 import pytest
 
@@ -17,14 +15,21 @@ from ..config import REDIS_CONFIG
 @pytest.mark.asyncio
 @pytest.fixture
 async def redis_client():
-    r = await get_redis_instance()
+    r = await get_redis_instance(max_connections=10)  # 10 is default value
     yield r
 
 
-def get_redis_instance():
+@pytest.mark.asyncio
+@pytest.fixture
+async def single_pool_redis_client():
+    r = await get_redis_instance(max_connections=1)
+    yield r
+
+
+def get_redis_instance(max_connections):
     if aioredis_version >= (2, 0):
-        return aioredis.from_url("redis://127.0.0.1:%s" % REDIS_CONFIG["port"])
-    return aioredis.create_redis_pool(("127.0.0.1", REDIS_CONFIG["port"]))
+        return aioredis.from_url("redis://127.0.0.1:%s" % REDIS_CONFIG["port"], max_connections=max_connections)
+    return aioredis.create_redis_pool(("127.0.0.1", REDIS_CONFIG["port"]), maxsize=max_connections)
 
 
 @pytest.mark.asyncio
@@ -101,15 +106,11 @@ async def test_decoding_non_utf8_pipeline_args(redis_client):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-async def test_closed_connection_pool(redis_client):
-    # imitate an empty pool
-    original_pool = getattr(redis_client.connection, "_pool", None)
-    if original_pool:
-        redis_client.connection._pool = collections.deque(maxlen=1)
-    val = await redis_client.get("cheese")
+async def test_closed_connection_pool(single_pool_redis_client):
+    """Make sure it doesn't raise error when no free connections are available."""
+    with (await single_pool_redis_client):
+        val = await single_pool_redis_client.get("cheese")
     assert val is None
-    if original_pool:
-        redis_client.connection._pool = original_pool
 
 
 @pytest.mark.asyncio
