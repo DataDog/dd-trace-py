@@ -1,3 +1,5 @@
+import asyncio
+
 import aioredis
 import pytest
 
@@ -15,7 +17,7 @@ from ..config import REDIS_CONFIG
 @pytest.mark.asyncio
 @pytest.fixture
 async def redis_client():
-    r = await get_redis_instance(max_connections=10)  # 10 is default value
+    r = await get_redis_instance(max_connections=10)  # default values
     yield r
 
 
@@ -26,7 +28,7 @@ async def single_pool_redis_client():
     yield r
 
 
-def get_redis_instance(max_connections):
+def get_redis_instance(max_connections: int):
     if aioredis_version >= (2, 0):
         return aioredis.from_url("redis://127.0.0.1:%s" % REDIS_CONFIG["port"], max_connections=max_connections)
     return aioredis.create_redis_pool(("127.0.0.1", REDIS_CONFIG["port"]), maxsize=max_connections)
@@ -109,8 +111,8 @@ async def test_decoding_non_utf8_pipeline_args(redis_client):
 async def test_closed_connection_pool(single_pool_redis_client):
     """Make sure it doesn't raise error when no free connections are available."""
     with (await single_pool_redis_client):
-        val = await single_pool_redis_client.get("cheese")
-    assert val is None
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(single_pool_redis_client.get("cheese"), timeout=0.2)
 
 
 @pytest.mark.asyncio
