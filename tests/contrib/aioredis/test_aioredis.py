@@ -112,7 +112,7 @@ async def test_closed_connection_pool(single_pool_redis_client):
     """Make sure it doesn't raise error when no free connections are available."""
     with (await single_pool_redis_client):
         with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(single_pool_redis_client.get("cheese"), timeout=0.2)
+            await asyncio.wait_for(single_pool_redis_client.get("cheese"), timeout=0.5)
 
 
 @pytest.mark.asyncio
