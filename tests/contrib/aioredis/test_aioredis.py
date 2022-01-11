@@ -114,9 +114,16 @@ async def test_closed_connection_pool(single_pool_redis_client):
     Make sure it doesn't raise error when no free connections are available.
     After aioredis 2.0 it raises Too many connections error when it happens.
     """
+
+    async def execute_task():
+        """Execute call in the background as a task."""
+        return single_pool_redis_client.get("cheese")
+
+    # start running the task after blocking the pool
     with (await single_pool_redis_client):
-        task = asyncio.gather(single_pool_redis_client.get("cheese"))
-    await task
+        task = [asyncio.create_task(execute_task())]
+    # Pool is released, make sure we wait for the task to finish
+    await asyncio.gather(*task, return_exceptions=True)
 
 
 @pytest.mark.asyncio

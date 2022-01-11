@@ -10,7 +10,7 @@
     "meta": {
       "out.host": "127.0.0.1",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "a76e23453dc9417bb8e4e691e0d9a567",
+      "runtime-id": "a76e23453dc9417bb8e4e691e0d9a567"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
