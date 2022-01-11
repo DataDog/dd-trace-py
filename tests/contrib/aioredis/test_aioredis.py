@@ -106,13 +106,17 @@ async def test_decoding_non_utf8_pipeline_args(redis_client):
     assert response_list[3] == b"\x80abc"
 
 
+@pytest.mark.skipif(aioredis_version > (2, 0), reason="only affects aioredis < 2.0")
 @pytest.mark.asyncio
 @pytest.mark.snapshot
 async def test_closed_connection_pool(single_pool_redis_client):
-    """Make sure it doesn't raise error when no free connections are available."""
+    """
+    Make sure it doesn't raise error when no free connections are available.
+    After aioredis 2.0 it raises Too many connections error when it happens.
+    """
     with (await single_pool_redis_client):
-        with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(single_pool_redis_client.get("cheese"), timeout=0.5)
+        task = asyncio.gather(single_pool_redis_client.get("cheese"))
+    await task
 
 
 @pytest.mark.asyncio

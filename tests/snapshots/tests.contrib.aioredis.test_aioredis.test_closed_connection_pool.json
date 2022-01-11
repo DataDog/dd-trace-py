@@ -7,14 +7,10 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "redis",
-    "error": 1,
     "meta": {
       "out.host": "127.0.0.1",
-      "error.msg": "",
-      "error.stack": "",
       "redis.raw_command": "GET cheese",
       "runtime-id": "a76e23453dc9417bb8e4e691e0d9a567",
-      "error.type": "concurrent.futures._base.CancelledError",
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
