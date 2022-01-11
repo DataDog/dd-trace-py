@@ -1394,7 +1394,7 @@ venv = Venv(
             name="snowflake",
             command="pytest {cmdargs} tests/contrib/snowflake",
             pkgs={
-                "responses": latest,
+                "responses": "~=0.16.0",
             },
             venvs=[
                 Venv(
