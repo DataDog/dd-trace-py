@@ -824,16 +824,15 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="2.7", max_version="3.6"),
-                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
+                    pys=["2.7"],
+                    # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
+                    pkgs={"psycopg2-binary": ["~=2.7.0", "~=2.8.0"]},
                 ),
                 Venv(
-                    pys=["3.7"],
-                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.8"),
-                    pkgs={"psycopg2": ["~=2.8.0", latest]},
+                    pys=select_pys(min_version="3.6"),
+                    # 2.7.x should also work, but it is from 2019
+                    # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
+                    pkgs={"psycopg2-binary": ["~=2.8.0", "~=2.9.0", latest]},
                 ),
             ],
         ),
@@ -904,7 +903,8 @@ venv = Venv(
                             pys=select_pys(max_version="3.9"),
                             pkgs={
                                 "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2": ["~=2.8.0"],
+                                # 2.8.x is the last one support Python 2.7
+                                "psycopg2-binary": ["~=2.8.0"],
                                 "mysql-connector-python": ["<8.0.24"],
                             },
                         ),
@@ -912,7 +912,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.6", max_version="3.9"),
                             pkgs={
                                 "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2": ["~=2.8.0"],
+                                "psycopg2-binary": latest,
                                 "mysql-connector-python": latest,
                             },
                         ),
@@ -921,7 +921,7 @@ venv = Venv(
                             pkgs={
                                 "mysql-connector-python": latest,
                                 "sqlalchemy": ["~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2": ["~=2.8.0"],
+                                "psycopg2-binary": latest,
                                 "mysql-connector-python": latest,
                             },
                         ),
