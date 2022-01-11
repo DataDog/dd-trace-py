@@ -36,7 +36,7 @@ class TelemetryWriter(PeriodicService):
     """
 
     AGENT_URL = get_trace_url()
-    ENDPOINT = "telemetry/proxy/"
+    ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
     MAX_FAIL_COUNT = 3
 
     enabled = False  # type: ClassVar[bool]
