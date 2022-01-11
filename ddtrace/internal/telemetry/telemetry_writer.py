@@ -16,9 +16,7 @@ from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..utils.formats import get_env
 from ..utils.time import StopWatch
-from .telemetry_request import app_closed_telemetry_request
-from .telemetry_request import app_integrations_changed_telemetry_request
-from .telemetry_request import app_started_telemetry_request
+from .telemetry_request import create_telemetry_request
 
 
 TelemetryRequest = namedtuple("TelemetryRequest", "request fail_count")
@@ -60,7 +58,7 @@ class TelemetryWriter(PeriodicService):
         return {
             "Content-type": "application/json",
             "DD-Telemetry-Request-Type": payload_type,
-            "DD-Telemetry-API-Version": "v1",
+            "DD-Telemetry-API-Version": "v2",
         }
 
     def _send_request(self, request):
@@ -97,7 +95,7 @@ class TelemetryWriter(PeriodicService):
 
     def flush_integrations_queue(self):
         # type () -> List[Dict]
-        """Returns a list of all integrations queued by integration_event"""
+        """Returns a list of all integrations queued by add_integration"""
         with self._lock:
             integrations = self._integrations_queue
             self._integrations_queue = []
@@ -111,33 +109,24 @@ class TelemetryWriter(PeriodicService):
             self._events_queue = []
         return requests
 
-    def queued_events(self):
-        # type () -> List[Dict]
-        return self._events_queue
-
-    def queued_integrations(self):
-        # type () -> List[Dict]
-        return self._integrations_queue
-
     def periodic(self):
-        telemetry_requests = self.flush_events_queue()
-
         integrations = self.flush_integrations_queue()
         if integrations:
-            integrations_request = TelemetryRequest(app_integrations_changed_telemetry_request(integrations), 0)
-            telemetry_requests.append(integrations_request)
+            self.app_integrations_changed_event(integrations)
 
-        requests_failed = []  # type: List[Dict]
+        telemetry_requests = self.flush_events_queue()
+
+        requests_failed = []  # type: List[TelemetryRequest]
         for telemetry_request in telemetry_requests:
             request, fail_count = telemetry_request
-
             resp = self._send_request(request)
             if resp.status >= 300 and fail_count + 1 < self.MAX_FAIL_COUNT:
                 requests_failed.append(TelemetryRequest(request, fail_count + 1))
 
-        with self._lock:
-            # add failed requests back to the requests queue
-            self._events_queue.extend(requests_failed)
+        if requests_failed:
+            with self._lock:
+                # add failed requests back to the requests queue
+                self._events_queue.extend(requests_failed)
 
     def shutdown(self):
         # type: () -> None
@@ -145,8 +134,8 @@ class TelemetryWriter(PeriodicService):
         self.periodic()
 
     @classmethod
-    def add_event(cls, request):
-        # type: (Dict) -> None
+    def add_event(cls, payload, payload_type):
+        # type: (Dict, str) -> None
         """
         Adds a Telemetry Request to the TelemetryWriter request buffer
 
@@ -155,12 +144,13 @@ class TelemetryWriter(PeriodicService):
         with cls._lock:
             if cls._instance is None:
                 return
-            request["seq_id"] = cls.sequence
+
+            request = create_telemetry_request(payload, payload_type, cls.sequence)
             cls.sequence += 1
             cls._instance._events_queue.append(TelemetryRequest(request, 0))
 
     @classmethod
-    def integration_event(cls, integration_name):
+    def add_integration(cls, integration_name):
         # type: (str) -> None
         """
         Creates and queues the names and settings of a patched module
@@ -187,14 +177,29 @@ class TelemetryWriter(PeriodicService):
         """
         Sent when TelemetryWriter is enabled or forks
         """
-        request = app_started_telemetry_request()
-        cls.add_event(request)
+        import pkg_resources
+
+        payload = {
+            "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
+            "configurations": {},
+        }
+        cls.add_event(payload, "app-started")
 
     @classmethod
     def app_closed_event(cls):
         # type: () -> None
-        appclosed_request = app_closed_telemetry_request()
-        cls.add_event(appclosed_request)
+        """Adds a Telemetry request which notifies the agent that an application instance has terminated"""
+        payload = {}  # type: Dict
+        cls.add_event(payload, "app-closed")
+
+    @classmethod
+    def app_integrations_changed_event(cls, integrations):
+        # type: (List[Dict]) -> None
+        """Adds a Telemetry request which sends a list of configured integrations to the agent"""
+        payload = {
+            "integrations": integrations,
+        }
+        cls.add_event(payload, "app-integrations-changed")
 
     @classmethod
     def _restart(cls):

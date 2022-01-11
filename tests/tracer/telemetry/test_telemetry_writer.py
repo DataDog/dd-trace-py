@@ -30,7 +30,7 @@ def reset_telemetry_writer():
     telemetry_writer = TelemetryWriter._instance
     # Flush app-started event from the queue
     telemetry_writer.flush_events_queue()
-    assert len(telemetry_writer.queued_events()) == 0
+    assert len(telemetry_writer._events_queue) == 0
 
     yield
 
@@ -42,7 +42,7 @@ def test_add_app_started_event():
 
     telemetry_writer = TelemetryWriter._instance
 
-    events = telemetry_writer.queued_events()
+    events = telemetry_writer._events_queue
     assert len(events) == 1
     assert events[0].request["request_type"] == "app-started"
 
@@ -51,17 +51,17 @@ def test_add_app_closed_event():
     """asserts that app_closed_event() queues an app-closed telemetry request"""
     telemetry_writer = TelemetryWriter._instance
     TelemetryWriter.app_closed_event()
-    events = telemetry_writer.queued_events()
+    events = telemetry_writer._events_queue
     assert len(events) == 1
     assert events[0].request["request_type"] == "app-closed"
 
 
 def test_add_integration_changed_event():
-    """asserts that integration_event() queues an integration"""
+    """asserts that add_integration() queues an integration"""
 
     telemetry_writer = TelemetryWriter._instance
-    TelemetryWriter.integration_event("integration-name")
-    integrations = telemetry_writer.queued_integrations()
+    TelemetryWriter.add_integration("integration-name")
+    integrations = telemetry_writer._integrations_queue
     assert len(integrations) == 1
     assert integrations[0]["name"] == "integration-name"
 
@@ -71,32 +71,29 @@ def test_periodic(mock_send_request_200):
     telemetry_writer = TelemetryWriter._instance
 
     # Ensure events queue is empty
-    events = telemetry_writer.queued_events()
+    events = telemetry_writer._events_queue
     assert len(events) == 0
 
     # Add 2 events to the queue
     TelemetryWriter.app_started_event()
     TelemetryWriter.app_closed_event()
     # Queue two integrations
-    TelemetryWriter.integration_event("integration-1")
-    TelemetryWriter.integration_event("integration-2")
+    TelemetryWriter.add_integration("integration-1")
+    TelemetryWriter.add_integration("integration-2")
 
     # Ensure events queue has 2 events (app started and app closed)
-    events = telemetry_writer.queued_events()
+    events = telemetry_writer._events_queue
     assert len(events) == 2
     # Ensure two integrations have been queued
-    integrations = telemetry_writer.queued_integrations()
+    integrations = telemetry_writer._integrations_queue
     assert len(integrations) == 2
 
     # Send all events to the agent proxy
     telemetry_writer.periodic()
 
     # Ensure all events have been sent
-    events = telemetry_writer.queued_events()
-    assert len(telemetry_writer.queued_events()) == 0
-    # Ensure all integrations have been sent
-    integrations = telemetry_writer.queued_integrations()
-    assert len(integrations) == 0
+    assert len(telemetry_writer._events_queue) == 0
+    assert len(telemetry_writer._integrations_queue) == 0
 
 
 def test_shutdown(mock_send_request_200):
@@ -104,7 +101,7 @@ def test_shutdown(mock_send_request_200):
     telemetry_writer = TelemetryWriter._instance
 
     # Ensure events queue is empty
-    events = telemetry_writer.queued_events()
+    events = telemetry_writer._events_queue
     assert len(events) == 0
 
     with mock.patch.object(telemetry_writer, "app_closed_event") as ace:
@@ -114,25 +111,24 @@ def test_shutdown(mock_send_request_200):
     ace.assert_called_once()
 
     # Ensure shutdown event was sent to the agent and flushed from the queue
-    events = telemetry_writer.queued_events()
-    assert len(telemetry_writer.queued_events()) == 0
+    assert len(telemetry_writer._events_queue) == 0
 
 
 def test_fail_count(mock_send_request_400):
     telemetry_writer = TelemetryWriter._instance
 
     # Add failing event
-    TelemetryWriter.add_event({"request_type": "failing-request"})
+    TelemetryWriter.add_event(payload={}, payload_type="failing-request")
 
     for i in range(1, TelemetryWriter.MAX_FAIL_COUNT):
         # Attempt to send telemetry request
         telemetry_writer.periodic()
         # Ensure the fail count is incremented
-        events = telemetry_writer.queued_events()
+        events = telemetry_writer._events_queue
         assert len(events) == 1
         assert events[0].fail_count == i
 
     # Attempt to send failing-request one last time
     telemetry_writer.periodic()
     # Ensure the failing event is no longer in the queue
-    assert len(telemetry_writer.queued_events()) == 0
+    assert len(telemetry_writer._events_queue) == 0

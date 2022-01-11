@@ -208,11 +208,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="telemetry",
-            command="pytest {cmdargs} tests/telemetry/",
-            pys=select_pys(),
-        ),
-        Venv(
             name="integration",
             pys=select_pys(),
             command="pytest --no-cov {cmdargs} tests/integration/",
