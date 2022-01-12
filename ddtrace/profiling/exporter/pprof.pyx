@@ -552,7 +552,7 @@ class PprofExporter(exporter.Exporter):
         # Do not export trace_resource for non Web spans for privacy concerns.
         if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
             (trace_resource,) = event.trace_resource_container
-        return trace_resource
+        return str(trace_resource)
 
     def export(self, events: recorder.EventsType, start_time_ns: int, end_time_ns: int) -> pprof_ProfileType:
         """Convert events to pprof format.
