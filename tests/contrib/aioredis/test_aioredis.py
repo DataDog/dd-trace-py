@@ -121,7 +121,7 @@ async def test_closed_connection_pool(single_pool_redis_client):
 
     # start running the task after blocking the pool
     with (await single_pool_redis_client):
-        task = [asyncio.create_task(execute_task())]
+        task = [asyncio.ensure_future(execute_task())]
     # Pool is released, make sure we wait for the task to finish
     await asyncio.gather(*task, return_exceptions=True)
 
