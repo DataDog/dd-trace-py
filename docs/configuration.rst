@@ -154,7 +154,8 @@ below:
    * - ``DD_TRACE_SAMPLE_RATE``
      - Float
      - 1.0
-     - A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
+     - A float, f, where 0.0 <= f <= 1.0. This value represents the proportion of traces which will be retained by the agent.
+     - Note: Traces are sampled on the agent and not on the tracer client. Therefore 100% of traces will be sent to the agent regardless of the sample rate.
    
    * - ``DD_TRACE_SAMPLING_RULES``
      - JSON array
