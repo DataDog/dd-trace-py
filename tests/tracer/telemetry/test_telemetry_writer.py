@@ -4,21 +4,20 @@ import pytest
 from ddtrace.internal.telemetry.telemetry_writer import TelemetryWriter
 
 
+class FakeResponse:
+    def __init__(self, status):
+        self.status = status
+
+
 @pytest.fixture
 def mock_send_request_400():
-    class Response400:
-        status = 401
-
-    with mock.patch.object(TelemetryWriter, "_send_request", return_value=Response400()):
+    with mock.patch.object(TelemetryWriter, "_send_request", return_value=FakeResponse(400)):
         yield
 
 
 @pytest.fixture
 def mock_send_request_200():
-    class Response200:
-        status = 200
-
-    with mock.patch.object(TelemetryWriter, "_send_request", return_value=Response200()):
+    with mock.patch.object(TelemetryWriter, "_send_request", return_value=FakeResponse(200)):
         yield
 
 
@@ -57,10 +56,45 @@ def test_add_app_closed_event():
 
 
 def test_add_integration_changed_event():
-    """asserts that add_integration() queues an integration"""
-
+    """asserts that app_integrations_changed_event() queues an app-integrations-changed telemetry request"""
     telemetry_writer = TelemetryWriter._instance
+
+    integrations = [
+        {
+            "name": "integration_name",
+            "version": "",
+            "enabled": True,
+            "auto_enabled": True,
+            "compatible": "",
+            "error": "",
+        }
+    ]
+    TelemetryWriter.app_integrations_changed_event(integrations)
+
+    events = telemetry_writer._events_queue
+    assert len(events) == 1
+    assert events[0].request["request_type"] == "app-integrations-changed"
+
+
+def test_add_event():
+    """asserts that add_event() creates a telemetry request with a payload and payload type"""
+    telemetry_writer = TelemetryWriter._instance
+
+    payload = {"test": "123"}
+    payload_type = "test-event"
+    TelemetryWriter.add_event(payload, payload_type)
+
+    events = telemetry_writer._events_queue
+    assert len(events) == 1
+    assert events[0].request["request_type"] == "test-event"
+
+
+def test_add_integration():
+    """asserts that add_integration() queues an integration"""
+    telemetry_writer = TelemetryWriter._instance
+
     TelemetryWriter.add_integration("integration-name")
+
     integrations = telemetry_writer._integrations_queue
     assert len(integrations) == 1
     assert integrations[0]["name"] == "integration-name"
