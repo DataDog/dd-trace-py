@@ -725,6 +725,8 @@ class BotocoreTest(TracerTestCase):
         print(span)
         print("Here is the meta")
         print(span.meta)
+
+        bridge.delete_bus(Name="a-test-bus")
         assert False
 
     @mock_kms
