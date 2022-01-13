@@ -5,6 +5,7 @@ try:
     from grpc import aio
 
     GRPC_AIO_PIN_MODULE_SERVER = aio.Server
+    GRPC_AIO_PIN_MODULE_CLIENT = aio.Channel
 except ImportError:
     pass
 
@@ -31,3 +32,4 @@ GRPC_METHOD_KIND_BIDI_STREAMING = "bidi_streaming"
 GRPC_SERVICE_SERVER = "grpc-server"
 GRPC_AIO_SERVICE_SERVER = "grpc-aio-server"
 GRPC_SERVICE_CLIENT = "grpc-client"
+GRPC_AIO_SERVICE_CLIENT = "grpc-aio-client"

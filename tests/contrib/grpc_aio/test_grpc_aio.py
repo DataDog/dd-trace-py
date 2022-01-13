@@ -4,7 +4,9 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.grpc import constants
 from ddtrace.contrib.grpc_aio import patch
 from ddtrace.contrib.grpc_aio import unpatch
@@ -29,9 +31,6 @@ class _HelloServicer(HelloServicer):
             message = ";".join(w.key + "=" + w.value for w in metadata if w.key.startswith("x-datadog"))
             return HelloReply(message=message)
 
-        if request.name == "abort":
-            await context.abort(grpc.StatusCode.ABORTED, "aborted")
-
         if request.name == "exception":
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "exception")
 
@@ -39,26 +38,54 @@ class _HelloServicer(HelloServicer):
 
 
 @pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    return tracer
+def patch_grpc_aio():
+    patch()
+    yield
+    unpatch()
 
 
 @pytest.fixture
-def grpc_server(event_loop, tracer):
-    """Configures grpc server and starts it in pytest-asyncio event loop"""
-    patch()
+def tracer():
+    tracer = DummyTracer()
+    Pin.override(constants.GRPC_AIO_PIN_MODULE_CLIENT, tracer=tracer)
     Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, tracer=tracer)
-    _server = aio.server()
-    _server.add_insecure_port("[::]:%d" % (_GRPC_PORT))
-    add_HelloServicer_to_server(_HelloServicer(), _server)
-    event_loop.create_task(_server.start())
-
-    yield
-
-    event_loop.run_until_complete(_server.stop(grace=None))
+    yield tracer
     tracer.pop()
-    unpatch()
+
+
+@pytest.fixture
+def grpc_server(event_loop, patch_grpc_aio, tracer):
+    """Configures grpc server and starts it in pytest-asyncio event loop.
+    tracer fixture is imported to make sure the tracer is pinned to the modules.
+    """
+    _server = _create_server(_GRPC_PORT)
+    event_loop.create_task(_server.start())
+    yield
+    event_loop.run_until_complete(_server.stop(grace=None))
+
+
+def _create_server(port):
+    _server = aio.server()
+    _server.add_insecure_port("[::]:%d" % (port))
+    add_HelloServicer_to_server(_HelloServicer(), _server)
+    return _server
+
+
+def _check_client_span(span, service, method_name, method_kind):
+    assert_is_measured(span)
+    assert span.name == "grpc"
+    assert span.resource == "/helloworld.Hello/{}".format(method_name)
+    assert span.service == service
+    assert span.error == 0
+    assert span.span_type == "grpc"
+    assert span.get_tag("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
+    assert span.get_tag("grpc.method.package") == "helloworld"
+    assert span.get_tag("grpc.method.service") == "Hello"
+    assert span.get_tag("grpc.method.name") == method_name
+    assert span.get_tag("grpc.method.kind") == method_kind
+    assert span.get_tag("grpc.status.code") == "StatusCode.OK"
+    assert span.get_tag("grpc.host") == "localhost"
+    assert span.get_tag("grpc.port") == "50531"
 
 
 def _check_server_span(span, service, method_name, method_kind):
@@ -76,16 +103,53 @@ def _check_server_span(span, service, method_name, method_kind):
 
 
 @pytest.mark.asyncio
-async def test_grpc_server(grpc_server, tracer):
+async def test_insecure_channel(grpc_server, tracer):
     target = "localhost:%d" % (_GRPC_PORT)
     async with aio.insecure_channel(target) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
     spans = tracer.writer.spans
-    assert len(spans) == 1
+    assert len(spans) == 2
+    client_span, server_span = spans
 
-    _check_server_span(spans[0], "grpc-aio-server", "SayHello", "unary")
+    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
+
+
+@pytest.mark.asyncio
+async def test_secure_channel(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    credentials = grpc.ChannelCredentials(None)
+    async with aio.secure_channel(target, credentials) as channel:
+        stub = HelloStub(channel)
+        await stub.SayHello(HelloRequest(name="test"))
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
+
+
+@pytest.mark.asyncio
+async def test_invalid_target(grpc_server, tracer):
+    target = "localhost:50051"
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        with pytest.raises(aio.AioRpcError):
+            await stub.SayHello(HelloRequest(name="test"))
+
+    spans = tracer.writer.spans
+    assert len(spans) == 1
+    client_span = spans[0]
+
+    assert client_span.resource == "/helloworld.Hello/SayHello"
+    assert client_span.error == 1
+    assert client_span.get_tag(ERROR_MSG) == "failed to connect to all addresses"
+    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.UNAVAILABLE"
+    assert client_span.get_tag(ERROR_STACK) is None
 
 
 @pytest.mark.asyncio
@@ -100,14 +164,128 @@ async def test_pin_not_activated(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_analytics_with_rate(grpc_server, tracer):
-    with override_config("grpc_aio_server", dict(analytics_enabled=True, analytics_sample_rate=0.75)):
-        async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
-            stub = HelloStub(channel)
-            await stub.SayHello(HelloRequest(name="test"))
+async def test_pin_tags_put_in_span(patch_grpc_aio, tracer):
+    Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, service="server1")
+    Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, tags={"tag1": "server"})
+    _server = _create_server(_GRPC_PORT)
+    await _server.start()
+
+    Pin.override(constants.GRPC_AIO_PIN_MODULE_CLIENT, tags={"tag2": "client"})
+    async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+        stub = HelloStub(channel)
+        await stub.SayHello(HelloRequest(name="test"))
+
+    await _server.stop(grace=None)
 
     spans = tracer.writer.spans
-    assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.75
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    assert client_span.get_tag("tag2") == "client"
+    _check_server_span(server_span, "server1", "SayHello", "unary")
+    assert server_span.get_tag("tag1") == "server"
+
+
+@pytest.mark.asyncio
+async def test_pin_can_be_defined_per_channel(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    Pin.override(constants.GRPC_AIO_PIN_MODULE_CLIENT, service="grpc1")
+    channel1 = aio.insecure_channel(target)
+
+    Pin.override(constants.GRPC_AIO_PIN_MODULE_CLIENT, service="grpc2")
+    channel2 = aio.insecure_channel(target)
+
+    stub1 = HelloStub(channel1)
+    await stub1.SayHello(HelloRequest(name="test"))
+    await channel1.close()
+
+    # DEV: make sure we have two spans before proceeding
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+
+    stub2 = HelloStub(channel2)
+    await stub2.SayHello(HelloRequest(name="test"))
+    await channel2.close()
+
+    spans = tracer.writer.spans
+    assert len(spans) == 4
+    client_span1, server_span1, client_span2, server_span2 = spans
+
+    # DEV: Server service default, client services override
+    _check_client_span(client_span1, "grpc1", "SayHello", "unary")
+    _check_server_span(server_span1, "grpc-aio-server", "SayHello", "unary")
+    _check_client_span(client_span2, "grpc2", "SayHello", "unary")
+    _check_server_span(server_span2, "grpc-aio-server", "SayHello", "unary")
+
+
+@pytest.mark.asyncio
+async def test_analytics_default(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    credentials = credentials = grpc.ChannelCredentials(None)
+    async with aio.secure_channel(target, credentials) as channel:
+        stub = HelloStub(channel)
+        await stub.SayHello(HelloRequest(name="test"))
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    assert client_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+    _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
+    assert server_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
+
+
+@pytest.mark.asyncio
+async def test_analytics_with_rate(grpc_server, tracer):
+    with override_config("grpc_aio_client", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+        with override_config("grpc_aio_server", dict(analytics_enabled=True, analytics_sample_rate=0.75)):
+            async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+                stub = HelloStub(channel)
+                await stub.SayHello(HelloRequest(name="test"))
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    assert client_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
+    assert server_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.75
+
+
+@pytest.mark.asyncio
+async def test_priority_sampling(grpc_server, tracer):
+    # DEV: Priority sampling is enabled by default
+    # Setting priority sampling reset the writer, we need to re-override it
+    async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+        stub = HelloStub(channel)
+        response = await stub.SayHello(HelloRequest(name="propogator"))
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, _ = spans
+
+    assert "x-datadog-trace-id={}".format(client_span.trace_id) in response.message
+    assert "x-datadog-parent-id={}".format(client_span.span_id) in response.message
+    assert "x-datadog-sampling-priority=1" in response.message
+
+
+@pytest.mark.asyncio
+async def test_analytics_without_rate(grpc_server, tracer):
+    with override_config("grpc_aio_client", dict(analytics_enabled=True)):
+        with override_config("grpc_aio_server", dict(analytics_enabled=True)):
+            async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+                stub = HelloStub(channel)
+                await stub.SayHello(HelloRequest(name="test"))
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    assert client_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
+    _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
+    assert server_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
 
 @pytest.mark.asyncio
@@ -119,9 +297,30 @@ async def test_unary_exception(grpc_server, tracer):
             await stub.SayHello(HelloRequest(name="exception"))
 
     spans = tracer.writer.spans
-    server_span = spans[0]
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    assert client_span.resource == "/helloworld.Hello/SayHello"
+    assert client_span.error == 1
+    assert client_span.get_tag(ERROR_MSG) == "exception"
+    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+    assert client_span.get_tag(ERROR_STACK) is None
 
     assert server_span.resource == "/helloworld.Hello/SayHello"
     assert server_span.error == 1
-    assert "Traceback" in server_span.get_tag(ERROR_STACK)
-    assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span.get_tag(ERROR_STACK)
+    assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
+    assert "AbortError" in server_span.get_tag(ERROR_TYPE)
+    assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
+    assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
+
+
+@pytest.mark.asyncio
+async def test_unary_cancellation(grpc_server, tracer):
+    async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+        stub = HelloStub(channel)
+        call = stub.SayHello(HelloRequest(name="exception"))
+        call.cancel()
+
+    # No span because the call is cancelled before execution.
+    spans = tracer.writer.spans
+    assert len(spans) == 0
