@@ -1,7 +1,13 @@
+import httpretty
 import mock
 import pytest
 
+from ddtrace.internal.telemetry.writer import AGENT_URL
+from ddtrace.internal.telemetry.writer import ENDPOINT
 from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+
+TEST_URL = "%s/%s" % (AGENT_URL, ENDPOINT)
 
 
 class FakeResponse:
@@ -11,7 +17,8 @@ class FakeResponse:
 
 @pytest.fixture
 def mock_send_request_200():
-    with mock.patch.object(TelemetryWriter, "_send_request", return_value=FakeResponse(200)):
+    with httpretty.enabled():
+        httpretty.register_uri(httpretty.POST, TEST_URL, status=202)
         yield
 
 
@@ -116,8 +123,11 @@ def test_periodic(mock_send_request_200):
     integrations = telemetry_writer._integrations_queue
     assert len(integrations) == 2
 
-    # Send all events to the agent proxy
-    telemetry_writer.periodic()
+    with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
+        # Send all events to the agent proxy
+        telemetry_writer.periodic()
+        # Assert no error logs were generated while sending telemetry requests
+        log.error.assert_not_called()
 
     # Ensure all events have been sent
     assert len(telemetry_writer._events_queue) == 0
@@ -140,3 +150,44 @@ def test_shutdown(mock_send_request_200):
 
     # Ensure shutdown event was sent to the agent and flushed from the queue
     assert len(telemetry_writer._events_queue) == 0
+
+
+def test_send_request(mock_send_request_200):
+    """asserts that the agent proxy responds with a 202 when the agent is available"""
+    telemetry_writer = TelemetryWriter._instance
+    request = {
+        "tracer_time": 1678945683,
+        "runtime_id": "123-4567-890-1234-5678999",
+        "api_version": "v2",
+        "seq_id": 0,
+        "application": {},
+        "host": {},
+        "payload": {},
+        "request_type": "test-request",
+    }
+    resp = telemetry_writer._send_request(request)
+    assert resp.status == 202
+
+
+@httpretty.activate()
+def test_send_request_raises_exception():
+    """asserts that an error is logged when an exception is raised by the http client"""
+    httpretty.register_uri(httpretty.POST, TEST_URL, status=400, body=lambda _: Exception("client error"))
+
+    telemetry_writer = TelemetryWriter._instance
+    request = {
+        "tracer_time": 1678945683,
+        "runtime_id": "123-4567-890-1234-5678999",
+        "api_version": "v2",
+        "seq_id": 0,
+        "application": {},
+        "host": {},
+        "payload": {},
+        "request_type": "test-request-exception",
+    }
+
+    with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
+        # Send all test event to the agent proxy
+        telemetry_writer._send_request(request)
+        # Assert an exception was raised when reading the response
+        log.error.assert_called_with("failed to send telemetry to the Datadog Agent at %s", ENDPOINT, exc_info=True)

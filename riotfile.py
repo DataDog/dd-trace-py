@@ -203,6 +203,7 @@ venv = Venv(
                         "attrs": ["==19.2.0", latest],
                         "packaging": ["==17.1", latest],
                         "structlog": latest,
+                        "httpretty": "<1.0",
                     },
                 )
             ],
