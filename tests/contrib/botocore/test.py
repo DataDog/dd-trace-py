@@ -704,6 +704,9 @@ class BotocoreTest(TracerTestCase):
     def test_event_bridge_trace_injection(self):
         bridge = self.session.create_client("events", region_name="us-west-2")
         bridge.create_event_bus(Name="a-test-bus")
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
+
         entries = [
             {
                 "Source": "some-event-source",
