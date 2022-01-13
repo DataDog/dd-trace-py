@@ -24,7 +24,7 @@ network calls. Pymongo 3.0 and greater are the currently supported versions.
     client = pymongo.MongoClient()
     pin = Pin.override(client, service="mongo-master")
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["pymongo"]

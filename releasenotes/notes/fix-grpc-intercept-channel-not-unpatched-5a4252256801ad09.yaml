@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpc: ensure grpc.intercept_channel is unpatched properly

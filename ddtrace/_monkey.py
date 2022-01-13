@@ -9,15 +9,16 @@ from typing import List
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
+from .internal.utils import formats
+from .internal.utils.deprecation import deprecated
 from .settings import _config as config
-from .utils import formats
-from .utils.deprecation import deprecated
 
 
 log = get_logger(__name__)
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
+    "aioredis": True,
     "aredis": True,
     "asyncio": True,
     "boto": True,
@@ -71,6 +72,7 @@ PATCH_MODULES = {
     "pyodbc": True,
     "fastapi": True,
     "dogpile_cache": True,
+    "yaaredis": True,
 }
 
 _LOCK = threading.Lock()
@@ -269,6 +271,6 @@ def _attempt_patch_module(module):
                     "%s.patch is not found. '%s' is not configured for this environment" % (path, module)
                 )
 
-            imported_module.patch()  # type: ignore
+            imported_module.patch()
             _PATCHED_MODULES.add(module)
             return True

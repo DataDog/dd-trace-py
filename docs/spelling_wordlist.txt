@@ -9,6 +9,7 @@ OpenTracing
 aiobotocore
 aiohttp
 aiopg
+aioredis
 algolia
 algoliasearch
 agentless
@@ -25,6 +26,7 @@ autopatching
 backend
 backends
 bikeshedding
+booleans
 boto
 botocore
 CGroup
@@ -143,6 +145,7 @@ uWSGI
 uninstrumented
 unix
 unpatch
+unpatched
 unregister
 unvendored
 url
@@ -155,3 +158,4 @@ whitelist
 workflow
 wsgi
 xfail
+yaaredis

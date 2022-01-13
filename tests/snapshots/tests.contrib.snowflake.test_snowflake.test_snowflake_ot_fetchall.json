@@ -11,6 +11,7 @@
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "system.pid": 79541
@@ -36,6 +37,7 @@
        },
        "metrics": {
          "_dd.measured": 1,
+         "_dd.top_level": 1,
          "db.rowcount": 1,
          "out.port": 443,
          "sql.rows": 1

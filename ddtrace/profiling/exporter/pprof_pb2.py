@@ -1,4 +1,3 @@
-# ignore typing until is released https://github.com/python/typeshed/pull/5007
 # type: ignore
 
 # -*- coding: utf-8 -*-

@@ -3,6 +3,13 @@
 Integrations
 ------------
 
+.. _aioredis:
+
+aioredis
+^^^^^^^^
+.. automodule:: ddtrace.contrib.aioredis
+
+
 .. _aiobotocore:
 
 aiobotocore
@@ -393,6 +400,11 @@ Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib.vertica
 
+.. _yaaredis:
+
+yaaredis
+^^^^^^^^
+.. automodule:: ddtrace.contrib.yaaredis
 
 .. _wsgi:
 

@@ -9,13 +9,13 @@ import attr
 
 from ddtrace.internal import compat
 from ddtrace.internal import nogevent
+from ddtrace.internal.utils import attr as attr_utils
+from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
-from ddtrace.utils import attr as attr_utils
-from ddtrace.utils import formats
 from ddtrace.vendor import wrapt
 
 
@@ -23,22 +23,22 @@ from ddtrace.vendor import wrapt
 class LockEventBase(event.StackBasedEvent):
     """Base Lock event."""
 
-    lock_name = attr.ib(default=None, type=typing.Optional[str])
-    sampling_pct = attr.ib(default=None, type=typing.Optional[int])
+    lock_name = attr.ib(default="<unknown lock name>", type=str)
+    sampling_pct = attr.ib(default=0, type=int)
 
 
 @event.event_class
 class LockAcquireEvent(LockEventBase):
     """A lock has been acquired."""
 
-    wait_time_ns = attr.ib(default=None, type=typing.Optional[int])
+    wait_time_ns = attr.ib(default=0, type=int)
 
 
 @event.event_class
 class LockReleaseEvent(LockEventBase):
     """A lock has been released."""
 
-    locked_for_ns = attr.ib(default=None, type=typing.Optional[int])
+    locked_for_ns = attr.ib(default=0, type=int)
 
 
 def _current_thread():

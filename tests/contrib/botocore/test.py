@@ -1,4 +1,3 @@
-# 3p
 import base64
 import datetime
 import io
@@ -14,14 +13,22 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sqs
 
+
+# Older version of moto used kinesis to mock firehose
+try:
+    from moto import mock_firehose
+except ImportError:
+    from moto import mock_kinesis as mock_firehose
+
 from ddtrace import Pin
+from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import stringify
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.utils.version import parse_version
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -761,7 +768,7 @@ class BotocoreTest(TracerTestCase):
             service_response = s3.list_buckets()
             assert service_response == response
 
-    @mock_kinesis
+    @mock_firehose
     def test_firehose_no_records_arg(self):
         firehose = self.session.create_client("firehose", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(firehose)
@@ -805,3 +812,15 @@ class BotocoreTest(TracerTestCase):
         assert delivery_stream_span.get_tag("aws.operation") == "CreateDeliveryStream"
         assert put_record_batch_span.get_tag("aws.operation") == "PutRecordBatch"
         assert put_record_batch_span.get_tag("params.Records") is None
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="true"))
+    def test_distributed_tracing_env_override(self):
+        assert config.botocore.distributed_tracing is True
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_DISTRIBUTED_TRACING="false"))
+    def test_distributed_tracing_env_override_false(self):
+        assert config.botocore.distributed_tracing is False
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT="true"))
+    def test_invoke_legacy_context_env_override(self):
+        assert config.botocore.invoke_with_legacy_context is True

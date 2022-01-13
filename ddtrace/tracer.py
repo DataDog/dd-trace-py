@@ -17,10 +17,11 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
-from ddtrace.utils.deprecation import deprecation
+from ddtrace.internal.utils.deprecation import deprecation
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
+from ._monkey import patch
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
@@ -45,11 +46,14 @@ from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
+from .internal.processor.trace import TraceTopLevelSpanProcessor
 from .internal.runtime import get_runtime_id
+from .internal.utils.deprecation import deprecated
+from .internal.utils.formats import asbool
+from .internal.utils.formats import get_env
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
-from .monkey import patch
 from .provider import DefaultContextProvider
 from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
@@ -57,9 +61,6 @@ from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
-from .utils.deprecation import deprecated
-from .utils.formats import asbool
-from .utils.formats import get_env
 
 
 log = get_logger(__name__)
@@ -297,6 +298,7 @@ class Tracer(object):
         writer=None,  # type: Optional[TraceWriter]
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
+        api_version=None,  # type: Optional[str]
     ):
         # type: (...) -> None
         """
@@ -373,7 +375,7 @@ class Tracer(object):
         else:
             # No URL parts have updated and there's no previous writer to
             # get the URL from.
-            url = None  # type: ignore
+            url = None
 
         try:
             self.writer.stop()
@@ -393,6 +395,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
+                api_version=api_version,
             )
         elif writer is None and isinstance(self.writer, LogWriter):
             # No need to do anything for the LogWriter.
@@ -594,7 +597,6 @@ class Tracer(object):
                         # If dropped by the local sampler, distributed instrumentation can drop it too.
                         context.sampling_priority = AUTO_REJECT
             else:
-                context.sampling_priority = AUTO_KEEP if span.sampled else AUTO_REJECT
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
 
@@ -628,8 +630,10 @@ class Tracer(object):
         if service and service not in self._services and self._is_span_internal(span):
             self._services.add(service)
 
-        for p in self._span_processors:
-            p.on_span_start(span)
+        # Only call span processors if the tracer is enabled
+        if self.enabled:
+            for p in self._span_processors:
+                p.on_span_start(span)
 
         self._hooks.emit(self.__class__.start_span, span)
         return span
@@ -646,11 +650,10 @@ class Tracer(object):
                 "span %r closing after its parent %r, this is an error when not using async", span, span._parent
             )
 
-        if not self.enabled:
-            return  # nothing to do
-
-        for p in self._span_processors:
-            p.on_span_finish(span)
+        # Only call span processors if the tracer is enabled
+        if self.enabled:
+            for p in self._span_processors:
+                p.on_span_finish(span)
 
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
@@ -660,6 +663,7 @@ class Tracer(object):
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor()]
+        trace_processors += [TraceTopLevelSpanProcessor()]
         trace_processors += self._filters
 
         self._span_processors = [

@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
+import typing
 from typing import List
 from typing import Optional
 
@@ -12,16 +13,17 @@ from ddtrace.internal import atexit
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
+from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
-from ddtrace.utils import formats
 
 
 LOG = logging.getLogger(__name__)
@@ -96,33 +98,11 @@ class Profiler(object):
         self._profiler = self._profiler.copy()
         self._profiler.start()
 
-    @property
-    def status(self):
-        return self._profiler.status
-
-    @property
-    def service(self):
-        return self._profiler.service
-
-    @property
-    def env(self):
-        return self._profiler.env
-
-    @property
-    def version(self):
-        return self._profiler.version
-
-    @property
-    def tracer(self):
-        return self._profiler.tracer
-
-    @property
-    def url(self):
-        return self._profiler.url
-
-    @property
-    def tags(self):
-        return self._profiler.tags
+    def __getattr__(
+        self, key  # type: str
+    ):
+        # type: (...) -> typing.Any
+        return getattr(self._profiler, key)
 
 
 @attr.s
@@ -195,8 +175,8 @@ class _ProfilerInstance(service.Service):
         r = self._recorder = recorder.Recorder(
             max_events={
                 # Allow to store up to 10 threads for 60 seconds at 100 Hz
-                stack.StackSampleEvent: 10 * 60 * 100,
-                stack.StackExceptionSampleEvent: 10 * 60 * 100,
+                stack_event.StackSampleEvent: 10 * 60 * 100,
+                stack_event.StackExceptionSampleEvent: 10 * 60 * 100,
                 # (default buffer size / interval) * export interval
                 memalloc.MemoryAllocSampleEvent: int(
                     (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60

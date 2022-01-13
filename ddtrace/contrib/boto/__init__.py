@@ -14,7 +14,7 @@ This integration is automatically patched when using ``patch_all()``::
     ec2.get_all_instances()
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["boto.connection"]

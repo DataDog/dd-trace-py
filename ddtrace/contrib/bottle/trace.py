@@ -10,7 +10,7 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...utils.formats import asbool
+from ...internal.utils.formats import asbool
 
 
 class TracePlugin(object):

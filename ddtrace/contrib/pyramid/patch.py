@@ -5,8 +5,8 @@ import pyramid.config
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-from ...utils.formats import asbool
-from ...utils.formats import get_env
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import get_env
 from .constants import SETTINGS_ANALYTICS_ENABLED
 from .constants import SETTINGS_ANALYTICS_SAMPLE_RATE
 from .constants import SETTINGS_DISTRIBUTED_TRACING
@@ -62,6 +62,15 @@ def traced_init(wrapped, instance, args, kwargs):
     # If the tweens are explicitly set with 'pyramid.tweens', we need to
     # explicitly set our tween too since `add_tween` will be ignored.
     insert_tween_if_needed(trace_settings)
+
+    # The original Configurator.__init__ looks up two levels to find the package
+    # name if it is not provided. This has to be replicated here since this patched
+    # call will occur at the same level in the call stack.
+    if not kwargs.get("package", None):
+        from pyramid.path import caller_package
+
+        kwargs["package"] = caller_package(level=2)
+
     kwargs["settings"] = trace_settings
     wrapped(*args, **kwargs)
     trace_pyramid(instance)

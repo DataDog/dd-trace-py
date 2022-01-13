@@ -63,7 +63,7 @@ Make sure that your log format exactly matches the following::
     hello()
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["logging"]

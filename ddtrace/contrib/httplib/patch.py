@@ -12,11 +12,11 @@ from ...internal.compat import PY2
 from ...internal.compat import httplib
 from ...internal.compat import parse
 from ...internal.logger import get_logger
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import get_env
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
-from ...utils.formats import asbool
-from ...utils.formats import get_env
-from ...utils.wrappers import unwrap as _u
+from ..trace_utils import unwrap as _u
 
 
 span_name = "httplib.request" if PY2 else "http.client.request"

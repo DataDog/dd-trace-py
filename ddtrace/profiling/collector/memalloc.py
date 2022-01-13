@@ -13,11 +13,11 @@ try:
 except ImportError:
     _memalloc = None  # type: ignore[assignment]
 
+from ddtrace.internal.utils import attr as attr_utils
+from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _threading
-from ddtrace.utils import attr as attr_utils
-from ddtrace.utils import formats
 
 
 LOG = logging.getLogger(__name__)
@@ -27,13 +27,13 @@ LOG = logging.getLogger(__name__)
 class MemoryAllocSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
-    size = attr.ib(default=None)
+    size = attr.ib(default=0, type=int)
     """Allocation size in bytes."""
 
-    capture_pct = attr.ib(default=None)
+    capture_pct = attr.ib(default=None, type=float)
     """The capture percentage."""
 
-    nevents = attr.ib(default=None)
+    nevents = attr.ib(default=0, type=int)
     """The total number of allocation events sampled."""
 
 
@@ -41,10 +41,10 @@ class MemoryAllocSampleEvent(event.StackBasedEvent):
 class MemoryHeapSampleEvent(event.StackBasedEvent):
     """A sample storing memory allocation tracked."""
 
-    size = attr.ib(default=None)
+    size = attr.ib(default=0, type=int)
     """Allocation size in bytes."""
 
-    sample_size = attr.ib(default=None)
+    sample_size = attr.ib(default=0, type=int)
     """The sampling size."""
 
 
@@ -56,7 +56,7 @@ def _get_default_heap_sample_size(
     if heap_sample_size is not None:
         return int(heap_sample_size)
 
-    if not formats.asbool(os.environ.get("DD_PROFILING_HEAP_ENABLED", "0")):
+    if not formats.asbool(os.environ.get("DD_PROFILING_HEAP_ENABLED", "1")):
         return 0
 
     try:
