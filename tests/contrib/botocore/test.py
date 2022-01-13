@@ -723,8 +723,8 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
         print("AGOCS! Here's the span:")
         print(span)
-        print("Here are the tags")
-        print(span.tags)
+        print("Here is the meta")
+        print(span.meta)
         assert False
 
     @mock_kms
