@@ -721,7 +721,10 @@ class BotocoreTest(TracerTestCase):
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
+        print("AGOCS! Here's the span:")
         print(span)
+        print("Here are the tags")
+        print(span.tags)
         assert False
 
     @mock_kms
