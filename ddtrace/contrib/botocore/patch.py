@@ -72,7 +72,7 @@ def inject_trace_to_sqs_message(args, span):
 def inject_trace_to_event_bridge_detail(args, span):
     params = args[1]
     if "Entries" in params:
-        for entry in params["Entry"]:
+        for entry in params["Entries"]:
             if "Detail" in entry:
                 detail = json.loads(entry["Detail"])
                 HTTPPropagator.inject(span.context, detail)
