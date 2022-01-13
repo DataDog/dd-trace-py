@@ -33,11 +33,22 @@ def test_get_application():
         "runtime_version": runtime_v,
     }
 
-    assert get_application("unnamed_python_service", "", "") == expected_application
+    assert get_application("", "", "") == expected_application
+
+
+def test_get_application_():
+    """validates return value of get_application when service, version, and environment configurations are set"""
+
+    application = get_application("munirs-service", "1.1.1", "staging")
+    assert application["service_name"] == "munirs-service"
+    assert application["service_version"] == "1.1.1"
+    assert application["env"] == "staging"
 
 
 def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
-    """validates the return value of get_application when DD_SERVICE, DD_VERSION, and DD_ENV environment variables"""
+    """
+    validates the return value of get_application when DD_SERVICE, DD_VERSION, and DD_ENV environment variables are set
+    """
     monkeypatch.setenv("DD_SERVICE", "test_service")
     monkeypatch.setenv("DD_VERSION", "12.34.56")
     monkeypatch.setenv("DD_ENV", "prod")
@@ -55,6 +66,16 @@ assert application["env"] == "prod"
     )
 
     assert status == 0, (out, err)
+
+
+def test_get_application_is_cached():
+    """ensures get_application() returns cached dictionary when it's called with the same arguments"""
+    with mock.patch("ddtrace.internal.telemetry.data.get_version") as gv:
+        get_application("is_cached-service", "1.2.3", "test")
+        get_application("is_cached-service", "1.2.3", "test")
+        get_application("is_cached-service", "1.2.3", "test")
+
+    gv.assert_called_once()
 
 
 def test_format_version_info():
