@@ -7,12 +7,12 @@ import zipfile
 
 import botocore.session
 from moto import mock_ec2
+from moto import mock_events
 from moto import mock_kinesis
 from moto import mock_kms
 from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sqs
-from moto import mock_events
 
 
 # Older version of moto used kinesis to mock firehose
