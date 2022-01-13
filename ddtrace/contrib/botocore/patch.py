@@ -68,6 +68,10 @@ def inject_trace_to_sqs_message(args, span):
 
     inject_trace_data_to_message_attributes(trace_data, params)
 
+def inject_trace_to_event_bridge_detail(args, span):
+    params = args[1]
+    if "detail" in params:
+        HTTPPropagator.inject(span.context, params["detail"])
 
 def modify_client_context(client_context_object, trace_headers):
     if config.botocore["invoke_with_legacy_context"]:
@@ -142,6 +146,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                     inject_trace_to_sqs_message(args, span)
                 if endpoint_name == "sqs" and operation == "SendMessageBatch":
                     inject_trace_to_sqs_batch_message(args, span)
+                if endpoint_name == "events" and operation == "PutEvents":
+                    inject_trace_to_event_bridge_detail(args, span)
 
         else:
             span.resource = endpoint_name

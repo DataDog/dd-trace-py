@@ -12,6 +12,7 @@ from moto import mock_kms
 from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sqs
+from moto import mock_events
 
 
 # Older version of moto used kinesis to mock firehose
@@ -698,6 +699,23 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.get_tag("aws.operation"), "Invoke")
         assert_is_measured(span)
         lamb.delete_function(FunctionName="black-sabbath")
+
+    @mock_events
+    def test_event_bridge_trace_injection(self):
+        bridge = self.session.create_client("events", region_name="us-west-2")
+        bridge.create_event_bus(Name="a-test-bus")
+        entries = [
+            {"Source": "some-event-source", "DetailType": "some-event-detail-type", "Detail": "{\"foo\":\"bar\"}",
+             "EventBusName": "a-test-bus"}
+        ]
+        bridge.put_events(Entries=entries)
+
+        spans = self.get_spans()
+        assert spans
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        print(span)
+        assert False
 
     @mock_kms
     def test_kms_client(self):
