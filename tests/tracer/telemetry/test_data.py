@@ -10,7 +10,7 @@ from ddtrace.internal.telemetry.data import _format_version_info
 from ddtrace.internal.telemetry.data import _get_container_id
 from ddtrace.internal.telemetry.data import _get_os_version
 from ddtrace.internal.telemetry.data import get_application
-from ddtrace.internal.telemetry.data import get_host
+from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
 from ddtrace.internal.telemetry.data import get_version
 
@@ -65,7 +65,7 @@ def test_format_version_info():
     assert version_str == "{}.{}.{}".format(sys_vi.major, sys_vi.minor, sys_vi.micro)
 
 
-def test_get_host():
+def test_get_host_info():
     """validates whether the HOST singleton contains the expected fields"""
     expected_host = {
         "os": platform.platform(aliased=1, terse=1),
@@ -77,7 +77,7 @@ def test_get_host():
         "container_id": _get_container_id(),
     }
 
-    assert get_host() == expected_host
+    assert get_host_info() == expected_host
 
 
 @pytest.mark.parametrize(

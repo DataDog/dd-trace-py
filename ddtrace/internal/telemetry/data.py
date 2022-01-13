@@ -70,25 +70,21 @@ def get_application(service, version, env):
     return _get_application((service, version, env))
 
 
-@cached()
-def _get_host(key):
-    # type: (str) -> Dict
-    """
-    This helper packs and unpacks get_host arguments to support caching.
-    Cached() annotation only supports functions with one argument
-    """
-    return {
-        "os": platform.platform(aliased=True, terse=True),
-        "hostname": get_hostname(),
-        "os_version": _get_os_version(),
-        "kernel_name": platform.system(),
-        "kernel_release": platform.release(),
-        "kernel_version": platform.version(),
-        "container_id": _get_container_id(),
-    }
+_host_info = None
 
 
-def get_host():
+def get_host_info():
     # type: () -> Dict
     """Creates a dictionary to store host data using the platform module"""
-    return _get_host("telemtry_host")
+    global _host_info
+    if _host_info is None:
+        _host_info = {
+            "os": platform.platform(aliased=True, terse=True),
+            "hostname": get_hostname(),
+            "os_version": _get_os_version(),
+            "kernel_name": platform.system(),
+            "kernel_release": platform.release(),
+            "kernel_version": platform.version(),
+            "container_id": _get_container_id(),
+        }
+    return _host_info

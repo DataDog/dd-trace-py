@@ -1,18 +1,12 @@
 import mock
 import pytest
 
-from ddtrace.internal.telemetry.telemetry_writer import TelemetryWriter
+from ddtrace.internal.telemetry.writer import TelemetryWriter
 
 
 class FakeResponse:
     def __init__(self, status):
         self.status = status
-
-
-@pytest.fixture
-def mock_send_request_400():
-    with mock.patch.object(TelemetryWriter, "_send_request", return_value=FakeResponse(400)):
-        yield
 
 
 @pytest.fixture
@@ -43,7 +37,7 @@ def test_add_app_started_event():
 
     events = telemetry_writer._events_queue
     assert len(events) == 1
-    assert events[0].request["request_type"] == "app-started"
+    assert events[0]["request_type"] == "app-started"
 
 
 def test_add_app_closed_event():
@@ -52,7 +46,7 @@ def test_add_app_closed_event():
     TelemetryWriter.app_closed_event()
     events = telemetry_writer._events_queue
     assert len(events) == 1
-    assert events[0].request["request_type"] == "app-closed"
+    assert events[0]["request_type"] == "app-closed"
 
 
 def test_add_integration_changed_event():
@@ -73,7 +67,7 @@ def test_add_integration_changed_event():
 
     events = telemetry_writer._events_queue
     assert len(events) == 1
-    assert events[0].request["request_type"] == "app-integrations-changed"
+    assert events[0]["request_type"] == "app-integrations-changed"
 
 
 def test_add_event():
@@ -86,7 +80,7 @@ def test_add_event():
 
     events = telemetry_writer._events_queue
     assert len(events) == 1
-    assert events[0].request["request_type"] == "test-event"
+    assert events[0]["request_type"] == "test-event"
 
 
 def test_add_integration():
@@ -145,24 +139,4 @@ def test_shutdown(mock_send_request_200):
     ace.assert_called_once()
 
     # Ensure shutdown event was sent to the agent and flushed from the queue
-    assert len(telemetry_writer._events_queue) == 0
-
-
-def test_fail_count(mock_send_request_400):
-    telemetry_writer = TelemetryWriter._instance
-
-    # Add failing event
-    TelemetryWriter.add_event(payload={}, payload_type="failing-request")
-
-    for i in range(1, TelemetryWriter.MAX_FAIL_COUNT):
-        # Attempt to send telemetry request
-        telemetry_writer.periodic()
-        # Ensure the fail count is incremented
-        events = telemetry_writer._events_queue
-        assert len(events) == 1
-        assert events[0].fail_count == i
-
-    # Attempt to send failing-request one last time
-    telemetry_writer.periodic()
-    # Ensure the failing event is no longer in the queue
     assert len(telemetry_writer._events_queue) == 0

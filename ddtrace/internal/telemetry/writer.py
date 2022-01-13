@@ -1,4 +1,3 @@
-from collections import namedtuple
 import logging
 from typing import ClassVar
 from typing import Dict
@@ -16,10 +15,9 @@ from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..utils.formats import get_env
 from ..utils.time import StopWatch
-from .telemetry_request import create_telemetry_request
+from .request import create_telemetry_request
+from .request import get_headers
 
-
-TelemetryRequest = namedtuple("TelemetryRequest", "request fail_count")
 
 log = get_logger(__name__)
 
@@ -28,14 +26,14 @@ def _get_interval_or_default():
     return float(get_env("instrumentation_telemetry", "interval", default=60))
 
 
+AGENT_URL = get_trace_url()
+ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
+
+
 class TelemetryWriter(PeriodicService):
     """
-    Periodic service which sends Telemetry request payloads to the agent-proxy [not yet but soon]
+    Periodic service which sends Telemetry request payloads to the agent-proxy
     """
-
-    AGENT_URL = get_trace_url()
-    ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
-    MAX_FAIL_COUNT = 3
 
     enabled = False  # type: ClassVar[bool]
     _instance = None  # type: ClassVar[Optional[TelemetryWriter]]
@@ -46,32 +44,21 @@ class TelemetryWriter(PeriodicService):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
-        self.encoder = JSONEncoderV2()
-        self._events_queue = []  # type: List[TelemetryRequest]
+        self._encoder = JSONEncoderV2()
+        self._events_queue = []  # type: List[Dict]
         self._integrations_queue = []  # type: List[Dict]
 
-    def _get_headers(self, payload_type):
-        # type: (str) -> Dict
-        """
-        Creates request headers
-        """
-        return {
-            "Content-type": "application/json",
-            "DD-Telemetry-Request-Type": payload_type,
-            "DD-Telemetry-API-Version": "v2",
-        }
-
     def _send_request(self, request):
-        # type: (Dict) -> httplib.HTTPResponse
+        # type: (Dict) -> Optional[httplib.HTTPResponse]
         """
         Sends a telemetry request to the trace agent
         """
-        conn = get_connection(self.AGENT_URL)
-        rb_json = self.encoder.encode(request)
+        conn = get_connection(AGENT_URL)
+        rb_json = self._encoder.encode(request)
         resp = None
         with StopWatch() as sw:
             try:
-                conn.request("POST", self.ENDPOINT, rb_json, self._get_headers(request["request_type"]))
+                conn.request("POST", ENDPOINT, rb_json, get_headers(request["request_type"]))
                 resp = get_connection_response(conn)
 
                 t = sw.elapsed()
@@ -85,10 +72,12 @@ class TelemetryWriter(PeriodicService):
                     "sent %d in %.5fs to %s/%s. response: %s",
                     len(rb_json),
                     t,
-                    self.AGENT_URL,
-                    self.ENDPOINT,
+                    AGENT_URL,
+                    ENDPOINT,
                     resp.status,
                 )
+            except Exception:
+                log.error("failed to send telemetry to the Datadog Agent at %s", ENDPOINT, exc_info=True)
             finally:
                 conn.close()
         return resp
@@ -102,7 +91,7 @@ class TelemetryWriter(PeriodicService):
         return integrations
 
     def flush_events_queue(self):
-        # type () -> List[TelemetryRequest]
+        # type () -> List[Dict]
         """Returns a list of all integrations queued by classmethods"""
         with self._lock:
             requests = self._events_queue
@@ -116,17 +105,8 @@ class TelemetryWriter(PeriodicService):
 
         telemetry_requests = self.flush_events_queue()
 
-        requests_failed = []  # type: List[TelemetryRequest]
         for telemetry_request in telemetry_requests:
-            request, fail_count = telemetry_request
-            resp = self._send_request(request)
-            if resp.status >= 300 and fail_count + 1 < self.MAX_FAIL_COUNT:
-                requests_failed.append(TelemetryRequest(request, fail_count + 1))
-
-        if requests_failed:
-            with self._lock:
-                # add failed requests back to the requests queue
-                self._events_queue.extend(requests_failed)
+            self._send_request(telemetry_request)
 
     def shutdown(self):
         # type: () -> None
@@ -147,7 +127,7 @@ class TelemetryWriter(PeriodicService):
 
             request = create_telemetry_request(payload, payload_type, cls.sequence)
             cls.sequence += 1
-            cls._instance._events_queue.append(TelemetryRequest(request, 0))
+            cls._instance._events_queue.append(request)
 
     @classmethod
     def add_integration(cls, integration_name):
@@ -177,6 +157,8 @@ class TelemetryWriter(PeriodicService):
         """
         Sent when TelemetryWriter is enabled or forks
         """
+        # pkg_resources import is inlined for performance reasons
+        # This import is an expensive operation
         import pkg_resources
 
         payload = {

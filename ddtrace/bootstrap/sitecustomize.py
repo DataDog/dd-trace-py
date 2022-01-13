@@ -21,7 +21,7 @@ from ddtrace import config  # noqa
 from ddtrace import constants
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
-from ddtrace.internal.telemetry.telemetry_writer import TelemetryWriter
+from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import get_env
 from ddtrace.internal.utils.formats import parse_tags_str

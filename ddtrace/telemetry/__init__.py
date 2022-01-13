@@ -1,17 +1,7 @@
-import six
-
-import ddtrace.internal.telemetry.telemetry_writer
+import ddtrace.internal.telemetry.writer
 
 
-class _InstrumentationTelemetryStatus(type):
-    @property
-    def _enabled(_):
-        # type: () -> bool
-        """Instrumentation Telemetry enabled status."""
-        return ddtrace.internal.telemetry.telemetry_writer.TelemetryWriter.enabled
-
-
-class InstrumentationTelemetry(six.with_metaclass(_InstrumentationTelemetryStatus)):
+class InstrumentationTelemetry:
     """
     Instrumentation Telemetry service API.
     This is normally started automatically by ``ddtrace-run`` when the
@@ -31,7 +21,7 @@ class InstrumentationTelemetry(six.with_metaclass(_InstrumentationTelemetryStatu
         :param endpoint: instrumentation-telemetry-intake public api (will be replaced with an agent endpoint)
         """
 
-        ddtrace.internal.telemetry.telemetry_writer.TelemetryWriter.enable()
+        ddtrace.internal.telemetry.writer.TelemetryWriter.enable()
 
     @staticmethod
     def disable():
@@ -41,7 +31,7 @@ class InstrumentationTelemetry(six.with_metaclass(_InstrumentationTelemetryStatu
         Once disabled, telemetry collection can be re-enabled by calling ``enable``
         again.
         """
-        ddtrace.internal.telemetry.telemetry_writer.TelemetryWriter.disable()
+        ddtrace.internal.telemetry.writer.TelemetryWriter.disable()
 
 
 __all__ = ["InstrumentationTelemetry"]
