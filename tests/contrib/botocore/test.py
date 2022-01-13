@@ -705,8 +705,12 @@ class BotocoreTest(TracerTestCase):
         bridge = self.session.create_client("events", region_name="us-west-2")
         bridge.create_event_bus(Name="a-test-bus")
         entries = [
-            {"Source": "some-event-source", "DetailType": "some-event-detail-type", "Detail": "{\"foo\":\"bar\"}",
-             "EventBusName": "a-test-bus"}
+            {
+                "Source": "some-event-source",
+                "DetailType": "some-event-detail-type",
+                "Detail": '{"foo":"bar"}',
+                "EventBusName": "a-test-bus",
+            }
         ]
         bridge.put_events(Entries=entries)
 
