@@ -727,7 +727,7 @@ class BotocoreTest(TracerTestCase):
         print(span.meta)
 
         entries = json.loads(span.get_tag("params.Entries"))
-        self.assertEqual(len(entries),1)
+        self.assertEqual(len(entries), 1)
         for e in entries:
             self.assertTrue("Detail" in e)
             detail = json.loads(e["Detail"])
