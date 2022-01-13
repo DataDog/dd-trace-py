@@ -75,10 +75,13 @@ def inject_trace_to_event_bridge_detail(args, span):
         entries = json.loads(params["Entries"])
         for entry in entries:
             if "Detail" in entry:
-                HTTPPropagator.inject(span.context, entry["Detail"])
+                detail = json.loads(entry["Detail"])
+                HTTPPropagator.inject(span.context, detail)
+                entry["Detail"] = json.dumps(detail)
             else:
                 print("AGOCS! An entry had no Detail")
                 print(entry)
+        params["Entries"] = json.dumps(entries)
     else:
         print("AGOCS! params had no Entries")
         print(params)
