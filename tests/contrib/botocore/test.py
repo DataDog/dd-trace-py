@@ -788,7 +788,6 @@ class BotocoreTest(TracerTestCase):
         bridge.delete_event_bus(Name="a-test-bus")
         assert False
 
-
     @mock_kms
     def test_kms_client(self):
         kms = self.session.create_client("kms", region_name="us-east-1")
