@@ -72,8 +72,7 @@ def inject_trace_to_sqs_message(args, span):
 def inject_trace_to_event_bridge_detail(args, span):
     params = args[1]
     if "Entries" in params:
-        entries = json.loads(params["Entries"])
-        for entry in entries:
+        for entry in params["Entry"]:
             if "Detail" in entry:
                 detail = json.loads(entry["Detail"])
                 HTTPPropagator.inject(span.context, detail)
@@ -81,7 +80,6 @@ def inject_trace_to_event_bridge_detail(args, span):
             else:
                 print("AGOCS! An entry had no Detail")
                 print(entry)
-        params["Entries"] = json.dumps(entries)
     else:
         print("AGOCS! params had no Entries")
         print(params)
