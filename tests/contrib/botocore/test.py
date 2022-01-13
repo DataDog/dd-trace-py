@@ -726,13 +726,15 @@ class BotocoreTest(TracerTestCase):
         print("Here is the meta")
         print(span.meta)
 
-        entries = json.loads(span.get_tag("Entries"))
-        self.assertTrue("Detail" in entries)
-        detail = json.loads(entries["Detail"])
-        self.assertTrue(HTTP_HEADER_PARENT_ID in detail)
-        self.assertTrue(HTTP_HEADER_TRACE_ID in detail)
-        self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        entries = json.loads(span.get_tag("params.Entries"))
+        self.assertEqual(len(entries),1)
+        for e in entries:
+            self.assertTrue("Detail" in e)
+            detail = json.loads(e["Detail"])
+            self.assertTrue(HTTP_HEADER_PARENT_ID in detail)
+            self.assertTrue(HTTP_HEADER_TRACE_ID in detail)
+            self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
 
         bridge.delete_event_bus(Name="a-test-bus")
         assert False
@@ -769,21 +771,15 @@ class BotocoreTest(TracerTestCase):
         print("Here is the meta")
         print(span.meta)
 
-        entries = json.loads(span.get_tag("Entries"))
-        self.assertTrue("Detail" in entries)
-        detail = json.loads(entries["Detail"])
-        self.assertTrue(HTTP_HEADER_PARENT_ID in detail)
-        self.assertTrue(HTTP_HEADER_TRACE_ID in detail)
-        self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
-
-        entries = json.loads(span.get_tag("Entries"))
-        self.assertTrue("Detail" in entries)
-        detail = json.loads(entries["Detail"])
-        self.assertTrue(HTTP_HEADER_PARENT_ID in detail)
-        self.assertTrue(HTTP_HEADER_TRACE_ID in detail)
-        self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        entries = json.loads(span.get_tag("params.Entries"))
+        self.assertEqual(len(entries), 2)
+        for e in entries:
+            self.assertTrue("Detail" in entries)
+            detail = json.loads(entries["Detail"])
+            self.assertTrue(HTTP_HEADER_PARENT_ID in detail)
+            self.assertTrue(HTTP_HEADER_TRACE_ID in detail)
+            self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
 
         bridge.delete_event_bus(Name="a-test-bus")
         assert False
