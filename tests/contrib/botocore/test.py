@@ -14,11 +14,13 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sqs
 
+
 # Older version of moto used kinesis to mock firehose
 try:
     from moto import mock_firehose
 except ImportError:
     from moto import mock_kinesis as mock_firehose
+
 
 from ddtrace import Pin
 from ddtrace import config
