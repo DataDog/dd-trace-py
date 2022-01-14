@@ -781,7 +781,7 @@ class BotocoreTest(TracerTestCase):
         str_entries = str_entries.replace("'", '"')  # replace ' with "
 
         entries = json.loads(str_entries)
-        self.assertEqual(len(entries), 1)
+        self.assertEqual(len(entries), 2)
         for e in entries:
             self.assertTrue("Detail" in e)
             detail = json.loads(e["Detail"])
