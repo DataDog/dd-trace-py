@@ -727,10 +727,6 @@ class BotocoreTest(TracerTestCase):
         print(span.meta)
 
         # For some reason, put_events replaces " with ' , so the json package can't parse it
-        print("params.Entries is weird.")
-        print(span.get_tag("params.Entries"))
-        print(type(span.get_tag("params.Entries")))
-
         str_entries = span.get_tag("params.Entries")
         str_entries = str_entries.replace('"', '\\"')  # replace " with \"
         str_entries = str_entries.replace("'", '"')  # replace ' with "
@@ -746,52 +742,55 @@ class BotocoreTest(TracerTestCase):
             self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
 
         bridge.delete_event_bus(Name="a-test-bus")
-        assert False
 
-    # @mock_events
-    # def test_event_bridge_muliple_entries_trace_injection(self):
-    #     bridge = self.session.create_client("events", region_name="us-west-2")
-    #     bridge.create_event_bus(Name="a-test-bus")
-    #
-    #     Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
-    #
-    #     entries = [
-    #         {
-    #             "Source": "some-event-source",
-    #             "DetailType": "some-event-detail-type",
-    #             "Detail": '{"foo":"bar"}',
-    #             "EventBusName": "a-test-bus",
-    #         },
-    #         {
-    #             "Source": "another-event-source",
-    #             "DetailType": "a-different-event-detail-type",
-    #             "Detail": '{"foo":"baz"}',
-    #             "EventBusName": "a-test-bus",
-    #         },
-    #     ]
-    #     bridge.put_events(Entries=entries)
-    #
-    #     spans = self.get_spans()
-    #     assert spans
-    #     self.assertEqual(len(spans), 1)
-    #     span = spans[0]
-    #     print("AGOCS! Here's the span:")
-    #     print(span)
-    #     print("Here is the meta")
-    #     print(span.meta)
-    #
-    #     entries = json.loads(span.get_tag("params.Entries"))
-    #     self.assertEqual(len(entries), 2)
-    #     for e in entries:
-    #         self.assertTrue("Detail" in entries)
-    #         detail = json.loads(entries["Detail"])
-    #         self.assertTrue(HTTP_HEADER_PARENT_ID in detail)
-    #         self.assertTrue(HTTP_HEADER_TRACE_ID in detail)
-    #         self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-    #         self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
-    #
-    #     bridge.delete_event_bus(Name="a-test-bus")
-    #     assert False
+    @mock_events
+    def test_event_bridge_muliple_entries_trace_injection(self):
+        bridge = self.session.create_client("events", region_name="us-west-2")
+        bridge.create_event_bus(Name="a-test-bus")
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
+
+        entries = [
+            {
+                "Source": "some-event-source",
+                "DetailType": "some-event-detail-type",
+                "Detail": '{"foo":"bar"}',
+                "EventBusName": "a-test-bus",
+            },
+            {
+                "Source": "another-event-source",
+                "DetailType": "a-different-event-detail-type",
+                "Detail": '{"foo":"baz"}',
+                "EventBusName": "a-test-bus",
+            },
+        ]
+        bridge.put_events(Entries=entries)
+
+        spans = self.get_spans()
+        assert spans
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        print("AGOCS! Here's the span:")
+        print(span)
+        print("Here is the meta")
+        print(span.meta)
+
+        # For some reason, put_events replaces " with ' , so the json package can't parse it
+        str_entries = span.get_tag("params.Entries")
+        str_entries = str_entries.replace('"', '\\"')  # replace " with \"
+        str_entries = str_entries.replace("'", '"')  # replace ' with "
+
+        entries = json.loads(str_entries)
+        self.assertEqual(len(entries), 1)
+        for e in entries:
+            self.assertTrue("Detail" in e)
+            detail = json.loads(e["Detail"])
+            self.assertTrue(HTTP_HEADER_PARENT_ID in detail)
+            self.assertTrue(HTTP_HEADER_TRACE_ID in detail)
+            self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        bridge.delete_event_bus(Name="a-test-bus")
 
     @mock_kms
     def test_kms_client(self):

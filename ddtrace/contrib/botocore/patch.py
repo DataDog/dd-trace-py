@@ -74,15 +74,18 @@ def inject_trace_to_event_bridge_detail(args, span):
     if "Entries" in params:
         for entry in params["Entries"]:
             if "Detail" in entry:
-                detail = json.loads(entry["Detail"])
+                try:
+                    detail = json.loads(entry["Detail"])
+                    HTTPPropagator.inject(span.context, detail)
+                    entry["Detail"] = json.dumps(detail)
+                except Exception:
+                    log.warning("Unable to parse Detail and inject span context")
+            else:
+                detail = {}
                 HTTPPropagator.inject(span.context, detail)
                 entry["Detail"] = json.dumps(detail)
-            else:
-                print("AGOCS! An entry had no Detail")
-                print(entry)
     else:
-        print("AGOCS! params had no Entries")
-        print(params)
+        log.debug("Unable to inject context. The Event Bridge event had no Entries.")
 
 
 def modify_client_context(client_context_object, trace_headers):
