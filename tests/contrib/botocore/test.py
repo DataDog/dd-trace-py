@@ -14,7 +14,6 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sqs
 
-
 # Older version of moto used kinesis to mock firehose
 try:
     from moto import mock_firehose
@@ -34,7 +33,6 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
-
 
 # Parse botocore.__version_ from "1.9.0" to (1, 9, 0)
 BOTOCORE_VERSION = parse_version(botocore.__version__)
@@ -711,7 +709,7 @@ class BotocoreTest(TracerTestCase):
             {
                 "Source": "some-event-source",
                 "DetailType": "some-event-detail-type",
-                "Detail": '{"foo":"bar"}',
+                "Detail": json.dumps({"foo": "bar"}),
                 "EventBusName": "a-test-bus",
             }
         ]
