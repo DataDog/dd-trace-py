@@ -21,7 +21,6 @@ try:
 except ImportError:
     from moto import mock_kinesis as mock_firehose
 
-
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -35,6 +34,7 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
+
 
 # Parse botocore.__version_ from "1.9.0" to (1, 9, 0)
 BOTOCORE_VERSION = parse_version(botocore.__version__)
