@@ -726,7 +726,10 @@ class BotocoreTest(TracerTestCase):
         print("Here is the meta")
         print(span.meta)
 
-        entries = json.loads(span.get_tag("params.Entries"))
+        # For some reason, put_events replaces " with ' , so the json package can't parse it
+        str_entries = span.get_tag("params.Entries").replace("'", '"')
+
+        entries = json.loads(str_entries)
         self.assertEqual(len(entries), 1)
         for e in entries:
             self.assertTrue("Detail" in e)
