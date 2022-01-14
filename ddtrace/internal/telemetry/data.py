@@ -67,6 +67,7 @@ def _get_application(key):
 
 def get_application(service, version, env):
     """Creates a dictionary to store application data using ddtrace configurations and the System-Specific module"""
+    # Application Dict is cached when service, version and env configurations change during runtime
     return _get_application((service, version, env))
 
 

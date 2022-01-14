@@ -203,6 +203,7 @@ venv = Venv(
                         "attrs": ["==19.2.0", latest],
                         "packaging": ["==17.1", latest],
                         "structlog": latest,
+                        # httpretty v1.0 drops python 2.7 support
                         "httpretty": "<1.0",
                     },
                 )

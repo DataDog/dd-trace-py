@@ -7,9 +7,9 @@ TELEMETRY_WRITER = TelemetryWriter()
 __all__ = ["enable", "disable", "add_integration"]
 
 
-def add_integration(integration_name):
-    # type: (str) -> None
-    TELEMETRY_WRITER.add_integration(integration_name)
+def add_integration(integration_name, auto_enabled):
+    # type: (str, bool) -> None
+    TELEMETRY_WRITER.add_integration(integration_name, auto_enabled)
 
 
 def _restart():

@@ -18,7 +18,6 @@ class InstrumentationTelemetry:
         Enable the instrumentation telemetry collection service.
         If the service has already been activated before, this method does
         nothing. Use ``disable`` to turn off the telemetry collection service.
-        :param endpoint: instrumentation-telemetry-intake public api (will be replaced with an agent endpoint)
         """
 
         ddtrace.internal.telemetry.enable()

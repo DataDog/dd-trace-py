@@ -8,8 +8,8 @@ from typing import List
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
+from .internal import telemetry
 from .internal.logger import get_logger
-from .internal.telemetry import add_integration
 from .internal.utils import formats
 from .internal.utils.deprecation import deprecated
 from .settings import _config as config
@@ -128,7 +128,7 @@ def _on_import_factory(module, raise_errors=True):
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
         else:
             imported_module.patch()
-            add_integration(module)
+            telemetry.add_integration(module, _auto_enabled(module))
 
     return on_import
 
@@ -275,5 +275,9 @@ def _attempt_patch_module(module):
 
             imported_module.patch()
             _PATCHED_MODULES.add(module)
-            add_integration(module)
+            telemetry.add_integration(module, _auto_enabled(module))
             return True
+
+
+def _auto_enabled(module):
+    return module in PATCH_MODULES and PATCH_MODULES[module]

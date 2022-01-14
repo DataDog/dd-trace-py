@@ -1,28 +1,29 @@
-import logging
 from typing import Dict
 from typing import List
 from typing import Optional
 
-from ddtrace.internal import forksafe
-
+from ...internal import forksafe
+from ...settings import _config as config
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..compat import httplib
+from ..compat import monotonic
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..periodic import PeriodicService
+from ..runtime import get_runtime_id
 from ..utils.formats import get_env
 from ..utils.time import StopWatch
-from .request import create_telemetry_request
-from .request import get_headers
+from .data import get_application
+from .data import get_host_info
 
 
 log = get_logger(__name__)
 
 
 def _get_interval_or_default():
-    return float(get_env("instrumentation_telemetry", "interval", default=60))
+    return float(get_env("instrumentation_telemetry", "interval_seconds", default=60))
 
 
 AGENT_URL = get_trace_url()
@@ -50,36 +51,32 @@ class TelemetryWriter(PeriodicService):
         """
         Sends a telemetry request to the trace agent
         """
-        conn = get_connection(AGENT_URL)
-        rb_json = self._encoder.encode(request)
         resp = None
         with StopWatch() as sw:
             try:
-                conn.request("POST", ENDPOINT, rb_json, get_headers(request["request_type"]))
+                conn = get_connection(AGENT_URL)
+                rb_json = self._encoder.encode(request)
+                conn.request("POST", ENDPOINT, rb_json, self._create_headers(request["request_type"]))
+
                 resp = get_connection_response(conn)
+                if resp.status >= 300:
+                    raise httplib.HTTPException("Failed to send telemetry request: status=%s" % resp.status)
 
-                t = sw.elapsed()
-                if t >= self.interval:
-                    log_level = logging.WARNING
-                else:
-                    log_level = logging.DEBUG
-
-                log.log(
-                    log_level,
+                log.debug(
                     "sent %d in %.5fs to %s/%s. response: %s",
                     len(rb_json),
-                    t,
+                    sw.elapsed(),
                     AGENT_URL,
                     ENDPOINT,
                     resp.status,
                 )
             except Exception:
-                log.error("failed to send telemetry to the Datadog Agent at %s", ENDPOINT, exc_info=True)
+                log.error("failed to send telemetry to the Datadog Agent at %s/%s", AGENT_URL, ENDPOINT, exc_info=True)
             finally:
                 conn.close()
         return resp
 
-    def flush_integrations_queue(self):
+    def _flush_integrations_queue(self):
         # type () -> List[Dict]
         """Returns a list of all integrations queued by add_integration"""
         with self._lock:
@@ -87,7 +84,7 @@ class TelemetryWriter(PeriodicService):
             self._integrations_queue = []
         return integrations
 
-    def flush_events_queue(self):
+    def _flush_events_queue(self):
         # type () -> List[Dict]
         """Returns a list of all integrations queued by classmethods"""
         with self._lock:
@@ -96,11 +93,11 @@ class TelemetryWriter(PeriodicService):
         return requests
 
     def periodic(self):
-        integrations = self.flush_integrations_queue()
+        integrations = self._flush_integrations_queue()
         if integrations:
-            self.app_integrations_changed_event(integrations)
+            self._app_integrations_changed_event(integrations)
 
-        telemetry_requests = self.flush_events_queue()
+        telemetry_requests = self._flush_events_queue()
 
         for telemetry_request in telemetry_requests:
             self._send_request(telemetry_request)
@@ -115,18 +112,20 @@ class TelemetryWriter(PeriodicService):
         """
         Adds a Telemetry Request to the TelemetryWriter request buffer
 
-        :param Dict: stores a formatted telemetry request
+        :param Dict payload: stores a formatted telemetry request
+        :param str payload_type: The payload_type denotes the type of telmetery request.
+            Payload types accepted by telemetry/proxy v2: app-started, app-closed, app-integrations-changed
         """
         with self._lock:
             if not self.enabled:
                 return
 
-            request = create_telemetry_request(payload, payload_type, self._sequence)
+            request = self._create_telemetry_request(payload, payload_type, self._sequence)
             self._sequence += 1
             self._events_queue.append(request)
 
-    def add_integration(self, integration_name):
-        # type: (str) -> None
+    def add_integration(self, integration_name, auto_enabled):
+        # type: (str, bool) -> None
         """
         Creates and queues the names and settings of a patched module
 
@@ -140,7 +139,7 @@ class TelemetryWriter(PeriodicService):
                 "name": integration_name,
                 "version": "",
                 "enabled": True,
-                "auto_enabled": True,
+                "auto_enabled": auto_enabled,
                 "compatible": "",
                 "error": "",
             }
@@ -167,10 +166,44 @@ class TelemetryWriter(PeriodicService):
         payload = {}  # type: Dict
         self.add_event(payload, "app-closed")
 
-    def app_integrations_changed_event(self, integrations):
+    def _app_integrations_changed_event(self, integrations):
         # type: (List[Dict]) -> None
         """Adds a Telemetry request which sends a list of configured integrations to the agent"""
         payload = {
             "integrations": integrations,
         }
         self.add_event(payload, "app-integrations-changed")
+
+    def _create_headers(self, payload_type):
+        # type: (str) -> Dict
+        """
+        Creates request headers
+        """
+        return {
+            "Content-type": "application/json",
+            "DD-Telemetry-Request-Type": payload_type,
+            "DD-Telemetry-API-Version": "v2",
+        }
+
+    def _create_telemetry_request(self, payload, payload_type, sequence_id):
+        # type: (Dict, str, int) -> Dict
+        """
+        Initializes the required fields for a generic Telemetry Intake Request
+
+        :param Dict payload: stores a formatted telemetry request
+
+        :param str payload_type: The payload_type denotes the type of telmetery request.
+            Payload types accepted by telemetry/proxy v2: app-started, app-closed, app-integrations-changed
+
+        :param int sequence_id: sequence id is a counter representing the number of requests sent by the writer
+        """
+        return {
+            "tracer_time": int(monotonic()),
+            "runtime_id": get_runtime_id(),
+            "api_version": "v2",
+            "seq_id": sequence_id,
+            "application": get_application(config.service, config.version, config.env),
+            "host": get_host_info(),
+            "payload": payload,
+            "request_type": payload_type,
+        }

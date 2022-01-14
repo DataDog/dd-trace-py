@@ -36,7 +36,7 @@ def test_get_application():
     assert get_application("", "", "") == expected_application
 
 
-def test_get_application_():
+def test_get_application_with_values():
     """validates return value of get_application when service, version, and environment configurations are set"""
 
     application = get_application("munirs-service", "1.1.1", "staging")
@@ -111,7 +111,7 @@ def test_get_host_info():
     ],
 )
 def test_get_os_version(mac_ver, win32_ver, libc_ver, expected):
-    """test retrieving the os version on a mac and windows 32-bit operating systems"""
+    """test retrieving the os version on a mac, linux and windows 32-bit operating systems"""
     with mock.patch("platform.mac_ver") as macos:
         macos.return_value = mac_ver
         with mock.patch("platform.win32_ver") as win32:
@@ -126,6 +126,7 @@ def test_get_container_id_when_container_exists():
     validates the return value of _get_container_id when get_container_info()
     can parse /proc/{pid}/cgroup
     """
+    # mocks ddtrace.internal.runtime.container.get_container_info import in data.py
     with mock.patch("ddtrace.internal.telemetry.data.get_container_info") as gci:
         cgroupInfo = CGroupInfo()
         cgroupInfo.container_id = "1641"
@@ -138,6 +139,7 @@ def test_get_container_id_when_container_does_not_exists():
     validates the return value of _get_container_id when get_container_info() CAN NOT
     parse /proc/{pid}/cgroup
     """
+    # mocks ddtrace.internal.runtime.container.get_container_info import in data.py
     with mock.patch("ddtrace.internal.telemetry.data.get_container_info") as gci:
         gci.return_value = None
         assert _get_container_id() == ""
