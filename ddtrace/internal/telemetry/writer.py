@@ -1,5 +1,4 @@
 import logging
-from typing import ClassVar
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -35,18 +34,16 @@ class TelemetryWriter(PeriodicService):
     Periodic service which sends Telemetry request payloads to the agent-proxy
     """
 
-    enabled = False  # type: ClassVar[bool]
-    _instance = None  # type: ClassVar[Optional[TelemetryWriter]]
-    _lock = forksafe.Lock()  # type: ClassVar[forksafe.ResetObject]
-    sequence = 0  # type: ClassVar[int]
-
     def __init__(self):
         # type: () -> None
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
+        self.enabled = False  # type: bool
         self._encoder = JSONEncoderV2()
         self._events_queue = []  # type: List[Dict]
         self._integrations_queue = []  # type: List[Dict]
+        self._lock = forksafe.Lock()  # type: forksafe.ResetObject
+        self._sequence = 0  # type: int
 
     def _send_request(self, request):
         # type: (Dict) -> Optional[httplib.HTTPResponse]
@@ -113,32 +110,30 @@ class TelemetryWriter(PeriodicService):
         self.app_closed_event()
         self.periodic()
 
-    @classmethod
-    def add_event(cls, payload, payload_type):
+    def add_event(self, payload, payload_type):
         # type: (Dict, str) -> None
         """
         Adds a Telemetry Request to the TelemetryWriter request buffer
 
         :param Dict: stores a formatted telemetry request
         """
-        with cls._lock:
-            if cls._instance is None:
+        with self._lock:
+            if not self.enabled:
                 return
 
-            request = create_telemetry_request(payload, payload_type, cls.sequence)
-            cls.sequence += 1
-            cls._instance._events_queue.append(request)
+            request = create_telemetry_request(payload, payload_type, self._sequence)
+            self._sequence += 1
+            self._events_queue.append(request)
 
-    @classmethod
-    def add_integration(cls, integration_name):
+    def add_integration(self, integration_name):
         # type: (str) -> None
         """
         Creates and queues the names and settings of a patched module
 
         :param str integration_name: name of patched module
         """
-        with cls._lock:
-            if cls._instance is None:
+        with self._lock:
+            if not self.enabled:
                 return
 
             integration = {
@@ -149,10 +144,9 @@ class TelemetryWriter(PeriodicService):
                 "compatible": "",
                 "error": "",
             }
-            cls._instance._integrations_queue.append(integration)
+            self._integrations_queue.append(integration)
 
-    @classmethod
-    def app_started_event(cls):
+    def app_started_event(self):
         # type: () -> None
         """
         Sent when TelemetryWriter is enabled or forks
@@ -165,57 +159,18 @@ class TelemetryWriter(PeriodicService):
             "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
             "configurations": {},
         }
-        cls.add_event(payload, "app-started")
+        self.add_event(payload, "app-started")
 
-    @classmethod
-    def app_closed_event(cls):
+    def app_closed_event(self):
         # type: () -> None
         """Adds a Telemetry request which notifies the agent that an application instance has terminated"""
         payload = {}  # type: Dict
-        cls.add_event(payload, "app-closed")
+        self.add_event(payload, "app-closed")
 
-    @classmethod
-    def app_integrations_changed_event(cls, integrations):
+    def app_integrations_changed_event(self, integrations):
         # type: (List[Dict]) -> None
         """Adds a Telemetry request which sends a list of configured integrations to the agent"""
         payload = {
             "integrations": integrations,
         }
-        cls.add_event(payload, "app-integrations-changed")
-
-    @classmethod
-    def _restart(cls):
-        # type: () -> None
-        cls.disable()
-        cls.enable()
-
-    @classmethod
-    def disable(cls):
-        # type: () -> None
-        with cls._lock:
-            if cls._instance is None:
-                return
-
-            forksafe.unregister(cls._restart)
-
-            cls._instance.stop()
-            cls._instance.join()
-            cls._instance = None
-            cls.enabled = False
-
-    @classmethod
-    def enable(cls):
-        # type: () -> None
-        with cls._lock:
-            if cls._instance is not None:
-                return
-
-            telemetry_writer = cls()
-            telemetry_writer.start()
-
-            forksafe.register(cls._restart)
-
-            cls._instance = telemetry_writer
-            cls.enabled = True
-
-        cls.app_started_event()
+        self.add_event(payload, "app-integrations-changed")

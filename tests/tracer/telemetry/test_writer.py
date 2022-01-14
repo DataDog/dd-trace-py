@@ -22,44 +22,41 @@ def mock_send_request_200():
         yield
 
 
-@pytest.fixture(autouse=True)
-def reset_telemetry_writer():
-    # Enable telemetry_writer
-    TelemetryWriter.disable()
-    TelemetryWriter.enable()
-    telemetry_writer = TelemetryWriter._instance
-    # Flush app-started event from the queue
-    telemetry_writer.flush_events_queue()
-    assert len(telemetry_writer._events_queue) == 0
-
-    yield
+@pytest.fixture
+def telemetry_writer():
+    telemetry_writer = TelemetryWriter()
+    telemetry_writer.enabled = True
+    yield telemetry_writer
 
 
-def test_add_app_started_event():
+@pytest.fixture
+def disabled_telemetry_writer():
+    # TelemetryWriter should be disabled by default
+    telemetry_writer = TelemetryWriter()
+    assert telemetry_writer.enabled is False
+
+    yield telemetry_writer
+
+
+def test_add_app_started_event(telemetry_writer):
     """asserts that enabling the Telemetry writer queues and then sends an app-started telemetry request"""
-    TelemetryWriter.disable()
-    TelemetryWriter.enable()
-
-    telemetry_writer = TelemetryWriter._instance
+    telemetry_writer.app_started_event()
 
     events = telemetry_writer._events_queue
     assert len(events) == 1
     assert events[0]["request_type"] == "app-started"
 
 
-def test_add_app_closed_event():
+def test_add_app_closed_event(telemetry_writer):
     """asserts that app_closed_event() queues an app-closed telemetry request"""
-    telemetry_writer = TelemetryWriter._instance
-    TelemetryWriter.app_closed_event()
+    telemetry_writer.app_closed_event()
     events = telemetry_writer._events_queue
     assert len(events) == 1
     assert events[0]["request_type"] == "app-closed"
 
 
-def test_add_integration_changed_event():
+def test_add_integration_changed_event(telemetry_writer):
     """asserts that app_integrations_changed_event() queues an app-integrations-changed telemetry request"""
-    telemetry_writer = TelemetryWriter._instance
-
     integrations = [
         {
             "name": "integration_name",
@@ -70,51 +67,60 @@ def test_add_integration_changed_event():
             "error": "",
         }
     ]
-    TelemetryWriter.app_integrations_changed_event(integrations)
+    telemetry_writer.app_integrations_changed_event(integrations)
 
     events = telemetry_writer._events_queue
     assert len(events) == 1
     assert events[0]["request_type"] == "app-integrations-changed"
 
 
-def test_add_event():
+def test_add_event(telemetry_writer):
     """asserts that add_event() creates a telemetry request with a payload and payload type"""
-    telemetry_writer = TelemetryWriter._instance
-
     payload = {"test": "123"}
     payload_type = "test-event"
-    TelemetryWriter.add_event(payload, payload_type)
-
+    telemetry_writer.add_event(payload, payload_type)
     events = telemetry_writer._events_queue
     assert len(events) == 1
     assert events[0]["request_type"] == "test-event"
 
 
-def test_add_integration():
-    """asserts that add_integration() queues an integration"""
-    telemetry_writer = TelemetryWriter._instance
+def test_add_event_disabled_writer(disabled_telemetry_writer):
+    """asserts that add_event() does not create a telemetry request with a payload and payload type"""
+    payload = {"test": "123"}
+    payload_type = "test-event"
 
-    TelemetryWriter.add_integration("integration-name")
+    # Ensure events are NOT queued when telemetry is disabled
+    disabled_telemetry_writer.add_event(payload, payload_type)
+    assert len(disabled_telemetry_writer._events_queue) == 0
+
+
+def test_add_integration(telemetry_writer):
+    # Ensure integrations are queued when telemetry is enabled
+    telemetry_writer.add_integration("integration-name")
 
     integrations = telemetry_writer._integrations_queue
     assert len(integrations) == 1
     assert integrations[0]["name"] == "integration-name"
 
 
-def test_periodic(mock_send_request_200):
-    """tests that periodic() sends all queued events and integrations to the agent"""
-    telemetry_writer = TelemetryWriter._instance
+def test_add_integration_disabled_writer(disabled_telemetry_writer):
+    """asserts that add_integration() does not queue an integration"""
+    disabled_telemetry_writer.add_integration("integration-name")
+    assert len(disabled_telemetry_writer._integrations_queue) == 0
 
+
+def test_periodic(mock_send_request_200, telemetry_writer):
+    """tests that periodic() sends all queued events and integrations to the agent"""
     # Ensure events queue is empty
     events = telemetry_writer._events_queue
     assert len(events) == 0
 
     # Add 2 events to the queue
-    TelemetryWriter.app_started_event()
-    TelemetryWriter.app_closed_event()
+    telemetry_writer.app_started_event()
+    telemetry_writer.app_closed_event()
     # Queue two integrations
-    TelemetryWriter.add_integration("integration-1")
-    TelemetryWriter.add_integration("integration-2")
+    telemetry_writer.add_integration("integration-1")
+    telemetry_writer.add_integration("integration-2")
 
     # Ensure events queue has 2 events (app started and app closed)
     events = telemetry_writer._events_queue
@@ -134,10 +140,8 @@ def test_periodic(mock_send_request_200):
     assert len(telemetry_writer._integrations_queue) == 0
 
 
-def test_shutdown(mock_send_request_200):
+def test_shutdown(mock_send_request_200, telemetry_writer):
     """tests that shutdown() queues and attempts to send an app-closed event"""
-    telemetry_writer = TelemetryWriter._instance
-
     # Ensure events queue is empty
     events = telemetry_writer._events_queue
     assert len(events) == 0
@@ -152,9 +156,8 @@ def test_shutdown(mock_send_request_200):
     assert len(telemetry_writer._events_queue) == 0
 
 
-def test_send_request(mock_send_request_200):
+def test_send_request(mock_send_request_200, telemetry_writer):
     """asserts that the agent proxy responds with a 202 when the agent is available"""
-    telemetry_writer = TelemetryWriter._instance
     request = {
         "tracer_time": 1678945683,
         "runtime_id": "123-4567-890-1234-5678999",
@@ -170,11 +173,10 @@ def test_send_request(mock_send_request_200):
 
 
 @httpretty.activate()
-def test_send_request_raises_exception():
+def test_send_request_raises_exception(telemetry_writer):
     """asserts that an error is logged when an exception is raised by the http client"""
     httpretty.register_uri(httpretty.POST, TEST_URL, status=400, body=lambda _: Exception("client error"))
 
-    telemetry_writer = TelemetryWriter._instance
     request = {
         "tracer_time": 1678945683,
         "runtime_id": "123-4567-890-1234-5678999",

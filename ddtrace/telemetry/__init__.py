@@ -1,4 +1,4 @@
-import ddtrace.internal.telemetry.writer
+import ddtrace.internal.telemetry
 
 
 class InstrumentationTelemetry:
@@ -21,7 +21,7 @@ class InstrumentationTelemetry:
         :param endpoint: instrumentation-telemetry-intake public api (will be replaced with an agent endpoint)
         """
 
-        ddtrace.internal.telemetry.writer.TelemetryWriter.enable()
+        ddtrace.internal.telemetry.enable()
 
     @staticmethod
     def disable():
@@ -31,7 +31,7 @@ class InstrumentationTelemetry:
         Once disabled, telemetry collection can be re-enabled by calling ``enable``
         again.
         """
-        ddtrace.internal.telemetry.writer.TelemetryWriter.disable()
+        ddtrace.internal.telemetry.disable()
 
 
 __all__ = ["InstrumentationTelemetry"]
