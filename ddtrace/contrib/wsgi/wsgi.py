@@ -101,6 +101,8 @@ class DDWSGIMiddleware(object):
                 status_code, status_msg = status.split(" ", 1)
                 span.set_tag("http.status_msg", status_msg)
                 trace_utils.set_http_meta(span, config.wsgi, status_code=status_code, response_headers=response_headers)
+                store = self.tracer.current_store()
+                trace_utils.spread_http_meta(store, status_code=status_code, response_headers=response_headers)
             with self.tracer.trace(
                 "wsgi.start_response",
                 service=trace_utils.int_service(None, config.wsgi),
