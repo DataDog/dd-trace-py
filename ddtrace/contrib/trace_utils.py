@@ -14,7 +14,8 @@ from typing import Tuple
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.ext import http  # from ddtrace.gateway import ADDRESSES, gateway
+from ddtrace import gateway
+from ddtrace.ext import http
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -230,51 +231,50 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
-# FIXME: for some reasons the commit hook need the imports to change. Let's see that tomorrow
-# def noop(x):
-#     return x
-#
-#
-# def _add_if_needed(data, item, address, formatter=noop):
-#     if item is not None and gateway.is_needed(address.value):
-#         data[address.value] = formatter(item)
-#
-#
-# def spread_http_meta(
-#     store,
-#     method=None,
-#     url=None,
-#     status_code=None,
-#     query=None,
-#     format_query=None,
-#     request_headers=None,
-#     format_request_headers=None,
-#     response_headers=None,
-#     format_response_headers=None,
-#     body=None,
-#     request_cookies=None,
-#     request_trailers=None,
-#     response_trailers=None,
-#     path_params=None,
-# ):
-#     data = {}
-#     _add_if_needed(data, method, ADDRESSES.SERVER_REQUEST_METHOD)
-#     _add_if_needed(data, url, ADDRESSES.SERVER_REQUEST_URI_RAW)
-#     _add_if_needed(data, status_code, ADDRESSES.SERVER_RESPONSE_STATUS)
-#     _add_if_needed(data, query, ADDRESSES.SERVER_REQUEST_QUERY, format_query)
-#
-#     _add_if_needed(data, request_headers, ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
-#     _add_if_needed(data, response_headers, ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers)
-#     # TODO: remove cookies * 2 (here as they are properly formatted at this point
-#
-#     _add_if_needed(data, body, ADDRESSES.SERVER_REQUEST_BODY)
-#     _add_if_needed(data, request_cookies, ADDRESSES.SERVER_REQUEST_COOKIES)
-#     _add_if_needed(data, request_trailers, ADDRESSES.SERVER_REQUEST_TRAILERS)
-#     _add_if_needed(data, response_trailers, ADDRESSES.SERVER_RESPONSE_TRAILERS)
-#     _add_if_needed(data, path_params, ADDRESSES.SERVER_REQUEST_PATH_PARAMS)
-#
-#     gateway.propagate(store, data)
-#
+def noop(x):
+    return x
+
+
+def _add_if_needed(data, item, address, formatter=noop):
+    if item is not None and gateway.gateway.is_needed(address.value):
+        data[address.value] = formatter(item)
+
+
+def spread_http_meta(
+    store,
+    method=None,
+    url=None,
+    status_code=None,
+    query=None,
+    format_query=None,
+    request_headers=None,
+    format_request_headers=None,
+    response_headers=None,
+    format_response_headers=None,
+    body=None,
+    request_cookies=None,
+    request_trailers=None,
+    response_trailers=None,
+    path_params=None,
+):
+    data = {}
+    _add_if_needed(data, method, gateway.ADDRESSES.SERVER_REQUEST_METHOD)
+    _add_if_needed(data, url, gateway.ADDRESSES.SERVER_REQUEST_URI_RAW)
+    _add_if_needed(data, status_code, gateway.ADDRESSES.SERVER_RESPONSE_STATUS)
+    _add_if_needed(data, query, gateway.ADDRESSES.SERVER_REQUEST_QUERY, format_query)
+
+    _add_if_needed(data, request_headers, gateway.ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
+    _add_if_needed(data, response_headers, gateway.ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers)
+    # TODO: remove cookies * 2 (here as they are properly formatted at this point
+
+    _add_if_needed(data, body, gateway.ADDRESSES.SERVER_REQUEST_BODY)
+    _add_if_needed(data, request_cookies, gateway.ADDRESSES.SERVER_REQUEST_COOKIES)
+    _add_if_needed(data, request_trailers, gateway.ADDRESSES.SERVER_REQUEST_TRAILERS)
+    _add_if_needed(data, response_trailers, gateway.ADDRESSES.SERVER_RESPONSE_TRAILERS)
+    _add_if_needed(data, path_params, gateway.ADDRESSES.SERVER_REQUEST_PATH_PARAMS)
+
+    gateway.gateway.propagate(store, data)
+
 
 
 def set_http_meta(
