@@ -102,3 +102,15 @@ def appsec():
         yield ddtrace.appsec
     finally:
         ddtrace.appsec.disable()
+
+@pytest.fixture
+def gateway():
+    """
+    Fixture for the AppSec module that disables it after each test.
+    """
+    import ddtrace.gateway
+
+    try:
+        yield ddtrace.gateway.gateway
+    finally:
+        ddtrace.gateway.gateway.clear()

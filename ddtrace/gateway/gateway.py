@@ -9,6 +9,10 @@ class Gateway(object):
         self._shortcuts = {}
         self._needed_addresses = set()
 
+    def clear(self):
+        self._shortcuts = {}
+        self._needed_addresses = set()
+
     def is_needed(self, address):
         return address in self._needed_addresses
 

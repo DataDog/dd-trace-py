@@ -132,11 +132,6 @@ class AppSecProcessor(object):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        data = {
-            "server.request.uri.raw": span.get_tag("http.url"),
-            "server.response.status": span.get_tag("http.status_code"),
-        }
-        gateway.propagate(span.store, data)
         span.store["meta"]["waf_context"].dispose()
         if len(span.store["meta"]["appsec_events"]) > 0:
             span.set_tag("appsec.event", "true")
