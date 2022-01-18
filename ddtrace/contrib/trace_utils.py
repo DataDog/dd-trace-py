@@ -264,7 +264,9 @@ def spread_http_meta(
     _add_if_needed(data, query, gateway.ADDRESSES.SERVER_REQUEST_QUERY, format_query)
 
     _add_if_needed(data, request_headers, gateway.ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
-    _add_if_needed(data, response_headers, gateway.ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers)
+    _add_if_needed(
+        data, response_headers, gateway.ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers
+    )
     # TODO: remove cookies * 2 (here as they are properly formatted at this point
 
     _add_if_needed(data, body, gateway.ADDRESSES.SERVER_REQUEST_BODY)
@@ -274,7 +276,6 @@ def spread_http_meta(
     _add_if_needed(data, path_params, gateway.ADDRESSES.SERVER_REQUEST_PATH_PARAMS)
 
     gateway.gateway.propagate(store, data)
-
 
 
 def set_http_meta(
