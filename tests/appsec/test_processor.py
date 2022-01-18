@@ -33,8 +33,12 @@ def test_enable(appsec, tracer):
     assert appsec.AppSecProcessor.enabled
 
     with tracer.trace("test", span_type="web") as span:
-        span.set_tag("http.url", "http://example.com/.git")
-        span.set_tag("http.status_code", "404")
+        spread_http_meta(
+            tracer.current_store(),
+            url="http://example.com/.git?q=<script>alert('hello')</script>",
+            query={"q": "<script>alert('hello')</script>"},
+            status_code="404",
+        )
 
     assert span.get_metric("_dd.appsec.enabled") == 1.0
 
@@ -42,8 +46,12 @@ def test_enable(appsec, tracer):
     assert not appsec.AppSecProcessor.enabled
 
     with tracer.trace("test", span_type="web") as span:
-        span.set_tag("http.url", "http://example.com/.git")
-        span.set_tag("http.status_code", "404")
+        spread_http_meta(
+            tracer.current_store(),
+            url="http://example.com/.git?q=<script>alert('hello')</script>",
+            query={"q": "<script>alert('hello')</script>"},
+            status_code="404",
+        )
 
     assert span.get_metric("_dd.appsec.enabled") is None
 
@@ -90,23 +98,3 @@ def test_enable_bad_rules(rule, exc, appsec):
             appsec.enable()
 
             assert not appsec.AppSecProcessor.enabled
-
-
-def test_retain_traces(tracer, appsec):
-    appsec.enable(tracer)
-
-    with tracer.trace("test", span_type="web") as span:
-        span.set_tag("http.url", "http://example.com/.git")
-        span.set_tag("http.status_code", "404")
-
-    assert span.context.sampling_priority == priority.USER_KEEP
-
-
-def test_valid_json(tracer, appsec):
-    appsec.enable(tracer)
-
-    with tracer.trace("test", span_type="web") as span:
-        span.set_tag("http.url", "http://example.com/.git")
-        span.set_tag("http.status_code", "404")
-
-    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
