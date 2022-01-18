@@ -12,7 +12,8 @@ cpdef traceback_to_frames(traceback, max_nframes):
         if nframes < max_nframes:
             frame = tb.tb_frame
             code = frame.f_code
-            frames.insert(0, (code.co_filename, frame.f_lineno, code.co_name))
+            lineno = 0 if frame.f_lineno is None else frame.f_lineno
+            frames.insert(0, (code.co_filename, lineno, code.co_name))
         nframes += 1
         tb = tb.tb_next
     return frames, nframes
@@ -30,6 +31,7 @@ cpdef pyframe_to_frames(frame, max_nframes):
         nframes += 1
         if len(frames) < max_nframes:
             code = frame.f_code
-            frames.append((code.co_filename, frame.f_lineno, code.co_name))
+            lineno = 0 if frame.f_lineno is None else frame.f_lineno
+            frames.append((code.co_filename, lineno, code.co_name))
         frame = frame.f_back
     return frames, nframes

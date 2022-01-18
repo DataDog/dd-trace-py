@@ -68,6 +68,37 @@ async def test_basic_request(redis_client):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
+async def test_decoding_non_utf8_args(redis_client):
+    await redis_client.set(b"\x80foo", b"\x80abc")
+    val = await redis_client.get(b"\x80foo")
+    assert val == b"\x80abc"
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
+async def test_decoding_non_utf8_pipeline_args(redis_client):
+    if aioredis_version >= (2, 0):
+        p = await redis_client.pipeline(transaction=False)
+        await p.set(b"\x80blah", "boo")
+        await p.set("foo", b"\x80abc")
+        await p.get(b"\x80blah")
+        await p.get("foo")
+    else:
+        p = redis_client.pipeline()
+        p.set(b"\x80blah", "boo")
+        p.set("foo", b"\x80abc")
+        p.get(b"\x80blah")
+        p.get("foo")
+
+    response_list = await p.execute()
+    assert response_list[0] is True  # response from redis.set is OK if successfully pushed
+    assert response_list[1] is True
+    assert response_list[2].decode() == "boo"
+    assert response_list[3] == b"\x80abc"
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
 async def test_long_command(redis_client):
     length = 1000
     val_list = await redis_client.mget(*range(length))
@@ -120,6 +151,35 @@ async def test_pipeline_traced(redis_client):
         response_list[2].decode() == "boo"
     )  # response from hset is 'Integer reply: The number of fields that were added.'
     assert response_list[3].decode() == "bar"
+
+
+@pytest.mark.skipif(aioredis_version < (2, 0), reason="only supported in aioredis >= 2.0")
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_pipeline_traced_context_manager_transaction(redis_client):
+    """
+    Regression test for: https://github.com/DataDog/dd-trace-py/issues/3106
+
+    https://aioredis.readthedocs.io/en/latest/migration/#pipelines-and-transactions-multiexec
+
+    Example::
+
+        async def main():
+            redis = await aioredis.from_url("redis://localhost")
+            async with redis.pipeline(transaction=True) as pipe:
+                ok1, ok2 = await (pipe.set("key1", "value1").set("key2", "value2").execute())
+            assert ok1
+            assert ok2
+    """
+
+    async with redis_client.pipeline(transaction=True) as p:
+        set_1, set_2, get_1, get_2 = await (p.set("blah", "boo").set("foo", "bar").get("blah").get("foo").execute())
+
+    # response from redis.set is OK if successfully pushed
+    assert set_1 is True
+    assert set_2 is True
+    assert get_1.decode() == "boo"
+    assert get_2.decode() == "bar"
 
 
 @pytest.mark.asyncio

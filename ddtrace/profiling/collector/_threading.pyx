@@ -100,7 +100,7 @@ class _ThreadLink(_thread_link_base):
             self,
             thread_id  # type: int
     ):
-        # type: (...) -> _T
+        # type: (...) -> typing.Optional[_T]
         """Return the object attached to thread.
 
         :param thread_id: The thread id.
