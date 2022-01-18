@@ -12,19 +12,21 @@ from tests.utils import override_global_config
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
 def test_spread_to_appsec(appsec, tracer):
     appsec.enable(tracer)
     with tracer.trace("test", span_type="web") as span:
-        spread_http_meta(tracer.current_store(),
-                         url="http://example.com/.git?q=<script>alert('hello')</script>",
-                         query={
-                             "q": "<script>alert('hello')</script>"
-                         },
-                         status_code="404")
+        spread_http_meta(
+            tracer.current_store(),
+            url="http://example.com/.git?q=<script>alert('hello')</script>",
+            query={"q": "<script>alert('hello')</script>"},
+            status_code="404",
+        )
 
     assert span.context.sampling_priority == priority.USER_KEEP
     data = json.loads(span.get_tag("_dd.appsec.json"))
     assert len(data["triggers"]) == 2
+
 
 def test_enable(appsec, tracer):
     appsec.enable(tracer)

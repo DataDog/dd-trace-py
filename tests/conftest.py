@@ -103,6 +103,7 @@ def appsec():
     finally:
         ddtrace.appsec.disable()
 
+
 @pytest.fixture
 def gateway():
     """

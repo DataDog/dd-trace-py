@@ -1,4 +1,3 @@
-
 class Subscription(object):
     def run(self, store, new_addresses):
         raise NotImplementedError("Please implement a proper subscription")
