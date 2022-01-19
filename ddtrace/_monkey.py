@@ -128,7 +128,7 @@ def _on_import_factory(module, raise_errors=True):
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
         else:
             imported_module.patch()
-            telemetry.add_integration(module, _auto_enabled(module))
+            telemetry.add_integration(module, PATCH_MODULES.get(module) is True)
 
     return on_import
 
@@ -275,9 +275,5 @@ def _attempt_patch_module(module):
 
             imported_module.patch()
             _PATCHED_MODULES.add(module)
-            telemetry.add_integration(module, _auto_enabled(module))
+            telemetry.add_integration(module, PATCH_MODULES.get(module) is True)
             return True
-
-
-def _auto_enabled(module):
-    return module in PATCH_MODULES and PATCH_MODULES[module]

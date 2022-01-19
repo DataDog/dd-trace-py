@@ -13,18 +13,13 @@ from ..hostname import get_hostname
 
 def _format_version_info(vi):
     # type: (sys._version_info) -> str
-    """
-    Converts sys.version_info into a string with the format x.x.x
-    """
+    """Converts sys.version_info into a string with the format x.x.x"""
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
 
 def _get_container_id():
     # type: () -> str
-    """
-    Helper function private to this module
-    Get ID from docker container
-    """
+    """Get ID from docker container"""
     container_info = get_container_info()
     if container_info:
         return container_info.container_id or ""
@@ -33,10 +28,7 @@ def _get_container_id():
 
 def _get_os_version():
     # type: () -> str
-    """
-    Helper function private to this module
-    Returns the os version for applications running on Unix, Mac or Windows 32-bit
-    """
+    """Returns the os version for applications running on Unix, Mac or Windows 32-bit"""
     mver, _, _ = platform.mac_ver()
     _, wver, _, _ = platform.win32_ver()
     _, lver = platform.libc_ver()
@@ -54,7 +46,7 @@ def _get_application(key):
     service, version, env = key
 
     return {
-        "service_name": service or "unnamed_python_service",
+        "service_name": service or "unnamed_python_service",  # mandatory field, can not be empty
         "service_version": version or "",
         "env": env or "",
         "language_name": "python",
@@ -67,7 +59,8 @@ def _get_application(key):
 
 def get_application(service, version, env):
     """Creates a dictionary to store application data using ddtrace configurations and the System-Specific module"""
-    # Application Dict is cached when service, version and env configurations change during runtime
+    # We cache the application dict to reduce overhead since service, version, or env configurations
+    # can change during runtime
     return _get_application((service, version, env))
 
 

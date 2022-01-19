@@ -129,9 +129,9 @@ def test_get_container_id_when_container_exists():
     # mocks ddtrace.internal.runtime.container.get_container_info import in data.py
     with mock.patch("ddtrace.internal.telemetry.data.get_container_info") as gci:
         cgroupInfo = CGroupInfo()
-        cgroupInfo.container_id = "1641"
+        cgroupInfo.container_id = "d39b145254d1f9c337fdd2be132f6650c6f5bc274bfa28aaa204a908a1134096"
         gci.return_value = cgroupInfo
-        assert _get_container_id() == "1641"
+        assert _get_container_id() == "d39b145254d1f9c337fdd2be132f6650c6f5bc274bfa28aaa204a908a1134096"
 
 
 def test_get_container_id_when_container_does_not_exists():
