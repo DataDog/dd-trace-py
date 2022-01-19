@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Trace context can now be injected into and extracted from Amazon EventBridge events.
