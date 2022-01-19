@@ -43,7 +43,7 @@ from .internal.logger import get_logger
 
 
 if TYPE_CHECKING:
-    from .tracer import Tracer
+    import ddtrace.tracer
 
 
 _TagNameType = Union[Text, bytes]
@@ -83,7 +83,7 @@ class Span(object):
 
     def __init__(
         self,
-        tracer,  # type: Optional[Tracer]
+        tracer,  # type: Optional[ddtrace.tracer.Tracer]
         name,  # type: str
         service=None,  # type: Optional[str]
         resource=None,  # type: Optional[str]
@@ -147,7 +147,7 @@ class Span(object):
         self.trace_id = trace_id or _rand.rand64bits()  # type: int
         self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
-        self.tracer = tracer  # type: Optional[Tracer]
+        self.tracer = tracer  # type: Optional[ddtrace.tracer.Tracer]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling
