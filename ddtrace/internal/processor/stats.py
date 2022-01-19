@@ -3,8 +3,9 @@ import typing
 
 import ddtrace
 from ddtrace import config
-from ddtrace.vendor.ddsketch.ddsketch import LogCollapsingLowestDenseDDSketch
-from ddtrace.vendor.ddsketch.pb.proto import DDSketchProto
+
+from ddsketch import LogCollapsingLowestDenseDDSketch
+from ddsketch.pb.proto import DDSketchProto
 
 from . import SpanProcessor
 from ...constants import SPAN_MEASURED_KEY
@@ -99,7 +100,7 @@ def _span_aggr_key(span):
 class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
     def __init__(self, agent_url, interval=10.0, timeout=1.0):
         # type: (str, float, float) -> None
-        super(SpanStatsProcessor, self).__init__(interval=interval)
+        super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self.start()
         self._agent_url = agent_url
         self._timeout = timeout

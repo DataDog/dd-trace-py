@@ -259,7 +259,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
         }
         if compute_stats_enabled:
-            headers["Datadog-Client-Computed-Stats"] = "yes"
+            self._headers["Datadog-Client-Computed-Stats"] = "yes"
         self._timeout = timeout
         self._api_version = (
             api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
