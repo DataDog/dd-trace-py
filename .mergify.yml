@@ -13,7 +13,11 @@ pull_request_rules:
       queue:
         name: default
         method: squash
-        commit_message: default
+        commit_message_template: |
+          {{ title }} (#{{ number }})
+
+          {{ body }}
+
   # This rule keep the PR updated with its base branch as soon as it has 1
   # approval. This makes it more likely to be ready to be merged once the
   # second approval comes.
