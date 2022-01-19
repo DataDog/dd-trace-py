@@ -152,20 +152,16 @@ class _PprofConverter(object):
         self,
         filename: str,
         lineno: int,
-        funcname: typing.Optional[str] = None,
+        funcname: str,
     ) -> pprof_LocationType:
         try:
             return self._locations[(filename, lineno, funcname)]
         except KeyError:
-            if funcname is None:
-                real_funcname = "<unknown function>"
-            else:
-                real_funcname = funcname
             location = pprof_pb2.Location(  # type: ignore[attr-defined]
                 id=self._last_location_id.generate(),
                 line=[
                     pprof_pb2.Line(  # type: ignore[attr-defined]
-                        function_id=self._to_Function(filename, real_funcname).id,
+                        function_id=self._to_Function(filename, funcname).id,
                         line=lineno,
                     ),
                 ],
