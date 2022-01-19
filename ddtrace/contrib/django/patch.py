@@ -450,8 +450,9 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
 def unwrap_views(func, instance, args, kwargs):
     """
-    Django channels URLRouter maps routes to asgi applications and not just views. This breaks our django views
-    instrumentation since we assume all routes wrapped by the trace_url_paths helper is a view.
+    Django channels uses path() and re_path() to route asgi applications. This broke our initial assumption that
+    django path/re_path/url functions only accept views. Here we unwrap ddtrace view instrumentation from asgi
+    applications.
 
     Ex. ``channels.routing.URLRouter([path('', get_asgi_application())])``
     On startup ddtrace.contrib.django.path.instrument_view() will wrap get_asgi_application in a DjangoViewProxy.
