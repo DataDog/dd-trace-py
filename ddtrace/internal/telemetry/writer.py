@@ -28,7 +28,7 @@ def _get_interval_or_default():
 
 class TelemetryWriter(PeriodicService):
     """
-    Periodic service which sends Telemetry request payloads to the agent-proxy
+    Periodic service which sends Telemetry request payloads to the agent
     """
 
     ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
@@ -59,9 +59,6 @@ class TelemetryWriter(PeriodicService):
                 conn.request("POST", self.ENDPOINT, rb_json, self._create_headers(request["request_type"]))
 
                 resp = get_connection_response(conn)
-                if resp.status >= 300:
-                    log.warning("failed to send telemetry to the Datadog Agent. response: %s", resp.status)
-
                 log.debug(
                     "sent %d in %.5fs to %s/%s. response: %s",
                     len(rb_json),
@@ -99,7 +96,9 @@ class TelemetryWriter(PeriodicService):
 
         for telemetry_request in telemetry_requests:
             try:
-                self._send_request(telemetry_request)
+                resp = self._send_request(telemetry_request)
+                if resp is not None and resp.status >= 300:
+                    log.warning("failed to send telemetry to the Datadog Agent. response: %s", resp.status)
             except Exception:
                 log.warning(
                     "failed to send telemetry to the Datadog Agent at %s/%s.",
