@@ -1,3 +1,4 @@
+import time
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -8,7 +9,6 @@ from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..compat import httplib
-from ..compat import monotonic
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..periodic import PeriodicService
@@ -109,7 +109,7 @@ class TelemetryWriter(PeriodicService):
 
     def shutdown(self):
         # type: () -> None
-        self._app_closed_event()
+        self._app_closing_event()
         self.periodic()
 
     def add_event(self, payload, payload_type):
@@ -119,7 +119,7 @@ class TelemetryWriter(PeriodicService):
 
         :param Dict payload: stores a formatted telemetry request
         :param str payload_type: The payload_type denotes the type of telmetery request.
-            Payload types accepted by telemetry/proxy v1: app-started, app-closed, app-integrations-changed
+            Payload types accepted by telemetry/proxy v1: app-started, app-closing, app-integrations-change
         """
         with self._lock:
             if not self.enabled:
@@ -159,11 +159,11 @@ class TelemetryWriter(PeriodicService):
         }
         self.add_event(payload, "app-started")
 
-    def _app_closed_event(self):
+    def _app_closing_event(self):
         # type: () -> None
         """Adds a Telemetry request which notifies the agent that an application instance has terminated"""
         payload = {}  # type: Dict
-        self.add_event(payload, "app-closed")
+        self.add_event(payload, "app-closing")
 
     def _app_integrations_changed_event(self, integrations):
         # type: (List[Dict]) -> None
@@ -171,7 +171,7 @@ class TelemetryWriter(PeriodicService):
         payload = {
             "integrations": integrations,
         }
-        self.add_event(payload, "app-integrations-changed")
+        self.add_event(payload, "app-integrations-change")
 
     def _create_headers(self, payload_type):
         # type: (str) -> Dict
@@ -186,7 +186,7 @@ class TelemetryWriter(PeriodicService):
         # type: (Dict, str, int) -> Dict
         """Initializes the required fields for a generic Telemetry Intake Request"""
         return {
-            "tracer_time": int(monotonic()),
+            "tracer_time": int(time.time()),
             "runtime_id": get_runtime_id(),
             "api_version": "v1",
             "seq_id": sequence_id,
