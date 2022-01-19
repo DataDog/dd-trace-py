@@ -30,7 +30,13 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
     # start a complete profiler so asyncio policy is setup
     p = profiler.Profiler()
     p.start()
-    t1, t2 = _asyncio_compat.run(hello())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    if _asyncio_compat.PY38_AND_LATER:
+        maintask = loop.create_task(hello(), name="main")
+    else:
+        maintask = loop.create_task(hello())
+    t1, t2 = loop.run_until_complete(maintask)
     events = p._profiler._recorder.reset()
     p.stop()
 
@@ -45,7 +51,7 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
 
         # This assertion does not work reliably on Python < 3.7
         if _asyncio_compat.PY37_AND_LATER:
-            if event.task_name == "Task-1":
+            if event.task_name == "main":
                 assert event.thread_name == "MainThread"
                 assert event.frames == [(__file__, 25, "hello")]
                 assert event.nframes == 1
@@ -60,7 +66,7 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
 
     if _asyncio_compat.PY38_AND_LATER:
         # We don't know the name of this task for Python < 3.8
-        assert wall_time_ns["Task-1"] > 0
+        assert wall_time_ns["main"] > 0
 
     assert wall_time_ns[t1_name] > 0
     assert wall_time_ns[t2_name] > 0
