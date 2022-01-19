@@ -265,12 +265,20 @@ def spread_http_meta(
     _add_if_needed(data, status_code, gateway.ADDRESSES.SERVER_RESPONSE_STATUS)
     _add_if_needed(data, query, gateway.ADDRESSES.SERVER_REQUEST_QUERY, format_query)
 
-    _add_if_needed(data, request_headers, gateway.ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES,
-                   formatter=format_request_headers, copy=True
-                   )
-    _add_if_needed(data, response_headers, gateway.ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES,
-                   formatter=format_response_headers, copy=True
-                   )
+    _add_if_needed(
+        data,
+        request_headers,
+        gateway.ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES,
+        formatter=format_request_headers,
+        copy=True,
+    )
+    _add_if_needed(
+        data,
+        response_headers,
+        gateway.ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES,
+        formatter=format_response_headers,
+        copy=True,
+    )
     req_cookies_key = gateway.ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value
     if req_cookies_key in data and "cookies" in data[req_cookies_key]:
         del data[req_cookies_key]["cookies"]
