@@ -11,7 +11,7 @@ from .vendor import wrapt
 
 
 if TYPE_CHECKING:
-    from .tracer import Tracer
+    import ddtrace.tracer
 
 
 log = get_logger(__name__)
@@ -44,7 +44,7 @@ class Pin(object):
         app=None,  # type: Optional[str]
         app_type=None,
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,  # type: Optional[Tracer]
+        tracer=None,  # type: Optional[ddtrace.tracer.Tracer]
         _config=None,  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
@@ -131,7 +131,7 @@ class Pin(object):
         app=None,  # type: Optional[str]
         app_type=None,
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,  # type: Optional[Tracer]
+        tracer=None,  # type: Optional[ddtrace.tracer.Tracer]
     ):
         # type: (...) -> None
         """Override an object with the given attributes.
@@ -194,7 +194,7 @@ class Pin(object):
         app=None,  # type: Optional[str]
         app_type=None,
         tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,  # type: Optional[Tracer]
+        tracer=None,  # type: Optional[ddtrace.tracer.Tracer]
     ):
         # type: (...) -> Pin
         """Return a clone of the pin with the given attributes replaced."""
