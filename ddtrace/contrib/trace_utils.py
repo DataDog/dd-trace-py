@@ -235,15 +235,17 @@ def noop(x):
     return x
 
 
-def _add_if_needed(data, item, address, formatter=noop):
+def _add_if_needed(data, item, address, formatter=noop, copy=False):
     if item is not None and gateway.gateway.is_needed(address.value):
         data[address.value] = formatter(item)
+        if copy:
+            data[address.value] = data[address.value].copy()
 
 
 def spread_http_meta(
     store,
     method=None,
-    url=None,
+    raw_uri=None,
     status_code=None,
     query=None,
     format_query=noop,
@@ -259,15 +261,22 @@ def spread_http_meta(
 ):
     data = {}
     _add_if_needed(data, method, gateway.ADDRESSES.SERVER_REQUEST_METHOD)
-    _add_if_needed(data, url, gateway.ADDRESSES.SERVER_REQUEST_URI_RAW)
+    _add_if_needed(data, raw_uri, gateway.ADDRESSES.SERVER_REQUEST_URI_RAW)
     _add_if_needed(data, status_code, gateway.ADDRESSES.SERVER_RESPONSE_STATUS)
     _add_if_needed(data, query, gateway.ADDRESSES.SERVER_REQUEST_QUERY, format_query)
 
-    _add_if_needed(data, request_headers, gateway.ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
-    _add_if_needed(
-        data, response_headers, gateway.ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers
-    )
-    # TODO: remove cookies * 2 (here as they are properly formatted at this point
+    _add_if_needed(data, request_headers, gateway.ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES,
+                   formatter=format_request_headers, copy=True
+                   )
+    _add_if_needed(data, response_headers, gateway.ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES,
+                   formatter=format_response_headers, copy=True
+                   )
+    req_cookies_key = gateway.ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value
+    if req_cookies_key in data and "cookies" in data[req_cookies_key]:
+        del data[req_cookies_key]["cookies"]
+    res_cookies_key = gateway.ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES.value
+    if res_cookies_key in data and "cookies" in data[res_cookies_key]:
+        del data[res_cookies_key]["cookies"]
 
     _add_if_needed(data, body, gateway.ADDRESSES.SERVER_REQUEST_BODY)
     _add_if_needed(data, request_cookies, gateway.ADDRESSES.SERVER_REQUEST_COOKIES)

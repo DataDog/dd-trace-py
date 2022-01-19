@@ -18,7 +18,7 @@ def test_spread_to_appsec(appsec, tracer):
     with tracer.trace("test", span_type="web") as span:
         spread_http_meta(
             tracer.current_store(),
-            url="http://example.com/.git?q=<script>alert('hello')</script>",
+            raw_uri="http://example.com/.git?q=<script>alert('hello')</script>",
             query={"q": "<script>alert('hello')</script>"},
             status_code="404",
         )
@@ -35,7 +35,7 @@ def test_enable(appsec, tracer):
     with tracer.trace("test", span_type="web") as span:
         spread_http_meta(
             tracer.current_store(),
-            url="http://example.com/.git?q=<script>alert('hello')</script>",
+            raw_uri="http://example.com/.git?q=<script>alert('hello')</script>",
             query={"q": "<script>alert('hello')</script>"},
             status_code="404",
         )
@@ -48,7 +48,7 @@ def test_enable(appsec, tracer):
     with tracer.trace("test", span_type="web") as span:
         spread_http_meta(
             tracer.current_store(),
-            url="http://example.com/.git?q=<script>alert('hello')</script>",
+            raw_uri="http://example.com/.git?q=<script>alert('hello')</script>",
             query={"q": "<script>alert('hello')</script>"},
             status_code="404",
         )

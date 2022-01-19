@@ -149,7 +149,7 @@ class TraceMiddleware:
             span, self.integration_config, method=method, url=url, query=query_string, request_headers=headers
         )
         trace_utils.spread_http_meta(
-            self.tracer.current_store(), method=method, url=url, query=query_string, request_headers=headers
+            self.tracer.current_store(), method=method, raw_uri=url, query=query_string, request_headers=headers
         )
 
         tags = _extract_versions_from_scope(scope, self.integration_config)

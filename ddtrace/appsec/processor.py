@@ -132,8 +132,9 @@ class AppSecProcessor(object):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        span.store["meta"]["waf_context"].dispose()
-        if len(span.store["meta"]["appsec_events"]) > 0:
+        if "waf_context" in span.store["meta"]:
+            span.store["meta"]["waf_context"].dispose()
+        if "appsec_events" in span.store["meta"] and len(span.store["meta"]["appsec_events"]) > 0:
             span.set_tag("appsec.event", "true")
             span.set_tag("_dd.appsec.json", '{"triggers":%s}' % (json.dumps(span.store["meta"]["appsec_events"]),))
             span.set_tag(MANUAL_KEEP_KEY)

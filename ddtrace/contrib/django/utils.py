@@ -208,6 +208,17 @@ def _before_request_tags(pin, span, request):
 
     span._set_str_tag("django.request.class", func_name(request))
 
+def format_header(x):
+    res = {}
+    for key in x:
+        k = key.lower()
+        if k in res:
+            if type(res[k]) is not list:
+                res[k] = [res[k]]
+            res[k].append(x[key])
+        else:
+            res[k] = x[key]
+    return res
 
 def _after_request_tags(pin, span, request, response):
     # Response can be None in the event that the request failed
@@ -281,6 +292,21 @@ def _after_request_tags(pin, span, request, response):
             _set_resolver_tags(pin, span, request)
 
             response_headers = dict(response.items()) if response else {}
+            trace_utils.spread_http_meta(span.tracer.current_store(),
+                                         method=request.method,
+                                         raw_uri=request.build_absolute_uri(),  # FIXME: probably bad
+                                         status_code=str(status),
+                                         query=request.GET,
+                                         request_headers=request_headers,
+                                         format_request_headers=format_header,
+                                         response_headers=response.headers,
+                                         format_response_headers=format_header,
+                                         body=request.POST,
+                                         request_cookies=request.COOKIES,
+                                         # request_trailers
+                                         # response_trailers
+                                         # path_params)
+                                         )
             trace_utils.set_http_meta(
                 span,
                 config.django,
