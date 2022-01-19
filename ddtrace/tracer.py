@@ -379,7 +379,7 @@ class Tracer(object):
         else:
             # No URL parts have updated and there's no previous writer to
             # get the URL from.
-            url = None  # type: ignore
+            url = None
 
         if compute_stats_enabled is not None:
             self._compute_stats = compute_stats_enabled

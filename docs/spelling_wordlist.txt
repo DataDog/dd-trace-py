@@ -61,6 +61,7 @@ entrypoints
 env
 enqueuer
 fastapi
+formatter
 gRPC
 gevent
 greenlet
@@ -145,6 +146,7 @@ uWSGI
 uninstrumented
 unix
 unpatch
+unpatched
 unregister
 unvendored
 url

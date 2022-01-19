@@ -1,0 +1,40 @@
+ids_only: &defaults
+  sampling_priority: ""
+  dd_origin: ""
+  meta: ""
+
+with_sampling_priority:
+  <<: *defaults
+  sampling_priority: "1"
+
+with_dd_origin:
+  <<: *defaults
+  dd_origin: "synthetics"
+
+with_priority_and_origin:
+  <<: *defaults
+  sampling_priority: "1"
+  dd_origin: "synthetics"
+
+with_tags:
+  <<: *defaults
+  meta: |
+    {"_dd.p.test": "value", "_dd.p.sample": "value", "will.be": "skipped"}
+
+with_all:
+  <<: *defaults
+  sampling_priority: "1"
+  dd_origin: "synthetics"
+  meta: |
+    {"_dd.p.test": "value", "_dd.p.sample": "value", "will.be": "skipped"}
+
+with_tags_invalid:
+  <<: *defaults
+  meta: |
+    {"_dd.p.test": "value", "_dd.p.test=": "=value,"}
+
+with_tags_max_size:
+  <<: *defaults
+  # The limit is 512, so one of these will can be encoded, but not both
+  meta: |
+    {"_dd.p.test": "______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________", "_dd.p.sample": "______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________"}
