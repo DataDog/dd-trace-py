@@ -61,6 +61,7 @@ entrypoints
 env
 enqueuer
 fastapi
+formatter
 gRPC
 gevent
 greenlet
