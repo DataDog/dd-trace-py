@@ -7,6 +7,7 @@ import typing
 
 import attr
 
+import ddtrace
 from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 from ddtrace.internal.utils import attr as attr_utils
@@ -17,6 +18,10 @@ from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
 from ddtrace.vendor import wrapt
+
+
+if typing.TYPE_CHECKING:
+    from ddtrace.profiling import recorder as ddrecorder
 
 
 @event.event_class
@@ -62,7 +67,16 @@ else:
 
 
 class _ProfiledLock(wrapt.ObjectProxy):
-    def __init__(self, wrapped, recorder, tracer, max_nframes, capture_sampler, endpoint_collection_enabled):
+    def __init__(
+        self,
+        wrapped,  # type: threading.Lock
+        recorder,  # type: ddrecorder.Recorder
+        tracer,  # type: ddtrace.Tracer
+        max_nframes,  # type: int
+        capture_sampler,  # type: collector.CaptureSampler
+        endpoint_collection_enabled,  # type: bool
+    ):
+        # type: (...) -> None
         wrapt.ObjectProxy.__init__(self, wrapped)
         self._self_recorder = recorder
         self._self_tracer = tracer
@@ -71,7 +85,10 @@ class _ProfiledLock(wrapt.ObjectProxy):
         self._self_endpoint_collection_enabled = endpoint_collection_enabled
         frame = sys._getframe(2 if WRAPT_C_EXT else 3)
         code = frame.f_code
-        self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
+        self._self_name = "%s:%d" % (
+            os.path.basename(code.co_filename),
+            0 if frame.f_lineno is None else frame.f_lineno,
+        )
 
     def acquire(self, *args, **kwargs):
         if not self._self_capture_sampler.capture():
