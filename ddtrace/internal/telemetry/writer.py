@@ -33,8 +33,8 @@ class TelemetryWriter(PeriodicService):
 
     ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
 
-    def __init__(self, agent_url=""):
-        # type: (str) -> None
+    def __init__(self, agent_url=None):
+        # type: (Optional[str]) -> None
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
         self.enabled = False  # type: bool
@@ -49,9 +49,8 @@ class TelemetryWriter(PeriodicService):
         self._sequence = 1  # type: int
 
     def _send_request(self, request):
-        # type: (Dict) -> Optional[httplib.HTTPResponse]
+        # type: (Dict) -> httplib.HTTPResponse
         """Sends a telemetry request to the trace agent"""
-        resp = None
         with StopWatch() as sw:
             try:
                 conn = get_connection(self.agent_url)
@@ -67,9 +66,9 @@ class TelemetryWriter(PeriodicService):
                     self.ENDPOINT,
                     resp.status,
                 )
+                return resp
             finally:
                 conn.close()
-        return resp
 
     def _flush_integrations_queue(self):
         # type () -> List[Dict]
@@ -97,8 +96,13 @@ class TelemetryWriter(PeriodicService):
         for telemetry_request in telemetry_requests:
             try:
                 resp = self._send_request(telemetry_request)
-                if resp is not None and resp.status >= 300:
-                    log.warning("failed to send telemetry to the Datadog Agent. response: %s", resp.status)
+                if resp.status >= 300:
+                    log.warning(
+                        "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
+                        self.agent_url,
+                        self.ENDPOINT,
+                        resp.status,
+                    )
             except Exception:
                 log.warning(
                     "failed to send telemetry to the Datadog Agent at %s/%s.",

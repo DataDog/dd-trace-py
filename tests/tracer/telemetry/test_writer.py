@@ -1,5 +1,6 @@
 import httpretty
 import mock
+import pkg_resources
 import pytest
 
 from ddtrace.internal.telemetry.data import get_application
@@ -21,6 +22,13 @@ def mock_send_request_200():
 
 
 @pytest.fixture
+def mock_time():
+    with mock.patch("time.time") as mt:
+        mt.return_value = 1642544540
+        yield
+
+
+@pytest.fixture
 def telemetry_writer():
     telemetry_writer = TelemetryWriter(AGENT_URL)
     telemetry_writer.enabled = True
@@ -32,228 +40,219 @@ def telemetry_writer_disabled():
     telemetry_writer = TelemetryWriter()
     # TelemetryWriter should be disabled by default
     assert telemetry_writer.enabled is False
-
     yield telemetry_writer
 
 
-def test_add_event(telemetry_writer):
-    """asserts that add_event() creates a telemetry request with a payload and payload type"""
+def test_add_event(mock_time, mock_send_request_200, telemetry_writer):
+    """asserts that add_event queues a telemetry request with valid headers and payload"""
     payload = {"test": "123"}
     payload_type = "test-event"
-
-    # Adding an event to _events_queue should increment the sequence id by 1
-    assert telemetry_writer._sequence == 1
+    # add event to the queue
     telemetry_writer.add_event(payload, payload_type)
-    assert telemetry_writer._sequence == 2
+    # send request to the agent
+    telemetry_writer.periodic()
+    # Ensure one request was sent
+    assert len(httpretty.latest_requests()) == 1
+    # validate request headers
+    headers = httpretty.last_request().headers
+    assert headers["Content-type"] == "application/json"
+    assert headers["DD-Telemetry-Request-Type"] == payload_type
+    assert headers["DD-Telemetry-API-Version"] == "v1"
+    # validate request body
+    assert httpretty.last_request().parsed_body == _get_request_body(payload, payload_type)
 
-    events = telemetry_writer._events_queue
-    assert len(events) == 1
-    assert events[0]["payload"] == payload
-    assert events[0]["request_type"] == "test-event"
 
-
-def test_add_event_disabled_writer(telemetry_writer_disabled):
-    """asserts that add_event() does not create a telemetry request telemetry writer is disabled"""
+def test_add_event_disabled_writer(mock_send_request_200, telemetry_writer_disabled):
+    """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
     payload = {"test": "123"}
     payload_type = "test-event"
-
-    # Ensure events are NOT queued when telemetry is disabled
+    # ensure events are not queued when telemetry is disabled
     telemetry_writer_disabled.add_event(payload, payload_type)
-    assert len(telemetry_writer_disabled._events_queue) == 0
-    assert telemetry_writer_disabled._sequence == 1
+    # ensure no request were sent
+    telemetry_writer_disabled.periodic()
+    assert len(httpretty.latest_requests()) == 0
 
 
-def test_add_app_started_event(mock_send_request_200, telemetry_writer):
+def test_add_app_started_event(mock_time, mock_send_request_200, telemetry_writer):
     """asserts that app_started_event() queues a valid telemetry request which is then sent by periodic()"""
-    assert telemetry_writer._sequence == 1
+    # queue an app started event
     telemetry_writer.app_started_event()
-    assert telemetry_writer._sequence == 2
-
+    # send app-started event to the agent
     telemetry_writer.periodic()
-
     # assert that an app-started event was sent
+    assert len(httpretty.latest_requests()) == 1
+    # ensure an app-started telemetry request is sent
     headers = httpretty.last_request().headers
     assert "DD-Telemetry-Request-Type" in headers
     assert headers["DD-Telemetry-Request-Type"] == "app-started"
-
-    # validate the body of a telemetry app-started request
-    body = httpretty.last_request().parsed_body
-    # validate dependencies in app-started payload
-    assert "dependencies" in body["payload"]
-    for dependency in body["payload"]["dependencies"]:
-        assert "name" in dependency
-        assert "version" in dependency
-        assert len(dependency) == 2
-    # validate configurations in app-started payload
-    assert "configurations" in body["payload"]
-    for configuration in body["payload"]["configurations"]:
-        assert "name" in configuration
-        assert "value" in configuration
-        assert len(configuration) == 2
+    # validate request body
+    payload = {
+        "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
+        "configurations": [],
+    }
+    assert httpretty.last_request().parsed_body == _get_request_body(payload, "app-started")
 
 
-def test_add_app_closing_event(mock_send_request_200, telemetry_writer):
+def test_add_app_closing_event(mock_time, mock_send_request_200, telemetry_writer):
     """asserts that shutdown() queues and sends an app-closing telemetry request"""
-    assert telemetry_writer._sequence == 1
+    # send app closed event
     telemetry_writer.shutdown()
-    assert telemetry_writer._sequence == 2
-
+    # assert that one request was sent
+    assert len(httpretty.latest_requests()) == 1
+    # ensure an app closing event was sent
     headers = httpretty.last_request().headers
     assert "DD-Telemetry-Request-Type" in headers
     assert headers["DD-Telemetry-Request-Type"] == "app-closing"
+    # ensure a valid request body was sent
+    assert len(httpretty.latest_requests()) == 1
+    assert httpretty.last_request().parsed_body == _get_request_body({}, "app-closing")
 
-    body = httpretty.last_request().parsed_body
-    assert body["payload"] == {}
 
-
-def test_add_integration(mock_send_request_200, telemetry_writer):
-    """asserts that add_integration() queues a valid telemetry request which is then sent by periodic()"""
-    integrations = [
-        {
-            "name": "integration-t",
-            "version": "",
-            "enabled": True,
-            "auto_enabled": True,
-            "compatible": "",
-            "error": "",
-        },
-        {
-            "name": "integration-f",
-            "version": "",
-            "enabled": True,
-            "auto_enabled": False,
-            "compatible": "",
-            "error": "",
-        },
-    ]
-
-    # Queue integrations
-    telemetry_writer.add_integration(integrations[0]["name"], integrations[0]["auto_enabled"])
-    telemetry_writer.add_integration(integrations[1]["name"], integrations[1]["auto_enabled"])
-    assert telemetry_writer._integrations_queue == integrations
-
-    # Send integrations to the agent
+def test_add_integration(mock_time, mock_send_request_200, telemetry_writer):
+    """asserts that add_integration() queues a valid telemetry request"""
+    # queue integrations
+    telemetry_writer.add_integration("integration-t", True)
+    telemetry_writer.add_integration("integration-f", False)
+    # send integrations to the agent
     telemetry_writer.periodic()
-
-    # Assert integration change telemetry request was sent
+    # assert integration change telemetry request was sent
+    assert len(httpretty.latest_requests()) == 1
     headers = httpretty.last_request().headers
     assert "DD-Telemetry-Request-Type" in headers
     assert headers["DD-Telemetry-Request-Type"] == "app-integrations-change"
-
-    # Assert the sent request had a valid integrations change payload
-    body = httpretty.last_request().parsed_body
-    assert body["payload"] == {"integrations": integrations}
+    # assert that the request had a valid request body
+    expected_payload = {
+        "integrations": [
+            {
+                "name": "integration-t",
+                "version": "",
+                "enabled": True,
+                "auto_enabled": True,
+                "compatible": "",
+                "error": "",
+            },
+            {
+                "name": "integration-f",
+                "version": "",
+                "enabled": True,
+                "auto_enabled": False,
+                "compatible": "",
+                "error": "",
+            },
+        ]
+    }
+    assert httpretty.last_request().parsed_body == _get_request_body(expected_payload, "app-integrations-change")
 
 
 def test_add_integration_disabled_writer(telemetry_writer_disabled):
     """asserts that add_integration() does not queue an integration when telemetry is disabled"""
     telemetry_writer_disabled.add_integration("integration-name", False)
-    assert len(telemetry_writer_disabled._integrations_queue) == 0
-
-
-@mock.patch("time.time")
-def test_telemetry_request_fields(mock_monotonic, mock_send_request_200, telemetry_writer):
-    """asserts that periodic() sends a telemetry request with valid headers and payload"""
-    mock_monotonic.return_value = 1642544540
-
-    payload_type = "app-closing"
-    # Add event to the queue
-    telemetry_writer.add_event({}, payload_type)
-    # send request to the agent
-    telemetry_writer.periodic()
-
-    # Ensure request headers were set on the sent request
-    headers = httpretty.last_request().headers
-    assert headers["Content-type"] == "application/json"
-    assert headers["DD-Telemetry-Request-Type"] == payload_type
-    assert headers["DD-Telemetry-API-Version"] == "v1"
-
-    # Ensure json encoded request was sent to the agent proxy
-    assert httpretty.last_request().parsed_body == {
-        "tracer_time": 1642544540,
-        "runtime_id": get_runtime_id(),
-        "api_version": "v1",
-        "seq_id": 1,
-        "application": get_application(config.service, config.version, config.env),
-        "host": get_host_info(),
-        "payload": {},
-        "request_type": payload_type,
-    }
+    telemetry_writer_disabled.periodic()
+    assert len(httpretty.latest_requests()) == 0
 
 
 def test_periodic(mock_send_request_200, telemetry_writer):
-    """tests that periodic() sends all queued events and integrations to the agent"""
-    # Ensure events queue is empty
-    events = telemetry_writer._events_queue
-    assert len(events) == 0
-
-    # Add 1 event to the queue
+    """tests that periodic() sends queued app-started and integration events to the agent"""
+    # add 1 event to the queue
     telemetry_writer.app_started_event()
-    # Queue two integrations
+    # queue two integrations
     telemetry_writer.add_integration("integration-1", True)
     telemetry_writer.add_integration("integration-2", False)
-    # Ensure two integrations have been queued
-    assert len(telemetry_writer._integrations_queue) == 2
-    # Ensure events queue has 2 events (app started and app closed)
-    assert len(telemetry_writer._events_queue) == 1
-    with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-        # Send all events to the agent proxy
-        telemetry_writer.periodic()
-        # Assert no error logs were generated while sending telemetry requests
-        log.warning.assert_not_called()
-    # Ensure all events have been sent
-    assert len(telemetry_writer._events_queue) == 0
-    assert len(telemetry_writer._integrations_queue) == 0
 
-    # Queue 2 more integrations
+    with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
+        # send all events to the agent proxy
+        telemetry_writer.periodic()
+        # assert no warning logs were generated while sending telemetry requests
+        log.warning.assert_not_called()
+    # ensure one app-started and one app-integrations-change event was sent
+    assert len(httpretty.latest_requests()) == 2
+
+    # queue 2 more integrations
     telemetry_writer.add_integration("integration-3", True)
     telemetry_writer.add_integration("integration-4", False)
-    assert len(telemetry_writer._integrations_queue) == 2
     with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-        # Send both integrations to the agent proxy
+        # send both integrations to the agent proxy
         telemetry_writer.periodic()
-        # Assert no error logs were generated while sending telemetry requests
+        # assert no warning logs were generated while sending telemetry requests
         log.warning.assert_not_called()
-    # Ensure all integrations were sent
-    assert len(telemetry_writer._integrations_queue) == 0
+    # ensure one app-started and two app-integrations-change events were sent
+    assert len(httpretty.latest_requests()) == 3
 
 
-@httpretty.activate()
+@httpretty.enable
 def test_send_request_400(telemetry_writer):
-    """asserts that an warning is logged when a 400 response is returned by the http client"""
+    """asserts that a warning is logged when a 400 response is returned by the http client"""
     httpretty.register_uri(httpretty.POST, TEST_URL, status=400)
     with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-        # Sends failing app-closing event
+        # sends failing app-closing event
         telemetry_writer.shutdown()
-        # Assert 400 status code was logged
-        log.warning.assert_called_with("failed to send telemetry to the Datadog Agent. response: %s", 400)
+        # assert 400 status code was logged
+        log.warning.assert_called_with(
+            "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
+            telemetry_writer.agent_url,
+            telemetry_writer.ENDPOINT,
+            400,
+        )
+    # ensure no request were sent
+    assert len(httpretty.latest_requests()) == 0
 
 
-@httpretty.activate()
+@httpretty.enable
 def test_send_request_500(telemetry_writer):
-    """asserts that an warning is logged when a 400 response is returned by the http client"""
+    """asserts that a warning is logged when a 500 response is returned by the http client"""
     httpretty.register_uri(httpretty.POST, TEST_URL, status=500)
     with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-        # Sends failing app-closing event
+        # sends failing app-closing event
         telemetry_writer.shutdown()
-        # Assert 500 status code was logged
-        log.warning.assert_called_with("failed to send telemetry to the Datadog Agent. response: %s", 500)
+        # assert 500 status code was logged
+        log.warning.assert_called_with(
+            "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
+            telemetry_writer.agent_url,
+            telemetry_writer.ENDPOINT,
+            500,
+        )
+    # ensure one request was sent
+    assert len(httpretty.latest_requests()) == 1
 
 
 def test_send_request_exception(telemetry_writer):
     """asserts that an error is logged when an exception is raised by the http client"""
-    # Create a telemetry writer with an invalid agent url.
-    # This will raise an HttpConnectionException on send_request
-    telemetry_writer = TelemetryWriter("")
+    # create a telemetry writer with an invalid agent url.
+    # this will raise an Exception on _send_request
+    telemetry_writer = TelemetryWriter("http://hostthatdoesntexist:1234")
     telemetry_writer.enabled = True
 
     with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-        # Sends failing app-closing event
+        # sends failing app-closing event
         telemetry_writer.shutdown()
-        # Assert an exception was logged
+        # assert an exception was logged
         log.warning.assert_called_with(
             "failed to send telemetry to the Datadog Agent at %s/%s.",
             telemetry_writer.agent_url,
             telemetry_writer.ENDPOINT,
             exc_info=True,
         )
+    # ensure no request were sent
+    assert len(httpretty.latest_requests()) == 0
+
+
+def _get_request_body(payload, payload_type, seq_id=1):
+    """used to test the body of requests intercepted by httpretty"""
+    return {
+        "tracer_time": 1642544540,
+        "runtime_id": get_runtime_id(),
+        "api_version": "v1",
+        "seq_id": seq_id,
+        "application": get_application(config.service, config.version, config.env),
+        "host": get_host_info(),
+        "payload": payload,
+        "request_type": payload_type,
+    }
+
+
+def FakeModule():
+    """Used to mock working_set entries in pkg_resources"""
+
+    def __init__(self, project_name, version):
+        self.project_name = project_name
+        self.version = version
