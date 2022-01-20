@@ -28,9 +28,11 @@ def _get_interval_or_default():
 
 class TelemetryWriter(PeriodicService):
     """
-    Periodic service which sends Telemetry request payloads to the agent
+    Periodic service which sends Telemetry request payloads to the agent.
+    Supports version one of the instrumentation telemetry api
     """
 
+    # telemetry endpoint uses events platform v2 api
     ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
 
     def __init__(self, agent_url=None):

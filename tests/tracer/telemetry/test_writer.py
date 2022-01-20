@@ -15,9 +15,14 @@ TEST_URL = "%s/%s" % (AGENT_URL, TelemetryWriter.ENDPOINT)
 
 
 @pytest.fixture
-def mock_send_request_200():
+def mock_status():
+    return 202
+
+
+@pytest.fixture
+def mock_send_request(mock_status):
     with httpretty.enabled():
-        httpretty.register_uri(httpretty.POST, TEST_URL, status=202)
+        httpretty.register_uri(httpretty.POST, TEST_URL, status=mock_status)
         yield
 
 
@@ -43,7 +48,7 @@ def telemetry_writer_disabled():
     yield telemetry_writer
 
 
-def test_add_event(mock_time, mock_send_request_200, telemetry_writer):
+def test_add_event(mock_time, mock_send_request, telemetry_writer):
     """asserts that add_event queues a telemetry request with valid headers and payload"""
     payload = {"test": "123"}
     payload_type = "test-event"
@@ -62,7 +67,7 @@ def test_add_event(mock_time, mock_send_request_200, telemetry_writer):
     assert httpretty.last_request().parsed_body == _get_request_body(payload, payload_type)
 
 
-def test_add_event_disabled_writer(mock_send_request_200, telemetry_writer_disabled):
+def test_add_event_disabled_writer(mock_send_request, telemetry_writer_disabled):
     """asserts that add_event() does not create a telemetry request when telemetry writer is disabled"""
     payload = {"test": "123"}
     payload_type = "test-event"
@@ -73,7 +78,7 @@ def test_add_event_disabled_writer(mock_send_request_200, telemetry_writer_disab
     assert len(httpretty.latest_requests()) == 0
 
 
-def test_add_app_started_event(mock_time, mock_send_request_200, telemetry_writer):
+def test_add_app_started_event(mock_time, mock_send_request, telemetry_writer):
     """asserts that app_started_event() queues a valid telemetry request which is then sent by periodic()"""
     # queue an app started event
     telemetry_writer.app_started_event()
@@ -93,7 +98,7 @@ def test_add_app_started_event(mock_time, mock_send_request_200, telemetry_write
     assert httpretty.last_request().parsed_body == _get_request_body(payload, "app-started")
 
 
-def test_add_app_closing_event(mock_time, mock_send_request_200, telemetry_writer):
+def test_add_app_closing_event(mock_time, mock_send_request, telemetry_writer):
     """asserts that shutdown() queues and sends an app-closing telemetry request"""
     # send app closed event
     telemetry_writer.shutdown()
@@ -108,7 +113,7 @@ def test_add_app_closing_event(mock_time, mock_send_request_200, telemetry_write
     assert httpretty.last_request().parsed_body == _get_request_body({}, "app-closing")
 
 
-def test_add_integration(mock_time, mock_send_request_200, telemetry_writer):
+def test_add_integration(mock_time, mock_send_request, telemetry_writer):
     """asserts that add_integration() queues a valid telemetry request"""
     # queue integrations
     telemetry_writer.add_integration("integration-t", True)
@@ -144,14 +149,14 @@ def test_add_integration(mock_time, mock_send_request_200, telemetry_writer):
     assert httpretty.last_request().parsed_body == _get_request_body(expected_payload, "app-integrations-change")
 
 
-def test_add_integration_disabled_writer(telemetry_writer_disabled):
+def test_add_integration_disabled_writer(mock_send_request, telemetry_writer_disabled):
     """asserts that add_integration() does not queue an integration when telemetry is disabled"""
     telemetry_writer_disabled.add_integration("integration-name", False)
     telemetry_writer_disabled.periodic()
     assert len(httpretty.latest_requests()) == 0
 
 
-def test_periodic(mock_send_request_200, telemetry_writer):
+def test_periodic(mock_send_request, telemetry_writer):
     """tests that periodic() sends queued app-started and integration events to the agent"""
     # add 1 event to the queue
     telemetry_writer.app_started_event()
@@ -175,43 +180,25 @@ def test_periodic(mock_send_request_200, telemetry_writer):
         telemetry_writer.periodic()
         # assert no warning logs were generated while sending telemetry requests
         log.warning.assert_not_called()
-    # ensure one app-started and two app-integrations-change events were sent
+    # ensure one more app-integrations-change events was sent
+    # 2 requests were sent in the previous flush
     assert len(httpretty.latest_requests()) == 3
 
 
-@httpretty.enable
-def test_send_request_400(telemetry_writer):
-    """asserts that a warning is logged when a 400 response is returned by the http client"""
-    httpretty.register_uri(httpretty.POST, TEST_URL, status=400)
+@pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
+def test_send_failing_request(mock_status, mock_send_request, telemetry_writer):
+    """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
     with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
         # sends failing app-closing event
         telemetry_writer.shutdown()
-        # assert 400 status code was logged
+        # asserts unsuccessful status code was logged
         log.warning.assert_called_with(
             "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
             telemetry_writer.agent_url,
             telemetry_writer.ENDPOINT,
-            400,
+            mock_status,
         )
-    # ensure no request were sent
-    assert len(httpretty.latest_requests()) == 0
-
-
-@httpretty.enable
-def test_send_request_500(telemetry_writer):
-    """asserts that a warning is logged when a 500 response is returned by the http client"""
-    httpretty.register_uri(httpretty.POST, TEST_URL, status=500)
-    with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-        # sends failing app-closing event
-        telemetry_writer.shutdown()
-        # assert 500 status code was logged
-        log.warning.assert_called_with(
-            "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
-            telemetry_writer.agent_url,
-            telemetry_writer.ENDPOINT,
-            500,
-        )
-    # ensure one request was sent
+    # ensure one failing request was sent
     assert len(httpretty.latest_requests()) == 1
 
 
@@ -228,12 +215,10 @@ def test_send_request_exception(telemetry_writer):
         # assert an exception was logged
         log.warning.assert_called_with(
             "failed to send telemetry to the Datadog Agent at %s/%s.",
-            telemetry_writer.agent_url,
+            "http://hostthatdoesntexist:1234",
             telemetry_writer.ENDPOINT,
             exc_info=True,
         )
-    # ensure no request were sent
-    assert len(httpretty.latest_requests()) == 0
 
 
 def _get_request_body(payload, payload_type, seq_id=1):
