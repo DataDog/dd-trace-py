@@ -64,8 +64,10 @@ def test_patching():
         assert not isinstance(aioredis.client.Pipeline.pipeline, ObjectProxy)
     else:
         assert isinstance(aioredis.Redis.execute, ObjectProxy)
+        assert isinstance(aioredis.commands.Redis.execute, ObjectProxy)
         unpatch()
         assert not isinstance(aioredis.Redis.execute, ObjectProxy)
+        assert not isinstance(aioredis.commands.Redis.execute, ObjectProxy)
 
 
 @pytest.mark.asyncio
@@ -240,3 +242,11 @@ async def test_two_traced_pipelines(redis_client):
         response_list1[1].decode() == "boo"
     )  # response from hset is 'Integer reply: The number of fields that were added.'
     assert response_list2[1].decode() == "bar"
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
+async def test_parenting(redis_client):
+    with tracer.trace("web-request", service="test"):
+        await redis_client.set("blah", "boo")
+        await redis_client.get("blah")
