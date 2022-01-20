@@ -404,7 +404,7 @@ def _instrument_view(django, view):
 
     # If the view itself is not wrapped, wrap it
     if not isinstance(view, wrapt.ObjectProxy):
-        view = wrapt.FunctionWrapper(
+        view = utils.DjangoViewProxy(
             view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
         )
     return view
@@ -446,6 +446,24 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
         span.name = "django.request"
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
+
+
+def unwrap_views(func, instance, args, kwargs):
+    """
+    Django channels uses path() and re_path() to route asgi applications. This broke our initial assumption that
+    django path/re_path/url functions only accept views. Here we unwrap ddtrace view instrumentation from asgi
+    applications.
+
+    Ex. ``channels.routing.URLRouter([path('', get_asgi_application())])``
+    On startup ddtrace.contrib.django.path.instrument_view() will wrap get_asgi_application in a DjangoViewProxy.
+    Since get_asgi_application is not a django view callback this function will unwrap it.
+    """
+    routes = get_argument_value(args, kwargs, 0, "routes")
+    for route in routes:
+        if isinstance(route.callback, utils.DjangoViewProxy):
+            route.callback = route.callback.__wrapped__
+
+    return func(*args, **kwargs)
 
 
 def _patch(django):
@@ -496,6 +514,17 @@ def _patch(django):
     if "django.views.generic.base" not in sys.modules:
         import django.views.generic.base
     trace_utils.wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
+
+    try:
+        import channels
+        import channels.routing
+
+        channels_version = tuple(int(x) for x in channels.__version__.split("."))
+        if channels_version >= (3, 0):
+            # ASGI3 is only supported in channels v3.0+
+            trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
+    except ImportError:
+        pass  # channels is not installed
 
 
 def patch():
