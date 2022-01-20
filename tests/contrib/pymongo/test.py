@@ -385,11 +385,14 @@ class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
 
     def get_tracer_and_client(self):
         tracer = DummyTracer()
+        return tracer, self.get_client(tracer)
+
+    def get_client(self, tracer):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
-        return tracer, client
+        return client
 
     def test_host_kwarg(self):
         # simulate what celery and django do when instantiating a new client
@@ -404,6 +407,36 @@ class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(**conf)
 
         assert client
+
+
+class TestPymongoPatchDisabledTracer(TestPymongoPatchDefault):
+    def get_tracer_and_client(self):
+        tracer = DummyTracer()
+        tracer.configure(enabled=False)
+        return tracer, self.get_client(tracer)
+
+    def test_delete(self):
+        pass
+
+    def test_insert_find(self):
+        # this test raises an Exception in pymongo/cursor.py
+        # self._datadog_trace_operation(operation) returns None when a tracer is disabled
+        super().test_insert_find()
+
+    def test_update(self):
+        pass
+
+    def test_update_ot(self):
+        pass
+
+    def test_analytics_default(self):
+        pass
+
+    def test_analytics_without_rate(self):
+        pass
+
+    def test_analytics_with_rate(self):
+        pass
 
 
 class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
