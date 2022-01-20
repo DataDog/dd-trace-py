@@ -43,7 +43,7 @@ from .internal.logger import get_logger
 
 
 if TYPE_CHECKING:
-    import ddtrace.tracer
+    from ddtrace.tracer import Tracer
 
 
 _TagNameType = Union[Text, bytes]
@@ -83,7 +83,7 @@ class Span(object):
 
     def __init__(
         self,
-        tracer,  # type: Optional[ddtrace.tracer.Tracer]
+        tracer,  # type: Optional[Tracer]
         name,  # type: str
         service=None,  # type: Optional[str]
         resource=None,  # type: Optional[str]
@@ -103,7 +103,7 @@ class Span(object):
         that it was created in. Using a ``Span`` from within a child process
         could result in a deadlock or unexpected behavior.
 
-        :param ddtrace.Tracer tracer: the tracer that will submit this span when
+        :param ddtrace.tracer.Tracer tracer: the tracer that will submit this span when
             finished.
         :param str name: the name of the traced operation.
 
@@ -147,7 +147,7 @@ class Span(object):
         self.trace_id = trace_id or _rand.rand64bits()  # type: int
         self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
-        self.tracer = tracer  # type: Optional[ddtrace.tracer.Tracer]
+        self.tracer = tracer  # type: Optional[Tracer]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling

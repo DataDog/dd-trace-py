@@ -163,7 +163,7 @@ venv = Venv(
             pkgs={
                 "cython": latest,
                 "reno[sphinx]": latest,
-                "sphinx": "~=4.3.2",
+                "sphinx": latest,
                 "sphinxcontrib-spelling": latest,
                 "PyEnchant": latest,
             },
