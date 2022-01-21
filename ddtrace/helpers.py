@@ -10,7 +10,10 @@ if TYPE_CHECKING:
     from ddtrace.tracer import Tracer
 
 
-@deprecated("This method and module will be removed altogether", "1.0.0")
+@deprecated(
+    "This method and module will be removed altogether. Use 'ddtrace.Tracer.get_log_correlation_context()' instead.",
+    "1.0.0",
+)
 def get_correlation_ids(tracer=None):
     # type: (Optional[Tracer]) -> Tuple[Optional[int], Optional[int]]
     """Retrieves the Correlation Identifiers for the current active ``Trace``.

@@ -7,6 +7,7 @@ import attr
 import six
 
 from ddtrace import ext
+from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.utils import config
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
@@ -548,7 +549,7 @@ class PprofExporter(exporter.Exporter):
         # Do not export trace_resource for non Web spans for privacy concerns.
         if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
             (trace_resource,) = event.trace_resource_container
-        return trace_resource
+        return ensure_str(trace_resource, errors="backslashreplace")
 
     def export(self, events: recorder.EventsType, start_time_ns: int, end_time_ns: int) -> pprof_ProfileType:
         """Convert events to pprof format.

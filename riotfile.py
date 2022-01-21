@@ -518,11 +518,19 @@ venv = Venv(
                         "django": [
                             ">=2.1,<2.2",
                             ">=2.2,<2.3",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "django": [
                             "~=3.0",
                             "~=3.0.0",
                             "~=3.1.0",
                             "~=3.2.0",
                         ],
+                        "channels": ["~=3.0", latest],
                     },
                 ),
                 Venv(
@@ -532,6 +540,7 @@ venv = Venv(
                             "~=4.0.0",
                             latest,
                         ],
+                        "channels": ["~=3.0", latest],
                     },
                 ),
             ],
