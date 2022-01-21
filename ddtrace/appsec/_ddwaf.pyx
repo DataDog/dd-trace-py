@@ -5,7 +5,7 @@ from typing import Tuple
 import six
 
 
-if sys.version_info >= (3, 5):
+if six.PY3:
     from typing import Mapping
     from typing import Sequence
 else:
