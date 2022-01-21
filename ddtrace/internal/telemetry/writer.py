@@ -13,6 +13,7 @@ from ..encoding import JSONEncoderV2
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
+from ..service import ServiceStatus
 from ..utils.formats import get_env
 from ..utils.time import StopWatch
 from .data import get_application
@@ -137,7 +138,12 @@ class TelemetryWriter(PeriodicService):
 
     def add_integration(self, integration_name, auto_enabled):
         # type: (str, bool) -> None
-        """Creates and queues the names and settings of a patched module"""
+        """
+        Creates and queues the names and settings of a patched module
+
+        :param str integration_name: name of patched module
+        :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
+        """
         with self._lock:
             if not self.enabled:
                 return
@@ -201,3 +207,44 @@ class TelemetryWriter(PeriodicService):
             "payload": payload,
             "request_type": payload_type,
         }
+
+    def _restart(self):
+        # type: () -> None
+        if self.status == ServiceStatus.RUNNING:
+            self.disable()
+        self.enable()
+
+    def disable(self):
+        # type: () -> None
+        """
+        Disable the telemetry collection service.
+        Once disabled, telemetry collection can be re-enabled by calling ``enable`` again.
+        """
+        with self._lock:
+            if self.status == ServiceStatus.STOPPED:
+                return
+
+            forksafe.unregister(self._restart)
+
+            self.stop()
+            self.enabled = False
+
+            self.join()
+
+    def enable(self):
+        # type: () -> None
+        """
+        Enable the instrumentation telemetry collection service. If the service has already been
+        activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
+        """
+        with self._lock:
+            if self.status == ServiceStatus.RUNNING:
+                return
+
+            self.start()
+            self.enabled = True
+
+            forksafe.register(self._restart)
+
+        # add_event _locks around adding to the events queue
+        self.app_started_event()
