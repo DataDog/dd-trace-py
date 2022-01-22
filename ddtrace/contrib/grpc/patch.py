@@ -65,6 +65,7 @@ def _unpatch_client():
 
     _u(grpc, "secure_channel")
     _u(grpc, "insecure_channel")
+    _u(grpc, "intercept_channel")
 
 
 def _patch_server():

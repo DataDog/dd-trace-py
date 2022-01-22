@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
+import typing
 from typing import List
 from typing import Optional
 
@@ -97,33 +98,11 @@ class Profiler(object):
         self._profiler = self._profiler.copy()
         self._profiler.start()
 
-    @property
-    def status(self):
-        return self._profiler.status
-
-    @property
-    def service(self):
-        return self._profiler.service
-
-    @property
-    def env(self):
-        return self._profiler.env
-
-    @property
-    def version(self):
-        return self._profiler.version
-
-    @property
-    def tracer(self):
-        return self._profiler.tracer
-
-    @property
-    def url(self):
-        return self._profiler.url
-
-    @property
-    def tags(self):
-        return self._profiler.tags
+    def __getattr__(
+        self, key  # type: str
+    ):
+        # type: (...) -> typing.Any
+        return getattr(self._profiler, key)
 
 
 @attr.s

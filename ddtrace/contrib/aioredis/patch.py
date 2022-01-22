@@ -1,3 +1,4 @@
+import asyncio
 import sys
 
 import aioredis
@@ -66,13 +67,12 @@ async def traced_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    decoded_args = [arg.decode() if isinstance(arg, bytes) else arg for arg in args]
-    with _trace_redis_cmd(pin, config.aioredis, instance, decoded_args):
+    with _trace_redis_cmd(pin, config.aioredis, instance, args):
         return await func(*args, **kwargs)
 
 
-async def traced_pipeline(func, instance, args, kwargs):
-    pipeline = await func(*args, **kwargs)
+def traced_pipeline(func, instance, args, kwargs):
+    pipeline = func(*args, **kwargs)
     pin = Pin.get_from(instance)
     if pin:
         pin.onto(pipeline)
@@ -107,16 +107,20 @@ def traced_13_execute_command(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    decoded_args = [arg.decode() if isinstance(arg, bytes) else arg for arg in args]
     # Don't activate the span since this operation is performed as a future which concludes sometime later on in
     # execution so subsequent operations in the stack are not necessarily semantically related
     # (we don't want this span to be the parent of all other spans created before the future is resolved)
+    parent = pin.tracer.current_span()
     span = pin.tracer.start_span(
-        redisx.CMD, service=trace_utils.ext_service(pin, config.aioredis), span_type=SpanTypes.REDIS, activate=False
+        redisx.CMD,
+        service=trace_utils.ext_service(pin, config.aioredis),
+        span_type=SpanTypes.REDIS,
+        activate=False,
+        child_of=parent,
     )
 
     span.set_tag(SPAN_MEASURED_KEY)
-    query = format_command_args(decoded_args)
+    query = format_command_args(args)
     span.resource = query
     span.set_tag(redisx.RAWCMD, query)
     if pin.tags:
@@ -129,7 +133,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
             redisx.DB: instance.db or 0,
         }
     )
-    span.set_metric(redisx.ARGS_LEN, len(decoded_args))
+    span.set_metric(redisx.ARGS_LEN, len(args))
     # set analytics sample rate if enabled
     span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aioredis.get_analytics_sample_rate())
 
@@ -146,6 +150,9 @@ def traced_13_execute_command(func, instance, args, kwargs):
             span.finish()
 
     task = func(*args, **kwargs)
+    # Execute command returns a coroutine when no free connections are available
+    # https://github.com/aio-libs/aioredis-py/blob/v1.3.1/aioredis/pool.py#L191
+    task = asyncio.ensure_future(task)
     task.add_done_callback(_finish_span)
     return task
 
@@ -157,7 +164,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
 
     cmds = []
     for _, cmd, cmd_args, _ in instance._pipeline:
-        parts = [cmd.decode() if isinstance(cmd, bytes) else cmd]
+        parts = [cmd]
         parts.extend(cmd_args)
         cmds.append(format_command_args(parts))
     resource = "\n".join(cmds)

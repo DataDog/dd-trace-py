@@ -61,6 +61,7 @@ entrypoints
 env
 enqueuer
 fastapi
+formatter
 gRPC
 gevent
 greenlet
@@ -142,9 +143,11 @@ submodules
 timestamp
 tweens
 uWSGI
+unicode
 uninstrumented
 unix
 unpatch
+unpatched
 unregister
 unvendored
 url

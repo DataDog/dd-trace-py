@@ -20,10 +20,10 @@ pip install pip --upgrade
 
 # Install austin
 pushd ${PREFIX}
-    sudo apt-get -y install libunwind-dev
+    sudo apt-get -y install libunwind-dev binutils-dev libiberty-dev
     git clone --depth=1 https://github.com/p403n1x87/austin.git -b devel
     pushd austin
-        gcc -O3 -Os -s -Wall -pthread src/*.c -DAUSTINP -lunwind-ptrace -lunwind-generic -o src/austinp
+        gcc -O3 -Os -s -Wall -pthread src/*.c -DAUSTINP -lunwind-ptrace -lunwind-generic -lbfd -o src/austinp
         mv src/austinp ${PREFIX}/austinp
         chmod +x ${PREFIX}/austinp
     popd

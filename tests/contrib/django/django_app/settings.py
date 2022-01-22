@@ -1,5 +1,7 @@
 import os
 
+import django
+
 from ddtrace import tracer
 from tests.webclient import PingFilter
 
@@ -30,13 +32,18 @@ DATABASES = {
     },
 }
 
+django_cache = "django_redis.cache.RedisCache"
+if django.VERSION >= (4, 0, 0):
+    django_cache = "django.core.cache.backends.redis.RedisCache"
+
+
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "unique-snowflake",
     },
     "redis": {
-        "BACKEND": "django_redis.cache.RedisCache",
+        "BACKEND": django_cache,
         "LOCATION": "redis://127.0.0.1:6379/1",
     },
     "pylibmc": {

@@ -163,7 +163,7 @@ venv = Venv(
             pkgs={
                 "cython": latest,
                 "reno[sphinx]": latest,
-                "sphinx": latest,
+                "sphinx": "~=4.3.2",
                 "sphinxcontrib-spelling": latest,
                 "PyEnchant": latest,
             },
@@ -516,30 +516,37 @@ venv = Venv(
                         "django": [
                             ">=2.1,<2.2",
                             ">=2.2,<2.3",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "django": [
                             "~=3.0",
                             "~=3.0.0",
                             "~=3.1.0",
                             "~=3.2.0",
                         ],
+                        "channels": ["~=3.0", latest],
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": [
-                #             "~=4.0.0",
-                #             latest,
-                #         ],
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": [
+                            "~=4.0.0",
+                            latest,
+                        ],
+                        "channels": ["~=3.0", latest],
+                    },
+                ),
             ],
         ),
         Venv(
             name="django_hosts",
             command="pytest {cmdargs} tests/contrib/django_hosts",
             pkgs={
-                "django_hosts": ["~=4.0", latest],
                 "pytest-django": [
                     "==3.10.0",
                 ],
@@ -548,28 +555,27 @@ venv = Venv(
                 Venv(
                     pys=["3.5"],
                     pkgs={
+                        "django_hosts": ["~=4.0"],
                         "django": ["~=2.2"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
+                        "django_hosts": ["~=4.0"],
                         "django": [
                             "~=2.2",
                             "~=3.2",
                         ],
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": [
-                #             "~=4.0",
-                #             latest,
-                #         ],
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django_hosts": ["~=5.0", latest],
+                        "django": "~=4.0",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -608,15 +614,14 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": latest,
-                #         "djangorestframework": ">=3.11,<3.12",
-                #         "pytest-django": "==3.10.0",
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": "~=4.0",
+                        "djangorestframework": ["~=3.13", latest],
+                        "pytest-django": "==3.10.0",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -684,7 +689,8 @@ venv = Venv(
         ),
         Venv(
             name="flask",
-            command="pytest {cmdargs} tests/contrib/flask",
+            # TODO: Re-enable coverage for Flask tests
+            command="pytest --no-cov {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest},
             venvs=[
                 # Flask == 0.12.0
@@ -698,7 +704,8 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(max_version="3.9"),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    # TODO: Re-enable coverage for Flask tests
+                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
@@ -718,7 +725,8 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    # TODO: Re-enable coverage for Flask tests
+                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
@@ -744,7 +752,8 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    # TODO: Re-enable coverage for Flask tests
+                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
@@ -761,7 +770,8 @@ venv = Venv(
         ),
         Venv(
             name="flask_cache",
-            command="pytest {cmdargs} tests/contrib/flask_cache",
+            # TODO: Re-enable coverage for Flask tests
+            command="pytest --no-cov {cmdargs} tests/contrib/flask_cache",
             pkgs={
                 "python-memcached": latest,
                 "redis": "~=2.0",
@@ -828,16 +838,15 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="2.7", max_version="3.6"),
-                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
+                    pys=["2.7"],
+                    # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
+                    pkgs={"psycopg2-binary": ["~=2.7.0", "~=2.8.0"]},
                 ),
                 Venv(
-                    pys=["3.7"],
-                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.8"),
-                    pkgs={"psycopg2": ["~=2.8.0", latest]},
+                    pys=select_pys(min_version="3.6"),
+                    # 2.7.x should also work, but it is from 2019
+                    # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
+                    pkgs={"psycopg2-binary": ["~=2.8.0", "~=2.9.0", latest]},
                 ),
             ],
         ),
@@ -908,7 +917,8 @@ venv = Venv(
                             pys=select_pys(max_version="3.9"),
                             pkgs={
                                 "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2": ["~=2.8.0"],
+                                # 2.8.x is the last one support Python 2.7
+                                "psycopg2-binary": ["~=2.8.0"],
                                 "mysql-connector-python": ["<8.0.24"],
                             },
                         ),
@@ -916,7 +926,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.6", max_version="3.9"),
                             pkgs={
                                 "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2": ["~=2.8.0"],
+                                "psycopg2-binary": latest,
                                 "mysql-connector-python": latest,
                             },
                         ),
@@ -925,7 +935,7 @@ venv = Venv(
                             pkgs={
                                 "mysql-connector-python": latest,
                                 "sqlalchemy": ["~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2": ["~=2.8.0"],
+                                "psycopg2-binary": latest,
                                 "mysql-connector-python": latest,
                             },
                         ),
@@ -980,15 +990,15 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": ["<1.0"]})],
+            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
         ),
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={"botocore": latest},
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": [">=1.0,<2.0"]}),
-                Venv(pys=["2.7"], pkgs={"moto": [">=1.0,<2.0"], "rsa": ["<4.7.1"]}),
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": latest}),
+                Venv(pys=["2.7"], pkgs={"moto": ["~=1.0"], "rsa": ["<4.7.1"]}),
             ],
         ),
         Venv(
@@ -1398,7 +1408,7 @@ venv = Venv(
             name="snowflake",
             command="pytest {cmdargs} tests/contrib/snowflake",
             pkgs={
-                "responses": latest,
+                "responses": "~=0.16.0",
             },
             venvs=[
                 Venv(
