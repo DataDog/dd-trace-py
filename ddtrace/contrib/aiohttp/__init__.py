@@ -1,4 +1,6 @@
 """
+Note: This integration requires additional setup for automatic instrumentation to be applied.
+
 The ``aiohttp`` integration traces all requests defined in the application handlers.
 Auto instrumentation is available using the ``trace_app`` function::
 
