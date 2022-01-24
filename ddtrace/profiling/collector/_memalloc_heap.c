@@ -130,18 +130,6 @@ memalloc_heap_tracker_deinit(void)
 }
 
 void
-memalloc_heap_tracker_freeze()
-{
-    heap_tracker_freeze(&global_heap_tracker);
-}
-
-void
-memalloc_heap_tracker_thaw()
-{
-    heap_tracker_thaw(&global_heap_tracker);
-}
-
-void
 memalloc_heap_untrack(void* ptr)
 {
     if (global_heap_tracker.frozen) {
