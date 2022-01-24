@@ -54,10 +54,6 @@ class _EncoderBase(object):
 class JSONEncoder(json.JSONEncoder, _EncoderBase):
     content_type = "application/json"
 
-    def __init__(self):
-        # Reduce unnecessary whitespace
-        super(JSONEncoder, self).__init__(separators=(",", ":"), indent=None)
-
     def encode_traces(self, traces):
         normalized_traces = [[JSONEncoder._normalize_span(span.to_dict()) for span in trace] for trace in traces]
         return self.encode(normalized_traces)
