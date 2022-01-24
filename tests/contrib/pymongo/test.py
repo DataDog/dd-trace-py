@@ -385,14 +385,11 @@ class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
 
     def get_tracer_and_client(self):
         tracer = DummyTracer()
-        return tracer, self.get_client(tracer)
-
-    def get_client(self, tracer):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
         Pin.get_from(client).clone(tracer=tracer).onto(client)
         # We do not wish to trace tcp spans here
         Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
-        return client
+        return tracer, client
 
     def test_host_kwarg(self):
         # simulate what celery and django do when instantiating a new client
@@ -407,36 +404,6 @@ class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(**conf)
 
         assert client
-
-
-class TestPymongoPatchDisabledTracer(TestPymongoPatchDefault):
-    def get_tracer_and_client(self):
-        tracer = DummyTracer()
-        tracer.configure(enabled=False)
-        return tracer, self.get_client(tracer)
-
-    def test_delete(self):
-        pass
-
-    def test_insert_find(self):
-        # this test raises an Exception in pymongo/cursor.py
-        # self._datadog_trace_operation(operation) returns None when a tracer is disabled
-        super().test_insert_find()
-
-    def test_update(self):
-        pass
-
-    def test_update_ot(self):
-        pass
-
-    def test_analytics_default(self):
-        pass
-
-    def test_analytics_without_rate(self):
-        pass
-
-    def test_analytics_with_rate(self):
-        pass
 
 
 class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
@@ -516,6 +483,64 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
+
+    def test_patch_with_disabled_tracer(self):
+        tracer, client = self.get_tracer_and_client()
+        tracer.configure(enabled=False)
+
+        db = client.testdb
+        db.drop_collection("teams")
+        teams = [
+            {
+                "name": "Toronto Maple Leafs",
+                "established": 1917,
+            },
+            {
+                "name": "Montreal Canadiens",
+                "established": 1910,
+            },
+            {
+                "name": "New York Rangers",
+                "established": 1926,
+            },
+            {
+                "name": "Boston Knuckleheads",
+                "established": 1998,
+            },
+        ]
+
+        # create records (exercising both ways of inserting)
+        db.teams.insert_one(teams[0])
+        db.teams.insert_many(teams[1:])
+        # delete record
+        db.teams.delete_one({"name": "Boston Knuckleheads"})
+
+        # assert one team was deleted
+        cursor = db["teams"].find()
+        count = 0
+        for row in cursor:
+            count += 1
+        assert count == len(teams) - 1
+
+        # query record
+        q = {"name": "Toronto Maple Leafs"}
+        queried = list(db.teams.find(q))
+        assert len(queried) == 1
+        assert queried[0]["name"] == "Toronto Maple Leafs"
+        assert queried[0]["established"] == 1917
+
+        # update record
+        result = db.teams.update_many(
+            {"name": "Toronto Maple Leafs"},
+            {"$set": {"established": 2021}},
+        )
+        assert result.matched_count == 1
+        queried = list(db.teams.find(q))
+        assert queried[0]["name"] == "Toronto Maple Leafs"
+        assert queried[0]["established"] == 2021
+
+        # assert no spans were created
+        assert tracer.pop() == []
 
 
 class TestPymongoSocketTracing(TracerTestCase):
