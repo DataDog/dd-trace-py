@@ -721,10 +721,6 @@ class BotocoreTest(TracerTestCase):
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        print("AGOCS! Here's the span:")
-        print(span)
-        print("Here is the meta")
-        print(span.meta)
 
         # For some reason, put_events replaces " with ' , so the json package can't parse it
         str_entries = span.get_tag("params.Entries")
@@ -736,8 +732,8 @@ class BotocoreTest(TracerTestCase):
         for e in entries:
             self.assertTrue("Detail" in e)
             detail = json.loads(e["Detail"])
-            self.assertTrue(HTTP_HEADER_PARENT_ID in detail)
-            self.assertTrue(HTTP_HEADER_TRACE_ID in detail)
+            self.assertTrue(HTTP_HEADER_PARENT_ID in detail["_datadog"])
+            self.assertTrue(HTTP_HEADER_TRACE_ID in detail["_datadog"])
             self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
             self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
 
@@ -770,10 +766,6 @@ class BotocoreTest(TracerTestCase):
         assert spans
         self.assertEqual(len(spans), 1)
         span = spans[0]
-        print("AGOCS! Here's the span:")
-        print(span)
-        print("Here is the meta")
-        print(span.meta)
 
         # For some reason, put_events replaces " with ' , so the json package can't parse it
         str_entries = span.get_tag("params.Entries")
@@ -785,8 +777,8 @@ class BotocoreTest(TracerTestCase):
         for e in entries:
             self.assertTrue("Detail" in e)
             detail = json.loads(e["Detail"])
-            self.assertTrue(HTTP_HEADER_PARENT_ID in detail)
-            self.assertTrue(HTTP_HEADER_TRACE_ID in detail)
+            self.assertTrue(HTTP_HEADER_PARENT_ID in detail["_datadog"])
+            self.assertTrue(HTTP_HEADER_TRACE_ID in detail["_datadog"])
             self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
             self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
 

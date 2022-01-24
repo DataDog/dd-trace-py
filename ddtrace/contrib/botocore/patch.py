@@ -76,7 +76,9 @@ def inject_trace_to_event_bridge_detail(args, span):
             if "Detail" in entry:
                 try:
                     detail = json.loads(entry["Detail"])
-                    HTTPPropagator.inject(span.context, detail)
+                    dd_context = detail.get("_datadog", {})
+                    HTTPPropagator.inject(span.context, dd_context)
+                    detail["_datadog"] = dd_context
                     entry["Detail"] = json.dumps(detail)
                 except Exception:
                     log.warning("Unable to parse Detail and inject span context")
