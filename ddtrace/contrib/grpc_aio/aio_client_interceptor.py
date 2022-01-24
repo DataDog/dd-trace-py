@@ -1,3 +1,4 @@
+import functools
 from typing import Callable
 from typing import Tuple
 from typing import Union
@@ -41,6 +42,7 @@ def _done_callback(span, code, details):
         try:
             span._set_str_tag(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
 
+            # Handle server-side error in unary response RPCs
             if code != grpc.StatusCode.OK:
                 _handle_error(span, call, code, details)
         finally:
@@ -118,6 +120,25 @@ class _ClientInterceptor:
 
         return span, client_call_details
 
+    async def _wrap_unary_response(
+        self,
+        continuation,  # type: Callable[[], Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]]
+        span,  # type: Span
+    ):
+        # type: (...) -> Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]
+        try:
+            call = await continuation()
+            code = await call.code()
+            details = await call.details()
+            call.add_done_callback(_done_callback(span, code, details))
+            return call
+        except aio.AioRpcError as rpc_error:
+            # NOTE: `AioRpcError` is raised in `await continuation(...)`
+            # and `call` object is not assigned yet in that case.
+            # So we can't handle the error in done callbacks.
+            _handle_rpc_error(span, rpc_error)
+            raise
+
 
 class _UnaryUnaryClientInterceptor(aio.UnaryUnaryClientInterceptor, _ClientInterceptor):
     async def intercept_unary_unary(
@@ -131,17 +152,8 @@ class _UnaryUnaryClientInterceptor(aio.UnaryUnaryClientInterceptor, _ClientInter
             constants.GRPC_METHOD_KIND_UNARY,
             client_call_details,
         )
-        # Even if the subsequent interceptor or RPC call throws an exception,
-        # make sure that the exception is traced.
-        try:
-            call = await continuation(client_call_details, request)
-        except aio.AioRpcError as rpc_error:
-            _handle_rpc_error(span, rpc_error)
-            raise
-        code = await call.code()
-        details = await call.details()
-        call.add_done_callback(_done_callback(span, code, details))
-        return call
+        continuation_with_args = functools.partial(continuation, client_call_details, request)
+        return await self._wrap_unary_response(continuation_with_args, span)
 
 
 class _UnaryStreamClientInterceptor(aio.UnaryStreamClientInterceptor, _ClientInterceptor):
@@ -163,7 +175,13 @@ class _StreamUnaryClientInterceptor(aio.StreamUnaryClientInterceptor, _ClientInt
         request_iterator,  # type: RequestIterableType
     ):
         # type: (...) -> aio.StreamUnaryCall
-        pass
+        span, client_call_details = self._intercept_client_call(
+            constants.GRPC_METHOD_KIND_CLIENT_STREAMING,
+            client_call_details,
+        )
+        continuation_with_args = functools.partial(continuation, client_call_details, request_iterator)
+        return await self._wrap_unary_response(continuation_with_args, span)
+
 
 class _StreamStreamClientInterceptor(aio.StreamStreamClientInterceptor, _ClientInterceptor):
     async def intercept_stream_stream(

@@ -1,3 +1,5 @@
+import asyncio
+
 import grpc
 from grpc import aio
 import pytest
@@ -35,6 +37,16 @@ class _HelloServicer(HelloServicer):
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "exception")
 
         return HelloReply(message="Hello {}".format(request.name))
+
+    async def SayHelloLast(self, request_iterator, context):
+        names = []
+        async for r in request_iterator:
+            if r.name == "exception":
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "exception")
+
+            names.append(r.name)
+
+        return HelloReply(message="{}".format(";".join(names)))
 
 
 @pytest.fixture
@@ -324,3 +336,82 @@ async def test_unary_cancellation(grpc_server, tracer):
     # No span because the call is cancelled before execution.
     spans = tracer.writer.spans
     assert len(spans) == 0
+
+
+@pytest.mark.asyncio
+async def test_client_streaming(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        response = await stub.SayHelloLast(request_iterator)
+        assert response.message == "first;second"
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHelloLast", "client_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloLast", "client_streaming")
+
+
+@pytest.mark.asyncio
+async def test_client_streaming_exception(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    request_iterator = iter(HelloRequest(name=name) for name in ["exception", "test"])
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        with pytest.raises(aio.AioRpcError):
+            await stub.SayHelloLast(request_iterator)
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    assert client_span.resource == "/helloworld.Hello/SayHelloLast"
+    assert client_span.error == 1
+    assert client_span.get_tag(ERROR_MSG) == "exception"
+    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+    assert client_span.get_tag(ERROR_STACK) is None
+
+    assert server_span.resource == "/helloworld.Hello/SayHelloLast"
+    assert server_span.error == 1
+    assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
+    assert "AbortError" in server_span.get_tag(ERROR_TYPE)
+    assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
+    assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
+
+
+@pytest.mark.asyncio
+async def test_client_streaming_cancelled_before_rpc(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        call = stub.SayHelloLast(request_iterator)
+        assert call.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await call
+
+    # No span because the call is cancelled before execution
+    spans = tracer.writer.spans
+    assert len(spans) == 0
+
+
+@pytest.mark.asyncio
+async def test_client_streaming_cancelled_after_rpc(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        call = stub.SayHelloLast(request_iterator)
+        await call
+        assert not call.cancel()
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    # No error because cancelled after execution
+    _check_client_span(client_span, "grpc-aio-client", "SayHelloLast", "client_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloLast", "client_streaming")

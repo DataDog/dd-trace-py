@@ -1,5 +1,13 @@
-from grpc import aio
+from typing import Awaitable
+from typing import Callable
+from typing import Union
 
+from grpc import aio
+from grpc.aio._typing import RequestIterableType
+from grpc.aio._typing import RequestType
+from grpc.aio._typing import ResponseType
+
+from ddtrace import Span
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
@@ -28,13 +36,33 @@ def create_aio_server_interceptor(pin):
     return _ServerInterceptor(interceptor_function)
 
 
+async def _wrap_unary_response(
+    behavior,  # type: Callable[[Union[RequestIterableType, RequestType], aio.ServicerContext], Awaitable[ResponseType]]
+    request_or_iterator,  # type: Union[RequestIterableType, RequestType]
+    servicer_context,  # type: aio.ServicerContext
+    span,  # type: Span
+):
+    # type: (...) -> None
+    try:
+        return await behavior(request_or_iterator, servicer_context)
+    except Exception:
+        span.set_traceback()
+        # https://github.com/grpc/grpc/issues/27409 there seems to be a bug with
+        # accessing code and details from server side context
+        span.error = 1
+        raise
+    finally:
+        span.finish()
+
+
 class _TracedRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, pin, handler_call_details, wrapped):
         super(_TracedRpcMethodHandler, self).__init__(wrapped)
         self._pin = pin
         self._handler_call_details = handler_call_details
 
-    async def _fn(self, method_kind, behavior, args, kwargs):
+    def _create_span(self, method_kind):
+        # type: (str) -> Span
         tracer = self._pin.tracer
         headers = dict(self._handler_call_details.invocation_metadata)
 
@@ -57,27 +85,19 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
 
         if self._pin.tags:
             span.set_tags(self._pin.tags)
-        try:
-            response_or_iterator = await behavior(*args, **kwargs)
-        except Exception:
-            span.set_traceback()
-            # https://github.com/grpc/grpc/issues/27409 there seems to be a bug with
-            # accessing code and details from server side context
-            span.error = 1
-            raise
-        finally:
-            span.finish()
 
-        return response_or_iterator
+        return span
 
     async def unary_unary(self, *args, **kwargs):
-        return await self._fn(constants.GRPC_METHOD_KIND_UNARY, self.__wrapped__.unary_unary, args, kwargs)
+        span = self._create_span(constants.GRPC_METHOD_KIND_UNARY)
+        return await _wrap_unary_response(self.__wrapped__.unary_unary, args[0], args[1], span)
 
     async def unary_stream(self, *args, **kwargs):
         return await self._fn(constants.GRPC_METHOD_KIND_SERVER_STREAMING, self.__wrapped__.unary_stream, args, kwargs)
 
     async def stream_unary(self, *args, **kwargs):
-        return await self._fn(constants.GRPC_METHOD_KIND_CLIENT_STREAMING, self.__wrapped__.stream_unary, args, kwargs)
+        span = self._create_span(constants.GRPC_METHOD_KIND_CLIENT_STREAMING)
+        return await _wrap_unary_response(self.__wrapped__.stream_unary, args[0], args[1], span)
 
     async def stream_stream(self, *args, **kwargs):
         return await self._fn(constants.GRPC_METHOD_KIND_BIDI_STREAMING, self.__wrapped__.stream_stream, args, kwargs)
