@@ -162,8 +162,10 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size)
     if (global_heap_tracker.allocated_memory < global_heap_tracker.current_sample_size)
         return false;
 
-    /* Cannot add more sample */
-    if (global_heap_tracker.allocs.count >= TRACEBACK_ARRAY_MAX_COUNT)
+    /* Check if we can add more samples: the sum of the freezer + alloc tracker
+     cannot be greater than what the alloc tracker can handle: when the alloc
+     tracker is thawed, all the allocs in the freezer will be moved there!*/
+    if ((global_heap_tracker.freezer.allocs.count + global_heap_tracker.allocs.count) >= TRACEBACK_ARRAY_MAX_COUNT)
         return false;
 
     traceback_t* tb = memalloc_get_traceback(max_nframe, ptr, global_heap_tracker.allocated_memory);
