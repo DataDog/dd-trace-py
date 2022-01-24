@@ -38,7 +38,7 @@ from libc.stdint cimport uintptr_t
 from libc.string cimport memset
 
 
-DEFAULT_DDWAF_TIMEOUT_MS=20
+DEFAULT_DDWAF_TIMEOUT_MS=5
 
 
 cdef extern from "Python.h":
@@ -222,7 +222,7 @@ cdef class DDWaf(object):
         rule_objects = (<_Wrapper?>self._rules)._ptr;
         self._handle = ddwaf_init(rule_objects, NULL)
         if <void *> self._handle == NULL:
-            raise ValueError("invalid rules") # TODO(@vdetuckheim) replace by custom InvalidRulesError
+            raise ValueError("invalid rules")
 
     @property
     def required_data(self):
