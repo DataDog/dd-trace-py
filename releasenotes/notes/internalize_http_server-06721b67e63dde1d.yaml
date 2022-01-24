@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Remove remove HTTPServerConfig from the public api. Use ``ddtrace.config.http_server`` to set http server configurations.
