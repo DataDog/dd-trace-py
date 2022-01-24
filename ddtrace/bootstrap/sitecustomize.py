@@ -83,6 +83,7 @@ try:
     profiling = asbool(os.environ.get("DD_PROFILING_ENABLED", False))
 
     if profiling:
+        log.debug("profiler enabled via environment variable")
         import ddtrace.profiling.auto  # noqa: F401
 
     if asbool(get_env("runtime_metrics", "enabled")):
