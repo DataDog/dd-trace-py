@@ -73,6 +73,12 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
     " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
 )
 if debug_mode and not hasHandlers(log) and call_basic_config:
+    deprecation(
+        name="ddtrace.tracer.logging.basicConfig",
+        message="ddtrace will no longer handle basic configuration for a logging system.\
+        `logging.basicConfig()` should be called in a user's application",
+        version="1.0.0",
+    )
     if config.logs_injection:
         # We need to ensure logging is patched in case the tracer logs during initialization
         patch(logging=True)
