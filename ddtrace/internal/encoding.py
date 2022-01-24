@@ -73,10 +73,9 @@ class JSONEncoder(json.JSONEncoder, _EncoderBase):
 
         if PY3:
             return ensure_text(obj, errors="backslashreplace")
-        else:
-            if isinstance(obj, binary_type):
-                return obj.decode("utf-8", errors="replace")
-            return obj
+        elif isinstance(obj, binary_type):
+            return obj.decode("utf-8", errors="replace")
+        return obj
 
 
 class JSONEncoderV2(JSONEncoder):
