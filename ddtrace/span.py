@@ -138,7 +138,7 @@ class Span(object):
         self.metrics = {}  # type: _MetricDictType
 
         # timing
-        self.start_ns = time_ns() if start is None else int(start * 1e9)
+        self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
         self.duration_ns = None  # type: Optional[int]
 
         # tracing

@@ -14,6 +14,7 @@ from ddtrace.contrib.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.filters import TraceCiVisibilityFilter
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
@@ -81,6 +82,15 @@ def pytest_configure(config):
             repository_name = _extract_repository_name(ci_tags[ci.git.REPOSITORY_URL])
             ddtrace.config.pytest["service"] = repository_name
         Pin(tags=ci_tags, _config=ddtrace.config.pytest).onto(config)
+
+
+def pytest_sessionstart(session):
+    pin = Pin.get_from(session.config)
+    if pin is not None:
+        tracer_filters = pin.tracer._filters
+        if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
+            tracer_filters += [TraceCiVisibilityFilter()]
+            pin.tracer.configure(settings={"FILTERS": tracer_filters})
 
 
 def pytest_sessionfinish(session, exitstatus):

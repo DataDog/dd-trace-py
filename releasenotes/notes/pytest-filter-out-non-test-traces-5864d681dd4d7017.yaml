@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Only for CI Visibility (``pytest`` integration): remove traces whose root span is not a test.

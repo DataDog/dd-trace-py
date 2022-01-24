@@ -121,7 +121,10 @@ class TracedServer(ObjectProxy):
     if VERSION >= (3, 12, 0):
 
         def run_operation(self, sock_info, operation, *args, **kwargs):
-            with self._datadog_trace_operation(operation) as span:
+            span = self._datadog_trace_operation(operation)
+            if span is None:
+                return self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
+            with span:
                 result = self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
                 if result and result.address:
                     set_address_tags(span, result.address)
@@ -131,7 +134,10 @@ class TracedServer(ObjectProxy):
     elif (3, 9, 0) <= VERSION < (3, 12, 0):
 
         def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
-            with self._datadog_trace_operation(operation) as span:
+            span = self._datadog_trace_operation(operation)
+            if span is None:
+                return self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
+            with span:
                 result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
                 if result and result.address:
                     set_address_tags(span, result.address)
@@ -141,7 +147,10 @@ class TracedServer(ObjectProxy):
     else:
 
         def send_message_with_response(self, operation, *args, **kwargs):
-            with self._datadog_trace_operation(operation) as span:
+            span = self._datadog_trace_operation(operation)
+            if span is None:
+                return self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
+            with span:
                 result = self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
                 if result and result.address:
                     set_address_tags(span, result.address)

@@ -353,7 +353,7 @@ TEST_EVENTS = {
             local_root_span_id=1322219321,
             span_id=24930,
             trace_type="sql",
-            trace_resource_container=["notme"],
+            trace_resource_container=[u"\x1bnotme"],
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),
@@ -460,7 +460,7 @@ TEST_EVENTS = {
             local_root_span_id=23435,
             span_id=345432,
             trace_type=ext.SpanTypes.WEB,
-            trace_resource_container=["myresource"],
+            trace_resource_container=[u"myresource"],
             nframes=3,
             wait_time_ns=74839,
             sampling_pct=10,
@@ -473,7 +473,7 @@ TEST_EVENTS = {
             local_root_span_id=23435,
             span_id=345432,
             trace_type="sql",
-            trace_resource_container=["notme"],
+            trace_resource_container=[b"notme"],
             frames=[
                 ("foobar.py", 23, "func1"),
                 ("foobar.py", 44, "func2"),

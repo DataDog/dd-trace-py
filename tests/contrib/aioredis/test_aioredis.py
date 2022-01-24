@@ -1,3 +1,5 @@
+import asyncio
+
 import aioredis
 import pytest
 
@@ -15,14 +17,21 @@ from ..config import REDIS_CONFIG
 @pytest.mark.asyncio
 @pytest.fixture
 async def redis_client():
-    r = await get_redis_instance()
+    r = await get_redis_instance(max_connections=10)  # default values
     yield r
 
 
-def get_redis_instance():
+@pytest.mark.asyncio
+@pytest.fixture
+async def single_pool_redis_client():
+    r = await get_redis_instance(max_connections=1)
+    yield r
+
+
+def get_redis_instance(max_connections: int):
     if aioredis_version >= (2, 0):
-        return aioredis.from_url("redis://127.0.0.1:%s" % REDIS_CONFIG["port"])
-    return aioredis.create_redis(("localhost", REDIS_CONFIG["port"]))
+        return aioredis.from_url("redis://127.0.0.1:%s" % REDIS_CONFIG["port"], max_connections=max_connections)
+    return aioredis.create_redis_pool(("127.0.0.1", REDIS_CONFIG["port"]), maxsize=max_connections)
 
 
 @pytest.mark.asyncio
@@ -55,8 +64,10 @@ def test_patching():
         assert not isinstance(aioredis.client.Pipeline.pipeline, ObjectProxy)
     else:
         assert isinstance(aioredis.Redis.execute, ObjectProxy)
+        assert isinstance(aioredis.commands.Redis.execute, ObjectProxy)
         unpatch()
         assert not isinstance(aioredis.Redis.execute, ObjectProxy)
+        assert not isinstance(aioredis.commands.Redis.execute, ObjectProxy)
 
 
 @pytest.mark.asyncio
@@ -64,6 +75,57 @@ def test_patching():
 async def test_basic_request(redis_client):
     val = await redis_client.get("cheese")
     assert val is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_decoding_non_utf8_args(redis_client):
+    await redis_client.set(b"\x80foo", b"\x80abc")
+    val = await redis_client.get(b"\x80foo")
+    assert val == b"\x80abc"
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
+async def test_decoding_non_utf8_pipeline_args(redis_client):
+    if aioredis_version >= (2, 0):
+        p = await redis_client.pipeline(transaction=False)
+        await p.set(b"\x80blah", "boo")
+        await p.set("foo", b"\x80abc")
+        await p.get(b"\x80blah")
+        await p.get("foo")
+    else:
+        p = redis_client.pipeline()
+        p.set(b"\x80blah", "boo")
+        p.set("foo", b"\x80abc")
+        p.get(b"\x80blah")
+        p.get("foo")
+
+    response_list = await p.execute()
+    assert response_list[0] is True  # response from redis.set is OK if successfully pushed
+    assert response_list[1] is True
+    assert response_list[2].decode() == "boo"
+    assert response_list[3] == b"\x80abc"
+
+
+@pytest.mark.skipif(aioredis_version > (2, 0), reason="only affects aioredis < 2.0")
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_closed_connection_pool(single_pool_redis_client):
+    """
+    Make sure it doesn't raise error when no free connections are available.
+    After aioredis 2.0 it raises Too many connections error when it happens.
+    """
+
+    async def execute_task():
+        """Execute call in the background as a task."""
+        return single_pool_redis_client.get("cheese")
+
+    # start running the task after blocking the pool
+    with (await single_pool_redis_client):
+        task = [asyncio.ensure_future(execute_task())]
+    # Pool is released, make sure we wait for the task to finish
+    await asyncio.gather(*task, return_exceptions=True)
 
 
 @pytest.mark.asyncio
@@ -122,6 +184,35 @@ async def test_pipeline_traced(redis_client):
     assert response_list[3].decode() == "bar"
 
 
+@pytest.mark.skipif(aioredis_version < (2, 0), reason="only supported in aioredis >= 2.0")
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_pipeline_traced_context_manager_transaction(redis_client):
+    """
+    Regression test for: https://github.com/DataDog/dd-trace-py/issues/3106
+
+    https://aioredis.readthedocs.io/en/latest/migration/#pipelines-and-transactions-multiexec
+
+    Example::
+
+        async def main():
+            redis = await aioredis.from_url("redis://localhost")
+            async with redis.pipeline(transaction=True) as pipe:
+                ok1, ok2 = await (pipe.set("key1", "value1").set("key2", "value2").execute())
+            assert ok1
+            assert ok2
+    """
+
+    async with redis_client.pipeline(transaction=True) as p:
+        set_1, set_2, get_1, get_2 = await (p.set("blah", "boo").set("foo", "bar").get("blah").get("foo").execute())
+
+    # response from redis.set is OK if successfully pushed
+    assert set_1 is True
+    assert set_2 is True
+    assert get_1.decode() == "boo"
+    assert get_2.decode() == "bar"
+
+
 @pytest.mark.asyncio
 @pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
 async def test_two_traced_pipelines(redis_client):
@@ -151,3 +242,11 @@ async def test_two_traced_pipelines(redis_client):
         response_list1[1].decode() == "boo"
     )  # response from hset is 'Integer reply: The number of fields that were added.'
     assert response_list2[1].decode() == "bar"
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot(variants={"": aioredis_version >= (2, 0), "13": aioredis_version < (2, 0)})
+async def test_parenting(redis_client):
+    with tracer.trace("web-request", service="test"):
+        await redis_client.set("blah", "boo")
+        await redis_client.get("blah")

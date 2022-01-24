@@ -10,7 +10,6 @@
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
-      "_dd.limit_psr": 1.0,
       "_dd.rule_psr": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -42,7 +41,6 @@
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
-      "_dd.limit_psr": 1.0,
       "_dd.rule_psr": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -105,7 +103,6 @@
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
-      "_dd.limit_psr": 1.0,
       "_dd.rule_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -168,7 +165,6 @@
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
-      "_dd.limit_psr": 1.0,
       "_dd.rule_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
