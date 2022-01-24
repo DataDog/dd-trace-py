@@ -65,7 +65,7 @@ class Config(object):
     available and can be updated by users.
     """
 
-    class HTTPServerConfig(object):
+    class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
 
@@ -125,7 +125,7 @@ class Config(object):
         # {DD,DATADOG}_SERVICE_NAME (deprecated) are distinct functionalities.
         self.service = os.getenv("DD_SERVICE") or os.getenv("DATADOG_SERVICE") or self.tags.get("service")
         self.version = os.getenv("DD_VERSION") or self.tags.get("version")
-        self.http_server = self.HTTPServerConfig()
+        self.http_server = self._HTTPServerConfig()
 
         self.service_mapping = parse_tags_str(get_env("service", "mapping", default=""))
 
