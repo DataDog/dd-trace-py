@@ -7,6 +7,7 @@ from typing import Tuple
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.logger import get_logger
+from ..internal.utils.deprecation import deprecated
 from ..internal.utils.deprecation import get_service_legacy
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import get_env
@@ -65,7 +66,7 @@ class Config(object):
     available and can be updated by users.
     """
 
-    class HTTPServerConfig(object):
+    class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
 
@@ -125,7 +126,7 @@ class Config(object):
         # {DD,DATADOG}_SERVICE_NAME (deprecated) are distinct functionalities.
         self.service = os.getenv("DD_SERVICE") or os.getenv("DATADOG_SERVICE") or self.tags.get("service")
         self.version = os.getenv("DD_VERSION") or self.tags.get("version")
-        self.http_server = self.HTTPServerConfig()
+        self.http_server = self._HTTPServerConfig()
 
         self.service_mapping = parse_tags_str(get_env("service", "mapping", default=""))
 
@@ -242,3 +243,10 @@ class Config(object):
         cls = self.__class__
         integrations = ", ".join(self._config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
+
+    @deprecated(
+        message="HttpServerConfig has been renamed to _HttpServerConfig and is no longer be part of the public API.",
+        version="1.0.0",
+    )
+    class HTTPServerConfig(_HTTPServerConfig):
+        pass
