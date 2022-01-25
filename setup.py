@@ -110,12 +110,8 @@ class CMake(BuildExtCommand):
 
             BuildExtCommand.build_extension(self, ext)
         except Exception as e:
-            if "DD_TESTING_RAISE" in os.environ:
-                raise
             print('WARNING: building extension "%s" failed: %s' % (ext.name, e))
-            # Remove this extension from the extension list to avoid errors
-            # during the install phase.
-            self.extensions = [item for item in self.extensions if item.name != ext.name]
+            raise
 
 
 long_description = """
