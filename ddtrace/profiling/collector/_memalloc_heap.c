@@ -103,7 +103,7 @@ heap_tracker_thaw(heap_tracker_t* heap_tracker)
        array together to be sure that there's no free in the freezer matching
        an alloc that is also in the freezer; heap_tracker_untrack_thawed does
        not care about the freezer, by definition. */
-    for (TRACEBACK_ARRAY_COUNT_TYPE i = 0; i < heap_tracker->freezer.frees.count; i++)
+    for (MEMALLOC_HEAP_PTR_ARRAY_COUNT_TYPE i = 0; i < heap_tracker->freezer.frees.count; i++)
         heap_tracker_untrack_thawed(heap_tracker, heap_tracker->freezer.frees.tab[i]);
 
     /* Reset the count to zero so we can reused the array and overwrite previous values */
@@ -149,9 +149,9 @@ memalloc_heap_untrack(void* ptr)
            enough space, we ignore the untrack. That's sad as there is a change
            the heap profile won't be valid anymore. However, that's the best we
            can do since reporting an error is not an option here. What's gonna
-           free more than 2^64 pointer anyway?!
+           free more than 2^64 pointers anyway?!
         */
-        if (global_heap_tracker.freezer.frees.count < MEMALLOC_HEAP_PTR_ARRAY_MAX)
+        if (global_heap_tracker.freezer.frees.count < MEMALLOC_HEAP_PTR_ARRAY_MAX_COUNT)
             ptr_array_append(&global_heap_tracker.freezer.frees, ptr);
     } else
         heap_tracker_untrack_thawed(&global_heap_tracker, ptr);
