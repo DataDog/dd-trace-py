@@ -22,6 +22,7 @@ from ddtrace.vendor import debtcollector
 
 from . import _hooks
 from ._monkey import patch
+from .appsec.processor import AppSecSpanProcessor
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
@@ -672,8 +673,11 @@ class Tracer(object):
                 partial_flush_min_spans=self._partial_flush_min_spans,
                 trace_processors=trace_processors,
                 writer=self.writer,
-            ),
+            )
         ]  # type: List[SpanProcessor]
+
+        if AppSecSpanProcessor is not None and asbool(get_env("appsec", "enabled", default=False)):
+            self._span_processors.append(AppSecSpanProcessor())
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
