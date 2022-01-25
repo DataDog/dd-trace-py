@@ -92,11 +92,6 @@ below:
      - False
      - Enables :ref:`Logs Injection`.
 
-       .. _dd-call-basic-config:
-   * - ``DD_CALL_BASIC_CONFIG``
-     - Boolean
-     - True
-     - Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
 
        .. _dd-trace-agent-url:
    * - ``DD_TRACE_AGENT_URL``
