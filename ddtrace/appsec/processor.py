@@ -30,6 +30,10 @@ class AppSecSpanProcessor(SpanProcessor):
     rules = attr.ib(type=str, factory=lambda: get_env("appsec", "rules", default=DEFAULT_RULES))
     _ddwaf = attr.ib(type=DDWaf, default=None)
 
+    @property
+    def enabled(self):
+        return self._ddwaf is not None
+
     def __attrs_post_init__(self):
         # type: () -> None
         if self._ddwaf is None:

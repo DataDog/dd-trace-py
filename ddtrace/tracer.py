@@ -659,8 +659,8 @@ class Tracer(object):
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
 
-    def _initialize_span_processors(self):
-        # type: () -> None
+    def _initialize_span_processors(self, appsec_enabled=asbool(get_env("appsec", "enabled", default=False))):
+        # type: (Optional[bool]) -> None
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor()]
@@ -676,8 +676,12 @@ class Tracer(object):
             )
         ]  # type: List[SpanProcessor]
 
-        if AppSecSpanProcessor is not None and asbool(get_env("appsec", "enabled", default=False)):
-            self._span_processors.append(AppSecSpanProcessor())
+        if AppSecSpanProcessor is not None and appsec_enabled:
+            try:
+                appsec_span_processor = AppSecSpanProcessor()
+                self._span_processors.append(appsec_span_processor)
+            except Exception:
+                pass  # Exception is logged from the AppSecSpanProcessor class
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

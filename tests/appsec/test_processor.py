@@ -4,6 +4,7 @@ import sys
 
 import pytest
 
+from ddtrace.appsec import AppSecSpanProcessor
 from ddtrace.ext import priority
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -12,24 +13,13 @@ from tests.utils import override_global_config
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def test_enable(appsec, tracer):
-    appsec.enable(tracer)
-    assert appsec.AppSecProcessor.enabled
-
+def test_enable(tracer):
+    tracer._initialize_span_processors(appsec_enabled=True)
     with tracer.trace("test", span_type="web") as span:
         span.set_tag("http.url", "http://example.com/.git")
         span.set_tag("http.status_code", "404")
 
     assert span.get_metric("_dd.appsec.enabled") == 1.0
-
-    appsec.disable()
-    assert not appsec.AppSecProcessor.enabled
-
-    with tracer.trace("test", span_type="web") as span:
-        span.set_tag("http.url", "http://example.com/.git")
-        span.set_tag("http.status_code", "404")
-
-    assert span.get_metric("_dd.appsec.enabled") is None
 
 
 def test_enable_import_failure():
@@ -44,40 +34,37 @@ def test_enable_import_failure():
             sys.modules.pop("ddtrace.appsec", None)
             import ddtrace.appsec  # noqa: F811
 
-            # by default enable must not crash but display errors in the logs
-            ddtrace.appsec.enable()
-
-            assert ddtrace.appsec.AppSecProcessor is None
+            assert ddtrace.appsec.AppSecSpanProcessor is None
     finally:
         sys.modules.pop("ddtrace.appsec", None)
         sys.modules.pop("ddtrace.appsec.processor", None)
 
 
-def test_enable_custom_rules(appsec):
+def test_enable_custom_rules():
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-good.json"))):
-        appsec.enable()
+        processor = AppSecSpanProcessor()
 
-    assert appsec.AppSecProcessor.enabled
+    assert processor.enabled
+    assert processor.rules == os.path.join(ROOT_DIR, "rules-good.json")
 
 
 @pytest.mark.parametrize("rule,exc", [("nonexistent", IOError), ("rules-bad.json", ValueError)])
-def test_enable_bad_rules(rule, exc, appsec):
+def test_enable_bad_rules(rule, exc,tracer):
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, rule))):
+        tracer._initialize_span_processors(appsec_enabled=True)
         with pytest.raises(exc):
-            appsec.enable()
+            AppSecSpanProcessor()
 
-        assert not appsec.AppSecProcessor.enabled
-
+    # by default enable must not crash but display errors in the logs
     with override_global_config(dict(_raise=False)):
         with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, rule))):
-            # by default enable must not crash but display errors in the logs
-            appsec.enable()
+            tracer._initialize_span_processors(appsec_enabled=True)
+            with pytest.raises(exc):
+                AppSecSpanProcessor()
 
-            assert not appsec.AppSecProcessor.enabled
 
-
-def test_retain_traces(tracer, appsec):
-    appsec.enable(tracer)
+def test_retain_traces(tracer):
+    tracer._initialize_span_processors(appsec_enabled=True)
 
     with tracer.trace("test", span_type="web") as span:
         span.set_tag("http.url", "http://example.com/.git")
@@ -86,8 +73,8 @@ def test_retain_traces(tracer, appsec):
     assert span.context.sampling_priority == priority.USER_KEEP
 
 
-def test_valid_json(tracer, appsec):
-    appsec.enable(tracer)
+def test_valid_json(tracer):
+    tracer._initialize_span_processors(appsec_enabled=True)
 
     with tracer.trace("test", span_type="web") as span:
         span.set_tag("http.url", "http://example.com/.git")
