@@ -1,6 +1,6 @@
 ---
 upgrade:
   - |
-    ddtrace will no longer handle basic configuration of a logging system. `logging.basicConfig()` should be called in a client application.
+    ddtrace will no longer call logging.baseConfig() on startup.
 
     ``DD_CALL_BASIC_CONFIG`` is no longer supported in the ddtrace api.
