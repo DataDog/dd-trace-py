@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix JSON encoding error when a ``bytes`` string is used for span metadata.
