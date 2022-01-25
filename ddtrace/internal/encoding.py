@@ -61,6 +61,8 @@ class JSONEncoder(json.JSONEncoder, _EncoderBase):
     @staticmethod
     def _normalize_span(span):
         # Ensure all string attributes are actually strings and not bytes
+        # DEV: We are deferring meta/metrics to reduce any performance issues.
+        #      Meta/metrics may still contain `bytes` and have encoding issues.
         span["resource"] = JSONEncoder._normalize_str(span["resource"])
         span["name"] = JSONEncoder._normalize_str(span["name"])
         span["service"] = JSONEncoder._normalize_str(span["service"])
