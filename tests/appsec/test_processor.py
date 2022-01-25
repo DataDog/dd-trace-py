@@ -49,7 +49,7 @@ def test_enable_custom_rules():
 
 
 @pytest.mark.parametrize("rule,exc", [("nonexistent", IOError), ("rules-bad.json", ValueError)])
-def test_enable_bad_rules(rule, exc,tracer):
+def test_enable_bad_rules(rule, exc, tracer):
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, rule))):
         tracer._initialize_span_processors(appsec_enabled=True)
         with pytest.raises(exc):

@@ -87,4 +87,3 @@ class AppSecSpanProcessor(SpanProcessor):
                 span.meta["appsec.event"] = "true"
                 span.meta["_dd.appsec.json"] = '{"triggers":%s}' % (res,)
                 span.set_tag(MANUAL_KEEP_KEY)
-

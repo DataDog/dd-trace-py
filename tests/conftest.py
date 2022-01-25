@@ -89,4 +89,3 @@ def snapshot_context(request):
             yield snapshot
 
     return _snapshot
-
