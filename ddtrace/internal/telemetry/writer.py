@@ -40,8 +40,8 @@ class TelemetryWriter(PeriodicService):
         # type: (Optional[str]) -> None
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
-        self.enabled = False  # type: bool
-        self.agent_url = agent_url or get_trace_url()
+        self._enabled = False  # type: bool
+        self._agent_url = agent_url or get_trace_url()
 
         self._encoder = JSONEncoderV2()
         self._events_queue = []  # type: List[Dict]
@@ -56,7 +56,7 @@ class TelemetryWriter(PeriodicService):
         """Sends a telemetry request to the trace agent"""
         with StopWatch() as sw:
             try:
-                conn = get_connection(self.agent_url)
+                conn = get_connection(self._agent_url)
                 rb_json = self._encoder.encode(request)
                 conn.request("POST", self.ENDPOINT, rb_json, self._create_headers(request["request_type"]))
 
@@ -65,7 +65,7 @@ class TelemetryWriter(PeriodicService):
                     "sent %d in %.5fs to %s/%s. response: %s",
                     len(rb_json),
                     sw.elapsed(),
-                    self.agent_url,
+                    self._agent_url,
                     self.ENDPOINT,
                     resp.status,
                 )
@@ -102,14 +102,14 @@ class TelemetryWriter(PeriodicService):
                 if resp.status >= 300:
                     log.warning(
                         "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
-                        self.agent_url,
+                        self._agent_url,
                         self.ENDPOINT,
                         resp.status,
                     )
             except Exception:
                 log.warning(
                     "failed to send telemetry to the Datadog Agent at %s/%s.",
-                    self.agent_url,
+                    self._agent_url,
                     self.ENDPOINT,
                     exc_info=True,
                 )
@@ -129,7 +129,7 @@ class TelemetryWriter(PeriodicService):
             Payload types accepted by telemetry/proxy v1: app-started, app-closing, app-integrations-change
         """
         with self._lock:
-            if not self.enabled:
+            if not self._enabled:
                 return
 
             request = self._create_telemetry_request(payload, payload_type, self._sequence)
@@ -145,7 +145,7 @@ class TelemetryWriter(PeriodicService):
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
         with self._lock:
-            if not self.enabled:
+            if not self._enabled:
                 return
 
             integration = {
@@ -227,7 +227,7 @@ class TelemetryWriter(PeriodicService):
             forksafe.unregister(self._restart)
 
             self.stop()
-            self.enabled = False
+            self._enabled = False
 
             self.join()
 
@@ -242,7 +242,7 @@ class TelemetryWriter(PeriodicService):
                 return
 
             self.start()
-            self.enabled = True
+            self._enabled = True
 
             forksafe.register(self._restart)
 

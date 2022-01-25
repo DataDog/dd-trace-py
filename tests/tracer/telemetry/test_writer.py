@@ -36,7 +36,7 @@ def mock_time():
 @pytest.fixture
 def telemetry_writer():
     telemetry_writer = TelemetryWriter(AGENT_URL)
-    telemetry_writer.enabled = True
+    telemetry_writer._enabled = True
     yield telemetry_writer
 
 
@@ -44,7 +44,7 @@ def telemetry_writer():
 def telemetry_writer_disabled():
     telemetry_writer = TelemetryWriter()
     # TelemetryWriter should be disabled by default
-    assert telemetry_writer.enabled is False
+    assert telemetry_writer._enabled is False
     yield telemetry_writer
 
 
@@ -194,7 +194,7 @@ def test_send_failing_request(mock_status, mock_send_request, telemetry_writer):
         # asserts unsuccessful status code was logged
         log.warning.assert_called_with(
             "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
-            telemetry_writer.agent_url,
+            telemetry_writer._agent_url,
             telemetry_writer.ENDPOINT,
             mock_status,
         )
@@ -207,7 +207,7 @@ def test_send_request_exception(telemetry_writer):
     # create a telemetry writer with an invalid agent url.
     # this will raise an Exception on _send_request
     telemetry_writer = TelemetryWriter("http://hostthatdoesntexist:1234")
-    telemetry_writer.enabled = True
+    telemetry_writer._enabled = True
 
     with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
         # sends failing app-closing event
