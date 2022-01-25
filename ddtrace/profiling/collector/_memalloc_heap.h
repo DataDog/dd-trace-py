@@ -25,7 +25,8 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size);
 void
 memalloc_heap_untrack(void* ptr);
 
-#define MEMALLOC_HEAP_PTR_ARRAY_MAX UINT64_MAX
-DO_ARRAY(void *, ptr, uint64_t, DO_NOTHING)
+#define MEMALLOC_HEAP_PTR_ARRAY_COUNT_TYPE uint64_t
+#define MEMALLOC_HEAP_PTR_ARRAY_MAX_COUNT UINT64_MAX
+DO_ARRAY(void *, ptr, MEMALLOC_HEAP_PTR_ARRAY_COUNT_TYPE, DO_NOTHING)
 
 #endif
