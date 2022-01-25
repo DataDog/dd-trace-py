@@ -245,7 +245,7 @@ class Config(object):
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
 
     @deprecated(
-        message="HttpServerConfig has been renamed to _HttpServerConfig and is no longer be part of the public API.",
+        message="HttpServerConfig will be removed",
         version="1.0.0",
     )
     class HTTPServerConfig(_HTTPServerConfig):
