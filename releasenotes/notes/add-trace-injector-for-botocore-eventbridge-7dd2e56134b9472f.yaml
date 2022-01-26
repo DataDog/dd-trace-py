@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add the ability to inject trace context into AWS EventBridge events in the botocore Patcher.

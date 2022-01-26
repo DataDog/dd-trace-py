@@ -7,6 +7,7 @@ import zipfile
 
 import botocore.session
 from moto import mock_ec2
+from moto import mock_events
 from moto import mock_kinesis
 from moto import mock_kms
 from moto import mock_lambda
@@ -698,6 +699,90 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(span.get_tag("aws.operation"), "Invoke")
         assert_is_measured(span)
         lamb.delete_function(FunctionName="black-sabbath")
+
+    @mock_events
+    def test_event_bridge_single_entry_trace_injection(self):
+        bridge = self.session.create_client("events", region_name="us-west-2")
+        bridge.create_event_bus(Name="a-test-bus")
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
+
+        entries = [
+            {
+                "Source": "some-event-source",
+                "DetailType": "some-event-detail-type",
+                "Detail": json.dumps({"foo": "bar"}),
+                "EventBusName": "a-test-bus",
+            }
+        ]
+        bridge.put_events(Entries=entries)
+
+        spans = self.get_spans()
+        assert spans
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+
+        # For some reason, put_events replaces " with ' , so the json package can't parse it
+        str_entries = span.get_tag("params.Entries")
+        str_entries = str_entries.replace('"', '\\"')  # replace " with \"
+        str_entries = str_entries.replace("'", '"')  # replace ' with "
+
+        entries = json.loads(str_entries)
+        self.assertEqual(len(entries), 1)
+        for e in entries:
+            self.assertTrue("Detail" in e)
+            detail = json.loads(e["Detail"])
+            self.assertTrue(HTTP_HEADER_PARENT_ID in detail["_datadog"])
+            self.assertTrue(HTTP_HEADER_TRACE_ID in detail["_datadog"])
+            self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        bridge.delete_event_bus(Name="a-test-bus")
+
+    @mock_events
+    def test_event_bridge_muliple_entries_trace_injection(self):
+        bridge = self.session.create_client("events", region_name="us-west-2")
+        bridge.create_event_bus(Name="a-test-bus")
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
+
+        entries = [
+            {
+                "Source": "some-event-source",
+                "DetailType": "some-event-detail-type",
+                "Detail": '{"foo":"bar"}',
+                "EventBusName": "a-test-bus",
+            },
+            {
+                "Source": "another-event-source",
+                "DetailType": "a-different-event-detail-type",
+                "Detail": '{"foo":"baz"}',
+                "EventBusName": "a-test-bus",
+            },
+        ]
+        bridge.put_events(Entries=entries)
+
+        spans = self.get_spans()
+        assert spans
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+
+        # For some reason, put_events replaces " with ' , so the json package can't parse it
+        str_entries = span.get_tag("params.Entries")
+        str_entries = str_entries.replace('"', '\\"')  # replace " with \"
+        str_entries = str_entries.replace("'", '"')  # replace ' with "
+
+        entries = json.loads(str_entries)
+        self.assertEqual(len(entries), 2)
+        for e in entries:
+            self.assertTrue("Detail" in e)
+            detail = json.loads(e["Detail"])
+            self.assertTrue(HTTP_HEADER_PARENT_ID in detail["_datadog"])
+            self.assertTrue(HTTP_HEADER_TRACE_ID in detail["_datadog"])
+            self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        bridge.delete_event_bus(Name="a-test-bus")
 
     @mock_kms
     def test_kms_client(self):

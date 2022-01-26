@@ -69,6 +69,27 @@ def inject_trace_to_sqs_or_sns_message(args, span):
     inject_trace_data_to_message_attributes(trace_data, params)
 
 
+def inject_trace_to_event_bridge_detail(args, span):
+    params = args[1]
+    if "Entries" in params:
+        for entry in params["Entries"]:
+            if "Detail" in entry:
+                try:
+                    detail = json.loads(entry["Detail"])
+                    dd_context = detail.get("_datadog", {})
+                    HTTPPropagator.inject(span.context, dd_context)
+                    detail["_datadog"] = dd_context
+                    entry["Detail"] = json.dumps(detail)
+                except Exception:
+                    log.warning("Unable to parse Detail and inject span context")
+            else:
+                detail = {}
+                HTTPPropagator.inject(span.context, detail)
+                entry["Detail"] = json.dumps(detail)
+    else:
+        log.debug("Unable to inject context. The Event Bridge event had no Entries.")
+
+
 def modify_client_context(client_context_object, trace_headers):
     if config.botocore["invoke_with_legacy_context"]:
         trace_headers = {"_datadog": trace_headers}
@@ -142,6 +163,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                     inject_trace_to_sqs_or_sns_message(args, span)
                 if endpoint_name == "sqs" and operation == "SendMessageBatch":
                     inject_trace_to_sqs_or_sns_batch_message(args, span)
+                if endpoint_name == "events" and operation == "PutEvents":
+                    inject_trace_to_event_bridge_detail(args, span)
                 if endpoint_name == "sns" and operation == "Publish":
                     inject_trace_to_sqs_or_sns_message(args, span)
                 if endpoint_name == "sns" and operation == "PublishBatch":
