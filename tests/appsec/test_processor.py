@@ -21,6 +21,7 @@ def test_enable(tracer):
 
     assert span.get_metric("_dd.appsec.enabled") == 1.0
 
+
 def test_enable_custom_rules():
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-good.json"))):
         processor = AppSecSpanProcessor()
