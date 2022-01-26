@@ -49,7 +49,6 @@ def trace_render(func, instance, args, kwargs):
         log.debug("No tracer found in request, will not be traced")
         return func(*args, **kwargs)
 
-    # FIX ME: span.tracer is not a valid attribute
     with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE):
         return func(*args, **kwargs)
 
