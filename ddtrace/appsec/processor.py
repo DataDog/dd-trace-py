@@ -10,7 +10,6 @@ from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
-from ddtrace.utils.formats import get_env
 
 
 if TYPE_CHECKING:
@@ -22,7 +21,46 @@ DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
 log = get_logger(__name__)
 
 
-def get_rule_file():
+def get_env(*parts, **kwargs):
+    """Retrieves environment variables value for the given integration. It must be used
+    for consistency between integrations. The implementation is backward compatible
+    with legacy nomenclature:
+
+    * `DATADOG_` is a legacy prefix with lower priority
+    * `DD_` environment variables have the highest priority
+    * the environment variable is built concatenating `integration` and `variable`
+      arguments
+    * return `default` otherwise
+
+    :param parts: environment variable parts that will be joined with ``_`` to generate the name
+    :type parts: :obj:`str`
+    :param kwargs: ``default`` is the only supported keyword argument which sets the default value
+        if no environment variable is found
+    :rtype: :obj:`str` | ``kwargs["default"]``
+    :returns: The string environment variable value or the value of ``kwargs["default"]`` if not found
+    """
+    default = kwargs.get("default")
+
+    key = "_".join(parts)
+    key = key.upper()
+    legacy_env = "DATADOG_{}".format(key)
+    env = "DD_{}".format(key)
+
+    value = os.getenv(env)
+    legacy = os.getenv(legacy_env)
+    # if legacy:
+    #     # Deprecation: `DATADOG_` variables are deprecated
+    #     deprecation(
+    #         name="DATADOG_",
+    #         message="Use `DD_` prefix instead",
+    #         version="1.0.0",
+    #     )
+
+    value = value or legacy
+    return value if value else default
+
+
+def get_rules():
     return get_env("appsec", "rules", default=DEFAULT_RULES)
 
 
@@ -31,7 +69,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
 
-    rules = attr.ib(type=str, factory=get_rule_file)
+    rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
 
     @property
