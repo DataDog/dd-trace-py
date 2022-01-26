@@ -31,7 +31,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
 
-    rules = attr.ib(type=str, factory=lambda: get_env("appsec", "rules", default=DEFAULT_RULES))
+    rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
 
     @property
