@@ -270,6 +270,6 @@ def _attempt_patch_module(module):
                     "%s.patch is not found. '%s' is not configured for this environment" % (path, module)
                 )
 
-            imported_module.patch()  # type: ignore
+            imported_module.patch()
             _PATCHED_MODULES.add(module)
             return True

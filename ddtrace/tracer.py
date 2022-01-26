@@ -374,7 +374,7 @@ class Tracer(object):
         else:
             # No URL parts have updated and there's no previous writer to
             # get the URL from.
-            url = None  # type: ignore
+            url = None
 
         try:
             self.writer.stop()
