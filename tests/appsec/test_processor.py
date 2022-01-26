@@ -21,24 +21,6 @@ def test_enable(tracer):
 
     assert span.get_metric("_dd.appsec.enabled") == 1.0
 
-
-def test_enable_import_failure(tracer):
-    # Explicitly break the processor to simulate an import failure
-    sys.modules["ddtrace.appsec.processor"] = {}
-    try:
-        sys.modules.pop("ddtrace.appsec", None)
-        with pytest.raises(ImportError):
-            tracer._initialize_span_processors(appsec_enabled=True)
-
-        with override_global_config(dict(_raise=False)):
-            sys.modules.pop("ddtrace.appsec", None)
-            tracer._initialize_span_processors(appsec_enabled=True)
-
-    finally:
-        sys.modules.pop("ddtrace.appsec", None)
-        sys.modules.pop("ddtrace.appsec.processor", None)
-
-
 def test_enable_custom_rules():
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-good.json"))):
         processor = AppSecSpanProcessor()
@@ -77,3 +59,20 @@ def test_valid_json(tracer):
         span.set_tag("http.status_code", "404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+
+def test_enable_import_failure(tracer):
+    # Explicitly break the processor to simulate an import failure
+    sys.modules["ddtrace.appsec.processor"] = {}
+    try:
+        sys.modules.pop("ddtrace.appsec", None)
+        with pytest.raises(ImportError):
+            tracer._initialize_span_processors(appsec_enabled=True)
+
+        with override_global_config(dict(_raise=False)):
+            sys.modules.pop("ddtrace.appsec", None)
+            tracer._initialize_span_processors(appsec_enabled=True)
+
+    finally:
+        sys.modules.pop("ddtrace.appsec", None)
+        sys.modules.pop("ddtrace.appsec.processor", None)
