@@ -516,11 +516,19 @@ venv = Venv(
                         "django": [
                             ">=2.1,<2.2",
                             ">=2.2,<2.3",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "django": [
                             "~=3.0",
                             "~=3.0.0",
                             "~=3.1.0",
                             "~=3.2.0",
                         ],
+                        "channels": ["~=3.0", latest],
                     },
                 ),
                 Venv(
@@ -530,6 +538,7 @@ venv = Venv(
                             "~=4.0.0",
                             latest,
                         ],
+                        "channels": ["~=3.0", latest],
                     },
                 ),
             ],
@@ -680,7 +689,8 @@ venv = Venv(
         ),
         Venv(
             name="flask",
-            command="pytest {cmdargs} tests/contrib/flask",
+            # TODO: Re-enable coverage for Flask tests
+            command="pytest --no-cov {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest},
             venvs=[
                 # Flask == 0.12.0
@@ -694,7 +704,8 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(max_version="3.9"),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    # TODO: Re-enable coverage for Flask tests
+                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
@@ -714,7 +725,8 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    # TODO: Re-enable coverage for Flask tests
+                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
@@ -740,7 +752,8 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    # TODO: Re-enable coverage for Flask tests
+                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
@@ -757,7 +770,8 @@ venv = Venv(
         ),
         Venv(
             name="flask_cache",
-            command="pytest {cmdargs} tests/contrib/flask_cache",
+            # TODO: Re-enable coverage for Flask tests
+            command="pytest --no-cov {cmdargs} tests/contrib/flask_cache",
             pkgs={
                 "python-memcached": latest,
                 "redis": "~=2.0",
