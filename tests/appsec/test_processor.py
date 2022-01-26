@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from ddtrace.appsec import AppSecSpanProcessor
+from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.ext import priority
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -22,19 +22,18 @@ def test_enable(tracer):
     assert span.get_metric("_dd.appsec.enabled") == 1.0
 
 
-def test_enable_import_failure():
+def test_enable_import_failure(tracer):
     # Explicitly break the processor to simulate an import failure
     sys.modules["ddtrace.appsec.processor"] = {}
     try:
         sys.modules.pop("ddtrace.appsec", None)
         with pytest.raises(ImportError):
-            import ddtrace.appsec
+            tracer._initialize_span_processors(appsec_enabled=True)
 
         with override_global_config(dict(_raise=False)):
             sys.modules.pop("ddtrace.appsec", None)
-            import ddtrace.appsec  # noqa: F811
+            tracer._initialize_span_processors(appsec_enabled=True)
 
-            assert ddtrace.appsec.AppSecSpanProcessor is None
     finally:
         sys.modules.pop("ddtrace.appsec", None)
         sys.modules.pop("ddtrace.appsec.processor", None)
@@ -51,16 +50,13 @@ def test_enable_custom_rules():
 @pytest.mark.parametrize("rule,exc", [("nonexistent", IOError), ("rules-bad.json", ValueError)])
 def test_enable_bad_rules(rule, exc, tracer):
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, rule))):
-        tracer._initialize_span_processors(appsec_enabled=True)
         with pytest.raises(exc):
-            AppSecSpanProcessor()
+            tracer._initialize_span_processors(appsec_enabled=True)
 
     # by default enable must not crash but display errors in the logs
     with override_global_config(dict(_raise=False)):
         with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, rule))):
             tracer._initialize_span_processors(appsec_enabled=True)
-            with pytest.raises(exc):
-                AppSecSpanProcessor()
 
 
 def test_retain_traces(tracer):

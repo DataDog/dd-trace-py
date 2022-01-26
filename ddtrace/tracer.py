@@ -22,7 +22,6 @@ from ddtrace.vendor import debtcollector
 
 from . import _hooks
 from ._monkey import patch
-from .appsec.processor import AppSecSpanProcessor
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
@@ -676,12 +675,22 @@ class Tracer(object):
             )
         ]  # type: List[SpanProcessor]
 
-        if AppSecSpanProcessor is not None and appsec_enabled:
+        if appsec_enabled:
             try:
+                from .appsec.processor import AppSecSpanProcessor
+
                 appsec_span_processor = AppSecSpanProcessor()
                 self._span_processors.append(appsec_span_processor)
-            except Exception:
-                pass  # Exception is logged from the AppSecSpanProcessor class
+            except Exception as e:
+                # DDAS-001-01
+                log.error(
+                    "[DDAS-001-01] "
+                    "AppSec could not start because of an unexpected error. No security activities will be collected. "
+                    "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
+                    repr(e),
+                )
+                if config._raise:
+                    raise
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
