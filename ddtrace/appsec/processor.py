@@ -22,12 +22,16 @@ DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
 log = get_logger(__name__)
 
 
+def get_rule_file():
+    return get_env("appsec", "rules", default=DEFAULT_RULES)
+
+
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
 
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
 
-    rules = attr.ib(type=str, factory=lambda: get_env("appsec", "rules", default=DEFAULT_RULES))
+    rules = attr.ib(type=str, factory=get_rule_file)
     _ddwaf = attr.ib(type=DDWaf, default=None)
 
     @property
