@@ -23,7 +23,6 @@ log = get_logger(__name__)
 
 
 def get_rules():
-    print(get_env)
     return get_env("appsec", "rules", default=DEFAULT_RULES)
 
 
@@ -32,7 +31,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
 
-    rules = attr.ib(type=str, factory=get_rules)
+    rules = attr.ib(type=str, factory=lambda: get_env("appsec", "rules", default=DEFAULT_RULES))
     _ddwaf = attr.ib(type=DDWaf, default=None)
 
     @property
