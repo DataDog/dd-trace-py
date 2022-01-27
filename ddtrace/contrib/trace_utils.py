@@ -301,7 +301,7 @@ def set_http_meta(
 
     data = {}
     _add_if_needed(gateway, data, raw_uri, ADDRESSES.SERVER_REQUEST_URI_RAW)
-    _add_if_needed(gateway, data, status_code, ADDRESSES.SERVER_RESPONSE_STATUS)
+    _add_if_needed(gateway, data, status_code, ADDRESSES.SERVER_RESPONSE_STATUS)  # TODO(vdeturckheim): always string?
     _add_if_needed(gateway, data, query, ADDRESSES.SERVER_REQUEST_QUERY, format_query)
     _add_if_needed(gateway, data, request_headers, ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
     req_cookies_key = ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value
