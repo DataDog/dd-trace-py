@@ -38,7 +38,7 @@ from libc.stdint cimport uintptr_t
 from libc.string cimport memset
 
 
-DEFAULT_DDWAF_TIMEOUT_MS=5
+DEFAULT_DDWAF_TIMEOUT_MS=20
 
 
 cdef extern from "Python.h":
