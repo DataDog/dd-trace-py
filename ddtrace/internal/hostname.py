@@ -11,3 +11,8 @@ def get_hostname():
     if not _hostname:
         _hostname = socket.gethostname()
     return _hostname
+
+
+def _reset():
+    global _hostname
+    _hostname = None

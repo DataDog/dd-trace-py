@@ -592,6 +592,8 @@ jobs:
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
+          # TODO: Re-enable coverage for Flask tests
+          store_coverage: false
           pattern: 'flask(_cache)?'
 
   gevent:

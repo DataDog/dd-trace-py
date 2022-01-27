@@ -1,18 +1,15 @@
 import errno
 import json
 import os.path
-from typing import Any
-from typing import ClassVar
-from typing import Optional
+import threading
 from typing import TYPE_CHECKING
 
 import attr
 
-import ddtrace
-from ddtrace import config
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.processor import SpanProcessor
 from ddtrace.utils.formats import get_env
 
 
@@ -25,15 +22,21 @@ DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
 log = get_logger(__name__)
 
 
-@attr.s(eq=False)
-class AppSecProcessor(object):
+def get_rules():
+    return get_env("appsec", "rules", default=DEFAULT_RULES)
 
-    tracer = attr.ib(type=ddtrace.Tracer, default=ddtrace.tracer)
-    rules = attr.ib(type=str, factory=lambda: get_env("appsec", "rules", default=DEFAULT_RULES))
+
+@attr.s(eq=False)
+class AppSecSpanProcessor(SpanProcessor):
+
+    _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
+
+    rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
 
-    enabled = False  # type: ClassVar[bool]
-    _instance = None  # type: ClassVar[Optional[AppSecProcessor]]
+    @property
+    def enabled(self):
+        return self._ddwaf is not None
 
     def __attrs_post_init__(self):
         # type: () -> None
@@ -64,59 +67,30 @@ class AppSecProcessor(object):
                 log.warning("WAF initialization failed")
                 raise
 
-    @classmethod
-    def enable(cls, *args, **kwargs):
-        # type: (Any, Any) -> None
-        if cls._instance is not None:
-            return
-
-        try:
-            processor = cls(*args, **kwargs)
-        except Exception:
-            log.warning("AppSec module failed to load.", exc_info=True)
-            if config._raise:
-                raise
-            return
-
-        # Automatically enable the AppSec processor on the tracer
-        processor.tracer.on_start_span(processor._attach_web_span)
-        cls._instance = processor
-        cls.enabled = True
-        log.info("AppSec module is enabled.")
-
-    @classmethod
-    def disable(cls):
-        # type: () -> None
-        if cls._instance is None:
-            return
-        # Will only disable AppSec for new spans
-        cls._instance.tracer.deregister_on_start_span(cls._instance._attach_web_span)
-        cls._instance = None
-        cls.enabled = False
-
-    def _attach_web_span(self, span):
+    def on_span_start(self, span):
         # type: (Span) -> None
-        if span.span_type is not None and span.span_type == "web":
-            # Insert ourself before the tracer's span processors
-            span._on_finish_callbacks.insert(0, self.on_span_finish)
+        pass
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        span.set_metric("_dd.appsec.enabled", 1.0)
-        span.set_tag("_dd.runtime_family", "python")
-        data = {
-            "server.request.uri.raw": span.get_tag("http.url"),
-            "server.response.status": span.get_tag("http.status_code"),
-        }
-        # DDAS-001-00
+        with self._lock:
+            if span.span_type is None or span.span_type != "web":
+                return
+            span.set_metric("_dd.appsec.enabled", 1.0)
+            span.set_tag("_dd.runtime_family", "python")
+            data = {
+                "server.request.uri.raw": span.get_tag("http.url"),
+                "server.response.status": span.get_tag("http.status_code"),
+            }
+            # DDAS-001-00
         log.debug("Executing AppSec In-App WAF with parameters: %s", data)
         # res = self._ddwaf.run(data)
         context = self._ddwaf.create_waf_context()
         res = context.run(data)
         context.dispose()
         if res["data"] is not None:
-            # Partial DDAS-011-00
-            log.debug("AppSec In-App WAF returned: %s", res)
-            span.set_tag("appsec.event", "true")
-            span.set_tag("_dd.appsec.json", '{"triggers":%s}' % (res["data"],))
-            span.set_tag(MANUAL_KEEP_KEY)
+                # Partial DDAS-011-00
+                log.debug("AppSec In-App WAF returned: %s", res)
+                span.meta["appsec.event"] = "true"
+                span.meta["_dd.appsec.json"] = '{"triggers":%s}' % (res,)
+                span.set_tag(MANUAL_KEEP_KEY)
