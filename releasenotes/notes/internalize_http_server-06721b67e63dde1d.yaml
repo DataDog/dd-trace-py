@@ -1,4 +1,4 @@
 ---
 upgrade:
   - |
-    Remove HTTPServerConfig from the public api
+    HTTPServerConfig was removed from the public api
