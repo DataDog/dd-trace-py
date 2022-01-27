@@ -60,7 +60,7 @@ def _get_default_heap_sample_size(
         return 0
 
     try:
-        from ddtrace.vendor import psutil
+        import psutil
 
         total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
     except Exception:

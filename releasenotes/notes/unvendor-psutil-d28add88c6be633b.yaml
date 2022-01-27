@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    ``psutil>=5.6.7`` has been added as a package dependency.

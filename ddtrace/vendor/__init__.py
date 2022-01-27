@@ -63,15 +63,6 @@ Notes:
    Removed dependency on `pbr` and manually set `__version__`
 
 
-psutil
-------
-
-Website: https://github.com/giampaolo/psutil
-Source: https://github.com/giampaolo/psutil
-Version: 5.6.7
-License: BSD 3
-
-
 contextvars
 -------------
 
@@ -94,4 +85,4 @@ from ..internal.logger import get_logger
 from .dogstatsd import base
 
 
-base.log = get_logger('ddtrace.vendor.dogstatsd')
+base.log = get_logger("ddtrace.vendor.dogstatsd")

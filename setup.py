@@ -174,6 +174,7 @@ setup(
         "attrs>=19.2.0",
         "six>=1.12.0",
         "pep562; python_version<'3.7'",
+        "psutil>=5.6.7",
     ],
     extras_require={
         # users can include opentracing by having:
@@ -264,6 +265,5 @@ setup(
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
-    + get_exts_for("wrapt")
-    + get_exts_for("psutil"),
+    + get_exts_for("wrapt"),
 )
