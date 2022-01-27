@@ -5,6 +5,7 @@ import sys
 import pytest
 
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import priority
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -16,8 +17,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 def test_enable(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
     with tracer.trace("test", span_type="web") as span:
-        span.set_tag("http.url", "http://example.com/.git")
-        span.set_tag("http.status_code", "404")
+        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert span.get_metric("_dd.appsec.enabled") == 1.0
 
@@ -46,8 +46,7 @@ def test_retain_traces(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
     with tracer.trace("test", span_type="web") as span:
-        span.set_tag("http.url", "http://example.com/.git")
-        span.set_tag("http.status_code", "404")
+        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert span.context.sampling_priority == priority.USER_KEEP
 
@@ -56,8 +55,7 @@ def test_valid_json(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
     with tracer.trace("test", span_type="web") as span:
-        span.set_tag("http.url", "http://example.com/.git")
-        span.set_tag("http.status_code", "404")
+        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 

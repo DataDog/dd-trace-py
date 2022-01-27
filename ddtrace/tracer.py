@@ -31,6 +31,7 @@ from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
+from .gateway import Gateway
 from .internal import agent
 from .internal import atexit
 from .internal import compat
@@ -171,6 +172,7 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
+        self.gateway = Gateway()
 
     def _atexit(self):
         # type: () -> None
@@ -680,6 +682,7 @@ class Tracer(object):
                 from .appsec.processor import AppSecSpanProcessor
 
                 appsec_span_processor = AppSecSpanProcessor()
+                appsec_span_processor.setup(self.gateway)
                 self._span_processors.append(appsec_span_processor)
             except Exception as e:
                 # DDAS-001-01
@@ -761,6 +764,12 @@ class Tracer(object):
         )
 
     trace = _trace
+
+    def current_context_store(self):
+        span = self.current_root_span()
+        if span is None:
+            return None
+        return span.store
 
     def current_root_span(self):
         # type: () -> Optional[Span]

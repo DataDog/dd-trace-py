@@ -15,6 +15,7 @@ from typing import Tuple
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
+from ddtrace.gateway import ADDRESSES
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -230,16 +231,37 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
+def _identity(x):
+    return x
+
+
+def _add_if_needed(gateway, target, original_value, address, formatter=_identity):
+    if original_value is None:
+        return
+    key = address.value
+    if not gateway.is_needed(key):
+        return
+    target[key] = formatter(original_value)
+
+
 def set_http_meta(
     span,
     integration_config,
     method=None,
     url=None,
+    raw_uri=None,
     status_code=None,
     status_msg=None,
     query=None,
+    format_query=_identity,
     request_headers=None,
+    format_request_headers=_identity,
     response_headers=None,
+    format_response_headers=_identity,
+    request_body=None,
+    format_request_body=_identity,
+    request_path_params=None,
+    format_request_path_params=_identity,
     retries_remain=None,
 ):
     if method is not None:
@@ -272,6 +294,33 @@ def set_http_meta(
 
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
+
+    gateway = span.tracer.gateway
+    if gateway.needed_address_count == 0:
+        return
+
+    data = {}
+    _add_if_needed(gateway, data, raw_uri, ADDRESSES.SERVER_REQUEST_URI_RAW)
+    _add_if_needed(gateway, data, status_code, ADDRESSES.SERVER_RESPONSE_STATUS)
+    _add_if_needed(gateway, data, query, ADDRESSES.SERVER_REQUEST_QUERY, format_query)
+    _add_if_needed(gateway, data, request_headers, ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
+    req_cookies_key = ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value
+    if req_cookies_key in data and "cookies" in data[req_cookies_key]:
+        del data[req_cookies_key]["cookies"]
+    _add_if_needed(
+        gateway, data, response_headers, ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers
+    )
+    res_cookies_key = ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES.value
+    if res_cookies_key in data and "cookies" in data[res_cookies_key]:
+        del data[res_cookies_key]["cookies"]
+    _add_if_needed(gateway, data, request_body, ADDRESSES.SERVER_REQUEST_BODY, format_request_body)
+    _add_if_needed(gateway, data, request_path_params, ADDRESSES.SERVER_REQUEST_PATH_PARAMS, format_request_path_params)
+
+    if len(data.keys()) == 0:
+        return
+
+    store = span.tracer.current_context_store()
+    gateway.propagate(store, data)
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):

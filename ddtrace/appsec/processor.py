@@ -8,6 +8,7 @@ import attr
 
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.gateway import Gateway
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.utils.formats import get_env
@@ -78,10 +79,10 @@ class AppSecSpanProcessor(SpanProcessor):
                 return
             span.set_metric("_dd.appsec.enabled", 1.0)
             span.set_tag("_dd.runtime_family", "python")
-            data = {
-                "server.request.uri.raw": span.get_tag("http.url"),
-                "server.response.status": span.get_tag("http.status_code"),
-            }
+            store = span.store  # since we are on the 'web' span, the store is here!
+            if "kept_addresses" not in store:
+                return
+            data = store["kept_addresses"]
             # DDAS-001-00
             log.debug("Executing AppSec In-App WAF with parameters: %s", data)
             res = self._ddwaf.run(data)
@@ -91,3 +92,8 @@ class AppSecSpanProcessor(SpanProcessor):
                 span.meta["appsec.event"] = "true"
                 span.meta["_dd.appsec.json"] = '{"triggers":%s}' % (res,)
                 span.set_tag(MANUAL_KEEP_KEY)
+
+    def setup(self, gateway):
+        # type: (Gateway) -> None
+        for address in self._ddwaf.required_data:
+            gateway.mark_needed(address)

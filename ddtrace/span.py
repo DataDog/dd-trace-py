@@ -66,6 +66,7 @@ class Span(object):
         "meta",
         "error",
         "metrics",
+        "store",
         "_span_type",
         "start_ns",
         "duration_ns",
@@ -138,6 +139,7 @@ class Span(object):
         self.meta = {}  # type: _MetaDictType
         self.error = 0
         self.metrics = {}  # type: _MetricDictType
+        self.store = {}  # type: Dict
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
