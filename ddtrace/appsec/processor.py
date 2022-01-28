@@ -77,7 +77,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if span.span_type is None or span.span_type != "web":
                 return
             span.set_metric("_dd.appsec.enabled", 1.0)
-            span.set_tag("_dd.runtime_family", "python")
+            span._set_str_tag("_dd.runtime_family", "python")
             data = {
                 "server.request.uri.raw": span.get_tag("http.url"),
                 "server.response.status": span.get_tag("http.status_code"),
