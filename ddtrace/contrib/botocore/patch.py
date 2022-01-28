@@ -90,6 +90,42 @@ def inject_trace_to_event_bridge_detail(args, span):
         log.debug("Unable to inject context. The Event Bridge event had no Entries.")
 
 
+def get_kinesis_data_object(data, try_b64=True):
+    try:
+        return json.loads(data)
+    except Exception:
+        if try_b64:
+            b64_bytes = data.encode("ascii")
+            decoded_bytes = base64.b64decode(b64_bytes)
+            decoded_str = decoded_bytes.decode("ascii")
+            return get_kinesis_data_object(decoded_str, False)
+
+        return None
+
+
+def inject_trace_to_kinesis_stream_data(record, span):
+    if "Data" in record:
+        data = record["Data"]
+        data_obj = get_kinesis_data_object(data)
+        if data_obj:
+            dd_ctx = {}
+            HTTPPropagator.inject(span.context, dd_ctx)
+            data_obj["_datadog"] = dd_ctx
+            record["Data"] = json.dumps(data_obj)
+        else:
+            log.debug("Unable to parse kinesis streams data string")
+
+
+def inject_trace_to_kinesis_stream(args, span):
+    params = args[1]
+    if "Records" in params:
+        records = params.get("Records", [])
+        for record in records:
+            inject_trace_to_kinesis_stream_data(record, span)
+    elif "Data" in params:
+        inject_trace_to_kinesis_stream_data(params, span)
+
+
 def modify_client_context(client_context_object, trace_headers):
     if config.botocore["invoke_with_legacy_context"]:
         trace_headers = {"_datadog": trace_headers}
@@ -165,6 +201,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                     inject_trace_to_sqs_or_sns_batch_message(args, span)
                 if endpoint_name == "events" and operation == "PutEvents":
                     inject_trace_to_event_bridge_detail(args, span)
+                if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
+                    inject_trace_to_kinesis_stream(args, span)
                 if endpoint_name == "sns" and operation == "Publish":
                     inject_trace_to_sqs_or_sns_message(args, span)
                 if endpoint_name == "sns" and operation == "PublishBatch":
