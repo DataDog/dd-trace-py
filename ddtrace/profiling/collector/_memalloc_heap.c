@@ -77,8 +77,8 @@ heap_tracker_untrack_thawed(heap_tracker_t* heap_tracker, void* ptr)
        of the time this is where the untracked ptr is (the most recent object
        get de-allocated first usually). This might be a good enough
        trade-off. */
-    for (TRACEBACK_ARRAY_COUNT_TYPE i = global_heap_tracker.allocs.count; i > 0; i--) {
-        traceback_t** tb = &global_heap_tracker.allocs.tab[i - 1];
+    for (TRACEBACK_ARRAY_COUNT_TYPE i = heap_tracker->allocs.count; i > 0; i--) {
+        traceback_t** tb = &heap_tracker->allocs.tab[i - 1];
 
         if (ptr == (*tb)->ptr) {
             /* Free the traceback */
