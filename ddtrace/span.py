@@ -65,7 +65,7 @@ class Span(object):
         "parent_id",
         "meta",
         "error",
-        "metrics",
+        "_metrics",
         "_span_type",
         "start_ns",
         "duration_ns",
@@ -137,7 +137,7 @@ class Span(object):
         # tags / metadata
         self.meta = {}  # type: _MetaDictType
         self.error = 0
-        self.metrics = {}  # type: _MetricDictType
+        self._metrics = {}  # type: _MetricDictType
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
@@ -322,8 +322,8 @@ class Span(object):
 
         try:
             self.meta[key] = stringify(value)
-            if key in self.metrics:
-                del self.metrics[key]
+            if key in self._metrics:
+                del self._metrics[key]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -398,7 +398,7 @@ class Span(object):
 
         if key in self.meta:
             del self.meta[key]
-        self.metrics[key] = value
+        self._metrics[key] = value
 
     def set_metrics(self, metrics):
         # type: (_MetricDictType) -> None
@@ -408,7 +408,7 @@ class Span(object):
 
     def get_metric(self, key):
         # type: (_TagNameType) -> Optional[NumericType]
-        return self.metrics.get(key)
+        return self._metrics.get(key)
 
     def to_dict(self):
         # type: () -> Dict[str, Any]
@@ -438,8 +438,8 @@ class Span(object):
         if self.meta:
             d["meta"] = self.meta
 
-        if self.metrics:
-            d["metrics"] = self.metrics
+        if self._metrics:
+            d["metrics"] = self._metrics
 
         if self.span_type:
             d["type"] = self.span_type
@@ -506,7 +506,7 @@ class Span(object):
             ("duration", self.duration),
             ("error", self.error),
             ("tags", dict(sorted(self.meta.items()))),
-            ("metrics", dict(sorted(self.metrics.items()))),
+            ("_metrics", dict(sorted(self._metrics.items()))),
         ]
         return " ".join(
             # use a large column width to keep pprint output on one line

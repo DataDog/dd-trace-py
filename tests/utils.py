@@ -30,7 +30,7 @@ NO_CHILDREN = object()
 
 def assert_is_measured(span):
     """Assert that the span has the proper _dd.measured tag set"""
-    assert SPAN_MEASURED_KEY in span.metrics
+    assert SPAN_MEASURED_KEY in span._metrics
     assert SPAN_MEASURED_KEY not in span.meta
     assert span.get_metric(SPAN_MEASURED_KEY) == 1
 
@@ -38,10 +38,10 @@ def assert_is_measured(span):
 def assert_is_not_measured(span):
     """Assert that the span does not set _dd.measured"""
     assert SPAN_MEASURED_KEY not in span.meta
-    if SPAN_MEASURED_KEY in span.metrics:
+    if SPAN_MEASURED_KEY in span._metrics:
         assert span.get_metric(SPAN_MEASURED_KEY) == 0
     else:
-        assert SPAN_MEASURED_KEY not in span.metrics
+        assert SPAN_MEASURED_KEY not in span._metrics
 
 
 def assert_span_http_status_code(span, code):
@@ -655,12 +655,12 @@ class TestSpan(Span):
         :raises: AssertionError
         """
         if exact:
-            assert self.metrics == metrics
+            assert self._metrics == metrics
         else:
             for key, value in metrics.items():
-                assert key in self.metrics, "{0} metrics does not have property {1!r}".format(self, key)
-                assert self.metrics[key] == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self.metrics[key], value
+                assert key in self._metrics, "{0} metrics does not have property {1!r}".format(self, key)
+                assert self._metrics[key] == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
+                    self, key, self._metrics[key], value
                 )
 
 

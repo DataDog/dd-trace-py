@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Removed Span.metrics from the public api.

@@ -33,7 +33,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
         span = Span(None, "test")
         set_tags_from_context(span, context)
         metas = span.meta
-        metrics = span.metrics
+        metrics = span._metrics
         sentinel = object()
         assert metas["celery.correlation_id"] == "44b7f305"
         assert metas["celery.delivery_info"] == '{"eager": "True"}'

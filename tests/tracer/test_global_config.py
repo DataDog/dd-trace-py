@@ -190,7 +190,7 @@ class GlobalConfigTestCase(TestCase):
         # Create our span
         span = self.tracer.start_span("web.request")
         assert "web.request" not in span.meta
-        assert "web.status" not in span.metrics
+        assert "web.status" not in span._metrics
         assert "web.method" not in span.meta
 
         # Emit the span

@@ -51,7 +51,7 @@ def span_to_tuple(span):
         span.duration_ns or 0,
         int(bool(span.error)),
         span.meta or {},
-        span.metrics or {},
+        span._metrics or {},
         span.span_type,
     )
 
@@ -425,7 +425,7 @@ def test_custom_msgpack_encode_trace_size(encoding, name, service, resource, met
     encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
     span = Span(tracer=None, name=name, service=service, resource=resource)
     span.meta = meta
-    span.metrics = metrics
+    span._metrics = metrics
     span.error = error
     span.span_type = span_type
     trace = [span, span, span]
@@ -581,7 +581,7 @@ def test_list_string_table():
         {"duration_ns": "duration_time"},
         {"span_type": 100},
         {"meta": {"num": 100}},
-        {"metrics": {"key": "value"}},
+        {"_metrics": {"key": "value"}},
     ],
 )
 def test_encoding_invalid_data(data):

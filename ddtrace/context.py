@@ -72,7 +72,7 @@ class Context(object):
         # type: (Span) -> None
         with self._lock:
             span.meta.update(self._meta)
-            span.metrics.update(self._metrics)
+            span._metrics.update(self._metrics)
 
     @property
     def sampling_priority(self):
