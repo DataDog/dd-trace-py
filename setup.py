@@ -134,15 +134,15 @@ else:
 
 if sys.version_info[:2] >= (3, 4):
     ext_modules = [
-        Extension(
-            "ddtrace.profiling.collector._memalloc",
-            sources=[
-                "ddtrace/profiling/collector/_memalloc.c",
-                "ddtrace/profiling/collector/_memalloc_tb.c",
-                "ddtrace/profiling/collector/_memalloc_heap.c",
-            ],
-            extra_compile_args=debug_compile_args,
-        ),
+        # Extension(
+        #     "ddtrace.profiling.collector._memalloc",
+        #     sources=[
+        #         "ddtrace/profiling/collector/_memalloc.c",
+        #         "ddtrace/profiling/collector/_memalloc_tb.c",
+        #         "ddtrace/profiling/collector/_memalloc_heap.c",
+        #     ],
+        #     extra_compile_args=debug_compile_args,
+        # ),
     ]
 else:
     ext_modules = []
@@ -224,12 +224,12 @@ setup(
                 libraries=encoding_libraries,
                 define_macros=encoding_macros,
             ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.collector.stack",
-                sources=["ddtrace/profiling/collector/stack.pyx"],
-                language="c",
-                extra_compile_args=extra_compile_args,
-            ),
+            # Cython.Distutils.Extension(
+            #     "ddtrace.profiling.collector.stack",
+            #     sources=["ddtrace/profiling/collector/stack.pyx"],
+            #     language="c",
+            #     extra_compile_args=extra_compile_args,
+            # ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._traceback",
                 sources=["ddtrace/profiling/collector/_traceback.pyx"],
@@ -264,6 +264,6 @@ setup(
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
     )
-    + get_exts_for("wrapt")
+    # + get_exts_for("wrapt")
     + get_exts_for("psutil"),
 )
