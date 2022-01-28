@@ -1,51 +1,54 @@
 import json
 import os.path
-import sys
 
 import pytest
 
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.contrib.trace_utils import set_http_meta
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import priority
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+RULES_GOOD_PATH = os.path.join(ROOT_DIR, "rules-good.json")
+RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
+RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
 
 
 def test_enable(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
-    with tracer.trace("test", span_type="web") as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
-
+    
     assert span.get_metric("_dd.appsec.enabled") == 1.0
 
 
 def test_enable_custom_rules():
-    with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-good.json"))):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
-    assert processor.rules == os.path.join(ROOT_DIR, "rules-good.json")
+    assert processor.rules == RULES_GOOD_PATH
 
 
-@pytest.mark.parametrize("rule,exc", [("nonexistent", IOError), ("rules-bad.json", ValueError)])
+@pytest.mark.parametrize("rule,exc", [(RULES_MISSING_PATH, IOError), (RULES_BAD_PATH, ValueError)])
 def test_enable_bad_rules(rule, exc, tracer):
-    with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, rule))):
+    with override_env(dict(DD_APPSEC_RULES=rule)):
         with pytest.raises(exc):
             tracer._initialize_span_processors(appsec_enabled=True)
 
     # by default enable must not crash but display errors in the logs
     with override_global_config(dict(_raise=False)):
-        with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, rule))):
+        with override_env(dict(DD_APPSEC_RULES=rule)):
             tracer._initialize_span_processors(appsec_enabled=True)
 
 
 def test_retain_traces(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
-    with tracer.trace("test", span_type="web") as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert span.context.sampling_priority == priority.USER_KEEP
@@ -54,24 +57,7 @@ def test_retain_traces(tracer):
 def test_valid_json(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
-    with tracer.trace("test", span_type="web") as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
-
-
-def test_enable_import_failure(tracer):
-    # Explicitly break the processor to simulate an import failure
-    sys.modules["ddtrace.appsec.processor"] = {}
-    try:
-        sys.modules.pop("ddtrace.appsec", None)
-        with pytest.raises(ImportError):
-            tracer._initialize_span_processors(appsec_enabled=True)
-
-        with override_global_config(dict(_raise=False)):
-            sys.modules.pop("ddtrace.appsec", None)
-            tracer._initialize_span_processors(appsec_enabled=True)
-
-    finally:
-        sys.modules.pop("ddtrace.appsec", None)
-        sys.modules.pop("ddtrace.appsec.processor", None)

@@ -6,9 +6,11 @@ from typing import TYPE_CHECKING
 
 import attr
 
+import ddtrace
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.gateway import Gateway
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.utils.formats import get_env
@@ -46,26 +48,27 @@ class AppSecSpanProcessor(SpanProcessor):
                 with open(self.rules, "r") as f:
                     rules = json.load(f)
             except EnvironmentError as err:
-                # DDAS-0001-03
                 if err.errno == errno.ENOENT:
-                    log.error("AppSec could not read the rule file %s. Reason: file does not exist", self.rules)
+                    log.error("[DDAS-0001-03] "
+                              "AppSec could not read the rule file %s. Reason: file does not exist", self.rules)
                 else:
-                    # DDAS-0001-03 - TODO: try to log reasons
-                    log.error("AppSec could not read the rule file %s.", self.rules)
+                    # TODO: try to log reasons
+                    log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
             except json.decoder.JSONDecodeError:
-                # DDAS-0001-03
-                log.error("AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules)
+                log.error("[DDAS-0001-03] "
+                          "AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules)
                 raise
             except Exception:
-                # DDAS-0001-03 - TODO: try to log reasons
-                log.error("AppSec could not read the rule file %s.", self.rules)
+                # TODO: try to log reasons
+                log.error("[DDAS-0001-03] "
+                          "AppSec could not read the rule file %s.", self.rules)
                 raise
             try:
                 self._ddwaf = DDWaf(rules)
             except ValueError:
                 # Partial of DDAS-0005-00
-                log.warning("WAF initialization failed")
+                log.warning("[DDAS-0005-00] WAF initialization failed")
                 raise
 
     def on_span_start(self, span):
@@ -75,20 +78,20 @@ class AppSecSpanProcessor(SpanProcessor):
     def on_span_finish(self, span):
         # type: (Span) -> None
         with self._lock:
-            if span.span_type is None or span.span_type != "web":
+            if span.span_type != SpanTypes.WEB.value:
                 return
             span.set_metric("_dd.appsec.enabled", 1.0)
-            span.set_tag("_dd.runtime_family", "python")
+            span._set_str_tag("_dd.runtime_family", "python")
             store = span.store  # since we are on the 'web' span, the store is here!
             if "kept_addresses" not in store:
                 return
             data = store["kept_addresses"]
             # DDAS-001-00
-            log.debug("Executing AppSec In-App WAF with parameters: %s", data)
+            log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
             res = self._ddwaf.run(data)
             if res is not None:
                 # Partial DDAS-011-00
-                log.debug("AppSec In-App WAF returned: %s", res)
+                log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
                 span.meta["appsec.event"] = "true"
                 span.meta["_dd.appsec.json"] = '{"triggers":%s}' % (res,)
                 span.set_tag(MANUAL_KEEP_KEY)

@@ -115,6 +115,8 @@ cdef class _Wrapper(object):
                 string = PyUnicode_AsEncodedString(string, "utf-8", "surrogatepass")
                 ptr = PyBytes_AsString(string)
                 length = PyBytes_Size(string)
+        else:
+            return 0
         self._string_refs.append(string)
 
         obj = self._ptr + idx
