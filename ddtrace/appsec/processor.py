@@ -62,9 +62,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 raise
             except Exception:
                 # TODO: try to log reasons
-                log.error(
-                    "[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules
-                )
+                log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
             try:
                 self._ddwaf = DDWaf(rules)
