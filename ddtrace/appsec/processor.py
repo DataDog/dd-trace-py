@@ -48,20 +48,23 @@ class AppSecSpanProcessor(SpanProcessor):
                     rules = json.load(f)
             except EnvironmentError as err:
                 if err.errno == errno.ENOENT:
-                    log.error("[DDAS-0001-03] "
-                              "AppSec could not read the rule file %s. Reason: file does not exist", self.rules)
+                    log.error(
+                        "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: file does not exist", self.rules
+                    )
                 else:
                     # TODO: try to log reasons
                     log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
             except json.decoder.JSONDecodeError:
-                log.error("[DDAS-0001-03] "
-                          "AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules)
+                log.error(
+                    "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules
+                )
                 raise
             except Exception:
                 # TODO: try to log reasons
-                log.error("[DDAS-0001-03] "
-                          "AppSec could not read the rule file %s.", self.rules)
+                log.error(
+                    "[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules
+                )
                 raise
             try:
                 self._ddwaf = DDWaf(rules)
