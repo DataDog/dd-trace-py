@@ -253,7 +253,9 @@ def set_http_meta(
     status_code=None,
     status_msg=None,
     query=None,
-    format_query=_identity,
+    query_object=None,
+    format_query_object=_identity,
+    request_cookies=None,
     request_headers=None,
     format_request_headers=_identity,
     response_headers=None,
@@ -284,7 +286,7 @@ def set_http_meta(
         span._set_str_tag(http.STATUS_MSG, status_msg)
 
     if query is not None and integration_config.trace_query_string:
-        span._set_str_tag(http.QUERY_STRING, query)
+        span._set_str_tag(http.QUERY_STRING, query_object)
 
     if request_headers is not None and integration_config.is_header_tracing_configured:
         _store_request_headers(dict(request_headers), span, integration_config)
@@ -302,7 +304,8 @@ def set_http_meta(
     data = {}
     _add_if_needed(gateway, data, raw_uri, ADDRESSES.SERVER_REQUEST_URI_RAW)
     _add_if_needed(gateway, data, status_code, ADDRESSES.SERVER_RESPONSE_STATUS)  # TODO(vdeturckheim): always string?
-    _add_if_needed(gateway, data, query, ADDRESSES.SERVER_REQUEST_QUERY, format_query)
+    _add_if_needed(gateway, data, query, ADDRESSES.SERVER_REQUEST_QUERY)
+    _add_if_needed(gateway, data, request_cookies, ADDRESSES.SERVER_REQUEST_COOKIES)
     _add_if_needed(gateway, data, request_headers, ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
     req_cookies_key = ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value
     if req_cookies_key in data and "cookies" in data[req_cookies_key]:

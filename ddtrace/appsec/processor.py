@@ -6,10 +6,8 @@ from typing import TYPE_CHECKING
 
 import attr
 
-import ddtrace
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.gateway import Gateway
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
@@ -17,6 +15,7 @@ from ddtrace.utils.formats import get_env
 
 
 if TYPE_CHECKING:
+    from ddtrace.gateway import Gateway
     from ddtrace import Span
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -86,7 +85,6 @@ class AppSecSpanProcessor(SpanProcessor):
             if "kept_addresses" not in store:
                 return
             data = store["kept_addresses"]
-            # DDAS-001-00
             log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
             res = self._ddwaf.run(data)
             if res is not None:

@@ -164,6 +164,7 @@ class Tracer(object):
             get_env("trace", "partial_flush_min_spans", default=pfms_default_value)  # type: ignore[arg-type]
         )
 
+        self.gateway = Gateway()
         self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -172,7 +173,6 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
-        self.gateway = Gateway()
 
     def _atexit(self):
         # type: () -> None
