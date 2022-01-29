@@ -57,7 +57,8 @@ def inject_trace_to_sqs_or_sns_batch_message(args, span):
     HTTPPropagator.inject(span.context, trace_data)
     params = args[1]
 
-    for entry in params["Entries"]:
+    entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
+    for entry in entries:
         inject_trace_data_to_message_attributes(trace_data, entry)
 
 
