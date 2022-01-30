@@ -1095,9 +1095,9 @@ class BotocoreTest(TracerTestCase):
         msg_attr = msg_body["MessageAttributes"]
         self.assertIsNone(msg_attr.get("_datadog"))
 
-    # NOTE: commenting out the tests below because localstack doesn't implement SNS publish_batch yet
-    # botocore.exceptions.ClientError: An error occurred (InternalFailure) when calling the PublishBatch operation:
-    # API action 'PublishBatch' for service 'sns' not yet implemented
+    # NOTE: commenting out the tests below because localstack has a bug where messages
+    # published to SNS via publish_batch and retrieved via SQS are missing MessageAttributes
+    # Reported a bug here: https://github.com/localstack/localstack/issues/5395
 
     # @mock_sns
     # @mock_sqs
