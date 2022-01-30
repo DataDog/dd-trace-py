@@ -1297,3 +1297,52 @@ class BotocoreTest(TracerTestCase):
     #     self.assertEqual(msg_str, "test")
     #     msg_attr = msg_body["MessageAttributes"]
     #     self.assertIsNone(msg_attr.get("_datadog"))
+
+    @mock_kinesis
+    def test_kinesis_put_record_json_trace_injection(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "test"
+        client.create_stream(StreamName=stream_name, ShardCount=1)
+        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
+        shard_id = stream["Shards"][0]["ShardId"]
+
+        data = json.dumps({"Hello": "World"})
+        partition_key = "1234"
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key)
+
+        # check if the appropriate span was generated
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
+        self.assertEqual(span.get_tag("aws.operation"), "PutRecord")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
+        self.assertEqual(span.resource, "kinesis.putrecord")
+        trace_json = span.get_tag("params.Data")
+        self.assertIsNotNone(trace_json)
+
+        headers = json.loads(trace_json)["_datadog"]
+        self.assertIsNotNone(headers)
+        self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
+        shard_iterator = resp["ShardIterator"]
+
+        # ensure headers are present in received message
+        resp = client.get_records(ShardIterator=shard_iterator)
+        self.assertEqual(len(resp["Records"]), 1)
+        record = resp["Records"][0]
+        self.assertIsNotNone(record["Data"])
+        data = json.loads(record["Data"])
+        headers = data["_datadog"]
+        self.assertIsNotNone(headers)
+        self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
