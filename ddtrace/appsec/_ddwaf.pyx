@@ -32,6 +32,8 @@ from cpython.bytes cimport PyBytes_Size
 from cpython.mem cimport PyMem_Free
 from cpython.mem cimport PyMem_Realloc
 from cpython.unicode cimport PyUnicode_AsEncodedString
+from cpython.exc cimport PyErr_Clear
+from cpython.exc cimport PyErr_Occurred
 from libc.stdint cimport uint32_t
 from libc.stdint cimport uint64_t
 from libc.stdint cimport uintptr_t
@@ -51,6 +53,26 @@ def version():
     cdef ddwaf_version version
     ddwaf_get_version(&version)
     return (version.major, version.minor, version.patch)
+
+
+cdef inline object _string_to_bytes(object string, const char **ptr, ssize_t *length):
+    if isinstance(string, six.binary_type):
+        ptr[0] = PyBytes_AsString(string)
+        length[0] = PyBytes_Size(string)
+        return string
+    elif isinstance(string, six.text_type):
+        IF PY_MAJOR_VERSION >= 3:
+            ptr[0] = PyUnicode_AsUTF8AndSize(string, length)
+            if ptr[0] == NULL and PyErr_Occurred():
+                # ignore exception from this function as we fallback to
+                # PyUnicode_AsEncodedString
+                PyErr_Clear()
+        if ptr[0] == NULL:
+            string = PyUnicode_AsEncodedString(string, "utf-8", "surrogatepass")
+            ptr[0] = PyBytes_AsString(string)
+            length[0] = PyBytes_Size(string)
+        return string
+    raise RuntimeError
 
 
 cdef class _Wrapper(object):
@@ -108,25 +130,12 @@ cdef class _Wrapper(object):
         cdef ssize_t length
         cdef ddwaf_object *obj
 
-        if isinstance(string, six.binary_type):
-            ptr = PyBytes_AsString(string)
-            length = PyBytes_Size(string)
-        elif isinstance(string, six.text_type):
-            IF PY_MAJOR_VERSION >= 3:
-                ptr = PyUnicode_AsUTF8AndSize(string, &length)
-            if ptr == NULL:
-                string = PyUnicode_AsEncodedString(string, "utf-8", "surrogatepass")
-                ptr = PyBytes_AsString(string)
-                length = PyBytes_Size(string)
-        else:
-            raise RuntimeError
-        self._string_refs.append(string)
+        self._string_refs.append(_string_to_bytes(string, &ptr, &length))
 
         obj = self._ptr + idx
         obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING
         obj.stringValue = ptr
         obj.nbEntries = length
-        return 0
 
     cdef void _make_array(self, ssize_t idx, ssize_t array_idx, ssize_t nb_entries):
         cdef ddwaf_object *obj
@@ -147,24 +156,11 @@ cdef class _Wrapper(object):
         cdef ssize_t length
         cdef ddwaf_object *obj
 
-        if isinstance(string, six.binary_type):
-            ptr = PyBytes_AsString(string)
-            length = PyBytes_Size(string)
-        elif isinstance(string, six.text_type):
-            IF PY_MAJOR_VERSION >= 3:
-                ptr = PyUnicode_AsUTF8AndSize(string, &length)
-            if ptr == NULL:
-                string = PyUnicode_AsEncodedString(string, "utf-8", "surrogatepass")
-                ptr = PyBytes_AsString(string)
-                length = PyBytes_Size(string)
-        else:
-            raise RuntimeError
-        self._string_refs.append(string)
+        self._string_refs.append(_string_to_bytes(string, &ptr, &length))
 
         obj = self._ptr + idx
         obj.parameterName = ptr
         obj.parameterNameLength = length
-        return 0
 
     cdef void _convert(self, value, max_objects) except *:
         cdef object stack
