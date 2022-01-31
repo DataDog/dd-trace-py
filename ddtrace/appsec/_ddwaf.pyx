@@ -85,7 +85,7 @@ cdef class _Wrapper(object):
 
         idx = self._next_idx
         if idx + n > self._size:
-            while idx + n > self.size:
+            while idx + n > self._size:
                 # grow 1.5 the previous size + an initial fixed size until
                 #  it can accommodate at least n new objects
                 self._size += (self._size >> 1) + 128
