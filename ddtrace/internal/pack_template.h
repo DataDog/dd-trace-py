@@ -553,6 +553,139 @@ if(sizeof(unsigned long long) == 2) {
 #endif
 }
 
+typedef enum {
+    unknown_format, ieee_big_endian_format, ieee_little_endian_format
+} float_format_type;
+static float_format_type double_format;
+
+
+int _PyFloat_Pack8(double x, unsigned char *p, int le){
+    if (double_format == unknown_format) {
+        unsigned char sign;
+        int e;
+        double f;
+        unsigned int fhi, flo;
+        int incr = 1;
+
+        if (le) {
+            p += 7;
+            incr = -1;
+        }
+
+        if (x < 0) {
+            sign = 1;
+            x = -x;
+        }
+        else
+            sign = 0;
+
+        f = frexp(x, &e);
+
+        /* Normalize f to be in the range [1.0, 2.0) */
+        if (0.5 <= f && f < 1.0) {
+            f *= 2.0;
+            e--;
+        }
+        else if (f == 0.0)
+            e = 0;
+        else {
+            PyErr_SetString(PyExc_SystemError,
+                            "frexp() result out of range");
+            return -1;
+        }
+
+        if (e >= 1024)
+            goto Overflow;
+        else if (e < -1022) {
+            /* Gradual underflow */
+            f = ldexp(f, 1022 + e);
+            e = 0;
+        }
+        else if (!(e == 0 && f == 0.0)) {
+            e += 1023;
+            f -= 1.0; /* Get rid of leading 1 */
+        }
+
+        /* fhi receives the high 28 bits; flo the low 24 bits (== 52 bits) */
+        f *= 268435456.0; /* 2**28 */
+        fhi = (unsigned int)f; /* Truncate */
+        assert(fhi < 268435456);
+
+        f -= (double)fhi;
+        f *= 16777216.0; /* 2**24 */
+        flo = (unsigned int)(f + 0.5); /* Round */
+        assert(flo <= 16777216);
+        if (flo >> 24) {
+            /* The carry propagated out of a string of 24 1 bits. */
+            flo = 0;
+            ++fhi;
+            if (fhi >> 28) {
+                /* And it also propagated out of the next 28 bits. */
+                fhi = 0;
+                ++e;
+                if (e >= 2047)
+                    goto Overflow;
+            }
+        }
+
+        /* First byte */
+        *p = (sign << 7) | (e >> 4);
+        p += incr;
+
+        /* Second byte */
+        *p = (unsigned char) (((e & 0xF) << 4) | (fhi >> 24));
+        p += incr;
+
+        /* Third byte */
+        *p = (fhi >> 16) & 0xFF;
+        p += incr;
+
+        /* Fourth byte */
+        *p = (fhi >> 8) & 0xFF;
+        p += incr;
+
+        /* Fifth byte */
+        *p = fhi & 0xFF;
+        p += incr;
+
+        /* Sixth byte */
+        *p = (flo >> 16) & 0xFF;
+        p += incr;
+
+        /* Seventh byte */
+        *p = (flo >> 8) & 0xFF;
+        p += incr;
+
+        /* Eighth byte */
+        *p = flo & 0xFF;
+        /* p += incr; */
+
+        /* Done */
+        return 0;
+
+      Overflow:
+        PyErr_SetString(PyExc_OverflowError,
+                        "float too large to pack with d format");
+        return -1;
+    }
+    else {
+        const unsigned char *s = (unsigned char*)&x;
+        int i, incr = 1;
+
+        if ((double_format == ieee_little_endian_format && !le)
+            || (double_format == ieee_big_endian_format && le)) {
+            p += 7;
+            incr = -1;
+        }
+
+        for (i = 0; i < 8; i++) {
+            *p = *s++;
+            p += incr;
+        }
+        return 0;
+    }
+}
+//#endif /* !Py_FLOATOBJECT_H */
 
 static inline int msgpack_pack_double(msgpack_packer* x, double d)
 {

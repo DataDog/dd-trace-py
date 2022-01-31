@@ -345,6 +345,18 @@ jobs:
       - run_test:
           pattern: "tracer"
 
+  tracer-p37-pypy3:
+    <<: *contrib_job
+    steps:
+      - run:
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest
+            pyenv local pypy3.7-7.3.5
+            pypy -m ensurepip
+            pip install riot
+            riot -v run -p3.7 tracer
+
   opentracer:
     <<: *contrib_job
     steps:

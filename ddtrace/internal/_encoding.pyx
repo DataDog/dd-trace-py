@@ -11,6 +11,9 @@ from ddtrace.constants import ORIGIN_KEY
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
 DEF MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE = 6
 
+# Use python_implementation to override implementation CPYTHON function: _PyFloat_Pack8()
+# from platform import python_implementation
+# IS_PYPY = (1 if python_implementation() == "PyPy" else 0)
 
 cdef extern from "Python.h":
     const char* PyUnicode_AsUTF8(object o)
