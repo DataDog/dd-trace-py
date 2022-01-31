@@ -85,7 +85,10 @@ cdef class _Wrapper(object):
 
         idx = self._next_idx
         if idx + n > self._size:
-            self._size += ((1000 - (n % 1000)) % 1000)
+            while idx + n > self.size:
+                # grow 1.5 the previous size + an initial fixed size until
+                #  it can accomodate at least n new objects
+                self._size += (self._size >> 1) + 128
             ptr = <ddwaf_object *> PyMem_Realloc(self._ptr, self._size * sizeof(ddwaf_object))
             if ptr == NULL:
                 raise MemoryError
