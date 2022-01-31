@@ -29,11 +29,11 @@ from _libddwaf cimport ddwaf_set_log_cb
 from _libddwaf cimport ddwaf_version
 from cpython.bytes cimport PyBytes_AsString
 from cpython.bytes cimport PyBytes_Size
+from cpython.exc cimport PyErr_Clear
+from cpython.exc cimport PyErr_Occurred
 from cpython.mem cimport PyMem_Free
 from cpython.mem cimport PyMem_Realloc
 from cpython.unicode cimport PyUnicode_AsEncodedString
-from cpython.exc cimport PyErr_Clear
-from cpython.exc cimport PyErr_Occurred
 from libc.stdint cimport uint32_t
 from libc.stdint cimport uint64_t
 from libc.stdint cimport uintptr_t
