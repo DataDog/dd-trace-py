@@ -1,7 +1,8 @@
 """
 The ``aiohttp`` integration traces all requests defined in the application handlers.
 
-Automatic instrumentation is not available for ``aiohttp.web.Application``, the provided ``trace_app`` function must be used::
+Automatic instrumentation is not available for ``aiohttp.web.Application``, instead 
+the provided ``trace_app`` function must be used::
 
     from aiohttp import web
     from ddtrace import tracer, patch
