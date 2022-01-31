@@ -119,7 +119,7 @@ cdef class _Wrapper(object):
                 ptr = PyBytes_AsString(string)
                 length = PyBytes_Size(string)
         else:
-            return 0
+            raise RuntimeError
         self._string_refs.append(string)
 
         obj = self._ptr + idx
@@ -150,13 +150,15 @@ cdef class _Wrapper(object):
         if isinstance(string, six.binary_type):
             ptr = PyBytes_AsString(string)
             length = PyBytes_Size(string)
-        else:
+        elif isinstance(string, six.text_type):
             IF PY_MAJOR_VERSION >= 3:
                 ptr = PyUnicode_AsUTF8AndSize(string, &length)
             if ptr == NULL:
                 string = PyUnicode_AsEncodedString(string, "utf-8", "surrogatepass")
                 ptr = PyBytes_AsString(string)
                 length = PyBytes_Size(string)
+        else:
+            raise RuntimeError
         self._string_refs.append(string)
 
         obj = self._ptr + idx
