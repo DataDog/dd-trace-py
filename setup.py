@@ -156,7 +156,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="BSD",
-    packages=find_packages(exclude=["tests*"]),
+    packages=find_packages(exclude=["tests*", "benchmarks"]),
     package_data={"ddtrace": ["py.typed"]},
     py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
