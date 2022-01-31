@@ -1,5 +1,6 @@
 import base64
 import datetime
+import ast
 import io
 import json
 import unittest
@@ -703,7 +704,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_events
     def test_eventbridge_single_entry_trace_injection(self):
-        bridge = self.session.create_client("eventseventbridge", region_name="us-west-2")
+        bridge = self.session.create_client("events", region_name="us-west-2")
         bridge.create_event_bus(Name="a-test-bus")
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
@@ -723,20 +724,18 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
 
-        # For some reason, put_events replaces " with ' , so the json package can't parse it
         str_entries = span.get_tag("params.Entries")
-        str_entries = str_entries.replace('"', '\\"')  # replace " with \"
-        str_entries = str_entries.replace("'", '"')  # replace ' with "
-
-        entries = json.loads(str_entries)
+        entries = ast.literal_eval(str_entries)
+        print(entries)
         self.assertEqual(len(entries), 1)
         for e in entries:
             self.assertTrue("Detail" in e)
             detail = json.loads(e["Detail"])
             self.assertTrue(HTTP_HEADER_PARENT_ID in detail["_datadog"])
             self.assertTrue(HTTP_HEADER_TRACE_ID in detail["_datadog"])
-            self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-            self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
+            headers = detail["_datadog"]
+            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
 
         bridge.delete_event_bus(Name="a-test-bus")
 
@@ -751,13 +750,13 @@ class BotocoreTest(TracerTestCase):
             {
                 "Source": "some-event-source",
                 "DetailType": "some-event-detail-type",
-                "Detail": '{"foo":"bar"}',
+                "Detail": json.dumps({"foo": "bar"}),
                 "EventBusName": "a-test-bus",
             },
             {
                 "Source": "another-event-source",
                 "DetailType": "a-different-event-detail-type",
-                "Detail": '{"foo":"baz"}',
+                "Detail": json.dumps({"foo": "bar"}),
                 "EventBusName": "a-test-bus",
             },
         ]
@@ -768,20 +767,17 @@ class BotocoreTest(TracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
 
-        # For some reason, put_events replaces " with ' , so the json package can't parse it
         str_entries = span.get_tag("params.Entries")
-        str_entries = str_entries.replace('"', '\\"')  # replace " with \"
-        str_entries = str_entries.replace("'", '"')  # replace ' with "
-
-        entries = json.loads(str_entries)
+        entries = ast.literal_eval(str_entries)
         self.assertEqual(len(entries), 2)
         for e in entries:
             self.assertTrue("Detail" in e)
             detail = json.loads(e["Detail"])
             self.assertTrue(HTTP_HEADER_PARENT_ID in detail["_datadog"])
             self.assertTrue(HTTP_HEADER_TRACE_ID in detail["_datadog"])
-            self.assertEqual(detail[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-            self.assertEqual(detail[HTTP_HEADER_PARENT_ID], str(span.span_id))
+            headers = detail["_datadog"]
+            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
 
         bridge.delete_event_bus(Name="a-test-bus")
 
@@ -1346,3 +1342,185 @@ class BotocoreTest(TracerTestCase):
         self.assertIsNotNone(headers)
         self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
         self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        client.delete_stream(StreamName=stream_name)
+
+    @mock_kinesis
+    def test_kinesis_put_record_base64_trace_injection(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "test"
+        client.create_stream(StreamName=stream_name, ShardCount=1)
+        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
+        shard_id = stream["Shards"][0]["ShardId"]
+
+        sample_string = json.dumps({"Hello": "World"})
+        sample_string_bytes = sample_string.encode("ascii")
+        base64_bytes = base64.b64encode(sample_string_bytes)
+        data = base64_bytes.decode("ascii")
+        print(data)
+        print(type(data))
+
+        partition_key = "1234"
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key)
+
+        # check if the appropriate span was generated
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
+        self.assertEqual(span.get_tag("aws.operation"), "PutRecord")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
+        self.assertEqual(span.resource, "kinesis.putrecord")
+        trace_json = span.get_tag("params.Data")
+        self.assertIsNotNone(trace_json)
+        print(trace_json)
+        print(type(trace_json))
+
+        headers = json.loads(trace_json)["_datadog"]
+        self.assertIsNotNone(headers)
+        self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
+        shard_iterator = resp["ShardIterator"]
+
+        # ensure headers are present in received message
+        resp = client.get_records(ShardIterator=shard_iterator)
+        print(resp)
+        self.assertEqual(len(resp["Records"]), 1)
+        record = resp["Records"][0]
+        self.assertIsNotNone(record["Data"])
+        print(record["Data"])
+        print(record["Data"])
+        data = json.loads(record["Data"])
+        headers = data["_datadog"]
+        self.assertIsNotNone(headers)
+        self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+        self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        client.delete_stream(StreamName=stream_name)
+
+    @mock_kinesis
+    def test_kinesis_put_records_json_trace_injection(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "test"
+        client.create_stream(StreamName=stream_name, ShardCount=1)
+        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
+        shard_id = stream["Shards"][0]["ShardId"]
+
+        partition_key = "1234"
+        data = [
+            {"Data": json.dumps({"Hello": "World"}), "PartitionKey": partition_key},
+            {"Data": json.dumps({"foo": "bar"}), "PartitionKey": partition_key},
+        ]
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=data)
+
+        # check if the appropriate span was generated
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
+        self.assertEqual(span.get_tag("aws.operation"), "PutRecords")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
+        self.assertEqual(span.resource, "kinesis.putrecords")
+        records = span.get_tag("params.Records")
+        self.assertIsNotNone(records)
+        records = ast.literal_eval(records)
+        self.assertEqual(len(records), 2)
+        for record in records:
+            print(record)
+            headers = json.loads(record["Data"])["_datadog"]
+            self.assertIsNotNone(headers)
+            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
+        shard_iterator = resp["ShardIterator"]
+
+        # ensure headers are present in received message
+        resp = client.get_records(ShardIterator=shard_iterator)
+        self.assertEqual(len(resp["Records"]), 2)
+        records = resp["Records"]
+        for record in records:
+            print(record)
+            headers = json.loads(record["Data"])["_datadog"]
+            self.assertIsNotNone(headers)
+            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        client.delete_stream(StreamName=stream_name)
+
+    @mock_kinesis
+    def test_kinesis_put_records_base64_trace_injection(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "test"
+        client.create_stream(StreamName=stream_name, ShardCount=1)
+        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
+        shard_id = stream["Shards"][0]["ShardId"]
+
+        partition_key = "1234"
+        sample_string = json.dumps({"Hello": "World"})
+        sample_string_bytes = sample_string.encode("ascii")
+        base64_bytes = base64.b64encode(sample_string_bytes)
+        data_str = base64_bytes.decode("ascii")
+        data = [
+            {"Data": data_str, "PartitionKey": partition_key},
+            {"Data": data_str, "PartitionKey": partition_key},
+        ]
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=data)
+
+        # check if the appropriate span was generated
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
+        self.assertEqual(span.get_tag("aws.operation"), "PutRecords")
+        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
+        self.assertEqual(span.resource, "kinesis.putrecords")
+        records = span.get_tag("params.Records")
+        self.assertIsNotNone(records)
+        records = ast.literal_eval(records)
+        self.assertEqual(len(records), 2)
+        for record in records:
+            print(record)
+            headers = json.loads(record["Data"])["_datadog"]
+            self.assertIsNotNone(headers)
+            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
+        shard_iterator = resp["ShardIterator"]
+
+        # ensure headers are present in received message
+        resp = client.get_records(ShardIterator=shard_iterator)
+        self.assertEqual(len(resp["Records"]), 2)
+        records = resp["Records"]
+        for record in records:
+            print(record)
+            headers = json.loads(record["Data"])["_datadog"]
+            self.assertIsNotNone(headers)
+            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
+            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+
+        client.delete_stream(StreamName=stream_name)

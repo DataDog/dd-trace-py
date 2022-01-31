@@ -97,10 +97,7 @@ def get_kinesis_data_object(data, try_b64=True):
     except Exception:
         if try_b64:
             try:
-                b64_bytes = data.encode("ascii")
-                decoded_bytes = base64.b64decode(b64_bytes)
-                decoded_str = decoded_bytes.decode("ascii")
-                return get_kinesis_data_object(decoded_str, False)
+                return get_kinesis_data_object(base64.b64decode(data.encode("ascii")).decode("ascii"), False)
             except Exception:
                 return None
 
