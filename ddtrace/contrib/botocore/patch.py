@@ -3,6 +3,7 @@ Trace queries to aws api done via botocore client
 """
 import base64
 import json
+import sys
 
 import botocore.client
 
@@ -92,6 +93,12 @@ def inject_trace_to_event_bridge_detail(args, span):
 
 
 def get_kinesis_data_object(data, try_b64=True):
+
+    # check if data size will exceed max with headers
+    data_size = sys.getsizeof(data)
+    if data_size + 512 >= 1000000:
+        return None
+
     try:
         return json.loads(data)
     except Exception:
