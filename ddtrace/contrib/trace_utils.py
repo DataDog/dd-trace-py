@@ -235,10 +235,6 @@ def _identity(x):
     return x
 
 
-def simple_to_dict(x):
-    return dict(x)
-
-
 def _add_if_needed(gateway, target, original_value, address, formatter=_identity):
     if original_value is None:
         return

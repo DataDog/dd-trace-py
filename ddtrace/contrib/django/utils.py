@@ -292,9 +292,9 @@ def _after_request_tags(pin, span, request, response):
                 query=request.META.get("QUERY_STRING", None),
                 query_object=request.GET.dict(),
                 request_headers=request_headers,
-                format_request_headers=trace_utils.simple_to_dict,
+                format_request_headers=dict,
                 response_headers=response_headers,
-                format_response_headers=trace_utils.simple_to_dict,
+                format_response_headers=dict,
                 request_cookies=request.COOKIES,
             )
     finally:
