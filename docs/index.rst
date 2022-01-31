@@ -42,7 +42,7 @@ contacting support.
 +==================================================+===============+================+
 | :ref:`aiobotocore`                               | >= 0.2.3      | No             |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`aiohttp`                                   | >= 2.0        | Yes [2]_       |
+| :ref:`aiohttp`                                   | >= 2.0        | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`aiopg`                                     | >= 0.12.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -163,9 +163,7 @@ contacting support.
   is called. Always use ``patch()`` and ``patch_all()`` as soon as possible in
   your Python entrypoint.
 
-.. [2] only third-party modules such as aiohttp_jinja2
-
-.. [3] only the synchronous client
+.. [2] only the synchronous client
 
 .. [4] only in Python 3.7 and above.
 
