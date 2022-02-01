@@ -478,7 +478,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             log.warning(
                 "trace (%db) larger than payload buffer limit (%db), dropping",
                 payload_size,
-                self._buffer_size,
+                self._encoder.max_item_size,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
