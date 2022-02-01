@@ -476,7 +476,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
             log.warning(
-                "trace (%db) larger than payload buffer limit (%db), dropping",
+                "trace (%db) larger than payload buffer item limit (%db), dropping",
                 payload_size,
                 self._encoder.max_item_size,
             )
