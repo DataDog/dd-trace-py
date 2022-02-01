@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Trace HTTP connections to the agent will now use http keep-alive.
+    HTTP connections for trace payloads to the agent will be reused when possible.

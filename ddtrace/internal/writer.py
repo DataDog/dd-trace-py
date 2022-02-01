@@ -5,6 +5,7 @@ from json import loads
 import logging
 import os
 import sys
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -38,8 +39,6 @@ from .sma import SimpleMovingAverage
 
 
 if TYPE_CHECKING:
-    from typing import Dict
-
     from ddtrace import Span
 
     from .agent import ConnectionType
@@ -361,12 +360,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def _put(self, data, headers):
         # type: (bytes, Dict[str, str]) -> Response
-        if self._conn is None:
-            self._conn = get_connection(self.agent_url, self._timeout)
-
-        headers["Connection"] = "keep-alive"
-
         with StopWatch() as sw:
+            if self._conn is None:
+                self._conn = get_connection(self.agent_url, self._timeout)
+
             try:
                 self._conn.request("PUT", self._endpoint, data, headers)
             except Exception:
