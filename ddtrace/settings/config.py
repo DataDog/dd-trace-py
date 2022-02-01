@@ -243,10 +243,3 @@ class Config(object):
         cls = self.__class__
         integrations = ", ".join(self._config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
-
-    @deprecated(
-        message="HttpServerConfig will be removed",
-        version="1.0.0",
-    )
-    class HTTPServerConfig(_HTTPServerConfig):
-        pass
