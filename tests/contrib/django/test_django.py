@@ -1702,7 +1702,7 @@ def test_helper_get_request_uri(request_cls, request_path, http_host):
 
     request = request_cls()
     request.path = request_path
-    request.set_tags({"HTTP_HOST": http_host})
+    request.META = {"HTTP_HOST": http_host}
     request_uri = get_request_uri(request)
     if (
         isinstance(http_host, SimpleLazyObject) and not (issubclass(http_host.__class__, str))

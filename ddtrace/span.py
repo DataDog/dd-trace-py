@@ -40,7 +40,7 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
-from .internal.utils.deprecation import deprecated
+from .vendor.debtcollector.removals import removed_property
 
 
 if TYPE_CHECKING:
@@ -365,12 +365,15 @@ class Span(object):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
-    @property  # type: ignore
-    @deprecated("Use getters and setters instead of accessing meta directly. Ex: Span.set_tag(k, v), Span.get_tag(k), Span.get_tags())", "1.0.0")
+    @removed_property(
+        message="Use getters and setters instead of accessing Span.meta directly. \
+            Ex: Span.set_tag(k, v), Span.set_tags(), Span.get_tag(k), Span.get_tags())",
+        removal_version="1.0.0",
+    )
     def meta(self):
         return self._meta
 
-    @meta.setter
+    @meta.setter  # type: ignore
     def meta(self, value):
         self._meta = value
 
