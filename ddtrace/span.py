@@ -336,9 +336,12 @@ class Span(object):
             del self.meta[key]
 
     def get_tag(self, key):
-        # type: (_TagNameType) -> Optional[Text]
+        # type: (_TagNameType) -> Any
         """Return the given tag or None if it doesn't exist."""
-        return self.meta.get(key, None)
+        tag = self.meta.get(key, None)
+        if tag is not None:
+            return tag
+        return self.metrics.get(key, None)
 
     def set_tags(self, tags):
         # type: (_MetaDictType) -> None
