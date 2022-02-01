@@ -412,7 +412,7 @@ class Span(object):
 
     def get_metrics(self):
         # type: () -> Optional[_MetricDictType]
-        return self._metrics
+        return self._metrics.copy()
 
     def to_dict(self):
         # type: () -> Dict[str, Any]
