@@ -15,7 +15,7 @@ from ddtrace.utils.formats import get_env
 
 
 if TYPE_CHECKING:
-    from ddtrace.gateway import Gateway
+    from ddtrace.gateway import Gateway, ADDRESSES
     from ddtrace import Span
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,6 +26,35 @@ log = get_logger(__name__)
 
 def get_rules():
     return get_env("appsec", "rules", default=DEFAULT_RULES)
+
+
+COLLECTED_REQUEST_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    "content-encoding",
+    "content-language",
+    "content-length",
+    "content-type",
+    "forwarded",
+    "forwarded-for",
+    "host",
+    "true-client-ip",
+    "user-agent",
+    "via",
+    "x-client-ip",
+    "x-cluster-client-ip",
+    "x-forwarded",
+    "x-forwarded-for",
+    "x-real-ip"
+]
+
+
+def _set_headers(span, headers):
+    for k in headers:
+        low = k.lower()
+        if low in COLLECTED_REQUEST_HEADERS:
+            span._set_str_tag(low, headers[k])
 
 
 @attr.s(eq=False)
@@ -85,6 +114,8 @@ class AppSecSpanProcessor(SpanProcessor):
             if "kept_addresses" not in store:
                 return
             data = store["kept_addresses"]
+            if ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value in data:
+                _set_headers(span, data[ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value])
             log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
             res = self._ddwaf.run(data)
             if res is not None:
@@ -96,5 +127,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def setup(self, gateway):
         # type: (Gateway) -> None
+        # we always need the request headers to do the IP address resolution bits
+        gateway.mark_needed(ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
         for address in self._ddwaf.required_data:
             gateway.mark_needed(address)
