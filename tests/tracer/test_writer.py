@@ -168,8 +168,8 @@ class AgentWriterTests(BaseTestCase):
 
         writer_metrics_reset.assert_called_once()
 
-        assert 1 == writer._metrics["http.errors"]["count"]
-        assert 10 == writer._metrics["http.dropped.traces"]["count"]
+        assert 1 == writer.get_metrics()["http.errors"]["count"]
+        assert 10 == writer.get_metrics()["http.dropped.traces"]["count"]
 
     def test_drop_reason_trace_too_big(self):
         statsd = mock.Mock()
@@ -188,8 +188,8 @@ class AgentWriterTests(BaseTestCase):
 
         writer_metrics_reset.assert_called_once()
 
-        assert 1 == writer._metrics["buffer.dropped.traces"]["count"]
-        assert ["reason:t_too_big"] == writer._metrics["buffer.dropped.traces"]["tags"]
+        assert 1 == writer.get_metrics()["buffer.dropped.traces"]["count"]
+        assert ["reason:t_too_big"] == writer.get_metrics()["buffer.dropped.traces"]["tags"]
 
     def test_drop_reason_buffer_full(self):
         statsd = mock.Mock()
@@ -206,8 +206,8 @@ class AgentWriterTests(BaseTestCase):
 
         writer_metrics_reset.assert_called_once()
 
-        assert 1 == writer._metrics["buffer.dropped.traces"]["count"]
-        assert ["reason:full"] == writer._metrics["buffer.dropped.traces"]["tags"]
+        assert 1 == writer.get_metrics()["buffer.dropped.traces"]["count"]
+        assert ["reason:full"] == writer.get_metrics()["buffer.dropped.traces"]["tags"]
 
     def test_drop_reason_encoding_error(self):
         n_traces = 10
@@ -229,7 +229,7 @@ class AgentWriterTests(BaseTestCase):
 
         writer_metrics_reset.assert_called_once()
 
-        assert 10 == writer._metrics["encoder.dropped.traces"]["count"]
+        assert 10 == writer.get_metrics()["encoder.dropped.traces"]["count"]
 
     def test_keep_rate(self):
         statsd = mock.Mock()

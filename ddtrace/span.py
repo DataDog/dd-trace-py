@@ -410,6 +410,10 @@ class Span(object):
         # type: (_TagNameType) -> Optional[NumericType]
         return self._metrics.get(key)
 
+    def get_metrics(self):
+        # type: () -> Optional[_MetricDictType]
+        return self._metrics
+
     def to_dict(self):
         # type: () -> Dict[str, Any]
         d = {

@@ -588,7 +588,7 @@ def test_set_flattened_tags_keys():
     e = dict(A=1, B=2, C_A=3, C_B=4, C_C_A=5, C_C_B=6)
     span = Span(None, "test")
     trace_utils.set_flattened_tags(span, d.items(), sep="_")
-    assert span._metrics == e
+    assert span.get_metrics() == e
 
 
 def test_set_flattened_tags_exclude_policy():
@@ -598,4 +598,4 @@ def test_set_flattened_tags_exclude_policy():
     span = Span(None, "test")
 
     trace_utils.set_flattened_tags(span, d.items(), sep="_", exclude_policy=lambda tag: tag in {"C_A", "C_C"})
-    assert span._metrics == e
+    assert span.get_metrics() == e

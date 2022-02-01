@@ -268,8 +268,8 @@ def test_trace_with_wrong_metrics_types_not_sent(metrics):
     tracer = Tracer()
     with mock.patch("ddtrace.span.log") as log:
         with tracer.trace("root") as root:
-            root._metrics = metrics
+            root.set_metrics(metrics)
             for _ in range(499):
                 with tracer.trace("child") as child:
-                    child._metrics = metrics
+                    child.set_metrics(metrics)
         log.exception.assert_called_once_with("error closing trace")
