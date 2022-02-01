@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Removed Span.meta. Use ``Span.get_tag(key)`` and ``Span.set_tag(key, value)`` to update tags.
