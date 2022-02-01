@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Removed Span.metrics from the public api. Use ``Span.get_metric(key)`` and ``Span.set_metric(key, val)`` instead.
