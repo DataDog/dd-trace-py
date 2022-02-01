@@ -7,7 +7,6 @@ from typing import Tuple
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.logger import get_logger
-from ..internal.utils.deprecation import deprecated
 from ..internal.utils.deprecation import get_service_legacy
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import get_env
