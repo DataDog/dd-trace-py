@@ -1,7 +1,6 @@
 import errno
 import json
 import os.path
-import threading
 from typing import TYPE_CHECKING
 
 import attr
@@ -30,8 +29,6 @@ def get_rules():
 
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-
-    _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
 
     rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
@@ -77,20 +74,19 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        with self._lock:
-            if span.span_type != SpanTypes.WEB.value:
-                return
-            span.set_metric("_dd.appsec.enabled", 1.0)
-            span._set_str_tag("_dd.runtime_family", "python")
-            data = {
-                "server.request.uri.raw": span.get_tag(ddtrace.ext.http.URL),
-                "server.response.status": span.get_tag(ddtrace.ext.http.STATUS_CODE),
-            }
-            log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-            res = self._ddwaf.run(data)  # res is a serialized json
-            if res is not None:
-                # Partial DDAS-011-00
-                log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
-                span.meta["appsec.event"] = "true"
-                span.meta["_dd.appsec.json"] = '{"triggers":%s}' % (res,)
-                span.set_tag(MANUAL_KEEP_KEY)
+        if span.span_type != SpanTypes.WEB.value:
+            return
+        span.set_metric("_dd.appsec.enabled", 1.0)
+        span._set_str_tag("_dd.runtime_family", "python")
+        data = {
+            "server.request.uri.raw": span.get_tag(ddtrace.ext.http.URL),
+            "server.response.status": span.get_tag(ddtrace.ext.http.STATUS_CODE),
+        }
+        log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
+        res = self._ddwaf.run(data)  # res is a serialized json
+        if res is not None:
+            # Partial DDAS-011-00
+            log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
+            span.meta["appsec.event"] = "true"
+            span.meta["_dd.appsec.json"] = '{"triggers":%s}' % (res,)
+            span.set_tag(MANUAL_KEEP_KEY)
