@@ -12,4 +12,4 @@ jobs:
       run: npm install @commitlint/config-conventional
     - name: Show pull request title
       run: echo "${{ github.event.pull_request.title }}"
-    - uses: JulienKode/pull-request-name-linter-action@v0.2.0
+    - uses: JulienKode/pull-request-name-linter-action@v0.4.0
