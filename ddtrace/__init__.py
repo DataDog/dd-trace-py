@@ -1,15 +1,15 @@
+from .logger import configure_ddtrace_logger  # noqa: E402
+
+
+configure_ddtrace_logger()  # noqa: E402
 from ._monkey import patch  # noqa: E402
-from ._monkey import patch_all
+from ._monkey import patch_all  # noqa: E402
 from .internal.utils.deprecation import deprecated  # noqa: E402
-from .logger import configure_logger
 from .pin import Pin  # noqa: E402
 from .settings import _config as config  # noqa: E402
 from .span import Span  # noqa: E402
 from .tracer import Tracer  # noqa: E402
-from .version import get_version
-
-
-configure_logger()
+from .version import get_version  # noqa: E402
 
 
 __version__ = get_version()
