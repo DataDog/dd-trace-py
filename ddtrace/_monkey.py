@@ -32,6 +32,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
+    "gevent": True,
     "grpc": True,
     "httpx": True,
     "mongoengine": True,
