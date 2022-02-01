@@ -40,7 +40,7 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
-from .internal.utils.deprecation import deprecated  # noqa: E402
+from .internal.utils.deprecation import deprecated
 
 
 if TYPE_CHECKING:
@@ -491,7 +491,7 @@ class Span(object):
         self._remove_tag(ERROR_TYPE)
         self._remove_tag(ERROR_STACK)
 
-    @deprecated(version="1.0.0")
+    @deprecated(message="Span.pprint will be removed.", version="1.0.0")
     def pprint(self):
         return self._pprint()
 
