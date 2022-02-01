@@ -286,7 +286,7 @@ def set_http_meta(
         span._set_str_tag(http.STATUS_MSG, status_msg)
 
     if query is not None and integration_config.trace_query_string:
-        span._set_str_tag(http.QUERY_STRING, query_object)
+        span._set_str_tag(http.QUERY_STRING, query)
 
     if request_headers is not None and integration_config.is_header_tracing_configured:
         _store_request_headers(dict(request_headers), span, integration_config)
