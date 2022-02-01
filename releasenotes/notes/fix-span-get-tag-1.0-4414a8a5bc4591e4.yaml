@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Ensures ``Span.get_tag`` is consistent with ``Span.set_tag``. Entries should be set and retrieved from both Span._meta and Span._metrics dictionaries.
