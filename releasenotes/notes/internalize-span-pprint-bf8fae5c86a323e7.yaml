@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Span.pprint() was removed from the public api
