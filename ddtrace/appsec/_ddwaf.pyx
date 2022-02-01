@@ -101,6 +101,10 @@ cdef class _Wrapper(object):
         self._convert(value, max_objects)
 
     cdef ssize_t _reserve_obj(self, ssize_t n=1) except -1:
+        """
+        Exponentially grows the size of the memory space used for objects.
+        Will stop if too much memory is allocated.
+        """
         cdef ssize_t idx, i
         cdef ddwaf_object *ptr
         cdef ddwaf_object *obj
