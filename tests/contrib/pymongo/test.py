@@ -244,8 +244,8 @@ class PymongoCore(object):
             assert span.span_type == "mongodb"
             assert span.meta.get("mongodb.collection") == "teams"
             assert span.meta.get("mongodb.db") == "testdb"
-            assert span.meta.get("out.host"), span._pprint()
-            assert span.metrics.get("out.port"), span._pprint()
+            assert span.meta.get("out.host")
+            assert span.metrics.get("out.port")
             assert span.start > start
             assert span.duration < end - start
 

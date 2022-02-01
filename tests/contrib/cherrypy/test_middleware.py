@@ -121,7 +121,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("Hello world!")
 
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -138,7 +138,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("alias")
 
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -154,7 +154,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertErrorPage(418, message="handled")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -210,7 +210,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody(b"\xc3\xbc\xc5\x8b\xc3\xaf\xc4\x89\xc3\xb3\xc4\x91\xc4\x93")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -227,7 +227,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertStatus("404 Not Found")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -252,7 +252,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("Hello world!")
 
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -279,7 +279,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("Hello world!")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -308,7 +308,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("Hello world!")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -327,7 +327,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("hiya")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -376,7 +376,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("dispatch with abc123")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -397,7 +397,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("Hello world!")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -417,7 +417,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("Hello world!")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -439,7 +439,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("Hello world!")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]

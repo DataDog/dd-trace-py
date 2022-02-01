@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    ``Span.pprint()`` is deprecated and will be removed in ``ddtrace==1.0``. Use ``Span.to_dict()`` to retrieve a map of Span attributes.
