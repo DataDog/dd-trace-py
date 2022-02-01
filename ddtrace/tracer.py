@@ -573,7 +573,7 @@ class Tracer(object):
             )
             span._local_root = span
             if config.report_hostname:
-                span.meta[HOSTNAME_KEY] = hostname.get_hostname()
+                span._meta[HOSTNAME_KEY] = hostname.get_hostname()
             span.sampled = self.sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
@@ -601,7 +601,7 @@ class Tracer(object):
                 span.sampled = True
 
         if not span._parent:
-            span.meta["runtime-id"] = get_runtime_id()
+            span._meta["runtime-id"] = get_runtime_id()
             span.metrics[PID] = self._pid
 
         # Apply default global tags.
@@ -619,7 +619,7 @@ class Tracer(object):
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
             if (root_span is None and service == config.service) or (
-                root_span and root_span.service == service and VERSION_KEY in root_span.meta
+                root_span and root_span.service == service and VERSION_KEY in root_span._meta
             ):
                 span._set_str_tag(VERSION_KEY, config.version)
 

@@ -96,7 +96,7 @@ class RuntimeWorker(periodic.PeriodicService):
         # add tags to root span to correlate trace with runtime metrics
         # only applied to spans with types that are internal to applications
         if span.parent_id is None and self.tracer._is_span_internal(span):
-            span.meta["language"] = "python"
+            span._meta["language"] = "python"
 
     @classmethod
     def disable(cls):

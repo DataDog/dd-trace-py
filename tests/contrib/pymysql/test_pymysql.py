@@ -69,7 +69,7 @@ class PyMySQLCore(object):
         assert span.get_metric("out.port") == MYSQL_CONFIG.get("port")
         meta = {}
         meta.update(self.DB_INFO)
-        assert_dict_issuperset(span.meta, meta)
+        assert_dict_issuperset(span.get_tags(), meta)
 
     def test_simple_query_fetchall(self):
         with self.override_config("pymysql", dict(trace_fetch_methods=True)):
@@ -91,7 +91,7 @@ class PyMySQLCore(object):
             assert span.get_metric("out.port") == MYSQL_CONFIG.get("port")
             meta = {}
             meta.update(self.DB_INFO)
-            assert_dict_issuperset(span.meta, meta)
+            assert_dict_issuperset(span.get_tags(), meta)
 
             fetch_span = spans[1]
             assert fetch_span.name == "pymysql.query.fetchall"
@@ -240,7 +240,7 @@ class PyMySQLCore(object):
         assert span.get_metric("out.port") == MYSQL_CONFIG.get("port")
         meta = {}
         meta.update(self.DB_INFO)
-        assert_dict_issuperset(span.meta, meta)
+        assert_dict_issuperset(span.get_tags(), meta)
 
     def test_simple_query_ot(self):
         """OpenTracing version of test_simple_query."""
@@ -272,7 +272,7 @@ class PyMySQLCore(object):
         assert dd_span.get_metric("out.port") == MYSQL_CONFIG.get("port")
         meta = {}
         meta.update(self.DB_INFO)
-        assert_dict_issuperset(dd_span.meta, meta)
+        assert_dict_issuperset(dd_span.get_tags(), meta)
 
     def test_simple_query_ot_fetchall(self):
         """OpenTracing version of test_simple_query."""
@@ -305,7 +305,7 @@ class PyMySQLCore(object):
             assert dd_span.get_metric("out.port") == MYSQL_CONFIG.get("port")
             meta = {}
             meta.update(self.DB_INFO)
-            assert_dict_issuperset(dd_span.meta, meta)
+            assert_dict_issuperset(dd_span.get_tags(), meta)
 
             assert fetch_span.name == "pymysql.query.fetchall"
 
@@ -416,7 +416,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
 
             meta = {}
             meta.update(self.DB_INFO)
-            assert_dict_issuperset(span.meta, meta)
+            assert_dict_issuperset(span.get_tags(), meta)
         finally:
             unpatch()
 

@@ -59,7 +59,7 @@ class MySQLCore(object):
         assert span.error == 0
         assert span.get_metric("out.port") == 3306
         assert_dict_issuperset(
-            span.meta,
+            span.get_tags(),
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
@@ -86,7 +86,7 @@ class MySQLCore(object):
             assert span.error == 0
             assert span.get_metric("out.port") == 3306
             assert_dict_issuperset(
-                span.meta,
+                span.get_tags(),
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
@@ -114,7 +114,7 @@ class MySQLCore(object):
         assert span.error == 0
         assert span.get_metric("out.port") == 3306
         assert_dict_issuperset(
-            span.meta,
+            span.get_tags(),
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
@@ -141,7 +141,7 @@ class MySQLCore(object):
             assert span.error == 0
             assert span.get_metric("out.port") == 3306
             assert_dict_issuperset(
-                span.meta,
+                span.get_tags(),
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
@@ -294,7 +294,7 @@ class MySQLCore(object):
         assert span.error == 0
         assert span.get_metric("out.port") == 3306
         assert_dict_issuperset(
-            span.meta,
+            span.get_tags(),
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
@@ -332,7 +332,7 @@ class MySQLCore(object):
         assert dd_span.error == 0
         assert dd_span.get_metric("out.port") == 3306
         assert_dict_issuperset(
-            dd_span.meta,
+            dd_span.get_tags(),
             {
                 "out.host": u"127.0.0.1",
                 "db.name": u"test",
@@ -370,7 +370,7 @@ class MySQLCore(object):
             assert dd_span.error == 0
             assert dd_span.get_metric("out.port") == 3306
             assert_dict_issuperset(
-                dd_span.meta,
+                dd_span.get_tags(),
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
@@ -486,7 +486,7 @@ class MySQLCore(object):
             assert span.error == 0
             assert span.get_metric("out.port") == 3306
             assert_dict_issuperset(
-                span.meta,
+                span.get_tags(),
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",
@@ -570,7 +570,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert span.error == 0
             assert span.get_metric("out.port") == 3306
             assert_dict_issuperset(
-                span.meta,
+                span.get_tags(),
                 {
                     "out.host": u"127.0.0.1",
                     "db.name": u"test",

@@ -32,7 +32,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
 
         span = Span(None, "test")
         set_tags_from_context(span, context)
-        metas = span.meta
+        metas = span.get_tags()
         metrics = span.metrics
         sentinel = object()
         assert metas["celery.correlation_id"] == "44b7f305"
@@ -56,7 +56,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
             "timelimit": (None, None),
             "retries": 0,
         }
-        tags = span.meta
+        tags = span.get_tags()
 
         set_tags_from_context(span, context)
         assert {} == tags
