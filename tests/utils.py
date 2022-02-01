@@ -794,10 +794,10 @@ class TestSpanNode(TestSpan, TestSpanContainer):
             spans[i].assert_structure(root, _children)
 
     def pprint(self):
-        parts = [super(TestSpanNode, self).pprint()]
+        parts = [super(TestSpanNode, self)._pprint()]
         for child in self._children:
             parts.append("-" * 20)
-            parts.append(child.pprint())
+            parts.append(child._pprint())
         return "\r\n".join(parts)
 
 

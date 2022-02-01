@@ -40,6 +40,7 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
+from .internal.utils.deprecation import deprecated  # noqa: E402
 
 
 if TYPE_CHECKING:
@@ -490,7 +491,11 @@ class Span(object):
         self._remove_tag(ERROR_TYPE)
         self._remove_tag(ERROR_STACK)
 
+    @deprecated(version="1.0.0")
     def pprint(self):
+        return self._pprint()
+
+    def _pprint(self):
         # type: () -> str
         """Return a human readable version of the span."""
         data = [

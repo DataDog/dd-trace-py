@@ -107,7 +107,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"hello"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -129,7 +129,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"hello earth"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
         spans = self.pop_spans()
         assert len(spans) == 2
         by_name = {s.name: s for s in spans}
@@ -158,7 +158,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"handled"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -181,7 +181,7 @@ class TestFlask(TracerTestCase):
         end = time.time()
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
         spans = self.pop_spans()
         assert len(spans) == 1
         by_name = {s.name: s for s in spans}
@@ -205,7 +205,7 @@ class TestFlask(TracerTestCase):
         end = time.time()
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
         spans = self.pop_spans()
         assert len(spans) == 2
         by_name = {s.name: s for s in spans}
@@ -284,7 +284,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"\xc3\xbc\xc5\x8b\xc3\xaf\xc4\x89\xc3\xb3\xc4\x91\xc4\x93"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -306,7 +306,7 @@ class TestFlask(TracerTestCase):
         assert rv.status_code == 404
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -330,7 +330,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"hello"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -344,7 +344,7 @@ class TestFlask(TracerTestCase):
         rv = self.client.get("/custom_span")
         assert rv.status_code == 200
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -368,7 +368,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"hello"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span(), self.tracer.current_span()._pprint()
         spans = self.pop_spans()
         assert len(spans) == 2
         ot_span, dd_span = spans

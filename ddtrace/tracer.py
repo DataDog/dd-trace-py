@@ -656,7 +656,7 @@ class Tracer(object):
                 p.on_span_finish(span)
 
         if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
+            self.log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
 
     def _initialize_span_processors(self):
         # type: () -> None
@@ -788,7 +788,7 @@ class Tracer(object):
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
             for span in spans:
-                self.log.debug("\n%s", span.pprint())
+                self.log.debug("\n%s", span._pprint())
 
         if not self.enabled:
             return
