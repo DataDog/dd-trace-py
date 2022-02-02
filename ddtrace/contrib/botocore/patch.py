@@ -109,8 +109,8 @@ def inject_trace_to_eventbridge_detail(args, span):
     :args: contains args for the current botocore action, EventBridge records are at index 1
     :span: the span which provides the trace context to be propagated
 
-    Inject trace headers into the EventBridge record if the record's
-    Detail object contains a JSON string
+    Inject trace headers into the EventBridge record if the record's Detail object contains a JSON string
+    Max size per event is 256kb (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-putevent-size.html)
     """
     params = args[1]
     if "Entries" not in params:
@@ -120,6 +120,10 @@ def inject_trace_to_eventbridge_detail(args, span):
     for entry in params["Entries"]:
         if "Detail" in entry:
             try:
+                data_size = sys.getsizeof(entry["Detail"])
+                if data_size + 512 >= 256000:
+                    return
+
                 detail = json.loads(entry["Detail"])
                 dd_context = detail.get("_datadog", {})
                 HTTPPropagator.inject(span.context, dd_context)
