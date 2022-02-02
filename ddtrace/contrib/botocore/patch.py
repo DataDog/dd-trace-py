@@ -118,23 +118,25 @@ def inject_trace_to_eventbridge_detail(args, span):
         return
 
     for entry in params["Entries"]:
-        if "Detail" in entry:
-            try:
-                data_size = sys.getsizeof(entry["Detail"])
-                if data_size + 512 >= 256000:
-                    return
-
-                detail = json.loads(entry["Detail"])
-                dd_context = detail.get("_datadog", {})
-                HTTPPropagator.inject(span.context, dd_context)
-                detail["_datadog"] = dd_context
-                entry["Detail"] = json.dumps(detail)
-            except Exception:
-                log.warning("Unable to parse Detail and inject span context")
-        else:
+        if "Detail" not in entry:
             detail = {}
             HTTPPropagator.inject(span.context, detail)
+            entry["Detail"] = json.dumps({"_datadog": detail})
+            continue
+
+        try:
+            data_size = sys.getsizeof(entry["Detail"])
+            if data_size + 512 >= 256000:
+                log.debug("Inject trace context will make Detail exceed max allowed size")
+                return
+
+            detail = json.loads(entry["Detail"])
+            dd_context = detail.get("_datadog", {})
+            HTTPPropagator.inject(span.context, dd_context)
+            detail["_datadog"] = dd_context
             entry["Detail"] = json.dumps(detail)
+        except Exception:
+            log.warning("Unable to parse Detail and inject span context")
 
 
 def get_kinesis_data_object(data, try_b64=True):
