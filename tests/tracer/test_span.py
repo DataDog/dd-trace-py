@@ -157,7 +157,7 @@ class SpanTestCase(TracerTestCase):
 
     def test_finish_called_multiple_times(self):
         # we should only record a span the first time finish is called on it
-        s = Span(self.tracer, "bar")
+        s = Span(None, "bar")
         s.finish()
         s.finish()
 
@@ -203,7 +203,7 @@ class SpanTestCase(TracerTestCase):
         assert "in test_traceback_without_error" in s.get_tag(ERROR_STACK)
 
     def test_ctx_mgr(self):
-        s = Span(self.tracer, "bar")
+        s = Span(None, "bar")
         assert not s.duration
         assert not s.error
 

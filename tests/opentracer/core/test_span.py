@@ -1,17 +1,6 @@
 import pytest
 
 from ddtrace.opentracer.span import Span
-from tests.utils import DummyTracer
-
-
-@pytest.fixture
-def nop_tracer():
-    from ddtrace.opentracer import Tracer
-
-    tracer = Tracer(service_name="mysvc", config={})
-    # use the same test tracer used by the primary tests
-    tracer._tracer = DummyTracer()
-    return tracer
 
 
 @pytest.fixture
@@ -23,16 +12,16 @@ def nop_span_ctx():
 
 
 @pytest.fixture
-def nop_span(nop_tracer, nop_span_ctx):
-    return Span(nop_tracer, nop_span_ctx, "my_op_name")
+def nop_span(nop_span_ctx):
+    return Span(None, nop_span_ctx, "my_op_name")
 
 
 class TestSpan(object):
     """Test the Datadog OpenTracing Span implementation."""
 
-    def test_init(self, nop_tracer, nop_span_ctx):
+    def test_init(self, nop_span_ctx):
         """Very basic test for skeleton code"""
-        span = Span(nop_tracer, nop_span_ctx, "my_op_name")
+        span = Span(None, nop_span_ctx, "my_op_name")
         assert not span.finished
 
     def test_tags(self, nop_span):
@@ -111,10 +100,6 @@ class TestSpan(object):
 
         # span should be finished when the context manager exits
         assert nop_span.finished
-
-        # there should be no traces (see above comment)
-        spans = nop_span.tracer._tracer.pop()
-        assert len(spans) == 0
 
     def test_immutable_span_context(self, nop_span):
         """Ensure span contexts are immutable."""

@@ -171,7 +171,6 @@ class Span(object):
             self._ignored_exceptions.append(exc)
 
     @removed_property(
-        message="Accessing a tracer from a span is no longer supported. Span.tracer will be removed.",
         removal_version="1.0.0",
     )
     def tracer(self):
