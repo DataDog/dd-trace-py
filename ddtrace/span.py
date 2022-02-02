@@ -373,7 +373,7 @@ class Span(object):
     def meta(self):
         return self._meta
 
-    @meta.setter  # type: ignore
+    @meta.setter  # type: ignore[no-redef]
     def meta(self, value):
         self._meta = value
 
