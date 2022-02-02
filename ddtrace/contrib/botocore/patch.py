@@ -4,6 +4,11 @@ Trace queries to aws api done via botocore client
 import base64
 import json
 import sys
+import typing
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 import botocore.client
 
@@ -24,6 +29,8 @@ from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
+if typing.TYPE_CHECKING:
+    from ddtrace import Span
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -44,6 +51,13 @@ config._add(
 
 
 def inject_trace_data_to_message_attributes(trace_data, entry):
+    # type: (Dict[str, str], Dict[str, Any]) -> None
+    """
+    :trace_data: trace headers to be stored in the entry's MessageAttributes
+    :entry: an SQS or SNS record
+
+    Inject trace headers into the an SQS or SNS record's MessageAttributes
+    """
     if "MessageAttributes" not in entry:
         entry["MessageAttributes"] = {}
     # An Amazon SQS message can contain up to 10 metadata attributes.
@@ -54,6 +68,13 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
 
 
 def inject_trace_to_sqs_or_sns_batch_message(args, span):
+    # type: (List[Any], Span) -> None
+    """
+    :args: contains args for the current botocore action, SNS/SQS records are at index 1
+    :span: the span which provides the trace context to be propagated
+
+    Inject trace headers into MessageAttributes for all SQS or SNS records inside a batch
+    """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
     params = args[1]
@@ -68,6 +89,13 @@ def inject_trace_to_sqs_or_sns_batch_message(args, span):
 
 
 def inject_trace_to_sqs_or_sns_message(args, span):
+    # type: (List[Any], Span) -> None
+    """
+    :args: contains args for the current botocore action, SNS/SQS record is at index 1
+    :span: the span which provides the trace context to be propagated
+
+    Inject trace headers into MessageAttributes for the SQS or SNS record
+    """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
     params = args[1]
@@ -76,6 +104,14 @@ def inject_trace_to_sqs_or_sns_message(args, span):
 
 
 def inject_trace_to_eventbridge_detail(args, span):
+    # type: (List[Any], Span) -> None
+    """
+    :args: contains args for the current botocore action, EventBridge records are at index 1
+    :span: the span which provides the trace context to be propagated
+
+    Inject trace headers into the EventBridge record if the record's
+    Detail object contains a JSON string
+    """
     params = args[1]
     if "Entries" not in params:
         log.debug("Unable to inject context. The Event Bridge event had no Entries.")
@@ -98,19 +134,24 @@ def inject_trace_to_eventbridge_detail(args, span):
 
 
 def get_kinesis_data_object(data, try_b64=True):
+    # type: (str, Optional[bool]) -> Dict[str: Any]
+    """
+    :data: the data from a kinesis stream
+    :try_b64: whether we should try to decode the string as base64
+
+    The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
+    We support injecting our trace context in the following two cases:
+        - json string
+        - base64 encoded json string
+    If it's neither of these, then we leave the message as it is.
+    """
 
     # check if data size will exceed max with headers
+    # the maximum data size including out headers should not exceed 1MB
     data_size = sys.getsizeof(data)
     if data_size + 512 >= 1000000:
         return None
 
-    """
-        The data here come be any string. It's up to the user to decide the contents of the message.
-        We support two cases injecting our trace context in the following two cases:
-            - json string
-            - base64 encoded json string
-        If it's neither of these, then we leave the message as it is.
-    """
     try:
         return json.loads(data)
     except Exception:
@@ -124,6 +165,14 @@ def get_kinesis_data_object(data, try_b64=True):
 
 
 def inject_trace_to_kinesis_stream_data(record, span):
+    # type: (Dict[str, Any], Span) -> None
+    """
+    :record: contains args for the current botocore action, Kinesis record is at index 1
+    :span: the span which provides the trace context to be propagated
+
+    Inject trace headers into the Kinesis record's Data field in addition to the existing
+    data. Only possible if the existing data is JSON string or base64 encoded JSON string
+    """
     if "Data" not in record:
         log.debug("Unable to inject context. The kinesis stream has no data")
         return
@@ -140,6 +189,14 @@ def inject_trace_to_kinesis_stream_data(record, span):
 
 
 def inject_trace_to_kinesis_stream(args, span):
+    # type: (List[Any], Span) -> None
+    """
+    :args: contains args for the current botocore action, Kinesis records are at index 1
+    :span: the span which provides the trace context to be propagated
+
+    Inject trace headers into the Kinesis batch's first record's Data field.
+    Only possible if the existing data is JSON string or base64 encoded JSON string
+    """
     params = args[1]
     if "Records" in params:
         records = params.get("Records", [])
