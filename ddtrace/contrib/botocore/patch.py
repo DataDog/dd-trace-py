@@ -150,6 +150,7 @@ def get_kinesis_data_object(data, try_b64=True):
         - json string
         - base64 encoded json string
     If it's neither of these, then we leave the message as it is.
+    Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
 
     # check if data size will exceed max with headers
