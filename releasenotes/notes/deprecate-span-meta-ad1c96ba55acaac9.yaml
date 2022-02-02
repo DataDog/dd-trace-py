@@ -1,4 +1,4 @@
 ---
 deprecations:
   - |
-    py:attribute::Span.meta has been deprecated. Use py:method::Span.get_tag(key) and py:method::Span.set_tag(key, val) instead.
+    :py:attr:ddtrace.Span.meta has been deprecated. Use :py:meth:ddtrace.Span.get_tag and :py:meth:ddtrace.Span.set_tag instead.
