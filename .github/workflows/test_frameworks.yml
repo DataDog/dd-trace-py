@@ -178,6 +178,8 @@ jobs:
           python-version: '3.9'
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Skip pytest_asyncio==0.17, this version raises an AssertionError in pytest
+        run: pip install "pytest_asyncio<0.17"
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Add pytest configuration for ddtrace
