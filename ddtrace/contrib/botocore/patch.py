@@ -75,7 +75,7 @@ def inject_trace_to_sqs_or_sns_message(args, span):
     inject_trace_data_to_message_attributes(trace_data, params)
 
 
-def inject_trace_to_event_bridge_detail(args, span):
+def inject_trace_to_eventbridge_detail(args, span):
     params = args[1]
     if "Entries" in params:
         for entry in params["Entries"]:
@@ -103,6 +103,13 @@ def get_kinesis_data_object(data, try_b64=True):
     if data_size + 512 >= 1000000:
         return None
 
+    """
+        The data here come be any string. It's up to the user to decide the contents of the message.
+        We support two cases injecting our trace context in the following two cases:
+            - json string
+            - base64 encoded json string
+        If it's neither of these, then we leave the message as it is.
+    """
     try:
         return json.loads(data)
     except Exception:
@@ -212,7 +219,7 @@ def patched_api_call(original_func, instance, args, kwargs):
                 if endpoint_name == "sqs" and operation == "SendMessageBatch":
                     inject_trace_to_sqs_or_sns_batch_message(args, span)
                 if endpoint_name == "events" and operation == "PutEvents":
-                    inject_trace_to_event_bridge_detail(args, span)
+                    inject_trace_to_eventbridge_detail(args, span)
                 if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
                     inject_trace_to_kinesis_stream(args, span)
                 if endpoint_name == "sns" and operation == "Publish":
