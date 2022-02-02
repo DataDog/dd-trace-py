@@ -2,21 +2,22 @@ name: System Tests
 
 on:
   pull_request:
-    branches:
-      - "**"
   workflow_dispatch: {}
   schedule:
     - cron:  '00 04 * * 2-6'
+  push:
+    branches:
+      - master
 
 jobs:
   system-tests:
-    if: ${{ github.event.pull_request.head.repo.full_name == 'DataDog/dd-trace-py' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
           - weblog-variant: flask-poc
           - weblog-variant: uwsgi-poc
+          - weblog-variant: django-poc
       fail-fast: false
     env:
       TEST_LIBRARY: python
@@ -39,8 +40,10 @@ jobs:
       - name: Run
         run: ./run.sh
 
+      # even on failures, we want to have artifact to be able to investigate
+      # The compress step speed up a lot the uplaod artifact process
       - name: Compress artifact
-        if: ${{ always() }}
+        if: ${{ always() }}  
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
