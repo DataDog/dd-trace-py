@@ -1,4 +1,4 @@
 ---
 deprecations:
   - |
-    ``Span.metrics`` has been deprecated. Use ``Span.get_metric(key)`` and ``Span.set_metric(key, val)`` instead.
+    :py:attr:`ddtrace.Span.metrics` has been deprecated. Use :py:meth:`ddtrace.Span.get_metric` and :py:meth:`ddtrace.Span.set_metric` instead.
