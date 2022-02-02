@@ -40,6 +40,7 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
+from .vendor.debtcollector.removals import removed_property
 
 
 if TYPE_CHECKING:
@@ -399,6 +400,18 @@ class Span(object):
         if key in self.meta:
             del self.meta[key]
         self._metrics[key] = value
+
+    @removed_property(
+        message="Use getters and setters instead of accessing Span.metrics directly. \
+            Ex: Span.get_metric(k), Span.set_metric(k, v), Span.get_metrics(), Span.set_metrics())",
+        removal_version="1.0.0",
+    )
+    def metric(self):
+        return self._metric
+
+    @metric.setter  # type: ignore
+    def metric(self, value):
+        self._metric = value
 
     def set_metrics(self, metrics):
         # type: (_MetricDictType) -> None
