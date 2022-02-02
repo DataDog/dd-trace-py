@@ -124,16 +124,19 @@ def get_kinesis_data_object(data, try_b64=True):
 
 
 def inject_trace_to_kinesis_stream_data(record, span):
-    if "Data" in record:
-        data = record["Data"]
-        data_obj = get_kinesis_data_object(data)
-        if data_obj:
-            dd_ctx = {}
-            HTTPPropagator.inject(span.context, dd_ctx)
-            data_obj["_datadog"] = dd_ctx
-            record["Data"] = json.dumps(data_obj)
-        else:
-            log.debug("Unable to parse kinesis streams data string")
+    if "Data" not in record:
+        log.debug("Unable to inject context. The kinesis stream has no data")
+        return
+
+    data = record["Data"]
+    data_obj = get_kinesis_data_object(data)
+    if data_obj:
+        dd_ctx = {}
+        HTTPPropagator.inject(span.context, dd_ctx)
+        data_obj["_datadog"] = dd_ctx
+        record["Data"] = json.dumps(data_obj)
+    else:
+        log.debug("Unable to parse kinesis streams data string")
 
 
 def inject_trace_to_kinesis_stream(args, span):
