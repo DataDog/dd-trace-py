@@ -1,4 +1,4 @@
 ---
 deprecations:
   - |
-    ``Span.meta`` has been deprecated. Use ``Span.get_tag(key)`` and ``Span.set_tag(key, val)`` instead.
+    py:attribute::Span.meta has been deprecated. Use py:method::Span.get_tag(key) and py:method::Span.set_tag(key, val) instead.

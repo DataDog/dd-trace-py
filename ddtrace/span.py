@@ -366,8 +366,7 @@ class Span(object):
                 self.set_tag(k, v)
 
     @removed_property(
-        message="Use getters and setters instead of accessing Span.meta directly. \
-            Ex: Span.set_tag(k, v), Span.set_tags(), Span.get_tag(k), Span.get_tags())",
+        message="Use Span.set_tag, Span.set_tags, Span.get_tag, or Span.get_tags methods instead.",
         removal_version="1.0.0",
     )
     def meta(self):
