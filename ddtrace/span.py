@@ -40,6 +40,7 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
+from .vendor.debtcollector.removals import removed_property
 
 
 if TYPE_CHECKING:
@@ -69,7 +70,7 @@ class Span(object):
         "_span_type",
         "start_ns",
         "duration_ns",
-        "tracer",
+        "_tracer",
         # Sampler attributes
         "sampled",
         # Internal attributes
@@ -127,6 +128,11 @@ class Span(object):
         if not (parent_id is None or isinstance(parent_id, six.integer_types)):
             raise TypeError("parent_id must be an integer")
 
+        self._tracer = None
+        if tracer is not None:
+            # accessing span.tracer logs a deprecation warning
+            self.tracer = tracer  # type: ignore
+
         # required span info
         self.name = name
         self.service = service
@@ -147,7 +153,6 @@ class Span(object):
         self.trace_id = trace_id or _rand.rand64bits()  # type: int
         self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
-        self.tracer = tracer  # type: Optional[Tracer]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling
@@ -164,6 +169,19 @@ class Span(object):
             self._ignored_exceptions = [exc]
         else:
             self._ignored_exceptions.append(exc)
+
+    @removed_property(
+        message="Accessing a tracer from a span is no longer supported. Span.tracer will be removed.",
+        removal_version="1.0.0",
+    )
+    def tracer(self):
+        # type: () -> Optional[Tracer]
+        return self._tracer
+
+    @tracer.setter  # type: ignore
+    def tracer(self, t):
+        # type: (Optional[Tracer]) -> None
+        self._tracer = t
 
     @property
     def start(self):

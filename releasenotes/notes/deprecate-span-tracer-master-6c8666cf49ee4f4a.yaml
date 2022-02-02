@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    ``Span.tracer`` is deprecated and will be removed in v1.0.

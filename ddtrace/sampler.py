@@ -145,7 +145,7 @@ class RateByServiceSampler(BasePrioritySampler):
 
     def sample(self, span):
         # type: (Span) -> bool
-        tags = span.tracer.tags if span.tracer else {}
+        tags = span.tracer.tags if span.tracer else {}  # type: ignore
         env = tags[ENV_KEY] if ENV_KEY in tags else None
         key = self._key(span.service, env)
 
