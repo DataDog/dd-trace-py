@@ -1,4 +1,4 @@
 ---
 upgrade:
   - |
-    ``ddtrace.settings.HTTPServerConfig`` was removed from the public api.
+    ``ddtrace.settings.Config.HTTPServerConfig`` was removed from the public api.
