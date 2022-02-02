@@ -77,23 +77,24 @@ def inject_trace_to_sqs_or_sns_message(args, span):
 
 def inject_trace_to_eventbridge_detail(args, span):
     params = args[1]
-    if "Entries" in params:
-        for entry in params["Entries"]:
-            if "Detail" in entry:
-                try:
-                    detail = json.loads(entry["Detail"])
-                    dd_context = detail.get("_datadog", {})
-                    HTTPPropagator.inject(span.context, dd_context)
-                    detail["_datadog"] = dd_context
-                    entry["Detail"] = json.dumps(detail)
-                except Exception:
-                    log.warning("Unable to parse Detail and inject span context")
-            else:
-                detail = {}
-                HTTPPropagator.inject(span.context, detail)
-                entry["Detail"] = json.dumps(detail)
-    else:
+    if "Entries" not in params:
         log.debug("Unable to inject context. The Event Bridge event had no Entries.")
+        return
+
+    for entry in params["Entries"]:
+        if "Detail" in entry:
+            try:
+                detail = json.loads(entry["Detail"])
+                dd_context = detail.get("_datadog", {})
+                HTTPPropagator.inject(span.context, dd_context)
+                detail["_datadog"] = dd_context
+                entry["Detail"] = json.dumps(detail)
+            except Exception:
+                log.warning("Unable to parse Detail and inject span context")
+        else:
+            detail = {}
+            HTTPPropagator.inject(span.context, detail)
+            entry["Detail"] = json.dumps(detail)
 
 
 def get_kinesis_data_object(data, try_b64=True):
