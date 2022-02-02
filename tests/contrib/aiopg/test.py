@@ -116,7 +116,6 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.service == service
         assert span.get_tag("sql.query") == q
         assert span.error == 1
-        # assert span.get_tag('out.host'] == 'localhost'
         assert span.metrics["out.port"] == TEST_PORT
         assert span.span_type == "sql"
 
