@@ -58,6 +58,10 @@ def inject_trace_to_sqs_or_sns_batch_message(args, span):
     HTTPPropagator.inject(span.context, trace_data)
     params = args[1]
 
+    # An entry here is an SNS or SQS record, and depending on how it was published,
+    # it could either show up under Entries (in case of Publish, PutRecord & PutRecords),
+    # or PublishBatchRequestEntries (in case of PublishBatch). The order doesn't really matter here,
+    # but Entries is more likely than PublishBatchRequestEntries so it makes sense to check there first.
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
         inject_trace_data_to_message_attributes(trace_data, entry)
