@@ -5,18 +5,17 @@ from typing import TYPE_CHECKING
 
 import attr
 
-import ddtrace
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.gateway import ADDRESSES
+from ddtrace.gateway import Gateway
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.utils.formats import get_env
 
 
 if TYPE_CHECKING:
-    from ddtrace.gateway import Gateway
     from ddtrace import Span
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -63,6 +62,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
+    _gateway = attr.ib(type=Gateway, default=None)
 
     @property
     def enabled(self):
@@ -98,6 +98,14 @@ class AppSecSpanProcessor(SpanProcessor):
                 # Partial of DDAS-0005-00
                 log.warning("[DDAS-0005-00] WAF initialization failed")
                 raise
+
+    def setup(self, gateway):
+        # type: (Gateway) -> None
+        self._gateway = gateway
+        for address in self._ddwaf.required_data:
+            gateway.mark_needed(address)
+        # we always need the request headers
+        gateway.mark_needed(ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
 
     def on_span_start(self, span):
         # type: (Span) -> None
