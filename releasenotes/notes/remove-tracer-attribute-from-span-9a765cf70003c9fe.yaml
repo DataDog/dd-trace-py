@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Removes ``Span.tracer`` attribute. Accessing a tracer from a Span object is no longer supported.
