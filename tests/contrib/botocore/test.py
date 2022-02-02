@@ -83,19 +83,19 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
+        assert len(spans) == 1
         assert_is_measured(span)
-        self.assertEqual(span.get_tag("aws.agent"), "botocore")
-        self.assertEqual(span.get_tag("aws.region"), "us-west-2")
-        self.assertEqual(span.get_tag("aws.operation"), "DescribeInstances")
-        self.assertEqual(span.get_tag("aws.requestid"), "fdcdcab1-ae5c-489e-9c33-4637c5dda355")
+        assert span.get_tag("aws.agent") == "botocore"
+        assert span.get_tag("aws.region") == "us-west-2"
+        assert span.get_tag("aws.operation") == "DescribeInstances"
+        assert span.get_tag("aws.requestid") == "fdcdcab1-ae5c-489e-9c33-4637c5dda355"
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.get_metric("retry_attempts"), 0)
-        self.assertEqual(span.service, "test-botocore-tracing.ec2")
-        self.assertEqual(span.resource, "ec2.describeinstances")
-        self.assertEqual(span.name, "ec2.command")
-        self.assertEqual(span.span_type, "http")
-        self.assertIsNone(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY))
+        assert span.get_metric("retry_attempts") == 0
+        assert span.service == "test-botocore-tracing.ec2"
+        assert span.resource == "ec2.describeinstances"
+        assert span.name == "ec2.command"
+        assert span.span_type == "http"
+        assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
     @mock_ec2
     def test_traced_client_analytics(self):
@@ -107,7 +107,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(span.get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
+        assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 0.5
 
     @mock_s3
     def test_s3_client(self):
@@ -120,12 +120,12 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 2)
+        assert len(spans) == 2
         assert_is_measured(span)
-        self.assertEqual(span.get_tag("aws.operation"), "ListBuckets")
+        assert span.get_tag("aws.operation") == "ListBuckets"
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.s3")
-        self.assertEqual(span.resource, "s3.listbuckets")
+        assert span.service == "test-botocore-tracing.s3"
+        assert span.resource == "s3.listbuckets"
 
         # testing for span error
         self.reset()
@@ -135,8 +135,8 @@ class BotocoreTest(TracerTestCase):
             spans = self.get_spans()
             assert spans
             span = spans[0]
-            self.assertEqual(span.error, 1)
-            self.assertEqual(span.resource, "s3.listobjects")
+            assert span.error == 1
+            assert span.resource == "s3.listobjects"
 
     @mock_s3
     def test_s3_put(self):
@@ -155,18 +155,18 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 2)
-        self.assertEqual(span.get_tag("aws.operation"), "CreateBucket")
+        assert len(spans) == 2
+        assert span.get_tag("aws.operation") == "CreateBucket"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.s3")
-        self.assertEqual(span.resource, "s3.createbucket")
-        self.assertEqual(spans[1].get_tag("aws.operation"), "PutObject")
-        self.assertEqual(spans[1].resource, "s3.putobject")
-        self.assertEqual(spans[1].get_tag("params.Key"), stringify(params["Key"]))
-        self.assertEqual(spans[1].get_tag("params.Bucket"), stringify(params["Bucket"]))
+        assert span.service == "test-botocore-tracing.s3"
+        assert span.resource == "s3.createbucket"
+        assert spans[1].get_tag("aws.operation") == "PutObject"
+        assert spans[1].resource == "s3.putobject"
+        assert spans[1].get_tag("params.Key") == stringify(params["Key"])
+        assert spans[1].get_tag("params.Bucket") == stringify(params["Bucket"])
         # confirm blacklisted
-        self.assertIsNone(spans[1].get_tag("params.Body"))
+        assert spans[1].get_tag("params.Body") is None
 
     @mock_sqs
     def test_sqs_client(self):
@@ -178,14 +178,14 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "ListQueues")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "ListQueues"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.sqs")
-        self.assertEqual(span.resource, "sqs.listqueues")
+        assert span.service == "test-botocore-tracing.sqs"
+        assert span.resource == "sqs.listqueues"
 
     @mock_sqs
     def test_sqs_send_message_trace_injection_with_no_message_attributes(self):
@@ -197,25 +197,25 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "SendMessage"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.sqs")
-        self.assertEqual(span.resource, "sqs.sendmessage")
+        assert span.service == "test-botocore-tracing.sqs"
+        assert span.resource == "sqs.sendmessage"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
         trace_data_injected = json.loads(trace_json)
-        self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
         response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
-        self.assertEqual(len(response["Messages"]), 1)
+        assert len(response["Messages"]) == 1
         trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
         sqs.delete_queue(QueueUrl=queue["QueueUrl"])
         trace_data_in_message = json.loads(trace_json_message)
-        self.assertEqual(trace_data_in_message[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(trace_data_in_message[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sqs
     def test_sqs_send_message_distributed_tracing_off(self):
@@ -228,20 +228,20 @@ class BotocoreTest(TracerTestCase):
             spans = self.get_spans()
             assert spans
             span = spans[0]
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-            self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
-            self.assertIsNone(span.get_tag("params.MessageBody"))
+            assert len(spans) == 1
+            assert span.get_tag("aws.region") == "us-east-1"
+            assert span.get_tag("aws.operation") == "SendMessage"
+            assert span.get_tag("params.MessageBody") is None
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
-            self.assertEqual(span.service, "test-botocore-tracing.sqs")
-            self.assertEqual(span.resource, "sqs.sendmessage")
-            self.assertEqual(span.get_tag("params.MessageAttributes._datadog.StringValue"), None)
+            assert span.service == "test-botocore-tracing.sqs"
+            assert span.resource == "sqs.sendmessage"
+            assert span.get_tag("params.MessageAttributes._datadog.StringValue") == None
 
             response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
-            self.assertEqual(len(response["Messages"]), 1)
+            assert len(response["Messages"]) == 1
             trace_in_message = "MessageAttributes" in response["Messages"][0]
-            self.assertEqual(trace_in_message, False)
+            assert trace_in_message == False
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_sqs
@@ -264,24 +264,24 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "SendMessage"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.sqs")
-        self.assertEqual(span.resource, "sqs.sendmessage")
+        assert span.service == "test-botocore-tracing.sqs"
+        assert span.resource == "sqs.sendmessage"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
         trace_data_injected = json.loads(trace_json)
-        self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
         response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
-        self.assertEqual(len(response["Messages"]), 1)
+        assert len(response["Messages"]) == 1
         trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
         trace_data_in_message = json.loads(trace_json_message)
-        self.assertEqual(trace_data_in_message[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(trace_data_in_message[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
         sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_sqs
@@ -305,20 +305,20 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "SendMessage")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "SendMessage"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.sqs")
-        self.assertEqual(span.resource, "sqs.sendmessage")
+        assert span.service == "test-botocore-tracing.sqs"
+        assert span.resource == "sqs.sendmessage"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-        self.assertEqual(trace_json, None)
+        assert trace_json == None
         response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
-        self.assertEqual(len(response["Messages"]), 1)
+        assert len(response["Messages"]) == 1
         trace_in_message = "MessageAttributes" in response["Messages"][0]
-        self.assertEqual(trace_in_message, False)
+        assert trace_in_message == False
         sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_sqs
@@ -336,20 +336,20 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "SendMessageBatch")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "SendMessageBatch"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.sqs")
-        self.assertEqual(span.resource, "sqs.sendmessagebatch")
+        assert span.service == "test-botocore-tracing.sqs"
+        assert span.resource == "sqs.sendmessagebatch"
         response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
-        self.assertEqual(len(response["Messages"]), 1)
+        assert len(response["Messages"]) == 1
         trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
         trace_data_in_message = json.loads(trace_json_message)
-        self.assertEqual(trace_data_in_message[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(trace_data_in_message[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
         sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_sqs
@@ -379,20 +379,20 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "SendMessageBatch")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "SendMessageBatch"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.sqs")
-        self.assertEqual(span.resource, "sqs.sendmessagebatch")
+        assert span.service == "test-botocore-tracing.sqs"
+        assert span.resource == "sqs.sendmessagebatch"
         response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
-        self.assertEqual(len(response["Messages"]), 1)
+        assert len(response["Messages"]) == 1
         trace_json_message = response["Messages"][0]["MessageAttributes"]["_datadog"]["StringValue"]
         trace_data_in_message = json.loads(trace_json_message)
-        self.assertEqual(trace_data_in_message[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(trace_data_in_message[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert trace_data_in_message[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert trace_data_in_message[HTTP_HEADER_PARENT_ID] == str(span.span_id)
         sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_sqs
@@ -423,18 +423,18 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "SendMessageBatch")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "SendMessageBatch"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.sqs")
-        self.assertEqual(span.resource, "sqs.sendmessagebatch")
+        assert span.service == "test-botocore-tracing.sqs"
+        assert span.resource == "sqs.sendmessagebatch"
         response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
-        self.assertEqual(len(response["Messages"]), 1)
+        assert len(response["Messages"]) == 1
         trace_in_message = "MessageAttributes" in response["Messages"][0]
-        self.assertEqual(trace_in_message, False)
+        assert trace_in_message == False
         sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_kinesis
@@ -447,13 +447,13 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "ListStreams")
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "ListStreams"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
-        self.assertEqual(span.resource, "kinesis.liststreams")
+        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.resource == "kinesis.liststreams"
 
     @mock_kinesis
     def test_unpatch(self):
@@ -478,7 +478,7 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         assert spans
-        self.assertEqual(len(spans), 1)
+        assert len(spans) == 1
 
     @mock_lambda
     def test_lambda_client(self):
@@ -490,13 +490,13 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-west-2")
-        self.assertEqual(span.get_tag("aws.operation"), "ListFunctions")
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-west-2"
+        assert span.get_tag("aws.operation") == "ListFunctions"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.lambda")
-        self.assertEqual(span.resource, "lambda.listfunctions")
+        assert span.service == "test-botocore-tracing.lambda"
+        assert span.resource == "lambda.listfunctions"
 
     @mock_lambda
     def test_lambda_invoke_no_context_client(self):
@@ -525,19 +525,19 @@ class BotocoreTest(TracerTestCase):
         assert spans
         span = spans[0]
 
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-west-2")
-        self.assertEqual(span.get_tag("aws.operation"), "Invoke")
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-west-2"
+        assert span.get_tag("aws.operation") == "Invoke"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.lambda")
-        self.assertEqual(span.resource, "lambda.invoke")
+        assert span.service == "test-botocore-tracing.lambda"
+        assert span.resource == "lambda.invoke"
         context_b64 = span.get_tag("params.ClientContext")
         context_json = base64.b64decode(context_b64.encode()).decode()
         context_obj = json.loads(context_json)
 
-        self.assertEqual(context_obj["custom"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(context_obj["custom"][HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert context_obj["custom"][HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert context_obj["custom"][HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         lamb.delete_function(FunctionName="ironmaiden")
 
@@ -569,19 +569,19 @@ class BotocoreTest(TracerTestCase):
             assert spans
             span = spans[0]
 
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(span.get_tag("aws.region"), "us-west-2")
-            self.assertEqual(span.get_tag("aws.operation"), "Invoke")
+            assert len(spans) == 1
+            assert span.get_tag("aws.region") == "us-west-2"
+            assert span.get_tag("aws.operation") == "Invoke"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
-            self.assertEqual(span.service, "test-botocore-tracing.lambda")
-            self.assertEqual(span.resource, "lambda.invoke")
+            assert span.service == "test-botocore-tracing.lambda"
+            assert span.resource == "lambda.invoke"
             context_b64 = span.get_tag("params.ClientContext")
             context_json = base64.b64decode(context_b64.encode()).decode()
             context_obj = json.loads(context_json)
 
-            self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
-            self.assertEqual(context_obj["custom"]["_datadog"][HTTP_HEADER_PARENT_ID], str(span.span_id))
+            assert context_obj["custom"]["_datadog"][HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+            assert context_obj["custom"]["_datadog"][HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
             lamb.delete_function(FunctionName="ironmaiden")
 
@@ -613,14 +613,14 @@ class BotocoreTest(TracerTestCase):
             assert spans
             span = spans[0]
 
-            self.assertEqual(len(spans), 1)
-            self.assertEqual(span.get_tag("aws.region"), "us-west-2")
-            self.assertEqual(span.get_tag("aws.operation"), "Invoke")
+            assert len(spans) == 1
+            assert span.get_tag("aws.region") == "us-west-2"
+            assert span.get_tag("aws.operation") == "Invoke"
             assert_is_measured(span)
             assert_span_http_status_code(span, 200)
-            self.assertEqual(span.service, "test-botocore-tracing.lambda")
-            self.assertEqual(span.resource, "lambda.invoke")
-            self.assertEqual(span.get_tag("params.ClientContext"), None)
+            assert span.service == "test-botocore-tracing.lambda"
+            assert span.resource == "lambda.invoke"
+            assert span.get_tag("params.ClientContext") == None
             lamb.delete_function(FunctionName="ironmaiden")
 
     @mock_lambda
@@ -652,20 +652,20 @@ class BotocoreTest(TracerTestCase):
         assert spans
         span = spans[0]
 
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-west-2")
-        self.assertEqual(span.get_tag("aws.operation"), "Invoke")
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-west-2"
+        assert span.get_tag("aws.operation") == "Invoke"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.lambda")
-        self.assertEqual(span.resource, "lambda.invoke")
+        assert span.service == "test-botocore-tracing.lambda"
+        assert span.resource == "lambda.invoke"
         context_b64 = span.get_tag("params.ClientContext")
         context_json = base64.b64decode(context_b64.encode()).decode()
         context_obj = json.loads(context_json)
 
-        self.assertEqual(context_obj["custom"]["foo"], "bar")
-        self.assertEqual(context_obj["custom"][HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(context_obj["custom"][HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert context_obj["custom"]["foo"] == "bar"
+        assert context_obj["custom"][HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert context_obj["custom"][HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         lamb.delete_function(FunctionName="megadeth")
 
@@ -696,9 +696,9 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-west-2")
-        self.assertEqual(span.get_tag("aws.operation"), "Invoke")
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-west-2"
+        assert span.get_tag("aws.operation") == "Invoke"
         assert_is_measured(span)
         lamb.delete_function(FunctionName="black-sabbath")
 
@@ -721,20 +721,20 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         assert spans
-        self.assertEqual(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
 
         str_entries = span.get_tag("params.Entries")
         entries = ast.literal_eval(str_entries)
-        self.assertEqual(len(entries), 1)
+        assert len(entries) == 1
         for e in entries:
-            self.assertTrue("Detail" in e)
+            assert "Detail" in e
             detail = json.loads(e["Detail"])
-            self.assertTrue(HTTP_HEADER_PARENT_ID in detail["_datadog"])
-            self.assertTrue(HTTP_HEADER_TRACE_ID in detail["_datadog"])
+            assert HTTP_HEADER_PARENT_ID in detail["_datadog"]
+            assert HTTP_HEADER_TRACE_ID in detail["_datadog"]
             headers = detail["_datadog"]
-            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         bridge.delete_event_bus(Name="a-test-bus")
 
@@ -763,20 +763,20 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         assert spans
-        self.assertEqual(len(spans), 1)
+        assert len(spans) == 1
         span = spans[0]
 
         str_entries = span.get_tag("params.Entries")
         entries = ast.literal_eval(str_entries)
-        self.assertEqual(len(entries), 2)
+        assert len(entries) == 2
         for e in entries:
-            self.assertTrue("Detail" in e)
+            assert "Detail" in e
             detail = json.loads(e["Detail"])
-            self.assertTrue(HTTP_HEADER_PARENT_ID in detail["_datadog"])
-            self.assertTrue(HTTP_HEADER_TRACE_ID in detail["_datadog"])
+            assert HTTP_HEADER_PARENT_ID in detail["_datadog"]
+            assert HTTP_HEADER_TRACE_ID in detail["_datadog"]
             headers = detail["_datadog"]
-            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         bridge.delete_event_bus(Name="a-test-bus")
 
@@ -790,16 +790,16 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "ListKeys")
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "ListKeys"
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.kms")
-        self.assertEqual(span.resource, "kms.listkeys")
+        assert span.service == "test-botocore-tracing.kms"
+        assert span.resource == "kms.listkeys"
 
         # checking for protection on sts against security leak
-        self.assertIsNone(span.get_tag("params"))
+        assert span.get_tag("params") is None
 
     @mock_ec2
     def test_traced_client_ot(self):
@@ -813,25 +813,25 @@ class BotocoreTest(TracerTestCase):
 
         spans = self.get_spans()
         assert spans
-        self.assertEqual(len(spans), 2)
+        assert len(spans) == 2
 
         ot_span, dd_span = spans
 
         # confirm the parenting
-        self.assertIsNone(ot_span.parent_id)
-        self.assertEqual(dd_span.parent_id, ot_span.span_id)
+        assert ot_span.parent_id is None
+        assert dd_span.parent_id == ot_span.span_id
 
-        self.assertEqual(ot_span.name, "ec2_op")
-        self.assertEqual(ot_span.service, "ec2_svc")
+        assert ot_span.name == "ec2_op"
+        assert ot_span.service == "ec2_svc"
 
-        self.assertEqual(dd_span.get_tag("aws.agent"), "botocore")
-        self.assertEqual(dd_span.get_tag("aws.region"), "us-west-2")
-        self.assertEqual(dd_span.get_tag("aws.operation"), "DescribeInstances")
+        assert dd_span.get_tag("aws.agent") == "botocore"
+        assert dd_span.get_tag("aws.region") == "us-west-2"
+        assert dd_span.get_tag("aws.operation") == "DescribeInstances"
         assert_span_http_status_code(dd_span, 200)
-        self.assertEqual(dd_span.get_metric("retry_attempts"), 0)
-        self.assertEqual(dd_span.service, "test-botocore-tracing.ec2")
-        self.assertEqual(dd_span.resource, "ec2.describeinstances")
-        self.assertEqual(dd_span.name, "ec2.command")
+        assert dd_span.get_metric("retry_attempts") == 0
+        assert dd_span.service == "test-botocore-tracing.ec2"
+        assert dd_span.resource == "ec2.describeinstances"
+        assert dd_span.name == "ec2.command"
 
     @unittest.skipIf(BOTOCORE_VERSION < (1, 9, 0), "Skipping for older versions of botocore without Stubber")
     def test_stubber_no_response_metadata(self):
@@ -934,32 +934,32 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 2)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "Publish")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "Publish"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.sns")
-        self.assertEqual(span.resource, "sns.publish")
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publish"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
         trace_data_injected = json.loads(trace_json)
-        self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         # receive message using SQS and ensure headers are present
-        self.assertEqual(len(response["Messages"]), 1)
+        assert len(response["Messages"]) == 1
         msg = response["Messages"][0]
-        self.assertIsNotNone(msg)
+        assert msg is not None
         msg_body = json.loads(msg["Body"])
         msg_str = msg_body["Message"]
-        self.assertEqual(msg_str, "test")
+        assert msg_str == "test"
         msg_attr = msg_body["MessageAttributes"]
-        self.assertIsNotNone(msg_attr.get("_datadog"))
+        assert msg_attr.get("_datadog") is not None
         headers = json.loads(msg_attr["_datadog"]["Value"])
-        self.assertIsNotNone(headers)
-        self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sns
     @mock_sqs
@@ -1001,32 +1001,32 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 2)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "Publish")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "Publish"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.sns")
-        self.assertEqual(span.resource, "sns.publish")
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publish"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
         trace_data_injected = json.loads(trace_json)
-        self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         # receive message using SQS and ensure headers are present
-        self.assertEqual(len(response["Messages"]), 1)
+        assert len(response["Messages"]) == 1
         msg = response["Messages"][0]
-        self.assertIsNotNone(msg)
+        assert msg is not None
         msg_body = json.loads(msg["Body"])
         msg_str = msg_body["Message"]
-        self.assertEqual(msg_str, "test")
+        assert msg_str == "test"
         msg_attr = msg_body["MessageAttributes"]
-        self.assertIsNotNone(msg_attr.get("_datadog"))
+        assert msg_attr.get("_datadog") is not None
         headers = json.loads(msg_attr["_datadog"]["Value"])
-        self.assertIsNotNone(headers)
-        self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sns
     @mock_sqs
@@ -1069,26 +1069,26 @@ class BotocoreTest(TracerTestCase):
         # check if the appropriate span was generated
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 2)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "Publish")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 2
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "Publish"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.sns")
-        self.assertEqual(span.resource, "sns.publish")
+        assert span.service == "test-botocore-tracing.sns"
+        assert span.resource == "sns.publish"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-        self.assertIsNone(trace_json)
+        assert trace_json is None
 
         # receive message using SQS and ensure headers are present
-        self.assertEqual(len(response["Messages"]), 1)
+        assert len(response["Messages"]) == 1
         msg = response["Messages"][0]
-        self.assertIsNotNone(msg)
+        assert msg is not None
         msg_body = json.loads(msg["Body"])
         msg_str = msg_body["Message"]
-        self.assertEqual(msg_str, "test")
+        assert msg_str == "test"
         msg_attr = msg_body["MessageAttributes"]
-        self.assertIsNone(msg_attr.get("_datadog"))
+        assert msg_attr.get("_datadog") is None
 
     # NOTE: commenting out the tests below because localstack has a bug where messages
     # published to SNS via publish_batch and retrieved via SQS are missing MessageAttributes
@@ -1131,32 +1131,32 @@ class BotocoreTest(TracerTestCase):
     #     # check if the appropriate span was generated
     #     assert spans
     #     span = spans[0]
-    #     self.assertEqual(len(spans), 2)
-    #     self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-    #     self.assertEqual(span.get_tag("aws.operation"), "PublishBatch")
-    #     self.assertIsNone(span.get_tag("params.MessageBody"))
+    #     assert len(spans) == 2
+    #     assert span.get_tag("aws.region") == "us-east-1"
+    #     assert span.get_tag("aws.operation") == "PublishBatch"
+    #     assert span.get_tag("params.MessageBody") is None
     #     assert_is_measured(span)
     #     assert_span_http_status_code(span, 200)
-    #     self.assertEqual(span.service, "test-botocore-tracing.sns")
-    #     self.assertEqual(span.resource, "sns.publishbatch")
+    #     assert span.service == "test-botocore-tracing.sns"
+    #     assert span.resource == "sns.publishbatch"
     #     trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
     #     trace_data_injected = json.loads(trace_json)
-    #     self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-    #     self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+    #     assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+    #     assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     #     # receive message using SQS and ensure headers are present
-    #     self.assertEqual(len(response["Messages"]), 1)
+    #     assert len(response["Messages"]) == 1
     #     msg = response["Messages"][0]
-    #     self.assertIsNotNone(msg)
+    #     assert msg is not None
     #     msg_body = json.loads(msg["Body"])
     #     msg_str = msg_body["Message"]
-    #     self.assertEqual(msg_str, "test")
+    #     assert msg_str == "test"
     #     msg_attr = msg_body["MessageAttributes"]
-    #     self.assertIsNotNone(msg_attr.get("_datadog"))
+    #     assert msg_attr.get("_datadog") is not None
     #     headers = json.loads(msg_attr["_datadog"]["Value"])
-    #     self.assertIsNotNone(headers)
-    #     self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-    #     self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+    #     assert headers is not None
+    #     assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+    #     assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     # @mock_sns
     # @mock_sqs
@@ -1201,32 +1201,32 @@ class BotocoreTest(TracerTestCase):
     #     # check if the appropriate span was generated
     #     assert spans
     #     span = spans[0]
-    #     self.assertEqual(len(spans), 2)
-    #     self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-    #     self.assertEqual(span.get_tag("aws.operation"), "PublishBatch")
-    #     self.assertIsNone(span.get_tag("params.MessageBody"))
+    #     assert len(spans) == 2
+    #     assert span.get_tag("aws.region") == "us-east-1"
+    #     assert span.get_tag("aws.operation") == "PublishBatch"
+    #     assert span.get_tag("params.MessageBody") is None
     #     assert_is_measured(span)
     #     assert_span_http_status_code(span, 200)
-    #     self.assertEqual(span.service, "test-botocore-tracing.sns")
-    #     self.assertEqual(span.resource, "sns.publishbatch")
+    #     assert span.service == "test-botocore-tracing.sns"
+    #     assert span.resource == "sns.publishbatch"
     #     trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
     #     trace_data_injected = json.loads(trace_json)
-    #     self.assertEqual(trace_data_injected[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-    #     self.assertEqual(trace_data_injected[HTTP_HEADER_PARENT_ID], str(span.span_id))
+    #     assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+    #     assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     #     # receive message using SQS and ensure headers are present
-    #     self.assertEqual(len(response["Messages"]), 1)
+    #     assert len(response["Messages"]) == 1
     #     msg = response["Messages"][0]
-    #     self.assertIsNotNone(msg)
+    #     assert msg is not None
     #     msg_body = json.loads(msg["Body"])
     #     msg_str = msg_body["Message"]
-    #     self.assertEqual(msg_str, "test")
+    #     assert msg_str == "test"
     #     msg_attr = msg_body["MessageAttributes"]
-    #     self.assertIsNotNone(msg_attr.get("_datadog"))
+    #     assert msg_attr.get("_datadog") is not None
     #     headers = json.loads(msg_attr["_datadog"]["Value"])
-    #     self.assertIsNotNone(headers)
-    #     self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-    #     self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+    #     assert headers is not None
+    #     assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+    #     assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     # @mock_sns
     # @mock_sqs
@@ -1272,26 +1272,26 @@ class BotocoreTest(TracerTestCase):
     #     # check if the appropriate span was generated
     #     assert spans
     #     span = spans[0]
-    #     self.assertEqual(len(spans), 2)
-    #     self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-    #     self.assertEqual(span.get_tag("aws.operation"), "Publish")
-    #     self.assertIsNone(span.get_tag("params.MessageBody"))
+    #     assert len(spans) == 2
+    #     assert span.get_tag("aws.region") == "us-east-1"
+    #     assert span.get_tag("aws.operation") == "Publish"
+    #     assert span.get_tag("params.MessageBody") is None
     #     assert_is_measured(span)
     #     assert_span_http_status_code(span, 200)
-    #     self.assertEqual(span.service, "test-botocore-tracing.sns")
-    #     self.assertEqual(span.resource, "sns.publish")
+    #     assert span.service == "test-botocore-tracing.sns"
+    #     assert span.resource == "sns.publish"
     #     trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-    #     self.assertIsNone(trace_json)
+    #     assert trace_json is None
 
     #     # receive message using SQS and ensure headers are present
-    #     self.assertEqual(len(response["Messages"]), 1)
+    #     assert len(response["Messages"]) == 1
     #     msg = response["Messages"][0]
-    #     self.assertIsNotNone(msg)
+    #     assert msg is not None
     #     msg_body = json.loads(msg["Body"])
     #     msg_str = msg_body["Message"]
-    #     self.assertEqual(msg_str, "test")
+    #     assert msg_str == "test"
     #     msg_attr = msg_body["MessageAttributes"]
-    #     self.assertIsNone(msg_attr.get("_datadog"))
+    #     assert msg_attr.get("_datadog") is None
 
     @mock_kinesis
     def test_kinesis_put_record_json_trace_injection(self):
@@ -1312,35 +1312,35 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "PutRecord")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "PutRecord"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
-        self.assertEqual(span.resource, "kinesis.putrecord")
+        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.resource == "kinesis.putrecord"
         trace_json = span.get_tag("params.Data")
-        self.assertIsNotNone(trace_json)
+        assert trace_json is not None
 
         headers = json.loads(trace_json)["_datadog"]
-        self.assertIsNotNone(headers)
-        self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
 
         # ensure headers are present in received message
         resp = client.get_records(ShardIterator=shard_iterator)
-        self.assertEqual(len(resp["Records"]), 1)
+        assert len(resp["Records"]) == 1
         record = resp["Records"][0]
-        self.assertIsNotNone(record["Data"])
+        assert record["Data"] is not None
         data = json.loads(record["Data"])
         headers = data["_datadog"]
-        self.assertIsNotNone(headers)
-        self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         client.delete_stream(StreamName=stream_name)
 
@@ -1367,35 +1367,35 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "PutRecord")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "PutRecord"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
-        self.assertEqual(span.resource, "kinesis.putrecord")
+        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.resource == "kinesis.putrecord"
         trace_json = span.get_tag("params.Data")
-        self.assertIsNotNone(trace_json)
+        assert trace_json is not None
 
         headers = json.loads(trace_json)["_datadog"]
-        self.assertIsNotNone(headers)
-        self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
 
         # ensure headers are present in received message
         resp = client.get_records(ShardIterator=shard_iterator)
-        self.assertEqual(len(resp["Records"]), 1)
+        assert len(resp["Records"]) == 1
         record = resp["Records"][0]
-        self.assertIsNotNone(record["Data"])
+        assert record["Data"] is not None
         data = json.loads(record["Data"])
         headers = data["_datadog"]
-        self.assertIsNotNone(headers)
-        self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-        self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         client.delete_stream(StreamName=stream_name)
 
@@ -1422,30 +1422,30 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "PutRecord")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "PutRecord"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
-        self.assertEqual(span.resource, "kinesis.putrecord")
+        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.resource == "kinesis.putrecord"
         trace_json = span.get_tag("params.Data")
-        self.assertIsNotNone(trace_json)
+        assert trace_json is not None
 
         trace_json = json.loads(base64.b64decode(trace_json.encode("ascii")).decode("ascii"))
-        self.assertFalse("_datadog" in trace_json)
+        assert "_datadog" not in trace_json
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
 
         # ensure headers are present in received message
         resp = client.get_records(ShardIterator=shard_iterator)
-        self.assertEqual(len(resp["Records"]), 1)
+        assert len(resp["Records"]) == 1
         record = resp["Records"][0]
-        self.assertIsNotNone(record["Data"])
+        assert record["Data"] is not None
         data = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
-        self.assertFalse("_datadog" in data)
+        assert "_datadog" not in data
 
         client.delete_stream(StreamName=stream_name)
 
@@ -1471,36 +1471,36 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "PutRecords")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "PutRecords"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
-        self.assertEqual(span.resource, "kinesis.putrecords")
+        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.resource == "kinesis.putrecords"
         records = span.get_tag("params.Records")
-        self.assertIsNotNone(records)
+        assert records is not None
         records = ast.literal_eval(records)
-        self.assertEqual(len(records), 2)
+        assert len(records) == 2
         for record in records:
             headers = json.loads(record["Data"])["_datadog"]
-            self.assertIsNotNone(headers)
-            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+            assert headers is not None
+            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
 
         # ensure headers are present in received message
         resp = client.get_records(ShardIterator=shard_iterator)
-        self.assertEqual(len(resp["Records"]), 2)
+        assert len(resp["Records"]) == 2
         records = resp["Records"]
         for record in records:
             headers = json.loads(record["Data"])["_datadog"]
-            self.assertIsNotNone(headers)
-            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+            assert headers is not None
+            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         client.delete_stream(StreamName=stream_name)
 
@@ -1530,36 +1530,36 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "PutRecords")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "PutRecords"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
-        self.assertEqual(span.resource, "kinesis.putrecords")
+        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.resource == "kinesis.putrecords"
         records = span.get_tag("params.Records")
-        self.assertIsNotNone(records)
+        assert records is not None
         records = ast.literal_eval(records)
-        self.assertEqual(len(records), 2)
+        assert len(records) == 2
         for record in records:
             headers = json.loads(record["Data"])["_datadog"]
-            self.assertIsNotNone(headers)
-            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+            assert headers is not None
+            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
 
         # ensure headers are present in received message
         resp = client.get_records(ShardIterator=shard_iterator)
-        self.assertEqual(len(resp["Records"]), 2)
+        assert len(resp["Records"]) == 2
         records = resp["Records"]
         for record in records:
             headers = json.loads(record["Data"])["_datadog"]
-            self.assertIsNotNone(headers)
-            self.assertEqual(headers[HTTP_HEADER_TRACE_ID], str(span.trace_id))
-            self.assertEqual(headers[HTTP_HEADER_PARENT_ID], str(span.span_id))
+            assert headers is not None
+            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         client.delete_stream(StreamName=stream_name)
 
@@ -1589,31 +1589,31 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
         assert spans
         span = spans[0]
-        self.assertEqual(len(spans), 1)
-        self.assertEqual(span.get_tag("aws.region"), "us-east-1")
-        self.assertEqual(span.get_tag("aws.operation"), "PutRecords")
-        self.assertIsNone(span.get_tag("params.MessageBody"))
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "PutRecords"
+        assert span.get_tag("params.MessageBody") is None
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.service, "test-botocore-tracing.kinesis")
-        self.assertEqual(span.resource, "kinesis.putrecords")
+        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.resource == "kinesis.putrecords"
         records = span.get_tag("params.Records")
-        self.assertIsNotNone(records)
+        assert records is not None
         records = ast.literal_eval(records)
-        self.assertEqual(len(records), 2)
+        assert len(records) == 2
         for record in records:
             headers = json.loads(base64.b64decode(record["Data"].encode("ascii")).decode("ascii"))
-            self.assertFalse("_datadog" in headers)
+            assert "_datadog" not in headers
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
 
         # ensure headers are present in received message
         resp = client.get_records(ShardIterator=shard_iterator)
-        self.assertEqual(len(resp["Records"]), 2)
+        assert len(resp["Records"]) == 2
         records = resp["Records"]
         for record in records:
             headers = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
-            self.assertFalse("_datadog" in headers)
+            assert "_datadog" not in headers
 
         client.delete_stream(StreamName=stream_name)
