@@ -409,7 +409,7 @@ class Span(object):
     def metric(self):
         return self._metric
 
-    @metric.setter  # type: ignore
+    @metric.setter  # type: ignore[no-redef]
     def metric(self, value):
         self._metric = value
 
