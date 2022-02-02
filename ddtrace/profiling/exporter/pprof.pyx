@@ -24,7 +24,7 @@ def _protobuf_post_312():
 
     from ddtrace.internal.utils.version import parse_version
 
-    v = parse_version(google.protobuf.__version__)  # type: ignore[arg-type]
+    v = parse_version(google.protobuf.__version__)
     return v[0] >= 3 and v[1] >= 12
 
 

@@ -180,6 +180,11 @@ venv = Venv(
             command="scripts/build-docs",
         ),
         Venv(
+            name="appsec",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/appsec",
+        ),
+        Venv(
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             venvs=[
