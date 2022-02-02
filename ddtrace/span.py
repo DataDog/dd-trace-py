@@ -354,7 +354,7 @@ class Span(object):
     def get_tags(self):
         # type: () -> _MetaDictType
         """Return all tags."""
-        return self._meta
+        return self._meta.copy()
 
     def set_tags(self, tags):
         # type: (_MetaDictType) -> None
