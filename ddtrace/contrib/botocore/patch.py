@@ -200,8 +200,11 @@ def inject_trace_to_kinesis_stream(args, span):
     params = args[1]
     if "Records" in params:
         records = params.get("Records", [])
-        for record in records:
-            inject_trace_to_kinesis_stream_data(record, span)
+        if len(records) < 1:
+            return
+
+        record = records[0]
+        inject_trace_to_kinesis_stream_data(record, span)
     elif "Data" in params:
         inject_trace_to_kinesis_stream_data(params, span)
 

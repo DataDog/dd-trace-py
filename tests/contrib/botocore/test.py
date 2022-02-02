@@ -1483,11 +1483,15 @@ class BotocoreTest(TracerTestCase):
         assert records is not None
         records = ast.literal_eval(records)
         assert len(records) == 2
-        for record in records:
-            headers = json.loads(record["Data"])["_datadog"]
-            assert headers is not None
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        record = records[0]
+        headers = json.loads(record["Data"])["_datadog"]
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+        record = records[1]
+        data = json.loads(record["Data"])
+        assert "_datadog" not in data
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
@@ -1496,11 +1500,15 @@ class BotocoreTest(TracerTestCase):
         resp = client.get_records(ShardIterator=shard_iterator)
         assert len(resp["Records"]) == 2
         records = resp["Records"]
-        for record in records:
-            headers = json.loads(record["Data"])["_datadog"]
-            assert headers is not None
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        record = records[0]
+        headers = json.loads(record["Data"])["_datadog"]
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+        record = records[1]
+        data = json.loads(record["Data"])
+        assert "_datadog" not in data
 
         client.delete_stream(StreamName=stream_name)
 
@@ -1542,11 +1550,15 @@ class BotocoreTest(TracerTestCase):
         assert records is not None
         records = ast.literal_eval(records)
         assert len(records) == 2
-        for record in records:
-            headers = json.loads(record["Data"])["_datadog"]
-            assert headers is not None
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        record = records[0]
+        headers = json.loads(record["Data"])["_datadog"]
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+        record = records[1]
+        data = json.loads(base64.b64decode(record["Data"].encode("ascii")).decode("ascii"))
+        assert "_datadog" not in data
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
@@ -1555,11 +1567,15 @@ class BotocoreTest(TracerTestCase):
         resp = client.get_records(ShardIterator=shard_iterator)
         assert len(resp["Records"]) == 2
         records = resp["Records"]
-        for record in records:
-            headers = json.loads(record["Data"])["_datadog"]
-            assert headers is not None
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        record = records[0]
+        headers = json.loads(record["Data"])["_datadog"]
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+        record = records[1]
+        data = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
+        assert "_datadog" not in data
 
         client.delete_stream(StreamName=stream_name)
 
