@@ -459,7 +459,7 @@ async def test_analytics_integration_enabled(app_tracer, aiohttp_client):
     await request.text()
 
     # Assert root span sets the appropriate metric
-    root = get_root_span(tracer.writer.spans)
+    root = get_root_span(tracer.pop())
     root.assert_structure(dict(name="aiohttp.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}))
 
 
@@ -471,7 +471,7 @@ async def test_analytics_integration_default(app_tracer, aiohttp_client):
     await request.text()
 
     # Assert root span does not have the appropriate metric
-    root = get_root_span(tracer.writer.spans)
+    root = get_root_span(tracer.pop())
     assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
@@ -484,5 +484,5 @@ async def test_analytics_integration_disabled(app_tracer, aiohttp_client):
     await request.text()
 
     # Assert root span does not have the appropriate metric
-    root = get_root_span(tracer.writer.spans)
+    root = get_root_span(tracer.pop())
     assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None

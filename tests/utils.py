@@ -691,7 +691,7 @@ class TracerSpanContainer(TestSpanContainer):
         :returns: List of spans attached to this tracer
         :rtype: list
         """
-        return self.tracer.writer.spans
+        return self.tracer._writer.spans
 
     def pop(self):
         return self.tracer.pop()
