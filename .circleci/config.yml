@@ -275,6 +275,9 @@ jobs:
       - run:
           name: "Codespell check"
           command: riot run -s codespell
+      - run:
+          name: "Test agent snapshot check"
+          command: riot run -s snapshot-fmt && git diff --exit-code
 
   ccheck:
     executor: cimg_base

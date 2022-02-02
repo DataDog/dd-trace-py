@@ -29,6 +29,8 @@ from _libddwaf cimport ddwaf_set_log_cb
 from _libddwaf cimport ddwaf_version
 from cpython.bytes cimport PyBytes_AsString
 from cpython.bytes cimport PyBytes_Size
+from cpython.exc cimport PyErr_Clear
+from cpython.exc cimport PyErr_Occurred
 from cpython.mem cimport PyMem_Free
 from cpython.mem cimport PyMem_Realloc
 from cpython.unicode cimport PyUnicode_AsEncodedString
@@ -51,6 +53,26 @@ def version():
     cdef ddwaf_version version
     ddwaf_get_version(&version)
     return (version.major, version.minor, version.patch)
+
+
+cdef inline object _string_to_bytes(object string, const char **ptr, ssize_t *length):
+    if isinstance(string, six.binary_type):
+        ptr[0] = PyBytes_AsString(string)
+        length[0] = PyBytes_Size(string)
+        return string
+    elif isinstance(string, six.text_type):
+        IF PY_MAJOR_VERSION >= 3:
+            ptr[0] = PyUnicode_AsUTF8AndSize(string, length)
+            if ptr[0] == NULL and PyErr_Occurred():
+                # ignore exception from this function as we fallback to
+                # PyUnicode_AsEncodedString
+                PyErr_Clear()
+        if ptr[0] == NULL:
+            string = PyUnicode_AsEncodedString(string, "utf-8", "surrogatepass")
+            ptr[0] = PyBytes_AsString(string)
+            length[0] = PyBytes_Size(string)
+        return string
+    raise RuntimeError
 
 
 cdef class _Wrapper(object):
@@ -79,13 +101,20 @@ cdef class _Wrapper(object):
         self._convert(value, max_objects)
 
     cdef ssize_t _reserve_obj(self, ssize_t n=1) except -1:
+        """
+        Exponentially grows the size of the memory space used for objects.
+        Will stop if too much memory is allocated.
+        """
         cdef ssize_t idx, i
         cdef ddwaf_object *ptr
         cdef ddwaf_object *obj
 
         idx = self._next_idx
         if idx + n > self._size:
-            self._size += ((1000 - (n % 1000)) % 1000)
+            while idx + n > self._size:
+                # grow 1.5 the previous size + an initial fixed size until
+                #  it can accommodate at least n new objects
+                self._size += (self._size >> 1) + 128
             ptr = <ddwaf_object *> PyMem_Realloc(self._ptr, self._size * sizeof(ddwaf_object))
             if ptr == NULL:
                 raise MemoryError
@@ -105,25 +134,12 @@ cdef class _Wrapper(object):
         cdef ssize_t length
         cdef ddwaf_object *obj
 
-        if isinstance(string, six.binary_type):
-            ptr = PyBytes_AsString(string)
-            length = PyBytes_Size(string)
-        elif isinstance(string, six.text_type):
-            IF PY_MAJOR_VERSION >= 3:
-                ptr = PyUnicode_AsUTF8AndSize(string, &length)
-            if ptr == NULL:
-                string = PyUnicode_AsEncodedString(string, "utf-8", "surrogatepass")
-                ptr = PyBytes_AsString(string)
-                length = PyBytes_Size(string)
-        else:
-            return 0
-        self._string_refs.append(string)
+        self._string_refs.append(_string_to_bytes(string, &ptr, &length))
 
         obj = self._ptr + idx
         obj.type = DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING
         obj.stringValue = ptr
         obj.nbEntries = length
-        return 0
 
     cdef void _make_array(self, ssize_t idx, ssize_t array_idx, ssize_t nb_entries):
         cdef ddwaf_object *obj
@@ -144,22 +160,11 @@ cdef class _Wrapper(object):
         cdef ssize_t length
         cdef ddwaf_object *obj
 
-        if isinstance(string, six.binary_type):
-            ptr = PyBytes_AsString(string)
-            length = PyBytes_Size(string)
-        else:
-            IF PY_MAJOR_VERSION >= 3:
-                ptr = PyUnicode_AsUTF8AndSize(string, &length)
-            if ptr == NULL:
-                string = PyUnicode_AsEncodedString(string, "utf-8", "surrogatepass")
-                ptr = PyBytes_AsString(string)
-                length = PyBytes_Size(string)
-        self._string_refs.append(string)
+        self._string_refs.append(_string_to_bytes(string, &ptr, &length))
 
         obj = self._ptr + idx
         obj.parameterName = ptr
         obj.parameterNameLength = length
-        return 0
 
     cdef void _convert(self, value, max_objects) except *:
         cdef object stack

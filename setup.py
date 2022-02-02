@@ -208,7 +208,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     license="BSD",
-    packages=find_packages(exclude=["tests*"]),
+    packages=find_packages(exclude=["tests*", "benchmarks"]),
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],

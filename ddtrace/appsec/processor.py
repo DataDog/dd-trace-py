@@ -1,15 +1,15 @@
 import errno
 import json
 import os.path
-import threading
 from typing import TYPE_CHECKING
 
 import attr
 
+import ddtrace
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
-from ddtrace.gateway import ADDRESSES
 from ddtrace.ext import SpanTypes
+from ddtrace.gateway import ADDRESSES
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.utils.formats import get_env
@@ -61,8 +61,6 @@ def _set_headers(span, headers):
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
 
-    _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
-
     rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
 
@@ -78,20 +76,21 @@ class AppSecSpanProcessor(SpanProcessor):
                     rules = json.load(f)
             except EnvironmentError as err:
                 if err.errno == errno.ENOENT:
-                    log.error("[DDAS-0001-03] "
-                              "AppSec could not read the rule file %s. Reason: file does not exist", self.rules)
+                    log.error(
+                        "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: file does not exist", self.rules
+                    )
                 else:
                     # TODO: try to log reasons
                     log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
             except json.decoder.JSONDecodeError:
-                log.error("[DDAS-0001-03] "
-                          "AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules)
+                log.error(
+                    "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules
+                )
                 raise
             except Exception:
                 # TODO: try to log reasons
-                log.error("[DDAS-0001-03] "
-                          "AppSec could not read the rule file %s.", self.rules)
+                log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
             try:
                 self._ddwaf = DDWaf(rules)
@@ -106,29 +105,21 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        with self._lock:
-            if span.span_type != SpanTypes.WEB.value:
-                return
-            span.set_metric("_dd.appsec.enabled", 1.0)
-            span._set_str_tag("_dd.runtime_family", "python")
-            store = span.store  # since we are on the 'web' span, the store is here!
-            if "kept_addresses" not in store:
-                return
-            data = store["kept_addresses"]
-            if ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value in data:
-                _set_headers(span, data[ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value])
-            log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-            res = self._ddwaf.run(data)
-            if res is not None:
-                # Partial DDAS-011-00
-                log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
-                span.meta["appsec.event"] = "true"
-                span.meta["_dd.appsec.json"] = '{"triggers":%s}' % (res,)
-                span.set_tag(MANUAL_KEEP_KEY)
-
-    def setup(self, gateway):
-        # type: (Gateway) -> None
-        # we always need the request headers to do the IP address resolution bits
-        gateway.mark_needed(ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
-        for address in self._ddwaf.required_data:
-            gateway.mark_needed(address)
+        if span.span_type != SpanTypes.WEB.value:
+            return
+        span.set_metric("_dd.appsec.enabled", 1.0)
+        span._set_str_tag("_dd.runtime_family", "python")
+        store = span.store  # since we are on the 'web' span, the store is here!
+        if "kept_addresses" not in store:
+            return
+        data = store["kept_addresses"]
+        if ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value in data:
+            _set_headers(span, data[ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value])
+        log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
+        res = self._ddwaf.run(data)  # res is a serialized json
+        if res is not None:
+            # Partial DDAS-011-00
+            log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
+            span.meta["appsec.event"] = "true"
+            span.meta["_dd.appsec.json"] = '{"triggers":%s}' % (res,)
+            span.set_tag(MANUAL_KEEP_KEY)
