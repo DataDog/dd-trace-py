@@ -1,0 +1,35 @@
+{
+  "version": "2.1",
+  "rules": [
+    {
+      "id": "crs-913-110",
+      "name": "Found request header associated with Acunetix security scanner",
+      "tags": {
+        "type": "security_scanner",
+        "crs_id": "913110",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.headers.no_cookies"
+              }
+            ],
+            "list": [
+              "acunetix-product",
+              "(acunetix web vulnerability scanner",
+              "acunetix-scanning-agreement",
+              "acunetix-user-agreement"
+            ]
+          },
+          "operator": "phrase_match"
+        }
+      ],
+      "transformers": [
+        "lowercase"
+      ]
+    }
+  ]
+}
