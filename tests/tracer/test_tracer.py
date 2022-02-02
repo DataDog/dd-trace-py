@@ -301,7 +301,7 @@ class TracerTestCases(TracerTestCase):
         # a weird case where manually calling finish with an unserializable
         # span was causing an loop of serialization.
         with self.trace("parent") as span:
-            span.get_metrics()["as"] = np.int64(1)  # circumvent the data checks
+            span._metrics["as"] = np.int64(1)  # circumvent the data checks
             span.finish()
 
     def test_tracer_disabled_mem_leak(self):
