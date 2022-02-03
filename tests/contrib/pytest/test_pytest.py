@@ -491,10 +491,10 @@ class TestPytest(TracerTestCase):
 
         spans = self.pop_spans()
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
-        encoder = self.tracer.writer.msgpack_encoder
+        encoder = self.tracer.encoder
         encoder.put(spans)
         trace = encoder.encode()
-        (decoded_trace,) = self.tracer.writer.msgpack_encoder._decode(trace)
+        (decoded_trace,) = self.tracer.encoder._decode(trace)
         assert len(decoded_trace) == 4
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"

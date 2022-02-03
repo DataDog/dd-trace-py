@@ -556,7 +556,7 @@ import ddtrace
 from ddtrace.contrib.requests import TracedSession
 
 # disable tracer writing to agent
-ddtrace.tracer.writer.flush_queue = mock.Mock(return_value=None)
+ddtrace.tracer.shutdown()
 
 session = TracedSession()
 session.get("http://httpbin.org/status/200")

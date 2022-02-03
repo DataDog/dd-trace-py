@@ -109,7 +109,7 @@ def test_dd_origin_tagging_spans_via_encoder(benchmark, trace_size):
             with tracer.trace("") as span:
                 span.set_tag("tag", "value")
                 pass
-    trace = tracer.writer.pop()
+    trace = tracer.pop()
 
     def _(trace):
         trace_encoder.put(trace)

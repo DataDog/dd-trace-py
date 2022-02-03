@@ -342,7 +342,7 @@ def test_custom_writer():
             # type: (Optional[List[Span]]) -> None
             pass
 
-    tracer.writer = CustomWriter()
+    tracer._writer = CustomWriter()
     info = debug.collect(tracer)
 
     assert info.get("agent_url") == "CUSTOM"

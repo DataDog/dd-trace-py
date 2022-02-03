@@ -376,7 +376,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
-        return self.tracer.writer.spans
+        return self.tracer._writer.spans
 
     def pop_spans(self):
         # type: () -> List[Span]
@@ -388,7 +388,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer.writer.pop()
+        self.tracer._writer.pop()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""
@@ -462,13 +462,23 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self.configure()
 
+    @property
+    def agent_url(self):
+        # type: () -> str
+        return self._writer.agent_url
+
+    @property
+    def encoder(self):
+        # type: () -> Encoder
+        return self._writer.msgpack_encoder
+
     def pop(self):
         # type: () -> List[Span]
-        return self.writer.pop()
+        return self._writer.pop()
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
-        return self.writer.pop_traces()
+        return self._writer.pop_traces()
 
     def configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
@@ -822,7 +832,7 @@ class SnapshotTest(object):
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""
-        parsed = parse.urlparse(self.tracer.writer.agent_url)
+        parsed = parse.urlparse(self.tracer.agent_trace_url)
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/clear?test_session_token=%s" % self.token)
         resp = conn.getresponse()
@@ -843,19 +853,19 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
     if not tracer:
         tracer = ddtrace.tracer
 
-    parsed = parse.urlparse(tracer.writer.agent_url)
+    parsed = parse.urlparse(tracer._writer.agent_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
         # clear queue in case traces have been generated before test case is
         # itself run
         try:
-            tracer.writer.flush_queue()
+            tracer._writer.flush_queue()
         except Exception as e:
             pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
-            tracer.writer._headers["X-Datadog-Test-Session-Token"] = token
+            tracer._writer._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
@@ -881,9 +891,9 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
             )
         finally:
             # Force a flush so all traces are submitted.
-            tracer.writer.flush_queue()
+            tracer._writer.flush_queue()
             if async_mode:
-                del tracer.writer._headers["X-Datadog-Test-Session-Token"]
+                del tracer._writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         # Query for the results of the test.
