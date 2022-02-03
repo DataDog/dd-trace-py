@@ -7,7 +7,6 @@ from typing import Tuple
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.logger import get_logger
-from ..internal.utils.deprecation import deprecated
 from ..internal.utils.deprecation import get_service_legacy
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import get_env
@@ -243,10 +242,3 @@ class Config(object):
         cls = self.__class__
         integrations = ", ".join(self._config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
-
-    @deprecated(
-        message="HttpServerConfig will be removed",
-        version="1.0.0",
-    )
-    class HTTPServerConfig(_HTTPServerConfig):
-        pass
