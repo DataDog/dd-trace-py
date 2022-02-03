@@ -658,8 +658,8 @@ class Tracer(object):
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
 
-    def _initialize_span_processors(self):
-        # type: () -> None
+    def _initialize_span_processors(self, appsec_enabled=asbool(get_env("appsec", "enabled", default=False))):
+        # type: (Optional[bool]) -> None
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor()]
@@ -672,8 +672,25 @@ class Tracer(object):
                 partial_flush_min_spans=self._partial_flush_min_spans,
                 trace_processors=trace_processors,
                 writer=self.writer,
-            ),
+            )
         ]  # type: List[SpanProcessor]
+
+        if appsec_enabled:
+            try:
+                from .appsec.processor import AppSecSpanProcessor
+
+                appsec_span_processor = AppSecSpanProcessor()
+                self._span_processors.append(appsec_span_processor)
+            except Exception as e:
+                # DDAS-001-01
+                log.error(
+                    "[DDAS-001-01] "
+                    "AppSec could not start because of an unexpected error. No security activities will be collected. "
+                    "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
+                    repr(e),
+                )
+                if config._raise:
+                    raise
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
