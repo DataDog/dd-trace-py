@@ -57,6 +57,7 @@ DEFAULT_SMA_WINDOW = 10
 DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
 DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
 DEFAULT_PROCESSING_INTERVAL = 1.0
+DEFAULT_REUSE_CONNECTIONS = True
 
 
 def get_writer_buffer_size():
@@ -76,6 +77,11 @@ def get_writer_interval_seconds():
     return float(
         get_env("trace", "writer_interval_seconds", default=DEFAULT_PROCESSING_INTERVAL)  # type: ignore[arg-type]
     )
+
+
+def get_writer_reuse_connections():
+    # type: () -> bool
+    return asbool(get_env("trace", "writer_reuse_connections"), default=DEFAULT_REUSE_CONNECTIONS)
 
 
 def _human_size(nbytes):
@@ -240,6 +246,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]
+        reuse_connections=get_writer_reuse_connections(),  # type: bool
     ):
         # type: (...) -> None
         # Pre-conditions:
@@ -306,6 +313,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
+        self._reuse_connections = reuse_connections
 
     @property
     def _agent_endpoint(self):
@@ -362,12 +370,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         # type: (bytes, Dict[str, str]) -> Response
         with StopWatch() as sw:
             if self._conn is None:
+                log.debug("creating new agent connection to %s with timeout %d", self.agent_url, self._timeout)
                 self._conn = get_connection(self.agent_url, self._timeout)
-
             try:
                 self._conn.request("PUT", self._endpoint, data, headers)
             except Exception:
-                # Close the connection and reset it to None on error.
                 self._conn.close()
                 self._conn = None
                 raise
@@ -380,6 +387,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     log_level = logging.DEBUG
                 log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._agent_endpoint)
                 return Response.from_http_response(resp)
+            finally:
+                if self._conn and not self._reuse_connections:
+                    self._conn.close()
+                    self._conn = None
 
     def _downgrade(self, payload, response):
         if self._endpoint == "v0.5/traces":
@@ -559,7 +570,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self.join(timeout=timeout)
 
     def on_shutdown(self):
-        self.periodic()
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        try:
+            self.periodic()
+        finally:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
