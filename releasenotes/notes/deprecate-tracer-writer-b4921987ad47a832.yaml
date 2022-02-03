@@ -1,4 +1,4 @@
 ---
 deprecations:
   - |
-    :py:attr:`Tracer.writer` is deprecated. To force flushing of buffered traces to the agent, use :py:meth:`Tracer.flush` instead.
+    :py:attr:`ddtrace.Tracer.writer` is deprecated. To force flushing of buffered traces to the agent, use :py:meth:`ddtrace.Tracer.flush` instead.
