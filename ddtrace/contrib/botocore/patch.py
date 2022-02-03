@@ -17,6 +17,8 @@ from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
+from ...constants import MAX_EVENTBRIDGE_DETAIL_SIZE
+from ...constants import MAX_KINESIS_DATA_SIZE
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
@@ -110,7 +112,7 @@ def inject_trace_to_eventbridge_detail(args, span):
     :span: the span which provides the trace context to be propagated
 
     Inject trace headers into the EventBridge record if the record's Detail object contains a JSON string
-    Max size per event is 256kb (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-putevent-size.html)
+    Max size per event is 256KB (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-putevent-size.html)
     """
     params = args[1]
     if "Entries" not in params:
@@ -118,25 +120,25 @@ def inject_trace_to_eventbridge_detail(args, span):
         return
 
     for entry in params["Entries"]:
-        if "Detail" not in entry:
-            detail = {}
-            HTTPPropagator.inject(span.context, detail)
-            entry["Detail"] = json.dumps({"_datadog": detail})
-            continue
-
-        try:
-            data_size = sys.getsizeof(entry["Detail"])
-            if data_size + 512 >= 256000:
-                log.debug("Inject trace context will make Detail exceed max allowed size")
+        detail = {}
+        if "Detail" in entry:
+            try:
+                detail = json.loads(entry["Detail"])
+            except ValueError:
+                log.debug("Detail is not a valid JSON string")
                 return
 
-            detail = json.loads(entry["Detail"])
-            dd_context = detail.get("_datadog", {})
-            HTTPPropagator.inject(span.context, dd_context)
-            detail["_datadog"] = dd_context
-            entry["Detail"] = json.dumps(detail)
-        except Exception:
-            log.warning("Unable to parse Detail and inject span context")
+        detail["_datadog"] = {}
+        HTTPPropagator.inject(span.context, detail["_datadog"])
+        detail_json = json.dumps(detail)
+
+        # check if detail size will exceed max size with headers
+        detail_size = sys.getsizeof(detail_json)
+        if detail_size >= MAX_EVENTBRIDGE_DETAIL_SIZE:
+            log.debug("Detail with trace injection exceeds max allowed size")
+            return
+
+        entry["Detail"] = detail_json
 
 
 def get_kinesis_data_object(data, try_b64=True):
@@ -150,22 +152,15 @@ def get_kinesis_data_object(data, try_b64=True):
         - json string
         - base64 encoded json string
     If it's neither of these, then we leave the message as it is.
-    Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
-
-    # check if data size will exceed max with headers
-    # the maximum data size including out headers should not exceed 1MB
-    data_size = sys.getsizeof(data)
-    if data_size + 512 >= 1000000:
-        return None
 
     try:
         return json.loads(data)
-    except Exception:
+    except ValueError:
         if try_b64:
             try:
-                return get_kinesis_data_object(base64.b64decode(data.encode("ascii")).decode("ascii"), False)
-            except Exception:
+                return get_kinesis_data_object(base64.b64decode(data).decode("ascii"), False)
+            except ValueError:
                 return None
 
         return None
@@ -179,6 +174,7 @@ def inject_trace_to_kinesis_stream_data(record, span):
 
     Inject trace headers into the Kinesis record's Data field in addition to the existing
     data. Only possible if the existing data is JSON string or base64 encoded JSON string
+    Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
     if "Data" not in record:
         log.debug("Unable to inject context. The kinesis stream has no data")
@@ -186,10 +182,16 @@ def inject_trace_to_kinesis_stream_data(record, span):
 
     data = record["Data"]
     data_obj = get_kinesis_data_object(data)
-    if data_obj:
-        dd_ctx = {}
-        HTTPPropagator.inject(span.context, dd_ctx)
-        data_obj["_datadog"] = dd_ctx
+    if data_obj is not None:
+        data_obj["_datadog"] = {}
+        HTTPPropagator.inject(span.context, data_obj["_datadog"])
+        data_json = json.dumps(data_obj)
+
+        # check if data size will exceed max size with headers
+        data_size = sys.getsizeof(data_json)
+        if data_size >= MAX_KINESIS_DATA_SIZE:
+            return None
+
         record["Data"] = json.dumps(data_obj)
     else:
         log.debug("Unable to parse kinesis streams data string")
@@ -203,15 +205,15 @@ def inject_trace_to_kinesis_stream(args, span):
 
     Inject trace headers into the Kinesis batch's first record's Data field.
     Only possible if the existing data is JSON string or base64 encoded JSON string
+    Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
     params = args[1]
     if "Records" in params:
-        records = params.get("Records", [])
-        if len(records) < 1:
-            return
+        records = params["Records"]
 
-        record = records[0]
-        inject_trace_to_kinesis_stream_data(record, span)
+        if records:
+            record = records[0]
+            inject_trace_to_kinesis_stream_data(record, span)
     elif "Data" in params:
         inject_trace_to_kinesis_stream_data(params, span)
 

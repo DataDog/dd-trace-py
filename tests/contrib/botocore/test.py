@@ -1408,7 +1408,7 @@ class BotocoreTest(TracerTestCase):
         stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
         shard_id = stream["Shards"][0]["ShardId"]
 
-        sample_string = json.dumps({"Hello": "x" * 750000})
+        sample_string = json.dumps({"Hello": "x" * 1000000})
         sample_string_bytes = sample_string.encode("ascii")
         base64_bytes = base64.b64encode(sample_string_bytes)
         data = base64_bytes.decode("ascii")
@@ -1433,7 +1433,8 @@ class BotocoreTest(TracerTestCase):
         trace_json = span.get_tag("params.Data")
         assert trace_json is not None
 
-        trace_json = json.loads(base64.b64decode(trace_json.encode("ascii")).decode("ascii"))
+        print(trace_json)
+        trace_json = json.loads(base64.b64decode(trace_json).decode("ascii"))
         assert "_datadog" not in trace_json
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
@@ -1557,7 +1558,7 @@ class BotocoreTest(TracerTestCase):
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         record = records[1]
-        data = json.loads(base64.b64decode(record["Data"].encode("ascii")).decode("ascii"))
+        data = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
         assert "_datadog" not in data
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
@@ -1589,7 +1590,7 @@ class BotocoreTest(TracerTestCase):
         shard_id = stream["Shards"][0]["ShardId"]
 
         partition_key = "1234"
-        sample_string = json.dumps({"Hello": "x" * 750000})
+        sample_string = json.dumps({"Hello": "x" * 1000000})
         sample_string_bytes = sample_string.encode("ascii")
         base64_bytes = base64.b64encode(sample_string_bytes)
         data_str = base64_bytes.decode("ascii")
@@ -1618,7 +1619,7 @@ class BotocoreTest(TracerTestCase):
         records = ast.literal_eval(records)
         assert len(records) == 2
         for record in records:
-            headers = json.loads(base64.b64decode(record["Data"].encode("ascii")).decode("ascii"))
+            headers = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
             assert "_datadog" not in headers
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
