@@ -366,7 +366,7 @@ class Span(object):
                 self.set_tag(k, v)
 
     @removed_property(
-        message="Use Span.set_tag, Span.set_tags, Span.get_tag, or Span.get_tags methods instead.",
+        message="Use Span.set_tag, Span.set_tags or Span.get_tag methods instead.",
         removal_version="1.0.0",
     )
     def meta(self):
