@@ -104,8 +104,7 @@ class Span(object):
         that it was created in. Using a ``Span`` from within a child process
         could result in a deadlock or unexpected behavior.
 
-        :param ddtrace.Tracer tracer: the tracer that will submit this span when
-            finished.
+        :param ddtrace.Tracer tracer: tracer property is deprecated, this field should be set to None
         :param str name: the name of the traced operation.
 
         :param str service: the service name
@@ -131,7 +130,7 @@ class Span(object):
         self._tracer = None
         if tracer is not None:
             # accessing span.tracer logs a deprecation warning
-            self.tracer = tracer  # type: ignore
+            self.tracer = tracer  # type: ignore[assignment]
 
         # required span info
         self.name = name
@@ -171,6 +170,7 @@ class Span(object):
             self._ignored_exceptions.append(exc)
 
     @removed_property(
+        message="Avoid calling `Span.tracer`. Use ``Span(tracer=None, name='spanname')`` to initialize a Span object.",
         removal_version="1.0.0",
     )
     def tracer(self):
