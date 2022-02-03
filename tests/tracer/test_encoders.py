@@ -50,7 +50,7 @@ def span_to_tuple(span):
         span.start_ns or 0,
         span.duration_ns or 0,
         int(bool(span.error)),
-        span.get_tags() or {},
+        span._get_tags() or {},
         span.metrics or {},
         span.span_type,
     )

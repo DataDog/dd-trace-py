@@ -61,7 +61,7 @@ class PylonsTestCase(TracerTestCase):
         assert span.error == 0
         assert span.get_tag(http.URL) == "http://localhost:80/raise_exception"
         assert_span_http_status_code(span, 200)
-        assert http.QUERY_STRING not in span.get_tags()
+        assert http.QUERY_STRING not in span._get_tags()
         assert span.get_tag(ERROR_MSG) is None
         assert span.get_tag(ERROR_TYPE) is None
         assert span.get_tag(ERROR_STACK) is None
@@ -196,7 +196,7 @@ class PylonsTestCase(TracerTestCase):
         if config.pylons.trace_query_string:
             assert span.get_tag(http.QUERY_STRING) == query_string
         else:
-            assert http.QUERY_STRING not in span.get_tags()
+            assert http.QUERY_STRING not in span._get_tags()
         assert span.error == 0
 
     def test_query_string(self):

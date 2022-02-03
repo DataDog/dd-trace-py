@@ -89,11 +89,11 @@ class SpanTestCase(TracerTestCase):
         s = Span(tracer=None, name="test.span")
 
         s.set_tag("test", "value")
-        assert s.get_tags() == dict(test="value")
+        assert s._get_tags() == dict(test="value")
         assert s.metrics == dict()
 
         s.set_tag("test", 1)
-        assert s.get_tags() == dict()
+        assert s._get_tags() == dict()
         assert s.metrics == dict(test=1)
 
     def test_set_valid_metrics(self):
@@ -325,15 +325,15 @@ class SpanTestCase(TracerTestCase):
 
     def test_set_tag_none(self):
         s = Span(tracer=None, name="root.span", service="s", resource="r")
-        assert s.get_tags() == dict()
+        assert s._get_tags() == dict()
 
         s.set_tag("custom.key", "100")
 
-        assert s.get_tags() == {"custom.key": "100"}
+        assert s._get_tags() == {"custom.key": "100"}
 
         s.set_tag("custom.key", None)
 
-        assert s.get_tags() == {"custom.key": "None"}
+        assert s._get_tags() == {"custom.key": "None"}
 
     def test_duration_zero(self):
         s = Span(tracer=None, name="foo.bar", service="s", resource="r", start=123)
@@ -493,7 +493,7 @@ def test_span_binary_unicode_set_tag(span_log):
     span._set_str_tag("key_str", "🤔")
     # only span.set_tag() will fail
     span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
-    assert "key" not in span.get_tags()
+    assert "key" not in span._get_tags()
     assert span.get_tag("key_str") == u"🤔"
 
 
@@ -520,7 +520,7 @@ def test_span_nonstring_set_str_tag_exc():
     span = Span(None, None)
     with pytest.raises(TypeError):
         span._set_str_tag("foo", dict(a=1))
-    assert "foo" not in span.get_tags()
+    assert "foo" not in span._get_tags()
 
 
 @mock.patch("ddtrace.span.log")

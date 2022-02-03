@@ -351,7 +351,7 @@ class Span(object):
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def get_tags(self):
+    def _get_tags(self):
         # type: () -> _MetaDictType
         """Return all tags."""
         return self._meta.copy()

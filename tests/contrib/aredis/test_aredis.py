@@ -109,7 +109,7 @@ async def test_meta_override(tracer, test_spans):
     test_spans.assert_trace_count(1)
     test_spans.assert_span_count(1)
     assert test_spans.spans[0].service == "redis"
-    assert "cheese" in test_spans.spans[0].get_tags() and test_spans.spans[0].get_tag("cheese") == "camembert"
+    assert "cheese" in test_spans.spans[0]._get_tags() and test_spans.spans[0].get_tag("cheese") == "camembert"
 
 
 @pytest.mark.asyncio
