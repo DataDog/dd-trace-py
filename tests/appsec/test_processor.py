@@ -19,7 +19,7 @@ RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
 
 def test_enable(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
         span.set_tag("http.status_code", "404")
 
@@ -49,7 +49,7 @@ def test_enable_bad_rules(rule, exc, tracer):
 def test_retain_traces(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
         span.set_tag("http.status_code", "404")
 
@@ -59,7 +59,7 @@ def test_retain_traces(tracer):
 def test_valid_json(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
         span.set_tag("http.status_code", "404")
 
