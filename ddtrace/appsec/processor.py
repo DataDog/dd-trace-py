@@ -74,7 +74,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        if span.span_type != SpanTypes.WEB.value:
+        if span.span_type != SpanTypes.WEB:
             return
         span.set_metric("_dd.appsec.enabled", 1.0)
         span._set_str_tag("_dd.runtime_family", "python")
