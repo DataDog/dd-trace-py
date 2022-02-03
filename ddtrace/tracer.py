@@ -820,10 +820,12 @@ class Tracer(object):
 
     @property
     def agent_trace_url(self):
-        # type: (None) -> Optional[str, None]
+        # type: () -> Optional[str]
         """Trace agent url"""
         if isinstance(self._writer, AgentWriter):
-            self._writer.agent_url()
+            return self._writer.agent_url
+
+        return None
 
     def flush(self):
         """Flush buffered traces."""
