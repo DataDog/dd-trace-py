@@ -1433,7 +1433,6 @@ class BotocoreTest(TracerTestCase):
         trace_json = span.get_tag("params.Data")
         assert trace_json is not None
 
-        print(trace_json)
         trace_json = json.loads(base64.b64decode(trace_json).decode("ascii"))
         assert "_datadog" not in trace_json
 
