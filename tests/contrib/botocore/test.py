@@ -703,10 +703,8 @@ class BotocoreTest(TracerTestCase):
 
     @mock_events
     def test_eventbridge_single_entry_trace_injection(self):
-        bridge = self.session.create_client("events", region_name="us-west-2")
+        bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
         bridge.create_event_bus(Name="a-test-bus")
-
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
 
         entries = [
             {
@@ -716,50 +714,120 @@ class BotocoreTest(TracerTestCase):
                 "EventBusName": "a-test-bus",
             }
         ]
+        bridge.put_rule(
+            Name='a-test-bus-rule',
+            EventBusName='a-test-bus',
+            EventPattern="""{"source": [{"prefix": ""}]}""",
+            State="ENABLED"
+        )
+
+        bridge.list_rules()
+        sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        queue = sqs.create_queue(QueueName="test")
+        queue_url = queue["QueueUrl"]
+        bridge.put_targets(Rule='a-test-bus-rule', Targets=[{
+            "Id": 'a-test-bus-rule-target',
+            "Arn": "arn:aws:sqs:us-east-1:000000000000:test"
+        }])
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
         bridge.put_events(Entries=entries)
+
+        messages = sqs.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
+
+        bridge.delete_event_bus(Name="a-test-bus")
+        sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
         spans = self.get_spans()
         assert spans
-        assert len(spans) == 1
+        assert len(spans) == 2
         span = spans[0]
-
         str_entries = span.get_tag("params.Entries")
         assert str_entries is None
 
-        bridge.delete_event_bus(Name="a-test-bus")
+        message = messages["Messages"][0]
+        body = message.get("Body")
+        assert body is not None
+        # body_obj = ast.literal_eval(body)
+        body_obj = json.loads(body)
+        detail = body_obj.get("detail")
+        headers = detail.get("_datadog")
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_events
     def test_eventbridge_muliple_entries_trace_injection(self):
-        bridge = self.session.create_client("events", region_name="us-west-2")
+        bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
         bridge.create_event_bus(Name="a-test-bus")
 
-        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
-
         entries = [
+            {
+                "Source": "another-event-source",
+                "DetailType": "a-different-event-detail-type",
+                "Detail": json.dumps({"abc": "xyz"}),
+                "EventBusName": "a-test-bus",
+            },
             {
                 "Source": "some-event-source",
                 "DetailType": "some-event-detail-type",
                 "Detail": json.dumps({"foo": "bar"}),
                 "EventBusName": "a-test-bus",
             },
-            {
-                "Source": "another-event-source",
-                "DetailType": "a-different-event-detail-type",
-                "Detail": json.dumps({"foo": "bar"}),
-                "EventBusName": "a-test-bus",
-            },
         ]
+        bridge.put_rule(
+            Name='a-test-bus-rule',
+            EventBusName='a-test-bus',
+            EventPattern="""{"source": [{"prefix": ""}]}""",
+            State="ENABLED"
+        )
+
+        bridge.list_rules()
+        sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
+        queue = sqs.create_queue(QueueName="test")
+        queue_url = queue["QueueUrl"]
+        bridge.put_targets(Rule='a-test-bus-rule', Targets=[{
+            "Id": 'a-test-bus-rule-target',
+            "Arn": "arn:aws:sqs:us-east-1:000000000000:test"
+        }])
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
         bridge.put_events(Entries=entries)
+
+        messages = sqs.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
+
+        bridge.delete_event_bus(Name="a-test-bus")
+        sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
         spans = self.get_spans()
         assert spans
-        assert len(spans) == 1
+        assert len(spans) == 2
         span = spans[0]
-
         str_entries = span.get_tag("params.Entries")
         assert str_entries is None
 
-        bridge.delete_event_bus(Name="a-test-bus")
+        message = messages["Messages"][0]
+        body = message.get("Body")
+        assert body is not None
+        body_obj = json.loads(body)
+        detail = body_obj.get("detail")
+        headers = detail.get("_datadog")
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+        # the following doesn't work due to an issue in moto/localstack where
+        # an SQS message is generated per put_events rather than per event sent
+
+        # message = messages["Messages"][1]
+        # body = message.get("Body")
+        # assert body is not None
+        # body_obj = json.loads(body)
+        # detail = body_obj.get("detail")
+        # headers = detail.get("_datadog")
+        # assert headers is not None
+        # assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        # assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_kms
     def test_kms_client(self):
@@ -906,7 +974,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
 
         # get SNS messages via SQS
-        response = sqs.receive_message(QueueUrl=queue["QueueUrl"])
+        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], WaitTimeSeconds=2)
 
         # clean up resources
         sqs.delete_queue(QueueUrl=sqs_url)
@@ -1037,7 +1105,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
 
         # get SNS messages via SQS
-        response = sqs.receive_message(QueueUrl=queue["QueueUrl"])
+        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], WaitTimeSeconds=2)
 
         # clean up resources
         sqs.delete_queue(QueueUrl=sqs_url)
