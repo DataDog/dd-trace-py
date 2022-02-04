@@ -342,6 +342,10 @@ def test_custom_writer():
             # type: (Optional[List[Span]]) -> None
             pass
 
+        def flush_queue(self):
+            # type: () -> None
+            pass
+
     tracer._writer = CustomWriter()
     info = debug.collect(tracer)
 
