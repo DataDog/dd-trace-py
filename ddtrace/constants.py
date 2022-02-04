@@ -37,5 +37,5 @@ AUTO_KEEP = 1
 # Use this to explicitly inform the backend that a trace should be kept and stored.
 USER_KEEP = 2
 
-MAX_KINESIS_DATA_SIZE = 1000000  # 1MB
-MAX_EVENTBRIDGE_DETAIL_SIZE = 256000  # 256KB
+MAX_KINESIS_DATA_SIZE = 1 << 20  # 1MB
+MAX_EVENTBRIDGE_DETAIL_SIZE = 1 << 18  # 256KB
