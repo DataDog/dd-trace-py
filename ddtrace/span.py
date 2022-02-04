@@ -403,8 +403,7 @@ class Span(object):
         self._metrics[key] = value
 
     @removed_property(
-        message="Use getters and setters instead of accessing Span.metrics directly. \
-            Ex: Span.get_metric(k), Span.set_metric(k, v)",
+        message="Use Span.get_metric or Span.set_metric instead.",
         removal_version="1.0.0",
     )
     def metric(self):
