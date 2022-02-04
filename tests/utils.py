@@ -793,13 +793,6 @@ class TestSpanNode(TestSpan, TestSpanContainer):
             spans[i].assert_matches(parent_id=self.span_id, trace_id=self.trace_id, _parent=self)
             spans[i].assert_structure(root, _children)
 
-    def pprint(self):
-        parts = [super(TestSpanNode, self).pprint()]
-        for child in self._children:
-            parts.append("-" * 20)
-            parts.append(child.pprint())
-        return "\r\n".join(parts)
-
 
 def assert_dict_issuperset(a, b):
     assert set(a.items()).issuperset(set(b.items())), "{a} is not a superset of {b}".format(a=a, b=b)

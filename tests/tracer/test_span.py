@@ -631,7 +631,7 @@ def test_span_pprint():
     root.set_tag("t", "v")
     root.set_metric("m", 1.0)
     root.finish()
-    actual = root.pprint()
+    actual = root._pprint()
     assert "name='test.span'" in actual
     assert "service='s'" in actual
     assert "resource='r'" in actual
@@ -647,22 +647,22 @@ def test_span_pprint():
     assert re.search("end=[0-9.]+", actual) is not None
 
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
-    actual = root.pprint()
+    actual = root._pprint()
     assert "duration=None" in actual
     assert "end=None" in actual
 
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.error = 1
-    actual = root.pprint()
+    actual = root._pprint()
     assert "error=1" in actual
 
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.set_tag(u"😌", u"😌")
-    actual = root.pprint()
+    actual = root._pprint()
     assert (u"tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
 
     root = Span(None, "test.span", service=object())
-    actual = root.pprint()
+    actual = root._pprint()
     assert "service=<object object at" in actual
 
 
