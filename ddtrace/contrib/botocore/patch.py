@@ -3,7 +3,6 @@ Trace queries to aws api done via botocore client
 """
 import base64
 import json
-import sys
 import typing
 from typing import Any
 from typing import Dict
@@ -82,9 +81,8 @@ def inject_trace_to_sqs_or_sns_batch_message(args, span):
     params = args[1]
 
     # An entry here is an SNS or SQS record, and depending on how it was published,
-    # it could either show up under Entries (in case of Publish, PutRecord & PutRecords),
-    # or PublishBatchRequestEntries (in case of PublishBatch). The order doesn't really matter here,
-    # but Entries is more likely than PublishBatchRequestEntries so it makes sense to check there first.
+    # it could either show up under Entries (in case of PutRecords),
+    # or PublishBatchRequestEntries (in case of PublishBatch).
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
         inject_trace_data_to_message_attributes(trace_data, entry)
@@ -133,7 +131,7 @@ def inject_trace_to_eventbridge_detail(args, span):
         detail_json = json.dumps(detail)
 
         # check if detail size will exceed max size with headers
-        detail_size = sys.getsizeof(detail_json)
+        detail_size = len(detail_json)
         if detail_size >= MAX_EVENTBRIDGE_DETAIL_SIZE:
             log.debug("Detail with trace injection exceeds max allowed size")
             return
@@ -141,7 +139,7 @@ def inject_trace_to_eventbridge_detail(args, span):
         entry["Detail"] = detail_json
 
 
-def get_kinesis_data_object(data, try_b64=True):
+def get_kinesis_data_object(data):
     # type: (str, Optional[bool]) -> Dict[str: Any]
     """
     :data: the data from a kinesis stream
@@ -154,15 +152,16 @@ def get_kinesis_data_object(data, try_b64=True):
     If it's neither of these, then we leave the message as it is.
     """
 
+    # check if data is a json string
     try:
         return json.loads(data)
     except ValueError:
-        if try_b64:
-            try:
-                return get_kinesis_data_object(base64.b64decode(data).decode("ascii"), False)
-            except ValueError:
-                return None
+        pass
 
+    # check if data is a base64 encoded json string
+    try:
+        return json.loads(base64.b64decode(data).decode("ascii"))
+    except ValueError:
         return None
 
 
@@ -188,7 +187,7 @@ def inject_trace_to_kinesis_stream_data(record, span):
         data_json = json.dumps(data_obj)
 
         # check if data size will exceed max size with headers
-        data_size = sys.getsizeof(data_json)
+        data_size = len(data_json)
         if data_size >= MAX_KINESIS_DATA_SIZE:
             return None
 
@@ -285,20 +284,23 @@ def patched_api_call(original_func, instance, args, kwargs):
             span.resource = ".".join((endpoint_name, operation.lower()))
 
             if config.botocore["distributed_tracing"]:
-                if endpoint_name == "lambda" and operation == "Invoke":
-                    inject_trace_to_client_context(args, span)
-                if endpoint_name == "sqs" and operation == "SendMessage":
-                    inject_trace_to_sqs_or_sns_message(args, span)
-                if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                    inject_trace_to_sqs_or_sns_batch_message(args, span)
-                if endpoint_name == "events" and operation == "PutEvents":
-                    inject_trace_to_eventbridge_detail(args, span)
-                if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
-                    inject_trace_to_kinesis_stream(args, span)
-                if endpoint_name == "sns" and operation == "Publish":
-                    inject_trace_to_sqs_or_sns_message(args, span)
-                if endpoint_name == "sns" and operation == "PublishBatch":
-                    inject_trace_to_sqs_or_sns_batch_message(args, span)
+                try:
+                    if endpoint_name == "lambda" and operation == "Invoke":
+                        inject_trace_to_client_context(args, span)
+                    if endpoint_name == "sqs" and operation == "SendMessage":
+                        inject_trace_to_sqs_or_sns_message(args, span)
+                    if endpoint_name == "sqs" and operation == "SendMessageBatch":
+                        inject_trace_to_sqs_or_sns_batch_message(args, span)
+                    if endpoint_name == "events" and operation == "PutEvents":
+                        inject_trace_to_eventbridge_detail(args, span)
+                    if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
+                        inject_trace_to_kinesis_stream(args, span)
+                    if endpoint_name == "sns" and operation == "Publish":
+                        inject_trace_to_sqs_or_sns_message(args, span)
+                    if endpoint_name == "sns" and operation == "PublishBatch":
+                        inject_trace_to_sqs_or_sns_batch_message(args, span)
+                except Exception as e:
+                    log.warning("Unable to inject trace context, error: %s" % str(e))
 
         else:
             span.resource = endpoint_name

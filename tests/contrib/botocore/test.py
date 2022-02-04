@@ -725,6 +725,8 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
 
         str_entries = span.get_tag("params.Entries")
+        # using literal_eval instead of json.loads since it's a dict inside
+        # on the string instead of a JSON object
         entries = ast.literal_eval(str_entries)
         assert len(entries) == 1
         for e in entries:
@@ -767,6 +769,8 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
 
         str_entries = span.get_tag("params.Entries")
+        # using literal_eval instead of json.loads since it's a dict inside
+        # on the string instead of a JSON object
         entries = ast.literal_eval(str_entries)
         assert len(entries) == 2
         for e in entries:
@@ -1482,6 +1486,8 @@ class BotocoreTest(TracerTestCase):
         assert span.resource == "kinesis.putrecords"
         records = span.get_tag("params.Records")
         assert records is not None
+        # using literal_eval instead of json.loads since it's a dict inside
+        # on the string instead of a JSON object
         records = ast.literal_eval(records)
         assert len(records) == 2
         record = records[0]
@@ -1549,6 +1555,8 @@ class BotocoreTest(TracerTestCase):
         assert span.resource == "kinesis.putrecords"
         records = span.get_tag("params.Records")
         assert records is not None
+        # using literal_eval instead of json.loads since it's a dict inside
+        # on the string instead of a JSON object
         records = ast.literal_eval(records)
         assert len(records) == 2
         record = records[0]
@@ -1616,6 +1624,8 @@ class BotocoreTest(TracerTestCase):
         assert span.resource == "kinesis.putrecords"
         records = span.get_tag("params.Records")
         assert records is not None
+        # using literal_eval instead of json.loads since it's a dict inside
+        # on the string instead of a JSON object
         records = ast.literal_eval(records)
         assert len(records) == 2
         for record in records:
