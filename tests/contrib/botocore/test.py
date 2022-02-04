@@ -1412,7 +1412,7 @@ class BotocoreTest(TracerTestCase):
         stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
         shard_id = stream["Shards"][0]["ShardId"]
 
-        sample_string = json.dumps({"Hello": "x" * 1000000})
+        sample_string = json.dumps({"Hello": "x" * (1 << 20)})
         sample_string_bytes = sample_string.encode("ascii")
         base64_bytes = base64.b64encode(sample_string_bytes)
         data = base64_bytes.decode("ascii")
@@ -1597,7 +1597,7 @@ class BotocoreTest(TracerTestCase):
         shard_id = stream["Shards"][0]["ShardId"]
 
         partition_key = "1234"
-        sample_string = json.dumps({"Hello": "x" * 1000000})
+        sample_string = json.dumps({"Hello": "x" * (1 << 20)})
         sample_string_bytes = sample_string.encode("ascii")
         base64_bytes = base64.b64encode(sample_string_bytes)
         data_str = base64_bytes.decode("ascii")

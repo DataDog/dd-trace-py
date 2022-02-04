@@ -124,7 +124,7 @@ def inject_trace_to_eventbridge_detail(args, span):
                 detail = json.loads(entry["Detail"])
             except ValueError:
                 log.debug("Detail is not a valid JSON string")
-                return
+                continue
 
         detail["_datadog"] = {}
         HTTPPropagator.inject(span.context, detail["_datadog"])
@@ -134,7 +134,7 @@ def inject_trace_to_eventbridge_detail(args, span):
         detail_size = len(detail_json)
         if detail_size >= MAX_EVENTBRIDGE_DETAIL_SIZE:
             log.debug("Detail with trace injection exceeds max allowed size")
-            return
+            continue
 
         entry["Detail"] = detail_json
 
