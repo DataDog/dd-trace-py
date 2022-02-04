@@ -172,7 +172,7 @@ class Span(object):
             self._ignored_exceptions.append(exc)
 
     @removed_property(
-        message="Avoid calling `Span.tracer`. Use ``Span(tracer=None, name='spanname')`` to initialize a Span object.",
+        message="Avoid calling Span.tracer. Use Span(tracer=None, name='spanname') to initialize a Span object.",
         removal_version="1.0.0",
     )
     def tracer(self):
