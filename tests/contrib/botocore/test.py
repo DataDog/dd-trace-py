@@ -1520,7 +1520,7 @@ class BotocoreTest(TracerTestCase):
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
         record = records[1]
-        data = json.loads(record["Data"])
+        data = json.loads(record["Data"].decode("ascii"))
         assert "_datadog" not in data
 
         client.delete_stream(StreamName=stream_name)
