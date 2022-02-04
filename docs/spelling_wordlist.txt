@@ -161,3 +161,4 @@ workflow
 wsgi
 xfail
 yaaredis
+Kinesis
