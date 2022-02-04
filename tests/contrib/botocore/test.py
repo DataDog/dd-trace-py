@@ -236,12 +236,12 @@ class BotocoreTest(TracerTestCase):
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.sqs"
             assert span.resource == "sqs.sendmessage"
-            assert span.get_tag("params.MessageAttributes._datadog.StringValue") == None
+            assert span.get_tag("params.MessageAttributes._datadog.StringValue") is None
 
             response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
             assert len(response["Messages"]) == 1
             trace_in_message = "MessageAttributes" in response["Messages"][0]
-            assert trace_in_message == False
+            assert trace_in_message is False
             sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_sqs
@@ -314,11 +314,11 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.sqs"
         assert span.resource == "sqs.sendmessage"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-        assert trace_json == None
+        assert trace_json is None
         response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
         assert len(response["Messages"]) == 1
         trace_in_message = "MessageAttributes" in response["Messages"][0]
-        assert trace_in_message == False
+        assert trace_in_message is False
         sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_sqs
@@ -434,7 +434,7 @@ class BotocoreTest(TracerTestCase):
         response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
         assert len(response["Messages"]) == 1
         trace_in_message = "MessageAttributes" in response["Messages"][0]
-        assert trace_in_message == False
+        assert trace_in_message is False
         sqs.delete_queue(QueueUrl=queue["QueueUrl"])
 
     @mock_kinesis
@@ -620,7 +620,7 @@ class BotocoreTest(TracerTestCase):
             assert_span_http_status_code(span, 200)
             assert span.service == "test-botocore-tracing.lambda"
             assert span.resource == "lambda.invoke"
-            assert span.get_tag("params.ClientContext") == None
+            assert span.get_tag("params.ClientContext") is None
             lamb.delete_function(FunctionName="ironmaiden")
 
     @mock_lambda
