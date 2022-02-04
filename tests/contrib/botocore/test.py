@@ -1368,7 +1368,7 @@ class BotocoreTest(TracerTestCase):
         assert len(resp["Records"]) == 1
         record = resp["Records"][0]
         assert record["Data"] is not None
-        data = json.loads(record["Data"])
+        data = json.loads(record["Data"].decode("ascii"))
         headers = data["_datadog"]
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
@@ -1418,7 +1418,7 @@ class BotocoreTest(TracerTestCase):
         assert len(resp["Records"]) == 1
         record = resp["Records"][0]
         assert record["Data"] is not None
-        data = json.loads(record["Data"])
+        data = json.loads(record["Data"].decode("ascii"))
         headers = data["_datadog"]
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
@@ -1514,7 +1514,7 @@ class BotocoreTest(TracerTestCase):
         assert len(resp["Records"]) == 2
         records = resp["Records"]
         record = records[0]
-        headers = json.loads(record["Data"])["_datadog"]
+        headers = json.loads(record["Data"].decode("ascii"))["_datadog"]
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
@@ -1570,7 +1570,7 @@ class BotocoreTest(TracerTestCase):
         assert len(resp["Records"]) == 2
         records = resp["Records"]
         record = records[0]
-        headers = json.loads(record["Data"])["_datadog"]
+        headers = json.loads(record["Data"].decode("ascii"))["_datadog"]
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
