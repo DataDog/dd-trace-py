@@ -15,9 +15,9 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import SPAN_MEASURED_KEY
 from ...constants import MAX_EVENTBRIDGE_DETAIL_SIZE
 from ...constants import MAX_KINESIS_DATA_SIZE
+from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
@@ -29,6 +29,7 @@ from ...internal.utils.formats import get_env
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
+
 
 if typing.TYPE_CHECKING:
     from ddtrace import Span

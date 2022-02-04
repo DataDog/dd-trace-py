@@ -1,6 +1,6 @@
+import ast
 import base64
 import datetime
-import ast
 import io
 import json
 import unittest
@@ -13,8 +13,8 @@ from moto import mock_kinesis
 from moto import mock_kms
 from moto import mock_lambda
 from moto import mock_s3
-from moto import mock_sqs
 from moto import mock_sns
+from moto import mock_sqs
 
 
 # Older version of moto used kinesis to mock firehose
