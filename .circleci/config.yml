@@ -222,7 +222,7 @@ executors:
   cimg_base:
     docker:
       - image: *cimg_base_image
-    resource_class: small
+    resource_class: medium
   python39:
     docker:
       - image: *python39_image
@@ -275,15 +275,18 @@ jobs:
       - run:
           name: "Codespell check"
           command: riot run -s codespell
+      - run:
+          name: "Test agent snapshot check"
+          command: riot run -s snapshot-fmt && git diff --exit-code
 
   ccheck:
     executor: cimg_base
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools python3-pip
+      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip
       - run: scripts/cformat.sh
-      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 pip -vvv install .
+      - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
     executor: python39
@@ -338,6 +341,12 @@ jobs:
           root: .
           paths:
             - "."
+
+  appsec:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'appsec'
 
   tracer:
     <<: *contrib_job
@@ -586,6 +595,8 @@ jobs:
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
+          # TODO: Re-enable coverage for Flask tests
+          store_coverage: false
           pattern: 'flask(_cache)?'
 
   gevent:
@@ -1020,6 +1031,7 @@ requires_tests: &requires_tests
     - starlette
     - test_logging
     - tracer
+    - appsec
     - tornado
     - urllib3
     - vertica
@@ -1107,6 +1119,7 @@ workflows:
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
+      - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
