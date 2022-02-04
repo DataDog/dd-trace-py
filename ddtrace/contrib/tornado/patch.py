@@ -12,8 +12,8 @@ from . import context_provider
 from . import decorators
 from . import handlers
 from . import template
-from ...utils.formats import asbool
-from ...utils.wrappers import unwrap as _u
+from ...internal.utils.formats import asbool
+from ...internal.utils.wrappers import unwrap as _u
 
 
 config._add(

@@ -1,9 +1,7 @@
 import os
 
-# 3p
 import pymysql
 
-# project
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
@@ -11,7 +9,7 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
-from ...utils.formats import asbool
+from ...internal.utils.formats import asbool
 
 
 config._add(

@@ -19,6 +19,13 @@ class SuccessHandler(tornado.web.RequestHandler):
         self.write("OK")
 
 
+class ResponseStatusHandler(tornado.web.RequestHandler):
+    @tornado.gen.coroutine
+    def get(self, status_code):
+        self.set_status(int(status_code))
+        self.write("status_code: {}".format(status_code))
+
+
 class NestedHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self):
@@ -307,6 +314,7 @@ def make_app(settings={}):
         [
             # custom handlers
             (r"/success/", SuccessHandler),
+            (r"/status_code/([0-9]+)", ResponseStatusHandler),
             (r"/nested/", NestedHandler),
             (r"/nested_wrap/", NestedWrapHandler),
             (r"/nested_exception_wrap/", NestedExceptionWrapHandler),

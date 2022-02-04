@@ -1,15 +1,9 @@
 import os
 
+import django
+
 from ddtrace import tracer
-from ddtrace.filters import TraceFilter
-
-
-class PingFilter(TraceFilter):
-    def process_trace(self, trace):
-        # Filter out all traces with trace_id = 1
-        # This is done to prevent certain traces from being included in snapshots and
-        # accomplished by propagating an http trace id of 1 with the request to Django.
-        return None if trace and trace[0].trace_id == 1 else trace
+from tests.webclient import PingFilter
 
 
 tracer.configure(
@@ -38,13 +32,18 @@ DATABASES = {
     },
 }
 
+django_cache = "django_redis.cache.RedisCache"
+if django.VERSION >= (4, 0, 0):
+    django_cache = "django.core.cache.backends.redis.RedisCache"
+
+
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "unique-snowflake",
     },
     "redis": {
-        "BACKEND": "django_redis.cache.RedisCache",
+        "BACKEND": django_cache,
         "LOCATION": "redis://127.0.0.1:6379/1",
     },
     "pylibmc": {

@@ -1,6 +1,6 @@
 from sqlite3 import Connection
 
-from ...utils.deprecation import deprecated
+from ...internal.utils.deprecation import deprecated
 
 
 @deprecated(message="Use patching instead (see the docs).", version="1.0.0")

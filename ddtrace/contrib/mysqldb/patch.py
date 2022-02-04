@@ -1,9 +1,7 @@
 import os
 
-# 3p
 import MySQLdb
 
-# project
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.dbapi import TracedConnection
@@ -11,8 +9,8 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...ext import db
 from ...ext import net
-from ...utils.formats import asbool
-from ...utils.wrappers import unwrap as _u
+from ...internal.utils.formats import asbool
+from ...internal.utils.wrappers import unwrap as _u
 
 
 config._add(

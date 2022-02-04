@@ -15,7 +15,7 @@ Or use :ref:`patch()<patch>` to manually enable the integration::
     from ddtrace import patch
     patch(futures=True)
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["concurrent.futures"]

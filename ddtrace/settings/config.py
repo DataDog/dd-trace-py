@@ -4,13 +4,13 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.utils.cache import cachedmethod
+from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.logger import get_logger
+from ..internal.utils.deprecation import get_service_legacy
+from ..internal.utils.formats import asbool
+from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
-from ..utils.deprecation import get_service_legacy
-from ..utils.formats import asbool
-from ..utils.formats import parse_tags_str
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
@@ -64,7 +64,7 @@ class Config(object):
     available and can be updated by users.
     """
 
-    class HTTPServerConfig(object):
+    class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
 

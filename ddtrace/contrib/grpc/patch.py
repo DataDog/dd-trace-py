@@ -6,7 +6,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from . import constants
 from . import utils
-from ...utils.wrappers import unwrap as _u
+from ..trace_utils import unwrap as _u
 from .client_interceptor import create_client_interceptor
 from .client_interceptor import intercept_channel
 from .server_interceptor import create_server_interceptor
@@ -65,6 +65,7 @@ def _unpatch_client():
 
     _u(grpc, "secure_channel")
     _u(grpc, "insecure_channel")
+    _u(grpc, "intercept_channel")
 
 
 def _patch_server():

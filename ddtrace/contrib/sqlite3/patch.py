@@ -8,8 +8,8 @@ from ddtrace.vendor import wrapt
 from ...contrib.dbapi import FetchTracedCursor
 from ...contrib.dbapi import TracedConnection
 from ...contrib.dbapi import TracedCursor
+from ...internal.utils.formats import asbool
 from ...pin import Pin
-from ...utils.formats import asbool
 
 
 # Original connect method

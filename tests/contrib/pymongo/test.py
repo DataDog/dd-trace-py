@@ -140,17 +140,22 @@ class PymongoCore(object):
         songs = db[collection_name]
         songs.insert_many(input_songs)
 
+        def count(col, *args, **kwargs):
+            if pymongo.version_tuple >= (4, 0):
+                return col.count_documents(*args, **kwargs)
+            return col.count(*args, **kwargs)
+
         # test delete one
         af = {"artist": "Neil"}
-        assert songs.count(af) == 2
+        assert count(songs, af) == 2
         songs.delete_one(af)
-        assert songs.count(af) == 1
+        assert count(songs, af) == 1
 
         # test delete many
         af = {"artist": "Leonard"}
-        assert songs.count(af) == 2
+        assert count(songs, af) == 2
         songs.delete_many(af)
-        assert songs.count(af) == 0
+        assert count(songs, af) == 0
 
         # ensure all is traced.
         spans = tracer.pop()
@@ -165,16 +170,28 @@ class PymongoCore(object):
             assert span.meta.get("out.host")
             assert span.metrics.get("out.port")
 
-        expected_resources = [
-            "drop here.are.songs",
-            "count here.are.songs",
-            "count here.are.songs",
-            "count here.are.songs",
-            "count here.are.songs",
-            'delete here.are.songs {"artist": "?"}',
-            'delete here.are.songs {"artist": "?"}',
-            "insert here.are.songs",
-        ]
+        if pymongo.version_tuple >= (4, 0):
+            expected_resources = [
+                "drop here.are.songs",
+                "aggregate here.are.songs",
+                "aggregate here.are.songs",
+                "aggregate here.are.songs",
+                "aggregate here.are.songs",
+                'delete here.are.songs {"artist": "?"}',
+                'delete here.are.songs {"artist": "?"}',
+                "insert here.are.songs",
+            ]
+        else:
+            expected_resources = [
+                "drop here.are.songs",
+                "count here.are.songs",
+                "count here.are.songs",
+                "count here.are.songs",
+                "count here.are.songs",
+                'delete here.are.songs {"artist": "?"}',
+                'delete here.are.songs {"artist": "?"}',
+                "insert here.are.songs",
+            ]
 
         assert sorted(expected_resources) == sorted(s.resource for s in spans)
 
@@ -466,6 +483,64 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         spans = tracer.pop()
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
+
+    def test_patch_with_disabled_tracer(self):
+        tracer, client = self.get_tracer_and_client()
+        tracer.configure(enabled=False)
+
+        db = client.testdb
+        db.drop_collection("teams")
+        teams = [
+            {
+                "name": "Toronto Maple Leafs",
+                "established": 1917,
+            },
+            {
+                "name": "Montreal Canadiens",
+                "established": 1910,
+            },
+            {
+                "name": "New York Rangers",
+                "established": 1926,
+            },
+            {
+                "name": "Boston Knuckleheads",
+                "established": 1998,
+            },
+        ]
+
+        # create records (exercising both ways of inserting)
+        db.teams.insert_one(teams[0])
+        db.teams.insert_many(teams[1:])
+        # delete record
+        db.teams.delete_one({"name": "Boston Knuckleheads"})
+
+        # assert one team was deleted
+        cursor = db["teams"].find()
+        count = 0
+        for row in cursor:
+            count += 1
+        assert count == len(teams) - 1
+
+        # query record
+        q = {"name": "Toronto Maple Leafs"}
+        queried = list(db.teams.find(q))
+        assert len(queried) == 1
+        assert queried[0]["name"] == "Toronto Maple Leafs"
+        assert queried[0]["established"] == 1917
+
+        # update record
+        result = db.teams.update_many(
+            {"name": "Toronto Maple Leafs"},
+            {"$set": {"established": 2021}},
+        )
+        assert result.matched_count == 1
+        queried = list(db.teams.find(q))
+        assert queried[0]["name"] == "Toronto Maple Leafs"
+        assert queried[0]["established"] == 2021
+
+        # assert no spans were created
+        assert tracer.pop() == []
 
 
 class TestPymongoSocketTracing(TracerTestCase):

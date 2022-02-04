@@ -6,9 +6,9 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
-from ...utils.formats import asbool
-from ...utils.wrappers import unwrap
+from ...internal.utils.formats import asbool
 from ..dbapi import TracedConnection
+from ..trace_utils import unwrap
 
 
 config._add(

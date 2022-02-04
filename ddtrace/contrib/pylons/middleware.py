@@ -12,7 +12,7 @@ from ...ext import SpanTypes
 from ...ext import http
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
-from ...utils.formats import asbool
+from ...internal.utils.formats import asbool
 from .constants import CONFIG_MIDDLEWARE
 from .renderer import trace_rendering
 

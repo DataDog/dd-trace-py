@@ -9,7 +9,7 @@ from ddtrace.vendor import wrapt
 
 from ...ext import db
 from ...ext import net
-from ...utils.formats import asbool
+from ...internal.utils.formats import asbool
 
 
 config._add(

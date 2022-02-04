@@ -4,7 +4,7 @@ import pyodbc
 
 from ... import Pin
 from ... import config
-from ...utils.formats import asbool
+from ...internal.utils.formats import asbool
 from ..dbapi import TracedConnection
 from ..dbapi import TracedCursor
 from ..trace_utils import unwrap

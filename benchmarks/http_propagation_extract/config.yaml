@@ -1,0 +1,109 @@
+# No headers provided
+empty_headers: &default_values
+  headers: "{}"
+  extra_headers: 0
+  wsgi_style: False
+
+# 20 headers, but none that we expect
+medium_header_no_matches: &medium_header_no_matches
+  headers: "{}"
+  extra_headers: 20
+  wsgi_style: False
+
+# 100 headers, but none that we expect
+large_header_no_matches: &large_header_no_matches
+  headers: "{}"
+  extra_headers: 100
+  wsgi_style: False
+
+# Only trace id/span id/priority
+valid_headers_basic: &valid_headers_basic
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1"}
+
+# All possible headers we expect
+valid_headers_all: &valid_headers_all
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.tag=value,_dd.p.some_long_key=some_long_value"}
+
+# All valid/possible headers but 20 additional unrelated headers
+medium_valid_headers_all: &medium_valid_headers_all
+  <<: *valid_headers_all
+  extra_headers: 20
+
+# All valid/possible headers but 100 additional unrelated headers
+large_valid_headers_all: &large_valid_headers_all
+  <<: *valid_headers_all
+  extra_headers: 100
+
+# x-datadog-trace-id is invalid
+invalid_trace_id_header: &invalid_trace_id_header
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "trace_id", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.tag=value,_dd.p.some_long_key=some_long_value"}
+
+# x-datadog-span-id is invalid
+invalid_span_id_header: &invalid_span_id_header
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "span_id", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.tag=value,_dd.p.some_long_key=some_long_value"}
+
+# x-datadog-sampling-priority is invalid
+invalid_priority_header: &invalid_priority_header
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "priority", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.tag=value,_dd.p.some_long_key=some_long_value"}
+
+# x-datadog-tags is invalid
+invalid_tags_header: &invalid_tags_header
+  <<: *default_values
+  headers: |
+    {"x-datadog-trace-id": "1234", "x-datadog-span-id": "5678", "x-datadog-sampling-priority": "1", "x-datadog-origin": "synthetics", "x-datadog-tags": "_dd.p.tag=value,_dd.p.some_long_key=some_long_value,key=,=value,"}
+
+
+# Same scenarios as above but with HTTP_WSGI_STYLE_HEADERS
+wsgi_empty_headers:
+  <<: *default_values
+  wsgi_style: True
+
+wsgi_medium_header_no_matches:
+  <<: *medium_header_no_matches
+  wsgi_style: True
+
+wsgi_large_header_no_matches:
+  <<: *large_header_no_matches
+  wsgi_style: True
+
+wsgi_valid_headers_basic:
+  <<: *valid_headers_basic
+  wsgi_style: True
+
+wsgi_valid_headers_all:
+  <<: *valid_headers_all
+  wsgi_style: True
+
+wsgi_medium_valid_headers_all:
+  <<: *medium_valid_headers_all
+  wsgi_style: True
+
+wsgi_large_valid_headers_all:
+  <<: *large_valid_headers_all
+  wsgi_style: True
+
+wsgi_invalid_trace_id_header:
+  <<: *invalid_trace_id_header
+  wsgi_style: True
+
+wsgi_invalid_span_id_header:
+  <<: *default_values
+  wsgi_style: True
+
+wsgi_invalid_priority_header:
+  <<: *invalid_priority_header
+  wsgi_style: True
+
+wsgi_invalid_tags_header:
+  <<: *invalid_tags_header
+  wsgi_style: True

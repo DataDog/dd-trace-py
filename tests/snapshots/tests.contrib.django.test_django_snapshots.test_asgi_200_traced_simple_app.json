@@ -1,0 +1,27 @@
+[[
+  {
+    "name": "asgi.request",
+    "service": null,
+    "resource": "GET /traced-simple-asgi-app/",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "asgi.version": "3.0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://127.0.0.1:8000/traced-simple-asgi-app/",
+      "http.version": "1.1",
+      "runtime-id": "74a5040e28844593a7cbe579f49ab5e4"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 3299
+    },
+    "duration": 491700,
+    "start": 1641325348884634800
+  }]]

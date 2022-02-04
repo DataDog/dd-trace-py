@@ -10,11 +10,11 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...ext import SpanTypes
 from ...internal.compat import parse
+from ...internal.utils import ArgumentError
+from ...internal.utils import get_argument_value
+from ...internal.utils.formats import asbool
+from ...internal.utils.wrappers import unwrap as _u
 from ...propagation.http import HTTPPropagator
-from ...utils import ArgumentError
-from ...utils import get_argument_value
-from ...utils.formats import asbool
-from ...utils.wrappers import unwrap as _u
 
 
 # Ports which, if set, will not be used in hostnames/service names

@@ -9,7 +9,10 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import net
 from ...ext import redis as redisx
+from ...internal.compat import binary_type
+from ...internal.compat import ensure_text
 from ...internal.compat import stringify
+from ...internal.compat import text_type
 
 
 VALUE_PLACEHOLDER = "?"
@@ -24,7 +27,7 @@ def _extract_conn_tags(conn_kwargs):
         return {
             net.TARGET_HOST: conn_kwargs["host"],
             net.TARGET_PORT: conn_kwargs["port"],
-            redisx.DB: conn_kwargs["db"] or 0,
+            redisx.DB: conn_kwargs.get("db") or 0,
         }
     except Exception:
         return {}
@@ -41,7 +44,10 @@ def format_command_args(args):
     out = []
     for arg in args:
         try:
-            cmd = stringify(arg)
+            if isinstance(arg, (binary_type, text_type)):
+                cmd = ensure_text(arg, errors="backslashreplace")
+            else:
+                cmd = stringify(arg)
 
             if len(cmd) > VALUE_MAX_LEN:
                 cmd = cmd[:VALUE_MAX_LEN] + VALUE_TOO_LONG_MARK
@@ -72,7 +78,9 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
         span.set_tag(redisx.RAWCMD, query)
         if pin.tags:
             span.set_tags(pin.tags)
-        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
+        # some redis clients do not have a connection_pool attribute (ex. aioredis v1.3)
+        if hasattr(instance, "connection_pool"):
+            span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.ARGS_LEN, len(args))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config_integration.get_analytics_sample_rate())

@@ -14,6 +14,7 @@ from ddtrace.constants import KEEP_SPANS_RATE_KEY
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
+from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
@@ -546,3 +547,31 @@ def test_additional_headers():
         writer = AgentWriter(agent_url="http://localhost:9126")
         assert writer._headers["additional-header"] == "additional-value"
         assert writer._headers["header2"] == "value2"
+
+
+def test_bad_encoding(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_API_VERSION", "foo")
+
+    with pytest.raises(ValueError):
+        AgentWriter(agent_url="http://localhost:9126")
+
+
+@pytest.mark.parametrize(
+    "init_api_version,api_version,endpoint,encoder_cls",
+    [
+        (None, "v0.3", "v0.3/traces", MSGPACK_ENCODERS["v0.3"]),
+        ("v0.3", "v0.3", "v0.3/traces", MSGPACK_ENCODERS["v0.3"]),
+        ("v0.4", "v0.4", "v0.4/traces", MSGPACK_ENCODERS["v0.4"]),
+        ("v0.5", "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
+    ],
+)
+def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls):
+    writer = AgentWriter(agent_url="http://dne:1234", api_version=init_api_version)
+    assert writer._api_version == api_version
+    assert writer._endpoint == endpoint
+    assert isinstance(writer._encoder, encoder_cls)
+
+    writer = writer.recreate()
+    assert writer._api_version == api_version
+    assert writer._endpoint == endpoint
+    assert isinstance(writer._encoder, encoder_cls)

@@ -54,7 +54,7 @@ Example of the context propagation::
             with tracer.trace("greenlet.child_call") as child:
                 ...
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["gevent"]

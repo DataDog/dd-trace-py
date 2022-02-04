@@ -1,6 +1,6 @@
 import mongoengine
 
-from ...utils.deprecation import deprecated
+from ...internal.utils.deprecation import deprecated
 from .trace import WrappedConnect
 
 

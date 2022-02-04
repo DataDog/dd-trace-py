@@ -1,7 +1,6 @@
 """
 Trace queries to aws api done via botocore client
 """
-# 3p
 import base64
 import json
 import os
@@ -11,19 +10,18 @@ import botocore.client
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-# project
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
 from ...internal.logger import get_logger
+from ...internal.utils import get_argument_value
+from ...internal.utils.formats import asbool
+from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
-from ...utils import get_argument_value
-from ...utils.formats import asbool
-from ...utils.formats import deep_getattr
-from ...utils.wrappers import unwrap
+from ..trace_utils import unwrap
 
 
 # Original botocore client class

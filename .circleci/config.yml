@@ -4,7 +4,6 @@ default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
 python39_image: &python39_image cimg/python:3.9
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
-datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
@@ -22,7 +21,7 @@ orbs:
 
 machine_executor: &machine_executor
   machine:
-    image: ubuntu-1604:201903-01
+    image: ubuntu-2004:202107-02
   environment:
     - BOTO_CONFIG: /dev/null
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
@@ -32,7 +31,7 @@ machine_executor: &machine_executor
       run:
         name: Set global pyenv
         command: |
-          pyenv global 3.6.5
+          pyenv global 3.9.4
 
 contrib_job: &contrib_job
   executor: ddtrace_dev
@@ -117,6 +116,7 @@ commands:
           condition:
               << parameters.snapshot >>
           steps:
+            - setup_riot
             - run: SNAPSHOT_CI=1 docker-compose up -d testagent << parameters.docker_services >>
             - run:
                 command: docker-compose logs -f
@@ -127,7 +127,7 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs ./scripts/ddtest riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'
+                  ./scripts/tested_pythons | circleci tests split | xargs -I PY ./scripts/ddtest riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'
       - unless:
           condition:
               << parameters.snapshot >>
@@ -142,7 +142,7 @@ commands:
                       command: tox -e 'wait' << parameters.wait >>
             - setup_riot
             - run:
-                command: "echo -p2.7,-p3.5,-p3.6,-p3.7,-p3.8,-p3.9 | tr ',' '\n' | circleci tests split | xargs riot -v run --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - when:
           condition:
             << parameters.store_coverage >>
@@ -218,19 +218,11 @@ commands:
       - store_artifacts:
           path: test-results
 
-  build_docs:
-    steps:
-      - setup_riot
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libenchant-dev
-      - run: riot run docs
-
 executors:
   cimg_base:
     docker:
       - image: *cimg_base_image
-    resource_class: small
+    resource_class: medium
   python39:
     docker:
       - image: *python39_image
@@ -249,15 +241,6 @@ executors:
 httpbin_local: &httpbin_local
   image: *httpbin_image
   name: httpbin.org
-
-datadog_agent: &datadog_agent
-  image: *datadog_agent_image
-  environment:
-    DD_API_KEY: invalid_key_but_this_is_fine
-    DD_APM_ENABLED: true
-    DD_APM_RECEIVER_SOCKET: /tmp/ddagent/trace.sock
-    DD_BIND_HOST: 0.0.0.0
-    DD_LOG_LEVEL: DEBUG
 
 mysql_server: &mysql_server
   image: *mysql_image
@@ -281,8 +264,8 @@ jobs:
       - checkout
       - setup_riot
       - run:
-          name: "Black check"
-          command: riot run -s black --check .
+          name: "Formatting check"
+          command: riot run -s fmt && git diff --exit-code
       - run:
           name: "Flake8 check"
           command: riot run -s flake8
@@ -292,15 +275,18 @@ jobs:
       - run:
           name: "Codespell check"
           command: riot run -s codespell
+      - run:
+          name: "Test agent snapshot check"
+          command: riot run -s snapshot-fmt && git diff --exit-code
 
   ccheck:
     executor: cimg_base
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools python3-pip
+      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip
       - run: scripts/cformat.sh
-      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 pip -vvv install .
+      - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
     executor: python39
@@ -350,11 +336,17 @@ jobs:
           command: riot run -s riot-helpers
       - run:
           name: "Generate base virtual environments."
-          command: "echo '2.7,3.5,3.6,3.7,3.8,3.9' | tr ',' '\n' | circleci tests split | xargs -I PY riot -v generate --python=PY"
+          command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v generate --python=PY"
       - persist_to_workspace:
           root: .
           paths:
             - "."
+
+  appsec:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'appsec'
 
   tracer:
     <<: *contrib_job
@@ -379,28 +371,38 @@ jobs:
   integration_agent5:
     <<: *machine_executor
     steps:
+      - attach_workspace:
+          at: .
       - checkout
       - run: docker-compose up -d ddagent5
       - run:
           command: docker-compose logs -f
           background: true
       - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-v5'
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
     steps:
+      - attach_workspace:
+          at: .
       - checkout
       - run: docker-compose up -d ddagent
       - run:
           command: docker-compose logs -f
           background: true
       - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-latest'
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
 
   integration_testagent:
     <<: *machine_executor
     steps:
+      - attach_workspace:
+          at: .
       - checkout
       - run: SNAPSHOT_CI=1 docker-compose up -d testagent
       - run:
@@ -409,7 +411,9 @@ jobs:
       - run:
           environment:
             DD_TRACE_AGENT_URL: http://localhost:9126
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
@@ -591,6 +595,8 @@ jobs:
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
+          # TODO: Re-enable coverage for Flask tests
+          store_coverage: false
           pattern: 'flask(_cache)?'
 
   gevent:
@@ -722,10 +728,11 @@ jobs:
           pattern: '^pyodbc_contrib-'
 
   pyramid:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^pyramid_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: 'pyramid'
+          snapshot: true
 
   requests:
     <<: *contrib_job
@@ -808,6 +815,15 @@ jobs:
           wait: postgres
           pattern: 'aiopg'
 
+  aioredis:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'aioredis$'
+          snapshot: true
+
   aredis:
     <<: *machine_executor
     parallelism: 4
@@ -816,6 +832,16 @@ jobs:
           docker_services: 'redis'
           pattern: 'aredis$'
           snapshot: true
+
+  yaaredis:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          docker_services: 'redis'
+          pattern: 'yaaredis$'
+          snapshot: true
+
   redis:
     <<: *machine_executor
     parallelism: 4
@@ -845,12 +871,10 @@ jobs:
   urllib3:
     <<: *machine_executor
     steps:
-      - checkout
-      # `snapshot: true` will run `docker-compose logs -f` for us
-      - run: docker-compose up -d httpbin_local
       - run_test:
           pattern: 'urllib3'
           snapshot: true
+          docker_services: "httpbin_local"
 
   vertica:
     <<: *contrib_job
@@ -916,13 +940,13 @@ jobs:
 
   build_docs:
     # build documentation and store as an artifact
-    <<: *machine_executor
+    executor: ddtrace_dev
     steps:
+      - setup_riot
       - checkout
-      - *pyenv-set-global
-      - build_docs
       - run:
           command: |
+             riot -v run docs
              mkdir -p /tmp/docs
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
@@ -944,6 +968,7 @@ requires_tests: &requires_tests
     - aiobotocore
     - aiohttp
     - aiopg
+    - aioredis
     - asyncio
     - algoliasearch
     - asgi
@@ -994,6 +1019,7 @@ requires_tests: &requires_tests
     - pyramid
     - pytest
     - aredis
+    - yaaredis
     - redis
     - rediscluster
     - requests
@@ -1005,6 +1031,7 @@ requires_tests: &requires_tests
     - starlette
     - test_logging
     - tracer
+    - appsec
     - tornado
     - urllib3
     - vertica
@@ -1028,6 +1055,7 @@ workflows:
       - aiobotocore: *requires_base_venvs
       - aiohttp: *requires_base_venvs
       - aiopg: *requires_base_venvs
+      - aioredis: *requires_base_venvs
       - asyncio: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
@@ -1078,6 +1106,7 @@ workflows:
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
       - aredis: *requires_base_venvs
+      - yaaredis: *requires_base_venvs
       - redis: *requires_base_venvs
       - rediscluster: *requires_base_venvs
       - requests: *requires_base_venvs
@@ -1090,6 +1119,7 @@ workflows:
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
+      - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
