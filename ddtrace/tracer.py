@@ -829,7 +829,7 @@ class Tracer(object):
 
     def flush(self):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
-        self._writer.flush()
+        self._writer.flush_queue()
 
     @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
     def set_service_info(self, *args, **kwargs):
