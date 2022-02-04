@@ -715,20 +715,20 @@ class BotocoreTest(TracerTestCase):
             }
         ]
         bridge.put_rule(
-            Name='a-test-bus-rule',
-            EventBusName='a-test-bus',
+            Name="a-test-bus-rule",
+            EventBusName="a-test-bus",
             EventPattern="""{"source": [{"prefix": ""}]}""",
-            State="ENABLED"
+            State="ENABLED",
         )
 
         bridge.list_rules()
         sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
         queue = sqs.create_queue(QueueName="test")
         queue_url = queue["QueueUrl"]
-        bridge.put_targets(Rule='a-test-bus-rule', Targets=[{
-            "Id": 'a-test-bus-rule-target',
-            "Arn": "arn:aws:sqs:us-east-1:000000000000:test"
-        }])
+        bridge.put_targets(
+            Rule="a-test-bus-rule",
+            Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:test"}],
+        )
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
         bridge.put_events(Entries=entries)
@@ -776,20 +776,20 @@ class BotocoreTest(TracerTestCase):
             },
         ]
         bridge.put_rule(
-            Name='a-test-bus-rule',
-            EventBusName='a-test-bus',
+            Name="a-test-bus-rule",
+            EventBusName="a-test-bus",
             EventPattern="""{"source": [{"prefix": ""}]}""",
-            State="ENABLED"
+            State="ENABLED",
         )
 
         bridge.list_rules()
         sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
         queue = sqs.create_queue(QueueName="test")
         queue_url = queue["QueueUrl"]
-        bridge.put_targets(Rule='a-test-bus-rule', Targets=[{
-            "Id": 'a-test-bus-rule-target',
-            "Arn": "arn:aws:sqs:us-east-1:000000000000:test"
-        }])
+        bridge.put_targets(
+            Rule="a-test-bus-rule",
+            Targets=[{"Id": "a-test-bus-rule-target", "Arn": "arn:aws:sqs:us-east-1:000000000000:test"}],
+        )
 
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(bridge)
         bridge.put_events(Entries=entries)
