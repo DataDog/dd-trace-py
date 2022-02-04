@@ -337,7 +337,7 @@ class Tracer(object):
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
-        (x is not None for x in [hostname, port, uds_path, https]):
+        if any(x is not None for x in [hostname, port, uds_path, https]):
             # If any of the parts of the URL have updated, merge them with
             # the previous writer values.
             if isinstance(self.writer, AgentWriter):
@@ -647,7 +647,7 @@ class Tracer(object):
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
 
-    def _initialize_span_processors(self, appsec_enabled=asbool(os.get_env("DD_APPSEC_ENABLED", default=False))):
+    def _initialize_span_processors(self, appsec_enabled=asbool(os.getenv("DD_APPSEC_ENABLED", default=False))):
         # type: (Optional[bool]) -> None
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
