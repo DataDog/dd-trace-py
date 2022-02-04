@@ -1,4 +1,3 @@
-import ast
 import base64
 import datetime
 import io
@@ -725,18 +724,7 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
 
         str_entries = span.get_tag("params.Entries")
-        # using literal_eval instead of json.loads since it's a dict inside
-        # on the string instead of a JSON object
-        entries = ast.literal_eval(str_entries)
-        assert len(entries) == 1
-        for e in entries:
-            assert "Detail" in e
-            detail = json.loads(e["Detail"])
-            assert HTTP_HEADER_PARENT_ID in detail["_datadog"]
-            assert HTTP_HEADER_TRACE_ID in detail["_datadog"]
-            headers = detail["_datadog"]
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        assert str_entries is None
 
         bridge.delete_event_bus(Name="a-test-bus")
 
@@ -769,18 +757,7 @@ class BotocoreTest(TracerTestCase):
         span = spans[0]
 
         str_entries = span.get_tag("params.Entries")
-        # using literal_eval instead of json.loads since it's a dict inside
-        # on the string instead of a JSON object
-        entries = ast.literal_eval(str_entries)
-        assert len(entries) == 2
-        for e in entries:
-            assert "Detail" in e
-            detail = json.loads(e["Detail"])
-            assert HTTP_HEADER_PARENT_ID in detail["_datadog"]
-            assert HTTP_HEADER_TRACE_ID in detail["_datadog"]
-            headers = detail["_datadog"]
-            assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-            assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        assert str_entries is None
 
         bridge.delete_event_bus(Name="a-test-bus")
 
@@ -947,9 +924,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.sns"
         assert span.resource == "sns.publish"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-        trace_data_injected = json.loads(trace_json)
-        assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        assert trace_json is None
 
         # receive message using SQS and ensure headers are present
         assert len(response["Messages"]) == 1
@@ -1014,9 +989,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.sns"
         assert span.resource == "sns.publish"
         trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-        trace_data_injected = json.loads(trace_json)
-        assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        assert trace_json is None
 
         # receive message using SQS and ensure headers are present
         assert len(response["Messages"]) == 1
@@ -1143,10 +1116,6 @@ class BotocoreTest(TracerTestCase):
     #     assert_span_http_status_code(span, 200)
     #     assert span.service == "test-botocore-tracing.sns"
     #     assert span.resource == "sns.publishbatch"
-    #     trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-    #     trace_data_injected = json.loads(trace_json)
-    #     assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-    #     assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     #     # receive message using SQS and ensure headers are present
     #     assert len(response["Messages"]) == 1
@@ -1213,10 +1182,6 @@ class BotocoreTest(TracerTestCase):
     #     assert_span_http_status_code(span, 200)
     #     assert span.service == "test-botocore-tracing.sns"
     #     assert span.resource == "sns.publishbatch"
-    #     trace_json = span.get_tag("params.MessageAttributes._datadog.StringValue")
-    #     trace_data_injected = json.loads(trace_json)
-    #     assert trace_data_injected[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-    #     assert trace_data_injected[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     #     # receive message using SQS and ensure headers are present
     #     assert len(response["Messages"]) == 1
@@ -1325,12 +1290,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.kinesis"
         assert span.resource == "kinesis.putrecord"
         trace_json = span.get_tag("params.Data")
-        assert trace_json is not None
-
-        headers = json.loads(trace_json)["_datadog"]
-        assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        assert trace_json is None
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
@@ -1380,12 +1340,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.kinesis"
         assert span.resource == "kinesis.putrecord"
         trace_json = span.get_tag("params.Data")
-        assert trace_json is not None
-
-        headers = json.loads(trace_json)["_datadog"]
-        assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        assert trace_json is None
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
@@ -1435,10 +1390,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.kinesis"
         assert span.resource == "kinesis.putrecord"
         trace_json = span.get_tag("params.Data")
-        assert trace_json is not None
-
-        trace_json = json.loads(base64.b64decode(trace_json).decode("ascii"))
-        assert "_datadog" not in trace_json
+        assert trace_json is None
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
@@ -1484,20 +1436,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.kinesis"
         assert span.resource == "kinesis.putrecords"
         records = span.get_tag("params.Records")
-        assert records is not None
-        # using literal_eval instead of json.loads since it's a dict inside
-        # on the string instead of a JSON object
-        records = ast.literal_eval(records)
-        assert len(records) == 2
-        record = records[0]
-        headers = json.loads(record["Data"])["_datadog"]
-        assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-        record = records[1]
-        data = json.loads(record["Data"])
-        assert "_datadog" not in data
+        assert records is None
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
@@ -1553,20 +1492,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.kinesis"
         assert span.resource == "kinesis.putrecords"
         records = span.get_tag("params.Records")
-        assert records is not None
-        # using literal_eval instead of json.loads since it's a dict inside
-        # on the string instead of a JSON object
-        records = ast.literal_eval(records)
-        assert len(records) == 2
-        record = records[0]
-        headers = json.loads(record["Data"])["_datadog"]
-        assert headers is not None
-        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-        record = records[1]
-        data = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
-        assert "_datadog" not in data
+        assert records is None
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
@@ -1622,14 +1548,7 @@ class BotocoreTest(TracerTestCase):
         assert span.service == "test-botocore-tracing.kinesis"
         assert span.resource == "kinesis.putrecords"
         records = span.get_tag("params.Records")
-        assert records is not None
-        # using literal_eval instead of json.loads since it's a dict inside
-        # on the string instead of a JSON object
-        records = ast.literal_eval(records)
-        assert len(records) == 2
-        for record in records:
-            headers = json.loads(base64.b64decode(record["Data"]).decode("ascii"))
-            assert "_datadog" not in headers
+        assert records is None
 
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]

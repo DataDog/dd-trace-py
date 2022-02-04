@@ -148,8 +148,8 @@ def get_kinesis_data_object(data):
 
     The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
     We support injecting our trace context in the following two cases:
-        - json string
-        - base64 encoded json string
+    - json string
+    - base64 encoded json string
     If it's neither of these, then we leave the message as it is.
     """
 
@@ -300,8 +300,8 @@ def patched_api_call(original_func, instance, args, kwargs):
                         inject_trace_to_sqs_or_sns_message(args, span)
                     if endpoint_name == "sns" and operation == "PublishBatch":
                         inject_trace_to_sqs_or_sns_batch_message(args, span)
-                except Exception as e:
-                    log.warning("Unable to inject trace context, error: %s" % str(e))
+                except Exception:
+                    log.warning("Unable to inject trace context", exc_info=True)
 
         else:
             span.resource = endpoint_name
