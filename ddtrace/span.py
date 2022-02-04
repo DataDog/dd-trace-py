@@ -40,9 +40,8 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
-from .vendor.debtcollector.removals import removed_property
 from .internal.utils.deprecation import deprecated
-
+from .vendor.debtcollector.removals import removed_property
 
 
 if TYPE_CHECKING:
