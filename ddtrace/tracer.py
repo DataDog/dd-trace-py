@@ -828,9 +828,8 @@ class Tracer(object):
         return None
 
     def flush(self):
-        """Flush buffered traces."""
-        if isinstance(self._writer, AgentWriter):
-            self._writer.flush_queue()
+        """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
+        self._writer.flush()
 
     @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
     def set_service_info(self, *args, **kwargs):
