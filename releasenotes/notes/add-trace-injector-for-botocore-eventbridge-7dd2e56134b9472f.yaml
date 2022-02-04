@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Add the ability to inject trace context into AWS EventBridge events in the botocore Patcher.
+    botocore: Add distributed tracing support for AWS EventBridge, AWS SNS & AWS Kinesis
