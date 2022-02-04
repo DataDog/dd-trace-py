@@ -425,7 +425,7 @@ class Span(object):
         return self._metrics.get(key)
 
     def _get_metrics(self):
-        # type: () -> Optional[_MetricDictType]
+        # type: () -> _MetricDictType
         return self._metrics.copy()
 
     def to_dict(self):
