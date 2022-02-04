@@ -15,7 +15,7 @@ from ddtrace.vendor import wrapt
 config._add(
     "mariadb",
     dict(
-        trace_fetch_methods=asbool(os.getenv("DD_MARIADB_TRACE_FETCH_METHODS", "trace_fetch_methods", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_MARIADB_TRACE_FETCH_METHODS", default=False)),
         _default_service="mariadb",
     ),
 )

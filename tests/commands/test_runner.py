@@ -38,14 +38,6 @@ def inject_sitecustomize(path):
 
 
 class DdtraceRunTest(BaseTestCase):
-    def test_service_name_passthrough_legacy(self):
-        """
-        $DATADOG_SERVICE_NAME gets passed through to the program
-        """
-        with self.override_env(dict(DATADOG_SERVICE_NAME="my_test_service")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_service.py"])
-            assert out.startswith(b"Test success")
-
     def test_service_name_passthrough(self):
         """
         $DD_SERVICE gets passed through to the program
@@ -56,11 +48,8 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_env_name_passthrough(self):
         """
-        $DATADOG_ENV or $DD_ENV gets passed through to the global tracer as an 'env' tag
+        $DD_ENV gets passed through to the global tracer as an 'env' tag
         """
-        with self.override_env(dict(DATADOG_ENV="test")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_env.py"])
-            assert out.startswith(b"Test success")
 
         with self.override_env(dict(DD_ENV="test")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_env.py"])
@@ -68,15 +57,8 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_env_enabling(self):
         """
-        DATADOG_TRACE_ENABLED=false and DD_TRACE_ENABLED=false allows disabling of the global tracer
+        DD_TRACE_ENABLED=false allows disabling of the global tracer
         """
-        with self.override_env(dict(DATADOG_TRACE_ENABLED="false")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_disabled.py"])
-            assert out.startswith(b"Test success")
-
-        with self.override_env(dict(DATADOG_TRACE_ENABLED="true")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_enabled.py"])
-            assert out.startswith(b"Test success")
 
         with self.override_env(dict(DD_TRACE_ENABLED="false")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_disabled.py"])
@@ -100,7 +82,6 @@ class DdtraceRunTest(BaseTestCase):
     def test_debug_enabling(self):
         """
         DD_TRACE_DEBUG=true allows setting debug logging of the global tracer.
-        Test DATADOG_TRACE_DEBUG flag for backwards compatibility
         """
         with self.override_env(dict(DD_TRACE_DEBUG="false")):
             out = subprocess.check_output(
@@ -117,29 +98,10 @@ class DdtraceRunTest(BaseTestCase):
             assert b"Test success" in out
             assert b"DATADOG TRACER CONFIGURATION" in out
 
-        with self.override_env(dict(DATADOG_TRACE_DEBUG="false")):
-            out = subprocess.check_output(
-                ["ddtrace-run", "python", "tests/commands/ddtrace_run_no_debug.py"], stderr=subprocess.STDOUT
-            )
-            assert b"Test success" in out
-            assert b"DATADOG TRACER CONFIGURATION" not in out
-
-        with self.override_env(dict(DATADOG_TRACE_DEBUG="true")):
-            out = subprocess.check_output(
-                ["ddtrace-run", "python", "tests/commands/ddtrace_run_debug.py"],
-                stderr=subprocess.STDOUT,
-            )
-            assert b"Test success" in out
-            assert b"DATADOG TRACER CONFIGURATION" in out
-
     def test_host_port_from_env(self):
         """
-        DD_TRACE_AGENT_HOSTNAME|PORT and DATADOG_TRACE_AGENT_HOSTNAME|PORT point to the tracer
-        to the correct host/port for submission
+        DD_TRACE_AGENT_HOSTNAME|PORT point the tracer to the correct host/port for submission
         """
-        with self.override_env(dict(DATADOG_TRACE_AGENT_HOSTNAME="172.10.0.1", DATADOG_TRACE_AGENT_PORT="8120")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_hostname.py"])
-            assert out.startswith(b"Test success")
 
         with self.override_env(dict(DD_TRACE_AGENT_HOSTNAME="172.10.0.1", DD_TRACE_AGENT_PORT="8120")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_hostname.py"])
@@ -200,11 +162,8 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_priority_sampling_from_env(self):
         """
-        DD_PRIORITY_SAMPLING and DATADOG_PRIORITY_SAMPLING enable Distributed Sampling
+        DD_PRIORITY_SAMPLING enables Distributed Sampling
         """
-        with self.override_env(dict(DATADOG_PRIORITY_SAMPLING="True")):
-            out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_priority_sampling.py"])
-            assert out.startswith(b"Test success")
 
         with self.override_env(dict(DD_PRIORITY_SAMPLING="True")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_priority_sampling.py"])
@@ -212,7 +171,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_patch_modules_from_env(self):
         """
-        DATADOG_PATCH_MODULES overrides the defaults for patch_all()
+        DD_PATCH_MODULES overrides the defaults for patch_all()
         """
         from ddtrace.bootstrap.sitecustomize import EXTRA_PATCHED_MODULES
         from ddtrace.bootstrap.sitecustomize import update_patched_modules
@@ -220,37 +179,37 @@ class DdtraceRunTest(BaseTestCase):
         orig = EXTRA_PATCHED_MODULES.copy()
 
         # empty / malformed strings are no-ops
-        with self.override_env(dict(DATADOG_PATCH_MODULES="")):
+        with self.override_env(dict(DD_PATCH_MODULES="")):
             update_patched_modules()
             assert orig == EXTRA_PATCHED_MODULES
 
-        with self.override_env(dict(DATADOG_PATCH_MODULES=":")):
+        with self.override_env(dict(DD_PATCH_MODULES=":")):
             update_patched_modules()
             assert orig == EXTRA_PATCHED_MODULES
 
-        with self.override_env(dict(DATADOG_PATCH_MODULES=",")):
+        with self.override_env(dict(DD_PATCH_MODULES=",")):
             update_patched_modules()
             assert orig == EXTRA_PATCHED_MODULES
 
-        with self.override_env(dict(DATADOG_PATCH_MODULES=",:")):
+        with self.override_env(dict(DD_PATCH_MODULES=",:")):
             update_patched_modules()
             assert orig == EXTRA_PATCHED_MODULES
 
         # overrides work in either direction
-        with self.override_env(dict(DATADOG_PATCH_MODULES="django:false")):
+        with self.override_env(dict(DD_PATCH_MODULES="django:false")):
             update_patched_modules()
             assert EXTRA_PATCHED_MODULES["django"] is False
 
-        with self.override_env(dict(DATADOG_PATCH_MODULES="boto:true")):
+        with self.override_env(dict(DD_PATCH_MODULES="boto:true")):
             update_patched_modules()
             assert EXTRA_PATCHED_MODULES["boto"] is True
 
-        with self.override_env(dict(DATADOG_PATCH_MODULES="django:true,boto:false")):
+        with self.override_env(dict(DD_PATCH_MODULES="django:true,boto:false")):
             update_patched_modules()
             assert EXTRA_PATCHED_MODULES["boto"] is False
             assert EXTRA_PATCHED_MODULES["django"] is True
 
-        with self.override_env(dict(DATADOG_PATCH_MODULES="django:false,boto:true")):
+        with self.override_env(dict(DD_PATCH_MODULES="django:false,boto:true")):
             update_patched_modules()
             assert EXTRA_PATCHED_MODULES["boto"] is True
             assert EXTRA_PATCHED_MODULES["django"] is False

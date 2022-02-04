@@ -41,7 +41,7 @@ def traced_init(wrapped, instance, args, kwargs):
     service = config._get_service(default="pyramid")
     # DEV: integration-specific analytics flag can be not set but still enabled
     # globally for web frameworks
-    old_analytics_enabled = os.getenv("pyramid", "analytics_enabled")
+    old_analytics_enabled = os.getenv("DD_PYRAMID_ANALYTICS_ENABLED")
     analytics_enabled = os.environ.get("DD_TRACE_PYRAMID_ANALYTICS_ENABLED", old_analytics_enabled)
     if analytics_enabled is not None:
         analytics_enabled = asbool(analytics_enabled)

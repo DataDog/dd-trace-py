@@ -23,7 +23,6 @@ from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa
-from ddtrace.internal.utils.formats import get_env
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode
@@ -120,7 +119,7 @@ try:
 
     # instrumentation telemetry writer should be enabled/started after the global tracer and configs
     # are initialized
-    if asbool(get_env("instrumentation_telemetry", "enabled")):
+    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
         telemetry_writer.enable()
 
     # Check for and import any sitecustomize that would have normally been used

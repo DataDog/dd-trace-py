@@ -1,0 +1,27 @@
+[[
+  {
+    "name": "pyramid.request",
+    "service": "pyramid",
+    "resource": "GET hello",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8000/",
+      "pyramid.route.name": "hello",
+      "runtime-id": "b1da81278b714ff5a820c0ed676af592"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 656017
+    },
+    "duration": 119727,
+    "start": 1635529255205817037
+  }]]

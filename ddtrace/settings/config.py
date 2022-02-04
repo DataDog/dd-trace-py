@@ -124,7 +124,7 @@ class Config(object):
         # {DD,DATADOG}_SERVICE_NAME (deprecated) are distinct functionalities.
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service"))
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
-        self.http_server = self.HTTPServerConfig()
+        self.http_server = self._HTTPServerConfig()
 
         self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
 
