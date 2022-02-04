@@ -906,7 +906,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
 
         # get SNS messages via SQS
-        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        response = sqs.receive_message(QueueUrl=queue["QueueUrl"])
 
         # clean up resources
         sqs.delete_queue(QueueUrl=sqs_url)
@@ -1037,7 +1037,7 @@ class BotocoreTest(TracerTestCase):
         spans = self.get_spans()
 
         # get SNS messages via SQS
-        response = sqs.receive_message(QueueUrl=queue["QueueUrl"], MessageAttributeNames=["_datadog"])
+        response = sqs.receive_message(QueueUrl=queue["QueueUrl"])
 
         # clean up resources
         sqs.delete_queue(QueueUrl=sqs_url)
