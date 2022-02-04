@@ -40,6 +40,7 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
+from .internal.utils.deprecation import deprecated
 from .vendor.debtcollector.removals import removed_property
 
 
@@ -403,7 +404,7 @@ class Span(object):
 
     @removed_property(
         message="Use getters and setters instead of accessing Span.metrics directly. \
-            Ex: Span.get_metric(k), Span.set_metric(k, v), Span.get_metrics(), Span.set_metrics())",
+            Ex: Span.get_metric(k), Span.set_metric(k, v)",
         removal_version="1.0.0",
     )
     def metric(self):
@@ -423,7 +424,7 @@ class Span(object):
         # type: (_TagNameType) -> Optional[NumericType]
         return self._metrics.get(key)
 
-    def get_metrics(self):
+    def _get_metrics(self):
         # type: () -> Optional[_MetricDictType]
         return self._metrics.copy()
 
@@ -507,7 +508,11 @@ class Span(object):
         self._remove_tag(ERROR_TYPE)
         self._remove_tag(ERROR_STACK)
 
+    @deprecated(message="Span.pprint will be removed.", version="1.0.0")
     def pprint(self):
+        return self._pprint()
+
+    def _pprint(self):
         # type: () -> str
         """Return a human readable version of the span."""
         data = [
