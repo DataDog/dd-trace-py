@@ -176,8 +176,8 @@ class TestTracedCursor(TracerTestCase):
         span = tracer.pop()[0]  # type: Span
         # Only measure if the name passed matches the default name (e.g. `sql.query` and not `sql.query.fetchall`)
         assert_is_not_measured(span)
-        assert span.meta["pin1"] == "value_pin1", "Pin tags are preserved"
-        assert span.meta["extra1"] == "value_extra1", "Extra tags are merged into pin tags"
+        assert span.get_tag("pin1") == "value_pin1", "Pin tags are preserved"
+        assert span.get_tag("extra1") == "value_extra1", "Extra tags are merged into pin tags"
         assert span.name == "my_name", "Span name is respected"
         assert span.service == "my_service", "Service from pin"
         assert span.resource == "my_resource", "Resource is respected"
@@ -438,8 +438,8 @@ class TestFetchTracedCursor(TracerTestCase):
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"})
         span = tracer.pop()[0]  # type: Span
-        assert span.meta["pin1"] == "value_pin1", "Pin tags are preserved"
-        assert span.meta["extra1"] == "value_extra1", "Extra tags are merged into pin tags"
+        assert span.get_tag("pin1") == "value_pin1", "Pin tags are preserved"
+        assert span.get_tag("extra1") == "value_extra1", "Extra tags are merged into pin tags"
         assert span.name == "my_name", "Span name is respected"
         assert span.service == "my_service", "Service from pin"
         assert span.resource == "my_resource", "Resource is respected"
