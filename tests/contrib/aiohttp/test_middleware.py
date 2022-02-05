@@ -76,7 +76,7 @@ async def test_param_handler(app_tracer, aiohttp_client, loop, query_string, tra
     if app[CONFIG_KEY].get("trace_query_string"):
         assert query_string == span.get_tag(http.QUERY_STRING)
     else:
-        assert http.QUERY_STRING not in span.meta
+        assert http.QUERY_STRING not in span._get_tags()
 
 
 async def test_404_handler(app_tracer, aiohttp_client):
