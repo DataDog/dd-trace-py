@@ -195,7 +195,7 @@ def inject_trace_to_kinesis_stream_data(record, span):
                 data_size, MAX_KINESIS_DATA_SIZE))
             return None
 
-        record["Data"] = json.dumps(data_obj)
+        record["Data"] = data_json
     else:
         log.debug("Unable to parse kinesis streams data string")
 
