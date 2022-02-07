@@ -1621,7 +1621,7 @@ class BotocoreTest(TracerTestCase):
         resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
         shard_iterator = resp["ShardIterator"]
 
-        # ensure headers are present in received message
+        # ensure headers are not present in received message
         resp = client.get_records(ShardIterator=shard_iterator)
         assert len(resp["Records"]) == 2
         records = resp["Records"]
