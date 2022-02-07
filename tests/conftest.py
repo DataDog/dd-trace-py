@@ -4,6 +4,7 @@ import sys
 
 import pytest
 
+from ddtrace.gateway import Gateway
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -26,6 +27,11 @@ def test_spans(tracer):
     container = TracerSpanContainer(tracer)
     yield container
     container.reset()
+
+
+@pytest.fixture
+def gateway():
+    return Gateway()
 
 
 @pytest.fixture
