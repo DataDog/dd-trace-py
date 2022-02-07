@@ -75,7 +75,7 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
 venv = Venv(
     pkgs={
         "mock": latest,
-        "pytest": latest,
+        "pytest": "<7.0.0",
         "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
@@ -178,6 +178,11 @@ venv = Venv(
                 "PyEnchant": latest,
             },
             command="scripts/build-docs",
+        ),
+        Venv(
+            name="appsec",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/appsec",
         ),
         Venv(
             pys=select_pys(),

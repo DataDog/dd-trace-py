@@ -64,13 +64,13 @@ async def test_multiple_requests_sanic_http(tracer, sanic_http_server, unused_po
     assert spans[0][1].name == "tests.contrib.sanic.test_sanic_server.random_sleep"
     assert spans[0][0].parent_id is None
     assert spans[0][1].parent_id == spans[0][0].span_id
-    assert spans[0][0].meta.get("http.status_code") == "200"
+    assert spans[0][0].get_tag("http.status_code") == "200"
 
     assert spans[1][0].name == "sanic.request"
     assert spans[1][1].name == "tests.contrib.sanic.test_sanic_server.random_sleep"
     assert spans[1][0].parent_id is None
     assert spans[1][1].parent_id == spans[1][0].span_id
-    assert spans[1][0].meta.get("http.status_code") == "200"
+    assert spans[1][0].get_tag("http.status_code") == "200"
 
 
 @pytest.mark.asyncio
@@ -84,7 +84,7 @@ async def test_sanic_errors(tracer, sanic_http_server, unused_port):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     assert spans[0][0].name == "sanic.request"
-    assert spans[0][0].meta.get("http.status_code") == "404"
+    assert spans[0][0].get_tag("http.status_code") == "404"
     assert spans[0][0].error == 0
 
     url = "http://0.0.0.0:{}/internal_error".format(unused_port)
@@ -96,5 +96,5 @@ async def test_sanic_errors(tracer, sanic_http_server, unused_port):
     assert len(spans) == 1
     assert len(spans[0]) == 1
     assert spans[0][0].name == "sanic.request"
-    assert spans[0][0].meta.get("http.status_code") == "500"
+    assert spans[0][0].get_tag("http.status_code") == "500"
     assert spans[0][0].error == 1

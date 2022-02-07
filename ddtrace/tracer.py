@@ -573,7 +573,7 @@ class Tracer(object):
             )
             span._local_root = span
             if config.report_hostname:
-                span.meta[HOSTNAME_KEY] = hostname.get_hostname()
+                span._set_str_tag(HOSTNAME_KEY, hostname.get_hostname())
             span.sampled = self.sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
@@ -601,7 +601,7 @@ class Tracer(object):
                 span.sampled = True
 
         if not span._parent:
-            span.meta["runtime-id"] = get_runtime_id()
+            span._set_str_tag("runtime-id", get_runtime_id())
             span.metrics[PID] = self._pid
 
         # Apply default global tags.
@@ -619,7 +619,7 @@ class Tracer(object):
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
             if (root_span is None and service == config.service) or (
-                root_span and root_span.service == service and VERSION_KEY in root_span.meta
+                root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
                 span._set_str_tag(VERSION_KEY, config.version)
 
@@ -656,10 +656,10 @@ class Tracer(object):
                 p.on_span_finish(span)
 
         if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
+            self.log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
 
-    def _initialize_span_processors(self):
-        # type: () -> None
+    def _initialize_span_processors(self, appsec_enabled=asbool(get_env("appsec", "enabled", default=False))):
+        # type: (Optional[bool]) -> None
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor()]
@@ -672,8 +672,25 @@ class Tracer(object):
                 partial_flush_min_spans=self._partial_flush_min_spans,
                 trace_processors=trace_processors,
                 writer=self.writer,
-            ),
+            )
         ]  # type: List[SpanProcessor]
+
+        if appsec_enabled:
+            try:
+                from .appsec.processor import AppSecSpanProcessor
+
+                appsec_span_processor = AppSecSpanProcessor()
+                self._span_processors.append(appsec_span_processor)
+            except Exception as e:
+                # DDAS-001-01
+                log.error(
+                    "[DDAS-001-01] "
+                    "AppSec could not start because of an unexpected error. No security activities will be collected. "
+                    "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
+                    repr(e),
+                )
+                if config._raise:
+                    raise
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -788,7 +805,7 @@ class Tracer(object):
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
             for span in spans:
-                self.log.debug("\n%s", span.pprint())
+                self.log.debug("\n%s", span._pprint())
 
         if not self.enabled:
             return

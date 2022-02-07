@@ -121,7 +121,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("Hello world!")
 
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -129,7 +129,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_alias(self):
         self.getPage("/aliases")
@@ -138,7 +138,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("alias")
 
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -146,7 +146,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /aliases"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_handleme(self):
         self.getPage("/handleme")
@@ -154,7 +154,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertErrorPage(418, message="handled")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -162,7 +162,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /handleme"
         assert s.error == 0
         assert_span_http_status_code(s, 418)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_error(self):
         self.getPage("/error")
@@ -178,7 +178,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /error"
         assert_span_http_status_code(s, 500)
         assert s.error == 1
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_fatal(self):
         self.getPage("/fatal")
@@ -194,10 +194,10 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /fatal"
         assert_span_http_status_code(s, 500)
         assert s.error == 1
-        assert s.meta.get(http.METHOD) == "GET"
-        assert "ZeroDivisionError" in s.meta.get(ERROR_TYPE), s.meta
-        assert "by zero" in s.meta.get(ERROR_MSG)
-        assert re.search('File ".*/contrib/cherrypy/web.py", line [0-9]+, in fatal', s.meta.get(ERROR_STACK))
+        assert s.get_tag(http.METHOD) == "GET"
+        assert "ZeroDivisionError" in s.get_tag(ERROR_TYPE), s._get_tags()
+        assert "by zero" in s.get_tag(ERROR_MSG)
+        assert re.search('File ".*/contrib/cherrypy/web.py", line [0-9]+, in fatal', s.get_tag(ERROR_STACK))
 
     def test_unicode(self):
         # Encoded utf8 query strings MUST be parsed correctly.
@@ -210,7 +210,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody(b"\xc3\xbc\xc5\x8b\xc3\xaf\xc4\x89\xc3\xb3\xc4\x91\xc4\x93")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -218,8 +218,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == u"GET /üŋïĉóđē"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
-        assert s.meta.get(http.URL) == u"http://127.0.0.1:54583/üŋïĉóđē"
+        assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag(http.URL) == u"http://127.0.0.1:54583/üŋïĉóđē"
 
     def test_404(self):
         self.getPage(u"/404/test")
@@ -227,7 +227,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertStatus("404 Not Found")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -235,8 +235,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == u"GET /404/test"
         assert s.error == 0
         assert_span_http_status_code(s, 404)
-        assert s.meta.get(http.METHOD) == "GET"
-        assert s.meta.get(http.URL) == u"http://127.0.0.1:54583/404/test"
+        assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag(http.URL) == u"http://127.0.0.1:54583/404/test"
 
     def test_propagation(self):
         self.getPage(
@@ -252,7 +252,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("Hello world!")
 
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -279,7 +279,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("Hello world!")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -308,7 +308,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("Hello world!")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -327,7 +327,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("hiya")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -335,7 +335,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "overridden"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_http_request_header_tracing(self):
         config.cherrypy.http.trace_headers(["Host", "my-header"])
@@ -376,7 +376,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("dispatch with abc123")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -387,7 +387,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /dispatch/abc123/"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_post(self):
         self.getPage("/", method="POST")
@@ -397,7 +397,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("Hello world!")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -405,7 +405,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "POST /"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "POST"
+        assert s.get_tag(http.METHOD) == "POST"
 
     def test_service_configuration_config(self):
         previous_service = config.cherrypy.get("service", "test.cherrypy.service")
@@ -417,7 +417,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("Hello world!")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -425,7 +425,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
         config.cherrypy["service"] = previous_service
 
@@ -439,7 +439,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         self.assertBody("Hello world!")
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -447,7 +447,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
         cherrypy.tools.tracer.service = previous_service
 
