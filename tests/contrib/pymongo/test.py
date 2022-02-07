@@ -108,9 +108,9 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == "mongodb"
-            assert span.meta.get("mongodb.collection") == "songs"
-            assert span.meta.get("mongodb.db") == "testdb"
-            assert span.meta.get("out.host")
+            assert span.get_tag("mongodb.collection") == "songs"
+            assert span.get_tag("mongodb.db") == "testdb"
+            assert span.get_tag("out.host")
             assert span.get_metric("out.port")
 
         expected_resources = set(
