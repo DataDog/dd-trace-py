@@ -41,6 +41,7 @@ from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
 from .internal.utils.deprecation import deprecated
+from .internal.utils.deprecation import deprecation
 from .vendor.debtcollector.removals import removed_property
 
 
@@ -105,7 +106,7 @@ class Span(object):
         that it was created in. Using a ``Span`` from within a child process
         could result in a deadlock or unexpected behavior.
 
-        :param ddtrace.Tracer tracer: tracer property is deprecated, this field should be set to None
+        :param ddtrace.Tracer tracer: deprecated. Pass ``None`` instead.
         :param str name: the name of the traced operation.
 
         :param str service: the service name
@@ -128,11 +129,6 @@ class Span(object):
         if not (parent_id is None or isinstance(parent_id, six.integer_types)):
             raise TypeError("parent_id must be an integer")
 
-        self._tracer = None
-        if tracer is not None:
-            # accessing span.tracer logs a deprecation warning
-            self.tracer = tracer  # type: ignore[assignment]
-
         # required span info
         self.name = name
         self.service = service
@@ -153,6 +149,14 @@ class Span(object):
         self.trace_id = trace_id or _rand.rand64bits()  # type: int
         self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
+        self._tracer = None  # type: Optional[Tracer]
+        if tracer is not None:
+            deprecation(
+                name="ddtrace.Span.__init__(tracer, ...)",
+                message="Initialize with Span(tracer=None, ...) instead.",
+                version="1.0.0",
+            )
+            self._tracer = tracer
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling
@@ -170,10 +174,7 @@ class Span(object):
         else:
             self._ignored_exceptions.append(exc)
 
-    @removed_property(
-        message="Avoid calling Span.tracer. Use Span(tracer=None, name='spanname') to initialize a Span object.",
-        removal_version="1.0.0",
-    )
+    @removed_property(removal_version="1.0.0")
     def tracer(self):
         # type: () -> Optional[Tracer]
         return self._tracer
