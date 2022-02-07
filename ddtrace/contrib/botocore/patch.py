@@ -75,7 +75,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
     if len(entry["MessageAttributes"]) < 10:
         entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
     else:
-        log.debug("skipping trace injection, max number (10) of MessageAttributes exceeded")
+        log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
 def inject_trace_to_sqs_or_sns_batch_message(args, span):
@@ -124,7 +124,7 @@ def inject_trace_to_eventbridge_detail(args, span):
     """
     params = args[1]
     if "Entries" not in params:
-        log.debug("Unable to inject context. The Event Bridge event had no Entries.")
+        log.warning("Unable to inject context. The Event Bridge event had no Entries.")
         return
 
     for entry in params["Entries"]:
@@ -133,7 +133,7 @@ def inject_trace_to_eventbridge_detail(args, span):
             try:
                 detail = json.loads(entry["Detail"])
             except ValueError:
-                log.debug("Detail is not a valid JSON string")
+                log.warning("Detail is not a valid JSON string")
                 continue
 
         detail["_datadog"] = {}
@@ -186,7 +186,7 @@ def inject_trace_to_kinesis_stream_data(record, span):
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
     if "Data" not in record:
-        log.debug("Unable to inject context. The kinesis stream has no data")
+        log.warning("Unable to inject context. The kinesis stream has no data")
         return
 
     data = record["Data"]
