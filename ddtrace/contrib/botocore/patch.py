@@ -192,19 +192,18 @@ def inject_trace_to_kinesis_stream_data(record, span):
 
     data = record["Data"]
     data_obj = get_kinesis_data_object(data)
-    if data_obj is not None:
-        data_obj["_datadog"] = {}
-        HTTPPropagator.inject(span.context, data_obj["_datadog"])
-        data_json = json.dumps(data_obj)
+    data_obj["_datadog"] = {}
+    HTTPPropagator.inject(span.context, data_obj["_datadog"])
+    data_json = json.dumps(data_obj)
 
-        # check if data size will exceed max size with headers
-        data_size = len(data_json)
-        if data_size >= MAX_KINESIS_DATA_SIZE:
-            raise TraceInjectionSizeExceed(
-                "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
-            )
+    # check if data size will exceed max size with headers
+    data_size = len(data_json)
+    if data_size >= MAX_KINESIS_DATA_SIZE:
+        raise TraceInjectionSizeExceed(
+            "Data including trace injection ({}) exceeds ({})".format(data_size, MAX_KINESIS_DATA_SIZE)
+        )
 
-        record["Data"] = data_json
+    record["Data"] = data_json
 
 
 def inject_trace_to_kinesis_stream(args, span):
