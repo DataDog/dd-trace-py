@@ -26,5 +26,5 @@ def _trace_render_template(func, module, args, kwargs):
     template_meta = "{}/{}".format(template_prefix, template_name)
 
     with pin.tracer.trace("aiohttp.template", span_type=SpanTypes.TEMPLATE) as span:
-        span.set_meta("aiohttp.template", template_meta)
+        span.set_tag("aiohttp.template", template_meta)
         return func(*args, **kwargs)

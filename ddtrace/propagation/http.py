@@ -124,7 +124,7 @@ class HTTPPropagator(object):
                     tracer.context_provider.activate(context)
 
                 with tracer.trace('my_controller') as span:
-                    span.set_meta('http.url', url)
+                    span.set_tag('http.url', url)
 
         :param dict headers: HTTP headers to extract tracing attributes.
         :return: New `Context` with propagated attributes.

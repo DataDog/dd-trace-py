@@ -226,7 +226,7 @@ class SpanTestCase(TracerTestCase):
     def test_span_type(self):
         s = Span(tracer=None, name="test.span", service="s", resource="r", span_type=SpanTypes.WEB)
         s.set_tag("a", "1")
-        s.set_meta("b", "2")
+        s.set_tag("b", "2")
         s.finish()
 
         d = s.to_dict()
@@ -243,7 +243,7 @@ class SpanTestCase(TracerTestCase):
         s = Span(tracer=None, name="test.span", service="s", resource="r")
         s.span_type = "foo"
         s.set_tag("a", "1")
-        s.set_meta("b", "2")
+        s.set_tag("b", "2")
         s.finish()
 
         d = s.to_dict()
@@ -262,7 +262,7 @@ class SpanTestCase(TracerTestCase):
         s._parent = parent
         s.span_type = "foo"
         s.set_tag("a", "1")
-        s.set_meta("b", "2")
+        s.set_tag("b", "2")
         s.finish()
 
         d = s.to_dict()
