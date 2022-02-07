@@ -235,13 +235,13 @@ def _identity(x):
     return x
 
 
-def _add_if_needed(gateway, target, original_value, address, formatter=_identity):
+def _add_if_needed(gateway, target, original_value, address, formatter=None):
     if original_value is None:
         return
     key = address.value
     if not gateway.is_needed(key):
         return
-    target[key] = formatter(original_value)
+    target[key] = formatter(original_value) if formatter is not None else original_value
 
 
 def set_http_meta(
