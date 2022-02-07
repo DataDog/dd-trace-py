@@ -1,4 +1,4 @@
 ---
 deprecations:
   - |
-    ``Span.tracer`` is deprecated and will be removed in v1.0. Avoid calling py:meth:`ddtrace.Span.tracer`. Use ``Span(tracer=None, name="spanname")`` to initialize a Span object.
+    :py:attr:`ddtrace.Span.tracer` is deprecated and will be removed in v1.0. Avoid calling :py:meth:`ddtrace.Span.tracer`. Use :py:meth:`Span(tracer=None, name="spanname")` to initialize a Span object.
