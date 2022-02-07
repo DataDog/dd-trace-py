@@ -144,7 +144,7 @@ def inject_trace_to_eventbridge_detail(args, span):
         detail_size = len(detail_json)
         if detail_size >= MAX_EVENTBRIDGE_DETAIL_SIZE:
             msg = "Detail with trace injection ({}) exceeds ({})".format(detail_size, MAX_EVENTBRIDGE_DETAIL_SIZE)
-            log.debug(msg)
+            log.debug("Detail with trace injection (%s) exceeds limit (%s)", detail_size, MAX_EVENTBRIDGE_DETAIL_SIZE)
             continue
 
         entry["Detail"] = detail_json
