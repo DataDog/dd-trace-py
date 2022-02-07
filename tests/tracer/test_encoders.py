@@ -50,7 +50,7 @@ def span_to_tuple(span):
         span.start_ns or 0,
         span.duration_ns or 0,
         int(bool(span.error)),
-        span.meta or {},
+        span._get_tags() or {},
         span.metrics or {},
         span.span_type,
     )
@@ -435,7 +435,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
 def test_custom_msgpack_encode_trace_size(encoding, name, service, resource, meta, metrics, error, span_type):
     encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
     span = Span(tracer=None, name=name, service=service, resource=resource)
-    span.meta = meta
+    span.set_tags(meta)
     span.metrics = metrics
     span.error = error
     span.span_type = span_type
@@ -591,7 +591,7 @@ def test_list_string_table():
         {"start_ns": "start_time"},
         {"duration_ns": "duration_time"},
         {"span_type": 100},
-        {"meta": {"num": 100}},
+        {"_meta": {"num": 100}},
         {"metrics": {"key": "value"}},
     ],
 )
