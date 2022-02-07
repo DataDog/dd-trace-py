@@ -78,17 +78,16 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
-def inject_trace_to_sqs_or_sns_batch_message(args, span):
-    # type: (List[Any], Span) -> None
+def inject_trace_to_sqs_or_sns_batch_message(params, span):
+    # type: (Any, Span) -> None
     """
-    :args: contains args for the current botocore action, SNS/SQS records are at index 1
+    :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
 
     Inject trace headers into MessageAttributes for all SQS or SNS records inside a batch
     """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
-    params = args[1]
 
     # An entry here is an SNS or SQS record, and depending on how it was published,
     # it could either show up under Entries (in case of PutRecords),
@@ -98,31 +97,29 @@ def inject_trace_to_sqs_or_sns_batch_message(args, span):
         inject_trace_data_to_message_attributes(trace_data, entry)
 
 
-def inject_trace_to_sqs_or_sns_message(args, span):
-    # type: (List[Any], Span) -> None
+def inject_trace_to_sqs_or_sns_message(params, span):
+    # type: (Any, Span) -> None
     """
-    :args: contains args for the current botocore action, SNS/SQS record is at index 1
+    :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
 
     Inject trace headers into MessageAttributes for the SQS or SNS record
     """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
-    params = args[1]
 
     inject_trace_data_to_message_attributes(trace_data, params)
 
 
-def inject_trace_to_eventbridge_detail(args, span):
-    # type: (List[Any], Span) -> None
+def inject_trace_to_eventbridge_detail(params, span):
+    # type: (Any, Span) -> None
     """
-    :args: contains args for the current botocore action, EventBridge records are at index 1
+    :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
 
     Inject trace headers into the EventBridge record if the record's Detail object contains a JSON string
     Max size per event is 256KB (https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-putevent-size.html)
     """
-    params = args[1]
     if "Entries" not in params:
         log.warning("Unable to inject context. The Event Bridge event had no Entries.")
         return
@@ -205,17 +202,16 @@ def inject_trace_to_kinesis_stream_data(record, span):
     record["Data"] = data_json
 
 
-def inject_trace_to_kinesis_stream(args, span):
+def inject_trace_to_kinesis_stream(params, span):
     # type: (List[Any], Span) -> None
     """
-    :args: contains args for the current botocore action, Kinesis records are at index 1
+    :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
 
     Inject trace headers into the Kinesis batch's first record's Data field.
     Only possible if the existing data is JSON string or base64 encoded JSON string
     Max data size per record is 1MB (https://aws.amazon.com/kinesis/data-streams/faqs/)
     """
-    params = args[1]
     if "Records" in params:
         records = params["Records"]
 
@@ -236,11 +232,10 @@ def modify_client_context(client_context_object, trace_headers):
         client_context_object["custom"] = trace_headers
 
 
-def inject_trace_to_client_context(args, span):
+def inject_trace_to_client_context(params, span):
     trace_headers = {}
     HTTPPropagator.inject(span.context, trace_headers)
     client_context_object = {}
-    params = args[1]
     if "ClientContext" in params:
         try:
             client_context_json = base64.b64decode(params["ClientContext"]).decode("utf-8")
@@ -287,6 +282,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         operation = None
         if args:
             operation = get_argument_value(args, kwargs, 0, "operation_name")
+            params = get_argument_value(args, kwargs, 1, "api_params")
             # DEV: join is the fastest way of concatenating strings that is compatible
             # across Python versions (see
             # https://stackoverflow.com/questions/1316887/what-is-the-most-efficient-string-concatenation-method-in-python)
@@ -295,19 +291,19 @@ def patched_api_call(original_func, instance, args, kwargs):
             if config.botocore["distributed_tracing"]:
                 try:
                     if endpoint_name == "lambda" and operation == "Invoke":
-                        inject_trace_to_client_context(args, span)
+                        inject_trace_to_client_context(params, span)
                     if endpoint_name == "sqs" and operation == "SendMessage":
-                        inject_trace_to_sqs_or_sns_message(args, span)
+                        inject_trace_to_sqs_or_sns_message(params, span)
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(args, span)
+                        inject_trace_to_sqs_or_sns_batch_message(params, span)
                     if endpoint_name == "events" and operation == "PutEvents":
-                        inject_trace_to_eventbridge_detail(args, span)
+                        inject_trace_to_eventbridge_detail(params, span)
                     if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
-                        inject_trace_to_kinesis_stream(args, span)
+                        inject_trace_to_kinesis_stream(params, span)
                     if endpoint_name == "sns" and operation == "Publish":
-                        inject_trace_to_sqs_or_sns_message(args, span)
+                        inject_trace_to_sqs_or_sns_message(params, span)
                     if endpoint_name == "sns" and operation == "PublishBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(args, span)
+                        inject_trace_to_sqs_or_sns_batch_message(params, span)
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 
