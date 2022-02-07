@@ -541,7 +541,7 @@ class Tracer(object):
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
-                None,
+                self,
                 name,
                 context=context,
                 trace_id=trace_id,
@@ -563,7 +563,7 @@ class Tracer(object):
         else:
             # this is the root span of a new trace
             span = Span(
-                None,
+                self,
                 name,
                 context=context,
                 service=mapped_service,
