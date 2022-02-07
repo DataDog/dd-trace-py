@@ -15,8 +15,6 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import MAX_EVENTBRIDGE_DETAIL_SIZE
-from ...constants import MAX_KINESIS_DATA_SIZE
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import aws
@@ -39,6 +37,9 @@ _Botocore_client = botocore.client.BaseClient
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
+
+MAX_KINESIS_DATA_SIZE = 1 << 20  # 1MB
+MAX_EVENTBRIDGE_DETAIL_SIZE = 1 << 18  # 256KB
 
 log = get_logger(__name__)
 
