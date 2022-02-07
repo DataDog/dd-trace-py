@@ -134,7 +134,8 @@ def inject_trace_to_eventbridge_detail(args, span):
         # check if detail size will exceed max size with headers
         detail_size = len(detail_json)
         if detail_size >= MAX_EVENTBRIDGE_DETAIL_SIZE:
-            log.debug("Detail with trace injection exceeds max allowed size")
+            log.debug("Detail with trace injection ({}) exceeds ({})".format(
+                detail_size, MAX_EVENTBRIDGE_DETAIL_SIZE))
             continue
 
         entry["Detail"] = detail_json
@@ -190,6 +191,8 @@ def inject_trace_to_kinesis_stream_data(record, span):
         # check if data size will exceed max size with headers
         data_size = len(data_json)
         if data_size >= MAX_KINESIS_DATA_SIZE:
+            log.debug("Data including trace injection ({}) exceeds ({})".format(
+                data_size, MAX_KINESIS_DATA_SIZE))
             return None
 
         record["Data"] = json.dumps(data_obj)
