@@ -89,11 +89,11 @@ def test_traces_get_or_create(tracer, single_cache, test_spans):
     assert span.name == "dogpile.cache"
     assert span.span_type == "cache"
     assert span.resource == "get_or_create"
-    assert span.meta["key"] == "tests.contrib.dogpile_cache.test_tracing:fn|1"
-    assert span.meta["hit"] == "False"
-    assert span.meta["expired"] == "True"
-    assert span.meta["backend"] == "MemoryBackend"
-    assert span.meta["region"] == "TestRegion"
+    assert span.get_tag("key") == "tests.contrib.dogpile_cache.test_tracing:fn|1"
+    assert span.get_tag("hit") == "False"
+    assert span.get_tag("expired") == "True"
+    assert span.get_tag("backend") == "MemoryBackend"
+    assert span.get_tag("region") == "TestRegion"
 
     # Now the results should be cached.
     assert single_cache(1) == 2
@@ -107,11 +107,11 @@ def test_traces_get_or_create(tracer, single_cache, test_spans):
     assert span.name == "dogpile.cache"
     assert span.span_type == "cache"
     assert span.resource == "get_or_create"
-    assert span.meta["key"] == "tests.contrib.dogpile_cache.test_tracing:fn|1"
-    assert span.meta["hit"] == "True"
-    assert span.meta["expired"] == "False"
-    assert span.meta["backend"] == "MemoryBackend"
-    assert span.meta["region"] == "TestRegion"
+    assert span.get_tag("key") == "tests.contrib.dogpile_cache.test_tracing:fn|1"
+    assert span.get_tag("hit") == "True"
+    assert span.get_tag("expired") == "False"
+    assert span.get_tag("backend") == "MemoryBackend"
+    assert span.get_tag("region") == "TestRegion"
 
 
 def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
@@ -125,13 +125,13 @@ def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
     assert span.span_type == "cache"
-    assert span.meta["keys"] == (
+    assert span.get_tag("keys") == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|3']"
     )
-    assert span.meta["hit"] == "False"
-    assert span.meta["expired"] == "True"
-    assert span.meta["backend"] == "MemoryBackend"
-    assert span.meta["region"] == "TestRegion"
+    assert span.get_tag("hit") == "False"
+    assert span.get_tag("expired") == "True"
+    assert span.get_tag("backend") == "MemoryBackend"
+    assert span.get_tag("region") == "TestRegion"
 
     # Partial hit
     assert multi_cache(2, 4) == [4, 8]
@@ -143,13 +143,13 @@ def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
     assert span.span_type == "cache"
-    assert span.meta["keys"] == (
+    assert span.get_tag("keys") == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|4']"
     )
-    assert span.meta["hit"] == "False"
-    assert span.meta["expired"] == "True"
-    assert span.meta["backend"] == "MemoryBackend"
-    assert span.meta["region"] == "TestRegion"
+    assert span.get_tag("hit") == "False"
+    assert span.get_tag("expired") == "True"
+    assert span.get_tag("backend") == "MemoryBackend"
+    assert span.get_tag("region") == "TestRegion"
 
     # Full hit
     assert multi_cache(2, 4) == [4, 8]
@@ -161,13 +161,13 @@ def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
     assert span.span_type == "cache"
-    assert span.meta["keys"] == (
+    assert span.get_tag("keys") == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|4']"
     )
-    assert span.meta["hit"] == "True"
-    assert span.meta["expired"] == "False"
-    assert span.meta["backend"] == "MemoryBackend"
-    assert span.meta["region"] == "TestRegion"
+    assert span.get_tag("hit") == "True"
+    assert span.get_tag("expired") == "False"
+    assert span.get_tag("backend") == "MemoryBackend"
+    assert span.get_tag("region") == "TestRegion"
 
 
 class TestInnerFunctionCalls(object):
