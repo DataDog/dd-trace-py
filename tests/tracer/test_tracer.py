@@ -778,9 +778,9 @@ class EnvTracerTestCase(TracerTestCase):
         # The version will not be tagged if the service is not globally
         # configured.
         with self.trace("root", service="rootsvc") as root:
-            assert VERSION_KEY not in root.meta
+            assert VERSION_KEY not in root._get_tags()
             with self.trace("child") as span:
-                assert VERSION_KEY not in span.meta
+                assert VERSION_KEY not in span._get_tags()
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2"))
     def test_version_service(self):
@@ -791,20 +791,20 @@ class EnvTracerTestCase(TracerTestCase):
         with self.trace("django.request") as root:
             # Root span should be tagged
             assert root.service == "django"
-            assert VERSION_KEY in root.meta and root.meta[VERSION_KEY] == "0.1.2"
+            assert VERSION_KEY in root._get_tags() and root.get_tag(VERSION_KEY) == "0.1.2"
 
             # Child spans should be tagged
             with self.trace("") as child1:
                 assert child1.service == "django"
-                assert VERSION_KEY in child1.meta and child1.meta[VERSION_KEY] == "0.1.2"
+                assert VERSION_KEY in child1._get_tags() and child1.get_tag(VERSION_KEY) == "0.1.2"
 
             # Version should not be applied to spans of a service that isn't user-defined
             with self.trace("mysql.query", service="mysql") as span:
-                assert VERSION_KEY not in span.meta
+                assert VERSION_KEY not in span._get_tags()
                 # Child should also not have a version
                 with self.trace("") as child2:
                     assert child2.service == "mysql"
-                    assert VERSION_KEY not in child2.meta
+                    assert VERSION_KEY not in child2._get_tags()
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
@@ -1281,7 +1281,7 @@ def test_ctx(tracer, test_spans):
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
     assert s1.get_metric(SAMPLING_PRIORITY_KEY) == 1
     assert s2.get_metric(SAMPLING_PRIORITY_KEY) is None
-    assert ORIGIN_KEY not in s1.meta
+    assert ORIGIN_KEY not in s1._get_tags()
 
     t = test_spans.pop_traces()
     assert len(t) == 1
@@ -1356,7 +1356,7 @@ def test_ctx_distributed(tracer, test_spans):
     trace = test_spans.pop_traces()
     assert len(trace) == 1
     assert s2.get_metric(SAMPLING_PRIORITY_KEY) == 2
-    assert s2.meta[ORIGIN_KEY] == "somewhere"
+    assert s2.get_tag(ORIGIN_KEY) == "somewhere"
 
 
 def test_manual_keep(tracer, test_spans):

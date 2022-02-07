@@ -56,7 +56,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
             # inherit parent attributes
             span.resource = self._self_parent_span.resource
             span.span_type = self._self_parent_span.span_type
-            span.meta = dict(self._self_parent_span.meta)
+            span._meta = dict(self._self_parent_span._meta)
             span._metrics = dict(self._self_parent_span.metrics)
 
             result = await self.__wrapped__.read(*args, **kwargs)

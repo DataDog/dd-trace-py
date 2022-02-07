@@ -71,7 +71,7 @@ class Context(object):
     def _update_tags(self, span):
         # type: (Span) -> None
         with self._lock:
-            span.meta.update(self._meta)
+            span._meta.update(self._meta)
             span._metrics.update(self._metrics)
 
     @property
