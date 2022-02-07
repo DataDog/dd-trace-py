@@ -75,7 +75,7 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
 venv = Venv(
     pkgs={
         "mock": latest,
-        "pytest": latest,
+        "pytest": "<7.0.0",
         "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
@@ -152,6 +152,16 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            pkgs={"ddapm-test-agent": ">=1.2.0"},
+            venvs=[
+                Venv(
+                    name="snapshot-fmt",
+                    command="ddapm-test-agent-fmt {cmdargs} tests/snapshots/",
+                ),
+            ],
+        ),
+        Venv(
+            pys=["3"],
             name="riot-helpers",
             # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
             command="python -m doctest {cmdargs} riotfile.py",
@@ -168,6 +178,11 @@ venv = Venv(
                 "PyEnchant": latest,
             },
             command="scripts/build-docs",
+        ),
+        Venv(
+            name="appsec",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/appsec",
         ),
         Venv(
             pys=select_pys(),
@@ -203,6 +218,8 @@ venv = Venv(
                         "attrs": ["==19.2.0", latest],
                         "packaging": ["==17.1", latest],
                         "structlog": latest,
+                        # httpretty v1.0 drops python 2.7 support
+                        "httpretty": "==0.9.7",
                     },
                 )
             ],

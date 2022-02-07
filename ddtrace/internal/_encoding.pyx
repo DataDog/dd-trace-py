@@ -567,7 +567,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
-        has_meta = <bint> (len(span.meta) > 0 or dd_origin is not NULL)
+        has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
         has_metrics = <bint> (len(span.metrics) > 0)
 
         L = 8 + has_span_type + has_meta + has_metrics + has_error
@@ -630,7 +630,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0: return ret
-                ret = self._pack_meta(span.meta, <char *> dd_origin)
+                ret = self._pack_meta(span._meta, <char *> dd_origin)
                 if ret != 0: return ret
 
             if has_metrics:
@@ -714,10 +714,10 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         ret = msgpack_pack_int32(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
 
-        ret = msgpack_pack_map(&self.pk, len(span.meta) + (dd_origin is not NULL))
+        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL))
         if ret != 0: return ret
-        if span.meta:
-            for k, v in span.meta.items():
+        if span._meta:
+            for k, v in span._meta.items():
                 ret = self._pack_string(k)
                 if ret != 0: return ret
                 ret = self._pack_string(v)

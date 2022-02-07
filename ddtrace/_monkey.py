@@ -9,6 +9,7 @@ from typing import List
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
+from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
 from .internal.utils.deprecation import deprecated
 from .settings import _config as config
@@ -31,6 +32,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
+    "gevent": True,
     "grpc": True,
     "httpx": True,
     "mongoengine": True,
@@ -127,6 +129,7 @@ def _on_import_factory(module, raise_errors=True):
             log.error("failed to import ddtrace module %r when patching on import", path, exc_info=True)
         else:
             imported_module.patch()
+            telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
 
     return on_import
 
@@ -273,4 +276,5 @@ def _attempt_patch_module(module):
 
             imported_module.patch()
             _PATCHED_MODULES.add(module)
+            telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
             return True
