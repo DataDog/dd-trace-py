@@ -128,6 +128,6 @@ class AppSecSpanProcessor(SpanProcessor):
         if res is not None:
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
-            span.meta["appsec.event"] = "true"
-            span.meta["_dd.appsec.json"] = '{"triggers":%s}' % (res,)
+            span._set_str_tag("appsec.event", "true")
+            span._set_str_tag("_dd.appsec.json", '{"triggers":%s}' % (res,))
             span.set_tag(MANUAL_KEEP_KEY)
