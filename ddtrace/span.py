@@ -422,12 +422,12 @@ class Span(object):
         message="Use Span.get_metric or Span.set_metric instead.",
         removal_version="1.0.0",
     )
-    def metric(self):
-        return self._metric
+    def metrics(self):
+        return self._metrics
 
-    @metric.setter  # type: ignore[no-redef]
-    def metric(self, value):
-        self._metric = value
+    @metrics.setter  # type: ignore[no-redef]
+    def metrics(self, value):
+        self._metrics = value
 
     def set_metrics(self, metrics):
         # type: (_MetricDictType) -> None
