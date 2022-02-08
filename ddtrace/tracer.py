@@ -61,7 +61,6 @@ from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
-from .vendor.debtcollector import removals
 
 
 log = get_logger(__name__)
@@ -813,10 +812,6 @@ class Tracer(object):
 
         if spans is not None:
             self._writer.write(spans=spans)
-
-    @removals.removed_property(message="Use Tracer.flush instead to flush buffered traces to agent", version="1.0.0")
-    def writer(self):
-        return self._writer
 
     @property
     def agent_trace_url(self):
