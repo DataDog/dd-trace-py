@@ -2,8 +2,9 @@
 Tagset eBNF::
 
     tagset = tag, { ",", tag };
-    tag = ( identifier - space ), "=", identifier;
-    identifier = { ? ASCII 32-126 ? - equal or comma };
+    tag = key, "=", value;
+    key = { ? ASCII 32-126 ? - equal or comma or space };
+    value = { ? ASCII 32-126 ? - comma };
     equal or comma = "=" | ",";
     space = " ";
 """
@@ -64,10 +65,9 @@ cdef inline int is_valid_key_char(int c):
 
 # Same as is_valid_key_char except spaces are allowed
 cdef inline int is_valid_value_char(int c):
-    # string.printable - ",="
+    # string.printable - ","
     # 44 = ",""
-    # 61 = "="
-    return c == 32 or is_valid_key_char(c)
+    return c == 32 or is_equal(c) or is_valid_key_char(c)
 
 
 cpdef dict decode_tagset_string(str tagset):
