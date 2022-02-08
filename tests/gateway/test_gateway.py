@@ -1,4 +1,4 @@
-from ddtrace.gateway import ADDRESSES
+from ddtrace.gateway import Addresses
 
 
 def test_gateway_flow(gateway):

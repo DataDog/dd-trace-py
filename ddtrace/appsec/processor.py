@@ -8,7 +8,7 @@ import attr
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.gateway import ADDRESSES
+from ddtrace.gateway import Addresses
 from ddtrace.gateway import Gateway
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
