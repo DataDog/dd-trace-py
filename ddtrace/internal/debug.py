@@ -49,11 +49,11 @@ def collect(tracer):
 
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 
-    if isinstance(tracer.writer, LogWriter):
+    if isinstance(tracer._writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
-    elif isinstance(tracer.writer, AgentWriter):
-        writer = tracer.writer
+    elif isinstance(tracer._writer, AgentWriter):
+        writer = tracer._writer
         agent_url = writer.agent_url
         try:
             writer.write([])

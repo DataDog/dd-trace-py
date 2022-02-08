@@ -25,6 +25,10 @@ class NoopWriter(TraceWriter):
         # type: (Optional[List[Span]]) -> None
         pass
 
+    def flush_queue(self):
+        # type: () -> None
+        pass
+
 
 @bm.register
 class Threading(bm.Scenario):

@@ -146,8 +146,8 @@ class _ProfilerInstance(service.Service):
             )
             endpoint = self.ENDPOINT_TEMPLATE.format(os.environ.get("DD_SITE", "datadoghq.com"))
         else:
-            if isinstance(self.tracer.writer, writer.AgentWriter):
-                endpoint = self.tracer.writer.agent_url
+            if isinstance(self.tracer._writer, writer.AgentWriter):
+                endpoint = self.tracer._writer.agent_url
             else:
                 endpoint = agent.get_trace_url()
 

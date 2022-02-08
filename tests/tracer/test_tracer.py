@@ -472,45 +472,45 @@ class TracerTestCases(TracerTestCase):
     def test_configure_dogstatsd_url_host_port(self):
         tracer = Tracer()
         tracer.configure(dogstatsd_url="foo:1234")
-        assert tracer.writer.dogstatsd.host == "foo"
-        assert tracer.writer.dogstatsd.port == 1234
+        assert tracer._writer.dogstatsd.host == "foo"
+        assert tracer._writer.dogstatsd.port == 1234
 
         tracer = Tracer()
         writer = AgentWriter("http://localhost:8126")
         tracer.configure(writer=writer, dogstatsd_url="foo:1234")
-        assert tracer.writer.dogstatsd.host == "foo"
-        assert tracer.writer.dogstatsd.port == 1234
+        assert tracer._writer.dogstatsd.host == "foo"
+        assert tracer._writer.dogstatsd.port == 1234
 
     def test_configure_dogstatsd_url_socket(self):
         tracer = Tracer()
         tracer.configure(dogstatsd_url="unix:///foo.sock")
-        assert tracer.writer.dogstatsd.host is None
-        assert tracer.writer.dogstatsd.port is None
-        assert tracer.writer.dogstatsd.socket_path == "/foo.sock"
+        assert tracer._writer.dogstatsd.host is None
+        assert tracer._writer.dogstatsd.port is None
+        assert tracer._writer.dogstatsd.socket_path == "/foo.sock"
 
         tracer = Tracer()
         writer = AgentWriter("http://localhost:8126")
         tracer.configure(writer=writer, dogstatsd_url="unix:///foo.sock")
-        assert tracer.writer.dogstatsd.host is None
-        assert tracer.writer.dogstatsd.port is None
-        assert tracer.writer.dogstatsd.socket_path == "/foo.sock"
+        assert tracer._writer.dogstatsd.host is None
+        assert tracer._writer.dogstatsd.port is None
+        assert tracer._writer.dogstatsd.socket_path == "/foo.sock"
 
 
 def test_tracer_url():
     t = ddtrace.Tracer()
-    assert t.writer.agent_url == "http://localhost:8126"
+    assert t._writer.agent_url == "http://localhost:8126"
 
     t = ddtrace.Tracer(url="http://foobar:12")
-    assert t.writer.agent_url == "http://foobar:12"
+    assert t._writer.agent_url == "http://foobar:12"
 
     t = ddtrace.Tracer(url="unix:///foobar")
-    assert t.writer.agent_url == "unix:///foobar"
+    assert t._writer.agent_url == "unix:///foobar"
 
     t = ddtrace.Tracer(url="http://localhost")
-    assert t.writer.agent_url == "http://localhost"
+    assert t._writer.agent_url == "http://localhost"
 
     t = ddtrace.Tracer(url="https://localhost")
-    assert t.writer.agent_url == "https://localhost"
+    assert t._writer.agent_url == "https://localhost"
 
     with pytest.raises(ValueError) as e:
         ddtrace.Tracer(url="foo://foobar:12")
@@ -521,13 +521,13 @@ def test_tracer_url():
 
 def test_tracer_shutdown_no_timeout():
     t = ddtrace.Tracer()
-    writer = mock.Mock(wraps=t.writer)
-    t.writer = writer
+    writer = mock.Mock(wraps=t._writer)
+    t._writer = writer
 
     # The writer thread does not start until the first write.
     t.shutdown()
-    assert t.writer.stop.called
-    assert not t.writer.join.called
+    assert t._writer.stop.called
+    assert not t._writer.join.called
 
     with warnings.catch_warnings(record=True) as ws:
         warnings.simplefilter("always")
@@ -547,7 +547,7 @@ def test_tracer_shutdown_no_timeout():
         pass
 
     t.shutdown()
-    t.writer.stop.assert_has_calls(
+    t._writer.stop.assert_has_calls(
         [
             mock.call(timeout=None),
             mock.call(timeout=None),
@@ -557,8 +557,8 @@ def test_tracer_shutdown_no_timeout():
 
 def test_tracer_configure_writer_stop_unstarted():
     t = ddtrace.Tracer()
-    t.writer = mock.Mock(wraps=t.writer)
-    orig_writer = t.writer
+    t._writer = mock.Mock(wraps=t._writer)
+    orig_writer = t._writer
 
     # Stop should be called when replacing the writer.
     t.configure(hostname="localhost", port=8126)
@@ -567,8 +567,8 @@ def test_tracer_configure_writer_stop_unstarted():
 
 def test_tracer_configure_writer_stop_started():
     t = ddtrace.Tracer()
-    t.writer = mock.Mock(wraps=t.writer)
-    orig_writer = t.writer
+    t._writer = mock.Mock(wraps=t._writer)
+    orig_writer = t._writer
 
     # Do a write to start the writer
     with t.trace("something"):
@@ -580,33 +580,33 @@ def test_tracer_configure_writer_stop_started():
 
 def test_tracer_shutdown_timeout():
     t = ddtrace.Tracer()
-    t.writer = mock.Mock(wraps=t.writer)
+    t._writer = mock.Mock(wraps=t._writer)
 
     with t.trace("something"):
         pass
 
     t.shutdown(timeout=2)
-    t.writer.stop.assert_called_once_with(timeout=2)
+    t._writer.stop.assert_called_once_with(timeout=2)
 
 
 def test_tracer_dogstatsd_url():
     t = ddtrace.Tracer()
-    assert t.writer.dogstatsd.host == "localhost"
-    assert t.writer.dogstatsd.port == 8125
+    assert t._writer.dogstatsd.host == "localhost"
+    assert t._writer.dogstatsd.port == 8125
 
     t = ddtrace.Tracer(dogstatsd_url="foobar:12")
-    assert t.writer.dogstatsd.host == "foobar"
-    assert t.writer.dogstatsd.port == 12
+    assert t._writer.dogstatsd.host == "foobar"
+    assert t._writer.dogstatsd.port == 12
 
     t = ddtrace.Tracer(dogstatsd_url="udp://foobar:12")
-    assert t.writer.dogstatsd.host == "foobar"
-    assert t.writer.dogstatsd.port == 12
+    assert t._writer.dogstatsd.host == "foobar"
+    assert t._writer.dogstatsd.port == 12
 
     t = ddtrace.Tracer(dogstatsd_url="/var/run/statsd.sock")
-    assert t.writer.dogstatsd.socket_path == "/var/run/statsd.sock"
+    assert t._writer.dogstatsd.socket_path == "/var/run/statsd.sock"
 
     t = ddtrace.Tracer(dogstatsd_url="unix:///var/run/statsd.sock")
-    assert t.writer.dogstatsd.socket_path == "/var/run/statsd.sock"
+    assert t._writer.dogstatsd.socket_path == "/var/run/statsd.sock"
 
     with pytest.raises(ValueError) as e:
         t = ddtrace.Tracer(dogstatsd_url="foo://foobar:12")
@@ -616,7 +616,7 @@ def test_tracer_dogstatsd_url():
 def test_tracer_fork():
     t = ddtrace.Tracer()
     original_pid = t._pid
-    original_writer = t.writer
+    original_writer = t._writer
 
     @contextlib.contextmanager
     def capture_failures(errors):
@@ -652,12 +652,12 @@ def test_tracer_fork():
     # Ensure writing into the tracer in this process still works as expected
     with t.trace("test", service="test"):
         assert t._pid == original_pid
-        assert t.writer == original_writer
-        assert t.writer._encoder == original_writer._encoder
+        assert t._writer == original_writer
+        assert t._writer._encoder == original_writer._encoder
 
     # Assert the trace got written into the correct queue
     assert len(original_writer._encoder) == 1
-    assert len(t.writer._encoder) == 1
+    assert len(t._writer._encoder) == 1
 
 
 def test_tracer_with_version():
@@ -811,9 +811,9 @@ class EnvTracerTestCase(TracerTestCase):
         assert _in_aws_lambda()
         assert not _has_aws_lambda_agent_extension()
         tracer = Tracer()
-        assert isinstance(tracer.writer, LogWriter)
+        assert isinstance(tracer._writer, LogWriter)
         tracer.configure(enabled=True)
-        assert isinstance(tracer.writer, LogWriter)
+        assert isinstance(tracer._writer, LogWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agent_config_with_lambda_extension(self):
@@ -826,17 +826,17 @@ class EnvTracerTestCase(TracerTestCase):
             assert _has_aws_lambda_agent_extension()
 
             tracer = Tracer()
-            assert isinstance(tracer.writer, AgentWriter)
-            assert tracer.writer._sync_mode
+            assert isinstance(tracer._writer, AgentWriter)
+            assert tracer._writer._sync_mode
 
             tracer.configure(enabled=False)
-            assert isinstance(tracer.writer, AgentWriter)
-            assert tracer.writer._sync_mode
+            assert isinstance(tracer._writer, AgentWriter)
+            assert tracer._writer._sync_mode
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
         tracer = Tracer()
-        assert isinstance(tracer.writer, AgentWriter)
+        assert isinstance(tracer._writer, AgentWriter)
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):
@@ -1506,16 +1506,16 @@ def test_service_mapping():
 def test_configure_url_partial():
     tracer = ddtrace.Tracer()
     tracer.configure(hostname="abc")
-    assert tracer.writer.agent_url == "http://abc:8126"
+    assert tracer._writer.agent_url == "http://abc:8126"
     tracer.configure(port=123)
-    assert tracer.writer.agent_url == "http://abc:123"
+    assert tracer._writer.agent_url == "http://abc:123"
 
     tracer = ddtrace.Tracer(url="http://abc")
-    assert tracer.writer.agent_url == "http://abc"
+    assert tracer._writer.agent_url == "http://abc"
     tracer.configure(port=123)
-    assert tracer.writer.agent_url == "http://abc:123"
+    assert tracer._writer.agent_url == "http://abc:123"
     tracer.configure(port=431)
-    assert tracer.writer.agent_url == "http://abc:431"
+    assert tracer._writer.agent_url == "http://abc:431"
 
 
 def test_bad_agent_url(monkeypatch):
@@ -1701,13 +1701,13 @@ def test_fork_pid(tracer):
 
 def test_tracer_api_version():
     t = Tracer()
-    assert isinstance(t.writer._encoder, MsgpackEncoderV03)
+    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
 
     t.configure(api_version="v0.5")
-    assert isinstance(t.writer._encoder, MsgpackEncoderV05)
+    assert isinstance(t._writer._encoder, MsgpackEncoderV05)
 
     t.configure(api_version="v0.4")
-    assert isinstance(t.writer._encoder, MsgpackEncoderV03)
+    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
 
 
 @pytest.mark.parametrize("enabled", [True, False])
