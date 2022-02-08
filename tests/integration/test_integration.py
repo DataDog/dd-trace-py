@@ -660,9 +660,9 @@ def test_writer_env_configuration(run_python_code_in_subprocess):
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 1000
-assert ddtrace.tracer.writer._encoder.max_item_size == 1000
-assert ddtrace.tracer.writer._interval == 5.0
+assert ddtrace.tracer._writer._encoder.max_size == 1000
+assert ddtrace.tracer._writer._encoder.max_item_size == 1000
+assert ddtrace.tracer._writer._interval == 5.0
 """,
         env=env,
     )
@@ -674,9 +674,9 @@ def test_writer_env_configuration_defaults(run_python_code_in_subprocess):
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
-assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
-assert ddtrace.tracer.writer._interval == 1.0
+assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
+assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+assert ddtrace.tracer._writer._interval == 1.0
 """,
     )
     assert status == 0, (out, err)
@@ -692,9 +692,9 @@ def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subproc
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 1000
-assert ddtrace.tracer.writer._encoder.max_item_size == 1000
-assert ddtrace.tracer.writer._interval == 5.0
+assert ddtrace.tracer._writer._encoder.max_size == 1000
+assert ddtrace.tracer._writer._encoder.max_item_size == 1000
+assert ddtrace.tracer._writer._interval == 5.0
 """,
         env=env,
     )
@@ -706,9 +706,9 @@ def test_writer_env_configuration_ddtrace_run_defaults(ddtrace_run_python_code_i
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
-assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
-assert ddtrace.tracer.writer._interval == 1.0
+assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
+assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+assert ddtrace.tracer._writer._interval == 1.0
 """,
     )
     assert status == 0, (out, err)
