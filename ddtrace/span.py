@@ -152,8 +152,8 @@ class Span(object):
         self._tracer = None  # type: Optional[Tracer]
         if tracer is not None:
             deprecation(
-                name="ddtrace.Span.__init__(tracer, ...)",
-                message="Initialize with Span(tracer=None, ...) instead.",
+                name="ddtrace.Span.tracer",
+                message="Use Span(tracer=None, name, ...) instead.",
                 version="1.0.0",
             )
             self._tracer = tracer
