@@ -411,7 +411,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
         for _ in range(999):
             with tracer.trace("child"):
                 pass
-    trace = tracer.writer.pop()
+    trace = tracer._writer.pop()
     encoder.put(trace)
     decoded_trace = decode(encoder.encode())
 

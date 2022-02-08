@@ -131,13 +131,13 @@ class RateByServiceSamplerTest(unittest.TestCase):
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
-            writer = tracer.writer
+            writer = tracer._writer
             tracer.configure(sampler=AllSampler())
             # We need to set the writer because tracer.configure overrides it,
             # indeed, as we enable priority sampling, we must ensure the writer
             # is priority sampling aware and pass it a reference on the
             # priority sampler to send the feedback it gets from the agent
-            assert writer is not tracer.writer, "writer should have been updated by configure"
+            assert writer is not tracer._writer, "writer should have been updated by configure"
             tracer.priority_sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
@@ -146,7 +146,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
                 span = tracer.trace(str(i))
                 span.finish()
 
-            samples = tracer.writer.pop()
+            samples = tracer._writer.pop()
             samples_with_high_priority = 0
             for sample in samples:
                 if sample.get_metric(SAMPLING_PRIORITY_KEY) is not None:
