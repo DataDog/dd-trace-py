@@ -108,9 +108,9 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == "mongodb"
-            assert span.meta.get("mongodb.collection") == "songs"
-            assert span.meta.get("mongodb.db") == "testdb"
-            assert span.meta.get("out.host")
+            assert span.get_tag("mongodb.collection") == "songs"
+            assert span.get_tag("mongodb.db") == "testdb"
+            assert span.get_tag("out.host")
             assert span.metrics.get("out.port")
 
         expected_resources = set(
@@ -165,9 +165,9 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == "mongodb"
-            assert span.meta.get("mongodb.collection") == collection_name
-            assert span.meta.get("mongodb.db") == "testdb"
-            assert span.meta.get("out.host")
+            assert span.get_tag("mongodb.collection") == collection_name
+            assert span.get_tag("mongodb.db") == "testdb"
+            assert span.get_tag("out.host")
             assert span.metrics.get("out.port")
 
         if pymongo.version_tuple >= (4, 0):
@@ -242,10 +242,10 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == "mongodb"
-            assert span.meta.get("mongodb.collection") == "teams"
-            assert span.meta.get("mongodb.db") == "testdb"
-            assert span.meta.get("out.host"), span.pprint()
-            assert span.metrics.get("out.port"), span.pprint()
+            assert span.get_tag("mongodb.collection") == "teams"
+            assert span.get_tag("mongodb.db") == "testdb"
+            assert span.get_tag("out.host")
+            assert span.metrics.get("out.port")
             assert span.start > start
             assert span.duration < end - start
 
@@ -313,9 +313,9 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == "mongodb"
-            assert span.meta.get("mongodb.collection") == "songs"
-            assert span.meta.get("mongodb.db") == "testdb"
-            assert span.meta.get("out.host")
+            assert span.get_tag("mongodb.collection") == "songs"
+            assert span.get_tag("mongodb.db") == "testdb"
+            assert span.get_tag("out.host")
             assert span.metrics.get("out.port")
 
         expected_resources = set(

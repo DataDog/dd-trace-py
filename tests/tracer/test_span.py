@@ -89,11 +89,11 @@ class SpanTestCase(TracerTestCase):
         s = Span(tracer=None, name="test.span")
 
         s.set_tag("test", "value")
-        assert s.meta == dict(test="value")
+        assert s._get_tags() == dict(test="value")
         assert s.metrics == dict()
 
         s.set_tag("test", 1)
-        assert s.meta == dict()
+        assert s._get_tags() == dict()
         assert s.metrics == dict(test=1)
 
     def test_set_valid_metrics(self):
@@ -325,15 +325,15 @@ class SpanTestCase(TracerTestCase):
 
     def test_set_tag_none(self):
         s = Span(tracer=None, name="root.span", service="s", resource="r")
-        assert s.meta == dict()
+        assert s._get_tags() == dict()
 
         s.set_tag("custom.key", "100")
 
-        assert s.meta == {"custom.key": "100"}
+        assert s._get_tags() == {"custom.key": "100"}
 
         s.set_tag("custom.key", None)
 
-        assert s.meta == {"custom.key": "None"}
+        assert s._get_tags() == {"custom.key": "None"}
 
     def test_duration_zero(self):
         s = Span(tracer=None, name="foo.bar", service="s", resource="r", start=123)
@@ -493,8 +493,8 @@ def test_span_binary_unicode_set_tag(span_log):
     span._set_str_tag("key_str", "🤔")
     # only span.set_tag() will fail
     span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
-    assert "key" not in span.meta
-    assert span.meta["key_str"] == u"🤔"
+    assert "key" not in span._get_tags()
+    assert span.get_tag("key_str") == u"🤔"
 
 
 @pytest.mark.skipif(sys.version_info.major == 2, reason="This test does not apply to Python 2")
@@ -503,8 +503,8 @@ def test_span_bytes_string_set_tag(span_log):
     span = Span(None, None)
     span.set_tag("key", b"\xf0\x9f\xa4\x94")
     span._set_str_tag("key_str", b"\xf0\x9f\xa4\x94")
-    assert span.meta["key"] == "b'\\xf0\\x9f\\xa4\\x94'"
-    assert span.meta["key_str"] == "🤔"
+    assert span.get_tag("key") == "b'\\xf0\\x9f\\xa4\\x94'"
+    assert span.get_tag("key_str") == "🤔"
     span_log.warning.assert_not_called()
 
 
@@ -513,14 +513,14 @@ def test_span_encoding_set_str_tag(span_log):
     span = Span(None, None)
     span._set_str_tag("foo", u"/?foo=bar&baz=정상처리".encode("euc-kr"))
     span_log.warning.assert_not_called()
-    assert span.meta["foo"] == u"/?foo=bar&baz=����ó��"
+    assert span.get_tag("foo") == u"/?foo=bar&baz=����ó��"
 
 
 def test_span_nonstring_set_str_tag_exc():
     span = Span(None, None)
     with pytest.raises(TypeError):
         span._set_str_tag("foo", dict(a=1))
-    assert "foo" not in span.meta
+    assert "foo" not in span._get_tags()
 
 
 @mock.patch("ddtrace.span.log")
@@ -631,7 +631,7 @@ def test_span_pprint():
     root.set_tag("t", "v")
     root.set_metric("m", 1.0)
     root.finish()
-    actual = root.pprint()
+    actual = root._pprint()
     assert "name='test.span'" in actual
     assert "service='s'" in actual
     assert "resource='r'" in actual
@@ -647,22 +647,22 @@ def test_span_pprint():
     assert re.search("end=[0-9.]+", actual) is not None
 
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
-    actual = root.pprint()
+    actual = root._pprint()
     assert "duration=None" in actual
     assert "end=None" in actual
 
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.error = 1
-    actual = root.pprint()
+    actual = root._pprint()
     assert "error=1" in actual
 
     root = Span(None, "test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.set_tag(u"😌", u"😌")
-    actual = root.pprint()
+    actual = root._pprint()
     assert (u"tags={'😌': '😌'}" if six.PY3 else "tags={u'\\U0001f60c': u'\\U0001f60c'}") in actual
 
     root = Span(None, "test.span", service=object())
-    actual = root.pprint()
+    actual = root._pprint()
     assert "service=<object object at" in actual
 
 

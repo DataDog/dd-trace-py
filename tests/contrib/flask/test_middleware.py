@@ -107,7 +107,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"hello"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -117,7 +117,7 @@ class TestFlask(TracerTestCase):
         assert s.duration <= end - start
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_template(self):
         start = time.time()
@@ -129,7 +129,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"hello earth"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 2
         by_name = {s.name: s for s in spans}
@@ -140,7 +140,7 @@ class TestFlask(TracerTestCase):
         assert s.duration <= end - start
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
         t = by_name["flask.template"]
         assert t.get_tag("flask.template") == "test.html"
@@ -158,7 +158,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"handled"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -168,7 +168,7 @@ class TestFlask(TracerTestCase):
         assert s.duration <= end - start
         assert s.error == 0
         assert_span_http_status_code(s, 202)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_template_err(self):
         start = time.time()
@@ -181,7 +181,7 @@ class TestFlask(TracerTestCase):
         end = time.time()
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         by_name = {s.name: s for s in spans}
@@ -192,7 +192,7 @@ class TestFlask(TracerTestCase):
         assert s.duration <= end - start
         assert s.error == 1
         assert_span_http_status_code(s, 500)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_template_render_err(self):
         start = time.time()
@@ -205,7 +205,7 @@ class TestFlask(TracerTestCase):
         end = time.time()
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 2
         by_name = {s.name: s for s in spans}
@@ -216,7 +216,7 @@ class TestFlask(TracerTestCase):
         assert s.duration <= end - start
         assert s.error == 1
         assert_span_http_status_code(s, 500)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
         t = by_name["flask.template"]
         assert t.get_tag("flask.template") == "render_err.html"
         assert t.error == 1
@@ -243,7 +243,7 @@ class TestFlask(TracerTestCase):
         assert s.duration <= end - start
         assert_span_http_status_code(s, 500)
         assert s.error == 1
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_fatal(self):
         if not self.traced_app.use_signals:
@@ -269,10 +269,10 @@ class TestFlask(TracerTestCase):
         assert s.duration <= end - start
         assert_span_http_status_code(s, 500)
         assert s.error == 1
-        assert s.meta.get(http.METHOD) == "GET"
-        assert "ZeroDivisionError" in s.meta.get(ERROR_TYPE), s.meta
-        assert "by zero" in s.meta.get(ERROR_MSG)
-        assert re.search('File ".*/contrib/flask/web.py", line [0-9]+, in fatal', s.meta.get(ERROR_STACK))
+        assert s.get_tag(http.METHOD) == "GET"
+        assert "ZeroDivisionError" in s.get_tag(ERROR_TYPE), s._get_tags()
+        assert "by zero" in s.get_tag(ERROR_MSG)
+        assert re.search('File ".*/contrib/flask/web.py", line [0-9]+, in fatal', s.get_tag(ERROR_STACK))
 
     def test_unicode(self):
         start = time.time()
@@ -284,7 +284,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"\xc3\xbc\xc5\x8b\xc3\xaf\xc4\x89\xc3\xb3\xc4\x91\xc4\x93"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -294,8 +294,8 @@ class TestFlask(TracerTestCase):
         assert s.duration <= end - start
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
-        assert s.meta.get(http.URL) == u"http://localhost/üŋïĉóđē"
+        assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag(http.URL) == u"http://localhost/üŋïĉóđē"
 
     def test_404(self):
         start = time.time()
@@ -306,7 +306,7 @@ class TestFlask(TracerTestCase):
         assert rv.status_code == 404
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -316,8 +316,8 @@ class TestFlask(TracerTestCase):
         assert s.duration <= end - start
         assert s.error == 0
         assert_span_http_status_code(s, 404)
-        assert s.meta.get(http.METHOD) == "GET"
-        assert s.meta.get(http.URL) == u"http://localhost/404/üŋïĉóđē"
+        assert s.get_tag(http.METHOD) == "GET"
+        assert s.get_tag(http.URL) == u"http://localhost/404/üŋïĉóđē"
 
     def test_propagation(self):
         rv = self.client.get(
@@ -330,7 +330,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"hello"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -344,7 +344,7 @@ class TestFlask(TracerTestCase):
         rv = self.client.get("/custom_span")
         assert rv.status_code == 200
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
@@ -352,7 +352,7 @@ class TestFlask(TracerTestCase):
         assert s.resource == "overridden"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.meta.get(http.METHOD) == "GET"
+        assert s.get_tag(http.METHOD) == "GET"
 
     def test_success_200_ot(self):
         """OpenTracing version of test_success_200."""
@@ -368,7 +368,7 @@ class TestFlask(TracerTestCase):
         assert rv.data == b"hello"
 
         # ensure trace worked
-        assert not self.tracer.current_span(), self.tracer.current_span().pprint()
+        assert not self.tracer.current_span()
         spans = self.pop_spans()
         assert len(spans) == 2
         ot_span, dd_span = spans
@@ -385,7 +385,7 @@ class TestFlask(TracerTestCase):
         assert dd_span.duration <= end - start
         assert dd_span.error == 0
         assert_span_http_status_code(dd_span, 200)
-        assert dd_span.meta.get(http.METHOD) == "GET"
+        assert dd_span.get_tag(http.METHOD) == "GET"
 
     def test_http_request_header_tracing(self):
         config.flask.http.trace_headers(["Host", "my-header"])

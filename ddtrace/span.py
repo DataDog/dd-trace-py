@@ -39,6 +39,8 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
+from .internal.utils.deprecation import deprecated
+from .vendor.debtcollector.removals import removed_property
 
 
 if TYPE_CHECKING:
@@ -62,7 +64,7 @@ class Span(object):
         "span_id",
         "trace_id",
         "parent_id",
-        "meta",
+        "_meta",
         "error",
         "metrics",
         "span_type",
@@ -133,7 +135,7 @@ class Span(object):
         self.span_type = span_type
 
         # tags / metadata
-        self.meta = {}  # type: _MetaDictType
+        self._meta = {}  # type: _MetaDictType
         self.error = 0
         self.metrics = {}  # type: _MetricDictType
 
@@ -311,7 +313,7 @@ class Span(object):
             return
 
         try:
-            self.meta[key] = stringify(value)
+            self._meta[key] = stringify(value)
             if key in self.metrics:
                 del self.metrics[key]
         except Exception:
@@ -324,7 +326,7 @@ class Span(object):
         U+FFFD.
         """
         try:
-            self.meta[key] = ensure_text(value, errors="replace")
+            self._meta[key] = ensure_text(value, errors="replace")
         except Exception as e:
             if config._raise:
                 raise e
@@ -332,13 +334,18 @@ class Span(object):
 
     def _remove_tag(self, key):
         # type: (_TagNameType) -> None
-        if key in self.meta:
-            del self.meta[key]
+        if key in self._meta:
+            del self._meta[key]
 
     def get_tag(self, key):
         # type: (_TagNameType) -> Optional[Text]
         """Return the given tag or None if it doesn't exist."""
-        return self.meta.get(key, None)
+        return self._meta.get(key, None)
+
+    def _get_tags(self):
+        # type: () -> _MetaDictType
+        """Return all tags."""
+        return self._meta.copy()
 
     def set_tags(self, tags):
         # type: (_MetaDictType) -> None
@@ -348,6 +355,17 @@ class Span(object):
         if tags:
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
+
+    @removed_property(
+        message="Use Span.set_tag, Span.set_tags or Span.get_tag methods instead.",
+        removal_version="1.0.0",
+    )
+    def meta(self):
+        return self._meta
+
+    @meta.setter  # type: ignore[no-redef]
+    def meta(self, value):
+        self._meta = value
 
     def set_meta(self, k, v):
         # type: (_TagNameType, NumericType) -> None
@@ -386,8 +404,8 @@ class Span(object):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
-        if key in self.meta:
-            del self.meta[key]
+        if key in self._meta:
+            del self._meta[key]
         self.metrics[key] = value
 
     def set_metrics(self, metrics):
@@ -425,8 +443,8 @@ class Span(object):
         if self.duration_ns:
             d["duration"] = self.duration_ns
 
-        if self.meta:
-            d["meta"] = self.meta
+        if self._meta:
+            d["meta"] = self._meta
 
         if self.metrics:
             d["metrics"] = self.metrics
@@ -447,7 +465,7 @@ class Span(object):
             self.set_exc_info(exc_type, exc_val, exc_tb)
         else:
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
-            self.meta[ERROR_STACK] = tb
+            self._meta[ERROR_STACK] = tb
 
     def set_exc_info(self, exc_type, exc_val, exc_tb):
         # type: (Any, Any, Any) -> None
@@ -468,9 +486,9 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self.meta[ERROR_MSG] = stringify(exc_val)
-        self.meta[ERROR_TYPE] = exc_type_str
-        self.meta[ERROR_STACK] = tb
+        self._meta[ERROR_MSG] = stringify(exc_val)
+        self._meta[ERROR_TYPE] = exc_type_str
+        self._meta[ERROR_STACK] = tb
 
     def _remove_exc_info(self):
         # type: () -> None
@@ -480,7 +498,11 @@ class Span(object):
         self._remove_tag(ERROR_TYPE)
         self._remove_tag(ERROR_STACK)
 
+    @deprecated(message="Span.pprint will be removed.", version="1.0.0")
     def pprint(self):
+        return self._pprint()
+
+    def _pprint(self):
         # type: () -> str
         """Return a human readable version of the span."""
         data = [
@@ -495,7 +517,7 @@ class Span(object):
             ("end", None if not self.duration else self.start + self.duration),
             ("duration", self.duration),
             ("error", self.error),
-            ("tags", dict(sorted(self.meta.items()))),
+            ("tags", dict(sorted(self._meta.items()))),
             ("metrics", dict(sorted(self.metrics.items()))),
         ]
         return " ".join(
