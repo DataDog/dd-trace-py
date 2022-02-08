@@ -166,7 +166,7 @@ def test_sampling(writer, tracer):
 @snapshot(async_mode=False)
 def test_synchronous_writer():
     tracer = Tracer()
-    writer = AgentWriter(tracer.writer.agent_url, sync_mode=True, priority_sampler=tracer.priority_sampler)
+    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True, priority_sampler=tracer.priority_sampler)
     tracer.configure(writer=writer)
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
@@ -248,10 +248,10 @@ def test_trace_with_wrong_meta_types_not_sent(meta):
     tracer = Tracer()
     with mock.patch("ddtrace.span.log") as log:
         with tracer.trace("root") as root:
-            root.meta = meta
+            root._meta = meta
             for _ in range(499):
                 with tracer.trace("child") as child:
-                    child.meta = meta
+                    child._meta = meta
         log.exception.assert_called_once_with("error closing trace")
 
 

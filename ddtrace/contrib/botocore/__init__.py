@@ -18,7 +18,7 @@ Configuration
 
 .. py:data:: ddtrace.config.botocore['distributed_tracing']
 
-   Whether to inject distributed tracing data to requests in SQS and Lambda.
+   Whether to inject distributed tracing data to requests in SQS, SNS, EventBridge, Kinesis Streams and Lambda.
 
    Can also be enabled with the ``DD_BOTOCORE_DISTRIBUTED_TRACING`` environment variable.
 

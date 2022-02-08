@@ -173,6 +173,11 @@ class TraceWriter(six.with_metaclass(abc.ABCMeta)):
         # type: (Optional[List[Span]]) -> None
         pass
 
+    @abc.abstractmethod
+    def flush_queue(self):
+        # type: () -> None
+        pass
+
 
 class LogWriter(TraceWriter):
     def __init__(
@@ -209,6 +214,10 @@ class LogWriter(TraceWriter):
         encoded = self.encoder.encode_traces([spans])
         self.out.write(encoded + "\n")
         self.out.flush()
+
+    def flush_queue(self):
+        # type: () -> None
+        pass
 
 
 class AgentWriter(periodic.PeriodicService, TraceWriter):
@@ -476,9 +485,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
             log.warning(
-                "trace (%db) larger than payload buffer limit (%db), dropping",
+                "trace (%db) larger than payload buffer item limit (%db), dropping",
                 payload_size,
-                self._buffer_size,
+                self._encoder.max_item_size,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])

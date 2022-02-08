@@ -31,13 +31,13 @@ NO_CHILDREN = object()
 def assert_is_measured(span):
     """Assert that the span has the proper _dd.measured tag set"""
     assert SPAN_MEASURED_KEY in span.metrics
-    assert SPAN_MEASURED_KEY not in span.meta
+    assert SPAN_MEASURED_KEY not in span._get_tags()
     assert span.get_metric(SPAN_MEASURED_KEY) == 1
 
 
 def assert_is_not_measured(span):
     """Assert that the span does not set _dd.measured"""
-    assert SPAN_MEASURED_KEY not in span.meta
+    assert SPAN_MEASURED_KEY not in span._get_tags()
     if SPAN_MEASURED_KEY in span.metrics:
         assert span.get_metric(SPAN_MEASURED_KEY) == 0
     else:
@@ -376,7 +376,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def get_spans(self):
         """Required subclass method for TestSpanContainer"""
-        return self.tracer.writer.spans
+        return self.tracer._writer.spans
 
     def pop_spans(self):
         # type: () -> List[Span]
@@ -388,7 +388,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def reset(self):
         """Helper to reset the existing list of spans created"""
-        self.tracer.writer.pop()
+        self.tracer._writer.pop()
 
     def trace(self, *args, **kwargs):
         """Wrapper for self.tracer.trace that returns a TestSpan"""
@@ -462,13 +462,23 @@ class DummyTracer(Tracer):
         super(DummyTracer, self).__init__()
         self.configure()
 
+    @property
+    def agent_url(self):
+        # type: () -> str
+        return self._writer.agent_url
+
+    @property
+    def encoder(self):
+        # type: () -> Encoder
+        return self._writer.msgpack_encoder
+
     def pop(self):
         # type: () -> List[Span]
-        return self.writer.pop()
+        return self._writer.pop()
 
     def pop_traces(self):
         # type: () -> List[List[Span]]
-        return self.writer.pop_traces()
+        return self._writer.pop_traces()
 
     def configure(self, *args, **kwargs):
         assert "writer" not in kwargs or isinstance(
@@ -581,12 +591,12 @@ class TestSpan(Span):
         :rtype: bool
         """
         if exact:
-            return self.meta == meta
+            return self._get_tags() == meta
 
         for key, value in meta.items():
-            if key not in self.meta:
+            if key not in self._meta:
                 return False
-            if self.meta[key] != value:
+            if self.get_tag(key) != value:
                 return False
         return True
 
@@ -631,12 +641,12 @@ class TestSpan(Span):
         :raises: AssertionError
         """
         if exact:
-            assert self.meta == meta
+            assert self._get_tags() == meta
         else:
             for key, value in meta.items():
-                assert key in self.meta, "{0} meta does not have property {1!r}".format(self, key)
-                assert self.meta[key] == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self.meta[key], value
+                assert key in self._meta, "{0} meta does not have property {1!r}".format(self, key)
+                assert self.get_tag(key) == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
+                    self, key, self.get_tag(key), value
                 )
 
     def assert_metrics(self, metrics, exact=False):
@@ -793,13 +803,6 @@ class TestSpanNode(TestSpan, TestSpanContainer):
             spans[i].assert_matches(parent_id=self.span_id, trace_id=self.trace_id, _parent=self)
             spans[i].assert_structure(root, _children)
 
-    def pprint(self):
-        parts = [super(TestSpanNode, self).pprint()]
-        for child in self._children:
-            parts.append("-" * 20)
-            parts.append(child.pprint())
-        return "\r\n".join(parts)
-
 
 def assert_dict_issuperset(a, b):
     assert set(a.items()).issuperset(set(b.items())), "{a} is not a superset of {b}".format(a=a, b=b)
@@ -829,7 +832,7 @@ class SnapshotTest(object):
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""
-        parsed = parse.urlparse(self.tracer.writer.agent_url)
+        parsed = parse.urlparse(self.tracer.agent_trace_url)
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/clear?test_session_token=%s" % self.token)
         resp = conn.getresponse()
@@ -850,19 +853,19 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
     if not tracer:
         tracer = ddtrace.tracer
 
-    parsed = parse.urlparse(tracer.writer.agent_url)
+    parsed = parse.urlparse(tracer._writer.agent_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
         # clear queue in case traces have been generated before test case is
         # itself run
         try:
-            tracer.writer.flush_queue()
+            tracer._writer.flush_queue()
         except Exception as e:
             pytest.fail("Could not flush the queue before test case: %s" % str(e), pytrace=True)
 
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
-            tracer.writer._headers["X-Datadog-Test-Session-Token"] = token
+            tracer._writer._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
@@ -888,9 +891,9 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
             )
         finally:
             # Force a flush so all traces are submitted.
-            tracer.writer.flush_queue()
+            tracer._writer.flush_queue()
             if async_mode:
-                del tracer.writer._headers["X-Datadog-Test-Session-Token"]
+                del tracer._writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         # Query for the results of the test.

@@ -61,6 +61,7 @@ from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
+from .vendor.debtcollector import removals
 
 
 log = get_logger(__name__)
@@ -147,7 +148,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
             )
-        self.writer = writer  # type: TraceWriter
+        self._writer = writer  # type: TraceWriter
 
         # DD_TRACER_... should be deprecated after version 1.0.0 is released
         pfe_default_value = False
@@ -351,8 +352,8 @@ class Tracer(object):
         if any(x is not None for x in [hostname, port, uds_path, https]):
             # If any of the parts of the URL have updated, merge them with
             # the previous writer values.
-            if isinstance(self.writer, AgentWriter):
-                prev_url_parsed = compat.parse.urlparse(self.writer.agent_url)
+            if isinstance(self._writer, AgentWriter):
+                prev_url_parsed = compat.parse.urlparse(self._writer.agent_url)
             else:
                 prev_url_parsed = compat.parse.urlparse("")
 
@@ -369,26 +370,26 @@ class Tracer(object):
                     port = prev_url_parsed.port
                 scheme = "https" if https else "http"
                 url = "%s://%s:%s" % (scheme, hostname, port)
-        elif isinstance(self.writer, AgentWriter):
+        elif isinstance(self._writer, AgentWriter):
             # Reuse the URL from the previous writer if there was one.
-            url = self.writer.agent_url
+            url = self._writer.agent_url
         else:
             # No URL parts have updated and there's no previous writer to
             # get the URL from.
             url = None
 
         try:
-            self.writer.stop()
+            self._writer.stop()
         except service.ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
 
         if writer is not None:
-            self.writer = writer
+            self._writer = writer
         elif url:
             # Verify the URL and create a new AgentWriter with it.
             agent.verify_url(url)
-            self.writer = AgentWriter(
+            self._writer = AgentWriter(
                 url,
                 sampler=self.sampler,
                 priority_sampler=self.priority_sampler,
@@ -397,11 +398,11 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
             )
-        elif writer is None and isinstance(self.writer, LogWriter):
+        elif writer is None and isinstance(self._writer, LogWriter):
             # No need to do anything for the LogWriter.
             pass
-        if isinstance(self.writer, AgentWriter):
-            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
+        if isinstance(self._writer, AgentWriter):
+            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
         self._initialize_span_processors()
 
         if context_provider is not None:
@@ -436,7 +437,7 @@ class Tracer(object):
         self._services = set()
 
         # Re-create the background writer thread
-        self.writer = self.writer.recreate()
+        self._writer = self._writer.recreate()
         self._initialize_span_processors()
 
         self._new_process = True
@@ -573,7 +574,7 @@ class Tracer(object):
             )
             span._local_root = span
             if config.report_hostname:
-                span.meta[HOSTNAME_KEY] = hostname.get_hostname()
+                span._set_str_tag(HOSTNAME_KEY, hostname.get_hostname())
             span.sampled = self.sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
@@ -601,7 +602,7 @@ class Tracer(object):
                 span.sampled = True
 
         if not span._parent:
-            span.meta["runtime-id"] = get_runtime_id()
+            span._set_str_tag("runtime-id", get_runtime_id())
             span.metrics[PID] = self._pid
 
         # Apply default global tags.
@@ -619,7 +620,7 @@ class Tracer(object):
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
             if (root_span is None and service == config.service) or (
-                root_span and root_span.service == service and VERSION_KEY in root_span.meta
+                root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
                 span._set_str_tag(VERSION_KEY, config.version)
 
@@ -656,10 +657,10 @@ class Tracer(object):
                 p.on_span_finish(span)
 
         if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
+            self.log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
 
-    def _initialize_span_processors(self):
-        # type: () -> None
+    def _initialize_span_processors(self, appsec_enabled=asbool(get_env("appsec", "enabled", default=False))):
+        # type: (Optional[bool]) -> None
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor()]
@@ -671,9 +672,26 @@ class Tracer(object):
                 partial_flush_enabled=self._partial_flush_enabled,
                 partial_flush_min_spans=self._partial_flush_min_spans,
                 trace_processors=trace_processors,
-                writer=self.writer,
+                writer=self._writer,
             ),
         ]  # type: List[SpanProcessor]
+
+        if appsec_enabled:
+            try:
+                from .appsec.processor import AppSecSpanProcessor
+
+                appsec_span_processor = AppSecSpanProcessor()
+                self._span_processors.append(appsec_span_processor)
+            except Exception as e:
+                # DDAS-001-01
+                log.error(
+                    "[DDAS-001-01] "
+                    "AppSec could not start because of an unexpected error. No security activities will be collected. "
+                    "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
+                    repr(e),
+                )
+                if config._raise:
+                    raise
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -788,13 +806,30 @@ class Tracer(object):
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
             for span in spans:
-                self.log.debug("\n%s", span.pprint())
+                self.log.debug("\n%s", span._pprint())
 
         if not self.enabled:
             return
 
         if spans is not None:
-            self.writer.write(spans=spans)
+            self._writer.write(spans=spans)
+
+    @removals.removed_property(message="Use Tracer.flush instead to flush buffered traces to agent", version="1.0.0")
+    def writer(self):
+        return self._writer
+
+    @property
+    def agent_trace_url(self):
+        # type: () -> Optional[str]
+        """Trace agent url"""
+        if isinstance(self._writer, AgentWriter):
+            return self._writer.agent_url
+
+        return None
+
+    def flush(self):
+        """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
+        self._writer.flush_queue()
 
     @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
     def set_service_info(self, *args, **kwargs):
@@ -957,7 +992,7 @@ class Tracer(object):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         try:
-            self.writer.stop(timeout=timeout)
+            self._writer.stop(timeout=timeout)
         except service.ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
