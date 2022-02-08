@@ -28,33 +28,21 @@ def get_rules():
     return get_env("appsec", "rules", default=DEFAULT_RULES)
 
 
-COLLECTED_REQUEST_HEADERS = [
-    "accept",
-    "accept-encoding",
-    "accept-language",
-    "content-encoding",
-    "content-language",
-    "content-length",
-    "content-type",
-    "forwarded",
-    "forwarded-for",
-    "host",
-    "true-client-ip",
-    "user-agent",
-    "via",
-    "x-client-ip",
-    "x-cluster-client-ip",
-    "x-forwarded",
-    "x-forwarded-for",
-    "x-real-ip"
-]
+COLLECTED_REQUEST_HEADERS = {"accept", "accept-encoding", "accept-language", "content-encoding", "content-language",
+                             "content-length", "content-type", "forwarded", "forwarded-for", "host", "true-client-ip",
+                             "user-agent", "via", "x-client-ip", "x-cluster-client-ip", "x-forwarded",
+                             "x-forwarded-for", "x-real-ip"}
 
 
 def _set_headers(span, headers):
     for k in headers:
+        if k in COLLECTED_REQUEST_HEADERS:
+            span._set_str_tag(k, headers[k])
+            return
         low = k.lower()
         if low in COLLECTED_REQUEST_HEADERS:
             span._set_str_tag(low, headers[k])
+            COLLECTED_REQUEST_HEADERS.add(k)
 
 
 @attr.s(eq=False)
