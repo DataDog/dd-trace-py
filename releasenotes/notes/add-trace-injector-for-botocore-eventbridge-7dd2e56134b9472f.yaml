@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    botocore: add distributed tracing support for AWS EventBridge, AWS SNS & AWS Kinesis.
