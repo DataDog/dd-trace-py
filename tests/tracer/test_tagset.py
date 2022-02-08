@@ -29,6 +29,8 @@ from ddtrace.internal.compat import ensure_str
         ("key=value,", {"key": "value"}),
         # Values can have spaces
         ("key=value can have spaces", {"key": "value can have spaces"}),
+        # Values can have equals
+        ("key=value=value", {"key": "value=value"}),
         # Remove leading/trailing spaces from values
         ("key= value can have spaces ", {"key": "value can have spaces"}),
         # Non-space whitespace characters are allowed
@@ -40,6 +42,13 @@ from ddtrace.internal.compat import ensure_str
         (
             "_dd.p.upstream_services=bWNudWx0eS13ZWI|0|1;dHJhY2Utc3RhdHMtcXVlcnk|2|4,_dd.p.hello=world",
             {"_dd.p.upstream_services": "bWNudWx0eS13ZWI|0|1;dHJhY2Utc3RhdHMtcXVlcnk|2|4", "_dd.p.hello": "world"},
+        ),
+        (
+            "_dd.p.upstream_services=bWNudWx0eS13ZWI===|0|1;dHJhY2Utc3RhdHMtcXVlcnk===|2|4,_dd.p.hello=world",
+            {
+                "_dd.p.upstream_services": "bWNudWx0eS13ZWI===|0|1;dHJhY2Utc3RhdHMtcXVlcnk===|2|4",
+                "_dd.p.hello": "world",
+            },
         ),
     ],
 )
@@ -61,7 +70,6 @@ def test_decode_tagset_string(header, expected):
         "=value",
         # Extra leading comma
         ",key=value",
-        "key=value=value",
         "key=value,=value",
         "key=value,value",
         # Spaces are not allowed in keys
