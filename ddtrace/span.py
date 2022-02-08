@@ -543,7 +543,7 @@ class Span(object):
             ("duration", self.duration),
             ("error", self.error),
             ("tags", dict(sorted(self._meta.items()))),
-            ("_metrics", dict(sorted(self._metrics.items()))),
+            ("metrics", dict(sorted(self._metrics.items()))),
         ]
         return " ".join(
             # use a large column width to keep pprint output on one line
