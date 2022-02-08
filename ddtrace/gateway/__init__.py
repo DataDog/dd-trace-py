@@ -3,7 +3,7 @@ from enum import Enum
 from ddtrace.gateway.gateway import Gateway
 
 
-class ADDRESSES(Enum):
+class Addresses(Enum):
     SERVER_REQUEST_BODY = "server.request.body"
     SERVER_REQUEST_QUERY = "server.request.query"
     SERVER_REQUEST_HEADERS_NO_COOKIES = "server.request.headers.no_cookies"
