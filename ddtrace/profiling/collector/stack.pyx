@@ -14,10 +14,10 @@ from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
+from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
-from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
 
@@ -448,6 +448,7 @@ class StackCollector(collector.PeriodicCollector):
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
 
     def _init(self):
+        # type: (...) -> None
         self._thread_time = _ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
@@ -455,11 +456,13 @@ class StackCollector(collector.PeriodicCollector):
             self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
 
     def _start_service(self):
+        # type: (...) -> None
         # This is split in its own function to ease testing
         self._init()
         super(StackCollector, self)._start_service()
 
     def _stop_service(self):
+        # type: (...) -> None
         super(StackCollector, self)._stop_service()
         if self.tracer is not None:
             self.tracer.context_provider._deregister_on_activate(self._thread_span_links.link_span)
