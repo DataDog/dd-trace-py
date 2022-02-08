@@ -839,10 +839,6 @@ class Tracer(object):
         # type: (BaseSampler) -> None
         self._sampler = val
 
-    @removals.removed_property(message="Use Tracer.flush instead to flush buffered traces to agent", version="1.0.0")
-    def writer(self):
-        return self._writer
-
     @property
     def agent_trace_url(self):
         # type: () -> Optional[str]
