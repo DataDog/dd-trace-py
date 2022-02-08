@@ -29,7 +29,7 @@ class FalconTestCase(FalconTestMixin):
 
     def test_404(self):
         self.make_test_call("/fake_endpoint", expected_status_code=404)
-        traces = self.tracer.writer.pop_traces()
+        traces = self.tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -53,7 +53,7 @@ class FalconTestCase(FalconTestMixin):
             if FALCON_VERSION < (3, 0, 0):
                 assert 0
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -71,7 +71,7 @@ class FalconTestCase(FalconTestMixin):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -161,7 +161,7 @@ class FalconTestCase(FalconTestMixin):
         assert out.status_code == 201
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -179,7 +179,7 @@ class FalconTestCase(FalconTestMixin):
         out = self.make_test_call("/500", expected_status_code=500)
         assert out.content.decode("utf-8") == "Failure"
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -196,7 +196,7 @@ class FalconTestCase(FalconTestMixin):
     def test_404_exception(self):
         self.make_test_call("/not_found", expected_status_code=404)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -214,7 +214,7 @@ class FalconTestCase(FalconTestMixin):
         # it should not have the stacktrace when a 404 exception is raised
         self.make_test_call("/not_found", expected_status_code=404)
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -229,7 +229,7 @@ class FalconTestCase(FalconTestMixin):
 
     def test_200_ot(self):
         """OpenTracing version of test_200."""
-        writer = self.tracer.writer
+        writer = self.tracer._writer
         ot_tracer = init_tracer("my_svc", self.tracer)
         ot_tracer._dd_tracer.configure(writer=writer)
 
@@ -237,7 +237,7 @@ class FalconTestCase(FalconTestMixin):
             out = self.make_test_call("/200", expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 2
         ot_span, dd_span = traces[0]
@@ -265,7 +265,7 @@ class FalconTestCase(FalconTestMixin):
         out = self.make_test_call("/200", expected_status_code=200)
         assert out.content.decode("utf-8") == "Success"
 
-        traces = self.tracer.writer.pop_traces()
+        traces = self.tracer.pop_traces()
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
@@ -282,7 +282,7 @@ class FalconTestCase(FalconTestMixin):
         with self.override_config("falcon", {}):
             config.falcon.http.trace_headers(["my-header", "my-response-header"])
             self.make_test_call("/200", headers={"my-header": "my_value"})
-            traces = self.tracer.writer.pop_traces()
+            traces = self.tracer.pop_traces()
 
         assert len(traces) == 1
         assert len(traces[0]) == 1
