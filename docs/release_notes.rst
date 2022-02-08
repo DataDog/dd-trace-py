@@ -12,6 +12,10 @@ Release Notes
 
 
 .. release-notes::
+   :branch: 0.58
+   :earliest-version: v0.58.0
+
+.. release-notes::
    :branch: 0.57
    :earliest-version: v0.57.0
 
