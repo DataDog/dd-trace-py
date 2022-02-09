@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    ``Span.meta`` and ``Span.metrics`` were removed.
