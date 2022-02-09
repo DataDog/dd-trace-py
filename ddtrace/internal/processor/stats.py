@@ -1,17 +1,20 @@
 from collections import defaultdict
+import os
 import typing
-
-import ddtrace
-from ddtrace import config
 
 from ddsketch import LogCollapsingLowestDenseDDSketch
 from ddsketch.pb.proto import DDSketchProto
+import tenacity
+
+import ddtrace
+from ddtrace import config
 
 from . import SpanProcessor
 from ...constants import SPAN_MEASURED_KEY
 from .._encoding import packb
 from ..agent import get_connection
 from ..compat import get_connection_response
+from ..compat import httplib
 from ..compat import time_ns
 from ..forksafe import Lock
 from ..hostname import get_hostname
@@ -68,6 +71,8 @@ SpanAggrKey = typing.Tuple[
 class SpanAggrStats(object):
     """Aggregated span statistics."""
 
+    __slots__ = ("hits", "top_level_hits", "errors", "duration", "ok_distribution", "err_distribution")
+
     def __init__(self):
         self.hits = 0
         self.top_level_hits = 0
@@ -81,9 +86,7 @@ class SpanAggrStats(object):
 
 def _span_aggr_key(span):
     # type: (Span) -> SpanAggrKey
-    """Return a hashable key that can be used to uniquely refer to the "same"
-    span.
-    """
+    """Return a hashable key that can be used to aggregate similar spans."""
     service = span.service or "unnamed_service"
     if len(service) > 100:
         service = service[:100]
@@ -93,13 +96,19 @@ def _span_aggr_key(span):
         _type = _type[:100]
 
     status_code = span.meta.get("http.status_code", None)
-    synthetics = span.context.dd_origin == "synthetics"  # TODO: verify this is the right variant
+    synthetics = span.context.dd_origin == "synthetics"
     return span.name, service, resource, _type, status_code, synthetics
 
 
 class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
-    def __init__(self, agent_url, interval=10.0, timeout=1.0):
-        # type: (str, float, float) -> None
+    """SpanProcessor for computing, collecting and submitting span metrics to the Datadog Agent."""
+
+    RETRY_ATTEMPTS = 3
+
+    def __init__(self, agent_url, interval=None, timeout=1.0, reuse_connections=True):
+        # type: (str, Optional[float], float) -> None
+        if interval is None:
+            interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self.start()
         self._agent_url = agent_url
@@ -117,6 +126,15 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             "Content-Type": "application/msgpack",
         }  # type: Dict[str, str]
         self._lock = Lock()
+        self._enabled = True
+        self._reuse_connections = reuse_connections
+        self._retry_request = tenacity.Retrying(
+            wait=tenacity.wait_random_exponential(
+                multiplier=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2, exp_base=1.618
+            ),
+            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
+            retry=tenacity.retry_if_exception_type((httplib.HTTPException, OSError, IOError)),
+        )
 
     def on_span_start(self, span):
         # type: (Span) -> None
@@ -124,6 +142,9 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
+        if not self._enabled:
+            return
+
         is_top_level = _is_top_level(span)
         if not is_top_level and not _is_measured(span):
             return
@@ -201,8 +222,41 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
         return serialized_buckets
 
+    def _flush_stats(self, payload):
+        # type: (bool) -> None
+        try:
+            self._connection = get_connection(self._agent_url, self._timeout)
+            self._connection.request("PUT", self._endpoint, payload, self._headers)
+        except (httplib.HTTPException, OSError, IOError):
+            log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint)
+
+            # Close, reset the connection on failure.
+            self._connection.close()
+            self._connection = None
+            raise
+        else:
+            resp = get_connection_response(self._connection)
+            if resp.status == 404:
+                log.error("Datadog agent does not support tracer stats computation, please upgrade your agent")
+                self._enabled = False
+                return
+            elif resp.status >= 400:
+                log.error(
+                    "failed to send stats payload, %s (%s) response from Datadog agent at %s",
+                    resp.status,
+                    resp.reason,
+                    self._agent_endpoint,
+                )
+            else:
+                log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
+        finally:
+            if self._connection and not self._reuse_connections:
+                self._connection.close()
+                self._connection = None
+
     def periodic(self):
         # type: (...) -> None
+
         with self._lock:
             serialized_stats = self._serialize_buckets()
 
@@ -217,25 +271,9 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
         payload = packb(raw_payload)
         try:
-            self._connection = get_connection(self._agent_url, self._timeout)
-            self._connection.request("PUT", self._endpoint, payload, self._headers)
-        except Exception:
-            log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
-        else:
-            resp = get_connection_response(self._connection)
-            if resp.status == 404:
-                log.error("Datadog agent does not support tracer stats computation, please upgrade your agent")
-            elif resp.status != 200:
-                log.error(
-                    "failed to send stats payload, %s (%s) response from Datadog agent at %s",
-                    resp.status,
-                    resp.reason,
-                    self._agent_endpoint,
-                )
-            else:
-                log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
-        finally:
-            self._connection.close()
+            self._retry_request(self._flush_stats, payload)
+        except tenacity.RetryError:
+            log.error("retry limit exceeded submitting span stats to the Datadog agent at %s", self._agent_endpoint)
 
     on_shutdown = periodic
 
