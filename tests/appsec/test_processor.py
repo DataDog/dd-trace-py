@@ -70,7 +70,7 @@ def test_headers_collection(tracer):
     # request headers are always needed
     assert gateway.is_needed(Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
 
-    class Config:
+    class Config(object):
         def __init__(self):
             self.is_header_tracing_configured = False
 
