@@ -97,7 +97,7 @@ def get_request_uri(request):
     else:
         try:
             # Try to build host how Django would have
-            # https://github.com/django/django/blob/e8d0d2a5efc8012dcc8bf1809dec065ebde64c81/django/http/request.py#L85-L102
+            # https://github.com/django/django/blob/XX/django/http/request.py#L85-L102
             if "HTTP_HOST" in request.META:
                 host = request.META["HTTP_HOST"]
             else:
@@ -220,7 +220,7 @@ def _after_request_tags(pin, span, request, response):
         if user is not None:
             # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
             # Django's get_user_model():
-            # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
+            # https://github.com/django/django/blob/XXX/django/contrib/auth/__init__.py
             try:
                 if hasattr(user, "is_authenticated"):
                     span._set_str_tag("django.user.is_authenticated", str(user_is_authenticated(user)))
@@ -287,15 +287,15 @@ def _after_request_tags(pin, span, request, response):
                 config.django,
                 method=request.method,
                 url=url,
-                raw_uri=request.build_absolute_uri(),
+                # raw_uri=request.build_absolute_uri(),
                 status_code=status,
                 query=request.META.get("QUERY_STRING", None),
-                query_object=request.GET.dict(),
+                # query_object=request.GET.dict(),
                 request_headers=request_headers,
-                format_request_headers=dict,
+                # format_request_headers=dict,
                 response_headers=response_headers,
-                format_response_headers=dict,
-                request_cookies=request.COOKIES,
+                # format_response_headers=dict,
+                # request_cookies=request.COOKIES,
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
