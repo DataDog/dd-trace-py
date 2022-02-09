@@ -32,13 +32,6 @@ from ._asyncio import DdtraceProfilerEventLoopPolicy
 LOG = logging.getLogger(__name__)
 
 
-def _get_service_name():
-    for service_name_var in ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"):
-        service_name = os.environ.get(service_name_var)
-        if service_name is not None:
-            return service_name
-
-
 class Profiler(object):
     """Run profiling while code is executed.
 
@@ -118,7 +111,7 @@ class _ProfilerInstance(service.Service):
 
     # User-supplied values
     url = attr.ib(default=None)
-    service = attr.ib(factory=_get_service_name)
+    service = attr.ib(factory=lambda: os.environ.get("DD_SERVICE"))
     tags = attr.ib(factory=dict)
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
