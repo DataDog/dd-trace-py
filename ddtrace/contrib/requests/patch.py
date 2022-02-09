@@ -33,13 +33,6 @@ def patch():
     _w("requests", "Session.send", _wrap_send)
     Pin(app="requests", _config=config.requests).onto(requests.Session)
 
-    # [Backward compatibility]: `session.distributed_tracing` should point and
-    # update the `Pin` configuration instead. This block adds a property so that
-    # old implementations work as expected
-    fn = property(_distributed_tracing)
-    fn = fn.setter(_distributed_tracing_setter)
-    requests.Session.distributed_tracing = fn
-
 
 def unpatch():
     """Disable traced sessions"""
