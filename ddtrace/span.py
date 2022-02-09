@@ -67,7 +67,7 @@ class Span(object):
         "parent_id",
         "_meta",
         "error",
-        "metrics",
+        "_metrics",
         "_span_type",
         "start_ns",
         "duration_ns",
@@ -139,7 +139,7 @@ class Span(object):
         # tags / metadata
         self._meta = {}  # type: _MetaDictType
         self.error = 0
-        self.metrics = {}  # type: _MetricDictType
+        self._metrics = {}  # type: _MetricDictType
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
@@ -324,8 +324,8 @@ class Span(object):
 
         try:
             self._meta[key] = stringify(value)
-            if key in self.metrics:
-                del self.metrics[key]
+            if key in self._metrics:
+                del self._metrics[key]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -418,7 +418,18 @@ class Span(object):
 
         if key in self._meta:
             del self._meta[key]
-        self.metrics[key] = value
+        self._metrics[key] = value
+
+    @removed_property(
+        message="Use Span.get_metric or Span.set_metric instead.",
+        removal_version="1.0.0",
+    )
+    def metrics(self):
+        return self._metrics
+
+    @metrics.setter  # type: ignore[no-redef]
+    def metrics(self, value):
+        self._metrics = value
 
     def set_metrics(self, metrics):
         # type: (_MetricDictType) -> None
@@ -428,7 +439,11 @@ class Span(object):
 
     def get_metric(self, key):
         # type: (_TagNameType) -> Optional[NumericType]
-        return self.metrics.get(key)
+        return self._metrics.get(key)
+
+    def _get_metrics(self):
+        # type: () -> _MetricDictType
+        return self._metrics.copy()
 
     def to_dict(self):
         # type: () -> Dict[str, Any]
@@ -458,8 +473,8 @@ class Span(object):
         if self._meta:
             d["meta"] = self._meta
 
-        if self.metrics:
-            d["metrics"] = self.metrics
+        if self._metrics:
+            d["metrics"] = self._metrics
 
         if self.span_type:
             d["type"] = self.span_type
@@ -530,7 +545,7 @@ class Span(object):
             ("duration", self.duration),
             ("error", self.error),
             ("tags", dict(sorted(self._meta.items()))),
-            ("metrics", dict(sorted(self.metrics.items()))),
+            ("metrics", dict(sorted(self._metrics.items()))),
         ]
         return " ".join(
             # use a large column width to keep pprint output on one line
