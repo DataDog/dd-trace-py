@@ -82,9 +82,9 @@ def test_headers_collection(tracer):
             raw_uri="http://example.com/.git",
             status_code="404",
             request_headers={
-                'hello': 'world',
-                'accept': 'something',
-                'x-Forwarded-for': '127.0.0.1',
+                "hello": "world",
+                "accept": "something",
+                "x-Forwarded-for": "127.0.0.1",
             }
         )
 
