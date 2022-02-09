@@ -9,8 +9,6 @@ from ...internal.utils.formats import asbool
 from ...pin import Pin
 from ..trace_utils import unwrap as _u
 from .connection import _wrap_send
-from .legacy import _distributed_tracing
-from .legacy import _distributed_tracing_setter
 
 
 # requests default settings
