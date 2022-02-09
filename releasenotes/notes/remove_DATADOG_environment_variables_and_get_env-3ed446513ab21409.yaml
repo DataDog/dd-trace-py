@@ -2,5 +2,5 @@
 upgrade:
   - |
     The tracer will no longer accept any environment variables prefixed with ``DATADOG_``. All environment variables should be updated to start with ``DD_`` which is the correct prefix.
-    In addition the following environment variables were removed: ``DD_LOGGING_RATE_LIMIT``, ``DD_TRACER_PARTIAL_FLUSH_ENABLED``, ``DD_TRACER_PARTIAL_FLUSH_MIN_SPANS`` . 
-    Please use ``DD_TRACE_LOGGING_RATE``, ``DD_TRACE_PARTIAL_FLUSH_ENABLED``, ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS`` respectively, instad.
+    In addition, the following environment variables were removed: ``DD_LOGGING_RATE_LIMIT``, ``DD_TRACER_PARTIAL_FLUSH_ENABLED``, ``DD_TRACER_PARTIAL_FLUSH_MIN_SPANS`` . 
+    Please use: ``DD_TRACE_LOGGING_RATE``, ``DD_TRACE_PARTIAL_FLUSH_ENABLED``, ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS`` respectively, instead.
