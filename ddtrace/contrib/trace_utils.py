@@ -302,22 +302,22 @@ def set_http_meta(
         return
 
     data = {}
-    _add_if_needed(gateway, data, raw_uri, ADDRESSES.SERVER_REQUEST_URI_RAW)
-    _add_if_needed(gateway, data, status_code, ADDRESSES.SERVER_RESPONSE_STATUS, str)  # make sure it's a string
-    _add_if_needed(gateway, data, query_object, ADDRESSES.SERVER_REQUEST_QUERY, format_query_object)
-    _add_if_needed(gateway, data, request_cookies, ADDRESSES.SERVER_REQUEST_COOKIES)
-    _add_if_needed(gateway, data, request_headers, ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
-    req_cookies_key = ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value
+    _add_if_needed(gateway, data, raw_uri, Addresses.SERVER_REQUEST_URI_RAW)
+    _add_if_needed(gateway, data, status_code, Addresses.SERVER_RESPONSE_STATUS, str)  # make sure it's a string
+    _add_if_needed(gateway, data, query_object, Addresses.SERVER_REQUEST_QUERY, format_query_object)
+    _add_if_needed(gateway, data, request_cookies, Addresses.SERVER_REQUEST_COOKIES)
+    _add_if_needed(gateway, data, request_headers, Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
+    req_cookies_key = Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value
     if req_cookies_key in data and "cookies" in data[req_cookies_key]:
         del data[req_cookies_key]["cookies"]
     _add_if_needed(
-        gateway, data, response_headers, ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers
+        gateway, data, response_headers, Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers
     )
-    res_cookies_key = ADDRESSES.SERVER_RESPONSE_HEADERS_NO_COOKIES.value
+    res_cookies_key = Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES.value
     if res_cookies_key in data and "cookies" in data[res_cookies_key]:
         del data[res_cookies_key]["cookies"]
-    _add_if_needed(gateway, data, request_body, ADDRESSES.SERVER_REQUEST_BODY, format_request_body)
-    _add_if_needed(gateway, data, request_path_params, ADDRESSES.SERVER_REQUEST_PATH_PARAMS, format_request_path_params)
+    _add_if_needed(gateway, data, request_body, Addresses.SERVER_REQUEST_BODY, format_request_body)
+    _add_if_needed(gateway, data, request_path_params, Addresses.SERVER_REQUEST_PATH_PARAMS, format_request_path_params)
 
     if len(data.keys()) == 0:
         return

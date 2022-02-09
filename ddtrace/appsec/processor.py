@@ -33,15 +33,16 @@ COLLECTED_REQUEST_HEADERS = {"accept", "accept-encoding", "accept-language", "co
                              "user-agent", "via", "x-client-ip", "x-cluster-client-ip", "x-forwarded",
                              "x-forwarded-for", "x-real-ip"}
 
+COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 def _set_headers(span, headers):
     for k in headers:
         if k in COLLECTED_REQUEST_HEADERS:
-            span._set_str_tag(k, headers[k])
-            return
+            span._set_str_tag(COLLECTED_HEADER_PREFIX + k.lower(), headers[k])
+            continue
         low = k.lower()
         if low in COLLECTED_REQUEST_HEADERS:
-            span._set_str_tag(low, headers[k])
+            span._set_str_tag(COLLECTED_HEADER_PREFIX + low, headers[k])
             COLLECTED_REQUEST_HEADERS.add(k)
 
 
@@ -93,7 +94,7 @@ class AppSecSpanProcessor(SpanProcessor):
         for address in self._ddwaf.required_data:
             gateway.mark_needed(address)
         # we always need the request headers
-        gateway.mark_needed(ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
+        gateway.mark_needed(Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
 
     def on_span_start(self, span):
         # type: (Span) -> None
@@ -109,11 +110,11 @@ class AppSecSpanProcessor(SpanProcessor):
         if "kept_addresses" not in store:
             return
         data = store["kept_addresses"]
-        if ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value in data:
-            _set_headers(span, data[ADDRESSES.SERVER_REQUEST_HEADERS_NO_COOKIES.value])
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data)  # res is a serialized json
         if res is not None:
+            if Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value in data:
+                _set_headers(span, data[Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value])
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span._set_str_tag("appsec.event", "true")

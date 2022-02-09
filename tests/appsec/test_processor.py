@@ -7,6 +7,7 @@ from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import priority
+from ddtrace.gateway import Addresses
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -61,3 +62,26 @@ def test_valid_json(tracer):
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+
+def test_headers_collection(tracer):
+    tracer._initialize_span_processors(appsec_enabled=True)
+    gateway = tracer.gateway
+    # request headers are always needed
+    assert gateway.is_needed(Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
+
+    class Config:
+        def __init__(self):
+            self.is_header_tracing_configured = False
+
+    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+
+        set_http_meta(span, Config(), raw_uri="http://example.com/.git", status_code="404", request_headers={
+            'hello': 'world',
+            'accept': 'something',
+            'x-Forwarded-for': '127.0.0.1',
+        })
+
+    assert span.get_tag('http.request.headers.hello') is None
+    assert span.get_tag('http.request.headers.accept') == 'something'
+    assert span.get_tag('http.request.headers.x-forwarded-for') == '127.0.0.1'
