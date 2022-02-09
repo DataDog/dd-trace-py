@@ -91,11 +91,11 @@ class SpanTestCase(TracerTestCase):
 
         s.set_tag("test", "value")
         assert s._get_tags() == dict(test="value")
-        assert s.metrics == dict()
+        assert s._get_metrics() == dict()
 
         s.set_tag("test", 1)
         assert s._get_tags() == dict()
-        assert s.metrics == dict(test=1)
+        assert s._get_metrics() == dict(test=1)
 
     def test_set_valid_metrics(self):
         s = Span(tracer=None, name="test.span")
