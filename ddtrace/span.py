@@ -38,8 +38,6 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
-from .internal.utils.deprecation import deprecated
-from .vendor.debtcollector.removals import removed_property
 
 
 _TagNameType = Union[Text, bytes]
@@ -346,31 +344,9 @@ class Span(object):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
-    @removed_property(
-        message="Use Span.set_tag, Span.set_tags or Span.get_tag methods instead.",
-        removal_version="1.0.0",
-    )
-    def meta(self):
-        return self._meta
-
-    @meta.setter  # type: ignore[no-redef]
-    def meta(self, value):
-        self._meta = value
-
-    @deprecated(message="Span.set_meta will be removed. Use Span.set_tag.", version="1.0.0")
-    def set_meta(self, k, v):
-        # type: (_TagNameType, NumericType) -> None
-        self.set_tag(k, v)
-
-    @deprecated(message="Span.set_metas will be removed. Use Span.set_tags.", version="1.0.0")
-    def set_metas(self, kvs):
-        # type: (_MetaDictType) -> None
-        self.set_tags(kvs)
-
     def set_metric(self, key, value):
         # type: (_TagNameType, NumericType) -> None
-        # This method sets a numeric tag value for the given key. It acts
-        # like `set_meta()` and it simply add a tag without further processing.
+        # This method sets a numeric tag value for the given key.
 
         # Enforce a specific connstant for `_dd.measured`
         if key == SPAN_MEASURED_KEY:
@@ -399,17 +375,6 @@ class Span(object):
         if key in self._meta:
             del self._meta[key]
         self._metrics[key] = value
-
-    @removed_property(
-        message="Use Span.get_metric or Span.set_metric instead.",
-        removal_version="1.0.0",
-    )
-    def metrics(self):
-        return self._metrics
-
-    @metrics.setter  # type: ignore[no-redef]
-    def metrics(self, value):
-        self._metrics = value
 
     def set_metrics(self, metrics):
         # type: (_MetricDictType) -> None
@@ -504,10 +469,6 @@ class Span(object):
         self._remove_tag(ERROR_MSG)
         self._remove_tag(ERROR_TYPE)
         self._remove_tag(ERROR_STACK)
-
-    @deprecated(message="Span.pprint will be removed.", version="1.0.0")
-    def pprint(self):
-        return self._pprint()
 
     def _pprint(self):
         # type: () -> str
