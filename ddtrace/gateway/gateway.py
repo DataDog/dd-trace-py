@@ -1,5 +1,7 @@
-import attr
 from typing import TYPE_CHECKING
+
+import attr
+
 
 if TYPE_CHECKING:
     from ddtrace.span import SpanStore
