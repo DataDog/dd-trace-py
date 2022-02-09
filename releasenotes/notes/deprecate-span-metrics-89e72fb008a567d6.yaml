@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    :py:attr:`ddtrace.Span.metrics` is deprecated. Use :py:meth:`ddtrace.Span.get_metric` and :py:meth:`ddtrace.Span.set_metric` instead.

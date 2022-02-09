@@ -1,11 +1,9 @@
 import logging
 
 import mock
-from pytest import warns
 
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.deprecation import RemovedInDDTrace10Warning
 from tests.utils import BaseTestCase
 
 

@@ -321,7 +321,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         span_type=SpanTypes.WEB,
     ) as span:
         utils._before_request_tags(pin, span, request)
-        span.metrics[SPAN_MEASURED_KEY] = 1
+        span._metrics[SPAN_MEASURED_KEY] = 1
 
         response = None
         try:

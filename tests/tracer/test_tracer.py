@@ -301,7 +301,7 @@ class TracerTestCases(TracerTestCase):
         # a weird case where manually calling finish with an unserializable
         # span was causing an loop of serialization.
         with self.trace("parent") as span:
-            span.metrics["as"] = np.int64(1)  # circumvent the data checks
+            span._metrics["as"] = np.int64(1)  # circumvent the data checks
             span.finish()
 
     def test_tracer_disabled_mem_leak(self):
@@ -1208,13 +1208,6 @@ class TestPartialFlush(TracerTestCase):
         self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
         self.test_partial_flush()
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
-    )
-    def test_enable_partial_flush_with_deprecated_config(self):
-        # Test tracer with deprecated configs D_TRACER_...
-        self._test_partial_flush()
-
     def _test_partial_flush(self):
         root = self.tracer.trace("root")
         for i in range(5):
@@ -1279,8 +1272,8 @@ def test_ctx(tracer, test_spans):
     assert s3.parent_id == s2.span_id
     assert s4.parent_id == s1.span_id
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
-    assert s1.metrics[SAMPLING_PRIORITY_KEY] == 1
-    assert SAMPLING_PRIORITY_KEY not in s2.metrics
+    assert s1.get_metric(SAMPLING_PRIORITY_KEY) == 1
+    assert s2.get_metric(SAMPLING_PRIORITY_KEY) is None
     assert ORIGIN_KEY not in s1._get_tags()
 
     t = test_spans.pop_traces()
@@ -1355,7 +1348,7 @@ def test_ctx_distributed(tracer, test_spans):
 
     trace = test_spans.pop_traces()
     assert len(trace) == 1
-    assert s2.metrics[SAMPLING_PRIORITY_KEY] == 2
+    assert s2.get_metric(SAMPLING_PRIORITY_KEY) == 2
     assert s2.get_tag(ORIGIN_KEY) == "somewhere"
 
 
@@ -1364,14 +1357,14 @@ def test_manual_keep(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_KEEP
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_KEEP
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
 
 
 def test_manual_keep_then_drop(tracer, test_spans):
@@ -1381,7 +1374,7 @@ def test_manual_keep_then_drop(tracer, test_spans):
             child.set_tag(MANUAL_KEEP_KEY)
         root.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is USER_REJECT
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
 
 
 def test_manual_drop(tracer, test_spans):
@@ -1389,14 +1382,14 @@ def test_manual_drop(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is priority.USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].metrics[SAMPLING_PRIORITY_KEY] is priority.USER_REJECT
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is priority.USER_REJECT
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
@@ -1552,7 +1545,7 @@ def test_context_priority(tracer, test_spans):
         spans = test_spans.pop()
         assert len(spans) == 1, "trace should be sampled"
         if p in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP]:
-            assert spans[0].metrics[SAMPLING_PRIORITY_KEY] == p
+            assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == p
 
 
 def test_spans_sampled_out(tracer, test_spans):
