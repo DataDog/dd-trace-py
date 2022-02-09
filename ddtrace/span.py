@@ -377,10 +377,12 @@ class Span(object):
     def meta(self, value):
         self._meta = value
 
+    @deprecated(message="Span.set_meta will be removed. Use Span.set_tag.", version="1.0.0")
     def set_meta(self, k, v):
         # type: (_TagNameType, NumericType) -> None
         self.set_tag(k, v)
 
+    @deprecated(message="Span.set_metas will be removed. Use Span.set_tags.", version="1.0.0")
     def set_metas(self, kvs):
         # type: (_MetaDictType) -> None
         self.set_tags(kvs)
