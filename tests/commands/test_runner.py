@@ -450,8 +450,8 @@ def test_info_w_configs():
             DD_TRACE_DEBUG="true",
             DD_LOGS_INJECTION="true",
             DD_AGENT_HOST="168.212.226.204",
-            DD_TRACER_PARTIAL_FLUSH_ENABLED="true",
-            DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="1000",
+            DD_TRACE_PARTIAL_FLUSH_ENABLED="true",
+            DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="1000",
         )
     ):
         p = subprocess.Popen(
