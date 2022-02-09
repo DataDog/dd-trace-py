@@ -3,6 +3,7 @@ import asyncio
 import grpc
 from grpc import aio
 import pytest
+import pytest_asyncio
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -81,20 +82,22 @@ def tracer():
     tracer.pop()
 
 
-@pytest.fixture
-def grpc_server(event_loop, patch_grpc_aio, tracer):
+@pytest_asyncio.fixture
+async def server_target(event_loop, patch_grpc_aio, tracer):
     """Configures grpc server and starts it in pytest-asyncio event loop.
     tracer fixture is imported to make sure the tracer is pinned to the modules.
     """
-    _server = _create_server(_GRPC_PORT)
-    event_loop.create_task(_server.start())
-    yield
-    event_loop.run_until_complete(_server.stop(grace=None))
+    target = f"localhost:{_GRPC_PORT}"
+    _server = _create_server(target)
+    await _server.start()
+    yield target
+    await _server.stop(grace=None)
+    await _server.wait_for_termination()
 
 
-def _create_server(port):
+def _create_server(target):
     _server = aio.server()
-    _server.add_insecure_port("[::]:%d" % (port))
+    _server.add_insecure_port(target)
     add_HelloServicer_to_server(_HelloServicer(), _server)
     return _server
 
@@ -131,9 +134,8 @@ def _check_server_span(span, service, method_name, method_kind):
 
 
 @pytest.mark.asyncio
-async def test_insecure_channel(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
-    async with aio.insecure_channel(target) as channel:
+async def test_insecure_channel(server_target, tracer):
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
@@ -146,10 +148,9 @@ async def test_insecure_channel(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_secure_channel(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_secure_channel(server_target, tracer):
     credentials = grpc.ChannelCredentials(None)
-    async with aio.secure_channel(target, credentials) as channel:
+    async with aio.secure_channel(server_target, credentials) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
@@ -162,7 +163,7 @@ async def test_secure_channel(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_invalid_target(grpc_server, tracer):
+async def test_invalid_target(server_target, tracer):
     target = "localhost:50051"
     async with aio.insecure_channel(target) as channel:
         stub = HelloStub(channel)
@@ -181,9 +182,9 @@ async def test_invalid_target(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_pin_not_activated(grpc_server, tracer):
+async def test_pin_not_activated(server_target, tracer):
     tracer.configure(enabled=False)
-    async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
@@ -195,11 +196,12 @@ async def test_pin_not_activated(grpc_server, tracer):
 async def test_pin_tags_put_in_span(patch_grpc_aio, tracer):
     Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, service="server1")
     Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, tags={"tag1": "server"})
-    _server = _create_server(_GRPC_PORT)
+    target = f"localhost:{_GRPC_PORT}"
+    _server = _create_server(target)
     await _server.start()
 
     Pin.override(constants.GRPC_AIO_PIN_MODULE_CLIENT, tags={"tag2": "client"})
-    async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+    async with aio.insecure_channel(target) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
@@ -216,13 +218,12 @@ async def test_pin_tags_put_in_span(patch_grpc_aio, tracer):
 
 
 @pytest.mark.asyncio
-async def test_pin_can_be_defined_per_channel(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_pin_can_be_defined_per_channel(server_target, tracer):
     Pin.override(constants.GRPC_AIO_PIN_MODULE_CLIENT, service="grpc1")
-    channel1 = aio.insecure_channel(target)
+    channel1 = aio.insecure_channel(server_target)
 
     Pin.override(constants.GRPC_AIO_PIN_MODULE_CLIENT, service="grpc2")
-    channel2 = aio.insecure_channel(target)
+    channel2 = aio.insecure_channel(server_target)
 
     stub1 = HelloStub(channel1)
     await stub1.SayHello(HelloRequest(name="test"))
@@ -248,10 +249,9 @@ async def test_pin_can_be_defined_per_channel(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_analytics_default(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_analytics_default(server_target, tracer):
     credentials = credentials = grpc.ChannelCredentials(None)
-    async with aio.secure_channel(target, credentials) as channel:
+    async with aio.secure_channel(server_target, credentials) as channel:
         stub = HelloStub(channel)
         await stub.SayHello(HelloRequest(name="test"))
 
@@ -266,10 +266,10 @@ async def test_analytics_default(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_analytics_with_rate(grpc_server, tracer):
+async def test_analytics_with_rate(server_target, tracer):
     with override_config("grpc_aio_client", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
         with override_config("grpc_aio_server", dict(analytics_enabled=True, analytics_sample_rate=0.75)):
-            async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            async with aio.insecure_channel(server_target) as channel:
                 stub = HelloStub(channel)
                 await stub.SayHello(HelloRequest(name="test"))
 
@@ -282,10 +282,10 @@ async def test_analytics_with_rate(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_priority_sampling(grpc_server, tracer):
+async def test_priority_sampling(server_target, tracer):
     # DEV: Priority sampling is enabled by default
     # Setting priority sampling reset the writer, we need to re-override it
-    async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         response = await stub.SayHello(HelloRequest(name="propogator"))
 
@@ -299,10 +299,10 @@ async def test_priority_sampling(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_analytics_without_rate(grpc_server, tracer):
+async def test_analytics_without_rate(server_target, tracer):
     with override_config("grpc_aio_client", dict(analytics_enabled=True)):
         with override_config("grpc_aio_server", dict(analytics_enabled=True)):
-            async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            async with aio.insecure_channel(server_target) as channel:
                 stub = HelloStub(channel)
                 await stub.SayHello(HelloRequest(name="test"))
 
@@ -317,8 +317,8 @@ async def test_analytics_without_rate(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_unary_exception(grpc_server, tracer):
-    async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+async def test_unary_exception(server_target, tracer):
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
 
         with pytest.raises(grpc.RpcError):
@@ -343,8 +343,8 @@ async def test_unary_exception(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_unary_cancellation(grpc_server, tracer):
-    async with aio.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+async def test_unary_cancellation(server_target, tracer):
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         call = stub.SayHello(HelloRequest(name="exception"))
         call.cancel()
@@ -355,9 +355,8 @@ async def test_unary_cancellation(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_server_streaming(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
-    async with aio.insecure_channel(target) as channel:
+async def test_server_streaming(server_target, tracer):
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         response_counts = 0
         async for response in stub.SayHelloTwice(HelloRequest(name="test")):
@@ -377,9 +376,8 @@ async def test_server_streaming(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_server_streaming_exception(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
-    async with aio.insecure_channel(target) as channel:
+async def test_server_streaming_exception(server_target, tracer):
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         with pytest.raises(aio.AioRpcError):
             async for _ in stub.SayHelloTwice(HelloRequest(name="exception")):
@@ -404,9 +402,8 @@ async def test_server_streaming_exception(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_server_streaming_cancelled_before_rpc(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
-    async with aio.insecure_channel(target) as channel:
+async def test_server_streaming_cancelled_before_rpc(server_target, tracer):
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         call = stub.SayHelloTwice(HelloRequest(name="test"))
         assert call.cancel()
@@ -420,9 +417,8 @@ async def test_server_streaming_cancelled_before_rpc(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_server_streaming_cancelled_during_rpc(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
-    async with aio.insecure_channel(target) as channel:
+async def test_server_streaming_cancelled_during_rpc(server_target, tracer):
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         call = stub.SayHelloTwice(HelloRequest(name="test"))
         with pytest.raises(asyncio.CancelledError):
@@ -444,9 +440,8 @@ async def test_server_streaming_cancelled_during_rpc(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_server_streaming_cancelled_after_rpc(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
-    async with aio.insecure_channel(target) as channel:
+async def test_server_streaming_cancelled_after_rpc(server_target, tracer):
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         call = stub.SayHelloTwice(HelloRequest(name="test"))
         response_counts = 0
@@ -469,11 +464,9 @@ async def test_server_streaming_cancelled_after_rpc(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
->>>>>>> 83baf7d7 (Add implementation and tests for stream response RPCs)
-async def test_client_streaming(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_client_streaming(server_target, tracer):
     request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
-    async with aio.insecure_channel(target) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         response = await stub.SayHelloLast(request_iterator)
         assert response.message == "first;second"
@@ -487,10 +480,9 @@ async def test_client_streaming(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_client_streaming_exception(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_client_streaming_exception(server_target, tracer):
     request_iterator = iter(HelloRequest(name=name) for name in ["exception", "test"])
-    async with aio.insecure_channel(target) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         with pytest.raises(aio.AioRpcError):
             await stub.SayHelloLast(request_iterator)
@@ -514,10 +506,9 @@ async def test_client_streaming_exception(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_client_streaming_cancelled_before_rpc(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_client_streaming_cancelled_before_rpc(server_target, tracer):
     request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
-    async with aio.insecure_channel(target) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         call = stub.SayHelloLast(request_iterator)
         assert call.cancel()
@@ -530,10 +521,9 @@ async def test_client_streaming_cancelled_before_rpc(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_client_streaming_cancelled_after_rpc(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_client_streaming_cancelled_after_rpc(server_target, tracer):
     request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
-    async with aio.insecure_channel(target) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         call = stub.SayHelloLast(request_iterator)
         await call
@@ -546,16 +536,13 @@ async def test_client_streaming_cancelled_after_rpc(grpc_server, tracer):
     # No error because cancelled after execution
     _check_client_span(client_span, "grpc-aio-client", "SayHelloLast", "client_streaming")
     _check_server_span(server_span, "grpc-aio-server", "SayHelloLast", "client_streaming")
-<<<<<<< HEAD
-=======
 
 
 @pytest.mark.asyncio
-async def test_bidi_streaming(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_bidi_streaming(server_target, tracer):
     names = ["Alice", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
-    async with aio.insecure_channel(target) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         response_counts = 0
         async for response in stub.SayHelloRepeatedly(request_iterator):
@@ -575,11 +562,10 @@ async def test_bidi_streaming(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_bidi_streaming_exception(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_bidi_streaming_exception(server_target, tracer):
     names = ["Alice", "exception", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
-    async with aio.insecure_channel(target) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         with pytest.raises(aio.AioRpcError):
             async for _ in stub.SayHelloRepeatedly(request_iterator):
@@ -604,11 +590,10 @@ async def test_bidi_streaming_exception(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_bidi_streaming_cancelled_before_rpc(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_bidi_streaming_cancelled_before_rpc(server_target, tracer):
     names = ["Alice", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
-    async with aio.insecure_channel(target) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         call = stub.SayHelloRepeatedly(request_iterator)
         assert call.cancel()
@@ -622,11 +607,10 @@ async def test_bidi_streaming_cancelled_before_rpc(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_bidi_streaming_cancelled_during_rpc(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_bidi_streaming_cancelled_during_rpc(server_target, tracer):
     names = ["Alice", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
-    async with aio.insecure_channel(target) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         call = stub.SayHelloRepeatedly(request_iterator)
         with pytest.raises(asyncio.CancelledError):
@@ -652,11 +636,10 @@ async def test_bidi_streaming_cancelled_during_rpc(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
-async def test_bidi_streaming_cancelled_after_rpc(grpc_server, tracer):
-    target = "localhost:%d" % (_GRPC_PORT)
+async def test_bidi_streaming_cancelled_after_rpc(server_target, tracer):
     names = ["Alice", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
-    async with aio.insecure_channel(target) as channel:
+    async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
         call = stub.SayHelloRepeatedly(request_iterator)
         response_counts = 0
