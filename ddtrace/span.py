@@ -55,6 +55,16 @@ _MetricDictType = Dict[_TagNameType, NumericType]
 log = get_logger(__name__)
 
 
+class SpanStore(object):
+
+    __slots__ = [
+        "kept_addresses"
+    ]
+
+    def __init__(self):
+        self.kept_addresses = {}  # type: Dict
+
+
 class Span(object):
 
     __slots__ = [
@@ -141,7 +151,7 @@ class Span(object):
         self._meta = {}  # type: _MetaDictType
         self.error = 0
         self.metrics = {}  # type: _MetricDictType
-        self.store = {}  # type: Dict
+        self.store = SpanStore()  # type: SpanStore
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int

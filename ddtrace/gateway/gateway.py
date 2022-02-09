@@ -24,8 +24,6 @@ class Gateway(object):
 
     def propagate(self, store, data):
         # type: (dict, dict) -> None
-        if "kept_addresses" not in store:
-            store["kept_addresses"] = {}
         for key in data.keys():
             if key in self._addresses_to_keep:
-                store["kept_addresses"][key] = data[key]
+                store.kept_addresses[key] = data[key]

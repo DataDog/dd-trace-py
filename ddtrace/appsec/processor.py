@@ -107,9 +107,7 @@ class AppSecSpanProcessor(SpanProcessor):
         span.set_metric("_dd.appsec.enabled", 1.0)
         span._set_str_tag("_dd.runtime_family", "python")
         store = span.store  # since we are on the 'web' span, the store is here!
-        if "kept_addresses" not in store:
-            return
-        data = store["kept_addresses"]
+        data = store.kept_addresses
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data)  # res is a serialized json
         if res is not None:
