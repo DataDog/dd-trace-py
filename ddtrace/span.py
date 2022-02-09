@@ -40,7 +40,6 @@ from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
 from .internal.utils.deprecation import deprecated
-from .vendor.debtcollector.removals import removed_property
 
 
 if TYPE_CHECKING:
@@ -356,17 +355,6 @@ class Span(object):
             for k, v in iter(tags.items()):
                 self.set_tag(k, v)
 
-    @removed_property(
-        message="Use Span.set_tag, Span.set_tags or Span.get_tag methods instead.",
-        removal_version="1.0.0",
-    )
-    def meta(self):
-        return self._meta
-
-    @meta.setter  # type: ignore[no-redef]
-    def meta(self, value):
-        self._meta = value
-
     def set_meta(self, k, v):
         # type: (_TagNameType, NumericType) -> None
         self.set_tag(k, v)
@@ -407,17 +395,6 @@ class Span(object):
         if key in self._meta:
             del self._meta[key]
         self._metrics[key] = value
-
-    @removed_property(
-        message="Use Span.get_metric or Span.set_metric instead.",
-        removal_version="1.0.0",
-    )
-    def metrics(self):
-        return self._metrics
-
-    @metrics.setter  # type: ignore[no-redef]
-    def metrics(self, value):
-        self._metrics = value
 
     def set_metrics(self, metrics):
         # type: (_MetricDictType) -> None
