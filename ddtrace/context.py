@@ -138,3 +138,14 @@ class Context(object):
         )
 
     __str__ = __repr__
+
+    def __getstate__(self):
+        return {
+            "trace_id": self.trace_id,
+            "span_id": self.span_id,
+            "_meta": self._meta.copy(),
+            "_metrics": self._metrics.copy(),
+        }
+
+    def __setstate__(self, state):
+        pass

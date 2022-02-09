@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Make ``Context`` pickleable again.

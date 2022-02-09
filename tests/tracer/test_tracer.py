@@ -1740,3 +1740,27 @@ def test_tracer_memory_leak_span_processors(enabled):
     # Force gc
     gc.collect()
     assert len(spans) == 0
+
+
+def _multiprocess_context_test_task(ctx, span_id, trace_id, sampling_priority, origin):
+    # Multiprocessing tasks have to be defined at the top level of a module
+    tracer = Tracer()
+    span = tracer.start_span("child", child_of=ctx)
+    span.finish()
+    assert span.parent_id == span_id
+    assert span.trace_id == trace_id
+    assert span.context.sampling_priority == sampling_priority
+    assert span.context.dd_origin == origin
+
+
+def test_multiprocess_context():
+    """Ensure that the context can be propagated across process boundaries."""
+    tracer = Tracer()
+    with tracer.trace("main") as span:
+        span.context.sampling_priority = USER_REJECT
+        span.context.dd_origin = "custom"
+        p = multiprocessing.Process(
+            target=_multiprocess_context_test_task,
+            args=(span.context, span.span_id, span.trace_id, USER_REJECT, "custom"),
+        )
+        p.run()
