@@ -680,7 +680,7 @@ class Tracer(object):
                 from .appsec.processor import AppSecSpanProcessor
 
                 appsec_span_processor = AppSecSpanProcessor()
-                self._span_processors.append(appsec_span_processor)
+                self._span_processors.insert(0, appsec_span_processor)
             except Exception as e:
                 # DDAS-001-01
                 log.error(
