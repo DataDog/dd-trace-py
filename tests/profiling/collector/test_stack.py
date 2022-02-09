@@ -12,11 +12,11 @@ import six
 
 from ddtrace.internal import compat
 from ddtrace.internal import nogevent
+from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event as event_mod
 from ddtrace.profiling import profiler
 from ddtrace.profiling import recorder
-from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
 

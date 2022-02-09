@@ -291,8 +291,8 @@ setup(
                 language="c",
             ),
             Cython.Distutils.Extension(
-                "ddtrace.profiling.collector._threading",
-                sources=["ddtrace/profiling/collector/_threading.pyx"],
+                "ddtrace.profiling._threading",
+                sources=["ddtrace/profiling/_threading.pyx"],
                 language="c",
             ),
             Cython.Distutils.Extension(

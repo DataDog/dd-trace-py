@@ -322,29 +322,29 @@ def test_set_http_meta(span, int_config, method, url, status_code, status_msg, q
         request_headers=request_headers,
     )
     if method is not None:
-        assert span.meta[http.METHOD] == method
+        assert span.get_tag(http.METHOD) == method
     else:
-        assert http.METHOD not in span.meta
+        assert http.METHOD not in span._get_tags()
 
     if url is not None:
-        assert span.meta[http.URL] == stringify(url)
+        assert span.get_tag(http.URL) == stringify(url)
     else:
-        assert http.URL not in span.meta
+        assert http.URL not in span._get_tags()
 
     if status_code is not None:
-        assert span.meta[http.STATUS_CODE] == str(status_code)
+        assert span.get_tag(http.STATUS_CODE) == str(status_code)
         if 500 <= int(status_code) < 600:
             assert span.error == 1
         else:
             assert span.error == 0
     else:
-        assert http.STATUS_CODE not in span.meta
+        assert http.STATUS_CODE not in span._get_tags()
 
     if status_msg is not None:
-        assert span.meta[http.STATUS_MSG] == stringify(status_msg)
+        assert span.get_tag(http.STATUS_MSG) == stringify(status_msg)
 
     if query is not None and int_config.trace_query_string:
-        assert span.meta[http.QUERY_STRING] == query
+        assert span.get_tag(http.QUERY_STRING) == query
 
     if request_headers is not None:
         for header, value in request_headers.items():
@@ -386,7 +386,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
         request_headers={"HTTP_REQUEST_HEADER", "value"},
         response_headers={"HTTP_RESPONSE_HEADER": "value"},
     )
-    assert list(span.meta.keys()) == [
+    assert list(span._get_tags().keys()) == [
         "runtime-id",
     ]
     mock_store_headers.assert_not_called()
@@ -406,10 +406,10 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
 def test_bad_http_code(mock_log, span, int_config, val, bad):
     trace_utils.set_http_meta(span, int_config, status_code=val)
     if bad:
-        assert http.STATUS_CODE not in span.meta
+        assert http.STATUS_CODE not in span._get_tags()
         mock_log.debug.assert_called_once_with("failed to convert http status code %r to int", val)
     else:
-        assert span.meta[http.STATUS_CODE] == str(val)
+        assert span.get_tag(http.STATUS_CODE) == str(val)
 
 
 @pytest.mark.parametrize(
@@ -546,7 +546,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
         url=FULL_URL,
         status_code=200,
     )
-    assert span.meta[http.URL] == STRIPPED_URL
+    assert span.get_tag(http.URL) == STRIPPED_URL
 
     int_config.trace_query_string = True
     trace_utils.set_http_meta(
@@ -556,7 +556,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
         url=FULL_URL,
         status_code=200,
     )
-    assert span.meta[http.URL] == FULL_URL
+    assert span.get_tag(http.URL) == FULL_URL
 
 
 # This generates a list of (key, value) tuples, with values given by nested
@@ -578,8 +578,8 @@ def test_set_flattened_tags_is_flat(items):
     """Ensure that flattening of a nested dict results in a normalized, 1-level dict"""
     span = Span(None, "test")
     trace_utils.set_flattened_tags(span, items)
-    assert isinstance(span.meta, dict)
-    assert not any(isinstance(v, dict) for v in span.meta.values())
+    assert isinstance(span._get_tags(), dict)
+    assert not any(isinstance(v, dict) for v in span._get_tags().values())
 
 
 def test_set_flattened_tags_keys():
@@ -588,7 +588,7 @@ def test_set_flattened_tags_keys():
     e = dict(A=1, B=2, C_A=3, C_B=4, C_C_A=5, C_C_B=6)
     span = Span(None, "test")
     trace_utils.set_flattened_tags(span, d.items(), sep="_")
-    assert span.metrics == e
+    assert span._get_metrics() == e
 
 
 def test_set_flattened_tags_exclude_policy():
@@ -598,4 +598,4 @@ def test_set_flattened_tags_exclude_policy():
     span = Span(None, "test")
 
     trace_utils.set_flattened_tags(span, d.items(), sep="_", exclude_policy=lambda tag: tag in {"C_A", "C_C"})
-    assert span.metrics == e
+    assert span._get_metrics() == e
