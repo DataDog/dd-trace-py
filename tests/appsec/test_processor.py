@@ -76,11 +76,17 @@ def test_headers_collection(tracer):
 
     with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
 
-        set_http_meta(span, Config(), raw_uri="http://example.com/.git", status_code="404", request_headers={
-            'hello': 'world',
-            'accept': 'something',
-            'x-Forwarded-for': '127.0.0.1',
-        })
+        set_http_meta(
+            span,
+            Config(),
+            raw_uri="http://example.com/.git",
+            status_code="404",
+            request_headers={
+                'hello': 'world',
+                'accept': 'something',
+                'x-Forwarded-for': '127.0.0.1',
+            }
+        )
 
     assert span.get_tag('http.request.headers.hello') is None
     assert span.get_tag('http.request.headers.accept') == 'something'
