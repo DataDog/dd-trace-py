@@ -22,7 +22,7 @@ def test_enable(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
     with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
-    
+
     assert span.get_metric("_dd.appsec.enabled") == 1.0
 
 
@@ -88,6 +88,6 @@ def test_headers_collection(tracer):
             },
         )
 
-    assert span.get_tag('http.request.headers.hello') is None
-    assert span.get_tag('http.request.headers.accept') == 'something'
-    assert span.get_tag('http.request.headers.x-forwarded-for') == '127.0.0.1'
+    assert span.get_tag("http.request.headers.hello") is None
+    assert span.get_tag("http.request.headers.accept") == "something"
+    assert span.get_tag("http.request.headers.x-forwarded-for") == "127.0.0.1"

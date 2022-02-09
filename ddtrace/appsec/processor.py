@@ -28,12 +28,29 @@ def get_rules():
     return get_env("appsec", "rules", default=DEFAULT_RULES)
 
 
-COLLECTED_REQUEST_HEADERS = {"accept", "accept-encoding", "accept-language", "content-encoding", "content-language",
-                             "content-length", "content-type", "forwarded", "forwarded-for", "host", "true-client-ip",
-                             "user-agent", "via", "x-client-ip", "x-cluster-client-ip", "x-forwarded",
-                             "x-forwarded-for", "x-real-ip"}
+COLLECTED_REQUEST_HEADERS = {
+    "accept",
+    "accept-encoding",
+    "accept-language",
+    "content-encoding",
+    "content-language",
+    "content-length",
+    "content-type",
+    "forwarded",
+    "forwarded-for",
+    "host",
+    "true-client-ip",
+    "user-agent",
+    "via",
+    "x-client-ip",
+    "x-cluster-client-ip",
+    "x-forwarded",
+    "x-forwarded-for",
+    "x-real-ip",
+}
 
 COLLECTED_HEADER_PREFIX = "http.request.headers."
+
 
 def _set_headers(span, headers):
     for k in headers:

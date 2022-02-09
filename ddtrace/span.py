@@ -57,9 +57,7 @@ log = get_logger(__name__)
 
 class SpanStore(object):
 
-    __slots__ = [
-        "kept_addresses"
-    ]
+    __slots__ = ["kept_addresses"]
 
     def __init__(self):
         self.kept_addresses = {}  # type: Dict
