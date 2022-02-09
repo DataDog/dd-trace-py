@@ -5,6 +5,7 @@ from typing import Union
 from grpc import aio
 from grpc.aio._typing import RequestIterableType
 from grpc.aio._typing import RequestType
+from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
 from ddtrace import Span
@@ -34,6 +35,27 @@ def create_aio_server_interceptor(pin):
         return rpc_method_handler
 
     return _ServerInterceptor(interceptor_function)
+
+
+async def _wrap_stream_response(
+    behavior,  # type: Callable[[Union[RequestIterableType, RequestType], aio.ServicerContext], ResponseIterableType]
+    request_or_iterator,  # type: Union[RequestIterableType, RequestType]
+    servicer_context,  # type: aio.ServicerContext
+    span,  # type: Span
+):
+    # type: (...) -> None
+    try:
+        call = behavior(request_or_iterator, servicer_context)
+        async for response in call:
+            yield response
+    except Exception:
+        span.set_traceback()
+        # https://github.com/grpc/grpc/issues/27409 there seems to be a bug with
+        # accessing code and details from server side context
+        span.error = 1
+        raise
+    finally:
+        span.finish()
 
 
 async def _wrap_unary_response(
@@ -93,14 +115,18 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         return await _wrap_unary_response(self.__wrapped__.unary_unary, args[0], args[1], span)
 
     async def unary_stream(self, *args, **kwargs):
-        return await self._fn(constants.GRPC_METHOD_KIND_SERVER_STREAMING, self.__wrapped__.unary_stream, args, kwargs)
+        span = self._create_span(constants.GRPC_METHOD_KIND_SERVER_STREAMING)
+        async for response in _wrap_stream_response(self.__wrapped__.unary_stream, args[0], args[1], span):
+            yield response
 
     async def stream_unary(self, *args, **kwargs):
         span = self._create_span(constants.GRPC_METHOD_KIND_CLIENT_STREAMING)
         return await _wrap_unary_response(self.__wrapped__.stream_unary, args[0], args[1], span)
 
     async def stream_stream(self, *args, **kwargs):
-        return await self._fn(constants.GRPC_METHOD_KIND_BIDI_STREAMING, self.__wrapped__.stream_stream, args, kwargs)
+        span = self._create_span(constants.GRPC_METHOD_KIND_BIDI_STREAMING)
+        async for response in _wrap_stream_response(self.__wrapped__.stream_stream, args[0], args[1], span):
+            yield response
 
 
 class _ServerInterceptor(aio.ServerInterceptor):

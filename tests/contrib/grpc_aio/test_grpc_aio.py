@@ -38,6 +38,14 @@ class _HelloServicer(HelloServicer):
 
         return HelloReply(message="Hello {}".format(request.name))
 
+    async def SayHelloTwice(self, request, context):
+        yield HelloReply(message="first response")
+
+        if request.name == "exception":
+            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "exception")
+
+        yield HelloReply(message="second response")
+
     async def SayHelloLast(self, request_iterator, context):
         names = []
         async for r in request_iterator:
@@ -47,6 +55,14 @@ class _HelloServicer(HelloServicer):
             names.append(r.name)
 
         return HelloReply(message="{}".format(";".join(names)))
+
+    async def SayHelloRepeatedly(self, request_iterator, context):
+        async for request in request_iterator:
+            if request.name == "exception":
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "exception")
+            else:
+                yield HelloReply(message=f"Hello {request.name}")
+        yield HelloReply(message="Good bye")
 
 
 @pytest.fixture
@@ -339,6 +355,121 @@ async def test_unary_cancellation(grpc_server, tracer):
 
 
 @pytest.mark.asyncio
+async def test_server_streaming(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        response_counts = 0
+        async for response in stub.SayHelloTwice(HelloRequest(name="test")):
+            if response_counts == 0:
+                assert response.message == "first response"
+            elif response_counts == 1:
+                assert response.message == "second response"
+            response_counts += 1
+        assert response_counts == 2
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHelloTwice", "server_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
+
+
+@pytest.mark.asyncio
+async def test_server_streaming_exception(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        with pytest.raises(aio.AioRpcError):
+            async for _ in stub.SayHelloTwice(HelloRequest(name="exception")):
+                pass
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    assert client_span.resource == "/helloworld.Hello/SayHelloTwice"
+    assert client_span.error == 1
+    assert client_span.get_tag(ERROR_MSG) == "exception"
+    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+    assert client_span.get_tag(ERROR_STACK) is None
+
+    assert server_span.resource == "/helloworld.Hello/SayHelloTwice"
+    assert server_span.error == 1
+    assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
+    assert "AbortError" in server_span.get_tag(ERROR_TYPE)
+    assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
+    assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
+
+
+@pytest.mark.asyncio
+async def test_server_streaming_cancelled_before_rpc(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        call = stub.SayHelloTwice(HelloRequest(name="test"))
+        assert call.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            async for response in call:
+                pass
+
+    # No span because the call is cancelled before execution
+    spans = tracer.writer.spans
+    assert len(spans) == 0
+
+
+@pytest.mark.asyncio
+async def test_server_streaming_cancelled_during_rpc(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        call = stub.SayHelloTwice(HelloRequest(name="test"))
+        with pytest.raises(asyncio.CancelledError):
+            async for response in call:
+                assert call.cancel()
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    assert client_span.resource == "/helloworld.Hello/SayHelloTwice"
+    assert client_span.error == 1
+    assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
+    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
+    assert client_span.get_tag(ERROR_STACK) is None
+
+    # No error on server end
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
+
+
+@pytest.mark.asyncio
+async def test_server_streaming_cancelled_after_rpc(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        call = stub.SayHelloTwice(HelloRequest(name="test"))
+        response_counts = 0
+        async for response in call:
+            if response_counts == 0:
+                assert response.message == "first response"
+            elif response_counts == 1:
+                assert response.message == "second response"
+            response_counts += 1
+        assert response_counts == 2
+        assert not call.cancel()
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    # No error because cancelled after execution
+    _check_client_span(client_span, "grpc-aio-client", "SayHelloTwice", "server_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
+
+
+@pytest.mark.asyncio
+>>>>>>> 83baf7d7 (Add implementation and tests for stream response RPCs)
 async def test_client_streaming(grpc_server, tracer):
     target = "localhost:%d" % (_GRPC_PORT)
     request_iterator = iter(HelloRequest(name=name) for name in ["first", "second"])
@@ -415,3 +546,133 @@ async def test_client_streaming_cancelled_after_rpc(grpc_server, tracer):
     # No error because cancelled after execution
     _check_client_span(client_span, "grpc-aio-client", "SayHelloLast", "client_streaming")
     _check_server_span(server_span, "grpc-aio-server", "SayHelloLast", "client_streaming")
+<<<<<<< HEAD
+=======
+
+
+@pytest.mark.asyncio
+async def test_bidi_streaming(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    names = ["Alice", "Bob"]
+    request_iterator = iter(HelloRequest(name=name) for name in names)
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        response_counts = 0
+        async for response in stub.SayHelloRepeatedly(request_iterator):
+            if response_counts < len(names):
+                assert response.message == f"Hello {names[response_counts]}"
+            else:
+                assert response.message == "Good bye"
+            response_counts += 1
+        assert response_counts == len(names) + 1
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHelloRepeatedly", "bidi_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
+
+
+@pytest.mark.asyncio
+async def test_bidi_streaming_exception(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    names = ["Alice", "exception", "Bob"]
+    request_iterator = iter(HelloRequest(name=name) for name in names)
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        with pytest.raises(aio.AioRpcError):
+            async for _ in stub.SayHelloRepeatedly(request_iterator):
+                pass
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
+    assert client_span.error == 1
+    assert client_span.get_tag(ERROR_MSG) == "exception"
+    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+    assert client_span.get_tag(ERROR_STACK) is None
+
+    assert server_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
+    assert server_span.error == 1
+    assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
+    assert "AbortError" in server_span.get_tag(ERROR_TYPE)
+    assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
+    assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
+
+
+@pytest.mark.asyncio
+async def test_bidi_streaming_cancelled_before_rpc(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    names = ["Alice", "Bob"]
+    request_iterator = iter(HelloRequest(name=name) for name in names)
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        call = stub.SayHelloRepeatedly(request_iterator)
+        assert call.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            async for response in call:
+                pass
+
+    # No span because the call is cancelled before execution
+    spans = tracer.writer.spans
+    assert len(spans) == 0
+
+
+@pytest.mark.asyncio
+async def test_bidi_streaming_cancelled_during_rpc(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    names = ["Alice", "Bob"]
+    request_iterator = iter(HelloRequest(name=name) for name in names)
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        call = stub.SayHelloRepeatedly(request_iterator)
+        with pytest.raises(asyncio.CancelledError):
+            async for response in call:
+                assert call.cancel()
+                # NOTE: The service-side RPC is still working right after the client-side RPC is cancelled.
+                # Since there is no way to tell whether the server-side RPC is done or not,
+                # here it waits for the server-side RPC to be done.
+                await asyncio.sleep(0.5)
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
+    assert client_span.error == 1
+    assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
+    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
+    assert client_span.get_tag(ERROR_STACK) is None
+
+    # No error on server end
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
+
+
+@pytest.mark.asyncio
+async def test_bidi_streaming_cancelled_after_rpc(grpc_server, tracer):
+    target = "localhost:%d" % (_GRPC_PORT)
+    names = ["Alice", "Bob"]
+    request_iterator = iter(HelloRequest(name=name) for name in names)
+    async with aio.insecure_channel(target) as channel:
+        stub = HelloStub(channel)
+        call = stub.SayHelloRepeatedly(request_iterator)
+        response_counts = 0
+        async for response in call:
+            if response_counts < len(names):
+                assert response.message == f"Hello {names[response_counts]}"
+            else:
+                assert response.message == "Good bye"
+            response_counts += 1
+        assert response_counts == len(names) + 1
+        assert not call.cancel()
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    # No error because cancelled after execution
+    _check_client_span(client_span, "grpc-aio-client", "SayHelloRepeatedly", "bidi_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
