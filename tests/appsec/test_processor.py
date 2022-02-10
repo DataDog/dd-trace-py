@@ -3,7 +3,7 @@ import os.path
 
 import pytest
 
-from ddtrace.appsec._processor import AppSecSpanProcessor
+from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import priority
 from tests.utils import override_env

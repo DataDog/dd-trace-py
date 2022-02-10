@@ -674,7 +674,7 @@ class Tracer(object):
 
         if appsec_enabled:
             try:
-                from .appsec._processor import AppSecSpanProcessor
+                from .appsec.processor import AppSecSpanProcessor
 
                 appsec_span_processor = AppSecSpanProcessor()
                 self._span_processors.append(appsec_span_processor)
