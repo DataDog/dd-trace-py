@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import grpc
 from grpc import aio
@@ -631,8 +632,10 @@ async def test_bidi_streaming_cancelled_during_rpc(server_target, tracer):
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
     assert client_span.get_tag(ERROR_STACK) is None
 
-    # No error on server end
-    _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
+    # NOTE: The server-side RPC throws `concurrent.futures._base.CancelledError`
+    # in old versions of Python, but it's not always so. Thus not checked.
+    if sys.version_info >= (3, 8):
+        _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
 
 
 @pytest.mark.asyncio
