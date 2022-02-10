@@ -287,7 +287,7 @@ def _after_request_tags(pin, span, request, response):
                 config.django,
                 method=request.method,
                 url=url,
-                # raw_uri=request.build_absolute_uri(),
+                raw_uri=url,  # FIXME: this does not contain the querystring - use get_full_path
                 status_code=status,
                 query=request.META.get("QUERY_STRING", None),
                 query_object=request.GET.dict(),
