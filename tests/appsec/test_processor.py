@@ -7,8 +7,8 @@ from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import priority
 from tests.utils import override_env
-from tests.utils import snapshot
 from tests.utils import override_global_config
+from tests.utils import snapshot
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -75,4 +75,3 @@ def test_appsec_span_tags_snapshot(tracer):
         span.set_tag("http.status_code", "404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
-
