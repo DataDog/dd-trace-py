@@ -433,13 +433,11 @@ class TracerTestCases(TracerTestCase):
             name="web.request",
             parent_id=None,
             _parent=None,
-            tracer=self.tracer,
         )
         child.assert_matches(
             name="web.worker",
             parent_id=parent.span_id,
             _parent=parent,
-            tracer=self.tracer,
         )
 
     def test_start_child_span_attributes(self):
@@ -458,7 +456,6 @@ class TracerTestCases(TracerTestCase):
             parent_id=root.span_id,
             trace_id=root.trace_id,
             _parent=None,
-            tracer=self.tracer,
         )
 
     def test_adding_services(self):
@@ -1733,3 +1730,10 @@ def test_tracer_memory_leak_span_processors(enabled):
     # Force gc
     gc.collect()
     assert len(spans) == 0
+
+
+def test_trace_with_tracer():
+    # ensure Tracer.trace() sets tracer property on Span
+    t = Tracer()
+    with t.trace("test span") as span:
+        assert span.tracer == t
