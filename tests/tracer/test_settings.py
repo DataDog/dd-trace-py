@@ -277,18 +277,8 @@ class TestIntegrationConfig(BaseTestCase):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service == "foo-svc"
 
-    @BaseTestCase.run_in_subprocess(env_overrides=dict(DATADOG_FOO_SERVICE="foo-svc"))
-    def test_service_env_var_legacy(self):
-        ic = IntegrationConfig(self.config, "foo")
-        assert ic.service == "foo-svc"
-
     @BaseTestCase.run_in_subprocess(env_overrides=dict(DD_FOO_SERVICE_NAME="foo-svc"))
     def test_service_name_env_var(self):
-        ic = IntegrationConfig(self.config, "foo")
-        assert ic.service == "foo-svc"
-
-    @BaseTestCase.run_in_subprocess(env_overrides=dict(DATADOG_FOO_SERVICE_NAME="foo-svc"))
-    def test_service_name_env_var_legacy(self):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service == "foo-svc"
 

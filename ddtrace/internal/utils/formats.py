@@ -1,13 +1,10 @@
 import logging
-import os
 import re
 from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import TypeVar
 from typing import Union
-
-from .deprecation import deprecation
 
 
 T = TypeVar("T")
@@ -16,46 +13,6 @@ T = TypeVar("T")
 _TAGS_NOT_SEPARATED = re.compile(r":[^,\s]+:")
 
 log = logging.getLogger(__name__)
-
-
-def get_env(*parts, **kwargs):
-    # type: (str, T) -> Union[str, T, None]
-    """Retrieves environment variables value for the given integration. It must be used
-    for consistency between integrations. The implementation is backward compatible
-    with legacy nomenclature:
-
-    * `DATADOG_` is a legacy prefix with lower priority
-    * `DD_` environment variables have the highest priority
-    * the environment variable is built concatenating `integration` and `variable`
-      arguments
-    * return `default` otherwise
-
-    :param parts: environment variable parts that will be joined with ``_`` to generate the name
-    :type parts: :obj:`str`
-    :param kwargs: ``default`` is the only supported keyword argument which sets the default value
-        if no environment variable is found
-    :rtype: :obj:`str` | ``kwargs["default"]``
-    :returns: The string environment variable value or the value of ``kwargs["default"]`` if not found
-    """
-    default = kwargs.get("default")
-
-    key = "_".join(parts)
-    key = key.upper()
-    legacy_env = "DATADOG_{}".format(key)
-    env = "DD_{}".format(key)
-
-    value = os.getenv(env)
-    legacy = os.getenv(legacy_env)
-    if legacy:
-        # Deprecation: `DATADOG_` variables are deprecated
-        deprecation(
-            name="DATADOG_",
-            message="Use `DD_` prefix instead",
-            version="1.0.0",
-        )
-
-    value = value or legacy
-    return value if value else default
 
 
 def deep_getattr(obj, attr_string, default=None):

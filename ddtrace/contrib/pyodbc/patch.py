@@ -1,9 +1,10 @@
+import os
+
 import pyodbc
 
 from ... import Pin
 from ... import config
 from ...internal.utils.formats import asbool
-from ...internal.utils.formats import get_env
 from ..dbapi import TracedConnection
 from ..dbapi import TracedCursor
 from ..trace_utils import unwrap
@@ -15,7 +16,7 @@ config._add(
     dict(
         _default_service="pyodbc",
         _dbapi_span_name_prefix="pyodbc",
-        trace_fetch_methods=asbool(get_env("pyodbc", "trace_fetch_methods", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_PYODBC_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 
