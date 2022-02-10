@@ -1205,13 +1205,6 @@ class TestPartialFlush(TracerTestCase):
         self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
         self.test_partial_flush()
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
-    )
-    def test_enable_partial_flush_with_deprecated_config(self):
-        # Test tracer with deprecated configs D_TRACER_...
-        self._test_partial_flush()
-
     def _test_partial_flush(self):
         root = self.tracer.trace("root")
         for i in range(5):

@@ -1,5 +1,6 @@
 import errno
 import json
+import os
 import os.path
 from typing import TYPE_CHECKING
 
@@ -11,7 +12,6 @@ from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
-from ddtrace.utils.formats import get_env
 
 
 if TYPE_CHECKING:
@@ -24,7 +24,7 @@ log = get_logger(__name__)
 
 
 def get_rules():
-    return get_env("appsec", "rules", default=DEFAULT_RULES)
+    return os.getenv("DD_APPSEC_RULES", default=DEFAULT_RULES)
 
 
 @attr.s(eq=False)
