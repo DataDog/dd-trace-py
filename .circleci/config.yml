@@ -347,6 +347,7 @@ jobs:
     steps:
       - run_test:
           pattern: 'appsec'
+          snapshot: true
 
   tracer:
     <<: *contrib_job
