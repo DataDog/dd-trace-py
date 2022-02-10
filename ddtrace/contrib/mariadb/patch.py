@@ -1,3 +1,5 @@
+import os
+
 import mariadb
 
 from ddtrace import Pin
@@ -6,7 +8,6 @@ from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.formats import get_env
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
 
@@ -14,7 +15,7 @@ from ddtrace.vendor import wrapt
 config._add(
     "mariadb",
     dict(
-        trace_fetch_methods=asbool(get_env("mariadb", "trace_fetch_methods", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_MARIADB_TRACE_FETCH_METHODS", default=False)),
         _default_service="mariadb",
     ),
 )

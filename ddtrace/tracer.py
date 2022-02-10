@@ -17,7 +17,6 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
-from ddtrace.internal.utils.deprecation import deprecation
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -50,7 +49,6 @@ from .internal.processor.trace import TraceTopLevelSpanProcessor
 from .internal.runtime import get_runtime_id
 from .internal.utils.deprecation import deprecated
 from .internal.utils.formats import asbool
-from .internal.utils.formats import get_env
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
@@ -66,7 +64,7 @@ from .vendor.debtcollector import removals
 
 log = get_logger(__name__)
 
-debug_mode = asbool(get_env("trace", "debug", default=False))
+debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
 call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "true"))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
@@ -128,7 +126,7 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = asbool(get_env("trace", "enabled", default=True))
+        self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
         self.context_provider = DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
@@ -150,19 +148,8 @@ class Tracer(object):
             )
         self._writer = writer  # type: TraceWriter
 
-        # DD_TRACER_... should be deprecated after version 1.0.0 is released
-        pfe_default_value = False
-        pfms_default_value = 500
-        if "DD_TRACER_PARTIAL_FLUSH_ENABLED" in os.environ or "DD_TRACER_PARTIAL_FLUSH_MIN_SPANS" in os.environ:
-            deprecation("DD_TRACER_... use DD_TRACE_... instead", version="1.0.0")
-            pfe_default_value = asbool(get_env("tracer", "partial_flush_enabled", default=pfe_default_value))
-            pfms_default_value = int(
-                get_env("tracer", "partial_flush_min_spans", default=pfms_default_value)  # type: ignore[arg-type]
-            )
-        self._partial_flush_enabled = asbool(get_env("trace", "partial_flush_enabled", default=pfe_default_value))
-        self._partial_flush_min_spans = int(
-            get_env("trace", "partial_flush_min_spans", default=pfms_default_value)  # type: ignore[arg-type]
-        )
+        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
+        self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
 
         self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
@@ -662,7 +649,7 @@ class Tracer(object):
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
 
-    def _initialize_span_processors(self, appsec_enabled=asbool(get_env("appsec", "enabled", default=False))):
+    def _initialize_span_processors(self, appsec_enabled=asbool(os.getenv("DD_APPSEC_ENABLED", default=False))):
         # type: (Optional[bool]) -> None
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
