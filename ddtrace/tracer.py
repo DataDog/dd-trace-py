@@ -670,14 +670,7 @@ class Tracer(object):
         trace_processors += [TraceTopLevelSpanProcessor()]
         trace_processors += self._filters
 
-        self._span_processors = [
-            SpanAggregator(
-                partial_flush_enabled=self._partial_flush_enabled,
-                partial_flush_min_spans=self._partial_flush_min_spans,
-                trace_processors=trace_processors,
-                writer=self._writer,
-            ),
-        ]  # type: List[SpanProcessor]
+        self._span_processors = []  # type: List[SpanProcessor]
 
         if appsec_enabled:
             try:
@@ -695,6 +688,15 @@ class Tracer(object):
                 )
                 if config._raise:
                     raise
+
+        self._span_processors.append(
+            SpanAggregator(
+                partial_flush_enabled=self._partial_flush_enabled,
+                partial_flush_min_spans=self._partial_flush_min_spans,
+                trace_processors=trace_processors,
+                writer=self._writer,
+            )
+        )
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
