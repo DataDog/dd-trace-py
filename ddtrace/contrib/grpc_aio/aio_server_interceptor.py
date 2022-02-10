@@ -21,6 +21,7 @@ from ...ext import SpanTypes
 from ..grpc import constants
 from ..grpc.utils import set_grpc_method_meta
 
+
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
 
 
