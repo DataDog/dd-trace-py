@@ -667,21 +667,14 @@ class Tracer(object):
         trace_processors += [TraceTopLevelSpanProcessor()]
         trace_processors += self._filters
 
-        self._span_processors = [
-            SpanAggregator(
-                partial_flush_enabled=self._partial_flush_enabled,
-                partial_flush_min_spans=self._partial_flush_min_spans,
-                trace_processors=trace_processors,
-                writer=self._writer,
-            ),
-        ]  # type: List[SpanProcessor]
+        self._span_processors = [] # type: List[SpanProcessor]
 
         if appsec_enabled:
             try:
-                from .appsec.processor import AppSecSpanProcessor
+                from .appsec._processor import AppSecSpanProcessor
 
                 appsec_span_processor = AppSecSpanProcessor()
-                self._span_processors.insert(0, appsec_span_processor)
+                self._span_processors.append(appsec_span_processor)
             except Exception as e:
                 # DDAS-001-01
                 log.error(
@@ -692,6 +685,13 @@ class Tracer(object):
                 )
                 if config._raise:
                     raise
+
+        self._span_processors.append(SpanAggregator(
+                partial_flush_enabled=self._partial_flush_enabled,
+                partial_flush_min_spans=self._partial_flush_min_spans,
+                trace_processors=trace_processors,
+                writer=self._writer,
+            ))
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

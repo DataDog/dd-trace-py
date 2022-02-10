@@ -3,10 +3,11 @@ import os.path
 
 import pytest
 
-from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import priority
 from tests.utils import override_env
+from tests.utils import snapshot
 from tests.utils import override_global_config
 
 
@@ -63,3 +64,15 @@ def test_valid_json(tracer):
         span.set_tag("http.status_code", "404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+
+@snapshot(include_tracer=True)
+def test_appsec_span_tags_snapshot(tracer):
+    tracer._initialize_span_processors(appsec_enabled=True)
+
+    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+        span.set_tag("http.url", "http://example.com/.git")
+        span.set_tag("http.status_code", "404")
+
+    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
