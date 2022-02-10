@@ -31,7 +31,6 @@ from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
-from ddtrace.tracer import Tracer
 from tests.utils import DummyTracer
 
 
@@ -61,14 +60,13 @@ def rands(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
-    t = Tracer()
 
     root = None
     trace = []
     for i in range(0, nspans):
         parent_id = root.span_id if root else None
         with Span(
-            t,
+            None,
             "span_name",
             resource="/fsdlajfdlaj/afdasd%s" % i,
             service="myservice",

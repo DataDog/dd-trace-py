@@ -14,7 +14,6 @@ from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
-from ddtrace import tracer
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
 from ddtrace.internal.compat import stringify
@@ -42,7 +41,7 @@ def span(tracer):
 class TestHeaders(object):
     @pytest.fixture()
     def span(self):
-        yield Span(tracer, "some_span")
+        yield Span(None, "some_span")
 
     @pytest.fixture()
     def config(self):
