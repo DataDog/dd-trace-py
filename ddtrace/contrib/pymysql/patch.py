@@ -1,3 +1,5 @@
+import os
+
 import pymysql
 
 from ddtrace import Pin
@@ -8,7 +10,6 @@ from ddtrace.vendor import wrapt
 from ...ext import db
 from ...ext import net
 from ...internal.utils.formats import asbool
-from ...internal.utils.formats import get_env
 
 
 config._add(
@@ -17,7 +18,7 @@ config._add(
         # TODO[v1.0] this should be "mysql"
         _default_service="pymysql",
         _dbapi_span_name_prefix="pymysql",
-        trace_fetch_methods=asbool(get_env("pymysql", "trace_fetch_methods", default=False)),
+        trace_fetch_methods=asbool(os.getenv("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 

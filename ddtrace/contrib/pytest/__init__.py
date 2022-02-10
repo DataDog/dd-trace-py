@@ -41,9 +41,9 @@ Global Configuration
    Default: ``"pytest.test"``
 """
 
-from ddtrace import config
+import os
 
-from ...internal.utils.formats import get_env
+from ddtrace import config
 
 
 # pytest default settings
@@ -51,6 +51,6 @@ config._add(
     "pytest",
     dict(
         _default_service="pytest",
-        operation_name=get_env("pytest", "operation_name", default="pytest.test"),
+        operation_name=os.getenv("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
     ),
 )

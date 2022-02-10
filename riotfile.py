@@ -724,8 +724,8 @@ venv = Venv(
                     # TODO: Re-enable coverage for Flask tests
                     command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={"flask": ["~=0.12.0"], "pytest": "~=3.0", "more_itertools": "<8.11.0"},
                 ),
@@ -745,8 +745,8 @@ venv = Venv(
                     # TODO: Re-enable coverage for Flask tests
                     command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
                         "flask": [
@@ -772,8 +772,8 @@ venv = Venv(
                     # TODO: Re-enable coverage for Flask tests
                     command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
                         "flask": [
