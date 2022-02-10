@@ -3,6 +3,7 @@ import re
 import sys
 import time
 from unittest.case import SkipTest
+import warnings
 
 import mock
 import pytest
@@ -155,9 +156,36 @@ class SpanTestCase(TracerTestCase):
         s = Span(tracer=None, name="test.span")
         s.finish()
 
+    def test_init_span_with_tracer(self):
+        with warnings.catch_warnings(record=True) as ws:
+            warnings.simplefilter("always")
+
+            # Initialize Span with tracer
+            Span(self.tracer, "test_span")
+            assert len(ws) == 1
+            assert (
+                str(ws[0].message)
+                == "'ddtrace.Span.tracer' is deprecated and will be remove in future versions (1.0.0)."
+                " Use Span(tracer=None, name, ...) instead."
+            )
+
+    def test_accessing_tracer_from_span(self):
+        with warnings.catch_warnings(record=True) as ws:
+            warnings.simplefilter("always")
+            s = Span(None, "test_span")
+
+            # Assert calling Span.tracer logs a warning
+            assert s.tracer is None
+            assert len(ws) == 1
+            wng = str(ws[0].message)
+            if six.PY3:
+                assert wng == "Reading the 'Span.tracer' property is deprecated and will be removed in version '1.0.0'"
+            else:
+                assert wng == "Reading the 'tracer' property is deprecated and will be removed in version '1.0.0'"
+
     def test_finish_called_multiple_times(self):
         # we should only record a span the first time finish is called on it
-        s = Span(self.tracer, "bar")
+        s = Span(None, "bar")
         s.finish()
         s.finish()
 
@@ -203,7 +231,7 @@ class SpanTestCase(TracerTestCase):
         assert "in test_traceback_without_error" in s.get_tag(ERROR_STACK)
 
     def test_ctx_mgr(self):
-        s = Span(self.tracer, "bar")
+        s = Span(None, "bar")
         assert not s.duration
         assert not s.error
 
@@ -226,7 +254,7 @@ class SpanTestCase(TracerTestCase):
     def test_span_type(self):
         s = Span(tracer=None, name="test.span", service="s", resource="r", span_type=SpanTypes.WEB)
         s.set_tag("a", "1")
-        s.set_meta("b", "2")
+        s.set_tag("b", "2")
         s.finish()
 
         d = s.to_dict()
@@ -243,7 +271,7 @@ class SpanTestCase(TracerTestCase):
         s = Span(tracer=None, name="test.span", service="s", resource="r")
         s.span_type = "foo"
         s.set_tag("a", "1")
-        s.set_meta("b", "2")
+        s.set_tag("b", "2")
         s.finish()
 
         d = s.to_dict()
@@ -262,7 +290,7 @@ class SpanTestCase(TracerTestCase):
         s._parent = parent
         s.span_type = "foo"
         s.set_tag("a", "1")
-        s.set_meta("b", "2")
+        s.set_tag("b", "2")
         s.finish()
 
         d = s.to_dict()
