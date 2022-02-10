@@ -44,8 +44,11 @@ class IntegrationConfig(AttrDict):
         self.setdefault("analytics_enabled", analytics_enabled)
         self.setdefault("analytics_sample_rate", float(analytics_sample_rate))
         service = os.getenv(
-            "DD_{}_SERVICE".format(name.upper()),
-            default=os.getenv("DD_{}_SERVICE_NAME".format(name.upper()), default=None),
+            "DD_%s_SERVICE" % name.upper(),
+            default=os.getenv(
+                "DD_%s_SERVICE_NAME" % name.upper(),
+                default=None,
+            ),
         )
         self.setdefault("service", service)
         # TODO[v1.0]: this is required for backwards compatibility since some
