@@ -66,7 +66,6 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
     for i in range(0, nspans):
         parent_id = root.span_id if root else None
         with Span(
-            None,
             "span_name",
             resource="/fsdlajfdlaj/afdasd%s" % i,
             service="myservice",

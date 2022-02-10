@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Deprecated ``Span.tracer`` property was removed. Deprecated tracer parameter in :py:meth:`ddtrace.Span.__init__()` was also removed.
