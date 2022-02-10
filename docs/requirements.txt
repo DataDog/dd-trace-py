@@ -1,3 +1,4 @@
+cmake
 cython
 sphinx
 opentracing

@@ -127,7 +127,7 @@ class DDWSGIMiddleware(object):
                 if hasattr(result, "__class__"):
                     resp_class = getattr(getattr(result, "__class__"), "__name__", None)
                     if resp_class:
-                        resp_span.meta["result_class"] = resp_class
+                        resp_span._set_str_tag("result_class", resp_class)
 
                 for chunk in result:
                     yield chunk

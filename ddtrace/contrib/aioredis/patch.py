@@ -1,3 +1,4 @@
+import asyncio
 import sys
 
 import aioredis
@@ -109,8 +110,13 @@ def traced_13_execute_command(func, instance, args, kwargs):
     # Don't activate the span since this operation is performed as a future which concludes sometime later on in
     # execution so subsequent operations in the stack are not necessarily semantically related
     # (we don't want this span to be the parent of all other spans created before the future is resolved)
+    parent = pin.tracer.current_span()
     span = pin.tracer.start_span(
-        redisx.CMD, service=trace_utils.ext_service(pin, config.aioredis), span_type=SpanTypes.REDIS, activate=False
+        redisx.CMD,
+        service=trace_utils.ext_service(pin, config.aioredis),
+        span_type=SpanTypes.REDIS,
+        activate=False,
+        child_of=parent,
     )
 
     span.set_tag(SPAN_MEASURED_KEY)
@@ -144,6 +150,9 @@ def traced_13_execute_command(func, instance, args, kwargs):
             span.finish()
 
     task = func(*args, **kwargs)
+    # Execute command returns a coroutine when no free connections are available
+    # https://github.com/aio-libs/aioredis-py/blob/v1.3.1/aioredis/pool.py#L191
+    task = asyncio.ensure_future(task)
     task.add_done_callback(_finish_span)
     return task
 

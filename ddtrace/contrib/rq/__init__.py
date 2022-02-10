@@ -177,7 +177,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
-        pin.tracer.writer.flush_queue()
+        pin.tracer.flush()
 
 
 @trace_utils.with_traced_module

@@ -31,7 +31,6 @@ from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
-from ddtrace.tracer import Tracer
 from tests.utils import DummyTracer
 
 
@@ -50,8 +49,8 @@ def span_to_tuple(span):
         span.start_ns or 0,
         span.duration_ns or 0,
         int(bool(span.error)),
-        span.meta or {},
-        span.metrics or {},
+        span._get_tags() or {},
+        span._get_metrics() or {},
         span.span_type,
     )
 
@@ -61,14 +60,13 @@ def rands(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
-    t = Tracer()
 
     root = None
     trace = []
     for i in range(0, nspans):
         parent_id = root.span_id if root else None
         with Span(
-            t,
+            None,
             "span_name",
             resource="/fsdlajfdlaj/afdasd%s" % i,
             service="myservice",
@@ -161,19 +159,20 @@ class TestEncoders(TestCase):
 
     def test_encode_traces_json(self):
         # test encoding for JSON format
-        traces = []
-        traces.append(
+        traces = [
             [
                 Span(name="client.testing", tracer=None),
                 Span(name="client.testing", tracer=None),
-            ]
-        )
-        traces.append(
+            ],
             [
                 Span(name="client.testing", tracer=None),
                 Span(name="client.testing", tracer=None),
-            ]
-        )
+            ],
+            [
+                Span(name=b"client.testing", tracer=None),
+                Span(name=b"client.testing", tracer=None),
+            ],
+        ]
 
         encoder = JSONEncoder()
         spans = encoder.encode_traces(traces)
@@ -182,28 +181,30 @@ class TestEncoders(TestCase):
         # test the encoded output that should be a string
         # and the output must be flatten
         assert isinstance(spans, string_type)
-        assert len(items) == 2
+        assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
-        for i in range(2):
+        assert len(items[2]) == 2
+        for i in range(3):
             for j in range(2):
                 assert "client.testing" == items[i][j]["name"]
 
     def test_encode_traces_json_v2(self):
         # test encoding for JSON format
-        traces = []
-        traces.append(
+        traces = [
             [
                 Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
                 Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
-            ]
-        )
-        traces.append(
+            ],
             [
                 Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
                 Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
-            ]
-        )
+            ],
+            [
+                Span(name=b"client.testing", tracer=None, span_id=0xAAAAAA),
+                Span(name=b"client.testing", tracer=None, span_id=0xAAAAAA),
+            ],
+        ]
 
         encoder = JSONEncoderV2()
         spans = encoder.encode_traces(traces)
@@ -211,10 +212,11 @@ class TestEncoders(TestCase):
         # test the encoded output that should be a string
         # and the output must be flatten
         assert isinstance(spans, string_type)
-        assert len(items) == 2
+        assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
-        for i in range(2):
+        assert len(items[2]) == 2
+        for i in range(3):
             for j in range(2):
                 assert "client.testing" == items[i][j]["name"]
                 assert isinstance(items[i][j]["span_id"], string_type)
@@ -235,6 +237,12 @@ class TestEncoders(TestCase):
                 Span(name="client.testing", tracer=None),
             ]
         )
+        encoder.put(
+            [
+                Span(name=b"client.testing", tracer=None),
+                Span(name=b"client.testing", tracer=None),
+            ]
+        )
 
         spans = encoder.encode()
         items = encoder._decode(spans)
@@ -242,10 +250,11 @@ class TestEncoders(TestCase):
         # test the encoded output that should be a string
         # and the output must be flatten
         assert isinstance(spans, msgpack_type)
-        assert len(items) == 2
+        assert len(items) == 3
         assert len(items[0]) == 2
         assert len(items[1]) == 2
-        for i in range(2):
+        assert len(items[2]) == 2
+        for i in range(3):
             for j in range(2):
                 assert b"client.testing" == items[i][j][b"name"]
 
@@ -402,7 +411,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
         for _ in range(999):
             with tracer.trace("child"):
                 pass
-    trace = tracer.writer.pop()
+    trace = tracer._writer.pop()
     encoder.put(trace)
     decoded_trace = decode(encoder.encode())
 
@@ -424,8 +433,8 @@ def test_encoder_propagates_dd_origin(Encoder, item):
 def test_custom_msgpack_encode_trace_size(encoding, name, service, resource, meta, metrics, error, span_type):
     encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
     span = Span(tracer=None, name=name, service=service, resource=resource)
-    span.meta = meta
-    span.metrics = metrics
+    span.set_tags(meta)
+    span.set_metrics(metrics)
     span.error = error
     span.span_type = span_type
     trace = [span, span, span]
@@ -580,8 +589,8 @@ def test_list_string_table():
         {"start_ns": "start_time"},
         {"duration_ns": "duration_time"},
         {"span_type": 100},
-        {"meta": {"num": 100}},
-        {"metrics": {"key": "value"}},
+        {"_meta": {"num": 100}},
+        {"_metrics": {"key": "value"}},
     ],
 )
 def test_encoding_invalid_data(data):
@@ -628,3 +637,53 @@ def test_custom_msgpack_encode_thread_safe(encoding):
 
     unpacked = decode(encoder.encode(), reconstruct=True)
     assert unpacked is not None
+
+
+@pytest.mark.parametrize("encoder_cls", ["JSONEncoder", "JSONEncoderV2"])
+def test_json_encoder_traces_bytes(encoder_cls, run_python_code_in_subprocess):
+    """
+    Regression test for: https://github.com/DataDog/dd-trace-py/issues/3115
+
+    Ensure we properly decode `bytes` objects when encoding with the JSONEncoder
+    """
+    # Run test in a subprocess to test without setting file encoding to utf-8
+    code = """
+import json
+
+from ddtrace.internal.compat import PY3
+from ddtrace.internal.encoding import {0}
+from ddtrace.span import Span
+
+encoder = {0}()
+data = encoder.encode_traces(
+         [
+             [
+                 Span(name=b"\\x80span.a", tracer=None),
+                 Span(name=u"\\x80span.b", tracer=None),
+                 Span(name="\\x80span.b", tracer=None),
+             ]
+         ]
+    )
+traces = json.loads(data)
+if "{0}" == "JSONEncoderV2":
+    traces = traces["traces"]
+
+assert len(traces) == 1
+span_a, span_b, span_c = traces[0]
+
+if PY3:
+    assert "\\\\x80span.a" == span_a["name"]
+    assert u"\\x80span.b" == span_b["name"]
+    assert u"\\x80span.b" == span_c["name"]
+else:
+    assert u"\\ufffdspan.a" == span_a["name"]
+    assert u"\\x80span.b" == span_b["name"]
+    assert u"\\ufffdspan.b" == span_c["name"]
+""".format(
+        encoder_cls
+    )
+
+    out, err, status, pid = run_python_code_in_subprocess(code)
+    assert status == 0, err
+    assert out == b""
+    assert err == b""

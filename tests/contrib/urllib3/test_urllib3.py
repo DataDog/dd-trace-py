@@ -149,7 +149,7 @@ class TestUrllib3(BaseUrllib3TestCase):
         assert s.get_tag(http.STATUS_CODE) == "200"
         assert s.error == 0
         assert s.span_type == "http"
-        assert http.QUERY_STRING not in s.meta
+        assert http.QUERY_STRING not in s._get_tags()
 
     def test_200_query_string(self):
         """Tests query string tag is added when trace_query_string config is set"""

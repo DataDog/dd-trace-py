@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from ddtrace.span import Span
 
 
-EXCLUDED_ENDPOINT = frozenset({"kms", "sts"})
+EXCLUDED_ENDPOINT = frozenset({"kms", "sts", "sns", "kinesis", "events"})
 EXCLUDED_ENDPOINT_TAGS = {
     "firehose": frozenset({"params.Records"}),
 }

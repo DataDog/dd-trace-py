@@ -4,8 +4,9 @@ __pycache__/
 *$py.class
 
 # C extensions
+ddtrace/appsec/_ddwaf.cpp
 ddtrace/profiling/collector/_task.c
-ddtrace/profiling/collector/_threading.c
+ddtrace/profiling/_threading.c
 ddtrace/profiling/collector/_traceback.c
 ddtrace/profiling/collector/stack.c
 ddtrace/profiling/exporter/pprof.c
@@ -14,6 +15,7 @@ ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
 *.so
+*.a
 
 # Cython annotate HTML files
 ddtrace/**/*.html

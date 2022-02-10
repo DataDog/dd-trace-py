@@ -1,6 +1,20 @@
 Release Notes
 =============
 
+..
+    Load all release notes from the current branch when spell checking
+    DEV: Without this we won't get spell checking on PRs or release
+         notes that are not yet on a release branch.
+
+.. only:: spelling
+
+   .. release-notes::
+
+
+.. release-notes::
+   :branch: 0.58
+   :earliest-version: v0.58.0
+
 .. release-notes::
    :branch: 0.57
    :earliest-version: v0.57.0
