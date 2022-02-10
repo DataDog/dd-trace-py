@@ -1,5 +1,5 @@
 """
-The gRPC integration traces aio.grpc server using the interceptor pattern.
+The gRPC integration traces the client and server of grpc.aio package using the interceptor pattern.
 
 
 Enabling
