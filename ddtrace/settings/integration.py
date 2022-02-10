@@ -59,7 +59,7 @@ class IntegrationConfig(AttrDict):
         # Inject environment variables for integration
         _ = os.getenv(
             "DD_TRACE_%s_ANALYTICS_ENABLED" % self.integration_name.upper(),
-            os.environ.get("DD_%s_ANALYTICS_ENABLED" % self.integration_name.upper()),
+            os.getenv("DD_%s_ANALYTICS_ENABLED" % self.integration_name.upper()),
         )
         analytics_enabled = asbool(_) if _ is not None else None
 
