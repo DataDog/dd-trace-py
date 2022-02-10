@@ -7,7 +7,6 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import TYPE_CHECKING
 from typing import Text
 from typing import Union
 
@@ -40,12 +39,7 @@ from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
 from .internal.utils.deprecation import deprecated
-from .internal.utils.deprecation import deprecation
 from .vendor.debtcollector.removals import removed_property
-
-
-if TYPE_CHECKING:
-    from .tracer import Tracer
 
 
 _TagNameType = Union[Text, bytes]
@@ -71,7 +65,6 @@ class Span(object):
         "span_type",
         "start_ns",
         "duration_ns",
-        "_tracer",
         # Sampler attributes
         "sampled",
         # Internal attributes
@@ -85,7 +78,6 @@ class Span(object):
 
     def __init__(
         self,
-        tracer,  # type: Optional[Tracer]
         name,  # type: str
         service=None,  # type: Optional[str]
         resource=None,  # type: Optional[str]
@@ -105,7 +97,6 @@ class Span(object):
         that it was created in. Using a ``Span`` from within a child process
         could result in a deadlock or unexpected behavior.
 
-        :param ddtrace.Tracer tracer: deprecated. Pass ``None`` instead.
         :param str name: the name of the traced operation.
 
         :param str service: the service name
@@ -147,14 +138,6 @@ class Span(object):
         self.trace_id = trace_id or _rand.rand64bits()  # type: int
         self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
-        self._tracer = None  # type: Optional[Tracer]
-        if tracer is not None:
-            deprecation(
-                name="ddtrace.Span.tracer",
-                message="Use Span(tracer=None, name, ...) instead.",
-                version="1.0.0",
-            )
-            self._tracer = tracer
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling
@@ -171,16 +154,6 @@ class Span(object):
             self._ignored_exceptions = [exc]
         else:
             self._ignored_exceptions.append(exc)
-
-    @removed_property(removal_version="1.0.0")
-    def tracer(self):
-        # type: () -> Optional[Tracer]
-        return self._tracer
-
-    @tracer.setter  # type: ignore
-    def tracer(self, t):
-        # type: (Optional[Tracer]) -> None
-        self._tracer = t
 
     @property
     def start(self):

@@ -161,16 +161,16 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = [
             [
-                Span(name="client.testing", tracer=None),
-                Span(name="client.testing", tracer=None),
+                Span(name="client.testing"),
+                Span(name="client.testing"),
             ],
             [
-                Span(name="client.testing", tracer=None),
-                Span(name="client.testing", tracer=None),
+                Span(name="client.testing"),
+                Span(name="client.testing"),
             ],
             [
-                Span(name=b"client.testing", tracer=None),
-                Span(name=b"client.testing", tracer=None),
+                Span(name=b"client.testing"),
+                Span(name=b"client.testing"),
             ],
         ]
 
@@ -193,16 +193,16 @@ class TestEncoders(TestCase):
         # test encoding for JSON format
         traces = [
             [
-                Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
-                Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
+                Span(name="client.testing", span_id=0xAAAAAA),
+                Span(name="client.testing", span_id=0xAAAAAA),
             ],
             [
-                Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
-                Span(name="client.testing", tracer=None, span_id=0xAAAAAA),
+                Span(name="client.testing", span_id=0xAAAAAA),
+                Span(name="client.testing", span_id=0xAAAAAA),
             ],
             [
-                Span(name=b"client.testing", tracer=None, span_id=0xAAAAAA),
-                Span(name=b"client.testing", tracer=None, span_id=0xAAAAAA),
+                Span(name=b"client.testing", span_id=0xAAAAAA),
+                Span(name=b"client.testing", span_id=0xAAAAAA),
             ],
         ]
 
@@ -227,20 +227,20 @@ class TestEncoders(TestCase):
         encoder = MsgpackEncoderV03(2 << 10, 2 << 10)
         encoder.put(
             [
-                Span(name="client.testing", tracer=None),
-                Span(name="client.testing", tracer=None),
+                Span(name="client.testing"),
+                Span(name="client.testing"),
             ]
         )
         encoder.put(
             [
-                Span(name="client.testing", tracer=None),
-                Span(name="client.testing", tracer=None),
+                Span(name="client.testing"),
+                Span(name="client.testing"),
             ]
         )
         encoder.put(
             [
-                Span(name=b"client.testing", tracer=None),
-                Span(name=b"client.testing", tracer=None),
+                Span(name=b"client.testing"),
+                Span(name=b"client.testing"),
             ]
         )
 
@@ -319,7 +319,7 @@ def test_custom_msgpack_encode(encoding):
     encoder.put([])
     assert decode(refencoder.encode_traces([[]])) == decode(encoder.encode())
 
-    s = Span(None, None)
+    s = Span(None)
     # Need to .finish() to have a duration since the old implementation will not encode
     # duration_ns, the new one will encode as None
     s.finish()
@@ -328,7 +328,7 @@ def test_custom_msgpack_encode(encoding):
 
 
 def span_type_span():
-    s = Span(None, "span_name")
+    s = Span("span_name")
     s.span_type = SpanTypes.WEB
     return s
 
@@ -337,9 +337,9 @@ def span_type_span():
 @pytest.mark.parametrize(
     "span",
     [
-        Span(None, "span_name", span_type=SpanTypes.WEB),
-        Span(None, "span_name", resource="/my-resource"),
-        Span(None, "span_name", service="my-svc"),
+        Span("span_name", span_type=SpanTypes.WEB),
+        Span("span_name", resource="/my-resource"),
+        Span("span_name", service="my-svc"),
         span_type_span(),
     ],
 )
@@ -371,13 +371,13 @@ class SubFloat(float):
 @pytest.mark.parametrize(
     "span, tags",
     [
-        (Span(None, "name"), {"int": SubInt(123)}),
-        (Span(None, "name"), {"float": SubFloat(123.213)}),
-        (Span(None, SubString("name")), {SubString("test"): SubString("test")}),
-        (Span(None, "name"), {"unicode": u"😐"}),
-        (Span(None, "name"), {u"😐": u"😐"}),
+        (Span("name"), {"int": SubInt(123)}),
+        (Span("name"), {"float": SubFloat(123.213)}),
+        (Span(SubString("name")), {SubString("test"): SubString("test")}),
+        (Span("name"), {"unicode": u"😐"}),
+        (Span("name"), {u"😐": u"😐"}),
         (
-            Span(None, u"span_name", service="test-service", resource="test-resource", span_type=SpanTypes.WEB),
+            Span(u"span_name", service="test-service", resource="test-resource", span_type=SpanTypes.WEB),
             {"metric1": 123, "metric2": "1", "metric3": 12.3, "metric4": "12.0", "tag1": "test", u"tag2": u"unicode"},
         ),
     ],
@@ -432,7 +432,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
 @settings(max_examples=200)
 def test_custom_msgpack_encode_trace_size(encoding, name, service, resource, meta, metrics, error, span_type):
     encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
-    span = Span(tracer=None, name=name, service=service, resource=resource)
+    span = Span(name=name, service=service, resource=resource)
     span.set_tags(meta)
     span.set_metrics(metrics)
     span.error = error
@@ -447,7 +447,7 @@ def test_encoder_buffer_size_limit_v03():
     buffer_size = 1 << 10
     encoder = MsgpackEncoderV03(buffer_size, buffer_size)
 
-    trace = [Span(tracer=None, name="test")]
+    trace = [Span(name="test")]
     encoder.put(trace)
     trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
 
@@ -465,7 +465,7 @@ def test_encoder_buffer_size_limit_v05():
     buffer_size = 1 << 10
     encoder = MsgpackEncoderV05(buffer_size, buffer_size)
 
-    trace = [Span(tracer=None, name="test")]
+    trace = [Span(name="test")]
     encoder.put(trace)
     base_size = encoder.size
     encoder.put(trace)
@@ -486,7 +486,7 @@ def test_encoder_buffer_item_size_limit_v03():
     max_item_size = 1 << 10
     encoder = MsgpackEncoderV03(max_item_size << 1, max_item_size)
 
-    span = Span(tracer=None, name="test")
+    span = Span(name="test")
     trace = [span]
     encoder.put(trace)
     trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
@@ -499,7 +499,7 @@ def test_encoder_buffer_item_size_limit_v05():
     max_item_size = 1 << 10
     encoder = MsgpackEncoderV05(max_item_size << 1, max_item_size)
 
-    span = Span(tracer=None, name="test")
+    span = Span(name="test")
     trace = [span]
     encoder.put(trace)
     base_size = encoder.size
@@ -516,9 +516,9 @@ def test_custom_msgpack_encode_v05():
     assert encoder.max_size == 2 << 20
     assert encoder.max_item_size == 2 << 20
     trace = [
-        Span(tracer=None, name="v05-test", service="foo", resource="GET"),
-        Span(tracer=None, name="v05-test", service="foo", resource="POST"),
-        Span(tracer=None, name=None, service="bar"),
+        Span(name="v05-test", service="foo", resource="GET"),
+        Span(name="v05-test", service="foo", resource="POST"),
+        Span(name=None, service="bar"),
     ]
 
     encoder.put(trace)
@@ -596,7 +596,7 @@ def test_list_string_table():
 def test_encoding_invalid_data(data):
     encoder = MsgpackEncoderV03(1 << 20, 1 << 20)
 
-    span = Span(tracer=None, name="test")
+    span = Span(name="test")
     for key, value in data.items():
         setattr(span, key, value)
 
@@ -613,7 +613,7 @@ def test_custom_msgpack_encode_thread_safe(encoding):
         def __init__(self, encoder, span_count, trace_count):
             super(TracingThread, self).__init__()
             trace = [
-                Span(tracer=None, name="span-{}-{}".format(self.name, _), service="threads", resource="TEST")
+                Span(name="span-{}-{}".format(self.name, _), service="threads", resource="TEST")
                 for _ in range(span_count)
             ]
             self._encoder = encoder
@@ -658,9 +658,9 @@ encoder = {0}()
 data = encoder.encode_traces(
          [
              [
-                 Span(name=b"\\x80span.a", tracer=None),
-                 Span(name=u"\\x80span.b", tracer=None),
-                 Span(name="\\x80span.b", tracer=None),
+                 Span(name=b"\\x80span.a"),
+                 Span(name=u"\\x80span.b"),
+                 Span(name="\\x80span.b"),
              ]
          ]
     )

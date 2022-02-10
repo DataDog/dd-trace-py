@@ -34,10 +34,7 @@ class SamplingRules(bm.Scenario):
         operation_names = [rands() for _ in range(self.num_operations)]
 
         # Generate all possible permutations of service and operation names
-        spans = [
-            Span(tracer=None, service=service, name=name)
-            for service, name in itertools.product(services, operation_names)
-        ]
+        spans = [Span(service=service, name=name) for service, name in itertools.product(services, operation_names)]
 
         # Create a single rule to use for all matches
         # Pick a random service/operation name
