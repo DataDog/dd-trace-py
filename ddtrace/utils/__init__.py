@@ -1,5 +1,5 @@
-from ..internal.utils.__init__ import ArgumentError  # noqa
-from ..internal.utils.__init__ import get_argument_value  # noqa
+from ..internal.utils import ArgumentError  # noqa
+from ..internal.utils import get_argument_value  # noqa
 from ..internal.utils.deprecation import deprecation
 
 
