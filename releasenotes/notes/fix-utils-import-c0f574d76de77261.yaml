@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fixes import path to not reference ``__init__``. This could otherwise be a problem for mypy.
+    Fixes import path to not reference ``__init__``. This could otherwise be a problem for ``mypy``.
