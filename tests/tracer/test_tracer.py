@@ -1732,10 +1732,3 @@ def test_tracer_memory_leak_span_processors(enabled):
     # Force gc
     gc.collect()
     assert len(spans) == 0
-
-
-def test_trace_with_tracer():
-    # ensure Tracer.trace() sets tracer property on Span
-    t = Tracer()
-    with t.trace("test span") as span:
-        assert span.tracer == t
