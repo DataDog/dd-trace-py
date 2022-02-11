@@ -100,6 +100,6 @@ def test_appsec_span_tags_snapshot(tracer):
 
     with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
         span.set_tag("http.url", "http://example.com/.git")
-        span.set_tag("http.status_code", "404")
+        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
