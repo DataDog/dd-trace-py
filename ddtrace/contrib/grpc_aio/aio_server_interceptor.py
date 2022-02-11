@@ -1,3 +1,4 @@
+import inspect
 from typing import Awaitable
 from typing import Callable
 from typing import Union
@@ -19,10 +20,25 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ..grpc import constants
+from ..grpc import server_interceptor
 from ..grpc.utils import set_grpc_method_meta
 
 
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
+
+
+def is_coroutine_rpc_method_handler(handler):
+    # type: (grpc.RpcMethodHandler) -> bool
+    if not handler.request_streaming and not handler.response_streaming:
+        internal_handler = handler.unary_unary
+    elif not handler.request_streaming and handler.response_streaming:
+        internal_handler = handler.unary_stream
+    elif handler.request_streaming and not handler.response_streaming:
+        internal_handler = handler.stream_unary
+    else:
+        internal_handler = handler.stream_stream
+
+    return inspect.iscoroutinefunction(internal_handler)
 
 
 def create_aio_server_interceptor(pin):
@@ -38,10 +54,13 @@ def create_aio_server_interceptor(pin):
         # considered serviced, or None otherwise
         # https://grpc.github.io/grpc/python/grpc.html#grpc.ServerInterceptor.intercept_service
 
-        if rpc_method_handler:
-            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+        if rpc_method_handler is None:
+            return None
 
-        return rpc_method_handler
+        if is_coroutine_rpc_method_handler(rpc_method_handler):
+            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+        else:
+            return server_interceptor._TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
 
     return _ServerInterceptor(interceptor_function)
 
