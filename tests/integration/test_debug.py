@@ -8,7 +8,6 @@ import sys
 from typing import List
 from typing import Optional
 
-import mock
 import pytest
 
 import ddtrace
@@ -147,7 +146,12 @@ def test_debug_post_configure():
     assert re.match("^Agent not reachable.*No such file or directory", agent_error)
 
 
+@pytest.mark.usefixtures("caplog")
 class TestGlobalConfig(SubprocessTestCase):
+    @pytest.fixture(autouse=True)
+    def use_caplog(self, caplog):
+        self._caplog = caplog
+
     @run_in_subprocess(
         env_overrides=dict(
             DD_AGENT_HOST="0.0.0.0",
@@ -187,6 +191,7 @@ class TestGlobalConfig(SubprocessTestCase):
         f = debug.collect(ddtrace.tracer)
         assert f.get("agent_url") == "http://0.0.0.0:1234"
 
+    @pytest.mark.usefixtures("caplog")
     @run_in_subprocess(
         env_overrides=dict(
             DD_TRACE_AGENT_URL="http://localhost:8126",
@@ -195,9 +200,10 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_loglevel_info_connection(self):
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        tracer.configure()
-        assert tracer.log.log.mock_calls == [mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - "))]
+
+        with self._caplog.at_level(logging.DEBUG, logger="ddtrace.tracer"):
+            tracer.configure()
+            assert re_matcher("- DATADOG TRACER CONFIGURATION - ") in self._caplog.messages
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -207,14 +213,13 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_loglevel_info_no_connection(self):
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        tracer.configure()
-        # Python 2 logs will go to stderr directly since there's no log handler
-        if PY3:
-            assert tracer.log.log.mock_calls == [
-                mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
-                mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
-            ]
+
+        with self._caplog.at_level(logging.WARNING, logger="ddtrace.tracer"):
+            # Python 2 logs will go to stderr directly since there's no log handler
+            tracer.configure()
+            if PY3:
+                assert re_matcher("- DATADOG TRACER CONFIGURATION - ") in self._caplog.messages
+                assert re_matcher("-  DATADOG TRACER DIAGNOSTIC - ") in self._caplog.messages
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -223,11 +228,11 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_loglevel_info_no_connection_py2_handler(self):
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        logging.basicConfig()
-        tracer.configure()
-        if PY2:
-            assert tracer.log.log.mock_calls == []
+        with self._caplog.at_level(logging.DEBUG, logger="ddtrace.tracer"):
+            logging.basicConfig()
+            tracer.configure()
+            if PY2:
+                assert self._caplog.messages == []
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -237,9 +242,9 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_log_disabled_error(self):
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        tracer.configure()
-        assert tracer.log.log.mock_calls == []
+        with self._caplog.at_level(logging.DEBUG, logger="ddtrace.tracer"):
+            tracer.configure()
+            assert self._caplog.messages == []
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -249,9 +254,9 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_log_disabled(self):
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        tracer.configure()
-        assert tracer.log.log.mock_calls == []
+        with self._caplog.at_level(logging.DEBUG, logger="ddtrace.tracer"):
+            tracer.configure()
+            assert self._caplog.messages == []
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -261,9 +266,9 @@ class TestGlobalConfig(SubprocessTestCase):
     def test_tracer_info_level_log(self):
         logging.basicConfig(level=logging.INFO)
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        tracer.configure()
-        assert tracer.log.log.mock_calls == []
+        with self._caplog.at_level(logging.INFO, logger="ddtrace.tracer"):
+            tracer.configure()
+            assert self._caplog.messages == []
 
 
 def test_runtime_metrics_enabled_via_manual_start(ddtrace_run_python_code_in_subprocess):
