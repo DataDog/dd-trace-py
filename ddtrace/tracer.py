@@ -544,8 +544,8 @@ class Tracer(object):
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
-                self,
-                name,
+                tracer=None,
+                name=name,
                 context=context,
                 trace_id=trace_id,
                 parent_id=parent_id,
@@ -566,8 +566,8 @@ class Tracer(object):
         else:
             # this is the root span of a new trace
             span = Span(
-                self,
-                name,
+                tracer=None,
+                name=name,
                 context=context,
                 service=mapped_service,
                 resource=resource,
@@ -605,7 +605,7 @@ class Tracer(object):
 
         if not span._parent:
             span._set_str_tag("runtime-id", get_runtime_id())
-            span.metrics[PID] = self._pid
+            span._metrics[PID] = self._pid
 
         # Apply default global tags.
         if self.tags:
@@ -638,6 +638,9 @@ class Tracer(object):
             for p in self._span_processors:
                 p.on_span_start(span)
 
+        # Set Span.tracer for backwards compatibility, will be removed in v1.0
+        span._tracer = self
+
         self._hooks.emit(self.__class__.start_span, span)
         return span
 
@@ -669,14 +672,7 @@ class Tracer(object):
         trace_processors += [TraceTopLevelSpanProcessor()]
         trace_processors += self._filters
 
-        self._span_processors = [
-            SpanAggregator(
-                partial_flush_enabled=self._partial_flush_enabled,
-                partial_flush_min_spans=self._partial_flush_min_spans,
-                trace_processors=trace_processors,
-                writer=self._writer,
-            ),
-        ]  # type: List[SpanProcessor]
+        self._span_processors = []  # type: List[SpanProcessor]
 
         if appsec_enabled:
             try:
@@ -695,6 +691,15 @@ class Tracer(object):
                 )
                 if config._raise:
                     raise
+
+        self._span_processors.append(
+            SpanAggregator(
+                partial_flush_enabled=self._partial_flush_enabled,
+                partial_flush_min_spans=self._partial_flush_min_spans,
+                trace_processors=trace_processors,
+                writer=self._writer,
+            )
+        )
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

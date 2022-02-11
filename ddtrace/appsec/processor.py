@@ -13,7 +13,7 @@ from ddtrace.gateway import Addresses
 from ddtrace.gateway import Gateway
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
-from ddtrace.utils.formats import get_env
+from ddtrace.internal.utils.formats import get_env
 
 
 if TYPE_CHECKING:

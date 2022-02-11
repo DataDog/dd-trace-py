@@ -201,7 +201,7 @@ def _before_request_tags(pin, span, request):
     #      has explicitly set it during the request lifetime
     span.service = trace_utils.int_service(pin, config.django)
     span.span_type = SpanTypes.WEB
-    span.metrics[SPAN_MEASURED_KEY] = 1
+    span._metrics[SPAN_MEASURED_KEY] = 1
 
     analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
     if analytics_sr is not None:

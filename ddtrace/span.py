@@ -41,6 +41,7 @@ from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
 from .internal.utils.deprecation import deprecated
+from .internal.utils.deprecation import deprecation
 from .vendor.debtcollector.removals import removed_property
 
 
@@ -75,12 +76,12 @@ class Span(object):
         "parent_id",
         "_meta",
         "error",
-        "metrics",
+        "_metrics",
         "store",
         "_span_type",
         "start_ns",
         "duration_ns",
-        "tracer",
+        "_tracer",
         # Sampler attributes
         "sampled",
         # Internal attributes
@@ -114,8 +115,7 @@ class Span(object):
         that it was created in. Using a ``Span`` from within a child process
         could result in a deadlock or unexpected behavior.
 
-        :param ddtrace.Tracer tracer: the tracer that will submit this span when
-            finished.
+        :param ddtrace.Tracer tracer: deprecated. Pass ``None`` instead.
         :param str name: the name of the traced operation.
 
         :param str service: the service name
@@ -148,7 +148,7 @@ class Span(object):
         # tags / metadata
         self._meta = {}  # type: _MetaDictType
         self.error = 0
-        self.metrics = {}  # type: _MetricDictType
+        self._metrics = {}  # type: _MetricDictType
         self.store = SpanStore()  # type: SpanStore
 
         # timing
@@ -159,7 +159,14 @@ class Span(object):
         self.trace_id = trace_id or _rand.rand64bits()  # type: int
         self.span_id = span_id or _rand.rand64bits()  # type: int
         self.parent_id = parent_id  # type: Optional[int]
-        self.tracer = tracer  # type: Optional[Tracer]
+        self._tracer = None  # type: Optional[Tracer]
+        if tracer is not None:
+            deprecation(
+                name="ddtrace.Span.tracer",
+                message="Use Span(tracer=None, name, ...) instead.",
+                version="1.0.0",
+            )
+            self._tracer = tracer
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         # sampling
@@ -176,6 +183,16 @@ class Span(object):
             self._ignored_exceptions = [exc]
         else:
             self._ignored_exceptions.append(exc)
+
+    @removed_property(removal_version="1.0.0")
+    def tracer(self):
+        # type: () -> Optional[Tracer]
+        return self._tracer
+
+    @tracer.setter  # type: ignore
+    def tracer(self, t):
+        # type: (Optional[Tracer]) -> None
+        self._tracer = t
 
     @property
     def start(self):
@@ -334,8 +351,8 @@ class Span(object):
 
         try:
             self._meta[key] = stringify(value)
-            if key in self.metrics:
-                del self.metrics[key]
+            if key in self._metrics:
+                del self._metrics[key]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -387,10 +404,12 @@ class Span(object):
     def meta(self, value):
         self._meta = value
 
+    @deprecated(message="Span.set_meta will be removed. Use Span.set_tag.", version="1.0.0")
     def set_meta(self, k, v):
         # type: (_TagNameType, NumericType) -> None
         self.set_tag(k, v)
 
+    @deprecated(message="Span.set_metas will be removed. Use Span.set_tags.", version="1.0.0")
     def set_metas(self, kvs):
         # type: (_MetaDictType) -> None
         self.set_tags(kvs)
@@ -426,7 +445,18 @@ class Span(object):
 
         if key in self._meta:
             del self._meta[key]
-        self.metrics[key] = value
+        self._metrics[key] = value
+
+    @removed_property(
+        message="Use Span.get_metric or Span.set_metric instead.",
+        removal_version="1.0.0",
+    )
+    def metrics(self):
+        return self._metrics
+
+    @metrics.setter  # type: ignore[no-redef]
+    def metrics(self, value):
+        self._metrics = value
 
     def set_metrics(self, metrics):
         # type: (_MetricDictType) -> None
@@ -436,7 +466,11 @@ class Span(object):
 
     def get_metric(self, key):
         # type: (_TagNameType) -> Optional[NumericType]
-        return self.metrics.get(key)
+        return self._metrics.get(key)
+
+    def _get_metrics(self):
+        # type: () -> _MetricDictType
+        return self._metrics.copy()
 
     def to_dict(self):
         # type: () -> Dict[str, Any]
@@ -466,8 +500,8 @@ class Span(object):
         if self._meta:
             d["meta"] = self._meta
 
-        if self.metrics:
-            d["metrics"] = self.metrics
+        if self._metrics:
+            d["metrics"] = self._metrics
 
         if self.span_type:
             d["type"] = self.span_type
@@ -538,7 +572,7 @@ class Span(object):
             ("duration", self.duration),
             ("error", self.error),
             ("tags", dict(sorted(self._meta.items()))),
-            ("metrics", dict(sorted(self.metrics.items()))),
+            ("metrics", dict(sorted(self._metrics.items()))),
         ]
         return " ".join(
             # use a large column width to keep pprint output on one line
