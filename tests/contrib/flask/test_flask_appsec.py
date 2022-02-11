@@ -4,7 +4,6 @@ from tests.contrib.flask import BaseFlaskTestCase
 
 
 class FlaskAppSecTestCase(BaseFlaskTestCase):
-
     def test_flask_simple_attack(self, test_spans, tracer):
         tracer._initialize_span_processors(appsec_enabled=True)
         assert self.client.get("/.git?q=1").status_code == 404
