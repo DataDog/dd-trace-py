@@ -7,6 +7,7 @@ import attr
 
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.gateway import Addresses
 from ddtrace.gateway import Gateway
@@ -135,3 +136,5 @@ class AppSecSpanProcessor(SpanProcessor):
             span._set_str_tag("appsec.event", "true")
             span._set_str_tag("_dd.appsec.json", '{"triggers":%s}' % (res,))
             span.set_tag(MANUAL_KEEP_KEY)
+            if span.get_tag(ORIGIN_KEY) is None:
+                span._set_str_tag(ORIGIN_KEY, "appsec")
