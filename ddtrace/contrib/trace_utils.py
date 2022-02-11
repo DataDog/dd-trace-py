@@ -244,6 +244,14 @@ def _add_if_needed(gateway, target, original_value, address, formatter=None):
     target[key] = formatter(original_value) if formatter is not None else original_value
 
 
+def _no_cookies(data):
+    res = {}
+    for key in data:
+        if key.lower() not in ["cookie", "set-cookie"]:
+            res[key] = data[key]
+    return res
+
+
 def set_http_meta(
     span,
     integration_config,
@@ -308,14 +316,16 @@ def set_http_meta(
     _add_if_needed(gateway, data, request_cookies, Addresses.SERVER_REQUEST_COOKIES)
     _add_if_needed(gateway, data, request_headers, Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
     req_cookies_key = Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value
-    if req_cookies_key in data and "cookies" in data[req_cookies_key]:
-        del data[req_cookies_key]["cookies"]
+    if req_cookies_key in data:
+        data[req_cookies_key] = _no_cookies(data[req_cookies_key])
+
     _add_if_needed(
         gateway, data, response_headers, Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers
     )
     res_cookies_key = Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES.value
-    if res_cookies_key in data and "cookies" in data[res_cookies_key]:
-        del data[res_cookies_key]["cookies"]
+    if res_cookies_key in data:
+        data[res_cookies_key] = _no_cookies(data[res_cookies_key])
+
     _add_if_needed(gateway, data, request_body, Addresses.SERVER_REQUEST_BODY, format_request_body)
     _add_if_needed(gateway, data, request_path_params, Addresses.SERVER_REQUEST_PATH_PARAMS, format_request_path_params)
 
