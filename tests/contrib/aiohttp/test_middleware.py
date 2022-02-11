@@ -285,7 +285,7 @@ async def test_distributed_tracing(app_tracer, aiohttp_client):
 async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
-    tracer.priority_sampler = RateSampler(0.1)
+    tracer._priority_sampler = RateSampler(0.1)
 
     tracing_headers = {
         "x-datadog-trace-id": "100",
@@ -311,7 +311,7 @@ async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client
 async def test_distributed_tracing_with_sampling_false(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
-    tracer.priority_sampler = RateSampler(0.9)
+    tracer._priority_sampler = RateSampler(0.9)
 
     tracing_headers = {
         "x-datadog-trace-id": "100",
@@ -361,7 +361,7 @@ async def test_distributed_tracing_disabled(app_tracer, aiohttp_client):
 async def test_distributed_tracing_sub_span(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
-    tracer.priority_sampler = RateSampler(1.0)
+    tracer._priority_sampler = RateSampler(1.0)
 
     # activate distributed tracing
     tracing_headers = {
