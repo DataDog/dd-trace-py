@@ -27,7 +27,7 @@ from ..grpc import utils
 
 
 def create_aio_client_interceptors(pin, host, port):
-    # type: (Pin, str, int) -> Tuple[aio.ClientInterceptor]
+    # type: (Pin, str, int) -> Tuple[aio.ClientInterceptor, ...]
     return (
         _UnaryUnaryClientInterceptor(pin, host, port),
         _UnaryStreamClientInterceptor(pin, host, port),
