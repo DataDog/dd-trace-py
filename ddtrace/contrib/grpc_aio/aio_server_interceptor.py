@@ -20,7 +20,7 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ..grpc import constants
-from ..grpc import server_interceptor
+from ..grpc.server_interceptor import _TracedRpcMethodHandler
 from ..grpc.utils import set_grpc_method_meta
 
 
@@ -60,7 +60,7 @@ def create_aio_server_interceptor(pin):
         if _is_coroutine_rpc_method_handler(rpc_method_handler):
             return _TracedAioRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
         else:
-            return server_interceptor._TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
 
     return _ServerInterceptor(interceptor_function)
 
