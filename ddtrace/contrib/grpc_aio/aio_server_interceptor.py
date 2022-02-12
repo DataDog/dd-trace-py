@@ -27,7 +27,7 @@ from ..grpc.utils import set_grpc_method_meta
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
 
 
-def is_coroutine_rpc_method_handler(handler):
+def _is_coroutine_rpc_method_handler(handler):
     # type: (grpc.RpcMethodHandler) -> bool
     if not handler.request_streaming and not handler.response_streaming:
         internal_handler = handler.unary_unary
@@ -57,7 +57,7 @@ def create_aio_server_interceptor(pin):
         if rpc_method_handler is None:
             return None
 
-        if is_coroutine_rpc_method_handler(rpc_method_handler):
+        if _is_coroutine_rpc_method_handler(rpc_method_handler):
             return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
         else:
             return server_interceptor._TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
