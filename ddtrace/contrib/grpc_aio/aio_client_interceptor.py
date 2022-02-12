@@ -37,7 +37,7 @@ def create_aio_client_interceptors(pin, host, port):
 
 
 def _done_callback(span, code, details):
-    # type: (Span, grpc.StatusCode, str) -> None
+    # type: (Span, grpc.StatusCode, str) -> Callable[[aio.Call], None]
     def func(call):
         # type: (aio.Call) -> None
         try:
