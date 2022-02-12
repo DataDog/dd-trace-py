@@ -47,7 +47,7 @@ def create_aio_server_interceptor(pin):
         continuation,  # type: Continuation
         handler_call_details,  # type: grpc.HandlerCallDetails
     ):
-        # type: (...) -> Awaitable[Union[grpc.RpcMethodHandler, _TracedAioRpcMethodHandler]]
+        # type: (...) -> Awaitable[Union[grpc.RpcMethodHandler, _TracedAioRpcMethodHandler, _TracedRpcMethodHandler]]
         rpc_method_handler = await continuation(handler_call_details)
 
         # continuation returns an RpcMethodHandler instance if the RPC is
