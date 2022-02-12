@@ -47,7 +47,7 @@ def create_aio_server_interceptor(pin):
         continuation,  # type: Continuation
         handler_call_details,  # type: grpc.HandlerCallDetails
     ):
-        # type: (...) -> Awaitable[Union[grpc.RpcMethodHandler, _TracedRpcMethodHandler]]
+        # type: (...) -> Awaitable[Union[grpc.RpcMethodHandler, _TracedAioRpcMethodHandler]]
         rpc_method_handler = await continuation(handler_call_details)
 
         # continuation returns an RpcMethodHandler instance if the RPC is
@@ -58,7 +58,7 @@ def create_aio_server_interceptor(pin):
             return None
 
         if _is_coroutine_rpc_method_handler(rpc_method_handler):
-            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+            return _TracedAioRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
         else:
             return server_interceptor._TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
 
@@ -105,10 +105,10 @@ async def _wrap_unary_response(
         span.finish()
 
 
-class _TracedRpcMethodHandler(wrapt.ObjectProxy):
+class _TracedAioRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, pin, handler_call_details, wrapped):
         # type: (Pin, grpc.HandlerCallDetails, grpc.RpcMethodHandler) -> None
-        super(_TracedRpcMethodHandler, self).__init__(wrapped)
+        super(_TracedAioRpcMethodHandler, self).__init__(wrapped)
         self._pin = pin
         self._handler_call_details = handler_call_details
 
@@ -171,5 +171,5 @@ class _ServerInterceptor(aio.ServerInterceptor):
         continuation,  # type: Continuation
         handler_call_details,  # type: grpc.HandlerCallDetails
     ):
-        # type: (...) -> Union[grpc.RpcMethodHandler, _TracedRpcMethodHandler]
+        # type: (...) -> Union[grpc.RpcMethodHandler, _TracedAioRpcMethodHandler]
         return await self._fn(continuation, handler_call_details)
