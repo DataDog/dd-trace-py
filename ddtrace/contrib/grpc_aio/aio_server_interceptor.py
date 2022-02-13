@@ -30,15 +30,13 @@ Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandl
 def _is_coroutine_rpc_method_handler(handler):
     # type: (grpc.RpcMethodHandler) -> bool
     if not handler.request_streaming and not handler.response_streaming:
-        internal_handler = handler.unary_unary
+        return inspect.iscoroutinefunction(handler.unary_unary)
     elif not handler.request_streaming and handler.response_streaming:
-        internal_handler = handler.unary_stream
+        return inspect.isasyncgenfunction(handler.unary_stream)
     elif handler.request_streaming and not handler.response_streaming:
-        internal_handler = handler.stream_unary
+        return inspect.iscoroutinefunction(handler.stream_unary)
     else:
-        internal_handler = handler.stream_stream
-
-    return inspect.iscoroutinefunction(internal_handler)
+        return inspect.isasyncgenfunction(handler.stream_stream)
 
 
 def create_aio_server_interceptor(pin):
