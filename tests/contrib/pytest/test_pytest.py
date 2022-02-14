@@ -39,7 +39,7 @@ class TestPytest(TracerTestCase):
         """Test with --ddtrace-patch-all."""
         py_file = self.testdir.makepyfile(
             """
-            import ddtrace.monkey
+            import ddtrace
 
             def test_patched_all():
                 assert ddtrace._monkey._PATCHED_MODULES
@@ -58,7 +58,7 @@ class TestPytest(TracerTestCase):
         self.testdir.makefile(".ini", pytest="[pytest]\nddtrace-patch-all=1\n")
         py_file = self.testdir.makepyfile(
             """
-            import ddtrace.monkey
+            import ddtrace
 
             def test_patched_all():
                 assert ddtrace._monkey._PATCHED_MODULES

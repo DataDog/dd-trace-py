@@ -4,8 +4,8 @@ import os.path
 import pytest
 
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import priority
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -52,7 +52,7 @@ def test_retain_traces(tracer):
         span.set_tag("http.url", "http://example.com/.git")
         span.set_tag("http.status_code", "404")
 
-    assert span.context.sampling_priority == priority.USER_KEEP
+    assert span.context.sampling_priority == USER_KEEP
 
 
 def test_valid_json(tracer):

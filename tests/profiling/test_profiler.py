@@ -40,7 +40,7 @@ def test_multiple_stop():
 
 @pytest.mark.parametrize(
     "service_name_var",
-    ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"),
+    ("DD_SERVICE",),
 )
 def test_default_from_env(service_name_var, monkeypatch):
     monkeypatch.setenv("DD_API_KEY", "foobar")

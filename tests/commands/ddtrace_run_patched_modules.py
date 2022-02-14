@@ -1,6 +1,6 @@
-from ddtrace import monkey
+from ddtrace import _monkey
 
 
 if __name__ == "__main__":
-    assert "redis" in monkey.get_patched_modules()
+    assert "redis" in _monkey._get_patched_modules()
     print("Test success")
