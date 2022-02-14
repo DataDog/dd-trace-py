@@ -11,23 +11,6 @@ from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...ext import sql
-from ...internal.utils.deprecation import deprecated
-
-
-@deprecated(message="Use patching instead (see the docs).", version="1.0.0")
-def connection_factory(tracer, service="postgres"):
-    """Return a connection factory class that will can be used to trace
-    postgres queries.
-
-    >>> factory = connection_factor(my_tracer, service='my_db_service')
-    >>> conn = pyscopg2.connect(..., connection_factory=factory)
-    """
-
-    return functools.partial(
-        TracedConnection,
-        datadog_tracer=tracer,
-        datadog_service=service,
-    )
 
 
 class TracedCursor(cursor):

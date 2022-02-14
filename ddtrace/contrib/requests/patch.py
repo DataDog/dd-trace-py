@@ -9,8 +9,6 @@ from ...internal.utils.formats import asbool
 from ...pin import Pin
 from ..trace_utils import unwrap as _u
 from .connection import _wrap_send
-from .legacy import _distributed_tracing
-from .legacy import _distributed_tracing_setter
 
 
 # requests default settings
@@ -32,13 +30,6 @@ def patch():
 
     _w("requests", "Session.send", _wrap_send)
     Pin(_config=config.requests).onto(requests.Session)
-
-    # [Backward compatibility]: `session.distributed_tracing` should point and
-    # update the `Pin` configuration instead. This block adds a property so that
-    # old implementations work as expected
-    fn = property(_distributed_tracing)
-    fn = fn.setter(_distributed_tracing_setter)
-    requests.Session.distributed_tracing = fn
 
 
 def unpatch():

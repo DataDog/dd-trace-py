@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    requests: The legacy distributed tracing is removed. Use :ref:`ddtrace.config.requests['distributed_tracing']<requests-config-distributed-tracing>` instead.

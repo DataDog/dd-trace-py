@@ -53,8 +53,7 @@ To configure the integration on an per-connection basis use the
     cursor = db.cursor()
     cursor.execute("select * from users where id = 1")
 """
-from .connection import connection_factory
 from .patch import patch
 
 
-__all__ = ["connection_factory", "patch"]
+__all__ = ["patch"]

@@ -46,7 +46,6 @@ from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
 from .internal.processor.trace import TraceTopLevelSpanProcessor
 from .internal.runtime import get_runtime_id
-from .internal.utils.deprecation import deprecated
 from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
@@ -206,45 +205,6 @@ class Tracer(object):
     @property
     def debug_logging(self):
         return log.isEnabledFor(logging.DEBUG)
-
-    @debug_logging.setter  # type: ignore[misc]
-    @deprecated(message="Use logging.setLevel instead", version="1.0.0")
-    def debug_logging(self, value):
-        # type: (bool) -> None
-        log.setLevel(logging.DEBUG if value else logging.WARN)
-
-    @deprecated("Use .tracer, not .tracer()", "1.0.0")
-    def __call__(self):
-        return self
-
-    @deprecated("This method will be removed altogether", "1.0.0")
-    def global_excepthook(self, tp, value, traceback):
-        """The global tracer except hook."""
-
-    @deprecated(
-        "Call context has been superseded by trace context. Please use current_trace_context() instead.", "1.0.0"
-    )
-    def get_call_context(self, *args, **kwargs):
-        # type: (...) -> Context
-        """
-        Return the current active ``Context`` for this traced execution. This method is
-        automatically called in the ``tracer.trace()``, but it can be used in the application
-        code during manual instrumentation like::
-
-            from ddtrace import tracer
-
-            async def web_handler(request):
-                context = tracer.get_call_context()
-                # use the context if needed
-                # ...
-
-        This method makes use of a ``ContextProvider`` that is automatically set during the tracer
-        initialization, or while using a library instrumentation.
-        """
-        ctx = self.current_trace_context(*args, **kwargs)
-        if ctx is None:
-            ctx = Context()
-        return ctx
 
     def current_trace_context(self, *args, **kwargs):
         # type: (...) -> Optional[Context]
@@ -853,11 +813,6 @@ class Tracer(object):
     def flush(self):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
         self._writer.flush_queue()
-
-    @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
-    def set_service_info(self, *args, **kwargs):
-        """Set the information about the given service."""
-        return
 
     def wrap(
         self,
