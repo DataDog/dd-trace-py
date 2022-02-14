@@ -4,7 +4,7 @@ import celery
 
 from ddtrace import config
 import ddtrace.internal.forksafe as forksafe
-from ddtrace.utils.formats import asbool
+from ddtrace.internal.utils.formats import asbool
 
 from .app import patch_app
 from .app import unpatch_app

@@ -7,7 +7,6 @@ from typing import Tuple
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.logger import get_logger
-from ..internal.utils.deprecation import get_service_legacy
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
@@ -120,8 +119,6 @@ class Config(object):
         self.tags = parse_tags_str(os.getenv("DD_TAGS") or "")
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
-        # DEV: we don't use `self._get_service()` here because {DD,DATADOG}_SERVICE and
-        # {DD,DATADOG}_SERVICE_NAME (deprecated) are distinct functionalities.
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service"))
         self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
@@ -221,21 +218,15 @@ class Config(object):
 
     def _get_service(self, default=None):
         """
-        Returns the globally configured service.
-
-        If a service is not configured globally, attempts to get the service
-        using the legacy environment variables via ``get_service_legacy``
-        else ``default`` is returned.
-
-        When support for {DD,DATADOG}_SERVICE_NAME is removed, all usages of
-        this method can be replaced with `config.service`.
+        Returns the globally configured service or the default if none is configured.
 
         :param default: the default service to use if none is configured or
             found.
         :type default: str
         :rtype: str|None
         """
-        return self.service if self.service is not None else get_service_legacy(default=default)
+        # TODO: This method can be replaced with `config.service`.
+        return self.service if self.service is not None else default
 
     def __repr__(self):
         cls = self.__class__
