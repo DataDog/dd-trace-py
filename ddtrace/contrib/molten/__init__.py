@@ -27,7 +27,7 @@ Configuration
 
    The service name reported for your Molten app.
 
-   Can also be configured via the ``DD_SERVICE`` or ``DD_MOLTEN_SERVICE_NAME`` environment variables.
+   Can also be configured via the ``DD_SERVICE`` or ``DD_MOLTEN_SERVICE`` environment variables.
 
    Default: ``'molten'``
 

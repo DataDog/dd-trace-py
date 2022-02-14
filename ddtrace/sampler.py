@@ -27,7 +27,6 @@ from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.utils.cache import cachedmethod
-from .vendor.debtcollector.removals import removed_property
 
 
 try:
@@ -254,12 +253,6 @@ class DatadogSampler(RateByServiceSampler):
         self.limiter = RateLimiter(rate_limit)
 
         log.debug("initialized %r", self)
-
-    @removed_property(removal_version="1.0.0")
-    def default_sampler(self):
-        if self.rules:
-            return self.rules[-1]
-        return self
 
     def __str__(self):
         rates = {key: sampler.sample_rate for key, sampler in self._by_service_samplers.items()}

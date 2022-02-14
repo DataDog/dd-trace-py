@@ -121,9 +121,9 @@ async def test_configure_service_name_pin(tracer, test_spans):
 
 def test_configure_service_name_env(run_python_code_in_subprocess):
     """
-    When setting DD_HTTPX_SERVICE_NAME env variable
+    When setting DD_HTTPX_SERVICE env variable
         When DD_SERVICE is also set
-            We use the value from DD_HTTPX_SERVICE_NAME
+            We use the value from DD_HTTPX_SERVICE
     """
     code = """
 import asyncio
@@ -153,7 +153,7 @@ else:
     asyncio.get_event_loop().run_until_complete(test())
     """
     env = os.environ.copy()
-    env["DD_HTTPX_SERVICE_NAME"] = "env-overridden-service-name"
+    env["DD_HTTPX_SERVICE"] = "env-overridden-service-name"
     env["DD_SERVICE"] = "global-service-name"
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
     assert status == 0, err

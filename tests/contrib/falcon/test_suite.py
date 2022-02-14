@@ -1,7 +1,7 @@
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.falcon.patch import FALCON_VERSION
-from ddtrace.ext import errors as errx
 from ddtrace.ext import http as httpx
 from tests.opentracer.utils import init_tracer
 from tests.utils import assert_is_measured
@@ -223,7 +223,7 @@ class FalconTestCase(FalconTestMixin):
         assert span.name == "falcon.request"
         assert span.service == self._service
         assert_span_http_status_code(span, 404)
-        assert span.get_tag(errx.ERROR_TYPE) is None
+        assert span.get_tag(ERROR_TYPE) is None
         assert span.parent_id is None
         assert span.error == 0
 

@@ -18,7 +18,6 @@ from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
-from ...internal.utils.deprecation import deprecated
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ...vendor import wrapt
@@ -273,17 +272,3 @@ def _sanitize_query(span, query):
         resource = "unknown-query-type"  # FIXME[matt] what else do to here?
 
     span.resource = stringify(resource)[:RESOURCE_MAX_LENGTH]
-
-
-#
-# DEPRECATED
-#
-
-
-@deprecated(message="Use patching instead (see the docs).", version="1.0.0")
-def get_traced_cassandra(*args, **kwargs):
-    return _get_traced_cluster(*args, **kwargs)
-
-
-def _get_traced_cluster(*args, **kwargs):
-    return cassandra.cluster.Cluster

@@ -30,6 +30,7 @@ booleans
 boto
 botocore
 CGroup
+cassandra
 cgroups
 cherrypy
 codepath
