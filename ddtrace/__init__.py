@@ -1,7 +1,6 @@
-from .logger import configure_ddtrace_logger  # noqa: E402
+from .logger import configure_ddtrace_logger
 
-
-configure_ddtrace_logger()  # noqa: E402
+configure_ddtrace_logger()
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .internal.utils.deprecation import deprecated  # noqa: E402
