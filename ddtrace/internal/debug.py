@@ -67,8 +67,8 @@ def collect(tracer):
         agent_error = None
 
     sampler_rules = None
-    if isinstance(tracer.sampler, DatadogSampler):
-        sampler_rules = [str(rule) for rule in tracer.sampler.rules]
+    if isinstance(tracer._sampler, DatadogSampler):
+        sampler_rules = [str(rule) for rule in tracer._sampler.rules]
 
     is_venv = in_venv()
 
@@ -129,8 +129,8 @@ def collect(tracer):
         is_global_tracer=tracer == ddtrace.tracer,
         enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),
         tracer_enabled=tracer.enabled,
-        sampler_type=type(tracer.sampler).__name__ if tracer.sampler else "N/A",
-        priority_sampler_type=type(tracer.priority_sampler).__name__ if tracer.priority_sampler else "N/A",
+        sampler_type=type(tracer._sampler).__name__ if tracer._sampler else "N/A",
+        priority_sampler_type=type(tracer._priority_sampler).__name__ if tracer._priority_sampler else "N/A",
         sampler_rules=sampler_rules,
         service=ddtrace.config.service or "",
         debug=ddtrace.tracer.log.isEnabledFor(logging.DEBUG),
@@ -140,9 +140,9 @@ def collect(tracer):
         health_metrics_enabled=ddtrace.config.health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
-        priority_sampling_enabled=tracer.priority_sampler is not None,
+        priority_sampling_enabled=tracer._priority_sampler is not None,
         global_tags=os.getenv("DD_TAGS", ""),
-        tracer_tags=tags_to_str(tracer.tags),
+        tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
         partial_flush_enabled=tracer._partial_flush_enabled,
         partial_flush_min_spans=tracer._partial_flush_min_spans,

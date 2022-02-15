@@ -31,8 +31,14 @@ class _StringTable:
 class pprof_LocationType:
     id: int
 
+class pprof_Mapping:
+    filename: int
+
 class pprof_ProfileType:
     id: int
+    string_table: typing.Dict[int, str]
+    mapping: typing.List[pprof_Mapping]
+    def SerializeToString(self) -> bytes: ...
 
 class pprof_FunctionType:
     id: int
@@ -109,7 +115,7 @@ class _PprofConverter:
         frames: HashableStackTraceType,
         nframes: int,
         exc_type_name: str,
-        events: typing.List[stack_event.StackSampleEvent],
+        events: typing.List[stack_event.StackExceptionSampleEvent],
     ) -> None: ...
     def __init__(
         self,
