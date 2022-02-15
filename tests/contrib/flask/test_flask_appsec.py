@@ -12,5 +12,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         root_span = spans[0]
         self.assertTrue("triggers" in json.loads(root_span.get_tag("_dd.appsec.json")))
         self.assertEqual(root_span.store.kept_addresses["server.request.uri.raw"], "http://localhost/.git?q=1")
-        self.assertEqual(root_span.store.kept_addresses["server.request.query"]["q"], "1")
+        if isinstance(root_span.store.kept_addresses["server.request.query"]["q"], list):
+            self.assertEqual(root_span.store.kept_addresses["server.request.query"]["q"], ["1"])
+        else:
+            self.assertEqual(root_span.store.kept_addresses["server.request.query"]["q"], "1")
         self.assertTrue("Cookie" not in root_span.store.kept_addresses["server.request.headers.no_cookies"])
