@@ -25,7 +25,6 @@ from ._monkey import patch
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
-from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
@@ -337,9 +336,7 @@ class Tracer(object):
             self.enabled = enabled
 
         if settings is not None:
-            filters = settings.get(FILTERS_KEY)
-            if filters is not None:
-                self._filters = filters
+            self._filters = settings.get("FILTERS") or self._filters
 
         if partial_flush_enabled is not None:
             self._partial_flush_enabled = partial_flush_enabled

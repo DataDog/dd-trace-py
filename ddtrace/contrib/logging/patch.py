@@ -16,6 +16,7 @@ RECORD_ATTR_VERSION = "dd.version"
 RECORD_ATTR_SERVICE = "dd.service"
 RECORD_ATTR_VALUE_ZERO = "0"
 RECORD_ATTR_VALUE_EMPTY = ""
+_LOG_SPAN_KEY = "__datadog_log_span"
 
 ddtrace.config._add(
     "logging",
@@ -57,7 +58,7 @@ def _w_makeRecord(func, instance, args, kwargs):
 
     # logs from internal logger may explicitly pass the current span to
     # avoid deadlocks in getting the current span while already in locked code.
-    span_from_log = getattr(record, ddtrace.constants.LOG_SPAN_KEY, None)
+    span_from_log = getattr(record, _LOG_SPAN_KEY, None)
     if isinstance(span_from_log, ddtrace.Span):
         span = span_from_log
     else:
