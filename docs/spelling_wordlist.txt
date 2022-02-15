@@ -143,6 +143,7 @@ submodules
 timestamp
 tweens
 uWSGI
+unbuffered
 unicode
 uninstrumented
 unix
@@ -161,3 +162,4 @@ workflow
 wsgi
 xfail
 yaaredis
+Kinesis

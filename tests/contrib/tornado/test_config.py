@@ -42,9 +42,10 @@ class TestTornadoSettings(TornadoTestCase):
 
     def test_tracer_is_properly_configured(self):
         # the tracer must be properly configured
-        assert self.tracer.tags == {"env": "production", "debug": "false"}
+        assert self.tracer._tags.get("env") == "production"
+        assert self.tracer._tags.get("debug") == "false"
         assert self.tracer.enabled is False
-        assert self.tracer.writer.agent_url == "http://dd-agent.service.consul:8126"
+        assert self.tracer.agent_trace_url == "http://dd-agent.service.consul:8126"
 
         writer = DummyWriter()
         self.tracer.configure(enabled=True, writer=writer)

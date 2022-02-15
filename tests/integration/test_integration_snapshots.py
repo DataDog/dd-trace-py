@@ -58,7 +58,7 @@ def test_filters(writer, tracer):
     if writer == "sync":
         writer = AgentWriter(
             tracer.writer.agent_url,
-            priority_sampler=tracer.priority_sampler,
+            priority_sampler=tracer._priority_sampler,
             sync_mode=True,
         )
         # Need to copy the headers which contain the test token to associate
@@ -99,7 +99,7 @@ def test_sampling(writer, tracer):
     if writer == "sync":
         writer = AgentWriter(
             tracer.writer.agent_url,
-            priority_sampler=tracer.priority_sampler,
+            priority_sampler=tracer._priority_sampler,
             sync_mode=True,
         )
         # Need to copy the headers which contain the test token to associate
@@ -166,7 +166,7 @@ def test_sampling(writer, tracer):
 @snapshot(async_mode=False)
 def test_synchronous_writer():
     tracer = Tracer()
-    writer = AgentWriter(tracer.writer.agent_url, sync_mode=True, priority_sampler=tracer.priority_sampler)
+    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True, priority_sampler=tracer._priority_sampler)
     tracer.configure(writer=writer)
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
@@ -248,10 +248,10 @@ def test_trace_with_wrong_meta_types_not_sent(meta):
     tracer = Tracer()
     with mock.patch("ddtrace.span.log") as log:
         with tracer.trace("root") as root:
-            root.meta = meta
+            root._meta = meta
             for _ in range(499):
                 with tracer.trace("child") as child:
-                    child.meta = meta
+                    child._meta = meta
         log.exception.assert_called_once_with("error closing trace")
 
 
@@ -268,8 +268,8 @@ def test_trace_with_wrong_metrics_types_not_sent(metrics):
     tracer = Tracer()
     with mock.patch("ddtrace.span.log") as log:
         with tracer.trace("root") as root:
-            root.metrics = metrics
+            root._metrics = metrics
             for _ in range(499):
                 with tracer.trace("child") as child:
-                    child.metrics = metrics
+                    child._metrics = metrics
         log.exception.assert_called_once_with("error closing trace")
