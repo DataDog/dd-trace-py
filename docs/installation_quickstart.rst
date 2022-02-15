@@ -21,8 +21,6 @@ Install with :code:`pip`::
 
     pip version 18 and above is required to install the library.
 
-    It is strongly suggested to pin the version of the library you deploy.
-
 
 Quickstart
 ----------
