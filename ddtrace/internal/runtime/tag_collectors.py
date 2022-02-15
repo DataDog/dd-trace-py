@@ -24,7 +24,7 @@ class TracerTagCollector(RuntimeTagCollector):
         ddtrace = self.modules.get("ddtrace")
         # make sure to copy _services to avoid RuntimeError: Set changed size during iteration
         tags = [(SERVICE, service) for service in list(ddtrace.tracer._services)]
-        if ddtrace.tracer._tags.get(ENV_KEY):
+        if ENV_KEY in ddtrace.tracer._tags:
             tags.append((ENV_KEY, ddtrace.tracer._tags.get(ENV_KEY)))
         return tags
 
