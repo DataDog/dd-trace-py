@@ -118,7 +118,7 @@ class Tracer(object):
         self._filters = []  # type: List[TraceFilter]
 
         # globally set tags
-        self.tags = config.tags.copy()
+        self._tags = config.tags.copy()
 
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()  # type: Set[str]
@@ -616,8 +616,8 @@ class Tracer(object):
             span._metrics[PID] = self._pid
 
         # Apply default global tags.
-        if self.tags:
-            span.set_tags(self.tags)
+        if self._tags:
+            span.set_tags(self._tags)
 
         if config.env:
             span._set_str_tag(ENV_KEY, config.env)
@@ -847,6 +847,16 @@ class Tracer(object):
         # type: (BaseSampler) -> None
         self._sampler = val
 
+    @removals.removed_property(removal_version="1.0.0")
+    def tags(self):
+        # type: () -> dict[str, str]
+        return self._tags
+
+    @tags.setter  # type: ignore
+    def tags(self, t):
+        # type: (dict[str, str]) -> None
+        self._tags = t
+
     @removals.removed_property(message="Use Tracer.flush instead to flush buffered traces to agent", version="1.0.0")
     def writer(self):
         return self._writer
@@ -973,7 +983,7 @@ class Tracer(object):
 
         :param dict tags: dict of tags to set at tracer level
         """
-        self.tags.update(tags)
+        self._tags.update(tags)
 
     def _restore_from_shutdown(self):
         with self._shutdown_lock:
