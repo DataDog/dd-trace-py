@@ -70,7 +70,7 @@ def test_valid_json(tracer):
 def test_appsec_span_tags_snapshot(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
         span.set_tag("http.status_code", "404")
 
