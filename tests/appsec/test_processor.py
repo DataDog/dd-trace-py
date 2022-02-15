@@ -8,6 +8,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import priority
 from tests.utils import override_env
 from tests.utils import override_global_config
+from tests.utils import snapshot
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -56,6 +57,17 @@ def test_retain_traces(tracer):
 
 
 def test_valid_json(tracer):
+    tracer._initialize_span_processors(appsec_enabled=True)
+
+    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+        span.set_tag("http.url", "http://example.com/.git")
+        span.set_tag("http.status_code", "404")
+
+    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+
+@snapshot(include_tracer=True)
+def test_appsec_span_tags_snapshot(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
     with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:

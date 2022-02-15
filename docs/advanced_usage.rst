@@ -294,7 +294,7 @@ propagate a `rpc_metadata` dictionary over the wire::
         tracer.context_provider.activate(context)
 
         with tracer.trace("child_span") as span:
-            span.set_meta('my_rpc_method', method)
+            span.set_tag('my_rpc_method', method)
 
 
 Resolving deprecation warnings

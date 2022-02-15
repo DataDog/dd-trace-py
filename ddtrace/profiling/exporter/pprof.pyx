@@ -91,9 +91,18 @@ class pprof_LocationType(object):
     id: int
 
 
+class pprof_Mapping(object):
+    filename: int
+
+
 class pprof_ProfileType(object):
-    # pprof_pb2.Profile
+    # Emulate pprof_pb2.Profile for typing
     id: int
+    string_table: typing.Dict[int, str]
+    mapping: typing.List[pprof_Mapping]
+
+    def SerializeToString(self) -> bytes:
+        ...
 
 
 class pprof_FunctionType(object):

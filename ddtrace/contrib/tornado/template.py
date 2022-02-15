@@ -27,5 +27,5 @@ def generate(func, renderer, args, kwargs):
     with pin.tracer.trace(
         "tornado.template", service=pin.service, resource=resource, span_type=SpanTypes.TEMPLATE
     ) as span:
-        span.set_meta("tornado.template_name", template_name)
+        span.set_tag("tornado.template_name", template_name)
         return func(*args, **kwargs)
