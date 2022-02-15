@@ -17,7 +17,6 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
-from ddtrace.internal.utils.deprecation import deprecation
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -48,7 +47,6 @@ from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
 from .internal.processor.trace import TraceTopLevelSpanProcessor
 from .internal.runtime import get_runtime_id
-from .internal.utils.deprecation import deprecated
 from .internal.utils.formats import asbool
 from .internal.utils.formats import get_env
 from .internal.writer import AgentWriter
@@ -154,7 +152,9 @@ class Tracer(object):
         pfe_default_value = False
         pfms_default_value = 500
         if "DD_TRACER_PARTIAL_FLUSH_ENABLED" in os.environ or "DD_TRACER_PARTIAL_FLUSH_MIN_SPANS" in os.environ:
-            deprecation("DD_TRACER_... use DD_TRACE_... instead", version="1.0.0")
+            debtcollector.deprecate(
+                "DD_TRACER_... is deprecated", message="use DD_TRACE_... instead", removal_version="1.0.0"
+            )
             pfe_default_value = asbool(get_env("tracer", "partial_flush_enabled", default=pfe_default_value))
             pfms_default_value = int(
                 get_env("tracer", "partial_flush_min_spans", default=pfms_default_value)  # type: ignore[arg-type]
@@ -212,21 +212,22 @@ class Tracer(object):
         return self.log.isEnabledFor(logging.DEBUG)
 
     @debug_logging.setter  # type: ignore[misc]
-    @deprecated(message="Use logging.setLevel instead", version="1.0.0")
+    @removals.remove(message="Use logging.setLevel instead", removal_version="1.0.0")
     def debug_logging(self, value):
         # type: (bool) -> None
         self.log.setLevel(logging.DEBUG if value else logging.WARN)
 
-    @deprecated("Use .tracer, not .tracer()", "1.0.0")
+    @removals.remove(removal_version="1.0.0")
     def __call__(self):
         return self
 
-    @deprecated("This method will be removed altogether", "1.0.0")
+    @removals.remove(removal_version="1.0.0")
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
 
-    @deprecated(
-        "Call context has been superseded by trace context. Please use current_trace_context() instead.", "1.0.0"
+    @removals.remove(
+        message="Call context has been superseded by trace context. Please use current_trace_context() instead.",
+        removal_version="1.0.0",
     )
     def get_call_context(self, *args, **kwargs):
         # type: (...) -> Context
@@ -866,7 +867,7 @@ class Tracer(object):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
         self._writer.flush_queue()
 
-    @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
+    @removals.remove(message="Manually setting service info is no longer necessary", removal_version="1.0.0")
     def set_service_info(self, *args, **kwargs):
         """Set the information about the given service."""
         return
@@ -990,9 +991,9 @@ class Tracer(object):
             self.trace = self._trace
 
             debtcollector.deprecate(
-                "Tracing with a tracer that has been shut down is being deprecated. "
-                "A new tracer should be created for generating new traces",
-                version="1.0.0",
+                "Tracing with a tracer that has been shut down is deprecated",
+                message="A new tracer should be created for generating new traces.",
+                removal_version="1.0.0",
             )
 
     def _shutdown_start_span(

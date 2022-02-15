@@ -40,8 +40,7 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
-from .internal.utils.deprecation import deprecated
-from .internal.utils.deprecation import deprecation
+from .vendor.debtcollector import deprecate
 from .vendor.debtcollector.removals import removed_property
 
 
@@ -151,10 +150,10 @@ class Span(object):
         self.parent_id = parent_id  # type: Optional[int]
         self._tracer = None  # type: Optional[Tracer]
         if tracer is not None:
-            deprecation(
-                name="ddtrace.Span.tracer",
+            deprecate(
+                "ddtrace.Span.tracer is deprecated",
                 message="Use Span(tracer=None, name, ...) instead.",
-                version="1.0.0",
+                removal_version="1.0.0",
             )
             self._tracer = tracer
         self._on_finish_callbacks = [] if on_finish is None else on_finish
@@ -394,12 +393,12 @@ class Span(object):
     def meta(self, value):
         self._meta = value
 
-    @deprecated(message="Span.set_meta will be removed. Use Span.set_tag.", version="1.0.0")
+    @removed_property(message="Use Span.set_tag instead.", removal_version="1.0.0")
     def set_meta(self, k, v):
         # type: (_TagNameType, NumericType) -> None
         self.set_tag(k, v)
 
-    @deprecated(message="Span.set_metas will be removed. Use Span.set_tags.", version="1.0.0")
+    @removed_property(message="Use Span.set_tags.", removal_version="1.0.0")
     def set_metas(self, kvs):
         # type: (_MetaDictType) -> None
         self.set_tags(kvs)
@@ -542,7 +541,7 @@ class Span(object):
         self._remove_tag(ERROR_TYPE)
         self._remove_tag(ERROR_STACK)
 
-    @deprecated(message="Span.pprint will be removed.", version="1.0.0")
+    @removed_property(removal_version="1.0.0")
     def pprint(self):
         return self._pprint()
 

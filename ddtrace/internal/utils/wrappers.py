@@ -7,7 +7,7 @@ from typing import TypeVar
 
 from ddtrace.vendor import wrapt
 
-from .deprecation import deprecated
+from ...vendor.debtcollector.removals import remove
 
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ def unwrap(obj, attr):
     setattr(obj, attr, f.__wrapped__)
 
 
-@deprecated("`wrapt` library is used instead", version="1.0.0")
+@remove(message="`wrapt` library is used instead", removal_version="1.0.0")
 def safe_patch(
     patchable,  # type: Any
     key,  # type: str

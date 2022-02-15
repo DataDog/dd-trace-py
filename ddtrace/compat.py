@@ -1,5 +1,3 @@
-from ddtrace.internal.utils.deprecation import deprecation
-
 from .internal.compat import CONTEXTVARS_IS_AVAILABLE
 from .internal.compat import NumericType
 from .internal.compat import PY2
@@ -34,6 +32,7 @@ from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.compat import to_unicode
 from .internal.compat import urlencode
+from .vendor.debtcollector.removals import removed_module
 
 
 __all__ = [
@@ -73,8 +72,7 @@ __all__ = [
     "urlencode",
 ]
 
-deprecation(
-    name="ddtrace.compat",
-    message="The compat module has been moved to ddtrace.internal and will no longer be part of the public API.",
-    version="1.0.0",
+removed_module(
+    module="ddtrace.compat",
+    removal_version="1.0.0",
 )

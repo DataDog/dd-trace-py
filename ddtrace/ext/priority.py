@@ -17,13 +17,14 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.internal.utils.deprecation import deprecation
+
+from ..vendor.debtcollector.removals import removed_module
 
 
-deprecation(
-    name="ddtrace.ext.priority",
-    message="Use `ddtrace.constants` module instead",
-    version="1.0.0",
+removed_module(
+    module="ddtrace.ext.priority",
+    replacement="ddtrace.constants",
+    removal_version="1.0.0",
 )
 
 __all__ = ["USER_REJECT", "AUTO_REJECT", "AUTO_KEEP", "USER_KEEP"]

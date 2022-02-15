@@ -7,7 +7,7 @@ from typing import Optional
 from typing import Tuple
 import warnings
 
-from ddtrace.vendor import debtcollector
+from ...vendor import debtcollector
 
 
 class RemovedInDDTrace10Warning(DeprecationWarning):
@@ -87,15 +87,24 @@ def get_service_legacy(default=None):
     If the environment variables are not in use, no deprecation warning is
     produced and `default` is returned.
     """
-    for old_env_key in ["DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"]:
-        if old_env_key in os.environ:
-            debtcollector.deprecate(
-                (
-                    "'{}' is deprecated and will be removed in a future version. Please use DD_SERVICE instead. "
-                    "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
-                    "for the improvements being made for service names."
-                ).format(old_env_key)
-            )
-            return os.getenv(old_env_key)
+
+    if "DD_SERVICE_NAME" in os.environ:
+        debtcollector.deprecate(
+            "DD_SERVICE_NAME is deprecated",
+            message="Use DD_SERVICE instead."
+            "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
+            "for the improvements being made for service names.",
+            removal_version="2.0.0",
+        )
+        return os.getenv("DD_SERVICE_NAME")
+    elif "DATADOG_SERVICE_NAME" in os.environ:
+        debtcollector.deprecate(
+            "DATADOG_SERVICE_NAME is deprecated",
+            message="Use DD_SERVICE instead."
+            "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
+            "for the improvements being made for service names.",
+            removal_version="2.0.0",
+        )
+        return os.getenv("DATADOG_SERVICE_NAME")
 
     return default

@@ -1,9 +1,8 @@
-from ..internal.utils.deprecation import deprecation
 from ..internal.utils.version import parse_version  # noqa
+from ..vendor.debtcollector.removals import removed_module
 
 
-deprecation(
-    name="ddtrace.utils.version",
-    message="This module will be removed in v1.0.",
-    version="1.0.0",
+removed_module(
+    module="ddtrace.utils.version",
+    removal_version="1.0.0",
 )
