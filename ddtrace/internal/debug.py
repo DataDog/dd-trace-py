@@ -142,7 +142,7 @@ def collect(tracer):
         dd_version=ddtrace.config.version or "",
         priority_sampling_enabled=tracer._priority_sampler is not None,
         global_tags=os.getenv("DD_TAGS", ""),
-        tracer_tags=tags_to_str(tracer.tags),
+        tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
         partial_flush_enabled=tracer._partial_flush_enabled,
         partial_flush_min_spans=tracer._partial_flush_min_spans,
