@@ -33,6 +33,6 @@ class PprofFileExporter(pprof.PprofExporter):
         """
         profile = super(PprofFileExporter, self).export(events, start_time_ns, end_time_ns)
         with gzip.open(self.prefix + (".%d.%d" % (os.getpid(), self._increment)), "wb") as f:
-            f.write(profile.SerializeToString())  # type: ignore[attr-defined]
+            f.write(profile.SerializeToString())
         self._increment += 1
         return profile
