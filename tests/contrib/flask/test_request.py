@@ -887,6 +887,18 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         assert span.get_tag("http.request.headers.my-header") == "my_value"
         assert span.get_tag("http.request.headers.host") == "localhost"
 
+    def test_correct_resource_when_middleware_error(self):
+        @self.app.before_first_request
+        def error():
+            raise Exception()
+
+        self.client.get("/")
+
+        spans = self.get_spans()
+        req_span = spans[0]
+        assert req_span.resource == "GET /"
+        assert req_span.get_tag("http.status_code") == "500"
+
     def test_http_response_header_tracing(self):
         @self.app.route("/response_headers")
         def response_headers():
