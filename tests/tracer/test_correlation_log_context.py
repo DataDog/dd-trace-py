@@ -26,6 +26,29 @@ def tracer_injection(logger, log_method, event_dict):
 
 
 class TestCorrelationLogsContext(object):
+    def test_get_log_correlation_service(self, global_config):
+        """Ensure expected DDLogRecord service is generated via get_correlation_log_record."""
+        with tracer.trace("test-span-1", service="span-service") as span1:
+            dd_log_record = tracer.get_log_correlation_context()
+        assert dd_log_record == {
+            "span_id": str(span1.span_id),
+            "trace_id": str(span1.trace_id),
+            "service": "span-service",
+            "env": "test-env",
+            "version": "test-version",
+        }
+
+        test_tracer = Tracer()
+        with test_tracer.trace("test-span-2", service="span-service") as span2:
+            dd_log_record = test_tracer.get_log_correlation_context()
+        assert dd_log_record == {
+            "span_id": str(span2.span_id),
+            "trace_id": str(span2.trace_id),
+            "service": "span-service",
+            "env": "test-env",
+            "version": "test-version",
+        }
+
     def test_get_log_correlation_context(self, global_config):
         """Ensure expected DDLogRecord is generated via get_correlation_log_record."""
         with tracer.trace("test-span-1") as span1:

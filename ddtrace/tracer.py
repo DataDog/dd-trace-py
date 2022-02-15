@@ -274,10 +274,15 @@ class Tracer(object):
         if self.enabled:
             span = self.current_span()
 
+        if span and span.service:
+            service = span.service
+        else:
+            service = config.service
+
         return {
             "trace_id": str(span.trace_id) if span else "0",
             "span_id": str(span.span_id) if span else "0",
-            "service": config.service or "",
+            "service": service,
             "version": config.version or "",
             "env": config.env or "",
         }
