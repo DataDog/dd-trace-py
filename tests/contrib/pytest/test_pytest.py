@@ -325,6 +325,44 @@ class TestPytest(TracerTestCase):
         assert spans[1].get_tag(test.RESULT) == test.Status.XFAIL.value
         assert spans[1].get_tag(test.XFAIL_REASON) == "test should xfail"
 
+    def test_xfail_runxfail_fails(self):
+        """Test xfail with --runxfail flags should not crash when failing."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.xfail(reason='should fail')
+            def test_should_fail():
+                assert 0
+
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", "--runxfail", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
+
+    def test_xfail_runxfail_passes(self):
+        """Test xfail with --runxfail flags should not crash when passing."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.xfail(reason='should fail')
+            def test_should_pass():
+                assert 1
+
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", "--runxfail", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
+
     def test_xpass_not_strict(self):
         """Test xpass (unexpected passing) with strict=False, should be marked as pass."""
         py_file = self.testdir.makepyfile(
