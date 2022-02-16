@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Only for CI Visibility (``pytest`` integration): fix unsafe access to pytest's xfail reason.
