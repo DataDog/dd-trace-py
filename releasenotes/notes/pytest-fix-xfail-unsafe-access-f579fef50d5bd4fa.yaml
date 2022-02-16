@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Only for CI Visibility (``pytest`` integration): fix unsafe access to pytest's xfail reason.
+    pytest: fix unsafe access to xfail reason.
