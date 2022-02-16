@@ -55,13 +55,8 @@ COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 def _set_headers(span, headers):
     for k in headers:
-        if k in COLLECTED_REQUEST_HEADERS:
+        if k.lower() in COLLECTED_REQUEST_HEADERS:
             span._set_str_tag(COLLECTED_HEADER_PREFIX + k.lower(), headers[k])
-            continue
-        low = k.lower()
-        if low in COLLECTED_REQUEST_HEADERS:
-            span._set_str_tag(COLLECTED_HEADER_PREFIX + low, headers[k])
-            COLLECTED_REQUEST_HEADERS.add(k)
 
 
 @attr.s(eq=False)

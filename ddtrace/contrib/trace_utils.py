@@ -245,7 +245,7 @@ def _add_if_needed(gateway, target, original_value, address, formatter=None):
 
 
 def _no_cookies(data):
-    return {value for key, value in data.items() if key.lower() not in ("cookie", "set-cookie")}
+    return {key: value for key, value in data.items() if key.lower() not in ("cookie", "set-cookie")}
 
 def set_http_meta(
     span,
