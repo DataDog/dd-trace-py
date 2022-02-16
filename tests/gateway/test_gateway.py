@@ -10,7 +10,7 @@ def test_gateway_flow(gateway):
     store = RequestStore()
     data = {Addresses.SERVER_RESPONSE_STATUS.value: "404"}
     gateway.propagate(store, data)
-    assert store.kept_Addresses[Addresses.SERVER_RESPONSE_STATUS.value] == "404"
+    assert store.kept_addresses[Addresses.SERVER_RESPONSE_STATUS.value] == "404"
 
 
 def test_gateway_clear(gateway):
@@ -18,11 +18,11 @@ def test_gateway_clear(gateway):
     store = RequestStore()
     data = {Addresses.SERVER_RESPONSE_STATUS.value: "404"}
     gateway.propagate(store, data)
-    assert store.kept_Addresses[Addresses.SERVER_RESPONSE_STATUS.value] == "404"
+    assert store.kept_addresses[Addresses.SERVER_RESPONSE_STATUS.value] == "404"
 
     gateway.clear()
 
     store = RequestStore()
     data = {Addresses.SERVER_RESPONSE_STATUS.value: "404"}
     gateway.propagate(store, data)
-    assert Addresses.SERVER_RESPONSE_STATUS.value not in store.kept_Addresses
+    assert Addresses.SERVER_RESPONSE_STATUS.value not in store.kept_addresses
