@@ -14,12 +14,12 @@ from typing import Union
 import six
 
 from . import config
+from .constants import ANALYTICS_SAMPLE_RATE_KEY
 from .constants import ERROR_MSG
 from .constants import ERROR_STACK
 from .constants import ERROR_TYPE
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
-from .constants import NUMERIC_TAGS
 from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
 from .constants import SPAN_MEASURED_KEY
@@ -48,6 +48,7 @@ from .vendor.debtcollector.removals import removed_property
 if TYPE_CHECKING:
     from .tracer import Tracer
 
+_NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
 
 _TagNameType = Union[Text, bytes]
 _MetaDictType = Dict[_TagNameType, Text]
@@ -316,7 +317,7 @@ class Span(object):
             return
 
         # Key should explicitly be converted to a float if needed
-        elif key in NUMERIC_TAGS:
+        elif key in _NUMERIC_TAGS:
             if value is None:
                 log.debug("ignoring not number metric %s:%s", key, value)
                 return

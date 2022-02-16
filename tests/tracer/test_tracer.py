@@ -4,6 +4,7 @@ tests for Tracer and utilities.
 """
 import contextlib
 import gc
+import logging
 import multiprocessing
 import os
 from os import getpid
@@ -837,14 +838,14 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):
-        assert self.tracer.tags["key1"] == "value1"
-        assert self.tracer.tags["key2"] == "value2"
+        assert self.tracer._tags.get("key1") == "value1"
+        assert self.tracer._tags.get("key2") == "value2"
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2,key3"))
     def test_dd_tags_invalid(self):
-        assert "key1" in self.tracer.tags
-        assert "key2" in self.tracer.tags
-        assert "key3" not in self.tracer.tags
+        assert self.tracer._tags.get("key1")
+        assert self.tracer._tags.get("key2")
+        assert self.tracer._tags.get("key3") is None
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
     def test_tags_from_DD_TAGS(self):
@@ -1120,13 +1121,14 @@ def test_filters(tracer, test_spans):
 def test_early_exit(tracer, test_spans):
     s1 = tracer.trace("1")
     s2 = tracer.trace("2")
-    s1.finish()
-    tracer.log = mock.MagicMock(wraps=tracer.log)
-    s2.finish()
+    with mock.patch.object(logging.Logger, "debug") as mock_logger:
+        s1.finish()
+        s2.finish()
+
     calls = [
         mock.call("span %r closing after its parent %r, this is an error when not using async", s2, s1),
     ]
-    tracer.log.debug.assert_has_calls(calls)
+    mock_logger.assert_has_calls(calls)
     assert s1.parent_id is None
     assert s2.parent_id is s1.span_id
 

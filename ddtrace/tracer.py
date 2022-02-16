@@ -25,7 +25,6 @@ from ._monkey import patch
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
-from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
@@ -116,11 +115,10 @@ class Tracer(object):
         :param url: The Datadog agent URL.
         :param dogstatsd_url: The DogStatsD URL.
         """
-        self.log = log
         self._filters = []  # type: List[TraceFilter]
 
         # globally set tags
-        self.tags = config.tags.copy()
+        self._tags = config.tags.copy()
 
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()  # type: Set[str]
@@ -209,15 +207,26 @@ class Tracer(object):
         self._hooks.deregister(self.__class__.start_span, func)
         return func
 
+    @removals.removed_property(message="Use ddtrace.tracer.log instead", removal_version="1.0.0")
+    def log(self):
+        # type: () -> logging.Logger
+        return log
+
+    @log.setter  # type: ignore
+    def log(self, value):
+        # type: (logging.Logger) -> None
+        global log
+        log = value
+
     @property
     def debug_logging(self):
-        return self.log.isEnabledFor(logging.DEBUG)
+        return log.isEnabledFor(logging.DEBUG)
 
     @debug_logging.setter  # type: ignore[misc]
     @deprecated(message="Use logging.setLevel instead", version="1.0.0")
     def debug_logging(self, value):
         # type: (bool) -> None
-        self.log.setLevel(logging.DEBUG if value else logging.WARN)
+        log.setLevel(logging.DEBUG if value else logging.WARN)
 
     @deprecated("Use .tracer, not .tracer()", "1.0.0")
     def __call__(self):
@@ -329,9 +338,7 @@ class Tracer(object):
             self.enabled = enabled
 
         if settings is not None:
-            filters = settings.get(FILTERS_KEY)
-            if filters is not None:
-                self._filters = filters
+            self._filters = settings.get("FILTERS") or self._filters
 
         if partial_flush_enabled is not None:
             self._partial_flush_enabled = partial_flush_enabled
@@ -420,7 +427,7 @@ class Tracer(object):
                 msg = "Failed to collect start-up logs: %s" % e
                 self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
             else:
-                if self.log.isEnabledFor(logging.INFO):
+                if log.isEnabledFor(logging.INFO):
                     msg = "- DATADOG TRACER CONFIGURATION - %s" % json.dumps(info)
                     self._log_compat(logging.INFO, msg)
 
@@ -608,8 +615,8 @@ class Tracer(object):
             span._metrics[PID] = self._pid
 
         # Apply default global tags.
-        if self.tags:
-            span.set_tags(self.tags)
+        if self._tags:
+            span.set_tags(self._tags)
 
         if config.env:
             span._set_str_tag(ENV_KEY, config.env)
@@ -652,17 +659,15 @@ class Tracer(object):
         # Debug check: if the finishing span has a parent and its parent
         # is not the next active span then this is an error in synchronous tracing.
         if span._parent is not None and active is not span._parent:
-            self.log.debug(
-                "span %r closing after its parent %r, this is an error when not using async", span, span._parent
-            )
+            log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
             for p in self._span_processors:
                 p.on_span_finish(span)
 
-        if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
 
     def _initialize_span_processors(self, appsec_enabled=asbool(get_env("appsec", "enabled", default=False))):
         # type: (Optional[bool]) -> None
@@ -713,10 +718,10 @@ class Tracer(object):
         to import the tracer as early as possible, it will likely be the case
         that there are no handlers installed yet.
         """
-        if compat.PY2 and not hasHandlers(self.log):
+        if compat.PY2 and not hasHandlers(log):
             sys.stderr.write("%s\n" % msg)
         else:
-            self.log.log(level, msg)
+            log.log(level, msg)
 
     def _trace(self, name, service=None, resource=None, span_type=None):
         # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
@@ -817,10 +822,10 @@ class Tracer(object):
         if not spans:
             return  # nothing to do
 
-        if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
             for span in spans:
-                self.log.debug("\n%s", span._pprint())
+                log.debug("\n%s", span._pprint())
 
         if not self.enabled:
             return
@@ -847,6 +852,16 @@ class Tracer(object):
     def sampler(self, val):
         # type: (BaseSampler) -> None
         self._sampler = val
+
+    @removals.removed_property(removal_version="1.0.0")
+    def tags(self):
+        # type: () -> dict[str, str]
+        return self._tags
+
+    @tags.setter  # type: ignore
+    def tags(self, t):
+        # type: (dict[str, str]) -> None
+        self._tags = t
 
     @removals.removed_property(message="Use Tracer.flush instead to flush buffered traces to agent", version="1.0.0")
     def writer(self):
@@ -974,7 +989,7 @@ class Tracer(object):
 
         :param dict tags: dict of tags to set at tracer level
         """
-        self.tags.update(tags)
+        self._tags.update(tags)
 
     def _restore_from_shutdown(self):
         with self._shutdown_lock:

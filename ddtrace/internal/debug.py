@@ -108,6 +108,8 @@ def collect(tracer):
 
     pip_version = packages_available.get("pip", "N/A")
 
+    from ddtrace.tracer import log
+
     return dict(
         # Timestamp UTC ISO 8601
         date=datetime.datetime.utcnow().isoformat(),
@@ -133,7 +135,7 @@ def collect(tracer):
         priority_sampler_type=type(tracer._priority_sampler).__name__ if tracer._priority_sampler else "N/A",
         sampler_rules=sampler_rules,
         service=ddtrace.config.service or "",
-        debug=ddtrace.tracer.log.isEnabledFor(logging.DEBUG),
+        debug=log.isEnabledFor(logging.DEBUG),
         enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
         analytics_enabled=ddtrace.config.analytics_enabled,
         log_injection_enabled=ddtrace.config.logs_injection,
@@ -142,7 +144,7 @@ def collect(tracer):
         dd_version=ddtrace.config.version or "",
         priority_sampling_enabled=tracer._priority_sampler is not None,
         global_tags=os.getenv("DD_TAGS", ""),
-        tracer_tags=tags_to_str(tracer.tags),
+        tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
         partial_flush_enabled=tracer._partial_flush_enabled,
         partial_flush_min_spans=tracer._partial_flush_min_spans,
