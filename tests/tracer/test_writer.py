@@ -575,3 +575,34 @@ def test_writer_recreate_api_version(init_api_version, api_version, endpoint, en
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
+
+
+def test_writer_reuse_connections_envvar(monkeypatch):
+    monkeypatch.setenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", "false")
+    writer = AgentWriter(agent_url="http://localhost:9126")
+    assert not writer._reuse_connections
+
+    monkeypatch.setenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", "true")
+    writer = AgentWriter(agent_url="http://localhost:9126")
+    assert writer._reuse_connections
+
+
+def test_writer_reuse_connections():
+    # Ensure connection is not reused
+    writer = AgentWriter(agent_url="http://localhost:9126", reuse_connections=False)
+    # Do an initial flush to get a connection
+    writer.flush_queue()
+    assert writer._conn is None
+    writer.flush_queue()
+    assert writer._conn is None
+
+
+def test_writer_reuse_connections_false():
+    # Ensure connection is reused
+    writer = AgentWriter(agent_url="http://localhost:9126", reuse_connections=False)
+    # Do an initial flush to get a connection
+    writer.flush_queue()
+    conn = writer._conn
+    # And another to potentially have it reset
+    writer.flush_queue()
+    assert writer._conn is conn
