@@ -23,8 +23,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     def __init__(self, cursor, pin):
         super(AIOTracedCursor, self).__init__(cursor)
         pin.onto(self)
-        name = pin.app or "sql"
-        self._datadog_name = "%s.query" % name
+        self._datadog_name = "postgres.query"
 
     @asyncio.coroutine
     def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
@@ -78,7 +77,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
         super(AIOTracedConnection, self).__init__(conn)
         name = dbapi._get_vendor(conn)
-        db_pin = pin or Pin(service=name, app=name)
+        db_pin = pin or Pin(service=name)
         db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)

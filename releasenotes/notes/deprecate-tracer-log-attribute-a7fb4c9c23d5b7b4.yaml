@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    :py:attr:`ddtrace.Tracer.log` is deprecated. Use :py:data:`ddtrace.tracer.log` instead.

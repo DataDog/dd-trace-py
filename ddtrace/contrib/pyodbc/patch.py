@@ -14,6 +14,7 @@ config._add(
     "pyodbc",
     dict(
         _default_service="pyodbc",
+        _dbapi_span_name_prefix="pyodbc",
         trace_fetch_methods=asbool(get_env("pyodbc", "trace_fetch_methods", default=False)),
     ),
 )
@@ -38,7 +39,7 @@ def _connect(func, instance, args, kwargs):
 
 
 def patch_conn(conn):
-    pin = Pin(service=None, app="pyodbc")
+    pin = Pin(service=None)
     wrapped = PyODBCTracedConnection(conn, pin=pin)
     pin.onto(wrapped)
     return wrapped
