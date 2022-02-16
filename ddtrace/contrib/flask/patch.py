@@ -469,6 +469,8 @@ def request_tracer(name):
         if not pin.enabled or not span:
             return wrapped(*args, **kwargs)
 
+        # This call may be unnecessary since we try to add the tags earlier
+        # We just haven't been able to confirm this yet
         _set_request_tags(span)
 
         with pin.tracer.trace(
