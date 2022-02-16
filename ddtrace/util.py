@@ -10,7 +10,6 @@ from .vendor.debtcollector.removals import removed_module
 
 removed_module(
     module="ddtrace.util",
-    replacement="ddtrace.utils",
     removal_version="1.0.0",
 )
 

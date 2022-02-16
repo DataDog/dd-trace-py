@@ -17,7 +17,7 @@ __all__ = [ERROR_MSG, ERROR_TYPE, ERROR_STACK]
 removed_module(
     module="ddtrace.ext.errors",
     replacement="ddtrace.constants",
-    message="Use ERROR_MSG, ERROR_TYPE, and ERROR_STACK instead.",
+    message="ERROR_MSG, ERROR_TYPE, and ERROR_STACK.",
     removal_version="1.0.0",
 )
 
