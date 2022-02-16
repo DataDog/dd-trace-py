@@ -46,17 +46,21 @@ def _url_to_str(url):
     return ensure_text(url)
 
 
-def _init_span(span, request):
-    # type: (Span, httpx.Request) -> None
+def _get_service_name(pin, request):
+    # type: (Pin, httpx.Request) -> typing.Text
     if config.httpx.split_by_domain:
         if hasattr(request.url, "netloc"):
-            span.service = request.url.netloc
+            return ensure_text(request.url.netloc, errors="backslashreplace")
         else:
             service = ensure_binary(request.url.host)
             if request.url.port:
                 service += b":" + ensure_binary(str(request.url.port))
-            span.service = service
+            return ensure_text(service, errors="backslashreplace")
+    return ext_service(pin, config.httpx)
 
+
+def _init_span(span, request):
+    # type: (Span, httpx.Request) -> None
     span.set_tag(SPAN_MEASURED_KEY)
 
     if distributed_tracing_enabled(config.httpx):
@@ -94,7 +98,7 @@ async def _wrapped_async_send(
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("http.request", service=ext_service(pin, config.httpx), span_type=SpanTypes.HTTP) as span:
+    with pin.tracer.trace("http.request", service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
         _init_span(span, req)
         resp = None
         try:
@@ -117,7 +121,7 @@ def _wrapped_sync_send(
 
     req = get_argument_value(args, kwargs, 0, "request")
 
-    with pin.tracer.trace("http.request", service=ext_service(pin, config.httpx), span_type=SpanTypes.HTTP) as span:
+    with pin.tracer.trace("http.request", service=_get_service_name(pin, req), span_type=SpanTypes.HTTP) as span:
         _init_span(span, req)
         resp = None
         try:
