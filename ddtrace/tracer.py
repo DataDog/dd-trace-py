@@ -57,7 +57,6 @@ from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
-from .vendor.debtcollector import removals
 
 
 log = get_logger(__name__)
@@ -195,17 +194,6 @@ class Tracer(object):
 
         self._hooks.deregister(self.__class__.start_span, func)
         return func
-
-    @removals.removed_property(message="Use ddtrace.tracer.log instead", removal_version="1.0.0")
-    def log(self):
-        # type: () -> logging.Logger
-        return log
-
-    @log.setter  # type: ignore
-    def log(self, value):
-        # type: (logging.Logger) -> None
-        global log
-        log = value
 
     @property
     def debug_logging(self):
@@ -775,36 +763,6 @@ class Tracer(object):
 
         if spans is not None:
             self._writer.write(spans=spans)
-
-    @removals.removed_property(removal_version="1.0.0")
-    def priority_sampler(self):
-        # type: () -> Optional[BasePrioritySampler]
-        return self._priority_sampler
-
-    @priority_sampler.setter  # type: ignore[no-redef]
-    def priority_sampler(self, val):
-        # type: (Optional[BasePrioritySampler]) -> None
-        self._priority_sampler = val
-
-    @removals.removed_property(removal_version="1.0.0")
-    def sampler(self):
-        # type: () -> BaseSampler
-        return self._sampler
-
-    @sampler.setter  # type: ignore[no-redef]
-    def sampler(self, val):
-        # type: (BaseSampler) -> None
-        self._sampler = val
-
-    @removals.removed_property(removal_version="1.0.0")
-    def tags(self):
-        # type: () -> dict[str, str]
-        return self._tags
-
-    @tags.setter  # type: ignore
-    def tags(self, t):
-        # type: (dict[str, str]) -> None
-        self._tags = t
 
     @property
     def agent_trace_url(self):
