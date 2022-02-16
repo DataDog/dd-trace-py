@@ -63,13 +63,18 @@ from .vendor.debtcollector import removals
 log = get_logger(__name__)
 
 debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
-call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "true"))
+call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
     " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
 )
 if debug_mode and not hasHandlers(log) and call_basic_config:
+    debtcollector.deprecate(
+        "ddtrace.tracer.logging.basicConfig",
+        message="`logging.basicConfig()` should be called in a user's application."
+        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+    )
     if config.logs_injection:
         # We need to ensure logging is patched in case the tracer logs during initialization
         patch(logging=True)
