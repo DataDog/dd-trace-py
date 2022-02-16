@@ -536,8 +536,9 @@ def test_tracer_shutdown_no_timeout():
         (w,) = ws
         assert issubclass(w.category, DeprecationWarning)
         assert (
-            str(w.message) == "Tracing with a tracer that has been shut down is being deprecated. "
-            "A new tracer should be created for generating new traces in version '1.0.0'"
+            str(w.message)
+            == "Tracing with a tracer that has been shut down is deprecated and will be removed in version '1.0.0': "
+            "A new tracer should be created for generating new traces."
         )
 
     with t.trace("something"):
