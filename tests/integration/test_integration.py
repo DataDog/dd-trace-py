@@ -56,7 +56,7 @@ def test_debug_mode():
 
     p = subprocess.Popen(
         [sys.executable, "-c", "import ddtrace"],
-        env=dict(DD_TRACE_DEBUG="true"),
+        env=dict(DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true"),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -600,6 +600,7 @@ s2.finish()
         env=dict(
             DD_TRACE_LOGS_INJECTION=str(logs_injection).lower(),
             DD_TRACE_DEBUG=str(debug_mode).lower(),
+            DD_CALL_BASIC_CONFIG="true",
         ),
     )
     try:
@@ -622,7 +623,7 @@ def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_con
         When false
             We do not call logging.basicConfig()
         When not set
-            We call logging.basicConfig()
+            We do not call logging.basicConfig()
     """
     env = os.environ.copy()
 
@@ -632,7 +633,7 @@ def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_con
         env["DD_CALL_BASIC_CONFIG"] = str(call_basic_config).lower()
         has_root_handlers = call_basic_config
     else:
-        has_root_handlers = True
+        has_root_handlers = False
 
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
@@ -756,6 +757,7 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     env = os.environ.copy()
     env["DD_TRACE_DEBUG"] = "true"
     env["DD_LOGS_INJECTION"] = "true"
+    env["DD_CALL_BASIC_CONFIG"] = "true"
 
     # DEV: We don't actually have to execute any code to validate this
     out, err, status, pid = ddtrace_run_python_code_in_subprocess("", env=env)

@@ -90,7 +90,7 @@ class DdtraceRunTest(BaseTestCase):
             assert b"Test success" in out
             assert b"DATADOG TRACER CONFIGURATION" not in out
 
-        with self.override_env(dict(DD_TRACE_DEBUG="true")):
+        with self.override_env(dict(DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true")):
             out = subprocess.check_output(
                 ["ddtrace-run", "python", "tests/commands/ddtrace_run_debug.py"],
                 stderr=subprocess.STDOUT,
@@ -267,7 +267,7 @@ class DdtraceRunTest(BaseTestCase):
 
     def test_logs_injection(self):
         """Ensure logs injection works"""
-        with self.override_env(dict(DD_LOGS_INJECTION="true")):
+        with self.override_env(dict(DD_LOGS_INJECTION="true", DD_CALL_BASIC_CONFIG="true")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
             assert out.startswith(b"Test success")
 
@@ -279,6 +279,19 @@ class DdtraceRunTest(BaseTestCase):
         with self.override_env(dict(DD_GEVENT_PATCH_ALL="1")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])
             assert out.startswith(b"Test success")
+
+    def test_debug_mode(self):
+        with self.override_env(dict(DD_CALL_BASIC_CONFIG="true")):
+            p = subprocess.Popen(
+                ["ddtrace-run", "--debug", "python", "-c", "''"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            p.wait()
+            assert p.returncode == 0
+            assert p.stdout.read() == six.b("")
+            assert six.b("ddtrace.sampler") in p.stderr.read()
 
 
 def test_env_profiling_enabled(monkeypatch):
@@ -376,18 +389,6 @@ def test_return_code():
     p.wait()
 
     assert p.returncode == 4
-
-
-def test_debug_mode():
-    p = subprocess.Popen(
-        ["ddtrace-run", "--debug", "python", "-c", "''"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    p.wait()
-    assert p.returncode == 0
-    assert p.stdout.read() == six.b("")
-    assert six.b("ddtrace.sampler") in p.stderr.read()
 
 
 def test_info_no_configs():
