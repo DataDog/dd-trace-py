@@ -404,10 +404,10 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             # Ensure that the default pin is there, with its default value
             pin = Pin.get_from(self.conn)
             assert pin
-            # # assert pin.service == 'mysql'
-            # # Customize the service
-            # # we have to apply it on the existing one since new one won't inherit `app`
-            # pin.clone(tracer=self.tracer).onto(self.conn)
+            # assert pin.service == 'mysql'
+            # Customize the service
+            # we have to apply it on the existing one since new one won't inherit `app`
+            pin.clone(tracer=self.tracer).onto(self.conn)
 
             return self.conn, self.tracer
 
