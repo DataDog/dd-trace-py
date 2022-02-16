@@ -73,10 +73,6 @@ class Pin(object):
     def app(self):
         return self._app
 
-    @app.setter
-    def app(self, val):
-        self._app = val
-
     def __setattr__(self, name, value):
         if getattr(self, "_initialized", False) and name != "_target":
             raise AttributeError("can't mutate a pin, use override() or clone() instead")
