@@ -343,8 +343,6 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 1
         assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
-        assert spans[0].get_tag(test.RESULT) == test.Status.XFAIL.value
-        assert spans[0].get_tag(test.XFAIL_REASON) == "XFail"
 
     def test_xfail_runxfail_passes(self):
         """Test xfail with --runxfail flags should not crash when passing."""
@@ -364,8 +362,6 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 1
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
-        assert spans[0].get_tag(test.RESULT) == test.Status.XPASS.value
-        assert spans[0].get_tag(test.XFAIL_REASON) == "XFail"
 
     def test_xpass_not_strict(self):
         """Test xpass (unexpected passing) with strict=False, should be marked as pass."""
