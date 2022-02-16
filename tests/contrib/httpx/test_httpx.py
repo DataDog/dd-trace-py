@@ -2,6 +2,7 @@ import os
 
 import httpx
 import pytest
+import six
 
 from ddtrace import config
 from ddtrace.contrib.httpx.patch import patch
@@ -45,6 +46,26 @@ def test_patching():
     unpatch()
     assert not isinstance(httpx.Client.send, ObjectProxy)
     assert not isinstance(httpx.AsyncClient.send, ObjectProxy)
+
+
+def test_httpx_service_name(tracer, test_spans):
+    """
+    When using split_by_domain
+        We set the span service name as a text type and not binary
+    """
+    client = httpx.Client()
+    Pin.override(client, tracer=tracer)
+
+    with override_config("httpx", {"split_by_domain": True}):
+        resp = client.get(get_url("/status/200"))
+    assert resp.status_code == 200
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+
+    spans = traces[0]
+    assert len(spans) == 1
+    assert isinstance(spans[0].service, six.text_type)
 
 
 @pytest.mark.asyncio

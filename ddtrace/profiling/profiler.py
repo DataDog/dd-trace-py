@@ -119,7 +119,7 @@ class _ProfilerInstance(service.Service):
     # User-supplied values
     url = attr.ib(default=None)
     service = attr.ib(factory=_get_service_name)
-    tags = attr.ib(factory=dict)
+    tags = attr.ib(factory=dict, type=typing.Dict[str, bytes])
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
