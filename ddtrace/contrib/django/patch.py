@@ -35,6 +35,7 @@ from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import get_env
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
 
 from . import utils
@@ -81,7 +82,7 @@ def patch_conn(django, conn):
             "django.db.vendor": vendor,
             "django.db.alias": alias,
         }
-        pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
+        pin = Pin(service, tags=tags, tracer=pin.tracer)
         cursor = func(*args, **kwargs)
         traced_cursor_cls = dbapi.TracedCursor
         if (
@@ -90,7 +91,17 @@ def patch_conn(django, conn):
             and isinstance(cursor.cursor, psycopg_cursor_cls)
         ):
             traced_cursor_cls = Psycopg2TracedCursor
-        return traced_cursor_cls(cursor, pin, config.django)
+        # Each db alias will need its own config for dbapi
+        cfg = IntegrationConfig(
+            config.django.global_config,  # global_config needed for analytics sample rate
+            "{}-{}".format("django", alias),  # name not used but set anyway
+            _default_service=config.django._default_service,
+            _dbapi_span_name_prefix=prefix,
+            trace_fetch_methods=config.django.trace_fetch_methods,
+            analytics_enabled=config.django.analytics_enabled,
+            analytics_sample_rate=config.django.analytics_sample_rate,
+        )
+        return traced_cursor_cls(cursor, pin, cfg)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
