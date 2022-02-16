@@ -262,6 +262,8 @@ def unpatch():
 def _wrap_start_response(func, span, request):
     def traced_start_response(status_code, headers):
         code, _, _ = status_code.partition(" ")
+        # If values are accessible, set the resource as `<method> <path>` and add other request tags
+        _set_request_tags(span)
 
         # Override root span resource name to be `<method> 404` for 404 requests
         # DEV: We do this because we want to make it easier to see all unknown requests together
@@ -467,25 +469,9 @@ def request_tracer(name):
         if not pin.enabled or not span:
             return wrapped(*args, **kwargs)
 
-        try:
-            request = flask._request_ctx_stack.top.request
-
-            # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
-            if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-                span.resource = u" ".join((request.method, request.endpoint))
-                span._set_str_tag(FLASK_ENDPOINT, request.endpoint)
-
-            if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-                span.resource = u" ".join((request.method, request.url_rule.rule))
-                span._set_str_tag(FLASK_URL_RULE, request.url_rule.rule)
-
-            if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
-                for k, v in request.view_args.items():
-                    # DEV: Do not use `_set_str_tag` here since view args can be string/int/float/path/uuid/etc
-                    #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
-                    span.set_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
-        except Exception:
-            log.debug('failed to set tags for "flask.request" span', exc_info=True)
+        # This call may be unnecessary since we try to add the tags earlier
+        # We just haven't been able to confirm this yet
+        _set_request_tags(span)
 
         with pin.tracer.trace(
             ".".join(("flask", name)), service=trace_utils.int_service(pin, config.flask, pin)
@@ -518,3 +504,25 @@ def traced_jsonify(wrapped, instance, args, kwargs):
 
     with pin.tracer.trace("flask.jsonify"):
         return wrapped(*args, **kwargs)
+
+
+def _set_request_tags(span):
+    try:
+        request = flask._request_ctx_stack.top.request
+
+        # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
+        if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
+            span.resource = u" ".join((request.method, request.endpoint))
+            span._set_str_tag(FLASK_ENDPOINT, request.endpoint)
+
+        if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
+            span.resource = u" ".join((request.method, request.url_rule.rule))
+            span._set_str_tag(FLASK_URL_RULE, request.url_rule.rule)
+
+        if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
+            for k, v in request.view_args.items():
+                # DEV: Do not use `_set_str_tag` here since view args can be string/int/float/path/uuid/etc
+                #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
+                span.set_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
+    except Exception:
+        log.debug('failed to set tags for "flask.request" span', exc_info=True)
