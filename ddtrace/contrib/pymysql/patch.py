@@ -16,6 +16,7 @@ config._add(
     dict(
         # TODO[v1.0] this should be "mysql"
         _default_service="pymysql",
+        _dbapi_span_name_prefix="pymysql",
         trace_fetch_methods=asbool(get_env("pymysql", "trace_fetch_methods", default=False)),
     ),
 )
@@ -44,7 +45,7 @@ def _connect(func, instance, args, kwargs):
 
 def patch_conn(conn):
     tags = {t: getattr(conn, a, "") for t, a in CONN_ATTR_BY_TAG.items()}
-    pin = Pin(app="pymysql", tags=tags)
+    pin = Pin(tags=tags)
 
     # grab the metadata from the conn
     wrapped = TracedConnection(conn, pin=pin, cfg=config.pymysql)

@@ -16,6 +16,7 @@ config._add(
     dict(
         trace_fetch_methods=asbool(get_env("mariadb", "trace_fetch_methods", default=False)),
         _default_service="mariadb",
+        _dbapi_span_name_prefix="mariadb",
     ),
 )
 
@@ -42,7 +43,7 @@ def _connect(func, instance, args, kwargs):
         db.NAME: kwargs["database"],
     }
 
-    pin = Pin(app="mariadb", tags=tags)
+    pin = Pin(tags=tags)
 
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mariadb)
     pin.onto(wrapped)
