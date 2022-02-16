@@ -25,6 +25,7 @@ config._add(
     "dbapi2",
     dict(
         _default_service="db",
+        _dbapi_span_name_prefix="sql",
         trace_fetch_methods=None,  # Part of the API. Should be implemented at the integration level.
     ),
 )
@@ -36,8 +37,13 @@ class TracedCursor(wrapt.ObjectProxy):
     def __init__(self, cursor, pin, cfg):
         super(TracedCursor, self).__init__(cursor)
         pin.onto(self)
-        name = pin.app or "sql"
-        self._self_datadog_name = "{}.query".format(name)
+        # Allow dbapi-based integrations to override default span name prefix
+        span_name_prefix = (
+            cfg._dbapi_span_name_prefix
+            if cfg and "_dbapi_span_name_prefix" in cfg
+            else config.dbapi2._dbapi_span_name_prefix
+        )
+        self._self_datadog_name = "{}.query".format(span_name_prefix)
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
 
@@ -179,7 +185,7 @@ class TracedConnection(wrapt.ObjectProxy):
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
         self._self_datadog_name = "{}.connection".format(name)
-        db_pin = pin or Pin(service=name, app=name)
+        db_pin = pin or Pin(service=name)
         db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
