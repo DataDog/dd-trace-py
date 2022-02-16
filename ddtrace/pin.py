@@ -35,7 +35,7 @@ class Pin(object):
         >>> conn = sqlite.connect('/tmp/image.db')
     """
 
-    __slots__ = ["tags", "tracer", "_target", "_config", "_initialized"]
+    __slots__ = ["_app", "tags", "tracer", "_target", "_config", "_initialized"]
 
     @debtcollector.removals.removed_kwarg("app", removal_version="1.0.0")
     @debtcollector.removals.removed_kwarg("app_type", removal_version="1.0.0")
