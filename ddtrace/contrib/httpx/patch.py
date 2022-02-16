@@ -141,7 +141,7 @@ def patch():
     _w(httpx.AsyncClient, "send", _wrapped_async_send)
     _w(httpx.Client, "send", _wrapped_sync_send)
 
-    pin = Pin(app="httpx")
+    pin = Pin()
     pin.onto(httpx.AsyncClient)
     pin.onto(httpx.Client)
 

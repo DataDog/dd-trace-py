@@ -30,7 +30,7 @@ def patch():
     setattr(requests, "__datadog_patch", True)
 
     _w("requests", "Session.send", _wrap_send)
-    Pin(app="requests", _config=config.requests).onto(requests.Session)
+    Pin(_config=config.requests).onto(requests.Session)
 
     # [Backward compatibility]: `session.distributed_tracing` should point and
     # update the `Pin` configuration instead. This block adds a property so that
