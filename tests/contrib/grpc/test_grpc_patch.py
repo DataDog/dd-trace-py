@@ -2,7 +2,7 @@ from ddtrace.contrib.grpc import patch
 from tests.contrib.patch import PatchTestCase
 
 
-class TestSnowflakePatch(PatchTestCase.Base):
+class TestGRPCPatch(PatchTestCase.Base):
     __integration_name__ = "grpc"
     __module_name__ = "grpc"
     __patch_func__ = patch
