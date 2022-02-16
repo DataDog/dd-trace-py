@@ -342,12 +342,20 @@ jobs:
           paths:
             - "."
 
+  gateway:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: 'gateway'
+          snapshot: true
+
   appsec:
     <<: *machine_executor
     steps:
       - run_test:
           pattern: 'appsec'
           snapshot: true
+
 
   tracer:
     <<: *contrib_job
@@ -1033,6 +1041,7 @@ requires_tests: &requires_tests
     - test_logging
     - tracer
     - appsec
+    - gateway
     - tornado
     - urllib3
     - vertica
@@ -1121,6 +1130,7 @@ workflows:
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
       - appsec: *requires_base_venvs
+      - gateway: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs

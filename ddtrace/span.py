@@ -56,7 +56,13 @@ _MetricDictType = Dict[_TagNameType, NumericType]
 log = get_logger(__name__)
 
 
-class SpanStore(object):
+class RequestStore(object):
+    """
+    This class contains a request store:
+    One instance is associated with a given incoming HTTP request
+    It is created when the request gets in and will be destroyed when the HTTP response is fully emitted
+    As of right now, this behavior is handled by attaching the instance of the store to the root span
+    """
 
     __slots__ = ["kept_addresses"]
 
@@ -149,7 +155,7 @@ class Span(object):
         self._meta = {}  # type: _MetaDictType
         self.error = 0
         self._metrics = {}  # type: _MetricDictType
-        self.store = SpanStore()  # type: SpanStore
+        self.store = RequestStore()  # type: RequestStore
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
