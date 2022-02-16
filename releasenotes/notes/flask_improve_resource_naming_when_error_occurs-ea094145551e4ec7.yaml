@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fix resource naming of Flask request span when errors occur in middleware.
+    flask: Fix resource naming of request span when errors occur in middleware.
