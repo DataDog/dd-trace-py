@@ -262,7 +262,7 @@ def unpatch():
 def _wrap_start_response(func, span, request):
     def traced_start_response(status_code, headers):
         code, _, _ = status_code.partition(" ")
-        # If values are accessible, set the resource as `<method <path>` and add other request tags
+        # If values are accessible, set the resource as `<method> <path>` and add other request tags
         _set_request_tags(span)
 
         # Override root span resource name to be `<method> 404` for 404 requests
