@@ -1,5 +1,4 @@
 from unittest import TestCase
-import warnings
 
 import pytest
 
@@ -188,21 +187,3 @@ class PinTestCase(TestCase):
 
         assert global_pin._config["distributed_tracing"] is True
         assert pin._config["distributed_tracing"] is False
-
-
-def test_pin_app_deprecation():
-    with warnings.catch_warnings(record=True) as ws:
-        warnings.simplefilter("always")
-
-        p = Pin(app="foo")
-        assert len(ws) == 1
-        assert issubclass(ws[0].category, DeprecationWarning)
-
-    with warnings.catch_warnings(record=True) as ws:
-        warnings.simplefilter("always")
-
-        p = Pin(app="foo")
-        assert p.app
-        assert len(ws) == 2
-        assert issubclass(ws[0].category, DeprecationWarning)
-        assert issubclass(ws[1].category, DeprecationWarning)
