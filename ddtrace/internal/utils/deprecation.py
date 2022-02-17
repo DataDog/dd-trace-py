@@ -91,18 +91,22 @@ def get_service_legacy(default=None):
     if "DD_SERVICE_NAME" in os.environ:
         debtcollector.deprecate(
             "DD_SERVICE_NAME is deprecated",
-            message="Use DD_SERVICE instead."
-            "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
-            "for the improvements being made for service names.",
+            message=(
+                "Use DD_SERVICE instead. "
+                "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
+                "for the improvements being made for service names."
+            ),
             removal_version="2.0.0",
         )
         return os.getenv("DD_SERVICE_NAME")
     elif "DATADOG_SERVICE_NAME" in os.environ:
         debtcollector.deprecate(
             "DATADOG_SERVICE_NAME is deprecated",
-            message="Use DD_SERVICE instead."
-            "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
-            "for the improvements being made for service names.",
+            message=(
+                "Use DD_SERVICE instead. "
+                "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
+                "for the improvements being made for service names."
+            ),
             removal_version="2.0.0",
         )
         return os.getenv("DATADOG_SERVICE_NAME")
