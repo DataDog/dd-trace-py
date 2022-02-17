@@ -34,7 +34,6 @@ config._add(
     dict(
         # Flask service configuration
         _default_service="flask",
-        app="flask",
         collect_view_args=True,
         distributed_tracing_enabled=True,
         template_default_name="<memory>",
