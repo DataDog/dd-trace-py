@@ -4,7 +4,6 @@ from typing import Optional
 from typing import TYPE_CHECKING
 
 import ddtrace
-from ddtrace.vendor import debtcollector
 
 from .internal.logger import get_logger
 from .vendor import wrapt
@@ -35,22 +34,17 @@ class Pin(object):
         >>> conn = sqlite.connect('/tmp/image.db')
     """
 
-    __slots__ = ["_app", "tags", "tracer", "_target", "_config", "_initialized"]
+    __slots__ = ["tags", "tracer", "_target", "_config", "_initialized"]
 
-    @debtcollector.removals.removed_kwarg("app", removal_version="1.0.0")
-    @debtcollector.removals.removed_kwarg("app_type", removal_version="1.0.0")
     def __init__(
         self,
         service=None,  # type: Optional[str]
-        app=None,  # type: Optional[str]
-        app_type=None,
         tags=None,  # type: Optional[Dict[str, str]]
         tracer=None,  # type: Optional[Tracer]
         _config=None,  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
         tracer = tracer or ddtrace.tracer
-        self._app = app
         self.tags = tags
         self.tracer = tracer
         self._target = None  # type: Optional[int]
@@ -68,10 +62,6 @@ class Pin(object):
         configuration value.
         """
         return self._config["service_name"]
-
-    @debtcollector.removals.removed_property(removal_version="1.0.0")
-    def app(self):
-        return self._app
 
     def __setattr__(self, name, value):
         if getattr(self, "_initialized", False) and name != "_target":
@@ -128,14 +118,10 @@ class Pin(object):
         return pin
 
     @classmethod
-    @debtcollector.removals.removed_kwarg("app", removal_version="1.0.0")
-    @debtcollector.removals.removed_kwarg("app_type", removal_version="1.0.0")
     def override(
         cls,
         obj,  # type: Any
         service=None,  # type: Optional[str]
-        app=None,  # type: Optional[str]
-        app_type=None,
         tags=None,  # type: Optional[Dict[str, str]]
         tracer=None,  # type: Optional[Tracer]
     ):
@@ -193,13 +179,9 @@ class Pin(object):
         except AttributeError:
             log.debug("can't remove pin from object. skipping", exc_info=True)
 
-    @debtcollector.removals.removed_kwarg("app", removal_version="1.0.0")
-    @debtcollector.removals.removed_kwarg("app_type", removal_version="1.0.0")
     def clone(
         self,
         service=None,  # type: Optional[str]
-        app=None,  # type: Optional[str]
-        app_type=None,
         tags=None,  # type: Optional[Dict[str, str]]
         tracer=None,  # type: Optional[Tracer]
     ):
