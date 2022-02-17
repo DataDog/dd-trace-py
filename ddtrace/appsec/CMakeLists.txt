@@ -4,7 +4,7 @@ include(ExternalProject)
 
 ExternalProject_Add(libddwaf
     GIT_REPOSITORY https://github.com/DataDog/libddwaf.git
-    GIT_TAG f20f9b5a6f9cfae89924536f73ee211aa28b4408
+    GIT_TAG 5305130362b13808dcfeaa6509031d3e85ca2518
     INSTALL_DIR ${CMAKE_SOURCE_DIR}
     CMAKE_ARGS
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
