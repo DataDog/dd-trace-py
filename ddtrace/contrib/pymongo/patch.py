@@ -51,7 +51,7 @@ def patch_pymongo_module():
     if getattr(pymongo, "_datadog_patch", False):
         return
     setattr(pymongo, "_datadog_patch", True)
-    Pin(app=mongox.SERVICE).onto(pymongo.server.Server)
+    Pin().onto(pymongo.server.Server)
 
     # Whenever a pymongo command is invoked, the lib either:
     # - Creates a new socket & performs a TCP handshake

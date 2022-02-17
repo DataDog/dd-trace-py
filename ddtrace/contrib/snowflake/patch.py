@@ -14,6 +14,12 @@ config._add(
     "snowflake",
     dict(
         _default_service="snowflake",
+        # FIXME: consistent prefix span names with other dbapi integrations
+        # The snowflake integration was introduced following a different pattern
+        # than all other dbapi-compliant integrations. It sets span names to
+        # `sql.query` whereas other dbapi-compliant integrations are set to
+        # `<integration>.query`.
+        _dbapi_span_name_prefix="sql",
         trace_fetch_methods=asbool(get_env("snowflake", "trace_fetch_methods", default=False)),
     ),
 )
