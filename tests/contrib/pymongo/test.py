@@ -9,7 +9,6 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pymongo.client import normalize_filter
 from ddtrace.contrib.pymongo.patch import patch
-from ddtrace.contrib.pymongo.patch import trace_mongo_client
 from ddtrace.contrib.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import mongo as mongox
@@ -356,20 +355,6 @@ class PymongoCore(object):
             spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
-
-
-class TestPymongoTraceClient(TracerTestCase, PymongoCore):
-    """Test suite for pymongo with the legacy trace interface"""
-
-    TEST_SERVICE = "test-mongo-trace-client"
-
-    def get_tracer_and_client(self):
-        tracer = DummyTracer()
-        original_client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        client = trace_mongo_client(original_client, tracer, service=self.TEST_SERVICE)
-        # No need to disable tcp spans tracer here as trace_mongo_client does not call
-        # patch()
-        return tracer, client
 
 
 class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
