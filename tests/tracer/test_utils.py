@@ -2,7 +2,6 @@ from functools import partial
 import sys
 import typing
 import unittest
-import warnings
 
 import mock
 import pytest
@@ -12,9 +11,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import time
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
-from ddtrace.internal.utils.deprecation import deprecated
-from ddtrace.internal.utils.deprecation import deprecation
-from ddtrace.internal.utils.deprecation import format_message
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.importlib import func_name
@@ -33,41 +29,6 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(asbool(""))
         self.assertTrue(asbool(True))
         self.assertFalse(asbool(False))
-
-    def test_deprecation_formatter(self):
-        # ensure the formatter returns the proper message
-        msg = format_message(
-            "deprecated_function",
-            "use something else instead",
-            "1.0.0",
-        )
-        expected = (
-            "'deprecated_function' is deprecated and will be remove in future versions (1.0.0). "
-            "use something else instead"
-        )
-        self.assertEqual(msg, expected)
-
-    def test_deprecation(self):
-        # ensure `deprecation` properly raise a DeprecationWarning
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            deprecation(name="fn", message="message", version="1.0.0")
-            self.assertEqual(len(w), 1)
-            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertIn("message", str(w[-1].message))
-
-    def test_deprecated_decorator(self):
-        # ensure `deprecated` decorator properly raise a DeprecationWarning
-        @deprecated("decorator", version="1.0.0")
-        def fxn():
-            pass
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            fxn()
-            self.assertEqual(len(w), 1)
-            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertIn("decorator", str(w[-1].message))
 
 
 _LOG_ERROR_MALFORMED_TAG = "Malformed tag in tag pair '%s' from tag string '%s'."
