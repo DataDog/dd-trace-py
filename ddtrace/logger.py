@@ -23,11 +23,11 @@ def configure_ddtrace_logger():
         ddtrace_handler = RotatingFileHandler(
             filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup
         )
+        ddtrace_handler.setFormatter(log_formatter)
+        ddtrace_logger.addHandler(ddtrace_handler)
         ddtrace_logger.debug("Debug mode has been enabled with debug logs logging to %s", log_path)
-        ddtrace_handler.setFormatter(log_formatter)
-        ddtrace_logger.addHandler(ddtrace_handler)
-    elif debug_log_level is True:
+    else:
         ddtrace_handler = logging.StreamHandler()
-        ddtrace_logger.debug("Debug mode has been enabled with debug logs logging to stdout")
         ddtrace_handler.setFormatter(log_formatter)
         ddtrace_logger.addHandler(ddtrace_handler)
+        ddtrace_logger.debug("Debug mode has been enabled with debug logs logging to stdout")
