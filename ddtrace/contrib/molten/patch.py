@@ -30,7 +30,6 @@ config._add(
     "molten",
     dict(
         _default_service="molten",
-        app="molten",
         distributed_tracing=asbool(os.getenv("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
     ),
 )
