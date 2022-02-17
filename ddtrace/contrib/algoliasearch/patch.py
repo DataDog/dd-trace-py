@@ -34,7 +34,7 @@ def patch():
 
     setattr(algoliasearch, "_datadog_patch", True)
 
-    pin = Pin(app=APP_NAME)
+    pin = Pin()
 
     if algoliasearch_version < (2, 0) and algoliasearch_version >= (1, 0):
         _w(algoliasearch.index, "Index.search", _patched_search)
