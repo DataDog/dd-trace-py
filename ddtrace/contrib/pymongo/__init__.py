@@ -32,6 +32,5 @@ required_modules = ["pymongo"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
-        from .patch import trace_mongo_client
 
-        __all__ = ["trace_mongo_client", "patch"]
+        __all__ = ["patch"]
