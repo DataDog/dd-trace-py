@@ -1,3 +1,4 @@
+import inspect
 from typing import Awaitable
 from typing import Callable
 from typing import Union
@@ -31,17 +32,17 @@ def create_aio_server_interceptor(pin):
         continuation,  # type: Continuation
         handler_call_details,  # type: grpc.HandlerCallDetails
     ):
-        # type: (...) -> Awaitable[Union[grpc.RpcMethodHandler, _TracedRpcMethodHandler]]
+        # type: (...) -> Awaitable[Union[grpc.RpcMethodHandler, _TracedAioRpcMethodHandler]]
         rpc_method_handler = await continuation(handler_call_details)
 
         # continuation returns an RpcMethodHandler instance if the RPC is
         # considered serviced, or None otherwise
         # https://grpc.github.io/grpc/python/grpc.html#grpc.ServerInterceptor.intercept_service
 
-        if rpc_method_handler:
-            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+        if rpc_method_handler is None:
+            return None
 
-        return rpc_method_handler
+        return _TracedAioRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
 
     return _ServerInterceptor(interceptor_function)
 
@@ -52,11 +53,15 @@ async def _wrap_stream_response(
     servicer_context,  # type: aio.ServicerContext
     span,  # type: Span
 ):
-    # type: (...) -> RequestIterableType
+    # type: (...) -> ResponseIterableType
     try:
         call = behavior(request_or_iterator, servicer_context)
-        async for response in call:
-            yield response
+        if inspect.isasyncgen(call):
+            async for response in call:
+                yield response
+        else:
+            for response in call:
+                yield response
     except Exception:
         span.set_traceback()
         # https://github.com/grpc/grpc/issues/27409 there seems to be a bug with
@@ -73,9 +78,10 @@ async def _wrap_unary_response(
     servicer_context,  # type: aio.ServicerContext
     span,  # type: Span
 ):
-    # type: (...) -> None
+    # type: (...) -> Awaitable[ResponseType]
     try:
-        return await behavior(request_or_iterator, servicer_context)
+        call = behavior(request_or_iterator, servicer_context)
+        return await call if inspect.iscoroutine(call) else call
     except Exception:
         span.set_traceback()
         # https://github.com/grpc/grpc/issues/27409 there seems to be a bug with
@@ -86,10 +92,10 @@ async def _wrap_unary_response(
         span.finish()
 
 
-class _TracedRpcMethodHandler(wrapt.ObjectProxy):
+class _TracedAioRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, pin, handler_call_details, wrapped):
         # type: (Pin, grpc.HandlerCallDetails, grpc.RpcMethodHandler) -> None
-        super(_TracedRpcMethodHandler, self).__init__(wrapped)
+        super(_TracedAioRpcMethodHandler, self).__init__(wrapped)
         self._pin = pin
         self._handler_call_details = handler_call_details
 
@@ -152,5 +158,5 @@ class _ServerInterceptor(aio.ServerInterceptor):
         continuation,  # type: Continuation
         handler_call_details,  # type: grpc.HandlerCallDetails
     ):
-        # type: (...) -> Union[grpc.RpcMethodHandler, _TracedRpcMethodHandler]
+        # type: (...) -> Union[grpc.RpcMethodHandler, _TracedAioRpcMethodHandler]
         return await self._fn(continuation, handler_call_details)

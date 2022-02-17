@@ -67,6 +67,23 @@ class _HelloServicer(HelloServicer):
         yield HelloReply(message="Good bye")
 
 
+# non-async client streaming RPCs are not implemented
+# because `async for` cannot be executed in non-async functions.
+class _NonAsyncHelloServicer(HelloServicer):
+    def SayHello(self, request, context):
+        if request.name == "exception":
+            # Cannot be awaited so cannot abort
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "exception")
+        return HelloReply(message="Hello {}".format(request.name))
+
+    def SayHelloTwice(self, request, context):
+        yield HelloReply(message="first response")
+        if request.name == "exception":
+            # Cannot be awaited so cannot abort
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "exception")
+        yield HelloReply(message="second response")
+
+
 @pytest.fixture
 def patch_grpc_aio():
     patch()
@@ -89,17 +106,28 @@ async def server_target(event_loop, patch_grpc_aio, tracer):
     tracer fixture is imported to make sure the tracer is pinned to the modules.
     """
     target = f"localhost:{_GRPC_PORT}"
-    _server = _create_server(target)
+    _server = _create_server(target, _HelloServicer())
     await _server.start()
     yield target
     await _server.stop(grace=None)
     await _server.wait_for_termination()
 
 
-def _create_server(target):
+@pytest_asyncio.fixture
+async def non_async_server_target(event_loop, patch_grpc_aio, tracer):
+    """tracer fixture is imported to make sure the tracer is pinned to the modules."""
+    target = f"localhost:{_GRPC_PORT}"
+    _server = _create_server(target, _NonAsyncHelloServicer())
+    await _server.start()
+    yield target
+    await _server.stop(grace=None)
+    await _server.wait_for_termination()
+
+
+def _create_server(target, servicer):
     _server = aio.server()
     _server.add_insecure_port(target)
-    add_HelloServicer_to_server(_HelloServicer(), _server)
+    add_HelloServicer_to_server(servicer, _server)
     return _server
 
 
@@ -198,7 +226,7 @@ async def test_pin_tags_put_in_span(patch_grpc_aio, tracer):
     Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, service="server1")
     Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, tags={"tag1": "server"})
     target = f"localhost:{_GRPC_PORT}"
-    _server = _create_server(target)
+    _server = _create_server(target, _HelloServicer())
     await _server.start()
 
     Pin.override(constants.GRPC_AIO_PIN_MODULE_CLIENT, tags={"tag2": "client"})
@@ -356,6 +384,37 @@ async def test_unary_cancellation(server_target, tracer):
 
 
 @pytest.mark.asyncio
+async def test_unary_non_async_rpc(non_async_server_target, tracer):
+    async with aio.insecure_channel(non_async_server_target) as channel:
+        stub = HelloStub(channel)
+        response = await stub.SayHello(HelloRequest(name="test"))
+        assert response.message == "Hello test"
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
+
+
+@pytest.mark.asyncio
+async def test_unary_non_async_rpc_exception(non_async_server_target, tracer):
+    async with aio.insecure_channel(non_async_server_target) as channel:
+        stub = HelloStub(channel)
+        response = await stub.SayHello(HelloRequest(name="exception"))
+        assert response.message == "Hello exception"
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
+    # abort call doesn't take effect
+    _check_server_span(server_span, "grpc-aio-server", "SayHello", "unary")
+
+
+@pytest.mark.asyncio
 async def test_server_streaming(server_target, tracer):
     async with aio.insecure_channel(server_target) as channel:
         stub = HelloStub(channel)
@@ -461,6 +520,49 @@ async def test_server_streaming_cancelled_after_rpc(server_target, tracer):
 
     # No error because cancelled after execution
     _check_client_span(client_span, "grpc-aio-client", "SayHelloTwice", "server_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
+
+
+@pytest.mark.asyncio
+async def test_server_streaming_non_async_rpc(non_async_server_target, tracer):
+    async with aio.insecure_channel(non_async_server_target) as channel:
+        stub = HelloStub(channel)
+        response_counts = 0
+        async for response in stub.SayHelloTwice(HelloRequest(name="test")):
+            if response_counts == 0:
+                assert response.message == "first response"
+            elif response_counts == 1:
+                assert response.message == "second response"
+            response_counts += 1
+        assert response_counts == 2
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHelloTwice", "server_streaming")
+    _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
+
+
+@pytest.mark.asyncio
+async def test_server_streaming_non_async_rpc_exception(non_async_server_target, tracer):
+    async with aio.insecure_channel(non_async_server_target) as channel:
+        stub = HelloStub(channel)
+        response_counts = 0
+        async for response in stub.SayHelloTwice(HelloRequest(name="exception")):
+            if response_counts == 0:
+                assert response.message == "first response"
+            elif response_counts == 1:
+                assert response.message == "second response"
+            response_counts += 1
+        assert response_counts == 2
+
+    spans = tracer.writer.spans
+    assert len(spans) == 2
+    client_span, server_span = spans
+
+    _check_client_span(client_span, "grpc-aio-client", "SayHelloTwice", "server_streaming")
+    # abort call doesn't take effect
     _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
 
 
