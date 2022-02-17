@@ -41,7 +41,7 @@ def patch():
         return
     setattr(molten, "_datadog_patch", True)
 
-    pin = Pin(app=config.molten["app"])
+    pin = Pin()
 
     # add pin to module since many classes use __slots__
     pin.onto(molten)

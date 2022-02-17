@@ -35,9 +35,10 @@ class Pin(object):
         >>> conn = sqlite.connect('/tmp/image.db')
     """
 
-    __slots__ = ["app", "tags", "tracer", "_target", "_config", "_initialized"]
+    __slots__ = ["_app", "tags", "tracer", "_target", "_config", "_initialized"]
 
-    @debtcollector.removals.removed_kwarg("app_type")
+    @debtcollector.removals.removed_kwarg("app", removal_version="1.0.0")
+    @debtcollector.removals.removed_kwarg("app_type", removal_version="1.0.0")
     def __init__(
         self,
         service=None,  # type: Optional[str]
@@ -49,7 +50,7 @@ class Pin(object):
     ):
         # type: (...) -> None
         tracer = tracer or ddtrace.tracer
-        self.app = app
+        self._app = app
         self.tags = tags
         self.tracer = tracer
         self._target = None  # type: Optional[int]
@@ -68,13 +69,17 @@ class Pin(object):
         """
         return self._config["service_name"]
 
+    @debtcollector.removals.removed_property(removal_version="1.0.0")
+    def app(self):
+        return self._app
+
     def __setattr__(self, name, value):
         if getattr(self, "_initialized", False) and name != "_target":
             raise AttributeError("can't mutate a pin, use override() or clone() instead")
         super(Pin, self).__setattr__(name, value)
 
     def __repr__(self):
-        return "Pin(service=%s, app=%s, tags=%s, tracer=%s)" % (self.service, self.app, self.tags, self.tracer)
+        return "Pin(service=%s, tags=%s, tracer=%s)" % (self.service, self.tags, self.tracer)
 
     @staticmethod
     def _find(*objs):
@@ -83,7 +88,7 @@ class Pin(object):
         Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
 
 
-            >>> pin = Pin._find(wrapper, instance, conn, app)
+            >>> pin = Pin._find(wrapper, instance, conn)
 
         :param objs: The objects to search for a :class:`ddtrace.pin.Pin` on
         :type objs: List of objects
@@ -123,7 +128,8 @@ class Pin(object):
         return pin
 
     @classmethod
-    @debtcollector.removals.removed_kwarg("app_type")
+    @debtcollector.removals.removed_kwarg("app", removal_version="1.0.0")
+    @debtcollector.removals.removed_kwarg("app_type", removal_version="1.0.0")
     def override(
         cls,
         obj,  # type: Any
@@ -148,9 +154,9 @@ class Pin(object):
 
         pin = cls.get_from(obj)
         if pin is None:
-            Pin(service=service, app=app, tags=tags, tracer=tracer).onto(obj)
+            Pin(service=service, tags=tags, tracer=tracer).onto(obj)
         else:
-            pin.clone(service=service, app=app, tags=tags, tracer=tracer).onto(obj)
+            pin.clone(service=service, tags=tags, tracer=tracer).onto(obj)
 
     def enabled(self):
         # type: () -> bool
@@ -187,7 +193,8 @@ class Pin(object):
         except AttributeError:
             log.debug("can't remove pin from object. skipping", exc_info=True)
 
-    @debtcollector.removals.removed_kwarg("app_type")
+    @debtcollector.removals.removed_kwarg("app", removal_version="1.0.0")
+    @debtcollector.removals.removed_kwarg("app_type", removal_version="1.0.0")
     def clone(
         self,
         service=None,  # type: Optional[str]
@@ -212,7 +219,6 @@ class Pin(object):
 
         return Pin(
             service=service or self.service,
-            app=app or self.app,
             tags=tags,
             tracer=tracer or self.tracer,  # do not clone the Tracer
             _config=config,
