@@ -1,4 +1,4 @@
 ---
 upgrade:
   - |
-    :py:meth:`ddrace.context.Context.clone` was removed. This is no longer need since ddtrace will now work out of the box with async frameworks.
+    :py:meth:`ddrace.context.Context.clone` was removed. This is no longer needed since the tracer now supports async frameworks out of the box.
