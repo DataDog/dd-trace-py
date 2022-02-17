@@ -4,6 +4,7 @@ upgrade:
     Removed deprecated middleware ``ddtrace.contrib.flask.middleware.py:TraceMiddleware``. Use :py:meth:`ddtrace.patch_all` or :py:meth:`ddtrace.patch` instead.
   - |
     Removed deprecated function ``ddtrace.contrib.pymongo.patch.py:trace_mongo_client``. Use :py:meth:`ddtrace.patch_all` or :py:meth:`ddtrace.patch` instead.
+  - |
     Removed deprecated function ``ddtrace.contrib.pymysql.tracers.py:get_traced_pymysql_connection``. Use :py:meth:`ddtrace.patch_all` or :py:meth:`ddtrace.patch` instead.
   - |
     Removed deprecated function ``ddtrace.contrib.redis.tracers.py:get_traced_redis``. Use :py:meth:`ddtrace.patch_all` or :py:meth:`ddtrace.patch` instead.
