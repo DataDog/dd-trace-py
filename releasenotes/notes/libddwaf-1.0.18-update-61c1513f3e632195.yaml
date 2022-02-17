@@ -1,0 +1,3 @@
+---
+fixes:
+  - Fixes build issues on older MacOS versions by updating ``libddwaf`` to 1.0.18
