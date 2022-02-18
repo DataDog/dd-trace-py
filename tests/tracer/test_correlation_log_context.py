@@ -73,7 +73,7 @@ class TestCorrelationLogsContext(object):
 
     def test_get_log_correlation_context_opentracer(self, global_config):
         """Ensure expected DDLogRecord generated via get_correlation_log_record with an opentracing Tracer."""
-        ot_tracer = OT_Tracer()
+        ot_tracer = OT_Tracer(service_name="test-service")
         with ot_tracer.start_active_span("operation") as scope:
             dd_span = scope._span._dd_span
             dd_log_record = ot_tracer.get_log_correlation_context()
