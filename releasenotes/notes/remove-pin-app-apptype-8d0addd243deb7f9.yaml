@@ -1,4 +1,14 @@
 ---
 upgrade:
-  - |
-    The deprecated properties ``Pin.app`` and ``Pin.app_type`` are removed.
+  - ".. _remove-pin-app:
+
+
+    ``Pin.app`` is removed.
+
+    "
+  - ".. _remove-pin-apptype:
+
+
+    ``Pin.app_type`` is removed.
+
+    "
