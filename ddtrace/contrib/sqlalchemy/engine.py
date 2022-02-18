@@ -62,7 +62,7 @@ class EngineTracer(object):
         self.name = "%s.query" % self.vendor
 
         # attach the PIN
-        Pin(app=self.vendor, tracer=tracer, service=self.service).onto(engine)
+        Pin(tracer=tracer, service=self.service).onto(engine)
 
         listen(engine, "before_cursor_execute", self._before_cur_exec)
         listen(engine, "after_cursor_execute", self._after_cur_exec)

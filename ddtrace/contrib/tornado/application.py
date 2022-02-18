@@ -55,4 +55,4 @@ def tracer_config(__init__, app, args, kwargs):
         tracer.set_tags(tags)
 
     # configure the PIN object for template rendering
-    ddtrace.Pin(app="tornado", service=service, tracer=tracer).onto(template)
+    ddtrace.Pin(service=service, tracer=tracer).onto(template)
