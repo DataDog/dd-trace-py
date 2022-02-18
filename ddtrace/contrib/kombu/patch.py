@@ -64,10 +64,9 @@ def patch():
 
     Pin(
         service=prod_service,
-        app="kombu",
     ).onto(kombu.messaging.Producer)
 
-    Pin(service=config.kombu["service_name"], app="kombu").onto(kombu.messaging.Consumer)
+    Pin(service=config.kombu["service_name"]).onto(kombu.messaging.Consumer)
 
 
 def unpatch():

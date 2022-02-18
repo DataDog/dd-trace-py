@@ -19,6 +19,7 @@ config._add(
     "sqlite",
     dict(
         _default_service="sqlite",
+        _dbapi_span_name_prefix="sqlite",
         trace_fetch_methods=asbool(get_env("sqlite", "trace_fetch_methods", default=False)),
     ),
 )
@@ -43,7 +44,7 @@ def traced_connect(func, _, args, kwargs):
 
 def patch_conn(conn):
     wrapped = TracedSQLite(conn)
-    Pin(app="sqlite").onto(wrapped)
+    Pin().onto(wrapped)
     return wrapped
 
 

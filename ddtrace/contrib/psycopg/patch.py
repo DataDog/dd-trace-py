@@ -18,6 +18,7 @@ config._add(
     "psycopg",
     dict(
         _default_service="postgres",
+        _dbapi_span_name_prefix="postgres",
         trace_fetch_methods=asbool(get_env("psycopg", "trace_fetch_methods", default=False)),
     ),
 )
@@ -91,7 +92,7 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
         "db.application": dsn.get("application_name"),
     }
 
-    Pin(app="postgres", tags=tags).onto(c)
+    Pin(tags=tags).onto(c)
 
     return c
 
