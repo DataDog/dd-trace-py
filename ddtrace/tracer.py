@@ -25,7 +25,6 @@ from ._monkey import patch
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
-from .constants import FILTERS_KEY
 from .constants import HOSTNAME_KEY
 from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
@@ -62,6 +61,7 @@ from .sampler import DatadogSampler
 from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
+from .vendor.debtcollector import removals
 
 
 log = get_logger(__name__)
@@ -115,11 +115,10 @@ class Tracer(object):
         :param url: The Datadog agent URL.
         :param dogstatsd_url: The DogStatsD URL.
         """
-        self.log = log
         self._filters = []  # type: List[TraceFilter]
 
         # globally set tags
-        self.tags = config.tags.copy()
+        self._tags = config.tags.copy()
 
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()  # type: Set[str]
@@ -130,8 +129,8 @@ class Tracer(object):
 
         self.enabled = asbool(get_env("trace", "enabled", default=True))
         self.context_provider = DefaultContextProvider()
-        self.sampler = DatadogSampler()  # type: BaseSampler
-        self.priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
+        self._sampler = DatadogSampler()  # type: BaseSampler
+        self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._compute_stats
 
@@ -143,14 +142,14 @@ class Tracer(object):
 
             writer = AgentWriter(
                 agent_url=url,
-                sampler=self.sampler,
-                priority_sampler=self.priority_sampler,
+                sampler=self._sampler,
+                priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 compute_stats_enabled=self._compute_stats,
             )
-        self.writer = writer  # type: TraceWriter
+        self._writer = writer  # type: TraceWriter
 
         # DD_TRACER_... should be deprecated after version 1.0.0 is released
         pfe_default_value = False
@@ -209,15 +208,26 @@ class Tracer(object):
         self._hooks.deregister(self.__class__.start_span, func)
         return func
 
+    @removals.removed_property(message="Use ddtrace.tracer.log instead", removal_version="1.0.0")
+    def log(self):
+        # type: () -> logging.Logger
+        return log
+
+    @log.setter  # type: ignore
+    def log(self, value):
+        # type: (logging.Logger) -> None
+        global log
+        log = value
+
     @property
     def debug_logging(self):
-        return self.log.isEnabledFor(logging.DEBUG)
+        return log.isEnabledFor(logging.DEBUG)
 
     @debug_logging.setter  # type: ignore[misc]
     @deprecated(message="Use logging.setLevel instead", version="1.0.0")
     def debug_logging(self, value):
         # type: (bool) -> None
-        self.log.setLevel(logging.DEBUG if value else logging.WARN)
+        log.setLevel(logging.DEBUG if value else logging.WARN)
 
     @deprecated("Use .tracer, not .tracer()", "1.0.0")
     def __call__(self):
@@ -330,9 +340,7 @@ class Tracer(object):
             self.enabled = enabled
 
         if settings is not None:
-            filters = settings.get(FILTERS_KEY)
-            if filters is not None:
-                self._filters = filters
+            self._filters = settings.get("FILTERS") or self._filters
 
         if partial_flush_enabled is not None:
             self._partial_flush_enabled = partial_flush_enabled
@@ -341,22 +349,22 @@ class Tracer(object):
             self._partial_flush_min_spans = partial_flush_min_spans
 
         # If priority sampling is not set or is True and no priority sampler is set yet
-        if priority_sampling in (None, True) and not self.priority_sampler:
-            self.priority_sampler = RateByServiceSampler()
+        if priority_sampling in (None, True) and not self._priority_sampler:
+            self._priority_sampler = RateByServiceSampler()
         # Explicitly disable priority sampling
         elif priority_sampling is False:
-            self.priority_sampler = None
+            self._priority_sampler = None
 
         if sampler is not None:
-            self.sampler = sampler
+            self._sampler = sampler
 
         self._dogstatsd_url = dogstatsd_url or self._dogstatsd_url
 
         if any(x is not None for x in [hostname, port, uds_path, https]):
             # If any of the parts of the URL have updated, merge them with
             # the previous writer values.
-            if isinstance(self.writer, AgentWriter):
-                prev_url_parsed = compat.parse.urlparse(self.writer.agent_url)
+            if isinstance(self._writer, AgentWriter):
+                prev_url_parsed = compat.parse.urlparse(self._writer.agent_url)
             else:
                 prev_url_parsed = compat.parse.urlparse("")
 
@@ -373,9 +381,9 @@ class Tracer(object):
                     port = prev_url_parsed.port
                 scheme = "https" if https else "http"
                 url = "%s://%s:%s" % (scheme, hostname, port)
-        elif isinstance(self.writer, AgentWriter):
+        elif isinstance(self._writer, AgentWriter):
             # Reuse the URL from the previous writer if there was one.
-            url = self.writer.agent_url
+            url = self._writer.agent_url
         else:
             # No URL parts have updated and there's no previous writer to
             # get the URL from.
@@ -385,31 +393,31 @@ class Tracer(object):
             self._compute_stats = compute_stats_enabled
 
         try:
-            self.writer.stop()
+            self._writer.stop()
         except service.ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
 
         if writer is not None:
-            self.writer = writer
+            self._writer = writer
         elif url:
             # Verify the URL and create a new AgentWriter with it.
             agent.verify_url(url)
-            self.writer = AgentWriter(
+            self._writer = AgentWriter(
                 url,
-                sampler=self.sampler,
-                priority_sampler=self.priority_sampler,
+                sampler=self._sampler,
+                priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 compute_stats_enabled=self._compute_stats,
             )
-        elif writer is None and isinstance(self.writer, LogWriter):
+        elif writer is None and isinstance(self._writer, LogWriter):
             # No need to do anything for the LogWriter.
             pass
-        if isinstance(self.writer, AgentWriter):
-            self.writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
+        if isinstance(self._writer, AgentWriter):
+            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
         self._initialize_span_processors()
 
         if context_provider is not None:
@@ -425,7 +433,7 @@ class Tracer(object):
                 msg = "Failed to collect start-up logs: %s" % e
                 self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
             else:
-                if self.log.isEnabledFor(logging.INFO):
+                if log.isEnabledFor(logging.INFO):
                     msg = "- DATADOG TRACER CONFIGURATION - %s" % json.dumps(info)
                     self._log_compat(logging.INFO, msg)
 
@@ -444,7 +452,7 @@ class Tracer(object):
         self._services = set()
 
         # Re-create the background writer thread
-        self.writer = self.writer.recreate()
+        self._writer = self._writer.recreate()
         self._initialize_span_processors()
 
         self._new_process = True
@@ -549,8 +557,8 @@ class Tracer(object):
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
             span = Span(
-                self,
-                name,
+                tracer=None,
+                name=name,
                 context=context,
                 trace_id=trace_id,
                 parent_id=parent_id,
@@ -571,8 +579,8 @@ class Tracer(object):
         else:
             # this is the root span of a new trace
             span = Span(
-                self,
-                name,
+                tracer=None,
+                name=name,
                 context=context,
                 service=mapped_service,
                 resource=resource,
@@ -581,27 +589,27 @@ class Tracer(object):
             )
             span._local_root = span
             if config.report_hostname:
-                span.meta[HOSTNAME_KEY] = hostname.get_hostname()
-            span.sampled = self.sampler.sample(span)
+                span._set_str_tag(HOSTNAME_KEY, hostname.get_hostname())
+            span.sampled = self._sampler.sample(span)
             # Old behavior
             # DEV: The new sampler sets metrics and priority sampling on the span for us
-            if not isinstance(self.sampler, DatadogSampler):
+            if not isinstance(self._sampler, DatadogSampler):
                 if span.sampled:
                     # When doing client sampling in the client, keep the sample rate so that we can
                     # scale up statistics in the next steps of the pipeline.
-                    if isinstance(self.sampler, RateSampler):
-                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self.sampler.sample_rate)
+                    if isinstance(self._sampler, RateSampler):
+                        span.set_metric(SAMPLE_RATE_METRIC_KEY, self._sampler.sample_rate)
 
-                    if self.priority_sampler:
+                    if self._priority_sampler:
                         # At this stage, it's important to have the service set. If unset,
                         # priority sampler will use the default sampling rate, which might
                         # lead to oversampling (that is, dropping too many traces).
-                        if self.priority_sampler.sample(span):
+                        if self._priority_sampler.sample(span):
                             context.sampling_priority = AUTO_KEEP
                         else:
                             context.sampling_priority = AUTO_REJECT
                 else:
-                    if self.priority_sampler:
+                    if self._priority_sampler:
                         # If dropped by the local sampler, distributed instrumentation can drop it too.
                         context.sampling_priority = AUTO_REJECT
             else:
@@ -609,12 +617,12 @@ class Tracer(object):
                 span.sampled = True
 
         if not span._parent:
-            span.meta["runtime-id"] = get_runtime_id()
-            span.metrics[PID] = self._pid
+            span._set_str_tag("runtime-id", get_runtime_id())
+            span._metrics[PID] = self._pid
 
         # Apply default global tags.
-        if self.tags:
-            span.set_tags(self.tags)
+        if self._tags:
+            span.set_tags(self._tags)
 
         if config.env:
             span._set_str_tag(ENV_KEY, config.env)
@@ -627,7 +635,7 @@ class Tracer(object):
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
             if (root_span is None and service == config.service) or (
-                root_span and root_span.service == service and VERSION_KEY in root_span.meta
+                root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
                 span._set_str_tag(VERSION_KEY, config.version)
 
@@ -643,6 +651,9 @@ class Tracer(object):
             for p in self._span_processors:
                 p.on_span_start(span)
 
+        # Set Span.tracer for backwards compatibility, will be removed in v1.0
+        span._tracer = self
+
         self._hooks.emit(self.__class__.start_span, span)
         return span
 
@@ -654,17 +665,15 @@ class Tracer(object):
         # Debug check: if the finishing span has a parent and its parent
         # is not the next active span then this is an error in synchronous tracing.
         if span._parent is not None and active is not span._parent:
-            self.log.debug(
-                "span %r closing after its parent %r, this is an error when not using async", span, span._parent
-            )
+            log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
             for p in self._span_processors:
                 p.on_span_finish(span)
 
-        if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("finishing span %s (enabled:%s)", span.pprint(), self.enabled)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
 
     def _initialize_span_processors(self, appsec_enabled=asbool(get_env("appsec", "enabled", default=False))):
         # type: (Optional[bool]) -> None
@@ -703,6 +712,15 @@ class Tracer(object):
                 if config._raise:
                     raise
 
+        self._span_processors.append(
+            SpanAggregator(
+                partial_flush_enabled=self._partial_flush_enabled,
+                partial_flush_min_spans=self._partial_flush_min_spans,
+                trace_processors=trace_processors,
+                writer=self._writer,
+            )
+        )
+
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
 
@@ -715,10 +733,10 @@ class Tracer(object):
         to import the tracer as early as possible, it will likely be the case
         that there are no handlers installed yet.
         """
-        if compat.PY2 and not hasHandlers(self.log):
+        if compat.PY2 and not hasHandlers(log):
             sys.stderr.write("%s\n" % msg)
         else:
-            self.log.log(level, msg)
+            log.log(level, msg)
 
     def _trace(self, name, service=None, resource=None, span_type=None):
         # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
@@ -813,16 +831,63 @@ class Tracer(object):
         if not spans:
             return  # nothing to do
 
-        if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
             for span in spans:
-                self.log.debug("\n%s", span.pprint())
+                log.debug("\n%s", span._pprint())
 
         if not self.enabled:
             return
 
         if spans is not None:
-            self.writer.write(spans=spans)
+            self._writer.write(spans=spans)
+
+    @removals.removed_property(removal_version="1.0.0")
+    def priority_sampler(self):
+        # type: () -> Optional[BasePrioritySampler]
+        return self._priority_sampler
+
+    @priority_sampler.setter  # type: ignore[no-redef]
+    def priority_sampler(self, val):
+        # type: (Optional[BasePrioritySampler]) -> None
+        self._priority_sampler = val
+
+    @removals.removed_property(removal_version="1.0.0")
+    def sampler(self):
+        # type: () -> BaseSampler
+        return self._sampler
+
+    @sampler.setter  # type: ignore[no-redef]
+    def sampler(self, val):
+        # type: (BaseSampler) -> None
+        self._sampler = val
+
+    @removals.removed_property(removal_version="1.0.0")
+    def tags(self):
+        # type: () -> dict[str, str]
+        return self._tags
+
+    @tags.setter  # type: ignore
+    def tags(self, t):
+        # type: (dict[str, str]) -> None
+        self._tags = t
+
+    @removals.removed_property(message="Use Tracer.flush instead to flush buffered traces to agent", version="1.0.0")
+    def writer(self):
+        return self._writer
+
+    @property
+    def agent_trace_url(self):
+        # type: () -> Optional[str]
+        """Trace agent url"""
+        if isinstance(self._writer, AgentWriter):
+            return self._writer.agent_url
+
+        return None
+
+    def flush(self):
+        """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
+        self._writer.flush_queue()
 
     @deprecated(message="Manually setting service info is no longer necessary", version="1.0.0")
     def set_service_info(self, *args, **kwargs):
@@ -933,7 +998,7 @@ class Tracer(object):
 
         :param dict tags: dict of tags to set at tracer level
         """
-        self.tags.update(tags)
+        self._tags.update(tags)
 
     def _restore_from_shutdown(self):
         with self._shutdown_lock:
@@ -985,7 +1050,7 @@ class Tracer(object):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         try:
-            self.writer.stop(timeout=timeout)
+            self._writer.stop(timeout=timeout)
         except service.ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass

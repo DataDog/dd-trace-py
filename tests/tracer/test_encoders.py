@@ -31,7 +31,6 @@ from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
 from ddtrace.span import Span
 from ddtrace.span import SpanTypes
-from ddtrace.tracer import Tracer
 from tests.utils import DummyTracer
 
 
@@ -50,8 +49,8 @@ def span_to_tuple(span):
         span.start_ns or 0,
         span.duration_ns or 0,
         int(bool(span.error)),
-        span.meta or {},
-        span.metrics or {},
+        span._get_tags() or {},
+        span._get_metrics() or {},
         span.span_type,
     )
 
@@ -61,14 +60,13 @@ def rands(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
-    t = Tracer()
 
     root = None
     trace = []
     for i in range(0, nspans):
         parent_id = root.span_id if root else None
         with Span(
-            t,
+            None,
             "span_name",
             resource="/fsdlajfdlaj/afdasd%s" % i,
             service="myservice",
@@ -413,7 +411,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
         for _ in range(999):
             with tracer.trace("child"):
                 pass
-    trace = tracer.writer.pop()
+    trace = tracer._writer.pop()
     encoder.put(trace)
     decoded_trace = decode(encoder.encode())
 
@@ -435,8 +433,8 @@ def test_encoder_propagates_dd_origin(Encoder, item):
 def test_custom_msgpack_encode_trace_size(encoding, name, service, resource, meta, metrics, error, span_type):
     encoder = MSGPACK_ENCODERS[encoding](1 << 20, 1 << 20)
     span = Span(tracer=None, name=name, service=service, resource=resource)
-    span.meta = meta
-    span.metrics = metrics
+    span.set_tags(meta)
+    span.set_metrics(metrics)
     span.error = error
     span.span_type = span_type
     trace = [span, span, span]
@@ -591,8 +589,8 @@ def test_list_string_table():
         {"start_ns": "start_time"},
         {"duration_ns": "duration_time"},
         {"span_type": 100},
-        {"meta": {"num": 100}},
-        {"metrics": {"key": "value"}},
+        {"_meta": {"num": 100}},
+        {"_metrics": {"key": "value"}},
     ],
 )
 def test_encoding_invalid_data(data):

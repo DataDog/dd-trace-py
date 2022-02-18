@@ -5,6 +5,8 @@ from aiohttp import web
 import aiohttp_jinja2
 import jinja2
 
+from ddtrace.contrib.aiohttp.middlewares import CONFIG_KEY
+
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "statics")
@@ -162,4 +164,4 @@ def get_tracer(request):
     Utility function to retrieve the tracer from the given ``request``.
     It is meant to be used only for testing purposes.
     """
-    return request["__datadog_request_span"].tracer
+    return request.app[CONFIG_KEY]["tracer"]

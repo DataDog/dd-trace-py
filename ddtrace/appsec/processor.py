@@ -11,7 +11,7 @@ from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
-from ddtrace.utils.formats import get_env
+from ddtrace.internal.utils.formats import get_env
 
 
 if TYPE_CHECKING:
@@ -87,6 +87,6 @@ class AppSecSpanProcessor(SpanProcessor):
         if res is not None:
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
-            span.meta["appsec.event"] = "true"
-            span.meta["_dd.appsec.json"] = '{"triggers":%s}' % (res,)
+            span._set_str_tag("appsec.event", "true")
+            span._set_str_tag("_dd.appsec.json", '{"triggers":%s}' % (res,))
             span.set_tag(MANUAL_KEEP_KEY)

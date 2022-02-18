@@ -343,10 +343,11 @@ jobs:
             - "."
 
   appsec:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'appsec'
+          snapshot: true
 
   tracer:
     <<: *contrib_job

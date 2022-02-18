@@ -123,7 +123,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_span_http_status_code(s, 200)
         assert s.error == 0
         assert s.span_type == "http"
-        assert http.QUERY_STRING not in s.meta
+        assert http.QUERY_STRING not in s._get_tags()
 
     def test_200_send(self):
         # when calling send directly
@@ -556,7 +556,8 @@ import ddtrace
 from ddtrace.contrib.requests import TracedSession
 
 # disable tracer writing to agent
-ddtrace.tracer.writer.flush_queue = mock.Mock(return_value=None)
+# FIXME: Remove use of this internal attribute of Tracer to disable writer
+ddtrace.tracer._writer.flush_queue = mock.Mock(return_value=None)
 
 session = TracedSession()
 session.get("http://httpbin.org/status/200")
