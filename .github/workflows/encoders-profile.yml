@@ -1,7 +1,10 @@
 name: encoders-profile
 on:
   push:
-    branches: [master]
+    branches:
+      - master
+      - 0.x
+      - 1.x
   pull_request:
 jobs:
   encoders-profile:

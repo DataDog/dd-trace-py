@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - master
+      - 0.x
+      - 1.x
   pull_request:
     # Important that we run on `labeled` and `unlabeled` to pick up `changelog/no-changelog` being added/removed
     # DEV: [opened, reopened, synchronize] is the default
