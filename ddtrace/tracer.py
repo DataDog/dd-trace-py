@@ -291,7 +291,7 @@ class Tracer(object):
         return {
             "trace_id": str(span.trace_id) if span else "0",
             "span_id": str(span.span_id) if span else "0",
-            "service": service,
+            "service": service or "",
             "version": config.version or "",
             "env": config.env or "",
         }
