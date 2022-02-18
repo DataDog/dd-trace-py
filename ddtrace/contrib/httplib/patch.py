@@ -33,7 +33,7 @@ config._add(
 
 
 def _wrap_init(func, instance, args, kwargs):
-    Pin(app="httplib", service=None, _config=config.httplib).onto(instance)
+    Pin(service=None, _config=config.httplib).onto(instance)
     return func(*args, **kwargs)
 
 

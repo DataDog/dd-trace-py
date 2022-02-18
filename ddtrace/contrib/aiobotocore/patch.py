@@ -33,7 +33,7 @@ def patch():
     setattr(aiobotocore.client, "_datadog_patch", True)
 
     wrapt.wrap_function_wrapper("aiobotocore.client", "AioBaseClient._make_api_call", _wrapped_api_call)
-    Pin(service=config.service or "aws", app="aws").onto(aiobotocore.client.AioBaseClient)
+    Pin(service=config.service or "aws").onto(aiobotocore.client.AioBaseClient)
 
 
 def unpatch():
