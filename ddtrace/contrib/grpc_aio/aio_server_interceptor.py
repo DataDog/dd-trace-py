@@ -31,7 +31,10 @@ from ..grpc.utils import set_grpc_method_meta
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
 
 
-_STATUS_MAP = {s.value[0]: s for s in grpc.StatusCode}
+try:
+    _STATUS_MAP = {s.value[0]: s for s in grpc.StatusCode}
+except KeyError:
+    _STATUS_MAP = dict()
 
 
 def _is_coroutine_rpc_method_handler(handler):

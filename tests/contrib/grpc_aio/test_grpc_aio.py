@@ -1,6 +1,5 @@
 import asyncio
 from collections import namedtuple
-from concurrent import futures
 import sys
 
 import grpc
@@ -107,7 +106,7 @@ class _SyncHelloServicer(HelloServicer):
         yield HelloReply(message="Good bye")
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def patch_grpc_aio():
     patch()
     yield
@@ -118,6 +117,13 @@ def patch_grpc_aio():
 def event_loop():
     loop = asyncio.new_event_loop()
     yield loop
+    to_cancel = asyncio.tasks.all_tasks(loop)
+    for t in to_cancel:
+        t.cancel()
+    loop.run_until_complete(asyncio.tasks.gather(*to_cancel, return_exceptions=True))
+    loop.run_until_complete(loop.shutdown_asyncgens())
+    loop.run_until_complete(loop.shutdown_default_executor())
+    asyncio.events.set_event_loop(None)
     loop.close()
 
 
@@ -131,7 +137,7 @@ def tracer():
 
 
 @pytest_asyncio.fixture
-async def servicer(request, event_loop, patch_grpc_aio, tracer):
+async def servicer(request, tracer):
     """Configures grpc server and starts it in pytest-asyncio event loop.
     tracer fixture is imported to make sure the tracer is pinned to the modules.
     """
@@ -139,22 +145,20 @@ async def servicer(request, event_loop, patch_grpc_aio, tracer):
 
     _servicer = request.param()
     target = f"localhost:{_GRPC_PORT}"
-    _server, _executor = _create_server(_servicer, target)
+    _server = _create_server(_servicer, target)
     # interceptor can not catch AbortError for sync servicer
     abort_supported = isinstance(_servicer, (_HelloServicer,))
 
     await _server.start()
     yield _ServerInfo(target, abort_supported)
-    _executor.shutdown(True)
     await _server.stop(grace=None)
 
 
 def _create_server(servicer, target):
-    executor = futures.ThreadPoolExecutor()
-    _server = aio.server(migration_thread_pool=executor)
+    _server = aio.server()
     _server.add_insecure_port(target)
     add_HelloServicer_to_server(servicer, _server)
-    return _server, executor
+    return _server
 
 
 def _check_client_span(span, service, method_name, method_kind):
@@ -240,6 +244,7 @@ async def test_invalid_target(servicer, tracer):
         with pytest.raises(aio.AioRpcError):
             await stub.SayHello(HelloRequest(name="test"))
 
+    await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
     spans = tracer.writer.spans
     assert len(spans) == 1
     client_span = spans[0]
@@ -276,7 +281,7 @@ async def test_pin_tags_put_in_span(patch_grpc_aio, servicer, tracer):
     Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, service="server1")
     Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, tags={"tag1": "server"})
     target = f"localhost:{_GRPC_PORT}"
-    _server, _executor = _create_server(servicer(), target)
+    _server = _create_server(servicer(), target)
     await _server.start()
 
     Pin.override(constants.GRPC_AIO_PIN_MODULE_CLIENT, tags={"tag2": "client"})
@@ -285,7 +290,6 @@ async def test_pin_tags_put_in_span(patch_grpc_aio, servicer, tracer):
         await stub.SayHello(HelloRequest(name="test"))
 
     await _server.stop(grace=None)
-    _executor.shutdown(True)
 
     spans = tracer.writer.spans
     assert len(spans) == 2
@@ -431,9 +435,10 @@ async def test_unary_exception(servicer, tracer):
     async with aio.insecure_channel(servicer.target) as channel:
         stub = HelloStub(channel)
 
-        with pytest.raises(grpc.RpcError):
+        with pytest.raises(aio.AioRpcError):
             await stub.SayHello(HelloRequest(name="exception"))
 
+    await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
     spans = tracer.writer.spans
     assert len(spans) == 2
     client_span, server_span = spans
@@ -509,6 +514,7 @@ async def test_server_streaming_exception(servicer, tracer):
             async for _ in stub.SayHelloTwice(HelloRequest(name="exception")):
                 pass
 
+    await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
     spans = tracer.writer.spans
     assert len(spans) == 2
     client_span, server_span = spans
@@ -540,7 +546,7 @@ async def test_server_streaming_cancelled_before_rpc(servicer, tracer):
         call = stub.SayHelloTwice(HelloRequest(name="test"))
         assert call.cancel()
         with pytest.raises(asyncio.CancelledError):
-            async for response in call:
+            async for _ in call:
                 pass
 
     # No span because the call is cancelled before execution
@@ -559,9 +565,10 @@ async def test_server_streaming_cancelled_during_rpc(servicer, tracer):
         stub = HelloStub(channel)
         call = stub.SayHelloTwice(HelloRequest(name="test"))
         with pytest.raises(asyncio.CancelledError):
-            async for response in call:
+            async for _ in call:
                 assert call.cancel()
 
+    await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
     spans = tracer.writer.spans
     assert len(spans) == 2
     client_span, server_span = spans
@@ -639,6 +646,7 @@ async def test_client_streaming_exception(servicer, tracer):
         with pytest.raises(aio.AioRpcError):
             await stub.SayHelloLast(request_iterator)
 
+    await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
     spans = tracer.writer.spans
     assert len(spans) == 2
     client_span, server_span = spans
@@ -653,7 +661,7 @@ async def test_client_streaming_exception(servicer, tracer):
     if servicer.abort_supported:
         assert server_span.error == 1
         assert server_span.get_tag(ERROR_MSG) == "abort_details"
-        assert "AbortError" in server_span.get_tag(ERROR_TYPE)
+        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
@@ -744,6 +752,7 @@ async def test_bidi_streaming_exception(servicer, tracer):
             async for _ in stub.SayHelloRepeatedly(request_iterator):
                 pass
 
+    await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
     spans = tracer.writer.spans
     assert len(spans) == 2
     client_span, server_span = spans
@@ -758,7 +767,7 @@ async def test_bidi_streaming_exception(servicer, tracer):
     if servicer.abort_supported:
         assert server_span.error == 1
         assert server_span.get_tag(ERROR_MSG) == "abort_details"
-        assert "AbortError" in server_span.get_tag(ERROR_TYPE)
+        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
