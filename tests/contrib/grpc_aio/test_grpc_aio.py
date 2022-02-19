@@ -855,6 +855,7 @@ async def test_bidi_streaming_cancelled_during_rpc(servicer, tracer):
                 # here it waits for the server-side RPC to be done.
                 await asyncio.sleep(0.5)
 
+    await asyncio.sleep(0.5)  # wait for executor pool of AioServer to handle exception
     spans = tracer.writer.spans
     assert len(spans) == 2
     client_span, server_span = spans
