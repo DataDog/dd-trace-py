@@ -16,6 +16,11 @@ if [[ -f "${GITHUB_EVENT_PATH}" ]];
 then
     # If we have an event, grab the PR base ref from the event data
     BASE_REF="$(jq -er '.pull_request?.base.ref' "${GITHUB_EVENT_PATH}")"
+    # Make sure the ref we have starts with `origin/`
+    if ! [[ $BASE_REF = origin/* ]];
+    then
+        BASE_REF="origin/${BASE_REF}"
+    fi
 elif [ -x "$(command -v git)" ]; then
     BASE_REF="$(git rev-parse --abbrev-ref origin/HEAD)"
 else
