@@ -1,5 +1,6 @@
 import asyncio
 from collections import namedtuple
+from concurrent import futures
 import sys
 
 import grpc
@@ -133,13 +134,15 @@ def patch_grpc_aio():
 @pytest.fixture
 def event_loop():
     loop = asyncio.new_event_loop()
+    executor = futures.ThreadPoolExecutor()
+    loop.set_default_executor(executor)
     yield loop
     to_cancel = asyncio.tasks.all_tasks(loop)
     for t in to_cancel:
         t.cancel()
     loop.run_until_complete(asyncio.tasks.gather(*to_cancel, return_exceptions=True))
     loop.run_until_complete(loop.shutdown_asyncgens())
-    loop.run_until_complete(loop.shutdown_default_executor())
+    executor.shutdown(wait=True)
     asyncio.events.set_event_loop(None)
     loop.close()
 
