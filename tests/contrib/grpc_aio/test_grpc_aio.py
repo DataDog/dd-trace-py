@@ -132,7 +132,7 @@ def patch_grpc_aio():
     unpatch()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def event_loop():
     loop = asyncio.new_event_loop()
     executor = futures.ThreadPoolExecutor()
