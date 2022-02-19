@@ -69,7 +69,18 @@ class _HelloServicer(HelloServicer):
 
 
 class _SyncHelloServicer(HelloServicer):
+    @classmethod
+    def _assert_not_in_async_context(cls):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        else:
+            assert False, "This method must not invoked in async context"
+
     def SayHello(self, request, context):
+        self._assert_not_in_async_context()
+
         if request.name == "propogator":
             metadata = context.invocation_metadata()
             context.set_code(grpc.StatusCode.OK)
@@ -82,6 +93,8 @@ class _SyncHelloServicer(HelloServicer):
         return HelloReply(message="Hello {}".format(request.name))
 
     def SayHelloTwice(self, request, context):
+        self._assert_not_in_async_context()
+
         yield HelloReply(message="first response")
 
         if request.name == "exception":
@@ -90,6 +103,8 @@ class _SyncHelloServicer(HelloServicer):
         yield HelloReply(message="second response")
 
     def SayHelloLast(self, request_iterator, context):
+        self._assert_not_in_async_context()
+
         names = [r.name for r in list(request_iterator)]
 
         if "exception" in names:
@@ -98,6 +113,8 @@ class _SyncHelloServicer(HelloServicer):
         return HelloReply(message="{}".format(";".join(names)))
 
     def SayHelloRepeatedly(self, request_iterator, context):
+        self._assert_not_in_async_context()
+
         for request in request_iterator:
             if request.name == "exception":
                 context.abort(grpc.StatusCode.INVALID_ARGUMENT, "abort_details")
