@@ -20,10 +20,23 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ..grpc import constants
+from ..grpc.server_interceptor import _TracedRpcMethodHandler
 from ..grpc.utils import set_grpc_method_meta
 
 
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
+
+
+def _is_coroutine_rpc_method_handler(handler):
+    # type: (grpc.RpcMethodHandler) -> bool
+    if not handler.request_streaming and not handler.response_streaming:
+        return inspect.iscoroutinefunction(handler.unary_unary)
+    elif not handler.request_streaming and handler.response_streaming:
+        return inspect.isasyncgenfunction(handler.unary_stream)
+    elif handler.request_streaming and not handler.response_streaming:
+        return inspect.iscoroutinefunction(handler.stream_unary)
+    else:
+        return inspect.isasyncgenfunction(handler.stream_stream)
 
 
 def create_aio_server_interceptor(pin):
@@ -32,7 +45,7 @@ def create_aio_server_interceptor(pin):
         continuation,  # type: Continuation
         handler_call_details,  # type: grpc.HandlerCallDetails
     ):
-        # type: (...) -> Awaitable[Union[grpc.RpcMethodHandler, _TracedAioRpcMethodHandler]]
+        # type: (...) -> Awaitable[Union[grpc.RpcMethodHandler, _TracedAioRpcMethodHandler, _TracedRpcMethodHandler]]
         rpc_method_handler = await continuation(handler_call_details)
 
         # continuation returns an RpcMethodHandler instance if the RPC is
@@ -42,7 +55,10 @@ def create_aio_server_interceptor(pin):
         if rpc_method_handler is None:
             return None
 
-        return _TracedAioRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+        if _is_coroutine_rpc_method_handler(rpc_method_handler):
+            return _TracedAioRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
+        else:
+            return _TracedRpcMethodHandler(pin, handler_call_details, rpc_method_handler)
 
     return _ServerInterceptor(interceptor_function)
 
@@ -53,15 +69,11 @@ async def _wrap_stream_response(
     servicer_context,  # type: aio.ServicerContext
     span,  # type: Span
 ):
-    # type: (...) -> ResponseIterableType
+    # type: (...) -> RequestIterableType
     try:
         call = behavior(request_or_iterator, servicer_context)
-        if inspect.isasyncgen(call):
-            async for response in call:
-                yield response
-        else:
-            for response in call:
-                yield response
+        async for response in call:
+            yield response
     except Exception:
         span.set_traceback()
         # https://github.com/grpc/grpc/issues/27409 there seems to be a bug with
@@ -78,10 +90,9 @@ async def _wrap_unary_response(
     servicer_context,  # type: aio.ServicerContext
     span,  # type: Span
 ):
-    # type: (...) -> Awaitable[ResponseType]
+    # type: (...) -> None
     try:
-        call = behavior(request_or_iterator, servicer_context)
-        return await call if inspect.iscoroutine(call) else call
+        return await behavior(request_or_iterator, servicer_context)
     except Exception:
         span.set_traceback()
         # https://github.com/grpc/grpc/issues/27409 there seems to be a bug with
