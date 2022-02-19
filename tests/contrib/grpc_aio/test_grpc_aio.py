@@ -5,6 +5,7 @@ import sys
 
 import grpc
 from grpc import aio
+import packaging.version
 import pytest
 import pytest_asyncio
 
@@ -472,8 +473,13 @@ async def test_unary_exception(servicer, tracer):
     assert server_span.resource == "/helloworld.Hello/SayHello"
     if servicer.abort_supported:
         assert server_span.error == 1
-        assert server_span.get_tag(ERROR_MSG) == "abort_details"
-        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
+        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+            assert server_span.get_tag(ERROR_MSG) == "abort_details"
+            assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        else:
+            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
+            assert "AbortError" in server_span.get_tag(ERROR_TYPE)
         assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
@@ -548,8 +554,13 @@ async def test_server_streaming_exception(servicer, tracer):
     assert server_span.resource == "/helloworld.Hello/SayHelloTwice"
     if servicer.abort_supported:
         assert server_span.error == 1
-        assert server_span.get_tag(ERROR_MSG) == "abort_details"
-        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
+        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+            assert server_span.get_tag(ERROR_MSG) == "abort_details"
+            assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        else:
+            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
+            assert "AbortError" in server_span.get_tag(ERROR_TYPE)
         assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
@@ -680,8 +691,13 @@ async def test_client_streaming_exception(servicer, tracer):
     assert server_span.resource == "/helloworld.Hello/SayHelloLast"
     if servicer.abort_supported:
         assert server_span.error == 1
-        assert server_span.get_tag(ERROR_MSG) == "abort_details"
-        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
+        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+            assert server_span.get_tag(ERROR_MSG) == "abort_details"
+            assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        else:
+            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
+            assert "AbortError" in server_span.get_tag(ERROR_TYPE)
         assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
@@ -786,8 +802,13 @@ async def test_bidi_streaming_exception(servicer, tracer):
     assert server_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     if servicer.abort_supported:
         assert server_span.error == 1
-        assert server_span.get_tag(ERROR_MSG) == "abort_details"
-        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
+        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+            assert server_span.get_tag(ERROR_MSG) == "abort_details"
+            assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        else:
+            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
+            assert "AbortError" in server_span.get_tag(ERROR_TYPE)
         assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
