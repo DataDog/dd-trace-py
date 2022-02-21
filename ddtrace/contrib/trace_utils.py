@@ -251,6 +251,7 @@ def _no_cookies(data):
 def set_http_meta(
     span,
     integration_config,
+    tracer=None,
     method=None,
     url=None,
     raw_uri=None,
@@ -301,7 +302,9 @@ def set_http_meta(
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
 
-    gateway = span.tracer.gateway
+    if tracer is None:
+        return
+    gateway = tracer.gateway
     if gateway.needed_address_count == 0:
         return
 
@@ -328,7 +331,7 @@ def set_http_meta(
     if len(data.keys()) == 0:
         return
 
-    store = span.tracer.current_context_store()
+    store = tracer.current_context_store()
     gateway.propagate(store, data)
 
 

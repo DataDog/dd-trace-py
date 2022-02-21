@@ -21,8 +21,8 @@ RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
 
 def test_enable(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
-        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
 
     assert span.get_metric("_dd.appsec.enabled") == 1.0
 
@@ -50,7 +50,7 @@ def test_enable_bad_rules(rule, exc, tracer):
 def test_retain_traces(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
+        set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
 
     assert span.context.sampling_priority == USER_KEEP
 
@@ -58,7 +58,7 @@ def test_retain_traces(tracer):
 def test_valid_json(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
+        set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
@@ -78,6 +78,7 @@ def test_headers_collection(tracer):
         set_http_meta(
             span,
             Config(),
+            tracer=tracer,
             raw_uri="http://example.com/.git",
             status_code="404",
             request_headers={
@@ -98,6 +99,6 @@ def test_appsec_span_tags_snapshot(tracer):
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
-        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
+        set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
