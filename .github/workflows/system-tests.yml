@@ -8,6 +8,8 @@ on:
   push:
     branches:
       - master
+      - 0.x
+      - 1.x
 
 jobs:
   system-tests:

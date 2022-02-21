@@ -1,5 +1,6 @@
 import errno
 import json
+import os
 import os.path
 from typing import TYPE_CHECKING
 
@@ -13,7 +14,6 @@ from ddtrace.gateway import Addresses
 from ddtrace.gateway import Gateway
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
-from ddtrace.internal.utils.formats import get_env
 
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ log = get_logger(__name__)
 
 
 def get_rules():
-    return get_env("appsec", "rules", default=DEFAULT_RULES)
+    return os.getenv("DD_APPSEC_RULES", default=DEFAULT_RULES)
 
 
 COLLECTED_REQUEST_HEADERS = {
@@ -115,7 +115,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        if span.span_type != SpanTypes.WEB.value:
+        if span.span_type != SpanTypes.WEB:
             return
         span.set_metric("_dd.appsec.enabled", 1.0)
         span._set_str_tag("_dd.runtime_family", "python")

@@ -1,3 +1,5 @@
+import os
+
 import molten
 
 from ddtrace.vendor import wrapt
@@ -11,7 +13,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.compat import urlencode
 from ...internal.utils.formats import asbool
-from ...internal.utils.formats import get_env
 from ...internal.utils.importlib import func_name
 from ...internal.utils.version import parse_version
 from ..trace_utils import unwrap as _u
@@ -29,8 +30,7 @@ config._add(
     "molten",
     dict(
         _default_service="molten",
-        app="molten",
-        distributed_tracing=asbool(get_env("molten", "distributed_tracing", default=True)),
+        distributed_tracing=asbool(os.getenv("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 
