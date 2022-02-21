@@ -4,12 +4,10 @@ import os.path
 import pytest
 
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import priority
 from ddtrace.gateway import Addresses
-from ddtrace.constants import USER_KEEP
-from ddtrace.ext import SpanTypes
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -51,7 +49,7 @@ def test_enable_bad_rules(rule, exc, tracer):
 
 def test_retain_traces(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert span.context.sampling_priority == USER_KEEP
@@ -59,7 +57,7 @@ def test_retain_traces(tracer):
 
 def test_valid_json(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
@@ -75,7 +73,7 @@ def test_headers_collection(tracer):
         def __init__(self):
             self.is_header_tracing_configured = False
 
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
 
         set_http_meta(
             span,
