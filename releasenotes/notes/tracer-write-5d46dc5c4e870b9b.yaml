@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    ``Tracer.write()`` is deprecated. Writing spans to the writer through the tracer is not supported.
