@@ -4,6 +4,7 @@ import MySQLdb
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace import tracer
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -58,7 +59,8 @@ def unpatch():
 
 
 def _connect(func, instance, args, kwargs):
-    conn = func(*args, **kwargs)
+    with tracer.trace("MySQLdb.connection.connect", service=config.mysqldb._default_service):
+        conn = func(*args, **kwargs)
     return patch_conn(conn, *args, **kwargs)
 
 
