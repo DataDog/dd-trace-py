@@ -744,26 +744,6 @@ class Tracer(object):
         active = self.context_provider.active()
         return active if isinstance(active, Span) else None
 
-    def write(self, spans):
-        # type: (Optional[List[Span]]) -> None
-        """
-        Send the trace to the writer to enqueue the spans list in the agent
-        sending queue.
-        """
-        if not spans:
-            return  # nothing to do
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("writing %s spans (enabled:%s)", len(spans), self.enabled)
-            for span in spans:
-                log.debug("\n%s", span._pprint())
-
-        if not self.enabled:
-            return
-
-        if spans is not None:
-            self._writer.write(spans=spans)
-
     @property
     def agent_trace_url(self):
         # type: () -> Optional[str]
