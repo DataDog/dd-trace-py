@@ -1,3 +1,4 @@
+import os
 import typing
 
 import httpx
@@ -13,7 +14,6 @@ from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.formats import get_env
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
@@ -27,8 +27,8 @@ if typing.TYPE_CHECKING:
 config._add(
     "httpx",
     {
-        "distributed_tracing": asbool(get_env("httpx", "distributed_tracing", default=True)),
-        "split_by_domain": asbool(get_env("httpx", "split_by_domain", default=False)),
+        "distributed_tracing": asbool(os.getenv("DD_HTTPX_DISTRIBUTED_TRACING", default=True)),
+        "split_by_domain": asbool(os.getenv("DD_HTTPX_SPLIT_BY_DOMAIN", default=False)),
     },
 )
 
@@ -141,7 +141,7 @@ def patch():
     _w(httpx.AsyncClient, "send", _wrapped_async_send)
     _w(httpx.Client, "send", _wrapped_sync_send)
 
-    pin = Pin(app="httpx")
+    pin = Pin()
     pin.onto(httpx.AsyncClient)
     pin.onto(httpx.Client)
 

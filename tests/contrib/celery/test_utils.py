@@ -30,7 +30,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
             "custom_meta": "custom_value",
         }
 
-        span = Span(None, "test")
+        span = Span("test")
         set_tags_from_context(span, context)
         metas = span._get_tags()
         metrics = span._get_metrics()
@@ -49,7 +49,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
 
     def test_tags_from_context_empty_keys(self):
         # it should not extract empty keys
-        span = Span(None, "test")
+        span = Span("test")
         context = {
             "correlation_id": None,
             "exchange": "",

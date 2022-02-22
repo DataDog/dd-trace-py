@@ -6,9 +6,6 @@ from typing import DefaultDict
 from typing import Tuple
 from typing import cast
 
-from ..internal.utils.deprecation import deprecation
-from ..internal.utils.formats import get_env
-
 
 def get_logger(name):
     # type: (str) -> DDLogger
@@ -109,15 +106,6 @@ class DDLogger(logging.Logger):
         # Allow configuring via `DD_TRACE_LOGGING_RATE`
         # DEV: `DD_TRACE_LOGGING_RATE=0` means to disable all rate limiting
         rate_limit = os.getenv("DD_TRACE_LOGGING_RATE", default=None)
-        if rate_limit is None:
-            # DEV: If not set, look at the deprecated (DD/DATADOG)_LOGGING_RATE_LIMIT
-            rate_limit = get_env("logging", "rate_limit")
-            if rate_limit is not None:
-                deprecation(
-                    name="DD_LOGGING_RATE_LIMIT",
-                    message="Use `DD_TRACE_LOGGING_RATE` instead",
-                    version="1.0.0",
-                )
 
         if rate_limit is not None:
             self.rate_limit = int(rate_limit)

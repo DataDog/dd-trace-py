@@ -3,9 +3,8 @@ import aredis
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-from ...ext import redis as redisx
+from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
-from ...utils.wrappers import unwrap
 from ..redis.util import _trace_redis_cmd
 from ..redis.util import _trace_redis_execute_pipeline
 from ..redis.util import format_command_args
@@ -26,7 +25,7 @@ def patch():
     _w("aredis.client", "StrictRedis.pipeline", traced_pipeline)
     _w("aredis.pipeline", "StrictPipeline.execute", traced_execute_pipeline)
     _w("aredis.pipeline", "StrictPipeline.immediate_execute_command", traced_execute_command)
-    Pin(service=None, app=redisx.APP).onto(aredis.StrictRedis)
+    Pin(service=None).onto(aredis.StrictRedis)
 
 
 def unpatch():

@@ -4,7 +4,6 @@ from typing import Optional
 from typing import TYPE_CHECKING
 
 import ddtrace
-from ddtrace.vendor import debtcollector
 
 from .internal.logger import get_logger
 from .vendor import wrapt
@@ -35,21 +34,17 @@ class Pin(object):
         >>> conn = sqlite.connect('/tmp/image.db')
     """
 
-    __slots__ = ["app", "tags", "tracer", "_target", "_config", "_initialized"]
+    __slots__ = ["tags", "tracer", "_target", "_config", "_initialized"]
 
-    @debtcollector.removals.removed_kwarg("app_type")
     def __init__(
         self,
         service=None,  # type: Optional[str]
-        app=None,  # type: Optional[str]
-        app_type=None,
         tags=None,  # type: Optional[Dict[str, str]]
         tracer=None,  # type: Optional[Tracer]
         _config=None,  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
         tracer = tracer or ddtrace.tracer
-        self.app = app
         self.tags = tags
         self.tracer = tracer
         self._target = None  # type: Optional[int]
@@ -74,7 +69,7 @@ class Pin(object):
         super(Pin, self).__setattr__(name, value)
 
     def __repr__(self):
-        return "Pin(service=%s, app=%s, tags=%s, tracer=%s)" % (self.service, self.app, self.tags, self.tracer)
+        return "Pin(service=%s, tags=%s, tracer=%s)" % (self.service, self.tags, self.tracer)
 
     @staticmethod
     def _find(*objs):
@@ -83,7 +78,7 @@ class Pin(object):
         Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
 
 
-            >>> pin = Pin._find(wrapper, instance, conn, app)
+            >>> pin = Pin._find(wrapper, instance, conn)
 
         :param objs: The objects to search for a :class:`ddtrace.pin.Pin` on
         :type objs: List of objects
@@ -123,13 +118,10 @@ class Pin(object):
         return pin
 
     @classmethod
-    @debtcollector.removals.removed_kwarg("app_type")
     def override(
         cls,
         obj,  # type: Any
         service=None,  # type: Optional[str]
-        app=None,  # type: Optional[str]
-        app_type=None,
         tags=None,  # type: Optional[Dict[str, str]]
         tracer=None,  # type: Optional[Tracer]
     ):
@@ -148,9 +140,9 @@ class Pin(object):
 
         pin = cls.get_from(obj)
         if pin is None:
-            Pin(service=service, app=app, tags=tags, tracer=tracer).onto(obj)
+            Pin(service=service, tags=tags, tracer=tracer).onto(obj)
         else:
-            pin.clone(service=service, app=app, tags=tags, tracer=tracer).onto(obj)
+            pin.clone(service=service, tags=tags, tracer=tracer).onto(obj)
 
     def enabled(self):
         # type: () -> bool
@@ -187,12 +179,9 @@ class Pin(object):
         except AttributeError:
             log.debug("can't remove pin from object. skipping", exc_info=True)
 
-    @debtcollector.removals.removed_kwarg("app_type")
     def clone(
         self,
         service=None,  # type: Optional[str]
-        app=None,  # type: Optional[str]
-        app_type=None,
         tags=None,  # type: Optional[Dict[str, str]]
         tracer=None,  # type: Optional[Tracer]
     ):
@@ -212,7 +201,6 @@ class Pin(object):
 
         return Pin(
             service=service or self.service,
-            app=app or self.app,
             tags=tags,
             tracer=tracer or self.tracer,  # do not clone the Tracer
             _config=config,

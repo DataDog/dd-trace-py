@@ -31,7 +31,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
-from ddtrace.ext import priority
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.writer import AgentWriter
@@ -715,36 +714,6 @@ def test_tracer_with_env():
 class EnvTracerTestCase(TracerTestCase):
     """Tracer test cases requiring environment variables."""
 
-    @run_in_subprocess(env_overrides=dict(DATADOG_SERVICE_NAME="mysvc"))
-    def test_service_name_legacy_DATADOG_SERVICE_NAME(self):
-        """
-        When DATADOG_SERVICE_NAME is provided
-            It should not be used by default
-            It should be used with config._get_service()
-        """
-        from ddtrace import config
-
-        assert config.service is None
-        with self.start_span("") as s:
-            s.assert_matches(service=None)
-        with self.start_span("", service=config._get_service()) as s:
-            s.assert_matches(service="mysvc")
-
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE_NAME="mysvc"))
-    def test_service_name_legacy_DD_SERVICE_NAME(self):
-        """
-        When DD_SERVICE_NAME is provided
-            It should not be used by default
-            It should be used with config._get_service()
-        """
-        from ddtrace import config
-
-        assert config.service is None
-        with self.start_span("") as s:
-            s.assert_matches(service=None)
-        with self.start_span("", service=config._get_service()) as s:
-            s.assert_matches(service="mysvc")
-
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_env(self):
         with self.start_span("") as span:
@@ -1207,13 +1176,6 @@ class TestPartialFlush(TracerTestCase):
         self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
         self.test_partial_flush()
 
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
-    )
-    def test_enable_partial_flush_with_deprecated_config(self):
-        # Test tracer with deprecated configs D_TRACER_...
-        self._test_partial_flush()
-
     def _test_partial_flush(self):
         root = self.tracer.trace("root")
         for i in range(5):
@@ -1388,14 +1350,14 @@ def test_manual_drop(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is priority.USER_REJECT
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is priority.USER_REJECT
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
@@ -1739,10 +1701,3 @@ def test_tracer_memory_leak_span_processors(enabled):
     # Force gc
     gc.collect()
     assert len(spans) == 0
-
-
-def test_trace_with_tracer():
-    # ensure Tracer.trace() sets tracer property on Span
-    t = Tracer()
-    with t.trace("test span") as span:
-        assert span.tracer == t

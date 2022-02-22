@@ -16,7 +16,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.cassandra.patch import patch
 from ddtrace.contrib.cassandra.patch import unpatch
 from ddtrace.contrib.cassandra.session import SERVICE
-from ddtrace.contrib.cassandra.session import get_traced_cassandra
 from ddtrace.ext import cassandra as cassx
 from ddtrace.ext import net
 from tests.contrib.config import CASSANDRA_CONFIG
@@ -445,12 +444,6 @@ class TestCassPatchOne(TestCassPatchDefault):
 
         spans = tracer.pop()
         assert spans, spans
-
-
-def test_backwards_compat_get_traced_cassandra():
-    cluster = get_traced_cassandra()
-    session = cluster(port=CASSANDRA_CONFIG["port"]).connect()
-    session.execute("drop table if exists test.person")
 
 
 class TestCassandraConfig(TracerTestCase):

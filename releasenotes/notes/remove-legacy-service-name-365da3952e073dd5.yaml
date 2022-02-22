@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The legacy environment variables ``DD_SERVICE_NAME`` and ``DATADOG_SERVICE_NAME`` are removed.

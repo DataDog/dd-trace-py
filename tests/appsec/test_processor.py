@@ -4,8 +4,8 @@ import os.path
 import pytest
 
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import priority
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -19,7 +19,7 @@ RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
 
 def test_enable(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
         span.set_tag("http.status_code", "404")
 
@@ -49,17 +49,17 @@ def test_enable_bad_rules(rule, exc, tracer):
 def test_retain_traces(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
         span.set_tag("http.status_code", "404")
 
-    assert span.context.sampling_priority == priority.USER_KEEP
+    assert span.context.sampling_priority == USER_KEEP
 
 
 def test_valid_json(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
         span.set_tag("http.status_code", "404")
 
@@ -70,7 +70,7 @@ def test_valid_json(tracer):
 def test_appsec_span_tags_snapshot(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
 
-    with tracer.trace("test", span_type=SpanTypes.WEB.value) as span:
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
         span.set_tag("http.status_code", "404")
 

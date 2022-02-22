@@ -42,8 +42,8 @@ def patch():
     # For example EC2 uses AWSQueryConnection and S3 uses AWSAuthConnection
     wrapt.wrap_function_wrapper("boto.connection", "AWSQueryConnection.make_request", patched_query_request)
     wrapt.wrap_function_wrapper("boto.connection", "AWSAuthConnection.make_request", patched_auth_request)
-    Pin(service="aws", app="aws").onto(boto.connection.AWSQueryConnection)
-    Pin(service="aws", app="aws").onto(boto.connection.AWSAuthConnection)
+    Pin(service="aws").onto(boto.connection.AWSQueryConnection)
+    Pin(service="aws").onto(boto.connection.AWSAuthConnection)
 
 
 def unpatch():

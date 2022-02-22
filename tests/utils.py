@@ -136,10 +136,15 @@ def override_http_config(integration, values):
     """
     options = getattr(ddtrace.config, integration).http
 
-    original = {}
+    original = {
+        "_header_tags": options._header_tags,
+    }
     for key, value in values.items():
-        original[key] = getattr(options, key)
-        setattr(options, key, value)
+        if key == "trace_headers":
+            options.trace_headers(value)
+        else:
+            original[key] = getattr(options, key)
+            setattr(options, key, value)
 
     try:
         yield
@@ -691,7 +696,7 @@ class TracerSpanContainer(TestSpanContainer):
         :returns: List of spans attached to this tracer
         :rtype: list
         """
-        return self.tracer.writer.spans
+        return self.tracer._writer.spans
 
     def pop(self):
         return self.tracer.pop()
