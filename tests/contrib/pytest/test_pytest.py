@@ -39,7 +39,7 @@ class TestPytest(TracerTestCase):
         """Test with --ddtrace-patch-all."""
         py_file = self.testdir.makepyfile(
             """
-            import ddtrace.monkey
+            import ddtrace
 
             def test_patched_all():
                 assert ddtrace._monkey._PATCHED_MODULES
@@ -58,7 +58,7 @@ class TestPytest(TracerTestCase):
         self.testdir.makefile(".ini", pytest="[pytest]\nddtrace-patch-all=1\n")
         py_file = self.testdir.makepyfile(
             """
-            import ddtrace.monkey
+            import ddtrace
 
             def test_patched_all():
                 assert ddtrace._monkey._PATCHED_MODULES
@@ -127,7 +127,7 @@ class TestPytest(TracerTestCase):
         expected_params = [1, 2, 3, 4, [1, 2, 3]]
         assert len(spans) == 5
         for i in range(len(expected_params)):
-            assert json.loads(spans[i].meta[test.PARAMETERS]) == {
+            assert json.loads(spans[i].get_tag(test.PARAMETERS)) == {
                 "arguments": {"item": str(expected_params[i])},
                 "metadata": {},
             }
@@ -185,7 +185,7 @@ class TestPytest(TracerTestCase):
         ]
         assert len(spans) == 7
         for i in range(len(expected_params_contains)):
-            assert expected_params_contains[i] in spans[i].meta[test.PARAMETERS]
+            assert expected_params_contains[i] in spans[i].get_tag(test.PARAMETERS)
 
     def test_parameterize_case_encoding_error(self):
         """Test parametrize case with complex objects that cannot be JSON encoded."""
@@ -210,7 +210,10 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 1
-        assert json.loads(spans[0].meta[test.PARAMETERS]) == {"arguments": {"item": "Could not encode"}, "metadata": {}}
+        assert json.loads(spans[0].get_tag(test.PARAMETERS)) == {
+            "arguments": {"item": "Could not encode"},
+            "metadata": {},
+        }
 
     def test_skip(self):
         """Test skip case."""
@@ -321,6 +324,44 @@ class TestPytest(TracerTestCase):
         assert spans[1].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[1].get_tag(test.RESULT) == test.Status.XFAIL.value
         assert spans[1].get_tag(test.XFAIL_REASON) == "test should xfail"
+
+    def test_xfail_runxfail_fails(self):
+        """Test xfail with --runxfail flags should not crash when failing."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.xfail(reason='should fail')
+            def test_should_fail():
+                assert 0
+
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", "--runxfail", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
+
+    def test_xfail_runxfail_passes(self):
+        """Test xfail with --runxfail flags should not crash when passing."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.xfail(reason='should fail')
+            def test_should_pass():
+                assert 1
+
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", "--runxfail", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
 
     def test_xpass_not_strict(self):
         """Test xpass (unexpected passing) with strict=False, should be marked as pass."""
@@ -491,10 +532,10 @@ class TestPytest(TracerTestCase):
 
         spans = self.pop_spans()
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
-        encoder = self.tracer.writer.msgpack_encoder
+        encoder = self.tracer.encoder
         encoder.put(spans)
         trace = encoder.encode()
-        (decoded_trace,) = self.tracer.writer.msgpack_encoder._decode(trace)
+        (decoded_trace,) = self.tracer.encoder._decode(trace)
         assert len(decoded_trace) == 4
         for span in decoded_trace:
             assert span[b"meta"][b"_dd.origin"] == b"ciapp-test"

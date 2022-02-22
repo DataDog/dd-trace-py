@@ -1,0 +1,56 @@
+name: System Tests
+
+on:
+  pull_request:
+  workflow_dispatch: {}
+  schedule:
+    - cron:  '00 04 * * 2-6'
+  push:
+    branches:
+      - master
+      - 0.x
+      - 1.x
+
+jobs:
+  system-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - weblog-variant: flask-poc
+          - weblog-variant: uwsgi-poc
+          - weblog-variant: django-poc
+      fail-fast: false
+    env:
+      TEST_LIBRARY: python
+      WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
+      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+    steps:
+      - name: Checkout system tests
+        uses: actions/checkout@v2
+        with:
+          repository: 'DataDog/system-tests'
+
+      - name: Checkout dd-trace-py
+        uses: actions/checkout@v2
+        with:
+          path: 'binaries/dd-trace-py'
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Run
+        run: ./run.sh
+
+      # even on failures, we want to have artifact to be able to investigate
+      # The compress step speed up a lot the uplaod artifact process
+      - name: Compress artifact
+        if: ${{ always() }}  
+        run: tar -czvf artifact.tar.gz $(ls | grep logs)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        if: ${{ always() }}
+        with:
+          name: logs_${{ matrix.weblog-variant }}
+          path: artifact.tar.gz

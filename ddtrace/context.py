@@ -8,7 +8,6 @@ from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.compat import NumericType
 from .internal.logger import get_logger
-from .internal.utils.deprecation import deprecated
 
 
 if TYPE_CHECKING:
@@ -71,8 +70,8 @@ class Context(object):
     def _update_tags(self, span):
         # type: (Span) -> None
         with self._lock:
-            span.meta.update(self._meta)
-            span.metrics.update(self._metrics)
+            span._meta.update(self._meta)
+            span._metrics.update(self._metrics)
 
     @property
     def sampling_priority(self):
@@ -106,15 +105,6 @@ class Context(object):
                     del self._meta[ORIGIN_KEY]
                 return
             self._meta[ORIGIN_KEY] = value
-
-    @deprecated("Cloning contexts will no longer be required in 0.50", version="0.50")
-    def clone(self):
-        # type: () -> Context
-        """
-        Partially clones the current context.
-        It copies everything EXCEPT the registered and finished spans.
-        """
-        return self
 
     def __eq__(self, other):
         # type: (Any) -> bool

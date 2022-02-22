@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    Remove deprecated ``ddtrace.install_excepthook``.
+  - |
+    Remove deprecated ``ddtrace.uninstall_excepthook``.

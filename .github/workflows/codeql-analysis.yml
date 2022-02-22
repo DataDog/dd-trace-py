@@ -2,10 +2,16 @@ name: "CodeQL"
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - master
+      - 0.x
+      - 1.x
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [ master ]
+    branches:
+      - master
+      - 0.x
+      - 1.x
 
 jobs:
   analyze:
@@ -40,9 +46,3 @@ jobs:
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
-
-    - name: upload_artifact
-      uses: actions/upload-artifact@v2
-      with:
-         name: CodeQL Analysis Sarif
-         path: /home/runner/work/dd-trace-py/results/python.sarif

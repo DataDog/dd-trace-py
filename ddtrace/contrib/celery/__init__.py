@@ -53,14 +53,10 @@ with require_modules(required_modules) as missing_modules:
         from .app import unpatch_app
         from .patch import patch
         from .patch import unpatch
-        from .task import patch_task
-        from .task import unpatch_task
 
         __all__ = [
             "patch",
             "patch_app",
-            "patch_task",
             "unpatch",
             "unpatch_app",
-            "unpatch_task",
         ]

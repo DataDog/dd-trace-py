@@ -4,7 +4,6 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.pin import _DD_PIN_NAME
 
-from .constants import APP
 from .signals import trace_after_publish
 from .signals import trace_before_publish
 from .signals import trace_failure
@@ -24,7 +23,6 @@ def patch_app(app, pin=None):
     # attach the PIN object
     pin = pin or Pin(
         service=config.celery["worker_service_name"],
-        app=APP,
         _config=config.celery,
     )
     pin.onto(app)

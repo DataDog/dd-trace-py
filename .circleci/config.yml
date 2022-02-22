@@ -4,7 +4,6 @@ default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
 python39_image: &python39_image cimg/python:3.9
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
-datadog_agent_image: &datadog_agent_image datadog/agent:latest
 redis_image: &redis_image redis:4.0-alpine
 memcached_image: &memcached_image memcached:1.5-alpine
 cassandra_image: &cassandra_image cassandra:3.11.7
@@ -223,7 +222,7 @@ executors:
   cimg_base:
     docker:
       - image: *cimg_base_image
-    resource_class: small
+    resource_class: medium
   python39:
     docker:
       - image: *python39_image
@@ -242,15 +241,6 @@ executors:
 httpbin_local: &httpbin_local
   image: *httpbin_image
   name: httpbin.org
-
-datadog_agent: &datadog_agent
-  image: *datadog_agent_image
-  environment:
-    DD_API_KEY: invalid_key_but_this_is_fine
-    DD_APM_ENABLED: true
-    DD_APM_RECEIVER_SOCKET: /tmp/ddagent/trace.sock
-    DD_BIND_HOST: 0.0.0.0
-    DD_LOG_LEVEL: DEBUG
 
 mysql_server: &mysql_server
   image: *mysql_image
@@ -285,15 +275,18 @@ jobs:
       - run:
           name: "Codespell check"
           command: riot run -s codespell
+      - run:
+          name: "Test agent snapshot check"
+          command: riot run -s snapshot-fmt && git diff --exit-code
 
   ccheck:
     executor: cimg_base
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 python3 python3-setuptools python3-pip
+      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip
       - run: scripts/cformat.sh
-      - run: DD_COMPILE_DEBUG=1 CC=gcc-10 pip -vvv install .
+      - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
     executor: python39
@@ -329,8 +322,8 @@ jobs:
       # Print tests/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage report --ignore-errors --omit=ddtrace/
-      # Print diff-cover report to stdout (compares against origin/master)
-      - run: diff-cover --compare-branch origin/master coverage.xml
+      # Print diff-cover report to stdout (compares against origin/1.x)
+      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
 
   build_base_venvs:
     executor: ddtrace_dev
@@ -348,6 +341,13 @@ jobs:
           root: .
           paths:
             - "."
+
+  appsec:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'appsec'
+          snapshot: true
 
   tracer:
     <<: *contrib_job
@@ -372,28 +372,38 @@ jobs:
   integration_agent5:
     <<: *machine_executor
     steps:
+      - attach_workspace:
+          at: .
       - checkout
       - run: docker-compose up -d ddagent5
       - run:
           command: docker-compose logs -f
           background: true
       - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-v5'
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
     steps:
+      - attach_workspace:
+          at: .
       - checkout
       - run: docker-compose up -d ddagent
       - run:
           command: docker-compose logs -f
           background: true
       - run:
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-latest'
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
 
   integration_testagent:
     <<: *machine_executor
     steps:
+      - attach_workspace:
+          at: .
       - checkout
       - run: SNAPSHOT_CI=1 docker-compose up -d testagent
       - run:
@@ -402,7 +412,9 @@ jobs:
       - run:
           environment:
             DD_TRACE_AGENT_URL: http://localhost:9126
-          command: ./scripts/ddtest scripts/run-tox-scenario '^py..-integration-snapshot'
+          command: |
+            mv .riot .ddriot
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
@@ -584,6 +596,8 @@ jobs:
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
+          # TODO: Re-enable coverage for Flask tests
+          store_coverage: false
           pattern: 'flask(_cache)?'
 
   gevent:
@@ -737,10 +751,11 @@ jobs:
           pattern: '^requests_gevent_contrib-'
 
   sanic:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^sanic_contrib-'
+      - run_test:
+          pattern: "sanic"
+          snapshot: true
 
   snowflake:
     <<: *machine_executor
@@ -1018,6 +1033,7 @@ requires_tests: &requires_tests
     - starlette
     - test_logging
     - tracer
+    - appsec
     - tornado
     - urllib3
     - vertica
@@ -1105,6 +1121,7 @@ workflows:
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
+      - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs

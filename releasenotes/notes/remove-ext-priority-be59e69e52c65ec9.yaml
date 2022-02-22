@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    The deprecated module ``ddtrace.ext.priority`` is removed. Use the ``ddtrace.constants`` module instead for setting sampling priority tags::
+
+      from ddtrace.constants import USER_KEEP
+      from ddtrace.constants import USER_REJECT

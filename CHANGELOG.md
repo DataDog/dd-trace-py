@@ -1833,7 +1833,7 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.5.4.
 - documentation fixes
 - send less data to the agent in the SQL and redis integrations.
 
-Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.5.3...master)
+Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.5.3...v0.5.4)
 
 ---
 

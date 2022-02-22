@@ -22,7 +22,7 @@ def test_eq(ctx1, ctx2):
 @pytest.mark.parametrize(
     "ctx1,ctx2",
     [
-        (Context(), Span(None, "")),
+        (Context(), Span("")),
         (Context(), None),
         (Context(), object()),
         (None, Context()),

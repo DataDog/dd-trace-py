@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    psycopg: ``ddtrace.contrib.psycopg.connection_factory`` is removed. Use ``ddtrace.patch(psycopg=True)`` or ``ddtrace.patch_all()`` instead.

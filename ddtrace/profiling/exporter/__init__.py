@@ -3,6 +3,10 @@ import typing
 import attr
 
 
+if typing.TYPE_CHECKING:
+    from .. import recorder
+
+
 class ExportError(Exception):
     pass
 
@@ -11,7 +15,12 @@ class ExportError(Exception):
 class Exporter(object):
     """Exporter base class."""
 
-    def export(self, events, start_time_ns, end_time_ns):
+    def export(
+        self,
+        events,  # type: recorder.EventsType
+        start_time_ns,  # type: int
+        end_time_ns,  # type: int
+    ):
         # type: (...) -> typing.Any
         """Export events.
 
@@ -26,7 +35,12 @@ class Exporter(object):
 class NullExporter(Exporter):
     """Exporter that does nothing."""
 
-    def export(self, events, start_time_ns, end_time_ns):
+    def export(
+        self,
+        events,  # type: recorder.EventsType
+        start_time_ns,  # type: int
+        end_time_ns,  # type: int
+    ):
         # type: (...) -> None
         """Discard events."""
         pass

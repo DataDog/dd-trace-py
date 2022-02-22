@@ -58,8 +58,7 @@ required_modules = ["psycopg2"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .connection import connection_factory
         from .patch import patch
         from .patch import patch_conn
 
-        __all__ = ["connection_factory", "patch", "patch_conn"]
+        __all__ = ["patch", "patch_conn"]

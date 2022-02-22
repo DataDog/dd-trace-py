@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The deprecated module ``ddtrace.propagation.utils`` is removed.

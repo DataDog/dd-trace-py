@@ -9,7 +9,6 @@ from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.pymongo.client import normalize_filter
 from ddtrace.contrib.pymongo.patch import patch
-from ddtrace.contrib.pymongo.patch import trace_mongo_client
 from ddtrace.contrib.pymongo.patch import unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import mongo as mongox
@@ -108,10 +107,10 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == "mongodb"
-            assert span.meta.get("mongodb.collection") == "songs"
-            assert span.meta.get("mongodb.db") == "testdb"
-            assert span.meta.get("out.host")
-            assert span.metrics.get("out.port")
+            assert span.get_tag("mongodb.collection") == "songs"
+            assert span.get_tag("mongodb.db") == "testdb"
+            assert span.get_tag("out.host")
+            assert span.get_metric("out.port")
 
         expected_resources = set(
             [
@@ -165,10 +164,10 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == "mongodb"
-            assert span.meta.get("mongodb.collection") == collection_name
-            assert span.meta.get("mongodb.db") == "testdb"
-            assert span.meta.get("out.host")
-            assert span.metrics.get("out.port")
+            assert span.get_tag("mongodb.collection") == collection_name
+            assert span.get_tag("mongodb.db") == "testdb"
+            assert span.get_tag("out.host")
+            assert span.get_metric("out.port")
 
         if pymongo.version_tuple >= (4, 0):
             expected_resources = [
@@ -242,10 +241,10 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == "mongodb"
-            assert span.meta.get("mongodb.collection") == "teams"
-            assert span.meta.get("mongodb.db") == "testdb"
-            assert span.meta.get("out.host"), span.pprint()
-            assert span.metrics.get("out.port"), span.pprint()
+            assert span.get_tag("mongodb.collection") == "teams"
+            assert span.get_tag("mongodb.db") == "testdb"
+            assert span.get_tag("out.host")
+            assert span.get_metric("out.port")
             assert span.start > start
             assert span.duration < end - start
 
@@ -313,10 +312,10 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == self.TEST_SERVICE
             assert span.span_type == "mongodb"
-            assert span.meta.get("mongodb.collection") == "songs"
-            assert span.meta.get("mongodb.db") == "testdb"
-            assert span.meta.get("out.host")
-            assert span.metrics.get("out.port")
+            assert span.get_tag("mongodb.collection") == "songs"
+            assert span.get_tag("mongodb.db") == "testdb"
+            assert span.get_tag("out.host")
+            assert span.get_metric("out.port")
 
         expected_resources = set(
             [
@@ -356,20 +355,6 @@ class PymongoCore(object):
             spans = tracer.pop()
             assert len(spans) == 1
             assert spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
-
-
-class TestPymongoTraceClient(TracerTestCase, PymongoCore):
-    """Test suite for pymongo with the legacy trace interface"""
-
-    TEST_SERVICE = "test-mongo-trace-client"
-
-    def get_tracer_and_client(self):
-        tracer = DummyTracer()
-        original_client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        client = trace_mongo_client(original_client, tracer, service=self.TEST_SERVICE)
-        # No need to disable tcp spans tracer here as trace_mongo_client does not call
-        # patch()
-        return tracer, client
 
 
 class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
@@ -484,6 +469,64 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 1
         assert spans[0].service != "mysvc"
 
+    def test_patch_with_disabled_tracer(self):
+        tracer, client = self.get_tracer_and_client()
+        tracer.configure(enabled=False)
+
+        db = client.testdb
+        db.drop_collection("teams")
+        teams = [
+            {
+                "name": "Toronto Maple Leafs",
+                "established": 1917,
+            },
+            {
+                "name": "Montreal Canadiens",
+                "established": 1910,
+            },
+            {
+                "name": "New York Rangers",
+                "established": 1926,
+            },
+            {
+                "name": "Boston Knuckleheads",
+                "established": 1998,
+            },
+        ]
+
+        # create records (exercising both ways of inserting)
+        db.teams.insert_one(teams[0])
+        db.teams.insert_many(teams[1:])
+        # delete record
+        db.teams.delete_one({"name": "Boston Knuckleheads"})
+
+        # assert one team was deleted
+        cursor = db["teams"].find()
+        count = 0
+        for row in cursor:
+            count += 1
+        assert count == len(teams) - 1
+
+        # query record
+        q = {"name": "Toronto Maple Leafs"}
+        queried = list(db.teams.find(q))
+        assert len(queried) == 1
+        assert queried[0]["name"] == "Toronto Maple Leafs"
+        assert queried[0]["established"] == 1917
+
+        # update record
+        result = db.teams.update_many(
+            {"name": "Toronto Maple Leafs"},
+            {"$set": {"established": 2021}},
+        )
+        assert result.matched_count == 1
+        queried = list(db.teams.find(q))
+        assert queried[0]["name"] == "Toronto Maple Leafs"
+        assert queried[0]["established"] == 2021
+
+        # assert no spans were created
+        assert tracer.pop() == []
+
 
 class TestPymongoSocketTracing(TracerTestCase):
     """
@@ -513,9 +556,9 @@ class TestPymongoSocketTracing(TracerTestCase):
     def check_socket_metadata(span):
         assert span.name == "pymongo.get_socket"
         assert span.service == mongox.SERVICE
-        assert span.span_type == SpanTypes.MONGODB.value
-        assert span.meta.get("out.host") == "localhost"
-        assert span.metrics.get("out.port") == MONGO_CONFIG["port"]
+        assert span.span_type == SpanTypes.MONGODB
+        assert span.get_tag("out.host") == "localhost"
+        assert span.get_metric("out.port") == MONGO_CONFIG["port"]
 
     def test_single_op(self):
         self.client["some_db"].drop_collection("some_collection")

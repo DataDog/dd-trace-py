@@ -7,6 +7,7 @@ import attr
 import six
 
 from ddtrace import ext
+from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.utils import config
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
@@ -23,7 +24,7 @@ def _protobuf_post_312():
 
     from ddtrace.internal.utils.version import parse_version
 
-    v = parse_version(google.protobuf.__version__)  # type: ignore[arg-type]
+    v = parse_version(google.protobuf.__version__)
     return v[0] >= 3 and v[1] >= 12
 
 
@@ -90,9 +91,18 @@ class pprof_LocationType(object):
     id: int
 
 
+class pprof_Mapping(object):
+    filename: int
+
+
 class pprof_ProfileType(object):
-    # pprof_pb2.Profile
+    # Emulate pprof_pb2.Profile for typing
     id: int
+    string_table: typing.Dict[int, str]
+    mapping: typing.List[pprof_Mapping]
+
+    def SerializeToString(self) -> bytes:
+        ...
 
 
 class pprof_FunctionType(object):
@@ -151,20 +161,16 @@ class _PprofConverter(object):
         self,
         filename: str,
         lineno: int,
-        funcname: typing.Optional[str] = None,
+        funcname: str,
     ) -> pprof_LocationType:
         try:
             return self._locations[(filename, lineno, funcname)]
         except KeyError:
-            if funcname is None:
-                real_funcname = "<unknown function>"
-            else:
-                real_funcname = funcname
             location = pprof_pb2.Location(  # type: ignore[attr-defined]
                 id=self._last_location_id.generate(),
                 line=[
                     pprof_pb2.Line(  # type: ignore[attr-defined]
-                        function_id=self._to_Function(filename, real_funcname).id,
+                        function_id=self._to_Function(filename, funcname).id,
                         line=lineno,
                     ),
                 ],
@@ -550,9 +556,9 @@ class PprofExporter(exporter.Exporter):
     def _get_event_trace_resource(self, event: event.StackBasedEvent) -> str:
         trace_resource = ""
         # Do not export trace_resource for non Web spans for privacy concerns.
-        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
+        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB:
             (trace_resource,) = event.trace_resource_container
-        return trace_resource
+        return ensure_str(trace_resource, errors="backslashreplace")
 
     def export(self, events: recorder.EventsType, start_time_ns: int, end_time_ns: int) -> pprof_ProfileType:
         """Convert events to pprof format.

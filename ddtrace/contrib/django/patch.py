@@ -9,6 +9,7 @@ specific Django apps like Django Rest Framework (DRF).
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
+import os
 import sys
 
 from ddtrace import Pin
@@ -34,7 +35,7 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.formats import get_env
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
 
 from . import utils
@@ -47,20 +48,20 @@ config._add(
     "django",
     dict(
         _default_service="django",
-        cache_service_name=get_env("django", "cache_service_name") or "django",
-        database_service_name_prefix=get_env("django", "database_service_name_prefix", default=""),
-        database_service_name=get_env("django", "database_service_name", default=""),
-        trace_fetch_methods=asbool(get_env("django", "trace_fetch_methods", default=False)),
+        cache_service_name=os.getenv("DD_DJANGO_CACHE_SERVICE_NAME", default="django"),
+        database_service_name_prefix=os.getenv("DD_DJANGO_DATABASE_SERVICE_NAME_PREFIX", default=""),
+        database_service_name=os.getenv("DD_DJANGO_DATABASE_SERVICE_NAME", default=""),
+        trace_fetch_methods=asbool(os.getenv("DD_DJANGO_TRACE_FETCH_METHODS", default=False)),
         distributed_tracing_enabled=True,
-        instrument_middleware=asbool(get_env("django", "instrument_middleware", default=True)),
-        instrument_databases=asbool(get_env("django", "instrument_databases", default=True)),
-        instrument_caches=asbool(get_env("django", "instrument_caches", default=True)),
+        instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
+        instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
+        instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
         analytics_enabled=None,  # None allows the value to be overridden by the global config
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=True,
-        use_handler_resource_format=asbool(get_env("django", "use_handler_resource_format", default=False)),
-        use_legacy_resource_format=asbool(get_env("django", "use_legacy_resource_format", default=False)),
+        use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
+        use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
     ),
 )
 
@@ -81,7 +82,7 @@ def patch_conn(django, conn):
             "django.db.vendor": vendor,
             "django.db.alias": alias,
         }
-        pin = Pin(service, tags=tags, tracer=pin.tracer, app=prefix)
+        pin = Pin(service, tags=tags, tracer=pin.tracer)
         cursor = func(*args, **kwargs)
         traced_cursor_cls = dbapi.TracedCursor
         if (
@@ -90,7 +91,17 @@ def patch_conn(django, conn):
             and isinstance(cursor.cursor, psycopg_cursor_cls)
         ):
             traced_cursor_cls = Psycopg2TracedCursor
-        return traced_cursor_cls(cursor, pin, config.django)
+        # Each db alias will need its own config for dbapi
+        cfg = IntegrationConfig(
+            config.django.global_config,  # global_config needed for analytics sample rate
+            "{}-{}".format("django", alias),  # name not used but set anyway
+            _default_service=config.django._default_service,
+            _dbapi_span_name_prefix=prefix,
+            trace_fetch_methods=config.django.trace_fetch_methods,
+            analytics_enabled=config.django.analytics_enabled,
+            analytics_sample_rate=config.django.analytics_sample_rate,
+        )
+        return traced_cursor_cls(cursor, pin, cfg)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
         conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
@@ -321,7 +332,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         span_type=SpanTypes.WEB,
     ) as span:
         utils._before_request_tags(pin, span, request)
-        span.metrics[SPAN_MEASURED_KEY] = 1
+        span._metrics[SPAN_MEASURED_KEY] = 1
 
         response = None
         try:
@@ -404,7 +415,7 @@ def _instrument_view(django, view):
 
     # If the view itself is not wrapped, wrap it
     if not isinstance(view, wrapt.ObjectProxy):
-        view = wrapt.FunctionWrapper(
+        view = utils.DjangoViewProxy(
             view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
         )
     return view
@@ -435,7 +446,7 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     except Exception:
         log.debug("Failed to instrument Django view %r", instance, exc_info=True)
     view = func(*args, **kwargs)
-    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(view)))
+    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
 
 
 @trace_utils.with_traced_module
@@ -446,6 +457,24 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
         span.name = "django.request"
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
+
+
+def unwrap_views(func, instance, args, kwargs):
+    """
+    Django channels uses path() and re_path() to route asgi applications. This broke our initial assumption that
+    django path/re_path/url functions only accept views. Here we unwrap ddtrace view instrumentation from asgi
+    applications.
+
+    Ex. ``channels.routing.URLRouter([path('', get_asgi_application())])``
+    On startup ddtrace.contrib.django.path.instrument_view() will wrap get_asgi_application in a DjangoViewProxy.
+    Since get_asgi_application is not a django view callback this function will unwrap it.
+    """
+    routes = get_argument_value(args, kwargs, 0, "routes")
+    for route in routes:
+        if isinstance(route.callback, utils.DjangoViewProxy):
+            route.callback = route.callback.__wrapped__
+
+    return func(*args, **kwargs)
 
 
 def _patch(django):
@@ -484,7 +513,10 @@ def _patch(django):
     # DEV: this check will be replaced with import hooks in the future
     if "django.conf.urls.static" not in sys.modules:
         import django.conf.urls.static
-    trace_utils.wrap(django, "conf.urls.url", traced_urls_path(django))
+
+    if django.VERSION < (4, 0, 0):
+        trace_utils.wrap(django, "conf.urls.url", traced_urls_path(django))
+
     if django.VERSION >= (2, 0, 0):
         trace_utils.wrap(django, "urls.path", traced_urls_path(django))
         trace_utils.wrap(django, "urls.re_path", traced_urls_path(django))
@@ -493,6 +525,17 @@ def _patch(django):
     if "django.views.generic.base" not in sys.modules:
         import django.views.generic.base
     trace_utils.wrap(django, "views.generic.base.View.as_view", traced_as_view(django))
+
+    try:
+        import channels
+        import channels.routing
+
+        channels_version = tuple(int(x) for x in channels.__version__.split("."))
+        if channels_version >= (3, 0):
+            # ASGI3 is only supported in channels v3.0+
+            trace_utils.wrap(channels.routing, "URLRouter.__init__", unwrap_views)
+    except ImportError:
+        pass  # channels is not installed
 
 
 def patch():

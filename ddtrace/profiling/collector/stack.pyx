@@ -4,7 +4,6 @@ from __future__ import absolute_import
 import sys
 import threading
 import typing
-import weakref
 
 import attr
 import six
@@ -15,10 +14,10 @@ from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
+from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
-from ddtrace.profiling.collector import _threading
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
 
@@ -282,7 +281,7 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
     if thread_span_links:
         # FIXME also use native thread id
-        thread_span_links.clear_threads(tuple(thread[0] for thread in running_threads))
+        thread_span_links.clear_threads(set(thread[0] for thread in running_threads))
 
     stack_events = []
     exc_events = []
@@ -296,29 +295,67 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
         if task_id in thread_id_ignore_list:
             continue
 
-        # Inject the task frame and replace the thread frame: this is especially handy for gevent as it allows us to
-        # replace the "hub" stack trace by the latest active greenlet, which is more interesting to show and account
-        # resources for.
-        if task_frame is not None:
-           frame = task_frame
+        tasks = _task.list_tasks(thread_id)
 
-        frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
+        # Inject wall time for all running tasks
+        for task_id, task_name, task_frame in tasks:
+            # Inject the task frame and replace the thread frame: this is especially handy for gevent as it allows us to
+            # replace the "hub" stack trace by the latest active greenlet, which is more interesting to show and account
+            # resources for.
+            if task_frame is not None:
+               frame = task_frame
 
-        event = stack_event.StackSampleEvent(
-            thread_id=thread_id,
-            thread_native_id=thread_native_id,
-            thread_name=thread_name,
-            task_id=task_id,
-            task_name=task_name,
-            nframes=nframes, frames=frames,
-            wall_time_ns=wall_time,
-            cpu_time_ns=cpu_time,
-            sampling_period=int(interval * 1e9),
-        )
+            frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
 
-        event.set_trace_info(span, collect_endpoint)
+            if task_id == compat.main_thread.ident:
+                event = stack_event.StackSampleEvent(
+                    thread_id=thread_id,
+                    thread_native_id=thread_native_id,
+                    thread_name=thread_name,
+                    task_id=task_id,
+                    task_name=task_name,
+                    nframes=nframes, frames=frames,
+                    wall_time_ns=wall_time,
+                    cpu_time_ns=cpu_time,
+                    sampling_period=int(interval * 1e9),
+                )
 
-        stack_events.append(event)
+                # FIXME: we only trace spans per thread, so we assign the span to the main thread for now
+                # we'd need to leverage the greenlet tracer to also store the active span
+                event.set_trace_info(span, collect_endpoint)
+            else:
+                event = stack_event.StackSampleEvent(
+                    thread_id=thread_id,
+                    thread_native_id=thread_native_id,
+                    thread_name=thread_name,
+                    task_id=task_id,
+                    task_name=task_name,
+                    nframes=nframes, frames=frames,
+                    wall_time_ns=wall_time,
+                    # we don't have CPU time per task
+                    sampling_period=int(interval * 1e9),
+                )
+
+            stack_events.append(event)
+
+        # If a thread has no task, we inject the "regular" thread samples
+        if len(tasks) == 0:
+            frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
+
+            event = stack_event.StackSampleEvent(
+                thread_id=thread_id,
+                thread_native_id=thread_native_id,
+                thread_name=thread_name,
+                nframes=nframes,
+                frames=frames,
+                wall_time_ns=wall_time,
+                cpu_time_ns=cpu_time,
+                sampling_period=int(interval * 1e9),
+            )
+
+            event.set_trace_info(span, collect_endpoint)
+
+            stack_events.append(event)
 
         if exception is not None:
             exc_type, exc_traceback = exception
@@ -342,13 +379,14 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     return stack_events, exc_events
 
 
-@attr.s(slots=True, eq=False)
-class _ThreadSpanLinks(object):
+if typing.TYPE_CHECKING:
+    _thread_span_links_base = _threading._ThreadLink[ddspan.Span]
+else:
+    _thread_span_links_base = _threading._ThreadLink
 
-    # Key is a thread_id
-    # Value is a weakref to latest active span
-    _thread_id_to_spans = attr.ib(factory=dict, repr=False, init=False, type=typing.Dict[int, ddspan.Span])
-    _lock = attr.ib(factory=nogevent.Lock, repr=False, init=False, type=nogevent.Lock)
+
+@attr.s(slots=True, eq=False)
+class _ThreadSpanLinks(_thread_span_links_base):
 
     def link_span(
             self,
@@ -361,21 +399,7 @@ class _ThreadSpanLinks(object):
         """
         # Since we're going to iterate over the set, make sure it's locked
         if isinstance(span, ddspan.Span):
-            with self._lock:
-                self._thread_id_to_spans[nogevent.thread_get_ident()] = weakref.ref(span)
-
-    def clear_threads(self, existing_thread_ids):
-        """Clear the stored list of threads based on the list of existing thread ids.
-
-        If any thread that is part of this list was stored, its data will be deleted.
-
-        :param existing_thread_ids: A set of thread ids to keep.
-        """
-        with self._lock:
-            # Iterate over a copy of the list of keys since it's mutated during our iteration.
-            for thread_id in list(self._thread_id_to_spans.keys()):
-                if thread_id not in existing_thread_ids:
-                    del self._thread_id_to_spans[thread_id]
+            self.link_object(span)
 
     def get_active_span_from_thread_id(
             self,
@@ -387,14 +411,10 @@ class _ThreadSpanLinks(object):
         :param thread_id: The thread id.
         :return: A set with the active spans.
         """
-
-        with self._lock:
-            active_span_ref = self._thread_id_to_spans.get(thread_id)
-            if active_span_ref is not None:
-                active_span = active_span_ref()
-                if active_span is not None and not active_span.finished:
-                    return active_span
-                return None
+        active_span = self.get_object(thread_id)
+        if active_span is not None and not active_span.finished:
+            return active_span
+        return None
 
 
 def _default_min_interval_time():
@@ -428,6 +448,7 @@ class StackCollector(collector.PeriodicCollector):
             raise ValueError("Max time usage percent must be greater than 0 and smaller or equal to 100")
 
     def _init(self):
+        # type: (...) -> None
         self._thread_time = _ThreadTime()
         self._last_wall_time = compat.monotonic_ns()
         if self.tracer is not None:
@@ -435,11 +456,13 @@ class StackCollector(collector.PeriodicCollector):
             self.tracer.context_provider._on_activate(self._thread_span_links.link_span)
 
     def _start_service(self):
+        # type: (...) -> None
         # This is split in its own function to ease testing
         self._init()
         super(StackCollector, self)._start_service()
 
     def _stop_service(self):
+        # type: (...) -> None
         super(StackCollector, self)._stop_service()
         if self.tracer is not None:
             self.tracer.context_provider._deregister_on_activate(self._thread_span_links.link_span)

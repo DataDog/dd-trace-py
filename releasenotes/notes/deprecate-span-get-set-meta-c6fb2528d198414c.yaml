@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    :py:meth:`ddtrace.Span.set_meta` is deprecated. Use :py:meth:`ddtrace.Span.set_tag` instead.
+  - |
+    :py:meth:`ddtrace.Span.set_metas` is deprecated. Use :py:meth:`ddtrace.Span.set_tags` instead.

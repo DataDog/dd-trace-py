@@ -3,7 +3,6 @@ import redis
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-from ...ext import redis as redisx
 from ...pin import Pin
 from ..trace_utils import unwrap
 from .util import _trace_redis_cmd
@@ -37,7 +36,7 @@ def patch():
         _w("redis", "Redis.pipeline", traced_pipeline)
         _w("redis.client", "Pipeline.execute", traced_execute_pipeline)
         _w("redis.client", "Pipeline.immediate_execute_command", traced_execute_command)
-    Pin(service=None, app=redisx.APP).onto(redis.StrictRedis)
+    Pin(service=None).onto(redis.StrictRedis)
 
 
 def unpatch():

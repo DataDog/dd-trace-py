@@ -6,10 +6,11 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
-from ddtrace.propagation.utils import from_wsgi_header
+from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
 from ...internal.logger import get_logger
+from ...vendor.wrapt import FunctionWrapper
 from .compat import get_resolver
 from .compat import user_is_authenticated
 
@@ -200,7 +201,7 @@ def _before_request_tags(pin, span, request):
     #      has explicitly set it during the request lifetime
     span.service = trace_utils.int_service(pin, config.django)
     span.span_type = SpanTypes.WEB
-    span.metrics[SPAN_MEASURED_KEY] = 1
+    span._metrics[SPAN_MEASURED_KEY] = 1
 
     analytics_sr = config.django.get_analytics_sample_rate(use_global_config=True)
     if analytics_sr is not None:
@@ -294,3 +295,21 @@ def _after_request_tags(pin, span, request, response):
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method
+
+
+class DjangoViewProxy(FunctionWrapper):
+    """
+    This custom function wrapper is used to wrap the callback passed to django views handlers (path/re_path/url).
+    This allows us to distinguish between wrapped django views and wrapped asgi applications in django channels.
+    """
+
+    @property
+    def __module__(self):
+        """
+        DjangoViewProxy.__module__ defaults to ddtrace.contrib.django when a wrapped function does not have
+        a __module__ attribute. This method ensures that DjangoViewProxy.__module__ always returns the module
+        attribute of the wrapped function or an empty string if this attribute is not available.
+        The function Django.urls.path() does not have a __module__ attribute and would require this override
+        to resolve the correct module name.
+        """
+        return self.__wrapped__.__module__

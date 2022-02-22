@@ -75,7 +75,7 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
 venv = Venv(
     pkgs={
         "mock": latest,
-        "pytest": latest,
+        "pytest": "<7.0.0",
         "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
@@ -152,6 +152,16 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            pkgs={"ddapm-test-agent": ">=1.2.0"},
+            venvs=[
+                Venv(
+                    name="snapshot-fmt",
+                    command="ddapm-test-agent-fmt {cmdargs} tests/snapshots/",
+                ),
+            ],
+        ),
+        Venv(
+            pys=["3"],
             name="riot-helpers",
             # DEV: pytest really doesn't want to execute only `riotfile.py`, call doctest directly
             command="python -m doctest {cmdargs} riotfile.py",
@@ -163,11 +173,16 @@ venv = Venv(
             pkgs={
                 "cython": latest,
                 "reno[sphinx]": latest,
-                "sphinx": latest,
+                "sphinx": "~=4.3.2",
                 "sphinxcontrib-spelling": latest,
                 "PyEnchant": latest,
             },
             command="scripts/build-docs",
+        ),
+        Venv(
+            name="appsec",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/appsec",
         ),
         Venv(
             pys=select_pys(),
@@ -203,8 +218,37 @@ venv = Venv(
                         "attrs": ["==19.2.0", latest],
                         "packaging": ["==17.1", latest],
                         "structlog": latest,
+                        # httpretty v1.0 drops python 2.7 support
+                        "httpretty": "==0.9.7",
                     },
                 )
+            ],
+        ),
+        Venv(
+            name="integration",
+            pys=select_pys(),
+            command="pytest --no-cov {cmdargs} tests/integration/",
+            pkgs={"msgpack": [latest]},
+            venvs=[
+                Venv(
+                    name="integration-v5",
+                    env={
+                        "AGENT_VERSION": "v5",
+                    },
+                ),
+                Venv(
+                    name="integration-latest",
+                    env={
+                        "AGENT_VERSION": "latest",
+                    },
+                ),
+                Venv(
+                    name="integration-snapshot",
+                    env={
+                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                        "AGENT_VERSION": "testagent",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -461,7 +505,7 @@ venv = Venv(
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
-                "psycopg2": ["~=2.8.0"],
+                "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
@@ -489,30 +533,37 @@ venv = Venv(
                         "django": [
                             ">=2.1,<2.2",
                             ">=2.2,<2.3",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "django": [
                             "~=3.0",
                             "~=3.0.0",
                             "~=3.1.0",
                             "~=3.2.0",
                         ],
+                        "channels": ["~=3.0", latest],
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": [
-                #             "~=4.0.0",
-                #             latest,
-                #         ],
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": [
+                            "~=4.0.0",
+                            latest,
+                        ],
+                        "channels": ["~=3.0", latest],
+                    },
+                ),
             ],
         ),
         Venv(
             name="django_hosts",
             command="pytest {cmdargs} tests/contrib/django_hosts",
             pkgs={
-                "django_hosts": ["~=4.0", latest],
                 "pytest-django": [
                     "==3.10.0",
                 ],
@@ -521,28 +572,27 @@ venv = Venv(
                 Venv(
                     pys=["3.5"],
                     pkgs={
+                        "django_hosts": ["~=4.0"],
                         "django": ["~=2.2"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
+                        "django_hosts": ["~=4.0"],
                         "django": [
                             "~=2.2",
                             "~=3.2",
                         ],
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": [
-                #             "~=4.0",
-                #             latest,
-                #         ],
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django_hosts": ["~=5.0", latest],
+                        "django": "~=4.0",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -581,15 +631,14 @@ venv = Venv(
                         "pytest-django": "==3.10.0",
                     },
                 ),
-                # TODO: Add support for Django 4.0 in tests
-                # Venv(
-                #     pys=select_pys(min_version="3.8"),
-                #     pkgs={
-                #         "django": latest,
-                #         "djangorestframework": ">=3.11,<3.12",
-                #         "pytest-django": "==3.10.0",
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": "~=4.0",
+                        "djangorestframework": ["~=3.13", latest],
+                        "pytest-django": "==3.10.0",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -657,7 +706,8 @@ venv = Venv(
         ),
         Venv(
             name="flask",
-            command="pytest {cmdargs} tests/contrib/flask",
+            # TODO: Re-enable coverage for Flask tests
+            command="pytest --no-cov {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest},
             venvs=[
                 # Flask == 0.12.0
@@ -667,16 +717,33 @@ venv = Venv(
                         "flask": ["~=0.12.0"],
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(max_version="3.9"),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    # TODO: Re-enable coverage for Flask tests
+                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
-                    pkgs={"flask": ["~=0.12.0"], "pytest": "~=3.0", "more_itertools": "<8.11.0"},
+                    pkgs={
+                        "flask": ["~=0.12.0"],
+                        "pytest": "~=3.0",
+                        "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
                 ),
                 # Flask 1.x.x
                 Venv(
@@ -687,14 +754,21 @@ venv = Venv(
                             "~=1.1.0",
                             "~=1.0",  # latest 1.x
                         ],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.1.0 release
+                        "itsdangerous": "<2.1.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    # TODO: Re-enable coverage for Flask tests
+                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
                         "flask": [
@@ -702,6 +776,12 @@ venv = Venv(
                             "~=1.1.0",
                             "~=1.0",  # latest 1.x
                         ],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 # Flask >= 2.0.0
@@ -717,10 +797,11 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
+                    # TODO: Re-enable coverage for Flask tests
+                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
                         "flask": [
@@ -734,7 +815,8 @@ venv = Venv(
         ),
         Venv(
             name="flask_cache",
-            command="pytest {cmdargs} tests/contrib/flask_cache",
+            # TODO: Re-enable coverage for Flask tests
+            command="pytest --no-cov {cmdargs} tests/contrib/flask_cache",
             pkgs={
                 "python-memcached": latest,
                 "redis": "~=2.0",
@@ -750,6 +832,12 @@ venv = Venv(
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
@@ -761,12 +849,31 @@ venv = Venv(
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3"),
                     pkgs={
                         "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask-caching": ["~=1.10.0", latest],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3"),
+                    pkgs={
+                        "flask": [latest],
                         "flask-caching": ["~=1.10.0", latest],
                     },
                 ),
@@ -801,16 +908,15 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/psycopg",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="2.7", max_version="3.6"),
-                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
+                    pys=["2.7"],
+                    # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
+                    pkgs={"psycopg2-binary": ["~=2.7.0", "~=2.8.0"]},
                 ),
                 Venv(
-                    pys=["3.7"],
-                    pkgs={"psycopg2": ["~=2.7.0", "~=2.8.0", latest]},
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.8"),
-                    pkgs={"psycopg2": ["~=2.8.0", latest]},
+                    pys=select_pys(min_version="3.6"),
+                    # 2.7.x should also work, but it is from 2019
+                    # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
+                    pkgs={"psycopg2-binary": ["~=2.8.0", "~=2.9.0", latest]},
                 ),
             ],
         ),
@@ -881,7 +987,8 @@ venv = Venv(
                             pys=select_pys(max_version="3.9"),
                             pkgs={
                                 "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2": ["~=2.8.0"],
+                                # 2.8.x is the last one support Python 2.7
+                                "psycopg2-binary": ["~=2.8.0"],
                                 "mysql-connector-python": ["<8.0.24"],
                             },
                         ),
@@ -889,16 +996,15 @@ venv = Venv(
                             pys=select_pys(min_version="3.6", max_version="3.9"),
                             pkgs={
                                 "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2": ["~=2.8.0"],
+                                "psycopg2-binary": latest,
                                 "mysql-connector-python": latest,
                             },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10"),
                             pkgs={
-                                "mysql-connector-python": latest,
                                 "sqlalchemy": ["~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2": ["~=2.8.0"],
+                                "psycopg2-binary": latest,
                                 "mysql-connector-python": latest,
                             },
                         ),
@@ -953,15 +1059,15 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": ["<1.0"]})],
+            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
         ),
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={"botocore": latest},
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": [">=1.0,<2.0"]}),
-                Venv(pys=["2.7"], pkgs={"moto": [">=1.0,<2.0"], "rsa": ["<4.7.1"]}),
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": latest}),
+                Venv(pys=["2.7"], pkgs={"moto": ["~=1.0"], "rsa": ["<4.7.1"]}),
             ],
         ),
         Venv(
@@ -1309,11 +1415,18 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.9"),
-                    pkgs={"jinja2": [("~=2.%d.0" % m) for m in range(7, 12)]},
+                    pkgs={
+                        "jinja2": [("~=2.%d.0" % m) for m in range(9, 12)],
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    pkgs={"jinja2": ["~=3.0.0", latest]},
+                    pkgs={
+                        "jinja2": ["~=3.0.0", latest],
+                    },
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
@@ -1368,10 +1481,55 @@ venv = Venv(
             },
         ),
         Venv(
+            name="sanic",
+            command="pytest {cmdargs} tests/contrib/sanic",
+            pkgs={
+                "pytest-asyncio": latest,
+                "requests": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "sanic": ["~=19.12", "~=20.12"],
+                        "pytest-sanic": ["~=1.6.2"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": ["~=21.3.0"],
+                        "pytest-sanic": latest,
+                        "httpx": ["~=0.15.4"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": [
+                            "~=21.6.0",
+                        ],
+                        "pytest-sanic": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": [
+                            "~=21.9.0",
+                            "~=21.12.0",
+                            latest,
+                        ],
+                        "sanic-testing": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="snowflake",
             command="pytest {cmdargs} tests/contrib/snowflake",
             pkgs={
-                "responses": latest,
+                "responses": "~=0.16.0",
             },
             venvs=[
                 Venv(

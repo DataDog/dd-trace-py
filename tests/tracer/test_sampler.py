@@ -67,7 +67,7 @@ class RateSamplerTest(unittest.TestCase):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
 
-            tracer.sampler = RateSampler(sample_rate)
+            tracer._sampler = RateSampler(sample_rate)
 
             iterations = int(1e4 / sample_rate)
 
@@ -88,7 +88,7 @@ class RateSamplerTest(unittest.TestCase):
         """Test that for a given trace ID, the result is always the same"""
         tracer = DummyTracer()
 
-        tracer.sampler = RateSampler(0.5)
+        tracer._sampler = RateSampler(0.5)
 
         for i in range(10):
             span = tracer.trace(str(i))
@@ -98,21 +98,21 @@ class RateSamplerTest(unittest.TestCase):
             assert len(samples) <= 1, "there should be 0 or 1 spans"
             sampled = 1 == len(samples)
             for j in range(10):
-                other_span = Span(tracer, str(i), trace_id=span.trace_id)
-                assert sampled == tracer.sampler.sample(
+                other_span = Span(str(i), trace_id=span.trace_id)
+                assert sampled == tracer._sampler.sample(
                     other_span
                 ), "sampling should give the same result for a given trace_id"
 
     def test_negative_sample_rate_raises_error(self):
         tracer = DummyTracer()
         with pytest.raises(ValueError, match="sample_rate of -0.5 is negative"):
-            tracer.sampler = RateSampler(sample_rate=-0.5)
+            tracer._sampler = RateSampler(sample_rate=-0.5)
 
     def test_sample_rate_0_does_not_reset_to_1(self):
         # Regression test for case where a sample rate of 0 caused the sample rate to be reset to 1
         tracer = DummyTracer()
-        tracer.sampler = RateSampler(sample_rate=0)
-        assert tracer.sampler.sample_rate == 0
+        tracer._sampler = RateSampler(sample_rate=0)
+        assert tracer._sampler.sample_rate == 0
 
 
 class RateByServiceSamplerTest(unittest.TestCase):
@@ -131,14 +131,14 @@ class RateByServiceSamplerTest(unittest.TestCase):
     def test_sample_rate_deviation(self):
         for sample_rate in [0.1, 0.25, 0.5, 1]:
             tracer = DummyTracer()
-            writer = tracer.writer
+            writer = tracer._writer
             tracer.configure(sampler=AllSampler())
             # We need to set the writer because tracer.configure overrides it,
             # indeed, as we enable priority sampling, we must ensure the writer
             # is priority sampling aware and pass it a reference on the
             # priority sampler to send the feedback it gets from the agent
-            assert writer is not tracer.writer, "writer should have been updated by configure"
-            tracer.priority_sampler.set_sample_rate(sample_rate)
+            assert writer is not tracer._writer, "writer should have been updated by configure"
+            tracer._priority_sampler.set_sample_rate(sample_rate)
 
             iterations = int(1e4 / sample_rate)
 
@@ -146,7 +146,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
                 span = tracer.trace(str(i))
                 span.finish()
 
-            samples = tracer.writer.pop()
+            samples = tracer._writer.pop()
             samples_with_high_priority = 0
             for sample in samples:
                 if sample.get_metric(SAMPLING_PRIORITY_KEY) is not None:
@@ -184,7 +184,7 @@ class RateByServiceSamplerTest(unittest.TestCase):
 
         tracer = DummyTracer()
         tracer.configure(sampler=AllSampler())
-        priority_sampler = tracer.priority_sampler
+        priority_sampler = tracer._priority_sampler
         for case in cases:
             priority_sampler.update_rate_by_service_sample_rates(case)
             rates = {}
@@ -261,6 +261,94 @@ def test_sampling_rule_init():
     assert rule.sample_rate == 0.0
     assert rule.service == "my-service"
     assert rule.name == name_regex
+
+
+@pytest.mark.parametrize(
+    "rule_1,rule_2,expected",
+    [
+        # Sample rate only
+        (SamplingRule(sample_rate=1.0), SamplingRule(sample_rate=1.0), True),
+        (SamplingRule(sample_rate=0.5), SamplingRule(sample_rate=0.5), True),
+        (SamplingRule(sample_rate=0.0), SamplingRule(sample_rate=0.0), True),
+        (SamplingRule(sample_rate=0.5), SamplingRule(sample_rate=1.0), False),
+        # Sample rate, and service name
+        (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=1.0, service="my-svc"), True),
+        (
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
+            True,
+        ),
+        (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=1.0, service="other-svc"), False),
+        (SamplingRule(sample_rate=1.0, service="my-svc"), SamplingRule(sample_rate=0.5, service="my-svc"), False),
+        (
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
+            SamplingRule(sample_rate=0.5, service=re.compile("my-svc")),
+            False,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc")),
+            SamplingRule(sample_rate=1.0, service=re.compile("other")),
+            False,
+        ),
+        # Sample rate, and operation name
+        (
+            SamplingRule(sample_rate=1.0, name="span.name"),
+            SamplingRule(sample_rate=1.0, name="span.name"),
+            True,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, name=re.compile("span.name")),
+            SamplingRule(sample_rate=1.0, name=re.compile("span.name")),
+            True,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, name=re.compile("span.name")),
+            SamplingRule(sample_rate=1.0, name=re.compile("span.other")),
+            False,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, name="span.name"),
+            SamplingRule(sample_rate=0.5, name="span.name"),
+            False,
+        ),
+        (SamplingRule(sample_rate=1.0, name="span.name"), SamplingRule(sample_rate=1.0, name="span.other"), False),
+        (SamplingRule(sample_rate=1.0, name="span.name"), SamplingRule(sample_rate=0.5, name="span.name"), False),
+        # Sample rate, service, and operation name
+        (
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
+            True,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service="my-svc", name=re.compile("span.name")),
+            SamplingRule(sample_rate=1.0, service="my-svc", name=re.compile("span.name")),
+            True,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc"), name=re.compile("span.name")),
+            SamplingRule(sample_rate=1.0, service=re.compile("my-svc"), name=re.compile("span.name")),
+            True,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
+            SamplingRule(sample_rate=0.5, service="my-svc", name="span.name"),
+            False,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
+            SamplingRule(sample_rate=1.0, service="other", name="span.name"),
+            False,
+        ),
+        (
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.name"),
+            SamplingRule(sample_rate=1.0, service="my-svc", name="span.other"),
+            False,
+        ),
+    ],
+)
+def test_sampling_rule_eq(rule_1, rule_2, expected):
+    result = rule_1 == rule_2
+    assert result == expected
 
 
 def test_sampling_rule_init_via_env():
@@ -499,11 +587,10 @@ def test_sampling_rule_matches_exception():
 
 @pytest.mark.parametrize("sample_rate", [0.01, 0.1, 0.15, 0.25, 0.5, 0.75, 0.85, 0.9, 0.95, 0.991])
 def test_sampling_rule_sample(sample_rate):
-    tracer = DummyTracer()
     rule = SamplingRule(sample_rate=sample_rate)
 
     iterations = int(1e4 / sample_rate)
-    sampled = sum(rule.sample(Span(tracer=tracer, name=str(i))) for i in range(iterations))
+    sampled = sum(rule.sample(Span(name=str(i))) for i in range(iterations))
 
     # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
     deviation = abs(sampled - (iterations * sample_rate)) / (iterations * sample_rate)
@@ -513,19 +600,17 @@ def test_sampling_rule_sample(sample_rate):
 
 
 def test_sampling_rule_sample_rate_1():
-    tracer = DummyTracer()
     rule = SamplingRule(sample_rate=1)
 
     iterations = int(1e4)
-    assert all(rule.sample(Span(tracer=tracer, name=str(i))) for i in range(iterations))
+    assert all(rule.sample(Span(name=str(i))) for i in range(iterations))
 
 
 def test_sampling_rule_sample_rate_0():
-    tracer = DummyTracer()
     rule = SamplingRule(sample_rate=0)
 
     iterations = int(1e4)
-    assert sum(rule.sample(Span(tracer=tracer, name=str(i))) for i in range(iterations)) == 0
+    assert sum(rule.sample(Span(name=str(i))) for i in range(iterations)) == 0
 
 
 def test_datadog_sampler_init():
@@ -534,39 +619,33 @@ def test_datadog_sampler_init():
     assert sampler.rules == []
     assert isinstance(sampler.limiter, RateLimiter)
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler.default_sampler, RateByServiceSampler)
 
     # With rules
     rule = SamplingRule(sample_rate=1)
     sampler = DatadogSampler(rules=[rule])
     assert sampler.rules == [rule]
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler.default_sampler, RateByServiceSampler)
 
     # With rate limit
     sampler = DatadogSampler(rate_limit=10)
     assert sampler.limiter.rate_limit == 10
-    assert isinstance(sampler.default_sampler, RateByServiceSampler)
 
     # With default_sample_rate
     sampler = DatadogSampler(default_sample_rate=0.5)
     assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-    assert isinstance(sampler.default_sampler, SamplingRule)
-    assert sampler.default_sampler.sample_rate == 0.5
+    assert sampler.rules == [SamplingRule(sample_rate=0.5)]
 
     # From env variables
     with override_env(dict(DD_TRACE_SAMPLE_RATE="0.5", DD_TRACE_RATE_LIMIT="10")):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == 10
-        assert isinstance(sampler.default_sampler, SamplingRule)
-        assert sampler.default_sampler.sample_rate == 0.5
+        assert sampler.rules == [SamplingRule(sample_rate=0.5)]
 
     # DD_TRACE_SAMPLE_RATE=0
     with override_env(dict(DD_TRACE_SAMPLE_RATE="0")):
         sampler = DatadogSampler()
         assert sampler.limiter.rate_limit == DatadogSampler.DEFAULT_RATE_LIMIT
-        assert isinstance(sampler.default_sampler, SamplingRule)
-        assert sampler.default_sampler.sample_rate == 0
+        assert sampler.rules == [SamplingRule(sample_rate=0)]
 
     # Invalid env vars
     with override_env(dict(DD_TRACE_SAMPLE_RATE="asdf")):
@@ -590,8 +669,12 @@ def test_datadog_sampler_init():
     sampler = DatadogSampler(rules=[rule_1, rule_2, rule_3])
     assert sampler.rules == [rule_1, rule_2, rule_3]
 
+    # Ensure default rule is appended
+    sampler = DatadogSampler(rules=[rule_1, rule_2, rule_3], default_sample_rate=0.75)
+    assert sampler.rules == [rule_1, rule_2, rule_3, SamplingRule(sample_rate=0.75)]
 
-@mock.patch("ddtrace.sampler.RateByServiceSampler.sample")
+
+@mock.patch("ddtrace.sampler.RateSampler.sample")
 def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     sampler = DatadogSampler()
     dummy_tracer.configure(sampler=sampler)
@@ -659,7 +742,7 @@ class MatchNoSample(SamplingRule):
             ),
             USER_KEEP,
             1.0,
-            1.0,
+            None,
         ),
         (
             DatadogSampler(
@@ -672,7 +755,7 @@ class MatchNoSample(SamplingRule):
             ),
             USER_KEEP,
             0.5,
-            1.0,
+            None,
         ),
         (
             DatadogSampler(
@@ -685,7 +768,7 @@ class MatchNoSample(SamplingRule):
             ),
             USER_KEEP,
             0.5,
-            1.0,
+            None,
         ),
         (
             DatadogSampler(
@@ -721,6 +804,15 @@ class MatchNoSample(SamplingRule):
             0,
             None,
         ),
+        (
+            DatadogSampler(
+                default_sample_rate=1.0,
+                rate_limit=0,
+            ),
+            AUTO_REJECT,
+            1.0,
+            0.0,
+        ),
     ],
 )
 def test_datadog_sampler_sample_rules(sampler, sampling_priority, rule, limit, dummy_tracer):
@@ -751,7 +843,7 @@ def test_datadog_sampler_tracer(dummy_tracer):
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=None)
 
 
 def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
@@ -796,7 +888,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     spans = dummy_tracer.pop()
     assert len(spans) == 2, "Trace should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=None)
     assert_sampling_decision_tags(spans[1], agent=None, rule=None, limit=None)
 
 
@@ -812,7 +904,7 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
-    assert_sampling_decision_tags(spans[0], rule=1.0, limit=1.0)
+    assert_sampling_decision_tags(spans[0], rule=1.0, limit=None)
 
 
 def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
@@ -838,7 +930,7 @@ def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
     for case in cases:
         sampler.update_rate_by_service_sample_rates(case)
         rates = {}
-        for k, v in iteritems(sampler.default_sampler._by_service_samplers):
+        for k, v in iteritems(sampler._by_service_samplers):
             rates[k] = v.sample_rate
         assert case == rates, "%s != %s" % (case, rates)
 
@@ -848,6 +940,6 @@ def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):
     for case in cases:
         sampler.update_rate_by_service_sample_rates(case)
         rates = {}
-        for k, v in iteritems(sampler.default_sampler._by_service_samplers):
+        for k, v in iteritems(sampler._by_service_samplers):
             rates[k] = v.sample_rate
         assert case == rates, "%s != %s" % (case, rates)

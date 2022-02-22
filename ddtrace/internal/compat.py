@@ -48,8 +48,10 @@ reraise = six.reraise
 reload_module = six.moves.reload_module
 
 ensure_text = six.ensure_text
+ensure_str = six.ensure_str
 stringify = six.text_type
 string_type = six.string_types[0]
+text_type = six.text_type
 binary_type = six.binary_type
 msgpack_type = six.binary_type
 # DEV: `six` doesn't have `float` in `integer_types`

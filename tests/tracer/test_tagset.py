@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from collections import OrderedDict
 
 import pytest
@@ -7,6 +8,7 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import TagsetMaxSizeError
 from ddtrace.internal._tagset import decode_tagset_string
 from ddtrace.internal._tagset import encode_tagset_values
+from ddtrace.internal.compat import ensure_str
 
 
 @pytest.mark.parametrize(
@@ -27,6 +29,8 @@ from ddtrace.internal._tagset import encode_tagset_values
         ("key=value,", {"key": "value"}),
         # Values can have spaces
         ("key=value can have spaces", {"key": "value can have spaces"}),
+        # Values can have equals
+        ("key=value=value", {"key": "value=value"}),
         # Remove leading/trailing spaces from values
         ("key= value can have spaces ", {"key": "value can have spaces"}),
         # Non-space whitespace characters are allowed
@@ -38,6 +42,13 @@ from ddtrace.internal._tagset import encode_tagset_values
         (
             "_dd.p.upstream_services=bWNudWx0eS13ZWI|0|1;dHJhY2Utc3RhdHMtcXVlcnk|2|4,_dd.p.hello=world",
             {"_dd.p.upstream_services": "bWNudWx0eS13ZWI|0|1;dHJhY2Utc3RhdHMtcXVlcnk|2|4", "_dd.p.hello": "world"},
+        ),
+        (
+            "_dd.p.upstream_services=bWNudWx0eS13ZWI===|0|1;dHJhY2Utc3RhdHMtcXVlcnk===|2|4,_dd.p.hello=world",
+            {
+                "_dd.p.upstream_services": "bWNudWx0eS13ZWI===|0|1;dHJhY2Utc3RhdHMtcXVlcnk===|2|4",
+                "_dd.p.hello": "world",
+            },
         ),
     ],
 )
@@ -59,7 +70,6 @@ def test_decode_tagset_string(header, expected):
         "=value",
         # Extra leading comma
         ",key=value",
-        "key=value=value",
         "key=value,=value",
         "key=value,value",
         # Spaces are not allowed in keys
@@ -119,6 +129,9 @@ def test_encode_tagset_values_strip_spaces():
         # Empty key or value
         {"": "value"},
         {"key": ""},
+        # Unicode
+        {ensure_str(u"☺️"): "value"},
+        {"key": ensure_str(u"☺️")},
     ],
 )
 def test_encode_tagset_values_malformed(values):

@@ -123,7 +123,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
         # Enabled Pin and internal request
         self.tracer.enabled = True
-        parsed = parse.urlparse(self.tracer.writer.agent_url)
+        parsed = parse.urlparse(self.tracer.agent_url)
         request = self.get_http_connection(parsed.hostname, parsed.port)
         pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
@@ -165,7 +165,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         if config.httplib.trace_query_string:
             assert span.get_tag(http.QUERY_STRING) == query_string
         else:
-            assert http.QUERY_STRING not in span.meta
+            assert http.QUERY_STRING not in span._get_tags()
 
     def test_httplib_request_get_request_qs(self):
         with self.override_http_config("httplib", dict(trace_query_string=True)):

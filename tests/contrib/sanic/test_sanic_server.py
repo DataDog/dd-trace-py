@@ -1,100 +1,69 @@
-import asyncio
-import random
+import os
+import subprocess
 
-import httpx
 import pytest
-from sanic import Sanic
-from sanic.config import DEFAULT_CONFIG
-from sanic.response import json
+from sanic import __version__ as sanic_version
+
+from tests.webclient import Client
 
 
-# Handle naming of asynchronous client in older httpx versions used in sanic 19.12
-httpx_client = getattr(httpx, "AsyncClient", getattr(httpx, "Client"))
+RUN_SERVER_PY = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_server.py"))
+SERVER_PORT = 8000
+
+sanic_version = tuple(map(int, sanic_version.split(".")))
 
 
-@pytest.fixture
-def app(tracer):
-    app = Sanic(__name__)
-
-    @tracer.wrap()
-    async def random_sleep():
-        await asyncio.sleep(random.random())
-
-    @app.route("/hello")
-    async def hello(request):
-        await random_sleep()
-        return json({"hello": "world"})
-
-    @app.route("/internal_error")
-    async def internal_error(request):
-        1 / 0
-
-    yield app
-
-
-@pytest.fixture
-async def sanic_http_server(app, unused_port, loop):
+@pytest.fixture()
+def sanic_client():
     """Fixture for using sanic async HTTP server rather than a asgi async server used by test client"""
-    DEFAULT_CONFIG["REGISTER"] = False
-    server = await app.create_server(debug=True, host="0.0.0.0", port=unused_port, return_asyncio_server=True)
-    yield server
-    server.close()
-    await server.wait_closed()
+    env = os.environ.copy()
+    env["SANIC_PORT"] = str(SERVER_PORT)
+    args = ["ddtrace-run", "python", RUN_SERVER_PY]
+    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, env=env)
+
+    client = Client("http://0.0.0.0:{}".format(SERVER_PORT))
+    client.wait(path="/hello")
+    try:
+        yield client
+    finally:
+        resp = client.get_ignored("/shutdown-tracer")
+        assert resp.status_code == 200
+        subp.terminate()
+        try:
+            # Give the server 3 seconds to shutdown, then kill it
+            subp.wait(3)
+        except subprocess.TimeoutExpired:
+            subp.kill()
 
 
-@pytest.mark.asyncio
-async def test_multiple_requests_sanic_http(tracer, sanic_http_server, unused_port):
-    url = "http://0.0.0.0:{}/hello".format(unused_port)
-    async with httpx_client() as client:
-        responses = await asyncio.gather(
-            client.get(url),
-            client.get(url),
-        )
+@pytest.mark.snapshot(
+    variants={
+        "": sanic_version >= (21, 9, 0),
+        "pre_21.9": sanic_version < (21, 9, 0),
+    },
+)
+def test_multiple_requests_sanic_http(sanic_client):
+    def assert_response(response):
+        assert response.status_code == 200
+        assert response.json() == {"hello": "world"}
 
-    assert len(responses) == 2
-    assert [r.status_code for r in responses] == [200] * 2
-    assert [r.json() for r in responses] == [{"hello": "world"}] * 2
-
-    spans = tracer.pop_traces()
-    assert len(spans) == 2
-    assert len(spans[0]) == 2
-    assert len(spans[1]) == 2
-
-    assert spans[0][0].name == "sanic.request"
-    assert spans[0][1].name == "tests.contrib.sanic.test_sanic_server.random_sleep"
-    assert spans[0][0].parent_id is None
-    assert spans[0][1].parent_id == spans[0][0].span_id
-    assert spans[0][0].meta.get("http.status_code") == "200"
-
-    assert spans[1][0].name == "sanic.request"
-    assert spans[1][1].name == "tests.contrib.sanic.test_sanic_server.random_sleep"
-    assert spans[1][0].parent_id is None
-    assert spans[1][1].parent_id == spans[1][0].span_id
-    assert spans[1][0].meta.get("http.status_code") == "200"
+    url = "http://0.0.0.0:{}/hello".format(SERVER_PORT)
+    assert_response(sanic_client.get(url))
+    assert_response(sanic_client.get(url))
 
 
-@pytest.mark.asyncio
-async def test_sanic_errors(tracer, sanic_http_server, unused_port):
-    url = "http://0.0.0.0:{}/not_found".format(unused_port)
-    async with httpx_client() as client:
-        response = await client.get(url)
-
+@pytest.mark.snapshot(
+    ignores=["meta.error.stack"],
+    variants={
+        "": sanic_version >= (21, 9, 0),
+        "pre_21.9": sanic_version < (21, 9, 0),
+    },
+)
+def test_sanic_errors(sanic_client):
+    url = "http://0.0.0.0:{}/not_found".format(SERVER_PORT)
+    response = sanic_client.get(url)
     assert response.status_code == 404
-    spans = tracer.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-    assert spans[0][0].name == "sanic.request"
-    assert spans[0][0].meta.get("http.status_code") == "404"
-    assert spans[0][0].error == 0
 
-    url = "http://0.0.0.0:{}/internal_error".format(unused_port)
-    async with httpx_client() as client:
-        response = await client.get(url)
-
+    url = "http://0.0.0.0:{}/internal_error".format(SERVER_PORT)
+    response = sanic_client.get(url)
     assert response.status_code == 500
-    spans = tracer.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-    assert spans[0][0].name == "sanic.request"
-    assert spans[0][0].meta.get("http.status_code") == "500"
-    assert spans[0][0].error == 1

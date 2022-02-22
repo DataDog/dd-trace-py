@@ -34,13 +34,13 @@ def test_configure_keeps_api_hostname_and_port():
     """
     tracer = Tracer()
     if AGENT_VERSION == "testagent":
-        assert tracer.writer.agent_url == "http://localhost:9126"
+        assert tracer._writer.agent_url == "http://localhost:9126"
     else:
-        assert tracer.writer.agent_url == "http://localhost:8126"
+        assert tracer._writer.agent_url == "http://localhost:8126"
     tracer.configure(hostname="127.0.0.1", port=8127)
-    assert tracer.writer.agent_url == "http://127.0.0.1:8127"
+    assert tracer._writer.agent_url == "http://127.0.0.1:8127"
     tracer.configure(priority_sampling=True)
-    assert tracer.writer.agent_url == "http://127.0.0.1:8127"
+    assert tracer._writer.agent_url == "http://127.0.0.1:8127"
 
 
 def test_debug_mode():
@@ -56,7 +56,7 @@ def test_debug_mode():
 
     p = subprocess.Popen(
         [sys.executable, "-c", "import ddtrace"],
-        env=dict(DD_TRACE_DEBUG="true"),
+        env=dict(DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true"),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -155,8 +155,8 @@ def test_payload_too_large(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", str(SIZE))
 
     t = Tracer()
-    assert t.writer._max_payload_size == SIZE
-    assert t.writer._buffer_size == SIZE
+    assert t._writer._max_payload_size == SIZE
+    assert t._writer._buffer_size == SIZE
     # Make sure a flush doesn't happen partway through.
     t.configure(writer=AgentWriter(agent.get_trace_url(), processing_interval=1000))
     with mock.patch("ddtrace.internal.writer.log") as log:
@@ -220,8 +220,8 @@ def test_metrics(encoding, monkeypatch):
     with override_global_config(dict(health_metrics_enabled=True)):
         t = Tracer()
         statsd_mock = mock.Mock()
-        t.writer.dogstatsd = statsd_mock
-        assert t.writer._report_metrics
+        t._writer.dogstatsd = statsd_mock
+        assert t._writer._report_metrics
         with mock.patch("ddtrace.internal.writer.log") as log:
             for _ in range(5):
                 spans = []
@@ -257,7 +257,7 @@ def test_single_trace_too_large(encoding, monkeypatch):
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()
 
-        calls = [mock.call("trace (%db) larger than payload buffer limit (%db), dropping", AnyInt(), AnyInt())]
+        calls = [mock.call("trace (%db) larger than payload buffer item limit (%db), dropping", AnyInt(), AnyInt())]
         log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
 
@@ -289,12 +289,12 @@ def test_writer_headers(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
-    t.writer._put = mock.Mock(wraps=t.writer._put)
+    t._writer._put = mock.Mock(wraps=t._writer._put)
     with t.trace("op"):
         pass
     t.shutdown()
-    assert t.writer._put.call_count == 1
-    _, headers = t.writer._put.call_args[0]
+    assert t._writer._put.call_count == 1
+    _, headers = t._writer._put.call_args[0]
     assert headers.get("Datadog-Meta-Tracer-Version") == ddtrace.__version__
     assert headers.get("Datadog-Meta-Lang") == "python"
     assert headers.get("Content-Type") == "application/msgpack"
@@ -303,24 +303,24 @@ def test_writer_headers(encoding, monkeypatch):
         assert "Datadog-Container-Id" in headers
 
     t = Tracer()
-    t.writer._put = mock.Mock(wraps=t.writer._put)
+    t._writer._put = mock.Mock(wraps=t._writer._put)
     for _ in range(100):
         with t.trace("op"):
             pass
     t.shutdown()
-    assert t.writer._put.call_count == 1
-    _, headers = t.writer._put.call_args[0]
+    assert t._writer._put.call_count == 1
+    _, headers = t._writer._put.call_args[0]
     assert headers.get("X-Datadog-Trace-Count") == "100"
 
     t = Tracer()
-    t.writer._put = mock.Mock(wraps=t.writer._put)
+    t._writer._put = mock.Mock(wraps=t._writer._put)
     for _ in range(10):
         with t.trace("op"):
             for _ in range(5):
                 t.trace("child").finish()
     t.shutdown()
-    assert t.writer._put.call_count == 1
-    _, headers = t.writer._put.call_args[0]
+    assert t._writer._put.call_count == 1
+    _, headers = t._writer._put.call_args[0]
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
@@ -335,7 +335,7 @@ def test_priority_sampling_response(encoding, monkeypatch):
     s = t.trace("operation", service="my-svc")
     s.set_tag("env", "my-env")
     s.finish()
-    assert "service:my-svc,env:my-env" not in t.writer._priority_sampler._by_service_samplers
+    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
     t.shutdown()
 
     # For some reason the agent doesn't start returning the service information
@@ -348,14 +348,14 @@ def test_priority_sampling_response(encoding, monkeypatch):
     s = t.trace("operation", service="my-svc")
     s.set_tag("env", "my-env")
     s.finish()
-    assert "service:my-svc,env:my-env" not in t.writer._priority_sampler._by_service_samplers
+    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
     t.shutdown()
-    assert "service:my-svc,env:my-env" in t.writer._priority_sampler._by_service_samplers
+    assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
 
 
 def test_bad_endpoint():
     t = Tracer()
-    t.writer._endpoint = "/bad"
+    t._writer._endpoint = "/bad"
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.set_tag("env", "my-env")
@@ -366,7 +366,7 @@ def test_bad_endpoint():
             "unsupported endpoint '%s': received response %s from Datadog Agent (%s)",
             "/bad",
             404,
-            t.writer.agent_url,
+            t._writer.agent_url,
         )
     ]
     log.error.assert_has_calls(calls)
@@ -389,7 +389,7 @@ def test_bad_payload():
         def encode_traces(self, traces):
             return ""
 
-    t.writer._encoder = BadEncoder()
+    t._writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
@@ -422,7 +422,7 @@ def test_bad_payload_log_payload(monkeypatch):
         def encode_traces(self, traces):
             return b"bad_payload"
 
-    t.writer._encoder = BadEncoder()
+    t._writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
@@ -466,7 +466,7 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
         def encode_traces(self, traces):
             return u"bad_payload"
 
-    t.writer._encoder = BadEncoder()
+    t._writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
@@ -498,11 +498,11 @@ def test_bad_encoder():
         def encode_traces(self, traces):
             raise Exception()
 
-    t.writer._encoder = BadEncoder()
+    t._writer._encoder = BadEncoder()
     with mock.patch("ddtrace.internal.writer.log") as log:
         t.trace("asdf").finish()
         t.shutdown()
-    calls = [mock.call("failed to encode trace with encoder %r", t.writer._encoder, exc_info=True)]
+    calls = [mock.call("failed to encode trace with encoder %r", t._writer._encoder, exc_info=True)]
     log.error.assert_has_calls(calls)
 
 
@@ -512,8 +512,8 @@ def test_downgrade(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
 
     t = Tracer()
-    t.writer._downgrade(None, None)
-    assert t.writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.4"]
+    t._writer._downgrade(None, None)
+    assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.4"]
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.finish()
@@ -541,7 +541,7 @@ def test_span_tags(encoding, monkeypatch):
 
 def test_synchronous_writer_shutdown():
     tracer = Tracer()
-    tracer.configure(writer=AgentWriter(tracer.writer.agent_url, sync_mode=True))
+    tracer.configure(writer=AgentWriter(tracer._writer.agent_url, sync_mode=True))
     # Ensure this doesn't raise.
     tracer.shutdown()
 
@@ -600,6 +600,7 @@ s2.finish()
         env=dict(
             DD_TRACE_LOGS_INJECTION=str(logs_injection).lower(),
             DD_TRACE_DEBUG=str(debug_mode).lower(),
+            DD_CALL_BASIC_CONFIG="true",
         ),
     )
     try:
@@ -622,7 +623,7 @@ def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_con
         When false
             We do not call logging.basicConfig()
         When not set
-            We call logging.basicConfig()
+            We do not call logging.basicConfig()
     """
     env = os.environ.copy()
 
@@ -632,7 +633,7 @@ def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_con
         env["DD_CALL_BASIC_CONFIG"] = str(call_basic_config).lower()
         has_root_handlers = call_basic_config
     else:
-        has_root_handlers = True
+        has_root_handlers = False
 
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
@@ -660,9 +661,9 @@ def test_writer_env_configuration(run_python_code_in_subprocess):
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 1000
-assert ddtrace.tracer.writer._encoder.max_item_size == 1000
-assert ddtrace.tracer.writer._interval == 5.0
+assert ddtrace.tracer._writer._encoder.max_size == 1000
+assert ddtrace.tracer._writer._encoder.max_item_size == 1000
+assert ddtrace.tracer._writer._interval == 5.0
 """,
         env=env,
     )
@@ -674,9 +675,9 @@ def test_writer_env_configuration_defaults(run_python_code_in_subprocess):
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
-assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
-assert ddtrace.tracer.writer._interval == 1.0
+assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
+assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+assert ddtrace.tracer._writer._interval == 1.0
 """,
     )
     assert status == 0, (out, err)
@@ -692,9 +693,9 @@ def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subproc
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 1000
-assert ddtrace.tracer.writer._encoder.max_item_size == 1000
-assert ddtrace.tracer.writer._interval == 5.0
+assert ddtrace.tracer._writer._encoder.max_size == 1000
+assert ddtrace.tracer._writer._encoder.max_item_size == 1000
+assert ddtrace.tracer._writer._interval == 5.0
 """,
         env=env,
     )
@@ -706,9 +707,9 @@ def test_writer_env_configuration_ddtrace_run_defaults(ddtrace_run_python_code_i
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
-assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
-assert ddtrace.tracer.writer._interval == 1.0
+assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
+assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+assert ddtrace.tracer._writer._interval == 1.0
 """,
     )
     assert status == 0, (out, err)
@@ -756,6 +757,7 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     env = os.environ.copy()
     env["DD_TRACE_DEBUG"] = "true"
     env["DD_LOGS_INJECTION"] = "true"
+    env["DD_CALL_BASIC_CONFIG"] = "true"
 
     # DEV: We don't actually have to execute any code to validate this
     out, err, status, pid = ddtrace_run_python_code_in_subprocess("", env=env)
@@ -783,4 +785,17 @@ def test_no_warnings():
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
     out, err, status, pid = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
-    assert err == b"", err
+
+    # Wrapt is using features deprecated in Python 3.10
+    # See https://github.com/GrahamDumpleton/wrapt/issues/200
+    if sys.version_info < (3, 10, 0):
+        assert err == b"", err
+    else:
+        assert (
+            err
+            == (
+                b"<frozen importlib._bootstrap>:914: ImportWarning: "
+                b"ImportHookFinder.find_spec() not found; falling back to find_module()\n"
+            )
+            * 75
+        ), err

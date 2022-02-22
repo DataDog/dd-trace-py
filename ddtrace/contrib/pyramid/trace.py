@@ -23,7 +23,7 @@ from .constants import SETTINGS_TRACE_ENABLED
 log = get_logger(__name__)
 
 DD_TWEEN_NAME = "ddtrace.contrib.pyramid:trace_tween_factory"
-DD_SPAN = "_datadog_span"
+DD_TRACER = "_datadog_tracer"
 
 
 def trace_pyramid(config):
@@ -44,12 +44,12 @@ def trace_render(func, instance, args, kwargs):
     if not request:
         log.debug("No request passed to render, will not be traced")
         return func(*args, **kwargs)
-    span = getattr(request, DD_SPAN, None)
-    if not span:
-        log.debug("No span found in request, will not be traced")
+    tracer = getattr(request, DD_TRACER, None)
+    if not tracer:
+        log.debug("No tracer found in request, will not be traced")
         return func(*args, **kwargs)
 
-    with span.tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE) as span:
+    with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE):
         return func(*args, **kwargs)
 
 
@@ -77,7 +77,7 @@ def trace_tween_factory(handler, registry):
                 if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
                     span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, settings.get(SETTINGS_ANALYTICS_SAMPLE_RATE, True))
 
-                setattr(request, DD_SPAN, span)  # used to find the tracer in templates
+                setattr(request, DD_TRACER, tracer)  # used to find the tracer in templates
                 response = None
                 status = None
                 try:

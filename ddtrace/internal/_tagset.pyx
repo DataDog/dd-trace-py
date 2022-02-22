@@ -2,8 +2,9 @@
 Tagset eBNF::
 
     tagset = tag, { ",", tag };
-    tag = ( identifier - space ), "=", identifier;
-    identifier = { ? ASCII 32-126 ? - equal or comma };
+    tag = key, "=", value;
+    key = { ? ASCII 32-126 ? - equal or comma or space };
+    value = { ? ASCII 32-126 ? - comma };
     equal or comma = "=" | ",";
     space = " ";
 """
@@ -64,10 +65,9 @@ cdef inline int is_valid_key_char(int c):
 
 # Same as is_valid_key_char except spaces are allowed
 cdef inline int is_valid_value_char(int c):
-    # string.printable - ",="
+    # string.printable - ","
     # 44 = ",""
-    # 61 = "="
-    return c == 32 or is_valid_key_char(c)
+    return c == 32 or is_equal(c) or is_valid_key_char(c)
 
 
 cpdef dict decode_tagset_string(str tagset):
@@ -135,6 +135,27 @@ cpdef dict decode_tagset_string(str tagset):
 
     return res
 
+cdef bint _key_is_valid(str key):
+    """Helper to ensure a key's characters are all valid"""
+    if not key:
+        return 0
+
+    for c in key:
+        if not is_valid_key_char(ord(c)):
+            return 0
+    return 1
+
+
+cdef bint _value_is_valid(str value):
+    """Helper to ensure a values's characters are all valid"""
+    if not value:
+        return 0
+
+    for c in value:
+        if not is_valid_key_char(ord(c)):
+            return 0
+    return 1
+
 
 cpdef str encode_tagset_values(object values, int max_size=512):
     # type: (Dict[str, str], int) -> str
@@ -164,20 +185,10 @@ cpdef str encode_tagset_values(object values, int max_size=512):
         key = key.strip(" ")
         value = value.strip(" ")
 
-        if not key:
-            raise TagsetEncodeError("Key cannot be empty")
-        if not value:
-            raise TagsetEncodeError("Value cannot be empty")
-
-        # Disallow " ", ",", and "=" in keys
-        for c in (" ", ",", "="):
-            if c in key:
-                raise TagsetEncodeError("Unexpected {!r} in key {!r}".format(c, key))
-
-        # Disallow "," and "=" in keys
-        for c in (",", "="):
-            if c in value:
-                raise TagsetEncodeError("Unexpected {!r} in value {!r}".format(c, value))
+        if not _key_is_valid(key):
+            raise TagsetEncodeError("Key is not valid: {!r}".format(key))
+        if not _value_is_valid(value):
+            raise TagsetEncodeError("Value is not valid: {!r}".format(value))
 
         encoded = "{}={}".format(key, value)
         # Prefix every item except the first with `,` for separator

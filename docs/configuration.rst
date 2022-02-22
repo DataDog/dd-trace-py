@@ -89,13 +89,13 @@ below:
        .. _dd-logs-injection:
    * - ``DD_LOGS_INJECTION``
      - Boolean
-     - True
+     - False
      - Enables :ref:`Logs Injection`.
 
        .. _dd-call-basic-config:
    * - ``DD_CALL_BASIC_CONFIG``
      - Boolean
-     - True
+     - False
      - Controls whether ``logging.basicConfig`` is called in ``ddtrace-run`` or when debug mode is enabled.
 
        .. _dd-trace-agent-url:
@@ -129,14 +129,14 @@ below:
        .. _dd-trace-writer-buffer-size-bytes:
    * - ``DD_TRACE_WRITER_BUFFER_SIZE_BYTES``
      - Int
-     - 8000000
+     - 8388608
      - The max size in bytes of traces to buffer between flushes to the agent.
 
        .. _dd-trace-writer-max-payload-size-bytes:
    * - ``DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES``
      - Int
-     - 8000000
-     - The max size in bytes of each payload sent to the trace agent. If max payload size is less than buffer size, multiple payloads will be sent to the trace agent.
+     - 8388608
+     - The max size in bytes of each payload item sent to the trace agent. If the max payload size is greater than buffer size, then max size of each payload item will be the buffer size.
 
        .. _dd-trace-writer-interval-seconds:
    * - ``DD_TRACE_WRITER_INTERVAL_SECONDS``

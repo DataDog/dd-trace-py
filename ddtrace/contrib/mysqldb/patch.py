@@ -1,3 +1,5 @@
+import os
+
 import MySQLdb
 
 from ddtrace import Pin
@@ -8,7 +10,6 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ...ext import db
 from ...ext import net
 from ...internal.utils.formats import asbool
-from ...internal.utils.formats import get_env
 from ...internal.utils.wrappers import unwrap as _u
 
 
@@ -16,7 +17,8 @@ config._add(
     "mysqldb",
     dict(
         _default_service="mysql",
-        trace_fetch_methods=asbool(get_env("mysqldb", "trace_fetch_methods", default=False)),
+        _dbapi_span_name_prefix="mysql",
+        trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 
@@ -65,7 +67,7 @@ def patch_conn(conn, *args, **kwargs):
         t: kwargs[k] if k in kwargs else args[p] for t, (k, p) in KWPOS_BY_TAG.items() if k in kwargs or len(args) > p
     }
     tags[net.TARGET_PORT] = conn.port
-    pin = Pin(app="mysql", tags=tags)
+    pin = Pin(tags=tags)
 
     # grab the metadata from the conn
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysqldb)
