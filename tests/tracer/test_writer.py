@@ -564,7 +564,7 @@ def test_writer_reuse_connections_envvar(monkeypatch):
 
 def test_writer_reuse_connections():
     # Ensure connection is not reused
-    writer = AgentWriter(agent_url="http://localhost:9126", reuse_connections=False)
+    writer = AgentWriter(agent_url="http://localhost:9126", reuse_connections=True)
     # Do an initial flush to get a connection
     writer.flush_queue()
     assert writer._conn is None
