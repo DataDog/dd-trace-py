@@ -105,7 +105,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
     RETRY_ATTEMPTS = 3
 
-    def __init__(self, agent_url, interval=None, timeout=1.0, reuse_connections=True):
+    def __init__(self, agent_url, interval=None, timeout=1.0, reuse_connections=False):
         # type: (str, Optional[float], float) -> None
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
@@ -222,22 +222,28 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
         return serialized_buckets
 
+    def _reset_connection(self):
+        # type: () -> None
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
+
     def _flush_stats(self, payload):
         # type: (bool) -> None
         try:
-            self._connection = get_connection(self._agent_url, self._timeout)
+            if self._connection is None:
+                if self._reuse_connections:
+                    log.info("creating new connection to Datadog agent at %s", self._agent_endpoint)
+                self._connection = get_connection(self._agent_url, self._timeout)
             self._connection.request("PUT", self._endpoint, payload, self._headers)
+            resp = get_connection_response(self._connection)
         except (httplib.HTTPException, OSError, IOError):
-            log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint)
-
-            # Close, reset the connection on failure.
-            self._connection.close()
-            self._connection = None
+            log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
+            self._reset_connection()
             raise
         else:
-            resp = get_connection_response(self._connection)
             if resp.status == 404:
-                log.error("Datadog agent does not support tracer stats computation, please upgrade your agent")
+                log.error("Datadog agent does not support tracer stats computation, disabling, please upgrade your agent")
                 self._enabled = False
                 return
             elif resp.status >= 400:
@@ -250,9 +256,8 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             else:
                 log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
         finally:
-            if self._connection and not self._reuse_connections:
-                self._connection.close()
-                self._connection = None
+            if not self._reuse_connections:
+                self._reset_connection()
 
     def periodic(self):
         # type: (...) -> None
