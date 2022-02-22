@@ -34,6 +34,7 @@ Global Configuration
    Default: ``"requests"``
 
 
+    .. _requests-config-distributed-tracing:
 .. py:data:: ddtrace.config.requests['distributed_tracing']
 
    Whether or not to parse distributed tracing headers.

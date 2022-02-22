@@ -4,6 +4,7 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import abc
 import json
+import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -26,8 +27,6 @@ from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.utils.cache import cachedmethod
-from .internal.utils.formats import get_env
-from .vendor.debtcollector.removals import removed_property
 
 
 try:
@@ -224,17 +223,18 @@ class DatadogSampler(RateByServiceSampler):
         super(DatadogSampler, self).__init__()
 
         if default_sample_rate is None:
-            sample_rate = get_env("trace", "sample_rate")
+            sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+
             if sample_rate is not None:
                 default_sample_rate = float(sample_rate)
 
         if rate_limit is None:
-            rate_limit = int(get_env("trace", "rate_limit", default=self.DEFAULT_RATE_LIMIT))  # type: ignore[arg-type]
+            rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
 
         # Ensure rules is a list
         self.rules = []  # type: List[SamplingRule]
         if rules is None:
-            env_sampling_rules = get_env("trace", "sampling_rules")
+            env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
             if env_sampling_rules:
                 rules = self._parse_rules_from_env_variable(env_sampling_rules)
             else:
@@ -253,12 +253,6 @@ class DatadogSampler(RateByServiceSampler):
         self.limiter = RateLimiter(rate_limit)
 
         log.debug("initialized %r", self)
-
-    @removed_property(removal_version="1.0.0")
-    def default_sampler(self):
-        if self.rules:
-            return self.rules[-1]
-        return self
 
     def __str__(self):
         rates = {key: sampler.sample_rate for key, sampler in self._by_service_samplers.items()}

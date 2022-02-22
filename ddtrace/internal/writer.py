@@ -22,7 +22,6 @@ from . import periodic
 from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..internal.utils.formats import asbool
-from ..internal.utils.formats import get_env
 from ..internal.utils.formats import parse_tags_str
 from ..internal.utils.time import StopWatch
 from ..sampler import BasePrioritySampler
@@ -58,21 +57,17 @@ DEFAULT_PROCESSING_INTERVAL = 1.0
 
 def get_writer_buffer_size():
     # type: () -> int
-    return int(get_env("trace", "writer_buffer_size_bytes", default=DEFAULT_BUFFER_SIZE))  # type: ignore[arg-type]
+    return int(os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE))
 
 
 def get_writer_max_payload_size():
     # type: () -> int
-    return int(
-        get_env("trace", "writer_max_payload_size_bytes", default=DEFAULT_MAX_PAYLOAD_SIZE)  # type: ignore[arg-type]
-    )
+    return int(os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE))
 
 
 def get_writer_interval_seconds():
     # type: () -> float
-    return float(
-        get_env("trace", "writer_interval_seconds", default=DEFAULT_PROCESSING_INTERVAL)  # type: ignore[arg-type]
-    )
+    return float(os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL))
 
 
 def _human_size(nbytes):

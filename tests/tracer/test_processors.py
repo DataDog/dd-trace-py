@@ -58,7 +58,7 @@ def test_aggregator_single_span():
         writer=writer,
     )
 
-    span = Span(None, "span", on_finish=[aggr.on_span_finish])
+    span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
     span.finish()
 
@@ -91,7 +91,7 @@ def test_aggregator_bad_processor():
         writer=writer,
     )
 
-    span = Span(None, "span", on_finish=[aggr.on_span_finish])
+    span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
     span.finish()
 
@@ -106,9 +106,9 @@ def test_aggregator_multi_span():
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
     # Normal usage
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
+    child = Span("child", on_finish=[aggr.on_span_finish])
     child.trace_id = parent.trace_id
     child.parent_id = parent.span_id
     aggr.on_span_start(child)
@@ -120,9 +120,9 @@ def test_aggregator_multi_span():
     assert writer.pop() == [parent, child]
 
     # Parent closes before child
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
+    child = Span("child", on_finish=[aggr.on_span_finish])
     child.trace_id = parent.trace_id
     child.parent_id = parent.span_id
     aggr.on_span_start(child)
@@ -139,9 +139,9 @@ def test_aggregator_partial_flush_0_spans():
     aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=0, trace_processors=[], writer=writer)
 
     # Normal usage
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
+    child = Span("child", on_finish=[aggr.on_span_finish])
     child.trace_id = parent.trace_id
     child.parent_id = parent.span_id
     aggr.on_span_start(child)
@@ -153,9 +153,9 @@ def test_aggregator_partial_flush_0_spans():
     assert writer.pop() == [parent]
 
     # Parent closes before child
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
+    child = Span("child", on_finish=[aggr.on_span_finish])
     child.trace_id = parent.trace_id
     child.parent_id = parent.span_id
     aggr.on_span_start(child)
@@ -172,9 +172,9 @@ def test_aggregator_partial_flush_2_spans():
     aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2, trace_processors=[], writer=writer)
 
     # Normal usage
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
+    child = Span("child", on_finish=[aggr.on_span_finish])
     child.trace_id = parent.trace_id
     child.parent_id = parent.span_id
     aggr.on_span_start(child)
@@ -186,9 +186,9 @@ def test_aggregator_partial_flush_2_spans():
     assert writer.pop() == [parent, child]
 
     # Parent closes before child
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(parent)
-    child = Span(None, "child", on_finish=[aggr.on_span_finish])
+    child = Span("child", on_finish=[aggr.on_span_finish])
     child.trace_id = parent.trace_id
     child.parent_id = parent.span_id
     aggr.on_span_start(child)
@@ -200,13 +200,13 @@ def test_aggregator_partial_flush_2_spans():
     assert writer.pop() == [parent, child]
 
     # Partial flush
-    parent = Span(None, "parent", on_finish=[aggr.on_span_finish])
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(parent)
-    child1 = Span(None, "child1", on_finish=[aggr.on_span_finish])
+    child1 = Span("child1", on_finish=[aggr.on_span_finish])
     child1.trace_id = parent.trace_id
     child1.parent_id = parent.span_id
     aggr.on_span_start(child1)
-    child2 = Span(None, "child2", on_finish=[aggr.on_span_finish])
+    child2 = Span("child2", on_finish=[aggr.on_span_finish])
     child2.trace_id = parent.trace_id
     child2.parent_id = parent.span_id
     aggr.on_span_start(child2)
@@ -297,6 +297,6 @@ def test_trace_top_level_span_processor_trace_return_val():
     trace = []
     assert trace_processors.process_trace(trace) == trace
 
-    trace = [Span(None, "span1"), Span(None, "span2"), Span(None, "span3")]
+    trace = [Span("span1"), Span("span2"), Span("span3")]
     # Test return value contains all spans in the argument
     assert trace_processors.process_trace(trace[:]) == trace

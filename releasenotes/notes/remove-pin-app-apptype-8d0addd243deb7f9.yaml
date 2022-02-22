@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The deprecated properties ``Pin.app`` and ``Pin.app_type`` are removed.

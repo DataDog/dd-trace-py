@@ -16,14 +16,21 @@ if [[ -f "${GITHUB_EVENT_PATH}" ]];
 then
     # If we have an event, grab the PR base ref from the event data
     BASE_REF="$(jq -er '.pull_request?.base.ref' "${GITHUB_EVENT_PATH}")"
+    # Make sure the ref we have starts with `origin/`
+    if ! [[ $BASE_REF = origin/* ]];
+    then
+        BASE_REF="origin/${BASE_REF}"
+    fi
+elif [ -x "$(command -v git)" ]; then
+    BASE_REF="$(git rev-parse --abbrev-ref origin/HEAD)"
 else
-    # If we are running outside a GitHub action, default to `master`
-    BASE_REF="${GITHUB_BASE_REF:-master}"
+    # If we are running outside a GitHub action, default to `1.x`
+    BASE_REF="origin/${GITHUB_BASE_REF:-1.x}"
 fi
-echo "Base ref: origin/${BASE_REF}"
+echo "Base ref: ${BASE_REF}"
 
 # Check if they added a new file to releasenotes/notes
-if git diff --name-only --diff-filter=A "origin/${BASE_REF}" | grep releasenotes/notes;
+if git diff --name-only --diff-filter=A "${BASE_REF}" | grep releasenotes/notes;
 then
     echo "New release note found, success"
     exit 0

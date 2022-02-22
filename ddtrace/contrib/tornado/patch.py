@@ -1,3 +1,5 @@
+import os
+
 import tornado
 
 import ddtrace
@@ -11,14 +13,13 @@ from . import decorators
 from . import handlers
 from . import template
 from ...internal.utils.formats import asbool
-from ...internal.utils.formats import get_env
 from ...internal.utils.wrappers import unwrap as _u
 
 
 config._add(
     "tornado",
     dict(
-        distributed_tracing=asbool(get_env("tornado", "distributed_tracing", default=True)),
+        distributed_tracing=asbool(os.getenv("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 
