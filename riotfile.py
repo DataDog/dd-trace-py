@@ -717,6 +717,12 @@ venv = Venv(
                         "flask": ["~=0.12.0"],
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
@@ -727,7 +733,17 @@ venv = Venv(
                         "DATADOG_SERVICE_NAME": "test.flask.service",
                         "DATADOG_PATCH_MODULES": "jinja2:false",
                     },
-                    pkgs={"flask": ["~=0.12.0"], "pytest": "~=3.0", "more_itertools": "<8.11.0"},
+                    pkgs={
+                        "flask": ["~=0.12.0"],
+                        "pytest": "~=3.0",
+                        "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
                 ),
                 # Flask 1.x.x
                 Venv(
@@ -738,6 +754,12 @@ venv = Venv(
                             "~=1.1.0",
                             "~=1.0",  # latest 1.x
                         ],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.1.0 release
+                        "itsdangerous": "<2.1.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
@@ -754,6 +776,12 @@ venv = Venv(
                             "~=1.1.0",
                             "~=1.0",  # latest 1.x
                         ],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 # Flask >= 2.0.0
@@ -804,6 +832,12 @@ venv = Venv(
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
@@ -815,12 +849,31 @@ venv = Venv(
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3"),
                     pkgs={
                         "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask-caching": ["~=1.10.0", latest],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3"),
+                    pkgs={
+                        "flask": [latest],
                         "flask-caching": ["~=1.10.0", latest],
                     },
                 ),
@@ -1362,11 +1415,18 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.9"),
-                    pkgs={"jinja2": [("~=2.%d.0" % m) for m in range(7, 12)]},
+                    pkgs={
+                        "jinja2": [("~=2.%d.0" % m) for m in range(9, 12)],
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    pkgs={"jinja2": ["~=3.0.0", latest]},
+                    pkgs={
+                        "jinja2": ["~=3.0.0", latest],
+                    },
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
