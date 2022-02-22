@@ -1,6 +1,6 @@
 # dd-trace-py
 
-[![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/master.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/master)
+[![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/1.x.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/1.x)
 [![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
 [![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)](https://pypi.org/project/ddtrace/)
 [![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html#opentracing)
