@@ -1,3 +1,5 @@
+import os
+
 import mysql.connector
 
 from ddtrace import Pin
@@ -8,14 +10,14 @@ from ddtrace.vendor import wrapt
 from ...ext import db
 from ...ext import net
 from ...internal.utils.formats import asbool
-from ...internal.utils.formats import get_env
 
 
 config._add(
     "mysql",
     dict(
         _default_service="mysql",
-        trace_fetch_methods=asbool(get_env("mysql", "trace_fetch_methods", default=False)),
+        _dbapi_span_name_prefix="mysql",
+        trace_fetch_methods=asbool(os.getenv("DD_MYSQL_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 
@@ -49,7 +51,7 @@ def _connect(func, instance, args, kwargs):
 def patch_conn(conn):
 
     tags = {t: getattr(conn, a) for t, a in CONN_ATTR_BY_TAG.items() if getattr(conn, a, "") != ""}
-    pin = Pin(app="mysql", tags=tags)
+    pin = Pin(tags=tags)
 
     # grab the metadata from the conn
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysql)

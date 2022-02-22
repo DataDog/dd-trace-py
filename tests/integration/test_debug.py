@@ -195,9 +195,10 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_loglevel_info_connection(self):
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        tracer.configure()
-        assert tracer.log.log.mock_calls == [mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - "))]
+        logging.basicConfig(level=logging.INFO)
+        with mock.patch.object(logging.Logger, "log") as mock_logger:
+            tracer.configure()
+        assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -207,14 +208,13 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_loglevel_info_no_connection(self):
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        tracer.configure()
+        logging.basicConfig(level=logging.INFO)
+        with mock.patch.object(logging.Logger, "log") as mock_logger:
+            tracer.configure()
         # Python 2 logs will go to stderr directly since there's no log handler
         if PY3:
-            assert tracer.log.log.mock_calls == [
-                mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")),
-                mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")),
-            ]
+            assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
+            assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -223,11 +223,11 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_loglevel_info_no_connection_py2_handler(self):
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
         logging.basicConfig()
-        tracer.configure()
-        if PY2:
-            assert tracer.log.log.mock_calls == []
+        with mock.patch.object(logging.Logger, "log") as mock_logger:
+            tracer.configure()
+            if PY2:
+                assert mock_logger.mock_calls == []
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -237,9 +237,9 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_log_disabled_error(self):
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        tracer.configure()
-        assert tracer.log.log.mock_calls == []
+        with mock.patch.object(logging.Logger, "log") as mock_logger:
+            tracer.configure()
+        assert mock_logger.mock_calls == []
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -249,9 +249,9 @@ class TestGlobalConfig(SubprocessTestCase):
     )
     def test_tracer_log_disabled(self):
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        tracer.configure()
-        assert tracer.log.log.mock_calls == []
+        with mock.patch.object(logging.Logger, "log") as mock_logger:
+            tracer.configure()
+        assert mock_logger.mock_calls == []
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -261,9 +261,9 @@ class TestGlobalConfig(SubprocessTestCase):
     def test_tracer_info_level_log(self):
         logging.basicConfig(level=logging.INFO)
         tracer = ddtrace.Tracer()
-        tracer.log = mock.MagicMock()
-        tracer.configure()
-        assert tracer.log.log.mock_calls == []
+        with mock.patch.object(logging.Logger, "log") as mock_logger:
+            tracer.configure()
+        assert mock_logger.mock_calls == []
 
 
 def test_runtime_metrics_enabled_via_manual_start(ddtrace_run_python_code_in_subprocess):
@@ -380,7 +380,9 @@ def test_startup_logs_sampling_rules():
 def test_error_output_ddtracerun_debug_mode():
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
-        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
+        env=dict(
+            DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true", **os.environ
+        ),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -392,7 +394,9 @@ def test_error_output_ddtracerun_debug_mode():
     # No connection to agent, debug mode enabled
     p = subprocess.Popen(
         ["ddtrace-run", "python", "tests/integration/hello.py"],
-        env=dict(DD_TRACE_AGENT_URL="http://localhost:4321", DD_TRACE_DEBUG="true", **os.environ),
+        env=dict(
+            DD_TRACE_AGENT_URL="http://localhost:4321", DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true", **os.environ
+        ),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -434,7 +438,9 @@ def test_error_output_ddtracerun():
 def test_debug_span_log():
     p = subprocess.Popen(
         ["python", "-c", 'import os; print(os.environ);import ddtrace; ddtrace.tracer.trace("span").finish()'],
-        env=dict(DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", **os.environ),
+        env=dict(
+            DD_TRACE_AGENT_URL="http://localhost:8126", DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true", **os.environ
+        ),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

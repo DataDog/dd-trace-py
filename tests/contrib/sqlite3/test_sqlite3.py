@@ -9,7 +9,6 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.sqlite3 import connection_factory
 from ddtrace.contrib.sqlite3.patch import TracedSQLiteCursor
 from ddtrace.contrib.sqlite3.patch import patch
 from ddtrace.contrib.sqlite3.patch import unpatch
@@ -27,17 +26,6 @@ class TestSQLite(TracerTestCase):
     def tearDown(self):
         unpatch()
         super(TestSQLite, self).tearDown()
-
-    def test_backwards_compat(self):
-        # a small test to ensure that if the previous interface is used
-        # things still work
-        factory = connection_factory(self.tracer, service="my_db_service")
-        conn = sqlite3.connect(":memory:", factory=factory)
-        q = "select * from sqlite_master"
-        cursor = conn.execute(q)
-        self.assertIsInstance(cursor, TracedSQLiteCursor)
-        assert not cursor.fetchall()
-        assert not self.spans
 
     def test_service_info(self):
         backup_tracer = ddtrace.tracer

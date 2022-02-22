@@ -41,7 +41,7 @@ def span(tracer):
 class TestHeaders(object):
     @pytest.fixture()
     def span(self):
-        yield Span(None, "some_span")
+        yield Span("some_span")
 
     @pytest.fixture()
     def config(self):
@@ -575,7 +575,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
 )
 def test_set_flattened_tags_is_flat(items):
     """Ensure that flattening of a nested dict results in a normalized, 1-level dict"""
-    span = Span(None, "test")
+    span = Span("test")
     trace_utils.set_flattened_tags(span, items)
     assert isinstance(span._get_tags(), dict)
     assert not any(isinstance(v, dict) for v in span._get_tags().values())
@@ -585,7 +585,7 @@ def test_set_flattened_tags_keys():
     """Ensure expected keys in flattened dictionary"""
     d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
     e = dict(A=1, B=2, C_A=3, C_B=4, C_C_A=5, C_C_B=6)
-    span = Span(None, "test")
+    span = Span("test")
     trace_utils.set_flattened_tags(span, d.items(), sep="_")
     assert span._get_metrics() == e
 
@@ -594,7 +594,7 @@ def test_set_flattened_tags_exclude_policy():
     """Ensure expected keys in flattened dictionary with exclusion set"""
     d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
     e = dict(A=1, B=2, C_B=4)
-    span = Span(None, "test")
+    span = Span("test")
 
     trace_utils.set_flattened_tags(span, d.items(), sep="_", exclude_policy=lambda tag: tag in {"C_A", "C_C"})
     assert span._get_metrics() == e

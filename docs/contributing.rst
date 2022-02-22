@@ -9,15 +9,15 @@ wish to make via an `issue <https://github.com/DataDog/dd-trace-py/issues>`_.
 Branches
 ========
 
-Development happens in the `master` branch. When all the features for the next
-milestone are merged, the next version is released and tagged on the `master`
+Development happens in the `1.x` branch. When all the features for the next
+milestone are merged, the next version is released and tagged on the `1.x`
 branch as `vVERSION`.
 
-Your pull request should target the `master` branch.
+Your pull request should target the `1.x` branch.
 
-Once a new version is released, a `release/VERSION` branch might be created to
+Once a new version is released, a `VERSION` branch might be created to
 support micro releases to `VERSION`. Patches should be cherry-picking from the
-`master` branch where possible — or otherwise created from scratch.
+`1.x` branch where possible — or otherwise created from scratch.
 
 
 Internal API

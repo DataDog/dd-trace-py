@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add tracing support for ``sanic>=21.9.0``.

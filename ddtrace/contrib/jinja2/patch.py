@@ -1,3 +1,5 @@
+import os
+
 import jinja2
 
 from ddtrace import config
@@ -7,7 +9,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
-from ...internal.utils.formats import get_env
 from ...pin import Pin
 from ..trace_utils import unwrap as _u
 from .constants import DEFAULT_TEMPLATE_NAME
@@ -17,7 +18,7 @@ from .constants import DEFAULT_TEMPLATE_NAME
 config._add(
     "jinja2",
     {
-        "service_name": get_env("jinja2", "service_name"),
+        "service_name": os.getenv("DD_JINJA2_SERVICE_NAME"),
     },
 )
 

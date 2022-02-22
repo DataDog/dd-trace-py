@@ -505,7 +505,7 @@ venv = Venv(
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
-                "psycopg2": ["~=2.8.0"],
+                "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
@@ -717,6 +717,12 @@ venv = Venv(
                         "flask": ["~=0.12.0"],
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
@@ -724,10 +730,20 @@ venv = Venv(
                     # TODO: Re-enable coverage for Flask tests
                     command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
-                    pkgs={"flask": ["~=0.12.0"], "pytest": "~=3.0", "more_itertools": "<8.11.0"},
+                    pkgs={
+                        "flask": ["~=0.12.0"],
+                        "pytest": "~=3.0",
+                        "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
                 ),
                 # Flask 1.x.x
                 Venv(
@@ -738,6 +754,12 @@ venv = Venv(
                             "~=1.1.0",
                             "~=1.0",  # latest 1.x
                         ],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.1.0 release
+                        "itsdangerous": "<2.1.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
@@ -745,8 +767,8 @@ venv = Venv(
                     # TODO: Re-enable coverage for Flask tests
                     command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
                         "flask": [
@@ -754,6 +776,12 @@ venv = Venv(
                             "~=1.1.0",
                             "~=1.0",  # latest 1.x
                         ],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 # Flask >= 2.0.0
@@ -772,8 +800,8 @@ venv = Venv(
                     # TODO: Re-enable coverage for Flask tests
                     command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
                         "flask": [
@@ -804,6 +832,12 @@ venv = Venv(
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
@@ -815,12 +849,31 @@ venv = Venv(
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3"),
                     pkgs={
                         "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask-caching": ["~=1.10.0", latest],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3"),
+                    pkgs={
+                        "flask": [latest],
                         "flask-caching": ["~=1.10.0", latest],
                     },
                 ),
@@ -1362,11 +1415,18 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.9"),
-                    pkgs={"jinja2": [("~=2.%d.0" % m) for m in range(7, 12)]},
+                    pkgs={
+                        "jinja2": [("~=2.%d.0" % m) for m in range(9, 12)],
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    pkgs={"jinja2": ["~=3.0.0", latest]},
+                    pkgs={
+                        "jinja2": ["~=3.0.0", latest],
+                    },
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
@@ -1419,6 +1479,51 @@ venv = Venv(
                     latest,
                 ],
             },
+        ),
+        Venv(
+            name="sanic",
+            command="pytest {cmdargs} tests/contrib/sanic",
+            pkgs={
+                "pytest-asyncio": latest,
+                "requests": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "sanic": ["~=19.12", "~=20.12"],
+                        "pytest-sanic": ["~=1.6.2"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": ["~=21.3.0"],
+                        "pytest-sanic": latest,
+                        "httpx": ["~=0.15.4"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": [
+                            "~=21.6.0",
+                        ],
+                        "pytest-sanic": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": [
+                            "~=21.9.0",
+                            "~=21.12.0",
+                            latest,
+                        ],
+                        "sanic-testing": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="snowflake",

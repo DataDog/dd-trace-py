@@ -626,7 +626,7 @@ def test_handle_response_future_like():
     from ddtrace.contrib.grpc.client_interceptor import _handle_response
     from ddtrace.span import Span
 
-    span = Span(None, None)
+    span = Span(None)
 
     def finish_span():
         span.finish()

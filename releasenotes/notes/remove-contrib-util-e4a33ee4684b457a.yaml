@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The deprecated module ``ddtrace.contrib.util`` is removed.
