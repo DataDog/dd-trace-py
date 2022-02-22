@@ -7,11 +7,9 @@ from typing import Optional
 from typing import Tuple
 import warnings
 
+from ddtrace.vendor.debtcollector.removals import remove
+
 from ...vendor import debtcollector
-
-
-class RemovedInDDTrace10Warning(DeprecationWarning):
-    pass
 
 
 def format_message(name, message, version=None):
@@ -28,27 +26,7 @@ def format_message(name, message, version=None):
     )
 
 
-def warn(message, stacklevel=2):
-    # type: (str, int) -> None
-    """Helper function used as a ``DeprecationWarning``."""
-    warnings.warn(message, RemovedInDDTrace10Warning, stacklevel=stacklevel)
-
-
-def deprecation(name="", message="", version=None):
-    # type: (str, str, Optional[str]) -> None
-    """Function to report a ``DeprecationWarning``. Bear in mind that `DeprecationWarning`
-    are ignored by default so they're not available in user logs. To show them,
-    the application must be launched with a special flag:
-
-        $ python -Wall script.py
-
-    This approach is used by most of the frameworks, including Django
-    (ref: https://docs.djangoproject.com/en/2.0/howto/upgrade-version/#resolving-deprecation-warnings)
-    """
-    msg = format_message(name, message, version)
-    warn(msg, stacklevel=4)
-
-
+@remove(message="Use debtcollector.removals.remove instead.", removal_version="1.0.0")
 def deprecated(message="", version=None):
     # type: (str, Optional[str]) -> Callable[[Callable[..., Any]], Callable[..., Any]]
     """Decorator function to report a ``DeprecationWarning``. Bear
@@ -68,7 +46,7 @@ def deprecated(message="", version=None):
         def wrapper(*args, **kwargs):
             # type: (Tuple[Any], Dict[str, Any]) -> Any
             msg = format_message(func.__name__, message, version)
-            warn(msg, stacklevel=3)
+            warnings.warn(msg, DeprecationWarning, stacklevel=3)
             return func(*args, **kwargs)
 
         return wrapper
@@ -96,7 +74,7 @@ def get_service_legacy(default=None):
                 "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
                 "for the improvements being made for service names."
             ),
-            removal_version="2.0.0",
+            removal_version="1.0.0",
         )
         return os.getenv("DD_SERVICE_NAME")
     elif "DATADOG_SERVICE_NAME" in os.environ:
@@ -107,7 +85,7 @@ def get_service_legacy(default=None):
                 "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
                 "for the improvements being made for service names."
             ),
-            removal_version="2.0.0",
+            removal_version="1.0.0",
         )
         return os.getenv("DATADOG_SERVICE_NAME")
 
