@@ -20,6 +20,7 @@ config._add(
         _default_service="mysql",
         _dbapi_span_name_prefix="mysql",
         trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
+        trace_connect=asbool(os.getenv("DD_MYSQLDB_TRACE_CONNECT", default=False)),
     ),
 )
 
@@ -59,7 +60,10 @@ def unpatch():
 
 
 def _connect(func, instance, args, kwargs):
-    with tracer.trace("MySQLdb.connection.connect", service=config.mysqldb._default_service):
+    if config.mysqldb.trace_connect:
+        with tracer.trace("MySQLdb.connection.connect", service=config.mysqldb._default_service):
+            conn = func(*args, **kwargs)
+    else:
         conn = func(*args, **kwargs)
     return patch_conn(conn, *args, **kwargs)
 
