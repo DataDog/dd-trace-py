@@ -4,6 +4,7 @@ Trace queries to aws api done via botocore client
 import base64
 import json
 import os
+from datetime import datetime
 import typing
 from typing import Any
 from typing import Dict
@@ -124,6 +125,7 @@ def inject_trace_to_eventbridge_detail(params, span):
         log.warning("Unable to inject context. The Event Bridge event had no Entries.")
         return
 
+    current_milliseconds = datetime.now().microsecond // 1000
     for entry in params["Entries"]:
         detail = {}
         if "Detail" in entry:
@@ -135,13 +137,23 @@ def inject_trace_to_eventbridge_detail(params, span):
 
         detail["_datadog"] = {}
         HTTPPropagator.inject(span.context, detail["_datadog"])
+        detail["_datadog"]["ms"] = current_milliseconds
         detail_json = json.dumps(detail)
 
         # check if detail size will exceed max size with headers
         detail_size = len(detail_json)
         if detail_size >= MAX_EVENTBRIDGE_DETAIL_SIZE:
-            log.warning("Detail with trace injection (%s) exceeds limit (%s)", detail_size, MAX_EVENTBRIDGE_DETAIL_SIZE)
-            continue
+            if detail_size < MAX_EVENTBRIDGE_DETAIL_SIZE + 11:
+                # the ms field adds 11 bytes and isn't strictly necessary to propagate trace context.
+                # I'd rather drop those bytes on the floor and keep the rest of the trace headers if we're *just* over
+                # the limit
+                detail["_datadog"].pop("ms")
+                detail_json = json.dumps(detail)
+            else:
+                log.warning(
+                    "Detail with trace injection (%s) exceeds limit (%s)", detail_size, MAX_EVENTBRIDGE_DETAIL_SIZE
+                )
+                continue
 
         entry["Detail"] = detail_json
 
