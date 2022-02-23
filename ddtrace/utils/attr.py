@@ -1,10 +1,9 @@
 from ..internal.utils.attr import T  # noqa
 from ..internal.utils.attr import from_env  # noqa
-from ..internal.utils.deprecation import deprecation
+from ..vendor.debtcollector.removals import removed_module
 
 
-deprecation(
-    name="ddtrace.utils.attr",
-    message="This module will be removed in v1.0.",
-    version="1.0.0",
+removed_module(
+    module="ddtrace.utils.attr",
+    removal_version="1.0.0",
 )

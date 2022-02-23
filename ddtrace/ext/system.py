@@ -2,13 +2,14 @@
 Standard system tags
 """
 from ddtrace.constants import PID
-from ddtrace.internal.utils.deprecation import deprecation
+
+from ..vendor.debtcollector.removals import removed_module
 
 
-deprecation(
-    name="ddtrace.ext.system",
-    message="Use `ddtrace.constants` module instead",
-    version="1.0.0",
+removed_module(
+    module="ddtrace.ext.system",
+    replacement="ddtrace.constants",
+    removal_version="1.0.0",
 )
 
 __all__ = ["PID"]

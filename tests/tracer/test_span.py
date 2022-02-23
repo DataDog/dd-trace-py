@@ -164,9 +164,8 @@ class SpanTestCase(TracerTestCase):
             Span(self.tracer, "test_span")
             assert len(ws) == 1
             assert (
-                str(ws[0].message)
-                == "'ddtrace.Span.tracer' is deprecated and will be remove in future versions (1.0.0)."
-                " Use Span(tracer=None, name, ...) instead."
+                str(ws[0].message) == "ddtrace.Span.tracer is deprecated and will be removed in version '1.0.0': "
+                "Use Span(tracer=None, name, ...) instead."
             )
 
     def test_accessing_tracer_from_span(self):
