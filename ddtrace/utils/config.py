@@ -1,9 +1,8 @@
 from ..internal.utils.config import get_application_name  # noqa
-from ..internal.utils.deprecation import deprecation
+from ..vendor.debtcollector.removals import removed_module
 
 
-deprecation(
-    name="ddtrace.utils.config",
-    message="This module will be removed in v1.0.",
-    version="1.0.0",
+removed_module(
+    module="ddtrace.utils.config",
+    removal_version="1.0.0",
 )

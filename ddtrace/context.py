@@ -8,7 +8,7 @@ from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.compat import NumericType
 from .internal.logger import get_logger
-from .internal.utils.deprecation import deprecated
+from .vendor.debtcollector.removals import remove
 
 
 if TYPE_CHECKING:
@@ -107,7 +107,7 @@ class Context(object):
                 return
             self._meta[ORIGIN_KEY] = value
 
-    @deprecated("Cloning contexts will no longer be required in 0.50", version="0.50")
+    @remove(message="Cloning contexts will no longer be required in 0.50", removal_version="1.0.0")
     def clone(self):
         # type: () -> Context
         """

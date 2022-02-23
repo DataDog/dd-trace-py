@@ -18,10 +18,10 @@ from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
-from ...internal.utils.deprecation import deprecated
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ...vendor import wrapt
+from ...vendor.debtcollector.removals import remove
 
 
 log = get_logger(__name__)
@@ -278,9 +278,7 @@ def _sanitize_query(span, query):
 #
 # DEPRECATED
 #
-
-
-@deprecated(message="Use patching instead (see the docs).", version="1.0.0")
+@remove(message="Use patching instead (see the docs).", removal_version="1.0.0")
 def get_traced_cassandra(*args, **kwargs):
     return _get_traced_cluster(*args, **kwargs)
 
