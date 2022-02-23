@@ -46,7 +46,6 @@ class Context(object):
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
         upstream_services=None,  # type: Optional[str]
-        _self_upstream_service_entry=None,  # type: Optional[str]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
@@ -55,9 +54,9 @@ class Context(object):
         #   - Inherited upstream services from parent context
         #   - Upstream service entry associated with this context
         self._upstream_services = upstream_services
-        if upstream_services:
+        if upstream_services and UPSTREAM_SERVICES_KEY not in self._meta:
             self._meta[UPSTREAM_SERVICES_KEY] = upstream_services
-        self._self_upstream_service_entry = _self_upstream_service_entry
+        self._self_upstream_service_entry = None
 
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
@@ -78,15 +77,16 @@ class Context(object):
     def _with_span(self, span):
         # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
-        return self.__class__(
+        ctx = self.__class__(
             trace_id=span.trace_id,
             span_id=span.span_id,
             meta=self._meta,
             metrics=self._metrics,
             lock=self._lock,
             upstream_services=self._upstream_services,
-            _self_upstream_service_entry=self._self_upstream_service_entry,
         )
+        ctx._self_upstream_service_entry = self._self_upstream_service_entry
+        return ctx
 
     def _update_tags(self, span):
         # type: (Span) -> None
