@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "grpc",
     "meta": {
+      "_dd.p.upstream_services": "Z3JwYy1jbGllbnQ=|1|0|1.0000",
       "grpc.host": "::",
       "grpc.method.kind": "unary",
       "grpc.method.name": "Handler",
@@ -63,6 +64,7 @@
     "parent_id": 0,
     "type": "grpc",
     "meta": {
+      "_dd.p.upstream_services": "Z3JwYy1jbGllbnQ=|1|0|1.0000",
       "grpc.host": "::",
       "grpc.method.kind": "unary",
       "grpc.method.name": "Handler",

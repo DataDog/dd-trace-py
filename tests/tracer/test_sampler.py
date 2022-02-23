@@ -1,6 +1,7 @@
 from __future__ import division
 
 import re
+from typing import Optional
 import unittest
 
 import mock
@@ -16,6 +17,7 @@ from ddtrace.constants import SAMPLING_RULE_DECISION
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.internal.compat import iteritems
+from ddtrace.internal.constants import UPSTREAM_SERVICES_KEY
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.sampler import AllSampler
 from ddtrace.sampler import DatadogSampler
@@ -37,6 +39,20 @@ def assert_sampling_decision_tags(span, agent=None, limit=None, rule=None):
     assert span.get_metric(SAMPLING_AGENT_DECISION) == agent
     assert span.get_metric(SAMPLING_LIMIT_DECISION) == limit
     assert span.get_metric(SAMPLING_RULE_DECISION) == rule
+
+
+def assert_upstream_services(span, entry, existing=None):
+    # type: (Span, Optional[str], Optional[str]) -> None
+    value = span.context._meta.get(UPSTREAM_SERVICES_KEY)
+    existing_value = None
+    entry_value = None
+    if value:
+        existing_value, _, entry_value = value.rpartition(";")
+        existing_value = existing_value or None
+        entry_value = entry_value or None
+
+    assert existing_value == existing
+    assert entry_value == entry
 
 
 def create_span(tracer=None, name="test.span", service=""):
@@ -683,25 +699,29 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     #   No rules configured
     #   No global rate limit
     #   No rate limit configured
-    # RateByServiceSampler.sample(span) returns True
+    # RateSampler.sample(span) returns True
     mock_sample.return_value = True
     with dummy_tracer.trace("test"):
         pass
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
+    assert_sampling_decision_tags(spans[0], agent=1.0, limit=None, rule=None)
+    assert_upstream_services(spans[0], entry="dW5uYW1lZF9weXRob25fc2VydmljZQ==|1|0|1.0000")
 
     # Default RateByServiceSampler() is applied
     #   No rules configured
     #   No global rate limit
     #   No rate limit configured
-    # RateByServiceSampler.sample(span) returns False
+    # RateSampler.sample(span) returns False
     mock_sample.return_value = False
     with dummy_tracer.trace("test"):
         pass
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is AUTO_REJECT
+    assert_sampling_decision_tags(spans[0], agent=1.0, limit=None, rule=None)
+    assert_upstream_services(spans[0], entry="dW5uYW1lZF9weXRob25fc2VydmljZQ==|0|0|1.0000")
 
 
 class MatchSample(SamplingRule):
@@ -729,7 +749,7 @@ class MatchNoSample(SamplingRule):
 
 
 @pytest.mark.parametrize(
-    "sampler, sampling_priority, rule, limit",
+    "sampler, sampling_priority, rule, limit, upstream_service_entry",
     [
         (
             DatadogSampler(
@@ -743,6 +763,7 @@ class MatchNoSample(SamplingRule):
             USER_KEEP,
             1.0,
             None,
+            "dGVzdA==|2|3|1.0000",
         ),
         (
             DatadogSampler(
@@ -756,6 +777,7 @@ class MatchNoSample(SamplingRule):
             USER_KEEP,
             0.5,
             None,
+            "dGVzdA==|2|3|0.5000",
         ),
         (
             DatadogSampler(
@@ -769,6 +791,7 @@ class MatchNoSample(SamplingRule):
             USER_KEEP,
             0.5,
             None,
+            "dGVzdA==|2|3|0.5000",
         ),
         (
             DatadogSampler(
@@ -782,6 +805,7 @@ class MatchNoSample(SamplingRule):
             USER_REJECT,
             0.5,
             None,
+            "dGVzdA==|-1|3|0.5000",
         ),
         (
             DatadogSampler(
@@ -795,29 +819,32 @@ class MatchNoSample(SamplingRule):
             USER_REJECT,
             0.5,
             None,
+            "dGVzdA==|-1|3|0.5000",
         ),
         (
             DatadogSampler(
                 default_sample_rate=0,
             ),
-            AUTO_REJECT,
+            USER_REJECT,
             0,
             None,
+            "dGVzdA==|-1|3|0.0000",
         ),
         (
             DatadogSampler(
                 default_sample_rate=1.0,
                 rate_limit=0,
             ),
-            AUTO_REJECT,
+            USER_REJECT,
             1.0,
             0.0,
+            "dGVzdA==|-1|3|0.0000",
         ),
     ],
 )
-def test_datadog_sampler_sample_rules(sampler, sampling_priority, rule, limit, dummy_tracer):
+def test_datadog_sampler_sample_rules(sampler, sampling_priority, rule, limit, upstream_service_entry, dummy_tracer):
     dummy_tracer.configure(sampler=sampler)
-    with dummy_tracer.trace("span"):
+    with dummy_tracer.trace("span", service="test"):
         pass
     spans = dummy_tracer.pop()
 
@@ -828,8 +855,9 @@ def test_datadog_sampler_sample_rules(sampler, sampling_priority, rule, limit, d
     # This is an implementation detail so we probably don't have to
     # test it.
     assert span.sampled
-    assert span.get_metric(SAMPLING_LIMIT_DECISION) == limit
-    assert span.get_metric(SAMPLING_RULE_DECISION) == rule
+    assert span.get_metric(SAMPLING_PRIORITY_KEY) is sampling_priority
+    assert_sampling_decision_tags(span, agent=None, limit=limit, rule=rule)
+    assert_upstream_services(span, upstream_service_entry)
 
 
 def test_datadog_sampler_tracer(dummy_tracer):
@@ -837,13 +865,14 @@ def test_datadog_sampler_tracer(dummy_tracer):
     sampler = DatadogSampler(rules=[rule])
     dummy_tracer.configure(sampler=sampler)
 
-    with dummy_tracer.trace("test.span"):
+    with dummy_tracer.trace("test.span", service="test"):
         pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
     assert_sampling_decision_tags(spans[0], rule=1.0, limit=None)
+    assert_upstream_services(spans[0], "dGVzdA==|2|3|1.0000")
 
 
 def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
@@ -851,13 +880,14 @@ def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
     sampler = DatadogSampler(rules=[rule], rate_limit=0)
     dummy_tracer.configure(sampler=sampler)
 
-    with dummy_tracer.trace("test.span"):
+    with dummy_tracer.trace("test.span", service="test"):
         pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
     assert_sampling_decision_tags(spans[0], rule=1.0, limit=0.0)
+    assert_upstream_services(spans[0], "dGVzdA==|-1|3|0.0000")
 
 
 def test_datadog_sampler_tracer_rate_0(dummy_tracer):
@@ -866,13 +896,14 @@ def test_datadog_sampler_tracer_rate_0(dummy_tracer):
     sampler = DatadogSampler(rules=[rule])
     dummy_tracer.configure(sampler=sampler)
 
-    with dummy_tracer.trace("test.span"):
+    with dummy_tracer.trace("test.span", service="test"):
         pass
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
     assert_sampling_decision_tags(spans[0], rule=0.0)
+    assert_upstream_services(spans[0], "dGVzdA==|-1|3|0.0000")
 
 
 def test_datadog_sampler_tracer_child(dummy_tracer):
@@ -881,7 +912,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     sampler = DatadogSampler(rules=[rule])
     dummy_tracer.configure(sampler=sampler)
 
-    with dummy_tracer.trace("parent.span"):
+    with dummy_tracer.trace("parent.span", service="test"):
         with dummy_tracer.trace("child.span"):
             pass
 
@@ -889,7 +920,9 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
     assert len(spans) == 2, "Trace should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
     assert_sampling_decision_tags(spans[0], rule=1.0, limit=None)
+    assert_upstream_services(spans[0], "dGVzdA==|2|3|1.0000")
     assert_sampling_decision_tags(spans[1], agent=None, rule=None, limit=None)
+    assert_upstream_services(spans[1], "dGVzdA==|2|3|1.0000")
 
 
 def test_datadog_sampler_tracer_start_span(dummy_tracer):
@@ -898,13 +931,14 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
     sampler = DatadogSampler(rules=[rule])
     dummy_tracer.configure(sampler=sampler)
 
-    span = dummy_tracer.start_span("test.span")
+    span = dummy_tracer.start_span("test.span", service="test")
     span.finish()
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
     assert_sampling_decision_tags(spans[0], rule=1.0, limit=None)
+    assert_upstream_services(spans[0], "dGVzdA==|2|3|1.0000")
 
 
 def test_datadog_sampler_update_rate_by_service_sample_rates(dummy_tracer):

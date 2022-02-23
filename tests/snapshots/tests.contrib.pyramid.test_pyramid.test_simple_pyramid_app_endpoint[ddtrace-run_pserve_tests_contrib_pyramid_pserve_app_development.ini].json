@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.upstream_services": "cHlyYW1pZA==|1|0|1.0000",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://localhost:8000/",

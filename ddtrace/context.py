@@ -7,7 +7,10 @@ from typing import Text
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.compat import NumericType
+from .internal.constants import SamplingMechanism
+from .internal.constants import UPSTREAM_SERVICES_KEY
 from .internal.logger import get_logger
+from .internal.utils.upstream_services import format_upstream_service_entry
 
 
 if TYPE_CHECKING:
@@ -29,6 +32,8 @@ class Context(object):
         "_lock",
         "_meta",
         "_metrics",
+        "_upstream_services",
+        "_self_upstream_service_entry",
     ]
 
     def __init__(
@@ -40,9 +45,19 @@ class Context(object):
         meta=None,  # type: Optional[_MetaDictType]
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
+        upstream_services=None,  # type: Optional[str]
+        _self_upstream_service_entry=None,  # type: Optional[str]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
+
+        # Keep track of:
+        #   - Inherited upstream services from parent context
+        #   - Upstream service entry associated with this context
+        self._upstream_services = upstream_services
+        if upstream_services:
+            self._meta[UPSTREAM_SERVICES_KEY] = upstream_services
+        self._self_upstream_service_entry = _self_upstream_service_entry
 
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
@@ -64,7 +79,13 @@ class Context(object):
         # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
         return self.__class__(
-            trace_id=span.trace_id, span_id=span.span_id, meta=self._meta, metrics=self._metrics, lock=self._lock
+            trace_id=span.trace_id,
+            span_id=span.span_id,
+            meta=self._meta,
+            metrics=self._metrics,
+            lock=self._lock,
+            upstream_services=self._upstream_services,
+            _self_upstream_service_entry=self._self_upstream_service_entry,
         )
 
     def _update_tags(self, span):
@@ -72,6 +93,41 @@ class Context(object):
         with self._lock:
             span._meta.update(self._meta)
             span._metrics.update(self._metrics)
+
+    def _update_upstream_services(
+        self,
+        span,  # type: Span
+        sampling_priority,  # type: int
+        sampling_mechanism,  # type: SamplingMechanism
+        sample_rate=None,  # type: Optional[float]
+    ):
+        # type: (...) -> None
+        """
+        Update the ``_dd.p.upstream_services`` tag associated with this context.
+
+        Calling with the same values multiple times will not change anything.
+
+        Calling multiple times with new values will replace the previous entry with the new one.
+        (We will only have 1 entry in the tag for this context)
+        """
+        with self._lock:
+            self._self_upstream_service_entry = format_upstream_service_entry(
+                span.service, sampling_priority, sampling_mechanism, sample_rate
+            )
+
+            # If we have inherited upstream service entries, append this entry onto those
+            # DEV: We only want 1 entry in _dd.p.upstream_services for this context
+            if self._upstream_services:
+                self._meta[UPSTREAM_SERVICES_KEY] = ";".join(
+                    [self._upstream_services, self._self_upstream_service_entry]
+                )
+            else:
+                self._meta[UPSTREAM_SERVICES_KEY] = self._self_upstream_service_entry
+
+    @property
+    def upstream_services(self):
+        # type: () -> Optional[str]
+        return self._meta.get(UPSTREAM_SERVICES_KEY)
 
     @property
     def sampling_priority(self):

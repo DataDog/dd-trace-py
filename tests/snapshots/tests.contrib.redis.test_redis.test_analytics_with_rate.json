@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "redis",
     "meta": {
+      "_dd.p.upstream_services": "cmVkaXM=|1|0|1.0000",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
       "runtime-id": "fea3c672c17f40c5984c86f2cb24b514"

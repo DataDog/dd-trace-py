@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support to automatically track and propagate the history of sampling decisions in a distributed trace.

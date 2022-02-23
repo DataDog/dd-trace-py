@@ -4,6 +4,7 @@ from typing import Dict
 from typing import Tuple
 
 from ddtrace.internal.compat import PY3
+from ddtrace.internal.constants import UNNAMED_SERVICE_NAME
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 
@@ -46,7 +47,7 @@ def _get_application(key):
     service, version, env = key
 
     return {
-        "service_name": service or "unnamed_python_service",  # mandatory field, can not be empty
+        "service_name": service or UNNAMED_SERVICE_NAME,  # mandatory field, can not be empty
         "service_version": version or "",
         "env": env or "",
         "language_name": "python",

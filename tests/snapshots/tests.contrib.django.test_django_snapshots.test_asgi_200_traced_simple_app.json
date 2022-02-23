@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.upstream_services": "dW5uYW1lZF9weXRob25fc2VydmljZQ==|1|0|1.0000",
       "asgi.version": "3.0",
       "http.method": "GET",
       "http.status_code": "200",

@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
+      "_dd.p.upstream_services": "bXktc25vd2ZsYWtlLXN2Yw==|1|0|1.0000",
       "db.application": "PythonConnector",
       "db.name": "mock-db-name",
       "db.schema": "mock-schema-name",

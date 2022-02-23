@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
+      "_dd.p.upstream_services": "bWFyaWFkYg==|1|0|1.0000",
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
@@ -37,6 +38,7 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
+      "_dd.p.upstream_services": "bWFyaWFkYg==|1|0|1.0000",
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",

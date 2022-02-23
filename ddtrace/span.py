@@ -37,6 +37,7 @@ from .internal.compat import iteritems
 from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
+from .internal.constants import SamplingMechanism
 from .internal.logger import get_logger
 
 
@@ -283,9 +284,19 @@ class Span(object):
 
         elif key == MANUAL_KEEP_KEY:
             self.context.sampling_priority = USER_KEEP
+            self.context._update_upstream_services(
+                self,
+                USER_KEEP,
+                SamplingMechanism.MANUAL,
+            )
             return
         elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = USER_REJECT
+            self.context._update_upstream_services(
+                self,
+                USER_REJECT,
+                SamplingMechanism.MANUAL,
+            )
             return
         elif key == SERVICE_KEY:
             self.service = value

@@ -6,6 +6,9 @@ from ddtrace.contrib.flask import unpatch
 from . import BaseFlaskTestCase
 
 
+FLASK_META_KEYS = {"_dd.p.upstream_services", "flask.template_name", "runtime-id"}
+
+
 class FlaskTemplateTestCase(BaseFlaskTestCase):
     def test_patch(self):
         """
@@ -50,7 +53,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertIsNone(spans[0].service)
         self.assertEqual(spans[0].name, "flask.render_template")
         self.assertEqual(spans[0].resource, "test.html")
-        self.assertEqual(set(spans[0]._get_tags().keys()), set(["flask.template_name", "runtime-id"]))
+        self.assertEqual(set(spans[0]._get_tags().keys()), FLASK_META_KEYS)
         self.assertEqual(spans[0].get_tag("flask.template_name"), "test.html")
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
         self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")
@@ -90,7 +93,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
         self.assertIsNone(spans[0].service)
         self.assertEqual(spans[0].name, "flask.render_template_string")
         self.assertEqual(spans[0].resource, "<memory>")
-        self.assertEqual(set(spans[0]._get_tags().keys()), set(["flask.template_name", "runtime-id"]))
+        self.assertEqual(set(spans[0]._get_tags().keys()), FLASK_META_KEYS)
         self.assertEqual(spans[0].get_tag("flask.template_name"), "<memory>")
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
         self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")

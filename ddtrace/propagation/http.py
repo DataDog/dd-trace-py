@@ -11,6 +11,7 @@ from ..internal._tagset import TagsetMaxSizeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
+from ..internal.constants import UPSTREAM_SERVICES_KEY
 from ..internal.logger import get_logger
 from ._utils import get_wsgi_header
 
@@ -156,6 +157,7 @@ class HTTPPropagator(object):
                 normalized_headers,
             )
             meta = None
+            upstream_services = None
             tags_value = HTTPPropagator._extract_header_value(
                 POSSIBLE_HTTP_HEADER_TAGS,
                 normalized_headers,
@@ -166,6 +168,9 @@ class HTTPPropagator(object):
                 try:
                     # We get a Dict[str, str], but need it to be Dict[Union[str, bytes], str] (e.g. _MetaDictType)
                     meta = cast(Dict[Union[str, bytes], str], decode_tagset_string(tags_value))
+                    if UPSTREAM_SERVICES_KEY in meta:
+                        # DEV: We want to keep the key in meta
+                        upstream_services = meta[UPSTREAM_SERVICES_KEY]
                 except TagsetDecodeError:
                     log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
 
@@ -183,6 +188,7 @@ class HTTPPropagator(object):
                     sampling_priority=sampling_priority,  # type: ignore[arg-type]
                     dd_origin=origin,
                     meta=meta,
+                    upstream_services=upstream_services,
                 )
             # If headers are invalid and cannot be parsed, return a new context and log the issue.
             except (TypeError, ValueError):

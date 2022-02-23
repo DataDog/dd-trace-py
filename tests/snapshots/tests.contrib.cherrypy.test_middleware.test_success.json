@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.upstream_services": "dGVzdC5jaGVycnlweS5zZXJ2aWNl|1|0|1.0000",
       "http.method": "GET",
       "http.request.headers.host": "127.0.0.1:54583",
       "http.status_code": "200",

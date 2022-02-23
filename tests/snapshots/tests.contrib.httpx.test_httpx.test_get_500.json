@@ -9,6 +9,7 @@
     "type": "http",
     "error": 1,
     "meta": {
+      "_dd.p.upstream_services": "dW5uYW1lZF9weXRob25fc2VydmljZQ==|1|0|1.0000",
       "http.method": "GET",
       "http.status_code": "500",
       "http.url": "http://localhost:8001/status/500",

@@ -9,6 +9,7 @@
     "type": "web",
     "error": 1,
     "meta": {
+      "_dd.p.upstream_services": "ZGphbmdv|1|0|1.0000",
       "asgi.version": "3.0",
       "django.request.class": "django.core.handlers.asgi.ASGIRequest",
       "django.response.class": "django.http.response.HttpResponseServerError",

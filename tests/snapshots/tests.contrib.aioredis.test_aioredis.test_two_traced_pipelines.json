@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "_dd.p.upstream_services": "dGVzdA==|1|0|1.0000",
       "runtime-id": "c121cb35b47a4dbf8f2fce11afea6620"
     },
     "metrics": {

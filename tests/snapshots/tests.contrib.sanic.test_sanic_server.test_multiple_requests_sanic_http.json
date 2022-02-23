@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.upstream_services": "c2FuaWM=|1|0|1.0000",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",
@@ -44,6 +45,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.upstream_services": "c2FuaWM=|1|0|1.0000",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/hello",

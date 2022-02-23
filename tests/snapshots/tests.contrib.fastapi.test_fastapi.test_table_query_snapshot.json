@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.upstream_services": "ZmFzdGFwaQ==|1|0|1.0000",
       "http.method": "POST",
       "http.status_code": "200",
       "http.url": "http://testserver/items/",
@@ -34,6 +35,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.upstream_services": "ZmFzdGFwaQ==|1|0|1.0000",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://testserver/items/test_id",

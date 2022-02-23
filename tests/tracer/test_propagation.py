@@ -4,6 +4,7 @@ from unittest import TestCase
 import pytest
 
 from ddtrace.context import Context
+from ddtrace.internal.constants import UPSTREAM_SERVICES_KEY
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
@@ -152,6 +153,29 @@ class TestHttpPropagation(TestCase):
                 "any": "tag",
             }
 
+    def test_extract_upstream_services(self):
+        tracer = DummyTracer()
+
+        headers = {
+            "x-datadog-trace-id": "1234",
+            "x-datadog-parent-id": "5678",
+            "x-datadog-sampling-priority": "1",
+            # DEV: We do not do any validation on this value, we trust it
+            "x-datadog-tags": "_dd.p.upstream_services=dGVzdC1zZXJ2aWNl|1|0|1.0000",
+        }
+
+        context = HTTPPropagator.extract(headers)
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            assert span.context.sampling_priority == 1
+            assert span.context._meta == {
+                UPSTREAM_SERVICES_KEY: "dGVzdC1zZXJ2aWNl|1|0|1.0000",
+            }
+            assert span.context.upstream_services == "dGVzdC1zZXJ2aWNl|1|0|1.0000"
+
     def test_WSGI_extract(self):
         """Ensure we support the WSGI formatted headers as well."""
         tracer = DummyTracer()
@@ -177,6 +201,29 @@ class TestHttpPropagation(TestCase):
                 "_dd.p.test": "value",
                 "any": "tag",
             }
+
+    def test_WSGI_extract_upstream_services(self):
+        tracer = DummyTracer()
+
+        headers = {
+            "HTTP_X_DATADOG_TRACE_ID": "1234",
+            "HTTP_X_DATADOG_PARENT_ID": "5678",
+            "HTTP_X_DATADOG_SAMPLING_PRIORITY": "1",
+            # DEV: We do not do any validation on this value, we trust it
+            "HTTP_X_DATADOG_TAGS": "_dd.p.upstream_services=dGVzdC1zZXJ2aWNl|1|0|1.0000",
+        }
+
+        context = HTTPPropagator.extract(headers)
+        tracer.context_provider.activate(context)
+
+        with tracer.trace("local_root_span") as span:
+            assert span.trace_id == 1234
+            assert span.parent_id == 5678
+            assert span.context.sampling_priority == 1
+            assert span.context._meta == {
+                UPSTREAM_SERVICES_KEY: "dGVzdC1zZXJ2aWNl|1|0|1.0000",
+            }
+            assert span.context.upstream_services == "dGVzdC1zZXJ2aWNl|1|0|1.0000"
 
     def test_extract_invalid_tags(self):
         # Malformed tags do not fail to extract the rest of the context

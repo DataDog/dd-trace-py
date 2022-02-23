@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "http",
     "meta": {
+      "_dd.p.upstream_services": "dW5uYW1lZF9weXRob25fc2VydmljZQ==|1|0|1.0000",
       "http.method": "GET",
       "http.request.headers.some-request-header": "Request-Value",
       "http.response.headers.some-response-header": "Response-Value",

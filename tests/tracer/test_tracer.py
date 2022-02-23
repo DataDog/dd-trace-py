@@ -1326,6 +1326,7 @@ def test_manual_keep(tracer, test_spans):
         s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
+    assert spans[0].context.upstream_services == "dW5uYW1lZF9weXRob25fc2VydmljZQ==|2|4|"
 
     # On a child span
     with tracer.trace("asdf"):
@@ -1333,6 +1334,7 @@ def test_manual_keep(tracer, test_spans):
             s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
+    assert spans[0].context.upstream_services == "dW5uYW1lZF9weXRob25fc2VydmljZQ==|2|4|"
 
 
 def test_manual_keep_then_drop(tracer, test_spans):
@@ -1343,6 +1345,7 @@ def test_manual_keep_then_drop(tracer, test_spans):
         root.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0].context.upstream_services == "dW5uYW1lZF9weXRob25fc2VydmljZQ==|-1|4|"
 
 
 def test_manual_drop(tracer, test_spans):
@@ -1351,6 +1354,7 @@ def test_manual_drop(tracer, test_spans):
         s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0].context.upstream_services == "dW5uYW1lZF9weXRob25fc2VydmljZQ==|-1|4|"
 
     # On a child span
     with tracer.trace("asdf"):
@@ -1358,6 +1362,7 @@ def test_manual_drop(tracer, test_spans):
             s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
     assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0].context.upstream_services == "dW5uYW1lZF9weXRob25fc2VydmljZQ==|-1|4|"
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
