@@ -809,6 +809,10 @@ class Tracer(object):
         active = self.context_provider.active()
         return active if isinstance(active, Span) else None
 
+    @debtcollector.removals.remove(
+        message="Writing spans through a tracer is no longer supported",
+        removal_version="1.0.0",
+    )
     def write(self, spans):
         # type: (Optional[List[Span]]) -> None
         """
