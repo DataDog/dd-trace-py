@@ -1,4 +1,5 @@
 ---
 features:
   - |
-    Add support to automatically track and propagate the history of sampling decisions in a distributed trace.
+    tracing/internal: A new ``_dd.p.upstream_services`` tag is propagated to track changes to
+    any sampling decisions for each trace.
