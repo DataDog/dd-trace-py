@@ -322,8 +322,13 @@ jobs:
       # Print tests/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage report --ignore-errors --omit=ddtrace/
+<<<<<<< HEAD
       # Print diff-cover report to stdout (compares against origin/master)
       - run: diff-cover --compare-branch origin/master coverage.xml
+=======
+      # Print diff-cover report to stdout (compares against origin/0.x)
+      - run: diff-cover --compare-branch origin/0.x coverage.xml
+>>>>>>> e3060567 (chore: fix coverage report (#3315))
 
   build_base_venvs:
     executor: ddtrace_dev
