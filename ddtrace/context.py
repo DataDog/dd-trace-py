@@ -56,7 +56,7 @@ class Context(object):
         self._upstream_services = upstream_services
         if upstream_services and UPSTREAM_SERVICES_KEY not in self._meta:
             self._meta[UPSTREAM_SERVICES_KEY] = upstream_services
-        self._self_upstream_service_entry = None
+        self._self_upstream_service_entry = None  # type: Optional[str]
 
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
