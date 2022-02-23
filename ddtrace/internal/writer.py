@@ -183,6 +183,42 @@ class TraceWriter(six.with_metaclass(abc.ABCMeta)):
         pass
 
 
+class NoopTraceWriter(TraceWriter):
+    """
+    Trace writer which will drop any :class:`ddtrace.Span` written to it.
+
+    This writer is useful for local, development, or testing environments
+    where a Datadog agent is not available. Using this writer will ensure
+    any :class:`ddtrace.Span` produced will not make any network connections.
+
+    Example usage::
+
+        import ddtrace
+
+        ddtrace.tracer.configure(writer=ddtrace.NoopTraceWriter())
+
+
+    It is best to call this configuration as soon as possible in your
+    codebase. ``conftest.py`` is a good location for testing environments.
+    """
+
+    def recreate(self):
+        # type: () -> TraceWriter
+        return self
+
+    def stop(self, timeout=None):
+        # type: (Optional[float]) -> None
+        pass
+
+    def write(self, spans=None):
+        # type: (Optional[List[Span]]) -> None
+        pass
+
+    def flush_queue(self):
+        # type: () -> None
+        pass
+
+
 class LogWriter(TraceWriter):
     def __init__(
         self,

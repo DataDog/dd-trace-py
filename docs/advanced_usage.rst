@@ -23,6 +23,31 @@ You can also use a Unix Domain Socket to connect to the agent::
     tracer.configure(uds_path="/path/to/socket")
 
 
+.. _disabling_tracing:
+
+Disabling Tracing
+-----------------
+
+:ref:`DD_TRACE_ENABLED=false<dd-trace-enabled>` or ``tracer.enabled = False`` can be used
+to prevent the tracer from pushing finished :class:`ddtrace.Span` into the writer, but some
+integrations use this configuration to disable producing any :class:`ddtrace.Span`.
+
+If you want the tracer to run as normal, producing all :class:`ddtrace.Span` and necessary
+metadata, but you want to prevent the tracer from making outbound network connections
+(e.g. local, development  or testing environments). You can configure the tracer to use a
+:class:`ddtrace.NoopTraceWriter`::
+
+         import ddtrace
+
+         ddtrace.tracer.configure(writer=ddtrace.NoopTraceWriter())
+
+
+Call this as early as possible in your code, any data produced before this configuration
+may produce :class:`ddtrace.Span` and attempt to make a connection to the trace agent.
+
+A great place to put this for testing is your ``conftest.py`` file.
+
+
 .. _context:
 
 

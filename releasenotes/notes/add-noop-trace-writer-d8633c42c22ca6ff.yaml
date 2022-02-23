@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    Add new :class:``ddtrace.NoopTraceWriter`` to prevent :class:`ddtrace.Span` data
+    from creating networking connections. This is useful in situations where
+    ``tracer.enabled = False`` does not produce the desired results.
+
+    To enable::
+
+      import ddtrace
+      ddtrace.tracer.configure(writer=ddtrace.NoopTraceWriter())

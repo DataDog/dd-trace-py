@@ -4,6 +4,7 @@ import tempfile
 import threading
 import time
 
+import httpretty
 import mock
 import msgpack
 import pytest
@@ -18,6 +19,7 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
+from ddtrace.internal.writer import NoopTraceWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
 from ddtrace.span import Span
@@ -581,3 +583,22 @@ def test_writer_reuse_connections_false():
     # And another to potentially have it reset
     writer.flush_queue()
     assert writer._conn is conn
+
+
+# allow_net_connect=False, if any network connections are made an exception is raised
+@httpretty.activate(allow_net_connect=False)
+def test_noop_trace_writer():
+    writer = NoopTraceWriter()
+
+    # Writing spans does nothing
+    for i in range(10):
+        writer.write([Span(name="name", trace_id=i, span_id=j, parent_id=j - 1 or None) for j in range(5)])
+
+    # Calling recreate returns the existing instance
+    assert writer is writer.recreate()
+
+    # Calling flush_queue does nothing
+    writer.flush_queue()
+
+    # Calling stop does nothing
+    writer.stop()
