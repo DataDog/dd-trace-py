@@ -127,9 +127,8 @@ def test_worker_class_job(queue):
     worker.work(burst=True)
 
 
-@pytest.mark.parametrize(
-    "distributed_tracing_enabled,worker_service_name", [(None, "custom-worker-service"), (False, None)]
-)
+@pytest.mark.parametrize("distributed_tracing_enabled", [False, None])
+@pytest.mark.parametrize("worker_service_name", [None, "custom-worker-service"])
 def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
     token = "tests.contrib.rq.test_rq.test_enqueue_distributed_tracing_enabled_%s_worker_service_%s" % (
         distributed_tracing_enabled,
