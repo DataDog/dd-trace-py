@@ -28,9 +28,9 @@ _padding_char = "=" if PY3 else b"="
         (u"my-\x80-service", "bXktwoAtc2VydmljZQ==", b"my-\xc2\x80-service"),
     ],
 )
-def test_format_service(service_name, expected, decoded_expected):
+def test_encode_service(service_name, expected, decoded_expected):
     """Verify that we encode service names to the correct base64 encoding"""
-    encoded = upstream_services._format_service_name(service_name)
+    encoded = upstream_services._encode_service_name(service_name)
     assert expected == encoded
 
     # Validate we get back out what we put in
@@ -51,9 +51,9 @@ def test_format_service(service_name, expected, decoded_expected):
         (0.0, "0.0000"),
     ],
 )
-def test_format_sample_rate(sample_rate, expected):
+def test_encode_sample_rate(sample_rate, expected):
     """Verify we properly convert floats to strings"""
-    assert expected == upstream_services._format_sample_rate(sample_rate)
+    assert expected == upstream_services._encode_sample_rate(sample_rate)
 
 
 @pytest.mark.parametrize(
@@ -69,8 +69,8 @@ def test_format_sample_rate(sample_rate, expected):
         (u"\x80service", USER_KEEP, SamplingMechanism.MANUAL, None, "woBzZXJ2aWNl|2|4|"),
     ],
 )
-def test_format_upstream_services_entry(service, sampling_priority, sampling_mechanism, sample_rate, expected):
-    assert expected == upstream_services.format_upstream_service_entry(
+def test_encode_upstream_services_entry(service, sampling_priority, sampling_mechanism, sample_rate, expected):
+    assert expected == upstream_services.encode_upstream_service_entry(
         service, sampling_priority, sampling_mechanism, sample_rate
     )
 

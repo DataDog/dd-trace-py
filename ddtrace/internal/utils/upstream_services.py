@@ -15,7 +15,7 @@ _ServiceName = Union[Text, bytes]
 
 # DEV: The number of services, especially sampling services should be low, usually only 1
 @cached(maxsize=24)
-def _format_service_name(service):
+def _encode_service_name(service):
     # type: (_ServiceName) -> str
     if not service:
         service = UNNAMED_SERVICE_NAME
@@ -24,7 +24,7 @@ def _format_service_name(service):
     return ensure_text(base64.b64encode(ensure_binary(service, errors="backslashreplace")))
 
 
-def _format_sample_rate(sample_rate):
+def _encode_sample_rate(sample_rate):
     # type: (Optional[float]) -> str
     if sample_rate is None:
         return ""
@@ -32,7 +32,7 @@ def _format_sample_rate(sample_rate):
     return "{:0.4f}".format(sample_rate)
 
 
-def format_upstream_service_entry(
+def encode_upstream_service_entry(
     service,  # type: Optional[_ServiceName]
     sampling_priority,  # type: int
     sampling_mechanism,  # type: SamplingMechanism
@@ -75,9 +75,9 @@ def format_upstream_service_entry(
 
     return "|".join(
         [
-            _format_service_name(service),
+            _encode_service_name(service),
             str(sampling_priority),
             str(sampling_mechanism.value),
-            _format_sample_rate(sample_rate),
+            _encode_sample_rate(sample_rate),
         ]
     )

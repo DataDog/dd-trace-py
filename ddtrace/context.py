@@ -10,7 +10,7 @@ from .internal.compat import NumericType
 from .internal.constants import SamplingMechanism
 from .internal.constants import UPSTREAM_SERVICES_KEY
 from .internal.logger import get_logger
-from .internal.utils.upstream_services import format_upstream_service_entry
+from .internal.utils.upstream_services import encode_upstream_service_entry
 
 
 if TYPE_CHECKING:
@@ -111,7 +111,7 @@ class Context(object):
         (We will only have 1 entry in the tag for this context)
         """
         with self._lock:
-            self._self_upstream_service_entry = format_upstream_service_entry(
+            self._self_upstream_service_entry = encode_upstream_service_entry(
                 span.service, sampling_priority, sampling_mechanism, sample_rate
             )
 
