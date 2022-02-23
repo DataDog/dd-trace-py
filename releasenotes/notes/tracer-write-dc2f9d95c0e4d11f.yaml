@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    ``Tracer.write`` has been removed.
