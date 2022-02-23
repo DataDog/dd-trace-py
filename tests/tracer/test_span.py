@@ -45,6 +45,12 @@ class SpanTestCase(TracerTestCase):
         assert d["meta"] == dict(a="a", c="1")
         assert d["metrics"] == dict(b=1)
 
+    def test_set_user(self):
+        s = Span(name="test.span")
+        s.set_user("user", email="jane.doh@example.com", other=1)
+        assert s.context._meta == dict([("usr.id", "user"), ("usr.email", "jane.doh@example.com"), ("usr.other", 1)])
+        assert s.context._metrics == dict()
+
     def test_numeric_tags(self):
         s = Span(name="test.span")
         s.set_tag("negative", -1)

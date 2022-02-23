@@ -222,6 +222,19 @@ class Span(object):
         for cb in self._on_finish_callbacks:
             cb(self)
 
+    def set_user(self, identifier, **kwargs):
+        # type (str, **str) -> None
+        """Set the user for this trace
+
+        :param identifier: Identifier for this user
+        :type id: str
+        """
+
+        self.context.set_meta("usr.id", stringify(identifier))
+
+        for key, value in iter(kwargs.items()):
+            self.context.set_meta("usr.%s" % key, stringify(value))
+
     def set_tag(self, key, value=None):
         # type: (_TagNameType, Any) -> None
         """Set a tag key/value pair on the span.

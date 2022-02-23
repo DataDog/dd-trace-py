@@ -73,6 +73,12 @@ class Context(object):
             span._meta.update(self._meta)
             span._metrics.update(self._metrics)
 
+    def set_meta(self, key, value):
+        # type: (str, str) -> None
+        """Set a meta key on the context"""
+        with self._lock:
+            self._meta[key] = value
+
     @property
     def sampling_priority(self):
         # type: () -> Optional[NumericType]

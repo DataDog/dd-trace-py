@@ -35,6 +35,16 @@ POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = frozenset(
 )
 POSSIBLE_HTTP_HEADER_ORIGIN = frozenset([HTTP_HEADER_ORIGIN, get_wsgi_header(HTTP_HEADER_ORIGIN).lower()])
 POSSIBLE_HTTP_HEADER_TAGS = frozenset([HTTP_HEADER_TAGS, get_wsgi_header(HTTP_HEADER_TAGS).lower()])
+PROPAGATED_HEADERS = frozenset(
+    [
+        "usr.id",
+        "usr.name",
+        "usr.email",
+        "usr.role",
+        "usr.session_id",
+        "usr.scope",
+    ]
+)
 
 
 class HTTPPropagator(object):
@@ -79,7 +89,7 @@ class HTTPPropagator(object):
         for key, value in span_context._meta.items():
             # DEV: encoding will fail if the key or value are not `str`
             key = ensure_str(key)
-            if key.startswith("_dd.p."):
+            if key.startswith("_dd.p.") or key in PROPAGATED_HEADERS:
                 tags_to_encode[key] = ensure_str(value)
 
         if tags_to_encode:
