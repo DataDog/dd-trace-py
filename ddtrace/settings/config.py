@@ -7,12 +7,12 @@ from typing import Tuple
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.logger import get_logger
-from ..internal.utils.deprecation import deprecated
 from ..internal.utils.deprecation import get_service_legacy
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import get_env
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
+from ..vendor.debtcollector.removals import remove
 from .http import HttpConfig
 from .integration import IntegrationConfig
 
@@ -244,9 +244,6 @@ class Config(object):
         integrations = ", ".join(self._config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
 
-    @deprecated(
-        message="HttpServerConfig will be removed",
-        version="1.0.0",
-    )
+    @remove(removal_version="1.0.0")
     class HTTPServerConfig(_HTTPServerConfig):
         pass

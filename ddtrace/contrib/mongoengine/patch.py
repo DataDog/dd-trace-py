@@ -1,6 +1,6 @@
 import mongoengine
 
-from ...internal.utils.deprecation import deprecated
+from ...vendor.debtcollector.removals import remove
 from .trace import WrappedConnect
 
 
@@ -16,6 +16,6 @@ def unpatch():
     setattr(mongoengine, "connect", _connect)
 
 
-@deprecated(message="Use patching instead (see the docs).", version="1.0.0")
+@remove(message="Use patching instead (see the docs).", removal_version="1.0.0")
 def trace_mongoengine(*args, **kwargs):
     return _connect

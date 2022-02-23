@@ -5,7 +5,6 @@ from pytest import warns
 
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.deprecation import RemovedInDDTrace10Warning
 from tests.utils import BaseTestCase
 
 
@@ -146,7 +145,7 @@ class DDLoggerTestCase(BaseTestCase):
         self.assertEqual(log.level, logging.DEBUG)
 
     def test_logger_deprecated_rate_limit(self):
-        with self.override_env(dict(DD_LOGGING_RATE_LIMIT="10")), warns(RemovedInDDTrace10Warning):
+        with self.override_env(dict(DD_LOGGING_RATE_LIMIT="10")), warns(DeprecationWarning):
             log = DDLogger("test.logger")
             self.assertEqual(log.rate_limit, 10)
 
