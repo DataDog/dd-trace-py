@@ -14,7 +14,6 @@ from ddtrace.internal.utils import time
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecation import deprecated
-from ddtrace.internal.utils.deprecation import deprecation
 from ddtrace.internal.utils.deprecation import format_message
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import get_env
@@ -86,15 +85,6 @@ class TestUtils(unittest.TestCase):
             "use something else instead"
         )
         self.assertEqual(msg, expected)
-
-    def test_deprecation(self):
-        # ensure `deprecation` properly raise a DeprecationWarning
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            deprecation(name="fn", message="message", version="1.0.0")
-            self.assertEqual(len(w), 1)
-            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertIn("message", str(w[-1].message))
 
     def test_deprecated_decorator(self):
         # ensure `deprecated` decorator properly raise a DeprecationWarning

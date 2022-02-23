@@ -1,10 +1,9 @@
-from ..internal.utils.deprecation import deprecation
 from ..internal.utils.http import normalize_header_name  # noqa
 from ..internal.utils.http import strip_query_string  # noqa
+from ..vendor.debtcollector.removals import removed_module
 
 
-deprecation(
-    name="ddtrace.utils.http",
-    message="This module will be removed in v1.0.",
-    version="1.0.0",
+removed_module(
+    module="ddtrace.utils.http",
+    removal_version="1.0.0",
 )

@@ -7,7 +7,7 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-from .deprecation import deprecation
+from ...vendor.debtcollector import deprecate
 
 
 T = TypeVar("T")
@@ -48,10 +48,10 @@ def get_env(*parts, **kwargs):
     legacy = os.getenv(legacy_env)
     if legacy:
         # Deprecation: `DATADOG_` variables are deprecated
-        deprecation(
-            name="DATADOG_",
+        deprecate(
+            "DATADOG_ is deprecated",
             message="Use `DD_` prefix instead",
-            version="1.0.0",
+            removal_version="1.0.0",
         )
 
     value = value or legacy

@@ -6,8 +6,8 @@ from typing import DefaultDict
 from typing import Tuple
 from typing import cast
 
-from ..internal.utils.deprecation import deprecation
 from ..internal.utils.formats import get_env
+from ..vendor.debtcollector import deprecate
 
 
 def get_logger(name):
@@ -113,10 +113,10 @@ class DDLogger(logging.Logger):
             # DEV: If not set, look at the deprecated (DD/DATADOG)_LOGGING_RATE_LIMIT
             rate_limit = get_env("logging", "rate_limit")
             if rate_limit is not None:
-                deprecation(
-                    name="DD_LOGGING_RATE_LIMIT",
+                deprecate(
+                    "DD_LOGGING_RATE_LIMIT is deprecated",
                     message="Use `DD_TRACE_LOGGING_RATE` instead",
-                    version="1.0.0",
+                    removal_version="1.0.0",
                 )
 
         if rate_limit is not None:

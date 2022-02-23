@@ -13,7 +13,7 @@ from ...ext import http
 from ...internal import compat
 from ...internal.logger import get_logger
 from ...internal.utils.cache import cached
-from ...internal.utils.deprecation import deprecated
+from ...vendor.debtcollector.removals import remove
 
 
 log = get_logger(__name__)
@@ -28,7 +28,7 @@ def _normalize_resource(resource):
 
 
 class TraceMiddleware(object):
-    @deprecated(message="Use patching instead (see the docs).", version="1.0.0")
+    @remove(message="Use patching instead (see the docs).", removal_version="1.0.0")
     def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=None):
         self.app = app
         log.debug("flask: initializing trace middleware")
