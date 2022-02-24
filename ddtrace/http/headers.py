@@ -6,7 +6,8 @@ from ddtrace.contrib.trace_utils import _normalized_header_name
 from ddtrace.contrib.trace_utils import _store_headers
 from ddtrace.contrib.trace_utils import _store_request_headers as store_request_headers
 from ddtrace.contrib.trace_utils import _store_response_headers as store_response_headers
-from ddtrace.internal.utils.deprecation import deprecation
+
+from ..vendor.debtcollector.removals import removed_module
 
 
 __all__ = (
@@ -20,8 +21,8 @@ __all__ = (
     "_normalize_tag_name",
 )
 
-deprecation(
-    name="ddtrace.http.headers",
-    message="The http.headers module has been merged into ddtrace.contrib.trace_utils",
-    version="1.0.0",
+removed_module(
+    module="ddtrace.http.headers",
+    replacement="ddtrace.contrib.trace_utils",
+    removal_version="1.0.0",
 )
