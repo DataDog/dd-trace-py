@@ -7,8 +7,7 @@ prelude: >
   The first commit to the library was made on June 20, 2016. Nearly sixty minor
   releases later, the library has grown immensely. The library now includes over
   60 integrations for libraries. Moreover, the library has expanded out from
-  tracing to support the Continuous Profiler, CI Visibility, and Application
-  Security.
+  tracing to support the Continuous Profiler, and CI Visibility.
 
 
   Our motivations for this major version release were:
