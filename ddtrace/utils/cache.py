@@ -6,11 +6,10 @@ from ..internal.utils.cache import T  # noqa
 from ..internal.utils.cache import cached  # noqa
 from ..internal.utils.cache import cachedmethod  # noqa
 from ..internal.utils.cache import miss  # noqa
-from ..internal.utils.deprecation import deprecation
+from ..vendor.debtcollector.removals import removed_module
 
 
-deprecation(
-    name="ddtrace.utils.cache",
-    message="This module will be removed in v1.0.",
-    version="1.0.0",
+removed_module(
+    module="ddtrace.utils.cache",
+    removal_version="1.0.0",
 )

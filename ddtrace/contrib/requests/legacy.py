@@ -2,7 +2,7 @@
 # that will be removed in newer versions of the Tracer.
 from ddtrace import config
 
-from ...internal.utils.deprecation import deprecation
+from ...vendor.debtcollector import deprecate
 
 
 def _distributed_tracing(self):
@@ -10,10 +10,10 @@ def _distributed_tracing(self):
     the configuration system. It will be removed in newer versions
     of the Tracer.
     """
-    deprecation(
-        name="client.distributed_tracing",
-        message="Use the configuration object instead `config.get_from(client)['distributed_tracing'`",
-        version="1.0.0",
+    deprecate(
+        "client.distributed_tracing is deprecated",
+        message="Use the configuration object instead `config.get_from(client)['distributed_tracing']`",
+        removal_version="1.0.0",
     )
     return config.get_from(self)["distributed_tracing"]
 
@@ -23,9 +23,9 @@ def _distributed_tracing_setter(self, value):
     the configuration system. It will be removed in newer versions
     of the Tracer.
     """
-    deprecation(
-        name="client.distributed_tracing",
-        message="Use the configuration object instead `config.get_from(client)['distributed_tracing'] = value`",
-        version="1.0.0",
+    deprecate(
+        "client.distributed_tracing is deprecated",
+        message="Use the configuration object instead `config.get_from(client)['distributed_tracing']` = value`",
+        removal_version="1.0.0",
     )
     config.get_from(self)["distributed_tracing"] = value

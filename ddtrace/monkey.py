@@ -14,11 +14,11 @@ from ._monkey import get_patched_modules  # noqa
 from ._monkey import patch  # noqa
 from ._monkey import patch_all  # noqa
 from ._monkey import patch_module  # noqa
-from .internal.utils.deprecation import deprecation
+from .vendor.debtcollector.removals import removed_module
 
 
-deprecation(
-    name="ddtrace.monkey",
+removed_module(
+    module="ddtrace.monkey",
     message="Import the patch and patch_all functions directly from the ddtrace module instead",
-    version="1.0.0",
+    removal_version="1.0.0",
 )
