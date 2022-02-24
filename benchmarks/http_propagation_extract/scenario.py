@@ -2,8 +2,8 @@ import json
 
 import bm
 
+from ddtrace.propagation import _utils as utils
 from ddtrace.propagation import http
-from ddtrace.propagation import utils
 
 
 class HTTPPropagationExtract(bm.Scenario):
