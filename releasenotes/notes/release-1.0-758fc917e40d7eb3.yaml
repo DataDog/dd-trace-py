@@ -23,6 +23,8 @@ prelude: >
 
     $ PYTHONWARNINGS="error::DeprecationWarning:ddtrace[.*]" python tests.py
     $ pytest -W="error::DeprecationWarning:ddtrace[.*]" tests.py
+    
+  Once all deprecation warnings are addressed you can safely upgrade to v1.0.0.
 
 
   .. csv-table:: Upgrade from 0.x
