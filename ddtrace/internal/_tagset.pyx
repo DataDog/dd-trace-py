@@ -152,7 +152,7 @@ cdef bint _value_is_valid(str value):
         return 0
 
     for c in value:
-        if not is_valid_key_char(ord(c)):
+        if not is_valid_value_char(ord(c)):
             return 0
     return 1
 
