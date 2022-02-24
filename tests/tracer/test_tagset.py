@@ -92,9 +92,16 @@ def test_decode_tagset_string_malformed(header):
         ({}, ""),
         # Single key/value
         ({"key": "value"}, "key=value"),
+        # Allow equals in values
+        ({"key": "value=with=equals"}, "key=value=with=equals"),
         # Multiple key/values
         # DEV: Use OrderedDict to ensure consistent iteration for encoding
         (OrderedDict([("a", "1"), ("b", "2"), ("c", "3")]), "a=1,b=2,c=3"),
+        # Realistic example
+        (
+            {"_dd.p.upstream_services": "Z3JwYy1jbGllbnQ=|1|0|1.0000"},
+            "_dd.p.upstream_services=Z3JwYy1jbGllbnQ=|1|0|1.0000",
+        ),
     ],
 )
 def test_encode_tagset_values(values, expected):
@@ -125,7 +132,6 @@ def test_encode_tagset_values_strip_spaces():
         {"key": "value,with,commas"},
         # disallow equals
         {"key=with=equals": "value"},
-        {"key": "value=with=equals"},
         # Empty key or value
         {"": "value"},
         {"key": ""},
