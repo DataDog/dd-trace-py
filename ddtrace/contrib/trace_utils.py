@@ -15,7 +15,7 @@ from typing import Tuple
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
-from ddtrace.gateway import Addresses
+from ddtrace.gateway import _Addresses
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -302,36 +302,36 @@ def set_http_meta(
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
 
-    if tracer is None:
+    if tracer is None or tracer._gateway is None:  # tracer has a gateway only when AppSec is enabled
         return
-    gateway = tracer.gateway
+    gateway = tracer._gateway
     if gateway.needed_address_count == 0:
         return
 
     data = {}
-    _add_if_needed(gateway, data, raw_uri, Addresses.SERVER_REQUEST_URI_RAW)
-    _add_if_needed(gateway, data, status_code, Addresses.SERVER_RESPONSE_STATUS, str)  # make sure it's a string
-    _add_if_needed(gateway, data, query_object, Addresses.SERVER_REQUEST_QUERY, format_query_object)
-    _add_if_needed(gateway, data, request_cookies, Addresses.SERVER_REQUEST_COOKIES)
-    _add_if_needed(gateway, data, request_headers, Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
-    req_cookies_key = Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value
+    _add_if_needed(gateway, data, raw_uri, _Addresses.SERVER_REQUEST_URI_RAW)
+    _add_if_needed(gateway, data, status_code, _Addresses.SERVER_RESPONSE_STATUS, str)  # make sure it's a string
+    _add_if_needed(gateway, data, query_object, _Addresses.SERVER_REQUEST_QUERY, format_query_object)
+    _add_if_needed(gateway, data, request_cookies, _Addresses.SERVER_REQUEST_COOKIES)
+    _add_if_needed(gateway, data, request_headers, _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
+    req_cookies_key = _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value
     if req_cookies_key in data:
         data[req_cookies_key] = _no_cookies(data[req_cookies_key])
 
     _add_if_needed(
-        gateway, data, response_headers, Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers
+        gateway, data, response_headers, _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers
     )
-    res_cookies_key = Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES.value
+    res_cookies_key = _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES.value
     if res_cookies_key in data:
         data[res_cookies_key] = _no_cookies(data[res_cookies_key])
 
-    _add_if_needed(gateway, data, request_body, Addresses.SERVER_REQUEST_BODY, format_request_body)
-    _add_if_needed(gateway, data, request_path_params, Addresses.SERVER_REQUEST_PATH_PARAMS, format_request_path_params)
+    _add_if_needed(gateway, data, request_body, _Addresses.SERVER_REQUEST_BODY, format_request_body)
+    _add_if_needed(gateway, data, request_path_params, _Addresses.SERVER_REQUEST_PATH_PARAMS, format_request_path_params)
 
     if len(data.keys()) == 0:
         return
 
-    store = tracer.current_context_store()
+    store = tracer._current_context_store()
     gateway.propagate(store, data)
 
 

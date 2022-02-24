@@ -48,7 +48,7 @@ _MetricDictType = Dict[_TagNameType, NumericType]
 log = get_logger(__name__)
 
 
-class RequestStore(object):
+class _RequestStore(object):
     """
     This class contains a request store:
     One instance is associated with a given incoming HTTP request
@@ -75,7 +75,7 @@ class Span(object):
         "_meta",
         "error",
         "_metrics",
-        "store",
+        "_store",
         "span_type",
         "start_ns",
         "duration_ns",
@@ -143,7 +143,7 @@ class Span(object):
         self._meta = {}  # type: _MetaDictType
         self.error = 0
         self._metrics = {}  # type: _MetricDictType
-        self.store = RequestStore()  # type: RequestStore
+        self._store = _RequestStore()  # type: _RequestStore
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int

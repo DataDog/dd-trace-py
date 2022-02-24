@@ -7,7 +7,7 @@ from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.gateway import Addresses
+from ddtrace.gateway import _Addresses
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -65,9 +65,9 @@ def test_valid_json(tracer):
 
 def test_headers_collection(tracer):
     tracer._initialize_span_processors(appsec_enabled=True)
-    gateway = tracer.gateway
+    gateway = tracer._gateway
     # request headers are always needed
-    assert gateway.is_needed(Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
+    assert gateway.is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
 
     class Config(object):
         def __init__(self):

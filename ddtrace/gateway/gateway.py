@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 
 @attr.s(eq=False)
-class Gateway(object):
+class _Gateway(object):
 
     _addresses_to_keep = attr.ib(type=set, factory=set)
 

@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from ddtrace.gateway import Gateway
+from ddtrace.gateway import _Gateway
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -31,7 +31,7 @@ def test_spans(tracer):
 
 @pytest.fixture
 def gateway():
-    return Gateway()
+    return _Gateway()
 
 
 @pytest.fixture
