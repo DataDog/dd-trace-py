@@ -86,6 +86,16 @@ class SpanTestCase(TracerTestCase):
         assert d["meta"] == dict(true="True", false="False")
         assert "metrics" not in d
 
+    def test_deprecated_set_meta(self):
+        s = Span(tracer=None, name="test.span")
+        s.set_meta("munir-1", "hi")
+        assert s.get_tag("munir-1") == "hi"
+
+    def test_deprecated_set_metas(self):
+        s = Span(tracer=None, name="test.span")
+        s.set_metas({"hi-1": "munir"})
+        assert s.get_tag("hi-1") == "munir"
+
     def test_set_tag_metric(self):
         s = Span(tracer=None, name="test.span")
 

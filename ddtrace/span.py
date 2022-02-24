@@ -41,6 +41,7 @@ from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
 from .vendor.debtcollector import deprecate
+from .vendor.debtcollector.removals import remove
 from .vendor.debtcollector.removals import removed_property
 
 
@@ -394,12 +395,12 @@ class Span(object):
     def meta(self, value):
         self._meta = value
 
-    @removed_property(message="Use Span.set_tag instead.", removal_version="1.0.0")
+    @remove(message="Use Span.set_tag instead.", removal_version="1.0.0")
     def set_meta(self, k, v):
         # type: (_TagNameType, NumericType) -> None
         self.set_tag(k, v)
 
-    @removed_property(message="Use Span.set_tags.", removal_version="1.0.0")
+    @remove(message="Use Span.set_tags.", removal_version="1.0.0")
     def set_metas(self, kvs):
         # type: (_MetaDictType) -> None
         self.set_tags(kvs)
