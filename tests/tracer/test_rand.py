@@ -230,9 +230,7 @@ def test_span_api_fork():
 
     if pid > 0:
         # parent
-        parent_ids_list = list(
-            chain.from_iterable((s.span_id, s.trace_id) for s in [Span(None, None) for _ in range(100)])
-        )
+        parent_ids_list = list(chain.from_iterable((s.span_id, s.trace_id) for s in [Span(None) for _ in range(100)]))
         parent_ids = set(parent_ids_list)
         assert len(parent_ids) == len(parent_ids_list), "Collisions found in parent process ids"
 
@@ -245,9 +243,7 @@ def test_span_api_fork():
     else:
         # child
         try:
-            child_ids = list(
-                chain.from_iterable((s.span_id, s.trace_id) for s in [Span(None, None) for _ in range(100)])
-            )
+            child_ids = list(chain.from_iterable((s.span_id, s.trace_id) for s in [Span(None) for _ in range(100)]))
             q.put(child_ids)
         finally:
             os._exit(0)

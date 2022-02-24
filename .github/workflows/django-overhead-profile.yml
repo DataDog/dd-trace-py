@@ -1,7 +1,10 @@
 name: django-overhead-profile
 on:
   push:
-    branches: [master]
+    branches:
+      - master
+      - 0.x
+      - 1.x
   pull_request:
 jobs:
   django-overhead-profile:

@@ -505,7 +505,6 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         """
         pin = Pin(
             service=__name__,
-            app="requests",
             _config={
                 "service_name": __name__,
                 "distributed_tracing": False,
@@ -530,7 +529,6 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         """
         pin = Pin(
             service=__name__,
-            app="requests",
             _config={
                 "service_name": __name__,
                 "distributed_tracing": False,

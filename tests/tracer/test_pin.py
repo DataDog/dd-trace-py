@@ -77,13 +77,11 @@ class PinTestCase(TestCase):
 
     def test_copy(self):
         # ensure a Pin is copied when using the clone methods
-        p1 = Pin(service="metrics", app="flask", tags={"key": "value"})
+        p1 = Pin(service="metrics", tags={"key": "value"})
         p2 = p1.clone(service="intake")
         # values are the same
         assert p1.service == "metrics"
         assert p2.service == "intake"
-        assert p1.app == "flask"
-        assert p2.app == "flask"
         # but it's a copy
         assert p1.tags is not p2.tags
         assert p1._config is not p2._config
@@ -104,14 +102,12 @@ class PinTestCase(TestCase):
         class A(object):
             pass
 
-        Pin(service="metrics", app="flask").onto(A)
+        Pin(service="metrics").onto(A)
         a = A()
-        Pin.override(a, app="django")
-        assert Pin.get_from(a).app == "django"
+        Pin.override(a)
         assert Pin.get_from(a).service == "metrics"
 
         b = A()
-        assert Pin.get_from(b).app == "flask"
         assert Pin.get_from(b).service == "metrics"
 
     def test_override_missing(self):

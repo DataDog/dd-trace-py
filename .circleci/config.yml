@@ -322,8 +322,8 @@ jobs:
       # Print tests/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage report --ignore-errors --omit=ddtrace/
-      # Print diff-cover report to stdout (compares against origin/master)
-      - run: diff-cover --compare-branch origin/master coverage.xml
+      # Print diff-cover report to stdout (compares against origin/1.x)
+      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
 
   build_base_venvs:
     executor: ddtrace_dev
@@ -751,10 +751,11 @@ jobs:
           pattern: '^requests_gevent_contrib-'
 
   sanic:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^sanic_contrib-'
+      - run_test:
+          pattern: "sanic"
+          snapshot: true
 
   snowflake:
     <<: *machine_executor

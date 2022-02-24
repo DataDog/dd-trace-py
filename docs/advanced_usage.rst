@@ -758,13 +758,13 @@ API
 ``patch_all``
 ^^^^^^^^^^^^^
 
-.. autofunction:: ddtrace.monkey.patch_all
+.. autofunction:: ddtrace.patch_all
 
 .. _patch:
 
 ``patch``
 ^^^^^^^^^
-.. autofunction:: ddtrace.monkey.patch
+.. autofunction:: ddtrace.patch
 
 .. toctree::
    :maxdepth: 2

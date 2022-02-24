@@ -243,7 +243,9 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             raise
         else:
             if resp.status == 404:
-                log.error("Datadog agent does not support tracer stats computation, disabling, please upgrade your agent")
+                log.error(
+                    "Datadog agent does not support tracer stats computation, disabling, please upgrade your agent"
+                )
                 self._enabled = False
                 return
             elif resp.status >= 400:

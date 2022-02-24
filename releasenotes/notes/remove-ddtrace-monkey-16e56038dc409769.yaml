@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The deprecated module ``ddtrace.monkey`` is removed. Use :ref:`ddtrace.patch <patch>` or :ref:`ddtrace.patch_all <patch_all>` instead.

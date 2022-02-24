@@ -1,9 +1,7 @@
 from functools import partial
-import os
 import sys
 import typing
 import unittest
-import warnings
 
 import mock
 import pytest
@@ -13,11 +11,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import time
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
-from ddtrace.internal.utils.deprecation import deprecated
-from ddtrace.internal.utils.deprecation import deprecation
-from ddtrace.internal.utils.deprecation import format_message
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.formats import get_env
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
@@ -35,79 +29,6 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(asbool(""))
         self.assertTrue(asbool(True))
         self.assertFalse(asbool(False))
-
-    def test_get_env(self):
-        # ensure `get_env` returns a default value if environment variables
-        # are not set
-        value = get_env("django", "distributed_tracing")
-        self.assertIsNone(value)
-        value = get_env("django", "distributed_tracing", default=False)
-        self.assertFalse(value)
-
-    def test_get_env_long(self):
-        os.environ["DD_SOME_VERY_LONG_TEST_KEY"] = "1"
-        value = get_env("some", "very", "long", "test", "key", default="2")
-        assert value == "1"
-
-    def test_get_env_found(self):
-        # ensure `get_env` returns a value if the environment variable is set
-        os.environ["DD_REQUESTS_DISTRIBUTED_TRACING"] = "1"
-        value = get_env("requests", "distributed_tracing")
-        self.assertEqual(value, "1")
-
-    def test_get_env_found_legacy(self):
-        # ensure `get_env` returns a value if legacy environment variables
-        # are used, raising a Deprecation warning
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            os.environ["DATADOG_REQUESTS_DISTRIBUTED_TRACING"] = "1"
-            value = get_env("requests", "distributed_tracing")
-            self.assertEqual(value, "1")
-            self.assertEqual(len(w), 1)
-            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertTrue("Use `DD_` prefix instead" in str(w[-1].message))
-
-    def test_get_env_key_priority(self):
-        # ensure `get_env` use `DD_` with highest priority
-        os.environ["DD_REQUESTS_DISTRIBUTED_TRACING"] = "highest"
-        os.environ["DATADOG_REQUESTS_DISTRIBUTED_TRACING"] = "lowest"
-        value = get_env("requests", "distributed_tracing")
-        self.assertEqual(value, "highest")
-
-    def test_deprecation_formatter(self):
-        # ensure the formatter returns the proper message
-        msg = format_message(
-            "deprecated_function",
-            "use something else instead",
-            "1.0.0",
-        )
-        expected = (
-            "'deprecated_function' is deprecated and will be remove in future versions (1.0.0). "
-            "use something else instead"
-        )
-        self.assertEqual(msg, expected)
-
-    def test_deprecation(self):
-        # ensure `deprecation` properly raise a DeprecationWarning
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            deprecation(name="fn", message="message", version="1.0.0")
-            self.assertEqual(len(w), 1)
-            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertIn("message", str(w[-1].message))
-
-    def test_deprecated_decorator(self):
-        # ensure `deprecated` decorator properly raise a DeprecationWarning
-        @deprecated("decorator", version="1.0.0")
-        def fxn():
-            pass
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            fxn()
-            self.assertEqual(len(w), 1)
-            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
-            self.assertIn("decorator", str(w[-1].message))
 
 
 _LOG_ERROR_MALFORMED_TAG = "Malformed tag in tag pair '%s' from tag string '%s'."

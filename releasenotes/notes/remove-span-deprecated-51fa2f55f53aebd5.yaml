@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    The deprecated property ``ddtrace.Span.meta`` is removed.
+  - |
+    The deprecated property ``ddtrace.Span.metrics`` is removed.
+  - |
+    The deprecated method ``ddtrace.Span.pprint`` is removed.

@@ -3,6 +3,7 @@ Trace queries to aws api done via botocore client
 """
 import base64
 import json
+import os
 import typing
 from typing import Any
 from typing import Dict
@@ -23,7 +24,6 @@ from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
-from ...internal.utils.formats import get_env
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
@@ -47,8 +47,8 @@ log = get_logger(__name__)
 config._add(
     "botocore",
     {
-        "distributed_tracing": asbool(get_env("botocore", "distributed_tracing", default=True)),
-        "invoke_with_legacy_context": asbool(get_env("botocore", "invoke_with_legacy_context", default=False)),
+        "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
+        "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
     },
 )
 
@@ -258,7 +258,7 @@ def patch():
     setattr(botocore.client, "_datadog_patch", True)
 
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call)
-    Pin(service="aws", app="aws").onto(botocore.client.BaseClient)
+    Pin(service="aws").onto(botocore.client.BaseClient)
 
 
 def unpatch():

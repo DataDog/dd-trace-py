@@ -8,7 +8,6 @@ import sys
 import ddtrace
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.formats import get_env
 
 
 if PY2:
@@ -74,7 +73,7 @@ def main():
     if args.profiling:
         os.environ["DD_PROFILING_ENABLED"] = "true"
 
-    debug_mode = args.debug or asbool(get_env("trace", "debug", default=False))
+    debug_mode = args.debug or asbool(os.getenv("DD_TRACE_DEBUG", default=False))
 
     if debug_mode:
         logging.basicConfig(level=logging.DEBUG)

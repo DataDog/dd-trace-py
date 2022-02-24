@@ -1,0 +1,51 @@
+[[
+  {
+    "name": "sanic.request",
+    "service": "sanic",
+    "resource": "GET /not_found",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "http.method": "GET",
+      "http.status_code": "404",
+      "http.url": "http://0.0.0.0:8000/not_found",
+      "runtime-id": "a5a11207957a4131a14f34f5c2aa3c57"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 90728
+    },
+    "duration": 561000,
+    "start": 1643465608921691000
+  }],
+[
+  {
+    "name": "sanic.request",
+    "service": "sanic",
+    "resource": "GET /internal_error",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 1,
+    "meta": {
+      "http.method": "GET",
+      "http.status_code": "500",
+      "http.url": "http://0.0.0.0:8000/internal_error",
+      "runtime-id": "a5a11207957a4131a14f34f5c2aa3c57"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 90728
+    },
+    "duration": 1043000,
+    "start": 1643465608933455000
+  }]]
