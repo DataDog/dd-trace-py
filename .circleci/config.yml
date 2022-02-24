@@ -390,7 +390,7 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
+            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
@@ -405,7 +405,7 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
+            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-latest'
 
   integration_testagent:
     <<: *machine_executor
@@ -422,7 +422,7 @@ jobs:
             DD_TRACE_AGENT_URL: http://localhost:9126
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
+            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
