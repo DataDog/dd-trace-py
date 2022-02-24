@@ -1,0 +1,82 @@
+---
+prelude: >
+  The Datadog APM Python team is happy to announce the release of v1.0.0 of
+  ddtrace.
+
+
+  The first commit to the library was made on June 20, 2016. Nearly sixty minor
+  releases later, the library has grown immensely. The library now includes over
+  60 integrations for libraries. Moreover, the library has expanded out from
+  tracing to support the Continuous Profiler, and CI Visibility.
+
+
+  Our motivations for this major version release were:
+
+    - Clarify and simplify the public API.
+    - Introduce a versioning policy.
+    - Provide users a painless upgrade path.
+
+
+  .. note::
+  Before upgrading to v1.0.0, we recommend running tests with `warning filters <https://docs.python.org/3.8/library/warnings.html#warning-filter>`_ set to turning warnings into exceptions. For example::
+
+    $ PYTHONWARNINGS="error::DeprecationWarning:ddtrace[.*]" python tests.py
+    $ pytest -W="error::DeprecationWarning:ddtrace[.*]" tests.py
+    
+  Once all deprecation warnings are addressed you can safely upgrade to v1.0.0.
+
+
+  .. csv-table:: Upgrade from 0.x
+   :widths: 30, 70
+   :header: "Note", "Affected"
+
+    :ref:`Removed <remove-datadog-envs>`,``DATADOG_*``
+    :ref:`Removed <remove-legacy-service-name-envs>`,``DATADOG_SERVICE_NAME``
+    ":ref:`Disabled <disable-basic-config-call-by-default>`, :ref:`Deprecated <deprecate-basic-config-call>`",``DD_CALL_BASIC_CONFIG``
+    :ref:`Removed <remove-logging-env>`,``DD_LOGGING_RATE_LIMIT``
+    :ref:`Removed <remove-legacy-service-name-envs>`,``DD_SERVICE_NAME``
+    :ref:`Removed <remove-partial-flush-enabled-env>`,``DD_TRACER_PARTIAL_FLUSH_ENABLED``
+    :ref:`Removed <remove-partial-flush-min-envs>`,``DD_TRACER_PARTIAL_FLUSH_MIN_SPANS``
+    :ref:`Removed <remove-tracer-debug-logging>`,``ddtrace.Tracer.debug_logging``
+    :ref:`Removed <remove-tracer-get-call-context>`,``ddtrace.Tracer.get_call_context``
+    :ref:`Removed <remove-tracer-tags>`,``ddtrace.Tracer.tags``
+    :ref:`Removed <remove-tracer-writer>`,``ddtrace.Tracer.writer``
+    :ref:`Removed <remove-tracer-call>`,``ddtrace.Tracer.__call__``
+    :ref:`Removed <remove-tracer-global-excepthook>`,``ddtrace.Tracer.global_excepthook``
+    :ref:`Removed <remove-tracer-log>`,``ddtrace.Tracer.log``
+    :ref:`Removed <remove-tracer-priority-sampler>`,``ddtrace.Tracer.priority_sampler``
+    :ref:`Removed <remove-tracer-sampler>`,``ddtrace.Tracer.sampler``
+    :ref:`Removed <remove-tracer-set-service-info>`,``ddtrace.Tracer.set_service_info``
+    :ref:`Removed <remove-span-tracer>`,``ddtrace.Span.tracer``
+    :ref:`Removed <remove-span-init-tracer>`,``ddtrace.Span.__init__(tracer=)``
+    :ref:`Removed <remove-span-meta>`,``ddtrace.Span.meta``
+    :ref:`Removed <remove-span-metrics>`,``ddtrace.Span.metrics``
+    :ref:`Removed <remove-span-set-meta>`,``ddtrace.Span.set_meta``
+    :ref:`Removed <remove-span-set-metas>`,``ddtrace.Span.set_metas``
+    :ref:`Removed <remove-span-pprint>`,``ddtrace.Span.pprint``
+    :ref:`Removed <remove-pin-app>`,``ddtrace.Pin.app``
+    :ref:`Removed <remove-pin-apptype>`,``ddtrace.Pin.app_type``
+    :ref:`Removed <remove-clone-context>`,``ddtrace.context.Context.clone``
+    :ref:`Removed <remove-ddtrace-compat>`,``ddtrace.compat``
+    :ref:`Removed <remove-contrib-util>`,``ddtrace.contrib.util``
+    :ref:`Removed <remove-ddtrace-encoding>`,``ddtrace.encoding``
+    :ref:`Removed <remove-span-types-enum>`,``ddtrace.ext.SpanTypes``
+    :ref:`Removed <remove-ext-errors>`,``ddtrace.ext.errors``
+    :ref:`Removed <remove-ext-priority>`,``ddtrace.ext.priority``
+    :ref:`Removed <remove-ext-system>`,``ddtrace.ext.system``
+    :ref:`Removed <remove-helpers>`,``ddtrace.helpers.get_correlation_ids``
+    :ref:`Removed <remove-http>`,``ddtrace.http``
+    :ref:`Removed <remove-ddtrace-monkey>`,``ddtrace.monkey``
+    :ref:`Removed <remove-ddtrace-propagation-utils>`,``ddtrace.propagation.utils``
+    :ref:`Removed <remove-default-sampler>`,``ddtrace.Sampler.default_sampler``
+    :ref:`Removed <remove-config-httpserver>`,``ddtrace.settings.Config.HTTPServerConfig``
+    :ref:`Removed <remove-ddtrace-util>`,``ddtrace.util``
+    :ref:`Removed <remove-ddtrace-utils>`,``ddtrace.utils``
+    :ref:`Removed <remove-cassandra-traced>`,``ddtrace.contrib.cassandra.get_traced_cassandra``
+    :ref:`Removed <remove-celery-patch-task>`,``ddtrace.contrib.celery.patch_task``
+    :ref:`Removed <remove-celery-unpatch-task>`,``ddtrace.contrib.celery.unpatch_task``
+    :ref:`Removed <remove-mongoengine-traced>`,``ddtrace.contrib.mongoengine.trace_mongoengine``
+    :ref:`Removed <remove-mysql-legacy>`,``ddtrace.contrib.mysql.get_traced_mysql_connection``
+    :ref:`Removed <remove-psycopg-legacy>`,``ddtrace.contrib.psycopg.connection_factory``
+    :ref:`Removed <remove-requests-legacy-distributed>`,``ddtrace.contrib.requests.legacy``
+    :ref:`Removed <remove-sqlite3-legacy>`,``ddtrace.contrib.sqlite3.connection_factory``

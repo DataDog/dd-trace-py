@@ -266,8 +266,7 @@ on the other side, the metadata is retrieved and the trace can continue.
 To propagate the tracing information, HTTP headers are used to transmit the
 required metadata to piece together the trace.
 
-.. autoclass:: ddtrace.propagation.http.HTTPPropagator
-    :members:
+See :py:class:`HTTPPropagator <ddtrace.propagation.http.HTTPPropagator>` for details.
 
 Custom
 ^^^^^^
@@ -720,51 +719,3 @@ There are different options to make that happen:
 
 - Use a `post_worker_init <https://docs.gunicorn.org/en/stable/settings.html#post-worker-init>`_
   hook to import ``ddtrace.bootstrap.sitecustomize``.
-
-API
----
-
-``Tracer``
-^^^^^^^^^^
-.. autoclass:: ddtrace.Tracer
-    :members:
-    :special-members: __init__
-
-
-``Span``
-^^^^^^^^
-.. autoclass:: ddtrace.Span
-    :members:
-    :special-members: __init__
-
-
-``Context``
-^^^^^^^^^^^
-.. autoclass:: ddtrace.context.Context
-    :members:
-    :special-members: __init__
-
-``Pin``
-^^^^^^^
-
-.. _Pin:
-
-.. autoclass:: ddtrace.Pin
-    :members:
-    :special-members: __init__
-
-.. _patch_all:
-
-``patch_all``
-^^^^^^^^^^^^^
-
-.. autofunction:: ddtrace.patch_all
-
-.. _patch:
-
-``patch``
-^^^^^^^^^
-.. autofunction:: ddtrace.patch
-
-.. toctree::
-   :maxdepth: 2
