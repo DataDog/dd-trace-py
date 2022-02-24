@@ -1,4 +1,9 @@
 ---
 upgrade:
-  - |
-    The deprecated module ``ddtrace.monkey`` is removed. Use :ref:`ddtrace.patch <patch>` or :ref:`ddtrace.patch_all <patch_all>` instead.
+  - ".. _remove-ddtrace-monkey:
+
+
+    The deprecated module ``ddtrace.monkey`` is removed. Use :py:func:`ddtrace.patch <ddtrace.patch>`
+    or :py:func:`ddtrace.patch_all <ddtrace.patch_all>` instead.
+
+    "
