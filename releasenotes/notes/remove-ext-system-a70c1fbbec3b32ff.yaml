@@ -1,4 +1,9 @@
 ---
 upgrade:
-  - |
-    The deprecated module ``ddtrace.ext.system`` is removed. Use ``ddtrace.constants.PID`` instead.
+  - ".. _remove-ext-system:
+
+
+    The deprecated module ``ddtrace.ext.system`` is removed. Use ``ddtrace.constants.PID``
+    instead.
+
+    "
