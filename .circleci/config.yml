@@ -347,7 +347,6 @@ jobs:
     steps:
       - run_test:
           pattern: 'gateway'
-          snapshot: true
 
   appsec:
     <<: *machine_executor
