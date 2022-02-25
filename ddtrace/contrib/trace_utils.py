@@ -326,7 +326,9 @@ def set_http_meta(
         data[res_cookies_key] = _no_cookies(data[res_cookies_key])
 
     _add_if_needed(gateway, data, request_body, _Addresses.SERVER_REQUEST_BODY, format_request_body)
-    _add_if_needed(gateway, data, request_path_params, _Addresses.SERVER_REQUEST_PATH_PARAMS, format_request_path_params)
+    _add_if_needed(
+        gateway, data, request_path_params, _Addresses.SERVER_REQUEST_PATH_PARAMS, format_request_path_params
+    )
 
     if len(data.keys()) == 0:
         return
