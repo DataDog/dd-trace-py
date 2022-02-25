@@ -363,6 +363,10 @@ class Tracer(object):
             pass
         if isinstance(self._writer, AgentWriter):
             self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
+
+        for proc in self._span_processors:
+            if hasattr(proc, "shutdown"):
+                proc.shutdown()
         self._initialize_span_processors()
 
         if context_provider is not None:
@@ -629,11 +633,11 @@ class Tracer(object):
                 partial_flush_enabled=self._partial_flush_enabled,
                 partial_flush_min_spans=self._partial_flush_min_spans,
                 trace_processors=trace_processors,
-                writer=self.writer,
+                writer=self._writer,
             )
         ]  # type: List[SpanProcessor]
         if self._compute_stats:
-            self._span_processors.append(SpanStatsProcessorV06(self.writer.agent_url))
+            self._span_processors.append(SpanStatsProcessorV06(self._writer.agent_url))
 
         if appsec_enabled:
             try:

@@ -20,6 +20,7 @@ from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
+from ..utils.formats import asbool
 from ..writer import _human_size
 
 
@@ -95,7 +96,7 @@ def _span_aggr_key(span):
     if _type and len(_type) > 100:
         _type = _type[:100]
 
-    status_code = span.meta.get("http.status_code", None)
+    status_code = span._meta.get("http.status_code", None)
     synthetics = span.context.dd_origin == "synthetics"
     return span.name, service, resource, _type, status_code, synthetics
 
@@ -105,10 +106,12 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
     RETRY_ATTEMPTS = 3
 
-    def __init__(self, agent_url, interval=None, timeout=1.0, reuse_connections=False):
-        # type: (str, Optional[float], float) -> None
+    def __init__(self, agent_url, interval=None, timeout=1.0, reuse_connections=None):
+        # type: (str, Optional[float], float, Optional[bool]) -> None
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+        if reuse_connections is None:
+            reuse_connections = asbool(os.getenv("_DD_TRACE_STATS_WRITER_REUSE_CONNECTIONS", False))
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self.start()
         self._agent_url = agent_url
@@ -237,7 +240,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
                 self._connection = get_connection(self._agent_url, self._timeout)
             self._connection.request("PUT", self._endpoint, payload, self._headers)
             resp = get_connection_response(self._connection)
-        except (httplib.HTTPException, OSError, IOError):
+        except Exception:
             log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
             self._reset_connection()
             raise
