@@ -10,6 +10,9 @@ Release Notes
 
    .. release-notes::
 
+.. release-notes::
+   :branch: 0.59
+   :earliest-version: v0.59.0
 
 .. release-notes::
    :branch: 0.58
