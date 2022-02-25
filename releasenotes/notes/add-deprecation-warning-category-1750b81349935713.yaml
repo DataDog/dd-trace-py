@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds new configuration for raising :py:class`ddtrace.warning.DDTraceDeprecationWarning` as an exception ``DD_TRACE_RAISE_V1DEPRECATIONWARNING``.

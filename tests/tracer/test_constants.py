@@ -2,6 +2,8 @@ import warnings
 
 import pytest
 
+from ddtrace.warnings import DDTraceDeprecationWarning
+
 
 def test_deprecated():
     import ddtrace
@@ -12,7 +14,7 @@ def test_deprecated():
         assert ddtrace.constants.FILTERS_KEY
 
         (w,) = ws
-        assert issubclass(w.category, DeprecationWarning)
+        assert issubclass(w.category, DDTraceDeprecationWarning)
         assert "ddtrace.constants.FILTERS_KEY is deprecated and will be removed in version '1.0.0'" == str(w.message)
 
     with warnings.catch_warnings(record=True) as ws:
@@ -21,7 +23,7 @@ def test_deprecated():
         assert ddtrace.constants.NUMERIC_TAGS
 
         (w,) = ws
-        assert issubclass(w.category, DeprecationWarning)
+        assert issubclass(w.category, DDTraceDeprecationWarning)
         assert "ddtrace.constants.NUMERIC_TAGS is deprecated and will be removed in version '1.0.0'" == str(w.message)
 
     with warnings.catch_warnings(record=True) as ws:
@@ -30,7 +32,7 @@ def test_deprecated():
         assert ddtrace.constants.LOG_SPAN_KEY
 
         (w,) = ws
-        assert issubclass(w.category, DeprecationWarning)
+        assert issubclass(w.category, DDTraceDeprecationWarning)
         assert "ddtrace.constants.LOG_SPAN_KEY is deprecated and will be removed in version '1.0.0'" == str(w.message)
 
 

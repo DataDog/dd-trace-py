@@ -8,6 +8,7 @@ import warnings
 import mock
 import pytest
 
+from ddtrace.warnings import DDTraceDeprecationWarning
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import time
@@ -63,7 +64,7 @@ class TestUtils(unittest.TestCase):
             value = get_env("requests", "distributed_tracing")
             self.assertEqual(value, "1")
             self.assertEqual(len(w), 1)
-            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
+            self.assertTrue(issubclass(w[-1].category, DDTraceDeprecationWarning))
             self.assertTrue("Use `DD_` prefix instead" in str(w[-1].message))
 
     def test_get_env_key_priority(self):

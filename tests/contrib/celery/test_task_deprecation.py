@@ -3,6 +3,7 @@ import warnings
 
 from celery import Celery
 
+from ddtrace.warnings import DDTraceDeprecationWarning
 from ddtrace.contrib.celery import patch_task
 from ddtrace.contrib.celery import unpatch
 from ddtrace.contrib.celery import unpatch_task
@@ -34,7 +35,7 @@ class CeleryDeprecatedTaskPatch(unittest.TestCase):
                 return 42
 
             assert len(w) == 1
-            assert issubclass(w[-1].category, DeprecationWarning)
+            assert issubclass(w[-1].category, DDTraceDeprecationWarning)
             assert "patch(celery=True)" in str(w[-1].message)
 
     def test_unpatch_signals_diconnect(self):
@@ -49,5 +50,5 @@ class CeleryDeprecatedTaskPatch(unittest.TestCase):
                 return 42
 
             assert len(w) == 1
-            assert issubclass(w[-1].category, DeprecationWarning)
+            assert issubclass(w[-1].category, DDTraceDeprecationWarning)
             assert "unpatch()" in str(w[-1].message)

@@ -1,5 +1,10 @@
+import os
+import warnings
+
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all
+from .warnings import DDTraceDeprecationWarning
+from .internal.utils.formats import asbool
 from .pin import Pin  # noqa: E402
 from .settings import _config as config  # noqa: E402
 from .span import Span  # noqa: E402
@@ -22,6 +27,10 @@ __all__ = [
     "Tracer",
     "config",
 ]
+
+
+if asbool(os.getenv("DD_TRACE_RAISE_V1DEPRECATIONWARNING")):
+    warnings.filterwarnings(action="error", category=DDTraceDeprecationWarning)
 
 
 @remove(removal_version="1.0.0")

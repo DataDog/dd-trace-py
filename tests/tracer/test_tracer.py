@@ -18,6 +18,7 @@ import pytest
 import six
 
 import ddtrace
+from ddtrace.warnings import DDTraceDeprecationWarning
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
@@ -535,7 +536,7 @@ def test_tracer_shutdown_no_timeout():
             pass
 
         (w,) = ws
-        assert issubclass(w.category, DeprecationWarning)
+        assert issubclass(w.category, DDTraceDeprecationWarning)
         assert (
             str(w.message)
             == "Tracing with a tracer that has been shut down is deprecated and will be removed in version '1.0.0': "
