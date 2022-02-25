@@ -1,7 +1,5 @@
 from enum import Enum
 
-from ddtrace.gateway.gateway import _Gateway
-
 
 class _Addresses(Enum):
     SERVER_REQUEST_BODY = "server.request.body"
