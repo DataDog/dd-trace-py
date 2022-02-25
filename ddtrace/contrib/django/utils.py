@@ -285,6 +285,7 @@ def _after_request_tags(pin, span, request, response):
             trace_utils.set_http_meta(
                 span,
                 config.django,
+                tracer=pin.tracer,
                 method=request.method,
                 url=url,
                 raw_uri=url + "?" + request.GET.urlencode(),

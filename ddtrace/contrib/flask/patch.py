@@ -258,7 +258,7 @@ def unpatch():
 # DEV: The downside to using `start_response` is we do not have a `Flask.Response` object here,
 #   only `status_code`, and `headers` to work with
 #   On the bright side, this works in all versions of Flask (or any WSGI app actually)
-def _wrap_start_response(func, span, request):
+def _wrap_start_response(func, span, request, pin):
     def traced_start_response(status_code, headers):
         code, _, _ = status_code.partition(" ")
         # If values are accessible, set the resource as `<method> <path>` and add other request tags
@@ -276,6 +276,7 @@ def _wrap_start_response(func, span, request):
         trace_utils.set_http_meta(
             span,
             config.flask,
+            tracer=pin.tracer,
             status_code=code,
             response_headers=headers,
             format_response_headers=dict,
@@ -322,13 +323,14 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
         span._set_str_tag(FLASK_VERSION, flask_version_str)
 
-        start_response = _wrap_start_response(start_response, span, request)
+        start_response = _wrap_start_response(start_response, span, request, pin)
 
         # DEV: We set response status code in `_wrap_start_response`
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
         trace_utils.set_http_meta(
             span,
             config.flask,
+            tracer=pin.tracer,
             method=request.method,
             url=request.base_url,
             raw_uri=request.url,
