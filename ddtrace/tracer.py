@@ -29,7 +29,7 @@ from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
-from .gateway import _Gateway
+from .gateway.gateway import _Gateway
 from .internal import agent
 from .internal import atexit
 from .internal import compat

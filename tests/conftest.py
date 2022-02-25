@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from ddtrace.gateway import _Gateway
+from ddtrace.gateway.gateway import _Gateway
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
