@@ -15,7 +15,7 @@ from typing import Tuple
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
-from ddtrace.gateway import _Addresses
+from ddtrace.internal.gateway import _Addresses
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name

@@ -10,14 +10,14 @@ from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.gateway import _Addresses
+from ddtrace.internal.gateway import _Addresses
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
 
 if TYPE_CHECKING:
     from ddtrace import Span
-    from ddtrace.gateway.gateway import _Gateway
+    from ddtrace.internal.gateway import _Gateway
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
