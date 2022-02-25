@@ -17,4 +17,4 @@ class _Addresses(Enum):
     # SERVER_RESPONSE_TRAILERS = "server.response.trailers"
 
 
-__all__ = ["_Addresses", "_Gateway"]
+__all__ = []
