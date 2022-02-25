@@ -17,6 +17,7 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.gateway import _Gateway
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -29,7 +30,6 @@ from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
 from .context import Context
-from ddtrace.internal.gateway import _Gateway
 from .internal import agent
 from .internal import atexit
 from .internal import compat
