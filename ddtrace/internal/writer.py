@@ -5,6 +5,7 @@ from json import loads
 import logging
 import os
 import sys
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -584,3 +585,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             self.periodic()
         finally:
             self._reset_connection()
+
+    def shutdown(self):
+        # type: () -> None
+        self.on_shutdown()

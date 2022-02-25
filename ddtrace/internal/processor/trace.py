@@ -64,7 +64,8 @@ class TraceSamplingProcessor(TraceProcessor):
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled:
-                if trace[0]._context.sampling_priority <= 0:
+                priority = trace[0]._context.sampling_priority if trace[0]._context is not None else None
+                if priority is not None and priority <= 0:
                     return None
 
             for span in trace:
@@ -209,3 +210,7 @@ class SpanAggregator(SpanProcessor):
 
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
+
+    def shutdown(self):
+        # type: () -> None
+        pass

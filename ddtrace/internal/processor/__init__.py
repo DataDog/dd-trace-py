@@ -51,3 +51,8 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
         applied afterwards.
         """
         pass
+
+    @abc.abstractmethod
+    def shutdown(self):
+        # type: () -> None
+        pass

@@ -134,15 +134,14 @@ class Tracer(object):
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._compute_stats
+        self._agent_url = agent.get_trace_url() if url is None else url  # type: str
+        agent.verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
             writer = LogWriter()  # type: TraceWriter
         else:
-            url = url or agent.get_trace_url()
-            agent.verify_url(url)
-
             writer = AgentWriter(
-                agent_url=url,
+                agent_url=self._agent_url,
                 sampler=self._sampler,
                 priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
@@ -155,7 +154,8 @@ class Tracer(object):
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
 
-        self._initialize_span_processors()
+        self._span_processors = []  # type: List[SpanProcessor]
+        self._initialize_span_processors(self._writer)
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
@@ -257,7 +257,7 @@ class Tracer(object):
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
         api_version=None,  # type: Optional[str]
-        compute_stats_enabled=None,  # type: Optional[bool],
+        compute_stats_enabled=None,  # type: Optional[bool]
     ):
         # type: (...) -> None
         """
@@ -308,15 +308,12 @@ class Tracer(object):
         if any(x is not None for x in [hostname, port, uds_path, https]):
             # If any of the parts of the URL have updated, merge them with
             # the previous writer values.
-            if isinstance(self._writer, AgentWriter):
-                prev_url_parsed = compat.parse.urlparse(self._writer.agent_url)
-            else:
-                prev_url_parsed = compat.parse.urlparse("")
+            prev_url_parsed = compat.parse.urlparse(self._agent_url)
 
             if uds_path is not None:
                 if hostname is None and prev_url_parsed.scheme == "unix":
                     hostname = prev_url_parsed.hostname
-                url = "unix://%s%s" % (hostname or "", uds_path)
+                new_url = "unix://%s%s" % (hostname or "", uds_path)
             else:
                 if https is None:
                     https = prev_url_parsed.scheme == "https"
@@ -325,14 +322,9 @@ class Tracer(object):
                 if port is None:
                     port = prev_url_parsed.port
                 scheme = "https" if https else "http"
-                url = "%s://%s:%s" % (scheme, hostname, port)
-        elif isinstance(self._writer, AgentWriter):
-            # Reuse the URL from the previous writer if there was one.
-            url = self._writer.agent_url
+                new_url = "%s://%s:%s" % (scheme, hostname, port)
         else:
-            # No URL parts have updated and there's no previous writer to
-            # get the URL from.
-            url = None
+            new_url = None
 
         if compute_stats_enabled is not None:
             self._compute_stats = compute_stats_enabled
@@ -345,11 +337,12 @@ class Tracer(object):
 
         if writer is not None:
             self._writer = writer
-        elif url:
+        elif new_url:
+            self._agent_url = new_url
             # Verify the URL and create a new AgentWriter with it.
-            agent.verify_url(url)
+            agent.verify_url(self._agent_url)
             self._writer = AgentWriter(
-                url,
+                self._agent_url,
                 sampler=self._sampler,
                 priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
@@ -364,10 +357,7 @@ class Tracer(object):
         if isinstance(self._writer, AgentWriter):
             self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
 
-        for proc in self._span_processors:
-            if hasattr(proc, "shutdown"):
-                proc.shutdown()
-        self._initialize_span_processors()
+        self._initialize_span_processors(self._writer)
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -402,7 +392,7 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
-        self._initialize_span_processors()
+        self._initialize_span_processors(self._writer)
 
         self._new_process = True
 
@@ -619,25 +609,27 @@ class Tracer(object):
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
 
-    def _initialize_span_processors(self, appsec_enabled=asbool(os.getenv("DD_APPSEC_ENABLED", default=False))):
-        # type: (Optional[bool]) -> None
+    def _initialize_span_processors(self, writer, appsec_enabled=asbool(os.getenv("DD_APPSEC_ENABLED", default=False))):
+        # type: (TraceWriter, Optional[bool]) -> None
+        # Shutdown the previous processors
+        for proc in self._span_processors:
+            proc.shutdown()
+        self._span_processors.clear()
+
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceSamplingProcessor(self._compute_stats)]
         trace_processors += [TraceTagsProcessor()]
-        if not self._compute_stats:
-            trace_processors += [TraceTopLevelSpanProcessor()]
+        trace_processors += [TraceTopLevelSpanProcessor()]
         trace_processors += self._filters
 
-        self._span_processors = [
+        self._span_processors.append(
             SpanAggregator(
                 partial_flush_enabled=self._partial_flush_enabled,
                 partial_flush_min_spans=self._partial_flush_min_spans,
                 trace_processors=trace_processors,
-                writer=self._writer,
+                writer=writer,
             )
-        ]  # type: List[SpanProcessor]
-        if self._compute_stats:
-            self._span_processors.append(SpanStatsProcessorV06(self._writer.agent_url))
+        )
 
         if appsec_enabled:
             try:
@@ -655,15 +647,9 @@ class Tracer(object):
                 )
                 if config._raise:
                     raise
-
-        self._span_processors.append(
-            SpanAggregator(
-                partial_flush_enabled=self._partial_flush_enabled,
-                partial_flush_min_spans=self._partial_flush_min_spans,
-                trace_processors=trace_processors,
-                writer=self._writer,
-            )
-        )
+        if self._compute_stats:
+            # SpanStatsProcessor depends on the top level tag set in the `TraceTopLevelSpanProcessor` above
+            self._span_processors.append(SpanStatsProcessorV06(self._agent_url))
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

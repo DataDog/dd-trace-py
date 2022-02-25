@@ -15,7 +15,6 @@ from .._encoding import packb
 from ..agent import get_connection
 from ..compat import get_connection_response
 from ..compat import httplib
-from ..compat import time_ns
 from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
@@ -29,6 +28,7 @@ if typing.TYPE_CHECKING:
     from typing import Dict
     from typing import List
     from typing import Optional
+    from typing import Union
 
     from ddtrace import Span
 
@@ -38,18 +38,10 @@ if typing.TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-def _is_top_level(span):
-    # type: (Span) -> bool
-    """Return whether the span is a "top level" span."""
-    return (span._local_root is span) or (
-        span._parent is not None and span._parent.service != span.service and span.service is not None
-    )
-
-
 def _is_measured(span):
     # type: (Span) -> bool
     """Return whether the span is flagged to be measured or not."""
-    return span.metrics.get(SPAN_MEASURED_KEY) == 1
+    return span._metrics.get(SPAN_MEASURED_KEY) == 1
 
 
 """
@@ -88,26 +80,19 @@ class SpanAggrStats(object):
 def _span_aggr_key(span):
     # type: (Span) -> SpanAggrKey
     """Return a hashable key that can be used to aggregate similar spans."""
-    service = span.service or "unnamed_service"
-    if len(service) > 100:
-        service = service[:100]
-    resource = span.resource or span.name
-    _type = span.span_type
-    if _type and len(_type) > 100:
-        _type = _type[:100]
-
-    status_code = span._meta.get("http.status_code", None)
+    service = span.service or ""
+    resource = span.resource or ""
+    _type = span.span_type or ""
+    status_code = span.get_tag("http.status_code") or 0
     synthetics = span.context.dd_origin == "synthetics"
-    return span.name, service, resource, _type, status_code, synthetics
+    return span.name, service, resource, _type, int(status_code), synthetics
 
 
 class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
     """SpanProcessor for computing, collecting and submitting span metrics to the Datadog Agent."""
 
-    RETRY_ATTEMPTS = 3
-
-    def __init__(self, agent_url, interval=None, timeout=1.0, reuse_connections=None):
-        # type: (str, Optional[float], float, Optional[bool]) -> None
+    def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3, reuse_connections=None):
+        # type: (str, Optional[float], float, int, Optional[bool]) -> None
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         if reuse_connections is None:
@@ -133,9 +118,9 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         self._reuse_connections = reuse_connections
         self._retry_request = tenacity.Retrying(
             wait=tenacity.wait_random_exponential(
-                multiplier=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2, exp_base=1.618
+                multiplier=0.618 * self.interval / (1.618 ** retry_attempts) / 2, exp_base=1.618
             ),
-            stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
+            stop=tenacity.stop_after_attempt(retry_attempts),
             retry=tenacity.retry_if_exception_type((httplib.HTTPException, OSError, IOError)),
         )
 
@@ -148,12 +133,13 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not self._enabled:
             return
 
-        is_top_level = _is_top_level(span)
+        is_top_level = span._metrics.get("_dd.top_level") == 1
         if not is_top_level and not _is_measured(span):
             return
 
         with self._lock:
             # Align the span into the corresponding stats bucket
+            assert span.duration_ns is not None
             span_end_ns = span.start_ns + span.duration_ns
             bucket_time_ns = span_end_ns - (span_end_ns % self._bucket_size_ns)
             aggr_key = _span_aggr_key(span)
@@ -174,28 +160,20 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         return "%s%s" % (self._agent_url, self._endpoint)
 
     def _serialize_buckets(self):
-        # type: () -> List
+        # type: () -> List[Dict]
         """Serialize and update the buckets.
 
         The current bucket is left in case any other spans are added.
         """
         serialized_buckets = []
         serialized_bucket_keys = []
-        now_ns = time_ns()
         for bucket_time_ns, bucket in self._buckets.items():
-            # TODO: have to be able to force these out on process shutdown
-            if bucket_time_ns > now_ns - self._bucket_size_ns:
-                # do not flush the current bucket
-                # DEV: is this actually required? Can a bucket not be reported twice?
-                #      What about spans `finished` with a custom end time (in the past)
-                #      after the bucket has been flushed?
-                continue
             bucket_aggr_stats = []
             serialized_bucket_keys.append(bucket_time_ns)
 
             for aggr_key, stat_aggr in bucket.items():
                 name, service, resource, _type, http_status, synthetics = aggr_key
-                bucket = {
+                serialized_bucket = {
                     "Name": name,
                     "Resource": resource,
                     "Synthetics": synthetics,
@@ -207,10 +185,10 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
                     "ErrorSummary": DDSketchProto.to_proto(stat_aggr.err_distribution).SerializeToString(),
                 }
                 if service:
-                    bucket["Service"] = service
+                    serialized_bucket["Service"] = service
                 if _type:
-                    bucket["Type"] = _type
-                bucket_aggr_stats.append(bucket)
+                    serialized_bucket["Type"] = _type
+                bucket_aggr_stats.append(serialized_bucket)
             serialized_buckets.append(
                 {
                     "Start": bucket_time_ns,
@@ -232,7 +210,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             self._connection = None
 
     def _flush_stats(self, payload):
-        # type: (bool) -> None
+        # type: (bytes) -> None
         try:
             if self._connection is None:
                 if self._reuse_connections:
@@ -270,10 +248,14 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         with self._lock:
             serialized_stats = self._serialize_buckets()
 
-        raw_payload = {"Stats": serialized_stats}
+        if not serialized_stats:
+            # No stats to report, short-circuit.
+            return
+        raw_payload = {"Stats": serialized_stats}  # type: Dict[str, Union[List[Dict], str]]
         hostname = get_hostname()
         if hostname:
-            raw_payload["Hostname"] = hostname
+            # raw_payload["Hostname"] = hostname
+            raw_payload["Hostname"] = ""
         if config.env:
             raw_payload["Env"] = config.env
         if config.version:
