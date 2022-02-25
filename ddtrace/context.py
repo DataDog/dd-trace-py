@@ -4,6 +4,8 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
 
+from ddtrace.internal.utils.deprecation import DDTraceDeprecationWarning
+
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .internal.compat import NumericType
@@ -107,7 +109,11 @@ class Context(object):
                 return
             self._meta[ORIGIN_KEY] = value
 
-    @remove(message="Cloning contexts will no longer be required in 0.50", removal_version="1.0.0")
+    @remove(
+        message="Cloning contexts will no longer be required in 0.50",
+        category=DDTraceDeprecationWarning,
+        removal_version="1.0.0",
+    )
     def clone(self):
         # type: () -> Context
         """

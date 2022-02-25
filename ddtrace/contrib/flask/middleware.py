@@ -6,6 +6,7 @@ import flask.templating
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 from .. import trace_utils
 from ...ext import SpanTypes
@@ -28,7 +29,7 @@ def _normalize_resource(resource):
 
 
 class TraceMiddleware(object):
-    @remove(message="Use patching instead (see the docs).", removal_version="1.0.0")
+    @remove(message="Use patching instead (see the docs).", category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def __init__(self, app, tracer, service="flask", use_signals=True, distributed_tracing=None):
         self.app = app
         log.debug("flask: initializing trace middleware")

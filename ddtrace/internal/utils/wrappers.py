@@ -5,6 +5,7 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import TypeVar
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor import wrapt
 
 from ...vendor.debtcollector.removals import remove
@@ -31,7 +32,7 @@ def unwrap(obj, attr):
     setattr(obj, attr, f.__wrapped__)
 
 
-@remove(message="`wrapt` library is used instead", removal_version="1.0.0")
+@remove(message="`wrapt` library is used instead", category=DDTraceDeprecationWarning, removal_version="1.0.0")
 def safe_patch(
     patchable,  # type: Any
     key,  # type: str

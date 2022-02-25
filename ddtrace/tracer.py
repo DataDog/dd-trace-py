@@ -17,6 +17,7 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -151,7 +152,10 @@ class Tracer(object):
         pfms_default_value = 500
         if "DD_TRACER_PARTIAL_FLUSH_ENABLED" in os.environ or "DD_TRACER_PARTIAL_FLUSH_MIN_SPANS" in os.environ:
             debtcollector.deprecate(
-                "DD_TRACER_... is deprecated", message="use DD_TRACE_... instead", removal_version="1.0.0"
+                "DD_TRACER_... is deprecated",
+                message="use DD_TRACE_... instead",
+                category=DDTraceDeprecationWarning,
+                removal_version="1.0.0",
             )
             pfe_default_value = asbool(get_env("tracer", "partial_flush_enabled", default=pfe_default_value))
             pfms_default_value = int(
@@ -205,7 +209,9 @@ class Tracer(object):
         self._hooks.deregister(self.__class__.start_span, func)
         return func
 
-    @removals.removed_property(message="Use ddtrace.tracer.log instead", removal_version="1.0.0")
+    @removals.removed_property(
+        message="Use ddtrace.tracer.log instead", category=DDTraceDeprecationWarning, removal_version="1.0.0"
+    )
     def log(self):
         # type: () -> logging.Logger
         return log
@@ -221,21 +227,24 @@ class Tracer(object):
         return log.isEnabledFor(logging.DEBUG)
 
     @debug_logging.setter  # type: ignore[misc]
-    @removals.remove(message="Use logging.setLevel instead", removal_version="1.0.0")
+    @removals.remove(
+        message="Use logging.setLevel instead", category=DDTraceDeprecationWarning, removal_version="1.0.0"
+    )
     def debug_logging(self, value):
         # type: (bool) -> None
         log.setLevel(logging.DEBUG if value else logging.WARN)
 
-    @removals.remove(removal_version="1.0.0")
+    @removals.remove(category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def __call__(self):
         return self
 
-    @removals.remove(removal_version="1.0.0")
+    @removals.remove(category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def global_excepthook(self, tp, value, traceback):
         """The global tracer except hook."""
 
     @removals.remove(
         message="Call context has been superseded by trace context. Please use current_trace_context() instead.",
+        category=DDTraceDeprecationWarning,
         removal_version="1.0.0",
     )
     def get_call_context(self, *args, **kwargs):
@@ -812,6 +821,7 @@ class Tracer(object):
 
     @debtcollector.removals.remove(
         message="Writing spans through a tracer is no longer supported",
+        category=DDTraceDeprecationWarning,
         removal_version="1.0.0",
     )
     def write(self, spans):
@@ -834,7 +844,7 @@ class Tracer(object):
         if spans is not None:
             self._writer.write(spans=spans)
 
-    @removals.removed_property(removal_version="1.0.0")
+    @removals.removed_property(category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def priority_sampler(self):
         # type: () -> Optional[BasePrioritySampler]
         return self._priority_sampler
@@ -854,7 +864,7 @@ class Tracer(object):
         # type: (BaseSampler) -> None
         self._sampler = val
 
-    @removals.removed_property(removal_version="1.0.0")
+    @removals.removed_property(category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def tags(self):
         # type: () -> dict[str, str]
         return self._tags
@@ -881,7 +891,11 @@ class Tracer(object):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
         self._writer.flush_queue()
 
-    @removals.remove(message="Manually setting service info is no longer necessary", removal_version="1.0.0")
+    @removals.remove(
+        message="Manually setting service info is no longer necessary",
+        category=DDTraceDeprecationWarning,
+        removal_version="1.0.0",
+    )
     def set_service_info(self, *args, **kwargs):
         """Set the information about the given service."""
         return
@@ -1007,6 +1021,7 @@ class Tracer(object):
             debtcollector.deprecate(
                 "Tracing with a tracer that has been shut down is deprecated",
                 message="A new tracer should be created for generating new traces.",
+                category=DDTraceDeprecationWarning,
                 removal_version="1.0.0",
             )
 

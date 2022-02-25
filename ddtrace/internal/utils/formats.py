@@ -7,6 +7,8 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+
 from ...vendor.debtcollector import deprecate
 
 
@@ -51,6 +53,7 @@ def get_env(*parts, **kwargs):
         deprecate(
             "DATADOG_ is deprecated",
             message="Use `DD_` prefix instead",
+            category=DDTraceDeprecationWarning,
             removal_version="1.0.0",
         )
 

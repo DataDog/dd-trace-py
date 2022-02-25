@@ -10,6 +10,7 @@ import warnings
 from ddtrace.vendor.debtcollector.removals import remove
 
 from ...vendor import debtcollector
+from .deprecations import DDTraceDeprecationWarning
 
 
 def format_message(name, message, version=None):
@@ -26,7 +27,9 @@ def format_message(name, message, version=None):
     )
 
 
-@remove(message="Use debtcollector.removals.remove instead.", removal_version="1.0.0")
+@remove(
+    message="Use debtcollector.removals.remove instead.", category=DDTraceDeprecationWarning, removal_version="1.0.0"
+)
 def deprecated(message="", version=None):
     # type: (str, Optional[str]) -> Callable[[Callable[..., Any]], Callable[..., Any]]
     """Decorator function to report a ``DeprecationWarning``. Bear
@@ -74,6 +77,7 @@ def get_service_legacy(default=None):
                 "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
                 "for the improvements being made for service names."
             ),
+            category=DDTraceDeprecationWarning,
             removal_version="1.0.0",
         )
         return os.getenv("DD_SERVICE_NAME")
@@ -85,6 +89,7 @@ def get_service_legacy(default=None):
                 "Refer to our release notes on Github: https://github.com/DataDog/dd-trace-py/releases/tag/v0.36.0 "
                 "for the improvements being made for service names."
             ),
+            category=DDTraceDeprecationWarning,
             removal_version="1.0.0",
         )
         return os.getenv("DATADOG_SERVICE_NAME")

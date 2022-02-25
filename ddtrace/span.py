@@ -13,6 +13,8 @@ from typing import Union
 
 import six
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+
 from . import config
 from .constants import ANALYTICS_SAMPLE_RATE_KEY
 from .constants import ERROR_MSG
@@ -155,6 +157,7 @@ class Span(object):
             deprecate(
                 "ddtrace.Span.tracer is deprecated",
                 message="Use Span(tracer=None, name, ...) instead.",
+                category=DDTraceDeprecationWarning,
                 removal_version="1.0.0",
             )
             self._tracer = tracer
@@ -175,7 +178,7 @@ class Span(object):
         else:
             self._ignored_exceptions.append(exc)
 
-    @removed_property(removal_version="1.0.0")
+    @removed_property(category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def tracer(self):
         # type: () -> Optional[Tracer]
         return self._tracer
@@ -386,6 +389,7 @@ class Span(object):
 
     @removed_property(
         message="Use Span.set_tag, Span.set_tags or Span.get_tag methods instead.",
+        category=DDTraceDeprecationWarning,
         removal_version="1.0.0",
     )
     def meta(self):
@@ -395,12 +399,12 @@ class Span(object):
     def meta(self, value):
         self._meta = value
 
-    @remove(message="Use Span.set_tag instead.", removal_version="1.0.0")
+    @remove(message="Use Span.set_tag instead.", category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def set_meta(self, k, v):
         # type: (_TagNameType, NumericType) -> None
         self.set_tag(k, v)
 
-    @remove(message="Use Span.set_tags.", removal_version="1.0.0")
+    @remove(message="Use Span.set_tags.", category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def set_metas(self, kvs):
         # type: (_MetaDictType) -> None
         self.set_tags(kvs)
@@ -440,6 +444,7 @@ class Span(object):
 
     @removed_property(
         message="Use Span.get_metric or Span.set_metric instead.",
+        category=DDTraceDeprecationWarning,
         removal_version="1.0.0",
     )
     def metrics(self):
@@ -543,7 +548,7 @@ class Span(object):
         self._remove_tag(ERROR_TYPE)
         self._remove_tag(ERROR_STACK)
 
-    @removed_property(removal_version="1.0.0")
+    @removed_property(category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def pprint(self):
         return self._pprint()
 

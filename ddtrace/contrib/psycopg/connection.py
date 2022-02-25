@@ -6,6 +6,8 @@ import functools
 from psycopg2.extensions import connection
 from psycopg2.extensions import cursor
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import db
@@ -14,7 +16,7 @@ from ...ext import sql
 from ...vendor.debtcollector.removals import remove
 
 
-@remove(message="Use patching instead (see the docs).", removal_version="1.0.0")
+@remove(message="Use patching instead (see the docs).", category=DDTraceDeprecationWarning, removal_version="1.0.0")
 def connection_factory(tracer, service="postgres"):
     """Return a connection factory class that will can be used to trace
     postgres queries.
