@@ -13,6 +13,3 @@ class _Addresses(Enum):
     SERVER_RESPONSE_STATUS = "server.response.status"
     SERVER_RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
     # SERVER_RESPONSE_TRAILERS = "server.response.trailers"
-
-
-__all__ = []

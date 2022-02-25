@@ -17,7 +17,7 @@ from ddtrace.internal.processor import SpanProcessor
 
 if TYPE_CHECKING:
     from ddtrace import Span
-    from ddtrace.gateway import _Gateway
+    from ddtrace.gateway.gateway import _Gateway
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")

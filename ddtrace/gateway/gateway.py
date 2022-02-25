@@ -4,7 +4,7 @@ import attr
 
 
 if TYPE_CHECKING:
-    from ddtrace.span import RequestStore
+    from ddtrace.span import _RequestStore
 
 
 @attr.s(eq=False)
@@ -29,7 +29,7 @@ class _Gateway(object):
         self._addresses_to_keep.add(address)
 
     def propagate(self, store, data):
-        # type: (RequestStore, dict) -> None
+        # type: (_RequestStore, dict) -> None
         for key in data.keys():
             if key in self._addresses_to_keep:
                 store.kept_addresses[key] = data[key]
