@@ -8,9 +8,11 @@ from typing import Callable
 from typing import Dict
 from typing import Generator
 from typing import Iterator
+from typing import Mapping
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
+from typing import Union
 
 from ddtrace import Pin
 from ddtrace import config
@@ -231,17 +233,18 @@ def ext_service(pin, int_config, default=None):
 
 
 def set_http_meta(
-    span,
-    integration_config,
-    method=None,
-    url=None,
-    status_code=None,
-    status_msg=None,
-    query=None,
-    request_headers=None,
-    response_headers=None,
-    retries_remain=None,
+    span,  # type: Span
+    integration_config,  # type: IntegrationConfig
+    method=None,  # type: Optional[str]
+    url=None,  # type: Optional[str]
+    status_code=None,  # type: Optional[Union[int, str]]
+    status_msg=None,  # type: Optional[str]
+    query=None,  # type: Optional[str]
+    request_headers=None,  # type: Optional[Mapping[str, str]]
+    response_headers=None,  # type: Optional[Mapping[str, str]]
+    retries_remain=None,  # type: Optional[Union[int, str]]
 ):
+    # type: (...) -> None
     if method is not None:
         span._set_str_tag(http.METHOD, method)
 
