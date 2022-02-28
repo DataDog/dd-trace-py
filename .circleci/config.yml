@@ -469,6 +469,7 @@ jobs:
 
   aiohttp:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: 'aiohttp'
