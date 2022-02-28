@@ -132,15 +132,14 @@ class Tracer(object):
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self._agent_url = agent.get_trace_url() if url is None else url
+        agent.verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
             writer = LogWriter()  # type: TraceWriter
         else:
-            url = url or agent.get_trace_url()
-            agent.verify_url(url)
-
             writer = AgentWriter(
-                agent_url=url,
+                agent_url=self._agent_url,
                 sampler=self._sampler,
                 priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
@@ -256,12 +255,9 @@ class Tracer(object):
         api_version=None,  # type: Optional[str]
     ):
         # type: (...) -> None
-        """
-        Configure an existing Tracer the easy way.
-        Allow to configure or reconfigure a Tracer instance.
+        """Configure a Tracer.
 
-        :param bool enabled: If True, finished traces will be submitted to the API.
-            Otherwise they'll be dropped.
+        :param bool enabled: If True, finished traces will be submitted to the API, else they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
         :param str uds_path: The Unix Domain Socket path of the agent.
@@ -304,15 +300,12 @@ class Tracer(object):
         if any(x is not None for x in [hostname, port, uds_path, https]):
             # If any of the parts of the URL have updated, merge them with
             # the previous writer values.
-            if isinstance(self._writer, AgentWriter):
-                prev_url_parsed = compat.parse.urlparse(self._writer.agent_url)
-            else:
-                prev_url_parsed = compat.parse.urlparse("")
+            prev_url_parsed = compat.parse.urlparse(self._agent_url)
 
             if uds_path is not None:
                 if hostname is None and prev_url_parsed.scheme == "unix":
                     hostname = prev_url_parsed.hostname
-                url = "unix://%s%s" % (hostname or "", uds_path)
+                new_url = "unix://%s%s" % (hostname or "", uds_path)
             else:
                 if https is None:
                     https = prev_url_parsed.scheme == "https"
@@ -321,28 +314,23 @@ class Tracer(object):
                 if port is None:
                     port = prev_url_parsed.port
                 scheme = "https" if https else "http"
-                url = "%s://%s:%s" % (scheme, hostname, port)
-        elif isinstance(self._writer, AgentWriter):
-            # Reuse the URL from the previous writer if there was one.
-            url = self._writer.agent_url
+                new_url = "%s://%s:%s" % (scheme, hostname, port)
+            agent.verify_url(new_url)
+            self._agent_url = new_url
         else:
-            # No URL parts have updated and there's no previous writer to
-            # get the URL from.
-            url = None
+            new_url = None
 
         try:
             self._writer.stop()
         except service.ServiceStatusError:
-            # It's possible the writer never got started in the first place :(
+            # It's possible the writer never got started
             pass
 
         if writer is not None:
             self._writer = writer
-        elif url:
-            # Verify the URL and create a new AgentWriter with it.
-            agent.verify_url(url)
+        elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url]):
             self._writer = AgentWriter(
-                url,
+                self._agent_url,
                 sampler=self._sampler,
                 priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
