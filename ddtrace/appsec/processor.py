@@ -90,7 +90,3 @@ class AppSecSpanProcessor(SpanProcessor):
             span._set_str_tag("appsec.event", "true")
             span._set_str_tag("_dd.appsec.json", '{"triggers":%s}' % (res,))
             span.set_tag(MANUAL_KEEP_KEY)
-
-    def shutdown(self):
-        # type: () -> None
-        pass

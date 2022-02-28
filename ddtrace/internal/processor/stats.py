@@ -38,6 +38,29 @@ if typing.TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+class _Obfuscator(object):
+    def __init__(self):
+        pass
+
+    def obfuscate_sql(resource):
+        # type: (str) -> str
+
+        return ""
+
+    def quantized_redis(resource):
+        # type: (str) -> str
+        pass
+
+
+def _obfuscate_resource(obfuscator, span_type, resource):
+    # type: (_Obfuscator, Optional[str], str) -> str
+    if span_type in ("sql", "cassandra"):
+        return obfuscator.obfuscate_sql(resource)
+    elif span_type == "redis":
+        return obfuscator.quantized_redis(resource)
+    return resource
+
+
 def _is_measured(span):
     # type: (Span) -> bool
     """Return whether the span is flagged to be measured or not."""

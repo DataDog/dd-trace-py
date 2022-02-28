@@ -260,12 +260,9 @@ class Tracer(object):
         compute_stats_enabled=None,  # type: Optional[bool]
     ):
         # type: (...) -> None
-        """
-        Configure an existing Tracer the easy way.
-        Allow to configure or reconfigure a Tracer instance.
+        """Configure a Tracer.
 
-        :param bool enabled: If True, finished traces will be submitted to the API.
-            Otherwise they'll be dropped.
+        :param bool enabled: If True, finished traces will be submitted to the API, else they'll be dropped.
         :param str hostname: Hostname running the Trace Agent
         :param int port: Port of the Trace Agent
         :param str uds_path: The Unix Domain Socket path of the agent.
@@ -323,6 +320,8 @@ class Tracer(object):
                     port = prev_url_parsed.port
                 scheme = "https" if https else "http"
                 new_url = "%s://%s:%s" % (scheme, hostname, port)
+            agent.verify_url(new_url)
+            self._agent_url = new_url
         else:
             new_url = None
 
@@ -332,15 +331,12 @@ class Tracer(object):
         try:
             self._writer.stop()
         except service.ServiceStatusError:
-            # It's possible the writer never got started in the first place :(
+            # It's possible the writer never got started
             pass
 
         if writer is not None:
             self._writer = writer
-        elif new_url:
-            self._agent_url = new_url
-            # Verify the URL and create a new AgentWriter with it.
-            agent.verify_url(self._agent_url)
+        elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url]):
             self._writer = AgentWriter(
                 self._agent_url,
                 sampler=self._sampler,
