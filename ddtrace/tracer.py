@@ -151,6 +151,7 @@ class Tracer(object):
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
 
+        self._span_processors = []  # type: List[SpanProcessor]
         self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -595,22 +596,37 @@ class Tracer(object):
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
 
+    def _add_span_processor(self, proc):
+        # type: (SpanProcessor) -> None
+        """Add span processor to the tracer.
+
+        Span processors are called in order of being added.
+        """
+        self._span_processors.append(proc)
+
+    def _reset_span_processors(self):
+        # type: () -> None
+        """Shutdown and clear all span processors."""
+        for sp in self._span_processors:
+            sp.shutdown()
+        del self._span_processors[:]
+
     def _initialize_span_processors(self, appsec_enabled=asbool(os.getenv("DD_APPSEC_ENABLED", default=False))):
         # type: (Optional[bool]) -> None
+        self._reset_span_processors()
+
         trace_processors = []  # type: List[TraceProcessor]
         trace_processors += [TraceTagsProcessor()]
         trace_processors += [TraceSamplingProcessor()]
         trace_processors += [TraceTopLevelSpanProcessor()]
         trace_processors += self._filters
 
-        self._span_processors = []  # type: List[SpanProcessor]
-
         if appsec_enabled:
             try:
                 from .appsec.processor import AppSecSpanProcessor
 
                 appsec_span_processor = AppSecSpanProcessor()
-                self._span_processors.append(appsec_span_processor)
+                self._add_span_processor(appsec_span_processor)
             except Exception as e:
                 # DDAS-001-01
                 log.error(
@@ -622,7 +638,7 @@ class Tracer(object):
                 if config._raise:
                     raise
 
-        self._span_processors.append(
+        self._add_span_processor(
             SpanAggregator(
                 partial_flush_enabled=self._partial_flush_enabled,
                 partial_flush_min_spans=self._partial_flush_min_spans,
@@ -907,6 +923,7 @@ class Tracer(object):
             pass
 
         with self._shutdown_lock:
+            self._reset_span_processors()
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
 
