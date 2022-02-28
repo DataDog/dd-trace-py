@@ -865,19 +865,20 @@ def test_tracer_set_runtime_tags():
     assert span.get_tag("runtime-id") == span2.get_tag("runtime-id")
 
 
+def _test_tracer_runtime_tags_fork_task(tracer, q):
+    span = tracer.start_span("foobaz")
+    q.put(span.get_tag("runtime-id"))
+    span.finish()
+
+
 def test_tracer_runtime_tags_fork():
     tracer = ddtrace.Tracer()
-
-    def task(tracer, q):
-        span = tracer.start_span("foobaz")
-        q.put(span.get_tag("runtime-id"))
-        span.finish()
 
     span = tracer.start_span("foobar")
     span.finish()
 
     q = multiprocessing.Queue()
-    p = multiprocessing.Process(target=task, args=(tracer, q))
+    p = multiprocessing.Process(target=_test_tracer_runtime_tags_fork_task, args=(tracer, q))
     p.start()
     p.join()
 
