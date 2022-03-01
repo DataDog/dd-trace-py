@@ -646,3 +646,17 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert span.name == "MySQLdb.connection.connect"
             assert span.span_type == "sql"
             assert span.error == 0
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_MYSQLDB_TRACE_CONNECT="true"))
+    def test_trace_connect_env_var_config(self):
+        self._connect_with_kwargs().close()
+
+        spans = self.tracer.pop()
+
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        assert_is_measured(span)
+        assert span.service == "mysql"
+        assert span.name == "MySQLdb.connection.connect"
+        assert span.span_type == "sql"
+        assert span.error == 0
