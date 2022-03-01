@@ -6,6 +6,8 @@ from typing import DefaultDict
 from typing import Tuple
 from typing import cast
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+
 from ..internal.utils.formats import get_env
 from ..vendor.debtcollector import deprecate
 
@@ -116,6 +118,7 @@ class DDLogger(logging.Logger):
                 deprecate(
                     "DD_LOGGING_RATE_LIMIT is deprecated",
                     message="Use `DD_TRACE_LOGGING_RATE` instead",
+                    category=DDTraceDeprecationWarning,
                     removal_version="1.0.0",
                 )
 

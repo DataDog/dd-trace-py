@@ -1,3 +1,5 @@
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+
 from ...vendor.debtcollector import deprecate
 from .app import patch_app
 
@@ -10,6 +12,7 @@ def patch_task(task, pin=None):
     deprecate(
         "ddtrace.contrib.celery.patch_task is deprecated",
         message="Use `patch(celery=True)` or `ddtrace-run` script instead",
+        category=DDTraceDeprecationWarning,
         removal_version="1.0.0",
     )
 
@@ -26,6 +29,7 @@ def unpatch_task(task):
     deprecate(
         "ddtrace.contrib.celery.patch_task is deprecated",
         message="Use `unpatch()` instead",
+        category=DDTraceDeprecationWarning,
         removal_version="1.0.0",
     )
     return task

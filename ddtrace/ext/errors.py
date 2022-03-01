@@ -7,6 +7,7 @@ import traceback
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 from ..vendor.debtcollector.removals import remove
 from ..vendor.debtcollector.removals import removed_module
@@ -18,6 +19,7 @@ removed_module(
     module="ddtrace.ext.errors",
     replacement="ddtrace.constants",
     message="ERROR_MSG, ERROR_TYPE, and ERROR_STACK.",
+    category=DDTraceDeprecationWarning,
     removal_version="1.0.0",
 )
 
@@ -27,7 +29,7 @@ TYPE = ERROR_TYPE
 STACK = ERROR_STACK
 
 
-@remove(removal_version="1.0.0")
+@remove(category=DDTraceDeprecationWarning, removal_version="1.0.0")
 def get_traceback(tb=None, error=None):
     t = None
     if error:

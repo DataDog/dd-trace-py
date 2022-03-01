@@ -6,6 +6,7 @@ import sys
 import cassandra.cluster
 
 from ddtrace import config
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
@@ -278,7 +279,7 @@ def _sanitize_query(span, query):
 #
 # DEPRECATED
 #
-@remove(message="Use patching instead (see the docs).", removal_version="1.0.0")
+@remove(message="Use patching instead (see the docs).", category=DDTraceDeprecationWarning, removal_version="1.0.0")
 def get_traced_cassandra(*args, **kwargs):
     return _get_traced_cluster(*args, **kwargs)
 

@@ -17,6 +17,7 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 from ..vendor.debtcollector.removals import removed_module
 
@@ -24,6 +25,7 @@ from ..vendor.debtcollector.removals import removed_module
 removed_module(
     module="ddtrace.ext.priority",
     replacement="ddtrace.constants",
+    category=DDTraceDeprecationWarning,
     removal_version="1.0.0",
 )
 

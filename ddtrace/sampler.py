@@ -13,6 +13,8 @@ from typing import Tuple
 
 import six
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
@@ -254,7 +256,7 @@ class DatadogSampler(RateByServiceSampler):
 
         log.debug("initialized %r", self)
 
-    @removed_property(removal_version="1.0.0")
+    @removed_property(category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def default_sampler(self):
         if self.rules:
             return self.rules[-1]

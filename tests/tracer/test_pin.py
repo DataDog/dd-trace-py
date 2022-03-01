@@ -4,6 +4,7 @@ import warnings
 import pytest
 
 from ddtrace import Pin
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 
 class PinTestCase(TestCase):
@@ -196,7 +197,7 @@ def test_pin_app_deprecation():
 
         p = Pin(app="foo")
         assert len(ws) == 1
-        assert issubclass(ws[0].category, DeprecationWarning)
+        assert issubclass(ws[0].category, DDTraceDeprecationWarning)
 
     with warnings.catch_warnings(record=True) as ws:
         warnings.simplefilter("always")
@@ -204,5 +205,5 @@ def test_pin_app_deprecation():
         p = Pin(app="foo")
         assert p.app
         assert len(ws) == 2
-        assert issubclass(ws[0].category, DeprecationWarning)
-        assert issubclass(ws[1].category, DeprecationWarning)
+        assert issubclass(ws[0].category, DDTraceDeprecationWarning)
+        assert issubclass(ws[1].category, DDTraceDeprecationWarning)

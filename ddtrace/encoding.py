@@ -1,3 +1,5 @@
+from ddtrace.internal.utils.deprecation import DDTraceDeprecationWarning
+
 from .internal.encoding import JSONEncoder
 from .internal.encoding import JSONEncoderV2
 from .internal.encoding import MsgpackEncoderV03 as MsgpackEncoder
@@ -17,5 +19,6 @@ __all__ = (
 
 removed_module(
     module="ddtrace.encoding",
+    category=DDTraceDeprecationWarning,
     removal_version="1.0.0",
 )
