@@ -1,0 +1,6 @@
+---
+prelude: >
+  In preparation for the upcoming v1.0.0 release, we recommend users enable deprecation warnings after having installed ``ddtrace>=0.59.0,<1.0.0``. See the :ref:`Upgrading and deprecation warnings` section for further details.
+features:
+  - |
+    Add environment variable ``DD_TRACE_RAISE_DEPRECATIONWARNING`` to raise library deprecation warnings as errors for those unable to configure warning filters otherwise.

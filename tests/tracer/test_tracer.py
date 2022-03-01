@@ -34,6 +34,7 @@ from ddtrace.context import Context
 from ddtrace.ext import priority
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
@@ -535,7 +536,7 @@ def test_tracer_shutdown_no_timeout():
             pass
 
         (w,) = ws
-        assert issubclass(w.category, DeprecationWarning)
+        assert issubclass(w.category, DDTraceDeprecationWarning)
         assert (
             str(w.message)
             == "Tracing with a tracer that has been shut down is deprecated and will be removed in version '1.0.0': "

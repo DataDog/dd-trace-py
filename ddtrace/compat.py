@@ -1,3 +1,5 @@
+from ddtrace.internal.utils.deprecation import DDTraceDeprecationWarning
+
 from .internal.compat import CONTEXTVARS_IS_AVAILABLE
 from .internal.compat import NumericType
 from .internal.compat import PY2
@@ -74,5 +76,6 @@ __all__ = [
 
 removed_module(
     module="ddtrace.compat",
+    category=DDTraceDeprecationWarning,
     removal_version="1.0.0",
 )

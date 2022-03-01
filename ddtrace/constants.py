@@ -1,4 +1,5 @@
 from ddtrace.internal.compat import ensure_pep562
+from ddtrace.internal.utils.deprecation import DDTraceDeprecationWarning
 from ddtrace.vendor import debtcollector
 
 
@@ -56,6 +57,7 @@ def __getattr__(name):
     if name in _DEPRECATED:
         debtcollector.deprecate(
             ("%s.%s is deprecated" % (__name__, name)),
+            category=DDTraceDeprecationWarning,
             removal_version="1.0.0",
         )
         return _DEPRECATED[name]

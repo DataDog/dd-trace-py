@@ -15,6 +15,7 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecation import deprecated
 from ddtrace.internal.utils.deprecation import format_message
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import get_env
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -63,7 +64,7 @@ class TestUtils(unittest.TestCase):
             value = get_env("requests", "distributed_tracing")
             self.assertEqual(value, "1")
             self.assertEqual(len(w), 1)
-            self.assertTrue(issubclass(w[-1].category, DeprecationWarning))
+            self.assertTrue(issubclass(w[-1].category, DDTraceDeprecationWarning))
             self.assertTrue("Use `DD_` prefix instead" in str(w[-1].message))
 
     def test_get_env_key_priority(self):

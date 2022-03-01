@@ -7,6 +7,8 @@ A library instrumentation can be configured (for instance, to report as another 
 using Pin. For that, check its documentation.
 """
 
+from ddtrace.internal.utils.deprecation import DDTraceDeprecationWarning
+
 from ._monkey import ModuleNotFoundException  # noqa
 from ._monkey import PATCH_MODULES  # noqa
 from ._monkey import PatchException  # noqa
@@ -20,5 +22,6 @@ from .vendor.debtcollector.removals import removed_module
 removed_module(
     module="ddtrace.monkey",
     message="Import the patch and patch_all functions directly from the ddtrace module instead",
+    category=DDTraceDeprecationWarning,
     removal_version="1.0.0",
 )

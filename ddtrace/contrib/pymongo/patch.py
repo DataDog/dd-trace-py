@@ -5,6 +5,7 @@ import pymongo
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib import trace_utils
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_MEASURED_KEY
@@ -40,7 +41,7 @@ def unpatch():
     setattr(pymongo, "MongoClient", _MongoClient)
 
 
-@remove(message="Use patching instead (see the docs).", removal_version="1.0.0")
+@remove(message="Use patching instead (see the docs).", category=DDTraceDeprecationWarning, removal_version="1.0.0")
 def trace_mongo_client(client, tracer, service=mongox.SERVICE):
     traced_client = TracedMongoClient(client)
     Pin(service=service, tracer=tracer).onto(traced_client)
