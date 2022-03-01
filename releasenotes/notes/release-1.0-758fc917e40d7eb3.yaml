@@ -18,12 +18,7 @@ prelude: >
 
 
   .. note::
-  Before upgrading to v1.0.0, we recommend installing ``ddtrace>=0.59.0,<1.0.0`` and running tests with `warning filters <https://docs.python.org/3.8/library/warnings.html#warning-filter>`_ set to raise ``ddtrace.warnings.DDTraceV1DeprecationWarning`` as errors or set the environment variable ``DD_TRACE_RAISE_DEPRECATIONWARNING``. For example::
-
-    $ DD_TRACE_RAISE_DEPRECATIONWARNING=1 python tests.py
-    $ pytest -W "error::ddtrace.warnings.DDTraceDeprecationWarning" tests.py
-    
-  Once all deprecation warnings are addressed you can safely upgrade to v1.0.0.
+    Before upgrading to v1.0.0, we recommend users enable deprecation warnings after having installed ``ddtrace>=0.59.0,<1.0.0``. See the upgrading and deprecation warnings section on the the :ref:`0.x Release Line <upgrade-0.x>` for further details.
 
 
   .. csv-table:: Upgrade from 0.x
