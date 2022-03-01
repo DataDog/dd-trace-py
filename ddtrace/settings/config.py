@@ -5,6 +5,7 @@ from typing import Optional
 from typing import Tuple
 
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 from ..internal.logger import get_logger
 from ..internal.utils.deprecation import get_service_legacy
@@ -244,6 +245,6 @@ class Config(object):
         integrations = ", ".join(self._config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
 
-    @remove(removal_version="1.0.0")
+    @remove(category=DDTraceDeprecationWarning, removal_version="1.0.0")
     class HTTPServerConfig(_HTTPServerConfig):
         pass

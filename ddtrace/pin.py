@@ -4,6 +4,7 @@ from typing import Optional
 from typing import TYPE_CHECKING
 
 import ddtrace
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor import debtcollector
 
 from .internal.logger import get_logger
@@ -37,8 +38,8 @@ class Pin(object):
 
     __slots__ = ["_app", "tags", "tracer", "_target", "_config", "_initialized"]
 
-    @debtcollector.removals.removed_kwarg("app", removal_version="1.0.0")
-    @debtcollector.removals.removed_kwarg("app_type", removal_version="1.0.0")
+    @debtcollector.removals.removed_kwarg("app", category=DDTraceDeprecationWarning, removal_version="1.0.0")
+    @debtcollector.removals.removed_kwarg("app_type", category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def __init__(
         self,
         service=None,  # type: Optional[str]
@@ -69,7 +70,7 @@ class Pin(object):
         """
         return self._config["service_name"]
 
-    @debtcollector.removals.removed_property(removal_version="1.0.0")
+    @debtcollector.removals.removed_property(category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def app(self):
         return self._app
 
@@ -128,8 +129,8 @@ class Pin(object):
         return pin
 
     @classmethod
-    @debtcollector.removals.removed_kwarg("app", removal_version="1.0.0")
-    @debtcollector.removals.removed_kwarg("app_type", removal_version="1.0.0")
+    @debtcollector.removals.removed_kwarg("app", category=DDTraceDeprecationWarning, removal_version="1.0.0")
+    @debtcollector.removals.removed_kwarg("app_type", category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def override(
         cls,
         obj,  # type: Any
@@ -193,8 +194,8 @@ class Pin(object):
         except AttributeError:
             log.debug("can't remove pin from object. skipping", exc_info=True)
 
-    @debtcollector.removals.removed_kwarg("app", removal_version="1.0.0")
-    @debtcollector.removals.removed_kwarg("app_type", removal_version="1.0.0")
+    @debtcollector.removals.removed_kwarg("app", category=DDTraceDeprecationWarning, removal_version="1.0.0")
+    @debtcollector.removals.removed_kwarg("app_type", category=DDTraceDeprecationWarning, removal_version="1.0.0")
     def clone(
         self,
         service=None,  # type: Optional[str]

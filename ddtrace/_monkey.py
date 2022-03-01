@@ -6,6 +6,7 @@ from typing import Any
 from typing import Callable
 from typing import List
 
+from ddtrace.internal.utils.deprecation import DDTraceDeprecationWarning
 from ddtrace.vendor.wrapt.importer import when_imported
 
 from .internal.logger import get_logger
@@ -202,7 +203,7 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-@remove(removal_version="1.0.0")
+@remove(category=DDTraceDeprecationWarning, removal_version="1.0.0")
 def patch_module(module, raise_errors=True):
     # type: (str, bool) -> bool
     return _patch_module(module, raise_errors=raise_errors)
@@ -227,7 +228,7 @@ def _patch_module(module, raise_errors=True):
         return False
 
 
-@remove(removal_version="1.0.0")
+@remove(category=DDTraceDeprecationWarning, removal_version="1.0.0")
 def get_patched_modules():
     # type: () -> List[str]
     return _get_patched_modules()
