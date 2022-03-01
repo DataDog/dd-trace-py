@@ -298,7 +298,7 @@ async def test_pin_not_activated(servicer, tracer):
     "servicer",
     [_SyncHelloServicer, _HelloServicer],
 )
-async def test_pin_tags_put_in_span(patch_grpc_aio, servicer, tracer):
+async def test_pin_tags_put_in_span(servicer, tracer):
     Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, service="server1")
     Pin.override(constants.GRPC_AIO_PIN_MODULE_SERVER, tags={"tag1": "server"})
     target = f"localhost:{_GRPC_PORT}"
