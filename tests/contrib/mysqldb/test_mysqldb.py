@@ -498,6 +498,16 @@ class MySQLCore(object):
 class TestMysqlPatch(MySQLCore, TracerTestCase):
     """Ensures MysqlDB is properly patched"""
 
+    def setUp(self):
+        super().setUp()
+        self._old_mysqldb_pin = Pin.get_from(MySQLdb)
+        assert self._old_mysqldb_pin
+        self._add_dummy_tracer_to_pinned(MySQLdb)
+
+    def tearDown(self):
+        super().tearDown()
+        self._old_mysqldb_pin.onto(MySQLdb)
+
     def _connect_with_kwargs(self):
         return MySQLdb.Connect(
             **{
@@ -619,8 +629,6 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
         assert spans[0].service == "mysvc"
 
     def test_trace_connect(self):
-        self._add_dummy_tracer_to_pinned(MySQLdb)
-
         # No span when trace_connect is False (the default)
         self._connect_with_kwargs().close()
         spans = self.tracer.pop()
