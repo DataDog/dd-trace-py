@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING
 from typing import Union
 
 import ddtrace
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import LogWriter
 from ddtrace.sampler import DatadogSampler
+from ddtrace.writer import AgentWriter
+from ddtrace.writer import LogWriter
 
 from .logger import get_logger
 

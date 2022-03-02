@@ -12,7 +12,7 @@ import ddtrace
 from ddtrace import Tracer
 from ddtrace.internal import agent
 from ddtrace.internal.runtime import container
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.writer import AgentWriter
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr

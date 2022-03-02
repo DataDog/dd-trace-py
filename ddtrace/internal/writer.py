@@ -161,10 +161,14 @@ class Response(object):
         )
 
 
-class TraceWriter(six.with_metaclass(abc.ABCMeta)):
+class BaseWriter(six.with_metaclass(abc.ABCMeta)):
+    """
+    Base abstract class that all trace writers must inherit from.
+    """
+
     @abc.abstractmethod
     def recreate(self):
-        # type: () -> TraceWriter
+        # type: () -> BaseWriter
         pass
 
     @abc.abstractmethod
@@ -183,7 +187,7 @@ class TraceWriter(six.with_metaclass(abc.ABCMeta)):
         pass
 
 
-class NoopTraceWriter(TraceWriter):
+class NoopWriter(BaseWriter):
     """
     Trace writer which will drop any :class:`ddtrace.Span` written to it.
 
@@ -203,7 +207,7 @@ class NoopTraceWriter(TraceWriter):
     """
 
     def recreate(self):
-        # type: () -> TraceWriter
+        # type: () -> BaseWriter
         return self
 
     def stop(self, timeout=None):
@@ -219,7 +223,14 @@ class NoopTraceWriter(TraceWriter):
         pass
 
 
-class LogWriter(TraceWriter):
+class LogWriter(BaseWriter):
+    """
+    Trace writer which writes all :class:`ddtrace.Span` written to stdout as JSON.
+
+    This writer is used in environments where running a Datadog agent is not possible,
+    like AWS Lambda.
+    """
+
     def __init__(
         self,
         out=sys.stdout,  # type: TextIO
@@ -260,8 +271,10 @@ class LogWriter(TraceWriter):
         pass
 
 
-class AgentWriter(periodic.PeriodicService, TraceWriter):
-    """Writer to the Datadog Agent.
+class AgentWriter(periodic.PeriodicService, BaseWriter):
+    """Writer used to send all :class:`ddtrace.Span` written to a Datadog agent.
+
+    This is the default trace writer used.
 
     The Datadog Agent supports (at the time of writing this) receiving trace
     payloads up to 50MB. A trace payload is just a list of traces and the agent

@@ -48,8 +48,8 @@ from .internal.processor.trace import TraceTopLevelSpanProcessor
 from .internal.runtime import get_runtime_id
 from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
+from .internal.writer import BaseWriter
 from .internal.writer import LogWriter
-from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
 from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
@@ -136,7 +136,7 @@ class Tracer(object):
         agent.verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
-            writer = LogWriter()  # type: TraceWriter
+            writer = LogWriter()  # type: BaseWriter
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
@@ -146,7 +146,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
             )
-        self._writer = writer  # type: TraceWriter
+        self._writer = writer  # type: BaseWriter
 
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
@@ -249,7 +249,7 @@ class Tracer(object):
         priority_sampling=None,  # type: Optional[bool]
         settings=None,  # type: Optional[Dict[str, Any]]
         dogstatsd_url=None,  # type: Optional[str]
-        writer=None,  # type: Optional[TraceWriter]
+        writer=None,  # type: Optional[BaseWriter]
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
         api_version=None,  # type: Optional[str]

@@ -33,12 +33,12 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
 from ddtrace.tracer import Tracer
 from ddtrace.tracer import _has_aws_lambda_agent_extension
 from ddtrace.tracer import _in_aws_lambda
+from ddtrace.writer import AgentWriter
+from ddtrace.writer import LogWriter
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config

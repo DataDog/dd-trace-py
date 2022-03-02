@@ -16,8 +16,8 @@ from ddtrace import Span
 from ddtrace.internal import debug
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
-from ddtrace.internal.writer import TraceWriter
 import ddtrace.sampler
+from ddtrace.writer import BaseWriter
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 
@@ -329,9 +329,9 @@ def test_agentless(monkeypatch):
 def test_custom_writer():
     tracer = ddtrace.Tracer()
 
-    class CustomWriter(TraceWriter):
+    class CustomWriter(BaseWriter):
         def recreate(self):
-            # type: () -> TraceWriter
+            # type: () -> BaseWriter
             return self
 
         def stop(self, timeout=None):

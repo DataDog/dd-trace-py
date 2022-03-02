@@ -17,12 +17,12 @@ from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import httplib
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.uds import UDSHTTPConnection
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import LogWriter
-from ddtrace.internal.writer import NoopTraceWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
 from ddtrace.span import Span
+from ddtrace.writer import AgentWriter
+from ddtrace.writer import LogWriter
+from ddtrace.writer import NoopWriter
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
 from tests.utils import override_env
@@ -588,7 +588,7 @@ def test_writer_reuse_connections_false():
 # allow_net_connect=False, if any network connections are made an exception is raised
 @httpretty.activate(allow_net_connect=False)
 def test_noop_trace_writer():
-    writer = NoopTraceWriter()
+    writer = NoopWriter()
 
     # Writing spans does nothing
     for i in range(10):

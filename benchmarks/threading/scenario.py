@@ -7,27 +7,9 @@ from typing import Optional
 
 import bm
 
-from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
 from ddtrace.tracer import Tracer
-
-
-class NoopWriter(TraceWriter):
-    def recreate(self):
-        # type: () -> TraceWriter
-        return NoopWriter()
-
-    def stop(self, timeout=None):
-        # type: (Optional[float]) -> None
-        pass
-
-    def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
-        pass
-
-    def flush_queue(self):
-        # type: () -> None
-        pass
+from ddtrace.writer import NoopWriter
 
 
 @bm.register

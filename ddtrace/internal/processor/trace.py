@@ -11,8 +11,8 @@ import six
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
-from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
+from ddtrace.writer import BaseWriter
 
 
 log = get_logger(__name__)
@@ -141,7 +141,7 @@ class SpanAggregator(SpanProcessor):
     _partial_flush_enabled = attr.ib(type=bool)
     _partial_flush_min_spans = attr.ib(type=int)
     _trace_processors = attr.ib(type=Iterable[TraceProcessor])
-    _writer = attr.ib(type=TraceWriter)
+    _writer = attr.ib(type=BaseWriter)
     _traces = attr.ib(
         factory=lambda: defaultdict(lambda: SpanAggregator._Trace()),
         init=False,
