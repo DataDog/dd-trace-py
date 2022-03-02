@@ -468,10 +468,11 @@ jobs:
           pattern: '^pylons_contrib-'
 
   aiohttp:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'aiohttp'
+          snapshot: true
 
   asgi:
     <<: *contrib_job_small
