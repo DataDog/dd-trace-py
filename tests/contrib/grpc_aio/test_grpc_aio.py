@@ -527,10 +527,12 @@ async def test_server_streaming(servicer, tracer):
     _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
 
 
+# NOTE: Excluded a test with _SyncHelloServicer because it often makes the client hang up.
+# See https://github.com/grpc/grpc/issues/28989.
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "servicer",
-    [_HelloServicer, _SyncHelloServicer],
+    [_HelloServicer],
     indirect=True,
 )
 async def test_server_streaming_exception(servicer, tracer):
@@ -552,17 +554,16 @@ async def test_server_streaming_exception(servicer, tracer):
     assert client_span.get_tag(ERROR_STACK) is None
 
     assert server_span.resource == "/helloworld.Hello/SayHelloTwice"
-    if servicer.abort_supported:
-        assert server_span.error == 1
-        # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
-        if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
-            assert server_span.get_tag(ERROR_MSG) == "abort_details"
-            assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-        else:
-            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
-            assert "AbortError" in server_span.get_tag(ERROR_TYPE)
-        assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
-        assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
+    assert server_span.error == 1
+    # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
+    if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
+        assert server_span.get_tag(ERROR_MSG) == "abort_details"
+        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+    else:
+        assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
+        assert "AbortError" in server_span.get_tag(ERROR_TYPE)
+    assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
+    assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
 
 @pytest.mark.asyncio
@@ -585,10 +586,12 @@ async def test_server_streaming_cancelled_before_rpc(servicer, tracer):
     assert len(spans) == 0
 
 
+# NOTE: Excluded a test with _SyncHelloServicer because it often makes the server termination hang up.
+# See https://github.com/grpc/grpc/issues/28999.
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "servicer",
-    [_HelloServicer, _SyncHelloServicer],
+    [_HelloServicer],
     indirect=True,
 )
 async def test_server_streaming_cancelled_during_rpc(servicer, tracer):
@@ -835,10 +838,12 @@ async def test_bidi_streaming_cancelled_before_rpc(servicer, tracer):
     assert len(spans) == 0
 
 
+# NOTE: Excluded a test with _SyncHelloServicer because it often makes the server termination hang up.
+# See https://github.com/grpc/grpc/issues/28999.
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "servicer",
-    [_HelloServicer, _SyncHelloServicer],
+    [_HelloServicer],
     indirect=True,
 )
 async def test_bidi_streaming_cancelled_during_rpc(servicer, tracer):
@@ -861,11 +866,10 @@ async def test_bidi_streaming_cancelled_during_rpc(servicer, tracer):
     client_span, server_span = spans
 
     assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
-    if servicer.abort_supported:
-        assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
-        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
-        assert client_span.get_tag(ERROR_STACK) is None
+    assert client_span.error == 1
+    assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
+    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
+    assert client_span.get_tag(ERROR_STACK) is None
 
     # NOTE: The server-side RPC throws `concurrent.futures._base.CancelledError`
     # in old versions of Python, but it's not always so. Thus not checked.
