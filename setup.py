@@ -228,6 +228,10 @@ setup(
         "tenacity>=5",
         "attrs>=19.2.0",
         "six>=1.12.0",
+        "dead-bytecode; python_version<'3.0'",
+        "bytecode==0.12.0; python_version=='3.5'",
+        "bytecode~=0.13.0; python_version=='3.6'",
+        "bytecode; python_version>'3.6'",
     ],
     extras_require={
         # users can include opentracing by having:
