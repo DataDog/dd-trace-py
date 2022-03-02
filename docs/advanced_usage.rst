@@ -296,6 +296,8 @@ propagate a `rpc_metadata` dictionary over the wire::
             span.set_tag('my_rpc_method', method)
 
 
+.. _`Upgrading and deprecation warnings`:
+
 Upgrading and deprecation warnings
 ----------------------------------
 
