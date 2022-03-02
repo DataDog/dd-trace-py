@@ -14,7 +14,7 @@ jobs:
     name: Validate changelog
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         # Include all history and tags
         with:
           fetch-depth: 0
@@ -27,7 +27,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: scripts/check-releasenotes
 
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v3
         name: Install Python
         with:
           python-version: '3.8'
