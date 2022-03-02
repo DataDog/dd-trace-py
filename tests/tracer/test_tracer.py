@@ -33,7 +33,6 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
-from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
@@ -1703,37 +1702,3 @@ def test_tracer_memory_leak_span_processors(enabled):
     # Force gc
     gc.collect()
     assert len(spans) == 0
-
-
-def test_processor_shutdown():
-    class Processor(SpanProcessor):
-        def __init__(self):
-            super(Processor, self).__init__()
-            self.shutdown_called = 0
-
-        def on_span_start(self, span):
-            pass
-
-        on_span_finish = on_span_start
-
-        def shutdown(self):
-            # type: () -> None
-            self.shutdown_called += 1
-
-    # tracer.shutdown()
-    t = Tracer()
-    p = Processor()
-    t._add_span_processor(p)
-    assert p.shutdown_called == 0
-    t.shutdown()
-    assert p.shutdown_called == 1
-
-    # tracer.configure()
-    t = Tracer()
-    p = Processor()
-    t._add_span_processor(p)
-    assert p.shutdown_called == 0
-    t.configure()
-    assert p.shutdown_called == 1
-    t.shutdown()
-    assert p.shutdown_called == 1

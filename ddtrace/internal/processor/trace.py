@@ -204,5 +204,5 @@ class SpanAggregator(SpanProcessor):
 
     def shutdown(self):
         # type: () -> None
-        # TODO: have SpanAggregator own and shutdown its writer
+        # TODO: have SpanAggregator own and shutdown its writer (currently `Tracer` owns it)
         pass
