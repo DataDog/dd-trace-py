@@ -1,6 +1,10 @@
 import sys
 
+import aiohttp_jinja2
 import pytest
+
+from ddtrace import Pin
+from ddtrace import tracer
 
 from .app.web import set_filesystem_loader
 from .app.web import set_package_loader
@@ -24,6 +28,16 @@ async def test_template_rendering(untraced_app_tracer, aiohttp_client):
     assert "template" == span.span_type
     assert "/template.jinja2" == span.get_tag("aiohttp.template")
     assert 0 == span.error
+
+
+async def test_template_rendering_snapshot(untraced_app_tracer, aiohttp_client, snapshot_context):
+    app, _ = untraced_app_tracer
+    Pin.override(aiohttp_jinja2, tracer=tracer)
+    with snapshot_context():
+        client = await aiohttp_client(app)
+        # it should trace a template rendering
+        request = await client.request("GET", "/template/")
+        assert 200 == request.status
 
 
 async def test_template_rendering_filesystem(untraced_app_tracer, aiohttp_client, loop):
