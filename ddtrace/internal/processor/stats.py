@@ -8,6 +8,7 @@ import tenacity
 
 import ddtrace
 from ddtrace import config
+from ddtrace.span import _is_top_level
 
 from . import SpanProcessor
 from ...constants import SPAN_MEASURED_KEY
@@ -98,7 +99,6 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if reuse_connections is None:
             reuse_connections = asbool(os.getenv("_DD_TRACE_STATS_WRITER_REUSE_CONNECTIONS", False))
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
-        self.start()
         self._agent_url = agent_url
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
@@ -117,12 +117,14 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         self._enabled = True
         self._reuse_connections = reuse_connections
         self._retry_request = tenacity.Retrying(
+            # Use a Fibonacci policy with jitter
             wait=tenacity.wait_random_exponential(
                 multiplier=0.618 * self.interval / (1.618 ** retry_attempts) / 2, exp_base=1.618
             ),
             stop=tenacity.stop_after_attempt(retry_attempts),
             retry=tenacity.retry_if_exception_type((httplib.HTTPException, OSError, IOError)),
         )
+        self.start()
 
     def on_span_start(self, span):
         # type: (Span) -> None
@@ -133,7 +135,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not self._enabled:
             return
 
-        is_top_level = span._metrics.get("_dd.top_level") == 1
+        is_top_level = _is_top_level(span)
         if not is_top_level and not _is_measured(span):
             return
 

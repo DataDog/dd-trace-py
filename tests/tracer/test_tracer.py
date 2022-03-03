@@ -1730,10 +1730,3 @@ assert tracer.writer._compute_stats is True
         env=env,
     )
     assert status == 0, out + err
-
-
-def test_trace_with_tracer():
-    # ensure Tracer.trace() sets tracer property on Span
-    t = Tracer()
-    with t.trace("test span") as span:
-        assert span.tracer == t

@@ -521,3 +521,11 @@ class Span(object):
             self.parent_id,
             self.name,
         )
+
+
+def _is_top_level(span):
+    # type: (Span) -> bool
+    """Return whether the span is a "top level" span."""
+    return (span._local_root is span) or (
+            span._parent is not None and span._parent.service != span.service and span.service is not None
+    )

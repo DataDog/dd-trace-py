@@ -13,6 +13,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
+from ddtrace.span import _is_top_level
 
 
 log = get_logger(__name__)
@@ -103,9 +104,7 @@ class TraceTopLevelSpanProcessor(TraceProcessor):
 
         span_ids = {span.span_id for span in trace}
         for span in trace:
-            if span is span._local_root:
-                span.set_metric("_dd.top_level", 1)
-            elif span._parent and span.service != span._parent.service:
+            if _is_top_level(span):
                 span.set_metric("_dd.top_level", 1)
             elif span.parent_id and span.parent_id not in span_ids:
                 span.set_metric("_dd.top_level", 0)
