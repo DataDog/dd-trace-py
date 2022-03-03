@@ -54,4 +54,8 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
 
     def shutdown(self):
         # type: () -> None
+        """Called when the processor is done being used.
+
+        Any clean-up or flushing should be performed with this method.
+        """
         pass
