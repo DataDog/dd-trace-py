@@ -74,17 +74,17 @@ def create_aio_server_interceptor(pin):
 
 
 def _handle_server_exception(
-    server_context,  # type: Union[None, grpc.ServicerContext]
+    servicer_context,  # type: Union[None, grpc.ServicerContext]
     span,  # type: Span
 ):
     # type: (...) -> None
     span.error = 1
-    if server_context is None:
+    if servicer_context is None:
         return
-    if hasattr(server_context, "details"):
-        span._set_str_tag(ERROR_MSG, to_unicode(server_context.details()))
-    if hasattr(server_context, "code") and server_context.code() != 0 and server_context.code() in _STATUS_MAP:
-        span._set_str_tag(ERROR_TYPE, to_unicode(_STATUS_MAP[server_context.code()]))
+    if hasattr(servicer_context, "details"):
+        span._set_str_tag(ERROR_MSG, to_unicode(servicer_context.details()))
+    if hasattr(servicer_context, "code") and servicer_context.code() != 0 and servicer_context.code() in _STATUS_MAP:
+        span._set_str_tag(ERROR_TYPE, to_unicode(_STATUS_MAP[servicer_context.code()]))
 
 
 async def _wrap_aio_stream_response(
