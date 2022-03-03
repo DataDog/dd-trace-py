@@ -201,3 +201,8 @@ class SpanAggregator(SpanProcessor):
 
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
+
+    def shutdown(self):
+        # type: () -> None
+        # TODO: have SpanAggregator own and shutdown its writer (currently `Tracer` owns it)
+        pass
