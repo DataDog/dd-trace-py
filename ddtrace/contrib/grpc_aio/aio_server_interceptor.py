@@ -93,7 +93,7 @@ async def _wrap_aio_stream_response(
     servicer_context,  # type: aio.ServicerContext
     span,  # type: Span
 ):
-    # type: (...) -> RequestIterableType
+    # type: (...) -> ResponseIterableType
     try:
         call = behavior(request_or_iterator, servicer_context)
         async for response in call:
@@ -220,6 +220,7 @@ class _TracedAioRpcMethodHandler(wrapt.ObjectProxy):
 
 class _TracedRpcMethodHandler(wrapt.ObjectProxy):
     def __init__(self, pin, handler_call_details, wrapped):
+        # type: (Pin, grpc.HandlerCallDetails, grpc.RpcMethodHandler) -> None
         super(_TracedRpcMethodHandler, self).__init__(wrapped)
         self._pin = pin
         self._handler_call_details = handler_call_details
