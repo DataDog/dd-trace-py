@@ -1,4 +1,5 @@
 ---
+default_branch: origin/1.x
 unreleased_version_title: Unreleased
 
 # The default is: (?P<pre_release>\.v?\d+(?:[ab]|rc)+\d*)$
