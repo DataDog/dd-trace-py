@@ -1387,6 +1387,7 @@ venv = Venv(
             name="aiohttp",
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
+                "pytest-asyncio": [latest],
                 "pytest-aiohttp": [latest],
             },
             venvs=[
@@ -1401,9 +1402,20 @@ venv = Venv(
                 ),
                 Venv(
                     # Python 3.5 is deprecated for aiohttp >= 3.0
-                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pys=select_pys(min_version="3.6", max_version="3.10"),
                     pkgs={
-                        "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.4", "~=3.5", "~=3.6"],
+                        "aiohttp": [
+                            "~=3.0",
+                            "~=3.1",
+                            "~=3.2",
+                            "~=3.3",
+                            "~=3.4",
+                            "~=3.5",
+                            "~=3.6",
+                            "~=3.7",
+                            "~=3.8",
+                            latest,
+                        ],
                         "aiohttp_jinja2": "~=0.15",
                         "yarl": "~=1.0",
                     },
