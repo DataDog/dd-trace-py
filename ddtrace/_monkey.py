@@ -74,6 +74,7 @@ PATCH_MODULES = {
     "fastapi": True,
     "dogpile_cache": True,
     "yaaredis": True,
+    "aiohttp_jinja2": False,  # disabled as this is handled by aiohttp for now.
 }
 
 _LOCK = threading.Lock()
