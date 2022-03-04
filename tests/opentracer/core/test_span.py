@@ -37,8 +37,9 @@ class TestSpan(object):
 
     def test_tags(self, nop_span):
         """Set a tag and get it back."""
-        nop_span.set_tag("test", 23)
+        r = nop_span.set_tag("test", 23)
         assert nop_span._get_metric("test") == 23
+        assert r is nop_span
 
     def test_set_baggage(self, nop_span):
         """Test setting baggage."""
@@ -96,8 +97,9 @@ class TestSpan(object):
     def test_operation_name(self, nop_span):
         """Sanity check for setting the operation name."""
         # just try setting the operation name
-        nop_span.set_operation_name("new_op_name")
+        r = nop_span.set_operation_name("new_op_name")
         assert nop_span._dd_span.name == "new_op_name"
+        assert r is nop_span
 
     def test_context_manager(self, nop_span):
         """Test the span context manager."""
