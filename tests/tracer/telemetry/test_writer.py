@@ -93,6 +93,7 @@ def test_add_app_started_event(mock_time, mock_send_request, telemetry_writer):
     # validate request body
     payload = {
         "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
+        "integrations": [],
         "configurations": [],
     }
     assert httpretty.last_request().parsed_body == _get_request_body(payload, "app-started")

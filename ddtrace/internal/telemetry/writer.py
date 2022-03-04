@@ -167,6 +167,7 @@ class TelemetryWriter(PeriodicService):
 
         payload = {
             "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
+            "integrations": [],
             "configurations": [],
         }
         self.add_event(payload, "app-started")
