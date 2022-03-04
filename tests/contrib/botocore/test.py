@@ -755,6 +755,7 @@ class BotocoreTest(TracerTestCase):
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        assert headers["ms"] is not None
 
     @mock_events
     def test_eventbridge_muliple_entries_trace_injection(self):
@@ -815,19 +816,7 @@ class BotocoreTest(TracerTestCase):
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
-
-        # the following doesn't work due to an issue in moto/localstack where
-        # an SQS message is generated per put_events rather than per event sent
-
-        # message = messages["Messages"][1]
-        # body = message.get("Body")
-        # assert body is not None
-        # body_obj = json.loads(body)
-        # detail = body_obj.get("detail")
-        # headers = detail.get("_datadog")
-        # assert headers is not None
-        # assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
-        # assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+        assert headers["ms"] is not None
 
     @mock_kms
     def test_kms_client(self):
