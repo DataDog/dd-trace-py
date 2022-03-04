@@ -91,6 +91,11 @@ try:
     if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
         RuntimeWorker.enable()
 
+    # instrumentation telemetry writer should be enabled/started after the global tracer and configs
+    # are initialized
+    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
+        telemetry_writer.enable()
+
     opts = {}  # type: Dict[str, Any]
 
     dd_trace_enabled = os.getenv("DD_TRACE_ENABLED", default=True)
@@ -122,11 +127,6 @@ try:
     if "DD_TRACE_GLOBAL_TAGS" in os.environ:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
         tracer.set_tags(parse_tags_str(env_tags))
-
-    # instrumentation telemetry writer should be enabled/started after the global tracer and configs
-    # are initialized
-    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
-        telemetry_writer.enable()
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.
