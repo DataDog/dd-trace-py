@@ -226,12 +226,7 @@ async def test_secure_channel(server_info, tracer):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "servicer",
-    [_HelloServicer, _SyncHelloServicer],
-    indirect=True,
-)
-async def test_invalid_target(servicer, tracer):
+async def test_invalid_target(server_info, tracer):
     target = "localhost:50051"
     async with aio.insecure_channel(target) as channel:
         stub = HelloStub(channel)
