@@ -270,11 +270,6 @@ class GlobalConfigTestCase(TestCase):
             c.env = "prod-staging"
             assert c.env == "prod-staging"
 
-        # between DD_ENV and DATADOG_ENV, the former takes priority
-        with override_env(dict(DATADOG_ENV="prod", DD_ENV="prod-staging")):
-            c = Config()
-            assert c.env == "prod-staging"
-
     def test_dd_service_mapping(self):
         c = Config()
         assert c.service_mapping == {}

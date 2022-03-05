@@ -1,0 +1,14 @@
+---
+upgrade:
+  - ".. _remove-ddtrace-install-excepthooks:
+
+
+    Remove deprecated ``ddtrace.install_excepthook``.
+
+    "
+  - ".. _remove-ddtrace-uninstall-excepthooks:
+
+
+    Remove deprecated ``ddtrace.uninstall_excepthook``.
+
+    "

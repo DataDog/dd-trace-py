@@ -78,14 +78,15 @@ def test_fork_pid_check():
             os._exit(0)
 
 
+def _test_multiprocess_target(q):
+    assert sum((_ is _rand.seed for _ in forksafe._registry)) == 1
+    q.put([_rand.rand64bits() for _ in range(100)])
+
+
 def test_multiprocess():
     q = MPQueue()
 
-    def target(q):
-        assert sum((_ is _rand.seed for _ in forksafe._registry)) == 1
-        q.put([_rand.rand64bits() for _ in range(100)])
-
-    ps = [mp.Process(target=target, args=(q,)) for _ in range(30)]
+    ps = [mp.Process(target=_test_multiprocess_target, args=(q,)) for _ in range(30)]
     for p in ps:
         p.start()
 
@@ -107,6 +108,13 @@ def test_multiprocess():
         ids = ids | child_ids  # accumulate the ids
 
 
+def _test_threadsafe_target(q):
+    # Generate a bunch of numbers to try to maximize the chance that
+    # two threads will be calling rand64bits at the same time.
+    rngs = [_rand.rand64bits() for _ in range(200000)]
+    q.put(rngs)
+
+
 def test_threadsafe():
     # Check that the PRNG is thread-safe.
     # This obviously won't guarantee thread safety, but it's something
@@ -126,13 +134,7 @@ def test_threadsafe():
 
     q = Queue()
 
-    def _target():
-        # Generate a bunch of numbers to try to maximize the chance that
-        # two threads will be calling rand64bits at the same time.
-        rngs = [_rand.rand64bits() for _ in range(200000)]
-        q.put(rngs)
-
-    ts = [threading.Thread(target=_target) for _ in range(5)]
+    ts = [threading.Thread(target=_test_threadsafe_target, args=(q,)) for _ in range(5)]
 
     for t in ts:
         t.start()
@@ -187,6 +189,11 @@ def test_tracer_usage_fork():
             os._exit(0)
 
 
+def _test_tracer_usage_multiprocess_target(q):
+    ids_list = list(chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(10)]))
+    q.put(ids_list)
+
+
 def test_tracer_usage_multiprocess():
     q = MPQueue()
 
@@ -196,14 +203,7 @@ def test_tracer_usage_multiprocess():
 
     # Note that we have to be wary of the size of the underlying
     # pipe in the queue: https://bugs.python.org/msg143081
-
-    def target(q):
-        ids_list = list(
-            chain.from_iterable((s.span_id, s.trace_id) for s in [tracer.start_span("s") for _ in range(10)])
-        )
-        q.put(ids_list)
-
-    ps = [mp.Process(target=target, args=(q,)) for _ in range(30)]
+    ps = [mp.Process(target=_test_tracer_usage_multiprocess_target, args=(q,)) for _ in range(30)]
     for p in ps:
         p.start()
 
@@ -230,9 +230,7 @@ def test_span_api_fork():
 
     if pid > 0:
         # parent
-        parent_ids_list = list(
-            chain.from_iterable((s.span_id, s.trace_id) for s in [Span(None, None) for _ in range(100)])
-        )
+        parent_ids_list = list(chain.from_iterable((s.span_id, s.trace_id) for s in [Span(None) for _ in range(100)]))
         parent_ids = set(parent_ids_list)
         assert len(parent_ids) == len(parent_ids_list), "Collisions found in parent process ids"
 
@@ -245,9 +243,7 @@ def test_span_api_fork():
     else:
         # child
         try:
-            child_ids = list(
-                chain.from_iterable((s.span_id, s.trace_id) for s in [Span(None, None) for _ in range(100)])
-            )
+            child_ids = list(chain.from_iterable((s.span_id, s.trace_id) for s in [Span(None) for _ in range(100)]))
             q.put(child_ids)
         finally:
             os._exit(0)

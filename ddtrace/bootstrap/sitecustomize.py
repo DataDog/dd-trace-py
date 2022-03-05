@@ -23,10 +23,10 @@ from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa
-from ddtrace.internal.utils.formats import get_env
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode
+from ddtrace.vendor.debtcollector import deprecate
 
 
 if config.logs_injection:
@@ -41,8 +41,13 @@ if config.logs_injection:
 # upon initializing it the first time.
 # See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
 # Debug mode from the tracer will do a basicConfig so only need to do this otherwise
-call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "true"))
+call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
 if not debug_mode and call_basic_config:
+    deprecate(
+        "ddtrace.tracer.logging.basicConfig",
+        message="`logging.basicConfig()` should be called in a user's application."
+        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+    )
     if config.logs_injection:
         logging.basicConfig(format=DD_LOG_FORMAT)
     else:
@@ -61,7 +66,7 @@ EXTRA_PATCHED_MODULES = {
 
 
 def update_patched_modules():
-    modules_to_patch = get_env("patch", "modules")
+    modules_to_patch = os.getenv("DD_PATCH_MODULES")
     if not modules_to_patch:
         return
 
@@ -73,25 +78,22 @@ def update_patched_modules():
 try:
     from ddtrace import tracer
 
-    # Respect DATADOG_* environment variables in global tracer configuration but add deprecation warning
-    # correct prefix should be DD_*
-
-    dd_hostname = get_env("trace", "agent", "hostname")
-    hostname = os.environ.get("DD_AGENT_HOST", dd_hostname)
-    port = get_env("trace", "agent", "port")
-    priority_sampling = get_env("priority", "sampling")
-    profiling = asbool(os.environ.get("DD_PROFILING_ENABLED", False))
+    dd_hostname = os.getenv("DD_TRACE_AGENT_HOSTNAME")
+    hostname = os.getenv("DD_AGENT_HOST", dd_hostname)
+    port = os.getenv("DD_TRACE_AGENT_PORT")
+    priority_sampling = os.getenv("DD_PRIORITY_SAMPLING")
+    profiling = asbool(os.getenv("DD_PROFILING_ENABLED", False))
 
     if profiling:
         log.debug("profiler enabled via environment variable")
         import ddtrace.profiling.auto  # noqa: F401
 
-    if asbool(get_env("runtime_metrics", "enabled")):
+    if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
         RuntimeWorker.enable()
 
     opts = {}  # type: Dict[str, Any]
 
-    dd_trace_enabled = get_env("trace", "enabled", default=True)
+    dd_trace_enabled = os.getenv("DD_TRACE_ENABLED", default=True)
     if asbool(dd_trace_enabled):
         trace_enabled = True
     else:
@@ -113,7 +115,7 @@ try:
 
         patch_all(**EXTRA_PATCHED_MODULES)
 
-    dd_env = get_env("env")
+    dd_env = os.getenv("DD_ENV")
     if dd_env:
         tracer.set_tags({constants.ENV_KEY: dd_env})
 
@@ -123,7 +125,7 @@ try:
 
     # instrumentation telemetry writer should be enabled/started after the global tracer and configs
     # are initialized
-    if asbool(get_env("instrumentation_telemetry", "enabled")):
+    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
         telemetry_writer.enable()
 
     # Check for and import any sitecustomize that would have normally been used

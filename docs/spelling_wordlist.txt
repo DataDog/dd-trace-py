@@ -1,11 +1,14 @@
+AnyCallable
 CPython
 Fargate
 Firehose
 Gunicorn
+HTTPPropagator
 INfo
 IPv
 MySQL
 OpenTracing
+SpanContext
 aiobotocore
 aiohttp
 aiopg
@@ -30,6 +33,7 @@ booleans
 boto
 botocore
 CGroup
+cassandra
 cgroups
 cherrypy
 codepath

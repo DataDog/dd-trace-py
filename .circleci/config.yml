@@ -322,8 +322,8 @@ jobs:
       # Print tests/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage report --ignore-errors --omit=ddtrace/
-      # Print diff-cover report to stdout (compares against origin/master)
-      - run: diff-cover --compare-branch origin/master coverage.xml
+      # Print diff-cover report to stdout (compares against origin/1.x)
+      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
 
   build_base_venvs:
     executor: ddtrace_dev
@@ -343,10 +343,11 @@ jobs:
             - "."
 
   appsec:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'appsec'
+          snapshot: true
 
   tracer:
     <<: *contrib_job
@@ -381,7 +382,7 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
+            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
@@ -396,7 +397,7 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
+            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-latest'
 
   integration_testagent:
     <<: *machine_executor
@@ -413,7 +414,7 @@ jobs:
             DD_TRACE_AGENT_URL: http://localhost:9126
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
+            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
@@ -467,10 +468,11 @@ jobs:
           pattern: '^pylons_contrib-'
 
   aiohttp:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
       - run_test:
           pattern: 'aiohttp'
+          snapshot: true
 
   asgi:
     <<: *contrib_job_small
@@ -758,10 +760,11 @@ jobs:
           pattern: '^requests_gevent_contrib-'
 
   sanic:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^sanic_contrib-'
+      - run_test:
+          pattern: "sanic"
+          snapshot: true
 
   snowflake:
     <<: *machine_executor
@@ -1048,7 +1051,7 @@ requires_tests: &requires_tests
 
 workflows:
   version: 2
-  test:
+  test: &workflow_test
     jobs:
       # Pre-checking before running all jobs
       - pre_check
@@ -1136,3 +1139,14 @@ workflows:
 
       # Final reports
       - coverage_report: *requires_tests
+
+  test_nightly:
+    <<: *workflow_test
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - 0.x
+                - 1.x

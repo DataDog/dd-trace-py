@@ -9,13 +9,11 @@ from psycopg2 import extras
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.psycopg import connection_factory
 from ddtrace.contrib.psycopg.patch import PSYCOPG2_VERSION
 from ddtrace.contrib.psycopg.patch import patch
 from ddtrace.contrib.psycopg.patch import unpatch
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import snapshot
@@ -387,13 +385,6 @@ class PsycopgCore(TracerTestCase):
         with self._get_conn(service=service) as conn:
             conn.cursor().execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query", service=service))
-
-
-def test_backwards_compatibilty_v3():
-    tracer = DummyTracer()
-    factory = connection_factory(tracer, service="my-postgres-db")
-    conn = psycopg2.connect(connection_factory=factory, **POSTGRES_CONFIG)
-    conn.cursor().execute("""select 'blah'""")
 
 
 @skipIf(PSYCOPG2_VERSION < (2, 7), "quote_ident not available in psycopg2<2.7")

@@ -1,0 +1,9 @@
+---
+upgrade:
+  - ".. _remove-sqlite3-legacy:
+
+
+    sqlite3: ``ddtrace.contrib.sqlite3.connection_factory`` is removed. Use ``ddtrace.patch(sqlite3=True)``
+    or ``ddtrace.patch_all()`` instead.
+
+    "

@@ -1,0 +1,6 @@
+---
+upgrade:
+  - ".. _remove-ext-errors:\n\nThe deprecated module ``ddtrace.ext.errors`` is removed.
+    Use the ``ddtrace.constants`` module instead::\n\n  from ddtrace.constants import
+    ERROR_MSG\n  from ddtrace.constants import ERROR_STACK\n  from ddtrace.constants
+    import ERROR_TYPE\n"

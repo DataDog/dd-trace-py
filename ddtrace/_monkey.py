@@ -11,7 +11,6 @@ from ddtrace.vendor.wrapt.importer import when_imported
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
-from .internal.utils.deprecation import deprecated
 from .settings import _config as config
 
 
@@ -76,6 +75,7 @@ PATCH_MODULES = {
     "fastapi": True,
     "dogpile_cache": True,
     "yaaredis": True,
+    "aiohttp_jinja2": False,  # disabled as this is handled by aiohttp for now.
 }
 
 _LOCK = threading.Lock()
@@ -203,15 +203,6 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-@deprecated(
-    message="This function will be removed.",
-    version="1.0.0",
-)
-def patch_module(module, raise_errors=True):
-    # type: (str, bool) -> bool
-    return _patch_module(module, raise_errors=raise_errors)
-
-
 def _patch_module(module, raise_errors=True):
     # type: (str, bool) -> bool
     """Patch a single module
@@ -229,15 +220,6 @@ def _patch_module(module, raise_errors=True):
             raise
         log.debug("failed to patch %s", module, exc_info=True)
         return False
-
-
-@deprecated(
-    message="This function will be removed.",
-    version="1.0.0",
-)
-def get_patched_modules():
-    # type: () -> List[str]
-    return _get_patched_modules()
 
 
 def _get_patched_modules():

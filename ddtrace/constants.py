@@ -1,4 +1,3 @@
-FILTERS_KEY = "FILTERS"
 SAMPLE_RATE_METRIC_KEY = "_sample_rate"
 SAMPLING_PRIORITY_KEY = "_sampling_priority_v1"
 ANALYTICS_SAMPLE_RATE_KEY = "_dd1.sr.eausr"
@@ -15,12 +14,10 @@ SPAN_KIND = "span.kind"
 SPAN_MEASURED_KEY = "_dd.measured"
 KEEP_SPANS_RATE_KEY = "_dd.tracer_kr"
 
-NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
 
 MANUAL_DROP_KEY = "manual.drop"
 MANUAL_KEEP_KEY = "manual.keep"
 
-LOG_SPAN_KEY = "__datadog_log_span"
 
 ERROR_MSG = "error.msg"  # a string representing the error message
 ERROR_TYPE = "error.type"  # a string representing the type of the error

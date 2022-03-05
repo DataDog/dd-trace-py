@@ -6,9 +6,9 @@ Enabling
 ~~~~~~~~
 
 The integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
 
-Or use :ref:`patch()<patch>` to manually enable the integration::
+Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(pymysql=True)
@@ -63,6 +63,5 @@ required_modules = ["pymysql"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
-        from .tracers import get_traced_pymysql_connection
 
-        __all__ = ["get_traced_pymysql_connection", "patch"]
+        __all__ = ["patch"]

@@ -1,4 +1,5 @@
 import itertools
+import os
 from typing import ClassVar
 from typing import Optional
 from typing import Set
@@ -16,7 +17,6 @@ from ddtrace.internal import forksafe
 from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
 from ..logger import get_logger
-from ..utils.formats import get_env
 from .constants import DEFAULT_RUNTIME_METRICS
 from .constants import DEFAULT_RUNTIME_TAGS
 from .metric_collectors import GCRuntimeMetricCollector
@@ -62,7 +62,7 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
 
 
 def _get_interval_or_default():
-    return float(get_env("runtime_metrics", "interval", default=10))
+    return float(os.getenv("DD_RUNTIME_METRICS_INTERVAL", default=10))
 
 
 @attr.s(eq=False)

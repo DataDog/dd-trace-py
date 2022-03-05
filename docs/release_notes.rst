@@ -8,8 +8,20 @@ Release Notes
 
 .. only:: spelling
 
-   .. release-notes::
+    .. toctree::
+        :hidden:
 
+        _release_notes_all
+
+
+
+.. release-notes::
+   :branch: 1.0
+   :earliest-version: v1.0.0rc1
+
+.. release-notes::
+   :branch: 0.59
+   :earliest-version: v0.59.0
 
 .. release-notes::
    :branch: 0.58

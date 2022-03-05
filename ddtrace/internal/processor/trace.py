@@ -180,6 +180,7 @@ class SpanAggregator(SpanProcessor):
 
                 if should_partial_flush:
                     log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
+                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 trace.num_finished -= num_finished
 
@@ -200,3 +201,8 @@ class SpanAggregator(SpanProcessor):
 
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
+
+    def shutdown(self):
+        # type: () -> None
+        # TODO: have SpanAggregator own and shutdown its writer (currently `Tracer` owns it)
+        pass

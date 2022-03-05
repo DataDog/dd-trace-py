@@ -8,6 +8,8 @@ on:
   push:
     branches:
       - master
+      - 0.x
+      - 1.x
 
 jobs:
   system-tests:
@@ -25,12 +27,12 @@ jobs:
       DD_API_KEY: ${{ secrets.DD_API_KEY }}
     steps:
       - name: Checkout system tests
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
 
       - name: Checkout dd-trace-py
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           path: 'binaries/dd-trace-py'
 

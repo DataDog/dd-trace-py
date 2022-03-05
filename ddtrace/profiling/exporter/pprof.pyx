@@ -91,9 +91,18 @@ class pprof_LocationType(object):
     id: int
 
 
+class pprof_Mapping(object):
+    filename: int
+
+
 class pprof_ProfileType(object):
-    # pprof_pb2.Profile
+    # Emulate pprof_pb2.Profile for typing
     id: int
+    string_table: typing.Dict[int, str]
+    mapping: typing.List[pprof_Mapping]
+
+    def SerializeToString(self) -> bytes:
+        ...
 
 
 class pprof_FunctionType(object):
@@ -547,7 +556,7 @@ class PprofExporter(exporter.Exporter):
     def _get_event_trace_resource(self, event: event.StackBasedEvent) -> str:
         trace_resource = ""
         # Do not export trace_resource for non Web spans for privacy concerns.
-        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
+        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB:
             (trace_resource,) = event.trace_resource_container
         return ensure_str(trace_resource, errors="backslashreplace")
 

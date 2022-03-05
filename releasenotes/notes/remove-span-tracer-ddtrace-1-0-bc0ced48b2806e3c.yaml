@@ -1,0 +1,14 @@
+---
+upgrade:
+  - ".. _remove-span-tracer:
+
+
+    ``Span.tracer`` is removed.
+
+    "
+  - ".. _remove-span-init-tracer:
+
+
+    The deprecated `tracer` argument is removed from :py:meth:`ddtrace.Span.__init__`.
+
+    "

@@ -285,7 +285,7 @@ async def test_distributed_tracing(app_tracer, aiohttp_client):
 async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
-    tracer.priority_sampler = RateSampler(0.1)
+    tracer._priority_sampler = RateSampler(0.1)
 
     tracing_headers = {
         "x-datadog-trace-id": "100",
@@ -311,7 +311,7 @@ async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client
 async def test_distributed_tracing_with_sampling_false(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
-    tracer.priority_sampler = RateSampler(0.9)
+    tracer._priority_sampler = RateSampler(0.9)
 
     tracing_headers = {
         "x-datadog-trace-id": "100",
@@ -361,7 +361,7 @@ async def test_distributed_tracing_disabled(app_tracer, aiohttp_client):
 async def test_distributed_tracing_sub_span(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
-    tracer.priority_sampler = RateSampler(1.0)
+    tracer._priority_sampler = RateSampler(1.0)
 
     # activate distributed tracing
     tracing_headers = {
@@ -459,7 +459,7 @@ async def test_analytics_integration_enabled(app_tracer, aiohttp_client):
     await request.text()
 
     # Assert root span sets the appropriate metric
-    root = get_root_span(tracer.writer.spans)
+    root = get_root_span(tracer.pop())
     root.assert_structure(dict(name="aiohttp.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}))
 
 
@@ -471,7 +471,7 @@ async def test_analytics_integration_default(app_tracer, aiohttp_client):
     await request.text()
 
     # Assert root span does not have the appropriate metric
-    root = get_root_span(tracer.writer.spans)
+    root = get_root_span(tracer.pop())
     assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
@@ -484,5 +484,5 @@ async def test_analytics_integration_disabled(app_tracer, aiohttp_client):
     await request.text()
 
     # Assert root span does not have the appropriate metric
-    root = get_root_span(tracer.writer.spans)
+    root = get_root_span(tracer.pop())
     assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None

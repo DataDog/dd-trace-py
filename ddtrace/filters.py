@@ -80,4 +80,4 @@ class TraceCiVisibilityFilter(TraceFilter):
             return trace
 
         local_root = trace[0]._local_root
-        return trace if local_root and local_root.span_type == SpanTypes.TEST.value else None
+        return trace if local_root and local_root.span_type == SpanTypes.TEST else None

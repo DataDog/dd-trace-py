@@ -1,3 +1,5 @@
+import os
+
 import psycopg2
 from psycopg2.sql import Composable
 
@@ -10,7 +12,6 @@ from ddtrace.ext import sql
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import asbool
-from ...internal.utils.formats import get_env
 from ...internal.utils.version import parse_version
 
 
@@ -18,7 +19,8 @@ config._add(
     "psycopg",
     dict(
         _default_service="postgres",
-        trace_fetch_methods=asbool(get_env("psycopg", "trace_fetch_methods", default=False)),
+        _dbapi_span_name_prefix="postgres",
+        trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 
@@ -91,7 +93,7 @@ def patch_conn(conn, traced_conn_cls=Psycopg2TracedConnection):
         "db.application": dsn.get("application_name"),
     }
 
-    Pin(app="postgres", tags=tags).onto(c)
+    Pin(tags=tags).onto(c)
 
     return c
 

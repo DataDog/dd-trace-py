@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Dict
 from typing import List
@@ -14,7 +15,6 @@ from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
-from ..utils.formats import get_env
 from ..utils.time import StopWatch
 from .data import get_application
 from .data import get_host_info
@@ -24,7 +24,7 @@ log = get_logger(__name__)
 
 
 def _get_interval_or_default():
-    return float(get_env("instrumentation_telemetry", "interval_seconds", default=60))
+    return float(os.getenv("DD_INSTRUMENTATION_TELEMETRY_INTERVAL_SECONDS", default=60))
 
 
 class TelemetryWriter(PeriodicService):

@@ -7,10 +7,7 @@ from typing import Tuple
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.logger import get_logger
-from ..internal.utils.deprecation import deprecated
-from ..internal.utils.deprecation import get_service_legacy
 from ..internal.utils.formats import asbool
-from ..internal.utils.formats import get_env
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
 from .http import HttpConfig
@@ -109,26 +106,24 @@ class Config(object):
         # use a dict as underlying storing mechanism
         self._config = {}
 
-        header_tags = parse_tags_str(get_env("trace", "header_tags") or "")
+        header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
 
         # Master switch for turning on and off trace search by default
-        # this weird invocation of get_env is meant to read the DD_ANALYTICS_ENABLED
+        # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        legacy_config_value = get_env("analytics", "enabled", default=False)
+        legacy_config_value = os.getenv("DD_ANALYTICS_ENABLED", default=False)
 
-        self.analytics_enabled = asbool(get_env("trace", "analytics_enabled", default=legacy_config_value))
+        self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
 
         self.tags = parse_tags_str(os.getenv("DD_TAGS") or "")
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
-        # DEV: we don't use `self._get_service()` here because {DD,DATADOG}_SERVICE and
-        # {DD,DATADOG}_SERVICE_NAME (deprecated) are distinct functionalities.
-        self.service = os.getenv("DD_SERVICE") or os.getenv("DATADOG_SERVICE") or self.tags.get("service")
-        self.version = os.getenv("DD_VERSION") or self.tags.get("version")
+        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service"))
+        self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        self.service_mapping = parse_tags_str(get_env("service", "mapping", default=""))
+        self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
@@ -139,11 +134,11 @@ class Config(object):
         if self.version and "version" in self.tags:
             del self.tags["version"]
 
-        self.logs_injection = asbool(get_env("logs", "injection", default=False))
+        self.logs_injection = asbool(os.getenv("DD_LOGS_INJECTION", default=False))
 
-        self.report_hostname = asbool(get_env("trace", "report_hostname", default=False))
+        self.report_hostname = asbool(os.getenv("DD_TRACE_REPORT_HOSTNAME", default=False))
 
-        self.health_metrics_enabled = asbool(get_env("trace", "health_metrics_enabled", default=False))
+        self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
@@ -223,30 +218,17 @@ class Config(object):
 
     def _get_service(self, default=None):
         """
-        Returns the globally configured service.
-
-        If a service is not configured globally, attempts to get the service
-        using the legacy environment variables via ``get_service_legacy``
-        else ``default`` is returned.
-
-        When support for {DD,DATADOG}_SERVICE_NAME is removed, all usages of
-        this method can be replaced with `config.service`.
+        Returns the globally configured service or the default if none is configured.
 
         :param default: the default service to use if none is configured or
             found.
         :type default: str
         :rtype: str|None
         """
-        return self.service if self.service is not None else get_service_legacy(default=default)
+        # TODO: This method can be replaced with `config.service`.
+        return self.service if self.service is not None else default
 
     def __repr__(self):
         cls = self.__class__
         integrations = ", ".join(self._config.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
-
-    @deprecated(
-        message="HttpServerConfig will be removed",
-        version="1.0.0",
-    )
-    class HTTPServerConfig(_HTTPServerConfig):
-        pass

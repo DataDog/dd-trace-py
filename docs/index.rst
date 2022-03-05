@@ -188,5 +188,6 @@ Indices and tables
     advanced_usage
     benchmarks
     contributing
-    release_notes
     troubleshooting
+    api
+    release_notes

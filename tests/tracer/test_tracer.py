@@ -4,12 +4,12 @@ tests for Tracer and utilities.
 """
 import contextlib
 import gc
+import logging
 import multiprocessing
 import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
-import warnings
 import weakref
 
 import mock
@@ -30,7 +30,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
-from ddtrace.ext import priority
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.writer import AgentWriter
@@ -526,31 +525,6 @@ def test_tracer_shutdown_no_timeout():
     assert t._writer.stop.called
     assert not t._writer.join.called
 
-    with warnings.catch_warnings(record=True) as ws:
-        warnings.simplefilter("always")
-
-        # Do a write to start the writer.
-        with t.trace("something"):
-            pass
-
-        (w,) = ws
-        assert issubclass(w.category, DeprecationWarning)
-        assert (
-            str(w.message) == "Tracing with a tracer that has been shut down is being deprecated. "
-            "A new tracer should be created for generating new traces in version '1.0.0'"
-        )
-
-    with t.trace("something"):
-        pass
-
-    t.shutdown()
-    t._writer.stop.assert_has_calls(
-        [
-            mock.call(timeout=None),
-            mock.call(timeout=None),
-        ]
-    )
-
 
 def test_tracer_configure_writer_stop_unstarted():
     t = ddtrace.Tracer()
@@ -714,36 +688,6 @@ def test_tracer_with_env():
 class EnvTracerTestCase(TracerTestCase):
     """Tracer test cases requiring environment variables."""
 
-    @run_in_subprocess(env_overrides=dict(DATADOG_SERVICE_NAME="mysvc"))
-    def test_service_name_legacy_DATADOG_SERVICE_NAME(self):
-        """
-        When DATADOG_SERVICE_NAME is provided
-            It should not be used by default
-            It should be used with config._get_service()
-        """
-        from ddtrace import config
-
-        assert config.service is None
-        with self.start_span("") as s:
-            s.assert_matches(service=None)
-        with self.start_span("", service=config._get_service()) as s:
-            s.assert_matches(service="mysvc")
-
-    @run_in_subprocess(env_overrides=dict(DD_SERVICE_NAME="mysvc"))
-    def test_service_name_legacy_DD_SERVICE_NAME(self):
-        """
-        When DD_SERVICE_NAME is provided
-            It should not be used by default
-            It should be used with config._get_service()
-        """
-        from ddtrace import config
-
-        assert config.service is None
-        with self.start_span("") as s:
-            s.assert_matches(service=None)
-        with self.start_span("", service=config._get_service()) as s:
-            s.assert_matches(service="mysvc")
-
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_service_name_env(self):
         with self.start_span("") as span:
@@ -837,14 +781,14 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):
-        assert self.tracer.tags["key1"] == "value1"
-        assert self.tracer.tags["key2"] == "value2"
+        assert self.tracer._tags.get("key1") == "value1"
+        assert self.tracer._tags.get("key2") == "value2"
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2,key3"))
     def test_dd_tags_invalid(self):
-        assert "key1" in self.tracer.tags
-        assert "key2" in self.tracer.tags
-        assert "key3" not in self.tracer.tags
+        assert self.tracer._tags.get("key1")
+        assert self.tracer._tags.get("key2")
+        assert self.tracer._tags.get("key3") is None
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
     def test_tags_from_DD_TAGS(self):
@@ -895,19 +839,20 @@ def test_tracer_set_runtime_tags():
     assert span.get_tag("runtime-id") == span2.get_tag("runtime-id")
 
 
+def _test_tracer_runtime_tags_fork_task(tracer, q):
+    span = tracer.start_span("foobaz")
+    q.put(span.get_tag("runtime-id"))
+    span.finish()
+
+
 def test_tracer_runtime_tags_fork():
     tracer = ddtrace.Tracer()
-
-    def task(tracer, q):
-        span = tracer.start_span("foobaz")
-        q.put(span.get_tag("runtime-id"))
-        span.finish()
 
     span = tracer.start_span("foobar")
     span.finish()
 
     q = multiprocessing.Queue()
-    p = multiprocessing.Process(target=task, args=(tracer, q))
+    p = multiprocessing.Process(target=_test_tracer_runtime_tags_fork_task, args=(tracer, q))
     p.start()
     p.join()
 
@@ -1120,13 +1065,14 @@ def test_filters(tracer, test_spans):
 def test_early_exit(tracer, test_spans):
     s1 = tracer.trace("1")
     s2 = tracer.trace("2")
-    s1.finish()
-    tracer.log = mock.MagicMock(wraps=tracer.log)
-    s2.finish()
+    with mock.patch.object(logging.Logger, "debug") as mock_logger:
+        s1.finish()
+        s2.finish()
+
     calls = [
         mock.call("span %r closing after its parent %r, this is an error when not using async", s2, s1),
     ]
-    tracer.log.debug.assert_has_calls(calls)
+    mock_logger.assert_has_calls(calls)
     assert s1.parent_id is None
     assert s2.parent_id is s1.span_id
 
@@ -1204,13 +1150,6 @@ class TestPartialFlush(TracerTestCase):
     def test_partial_flush_configure_precedence(self):
         self.tracer.configure(partial_flush_enabled=True, partial_flush_min_spans=5)
         self.test_partial_flush()
-
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(DD_TRACER_PARTIAL_FLUSH_ENABLED="true", DD_TRACER_PARTIAL_FLUSH_MIN_SPANS="5")
-    )
-    def test_enable_partial_flush_with_deprecated_config(self):
-        # Test tracer with deprecated configs D_TRACER_...
-        self._test_partial_flush()
 
     def _test_partial_flush(self):
         root = self.tracer.trace("root")
@@ -1386,14 +1325,14 @@ def test_manual_drop(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is priority.USER_REJECT
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is priority.USER_REJECT
+    assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) is USER_REJECT
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
@@ -1737,10 +1676,3 @@ def test_tracer_memory_leak_span_processors(enabled):
     # Force gc
     gc.collect()
     assert len(spans) == 0
-
-
-def test_trace_with_tracer():
-    # ensure Tracer.trace() sets tracer property on Span
-    t = Tracer()
-    with t.trace("test span") as span:
-        assert span.tracer == t
