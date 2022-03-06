@@ -457,9 +457,13 @@ async def test_server_streaming(server_info, tracer):
 @pytest.mark.asyncio
 async def test_server_streaming_exception(server_info, tracer):
     if not server_info.abort_supported:
-        pytest.skip(("Skip a test with _SyncHelloServicer "
-                     "because it often makes the client hang up. "
-                     "See https://github.com/grpc/grpc/issues/28989."))
+        pytest.skip(
+            (
+                "Skip a test with _SyncHelloServicer "
+                "because it often makes the client hang up. "
+                "See https://github.com/grpc/grpc/issues/28989."
+            )
+        )
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
         with pytest.raises(aio.AioRpcError):
@@ -508,9 +512,13 @@ async def test_server_streaming_cancelled_before_rpc(server_info, tracer):
 @pytest.mark.asyncio
 async def test_server_streaming_cancelled_during_rpc(server_info, tracer):
     if not server_info.abort_supported:
-        pytest.skip(("Skip a test with _SyncHelloServicer "
-                     "because it often makes the server termination hang up. "
-                     "See https://github.com/grpc/grpc/issues/28999."))
+        pytest.skip(
+            (
+                "Skip a test with _SyncHelloServicer "
+                "because it often makes the server termination hang up. "
+                "See https://github.com/grpc/grpc/issues/28999."
+            )
+        )
     async with aio.insecure_channel(server_info.target) as channel:
         stub = HelloStub(channel)
         call = stub.SayHelloTwice(HelloRequest(name="test"))
@@ -717,9 +725,13 @@ async def test_bidi_streaming_cancelled_before_rpc(server_info, tracer):
 @pytest.mark.asyncio
 async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
     if not server_info.abort_supported:
-        pytest.skip(("Skip a test with _SyncHelloServicer "
-                     "because it often makes the server termination hang up. "
-                     "See https://github.com/grpc/grpc/issues/28999."))
+        pytest.skip(
+            (
+                "Skip a test with _SyncHelloServicer "
+                "because it often makes the server termination hang up. "
+                "See https://github.com/grpc/grpc/issues/28999."
+            )
+        )
     names = ["Alice", "Bob"]
     request_iterator = iter(HelloRequest(name=name) for name in names)
     async with aio.insecure_channel(server_info.target) as channel:
