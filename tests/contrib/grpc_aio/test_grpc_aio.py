@@ -141,7 +141,7 @@ def tracer():
 
 
 @pytest_asyncio.fixture(params=[_HelloServicer(), _SyncHelloServicer()])
-async def server_info(request, tracer):
+async def server_info(request, tracer, event_loop):
     """Configures grpc server and starts it in pytest-asyncio event loop.
     tracer fixture is imported to make sure the tracer is pinned to the modules.
     """
@@ -154,8 +154,10 @@ async def server_info(request, tracer):
     abort_supported = isinstance(_servicer, (_HelloServicer,))
 
     await _server.start()
+    wait_task = event_loop.create_task(_server.wait_for_termination())
     yield _ServerInfo(target, abort_supported)
     await _server.stop(grace=None)
+    await wait_task
 
 
 def _create_server(servicer, target):
