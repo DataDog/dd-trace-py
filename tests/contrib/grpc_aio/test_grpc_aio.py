@@ -740,7 +740,7 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
         with pytest.raises(asyncio.CancelledError):
             async for response in call:
                 assert call.cancel()
-                # NOTE: The service-side RPC is still working right after the client-side RPC is cancelled.
+                # NOTE: The server-side RPC is still working right after the client-side RPC is cancelled.
                 # Since there is no way to tell whether the server-side RPC is done or not,
                 # here it waits for the server-side RPC to be done.
                 await asyncio.sleep(0.5)
