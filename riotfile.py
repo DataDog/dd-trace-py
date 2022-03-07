@@ -185,6 +185,11 @@ venv = Venv(
             pkgs={"riot": latest},
         ),
         Venv(
+            pys=["3"],
+            name="scripts",
+            command="python -m doctest {cmdargs} scripts/get-target-milestone.py",
+        ),
+        Venv(
             name="docs",
             pys=["3"],
             pkgs={
