@@ -40,7 +40,9 @@ class TelemetryWriter(PeriodicService):
         # type: (Optional[str]) -> None
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
-        self._enabled = False  # type: bool
+        # _enabled is None at startup, and is on ly set to true or false
+        # after the config has been processed
+        self._enabled = None  # type: Optional[bool]
         self._agent_url = agent_url or get_trace_url()
 
         self._encoder = JSONEncoderV2()
@@ -145,7 +147,7 @@ class TelemetryWriter(PeriodicService):
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
         with self._lock:
-            if not self._enabled:
+            if self._enabled is not None and not self._enabled:
                 return
 
             integration = {
@@ -167,7 +169,7 @@ class TelemetryWriter(PeriodicService):
 
         payload = {
             "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
-            "integrations": [],
+            "integrations": self._flush_integrations_queue(),
             "configurations": [],
         }
         self.add_event(payload, "app-started")
@@ -218,10 +220,11 @@ class TelemetryWriter(PeriodicService):
     def disable(self):
         # type: () -> None
         """
-        Disable the telemetry collection service.
+        Disable the telemetry collection service and flush the existing integrations and events
         Once disabled, telemetry collection can be re-enabled by calling ``enable`` again.
         """
         with self._lock:
+            self._integrations_queue = []
             if self.status == ServiceStatus.STOPPED:
                 return
 
