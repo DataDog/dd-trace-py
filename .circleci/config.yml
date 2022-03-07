@@ -612,7 +612,7 @@ jobs:
     parallelism: 6
     steps:
       - run_test:
-          pattern: "grpc"
+          pattern: "^grpc$"
           snapshot: true
 
   grpc_aio:
@@ -620,7 +620,7 @@ jobs:
     parallelism: 6
     steps:
       - run_test:
-          pattern: "grpc_aio"
+          pattern: "^grpc_aio$"
           snapshot: true
 
   httplib:
