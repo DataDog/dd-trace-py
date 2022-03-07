@@ -3,7 +3,9 @@ The gRPC integration traces the client and server of grpc.aio package using the 
 
 
 Enabling
-~~~~~~~~To manually enable the integration::
+~~~~~~~~
+
+To manually enable the integration::
 
     from ddtrace import patch
     patch(grpc_aio=True)
