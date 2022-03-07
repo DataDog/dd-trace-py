@@ -43,8 +43,9 @@ def telemetry_writer():
 @pytest.fixture
 def telemetry_writer_disabled():
     telemetry_writer = TelemetryWriter()
-    # TelemetryWriter should be disabled by default
-    assert telemetry_writer._enabled is False
+    # TelemetryWriter _enabled should be None by default
+    assert telemetry_writer._enabled is None
+    telemetry_writer._enabled = False
     yield telemetry_writer
 
 
@@ -80,6 +81,9 @@ def test_add_event_disabled_writer(mock_send_request, telemetry_writer_disabled)
 
 def test_add_app_started_event(mock_time, mock_send_request, telemetry_writer):
     """asserts that app_started_event() queues a valid telemetry request which is then sent by periodic()"""
+    # queue integrations
+    telemetry_writer.add_integration("integration-t", True)
+    telemetry_writer.add_integration("integration-f", False)
     # queue an app started event
     telemetry_writer.app_started_event()
     # send app-started event to the agent
@@ -93,7 +97,22 @@ def test_add_app_started_event(mock_time, mock_send_request, telemetry_writer):
     # validate request body
     payload = {
         "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
-        "integrations": [],
+        "integrations": [
+            {
+                "name": "integration-t",
+                "version": "",
+                "enabled": True,
+                "auto_enabled": True,
+                "error": "",
+            },
+            {
+                "name": "integration-f",
+                "version": "",
+                "enabled": True,
+                "auto_enabled": False,
+                "error": "",
+            },
+        ],
         "configurations": [],
     }
     assert httpretty.last_request().parsed_body == _get_request_body(payload, "app-started")
@@ -134,7 +153,6 @@ def test_add_integration(mock_time, mock_send_request, telemetry_writer):
                 "version": "",
                 "enabled": True,
                 "auto_enabled": True,
-                "compatible": "",
                 "error": "",
             },
             {
@@ -142,7 +160,6 @@ def test_add_integration(mock_time, mock_send_request, telemetry_writer):
                 "version": "",
                 "enabled": True,
                 "auto_enabled": False,
-                "compatible": "",
                 "error": "",
             },
         ]
