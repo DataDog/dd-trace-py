@@ -617,7 +617,7 @@ jobs:
 
   grpc_aio:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 2
     steps:
       - run_test:
           pattern: "^grpc_aio$"
