@@ -10,7 +10,6 @@ import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
-import warnings
 import weakref
 
 import mock
@@ -525,31 +524,6 @@ def test_tracer_shutdown_no_timeout():
     t.shutdown()
     assert t._writer.stop.called
     assert not t._writer.join.called
-
-    with warnings.catch_warnings(record=True) as ws:
-        warnings.simplefilter("always")
-
-        # Do a write to start the writer.
-        with t.trace("something"):
-            pass
-
-        (w,) = ws
-        assert issubclass(w.category, DeprecationWarning)
-        assert (
-            str(w.message) == "Tracing with a tracer that has been shut down is being deprecated. "
-            "A new tracer should be created for generating new traces in version '1.0.0'"
-        )
-
-    with t.trace("something"):
-        pass
-
-    t.shutdown()
-    t._writer.stop.assert_has_calls(
-        [
-            mock.call(timeout=None),
-            mock.call(timeout=None),
-        ]
-    )
 
 
 def test_tracer_configure_writer_stop_unstarted():

@@ -394,7 +394,7 @@ class Tracer(object):
 
         self._new_process = True
 
-    def _start_span(
+    def start_span(
         self,
         name,  # type: str
         child_of=None,  # type: Optional[Union[Span, Context]]
@@ -589,8 +589,6 @@ class Tracer(object):
         self._hooks.emit(self.__class__.start_span, span)
         return span
 
-    start_span = _start_span
-
     def _on_span_finish(self, span):
         # type: (Span) -> None
         active = self.current_span()
@@ -660,7 +658,7 @@ class Tracer(object):
         else:
             log.log(level, msg)
 
-    def _trace(self, name, service=None, resource=None, span_type=None):
+    def trace(self, name, service=None, resource=None, span_type=None):
         # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
         """Activate and return a new span that inherits from the current active span.
 
@@ -710,8 +708,6 @@ class Tracer(object):
             span_type=span_type,
             activate=True,
         )
-
-    trace = _trace
 
     def current_root_span(self):
         # type: () -> Optional[Span]
@@ -863,44 +859,6 @@ class Tracer(object):
         """
         self._tags.update(tags)
 
-    def _restore_from_shutdown(self):
-        with self._shutdown_lock:
-            if self.start_span is self._start_span:
-                # Already restored
-                return
-
-            atexit.register(self._atexit)
-            forksafe.register(self._child_after_fork)
-
-            self.start_span = self._start_span
-            self.trace = self._trace
-
-            debtcollector.deprecate(
-                "Tracing with a tracer that has been shut down is being deprecated. "
-                "A new tracer should be created for generating new traces",
-                version="1.0.0",
-            )
-
-    def _shutdown_start_span(
-        self,
-        name,  # type: str
-        child_of=None,  # type: Optional[Union[Span, Context]]
-        service=None,  # type: Optional[str]
-        resource=None,  # type: Optional[str]
-        span_type=None,  # type: Optional[str]
-        activate=False,  # type: bool
-    ):
-        # type: (...) -> Span
-        self._restore_from_shutdown()
-
-        return self.start_span(name, child_of, service, resource, span_type, activate)
-
-    def _shutdown_trace(self, name, service=None, resource=None, span_type=None):
-        # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
-        self._restore_from_shutdown()
-
-        return self.trace(name, service, resource, span_type)
-
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None
         """Shutdown the tracer.
@@ -921,9 +879,6 @@ class Tracer(object):
         with self._shutdown_lock:
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
-
-            self.start_span = self._shutdown_start_span  # type: ignore[assignment]
-            self.trace = self._shutdown_trace  # type: ignore[assignment]
 
     @staticmethod
     def _use_log_writer():
