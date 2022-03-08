@@ -30,4 +30,4 @@ def configure_ddtrace_logger():
         ddtrace_handler = logging.StreamHandler()
         ddtrace_handler.setFormatter(log_formatter)
         ddtrace_logger.addHandler(ddtrace_handler)
-        ddtrace_logger.debug("Debug mode has been enabled with debug logs logging to stdout")
+        ddtrace_logger.debug("Debug mode has been enabled with debug logs logging to stderr")
