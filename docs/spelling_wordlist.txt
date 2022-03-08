@@ -86,6 +86,7 @@ kwarg
 kwargs
 lifecycle
 lookups
+macOS
 mako
 mariadb
 memcached
