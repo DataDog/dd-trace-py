@@ -3,7 +3,7 @@ import aiohttp_jinja2
 import pytest
 
 from ddtrace.contrib.aiohttp.middlewares import trace_app
-from ddtrace.contrib.aiohttp.patch import patch
+from ddtrace.contrib.aiohttp_jinja2.patch import patch as patch_jinja2
 from ddtrace.internal.utils import version
 from ddtrace.pin import Pin
 
@@ -24,7 +24,7 @@ if version.parse_version(aiohttp.__version__) < (3, 0, 0):
 
     @pytest.fixture
     def patched_app_tracer(app_tracer):
-        patch()
+        patch_jinja2()
         app, tracer = app_tracer
         Pin.override(aiohttp_jinja2, tracer=tracer)
         return app, tracer
@@ -34,7 +34,7 @@ if version.parse_version(aiohttp.__version__) < (3, 0, 0):
 
     @pytest.fixture
     def untraced_app_tracer(tracer, loop):
-        patch()
+        patch_jinja2()
         app = setup_app()
         Pin.override(aiohttp_jinja2, tracer=tracer)
         return app, tracer
@@ -53,7 +53,7 @@ else:
 
     @pytest.fixture
     async def patched_app_tracer(app_tracer):
-        patch()
+        patch_jinja2()
         app, tracer = app_tracer
         Pin.override(aiohttp_jinja2, tracer=tracer)
         return app, tracer
@@ -63,7 +63,7 @@ else:
 
     @pytest.fixture
     async def untraced_app_tracer(tracer, loop):
-        patch()
+        patch_jinja2()
         app = setup_app()
         Pin.override(aiohttp_jinja2, tracer=tracer)
         return app, tracer
