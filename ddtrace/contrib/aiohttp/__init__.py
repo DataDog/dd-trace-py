@@ -8,9 +8,6 @@ the provided ``trace_app`` function must be used::
     from ddtrace import tracer, patch
     from ddtrace.contrib.aiohttp import trace_app
 
-    # patch third-party modules like aiohttp_jinja2
-    patch(aiohttp=True)
-
     # create your application
     app = web.Application()
     app.router.add_get('/', home_handler)
@@ -34,10 +31,6 @@ Available settings are:
 * ``distributed_tracing_enabled`` (default: ``True``): enable distributed tracing during
   the middleware execution, so that a new span is created with the given ``trace_id`` and
   ``parent_id`` injected via request headers.
-
-Third-party modules that are currently supported by the ``patch()`` method are:
-
-* ``aiohttp_jinja2``
 
 When a request span is created, a new ``Context`` for this logical execution is attached
 to the ``request`` object, so that it can be used in the application code::
