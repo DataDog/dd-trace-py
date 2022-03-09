@@ -1,7 +1,43 @@
 """
-The ``aiohttp`` integration traces all requests defined in the application handlers.
+The ``aiohttp`` integration traces requests made with the client or to the server.
 
-Automatic instrumentation is not available for ``aiohttp.web.Application``, instead
+The client is automatically instrumented while the server must be manually instrumented using middleware.
+
+Client
+******
+
+Enabling
+~~~~~~~~
+
+The client integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+
+Or use :ref:`patch()<patch>` to manually enable the integration::
+
+    from ddtrace import patch
+    patch(aiohttp=True)
+
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.aiohttp_client['distributed_tracing']
+
+   Include distributed tracing headers in requests sent from the aiohttp client.
+
+   This option can also be set with the ``DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING``
+   environment variable.
+
+   Default: ``True``
+
+
+Server
+******
+
+Enabling
+~~~~~~~~
+
+Automatic instrumentation is not available for the server, instead
 the provided ``trace_app`` function must be used::
 
     from aiohttp import web
