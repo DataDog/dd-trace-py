@@ -64,6 +64,11 @@ asyncio
 .. automodule:: ddtrace.contrib.asyncio
 
 
+asyncpg
+^^^^^^^
+.. automodule:: ddtrace.contrib.asyncpg
+
+
 .. _botocore:
 
 botocore

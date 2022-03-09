@@ -1616,5 +1616,22 @@ venv = Venv(
                 ],
             },
         ),
+        Venv(
+            name="asyncpg",
+            pys=select_pys(min_version="3.6"),
+            command="pytest {cmdargs} tests/contrib/asyncpg",
+            pkgs={
+                "pytest-asyncio": latest,
+                "asyncpg": [
+                    "~=0.14.0",
+                    "~=0.16.0",
+                    "~=0.18.0",
+                    "~=0.20.0",
+                    "~=0.22.0",
+                    "~=0.24.0",
+                    latest,
+                ],
+            },
+        ),
     ],
 )
