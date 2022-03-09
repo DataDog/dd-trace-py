@@ -6,9 +6,9 @@ Enabling
 ~~~~~~~~
 
 The integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<ddtrace.monkey.patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
 
-Or use :ref:`patch()<ddtrace.monkey.patch>` to manually enable the integration::
+Or use :ref:`patch()<patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(aiohttp_jinja2=True)
