@@ -5,6 +5,7 @@ from json import loads
 import logging
 import os
 import sys
+from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -40,6 +41,8 @@ from .sma import SimpleMovingAverage
 if TYPE_CHECKING:
     from ddtrace import Span
 
+    from .agent import ConnectionType
+
 
 log = get_logger(__name__)
 
@@ -54,6 +57,7 @@ DEFAULT_SMA_WINDOW = 10
 DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
 DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
 DEFAULT_PROCESSING_INTERVAL = 1.0
+DEFAULT_REUSE_CONNECTIONS = True
 
 
 def get_writer_buffer_size():
@@ -73,6 +77,11 @@ def get_writer_interval_seconds():
     return float(
         get_env("trace", "writer_interval_seconds", default=DEFAULT_PROCESSING_INTERVAL)  # type: ignore[arg-type]
     )
+
+
+def get_writer_reuse_connections():
+    # type: () -> bool
+    return asbool(os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS))
 
 
 def _human_size(nbytes):
@@ -246,6 +255,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]
+        reuse_connections=None,  # type: Optional[bool]
     ):
         # type: (...) -> None
         # Pre-conditions:
@@ -301,6 +311,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._metrics_reset()
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
+        self._conn = None  # type: Optional[ConnectionType]
         self._retry_upload = tenacity.Retrying(
             # Retry RETRY_ATTEMPTS times within the first half of the processing
             # interval, using a Fibonacci policy with jitter
@@ -311,6 +322,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
         )
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
+        self._reuse_connections = get_writer_reuse_connections() if reuse_connections is None else reuse_connections
 
     @property
     def _agent_endpoint(self):
@@ -363,13 +375,21 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             api_version=self._api_version,
         )
 
-    def _put(self, data, headers):
-        conn = get_connection(self.agent_url, self._timeout)
+    def _reset_connection(self):
+        # type: () -> None
+        if self._conn:
+            self._conn.close()
+            self._conn = None
 
+    def _put(self, data, headers):
+        # type: (bytes, Dict[str, str]) -> Response
         with StopWatch() as sw:
+            if self._conn is None:
+                log.debug("creating new agent connection to %s with timeout %d", self.agent_url, self._timeout)
+                self._conn = get_connection(self.agent_url, self._timeout)
             try:
-                conn.request("PUT", self._endpoint, data, headers)
-                resp = compat.get_connection_response(conn)
+                self._conn.request("PUT", self._endpoint, data, headers)
+                resp = compat.get_connection_response(self._conn)
                 t = sw.elapsed()
                 if t >= self.interval:
                     log_level = logging.WARNING
@@ -377,8 +397,12 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     log_level = logging.DEBUG
                 log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._agent_endpoint)
                 return Response.from_http_response(resp)
+            except Exception:
+                self._reset_connection()
+                raise
             finally:
-                conn.close()
+                if self._conn and not self._reuse_connections:
+                    self._reset_connection()
 
     def _downgrade(self, payload, response):
         if self._endpoint == "v0.5/traces":
@@ -557,4 +581,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         super(AgentWriter, self)._stop_service()
         self.join(timeout=timeout)
 
-    on_shutdown = periodic
+    def on_shutdown(self):
+        try:
+            self.periodic()
+        finally:
+            self._reset_connection()
