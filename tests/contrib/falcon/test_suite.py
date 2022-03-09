@@ -40,7 +40,7 @@ class FalconTestCase(FalconTestMixin):
         assert span.resource == "GET 404"
         assert_span_http_status_code(span, 404)
         assert span.get_tag(httpx.URL) == "http://falconframework.org/fake_endpoint"
-        assert httpx.QUERY_STRING not in span._get_tags()
+        assert httpx.QUERY_STRING not in span.get_tags()
         assert span.parent_id is None
         assert span.error == 0
 
@@ -86,7 +86,7 @@ class FalconTestCase(FalconTestMixin):
         if config.falcon.trace_query_string:
             assert span.get_tag(httpx.QUERY_STRING) == query_string
         else:
-            assert httpx.QUERY_STRING not in span._get_tags()
+            assert httpx.QUERY_STRING not in span.get_tags()
         assert span.parent_id is None
         assert span.span_type == "web"
         assert span.error == 0
