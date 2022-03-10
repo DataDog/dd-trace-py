@@ -1,4 +1,4 @@
 ---
-upgrade:
+fixes:
   - |
     Change SNS DataType->Binary and StringValue->BinaryValue to bypass policy filter bug Datadog/serverless-plugin-datadog#232. However we leave SQS message attributes as strings.
