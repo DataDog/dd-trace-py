@@ -393,6 +393,7 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
+    @remove(message="Use getters for ``Span`` attributes instead.", version="1.0.0")
     def to_dict(self):
         # type: () -> Dict[str, Any]
         d = {
