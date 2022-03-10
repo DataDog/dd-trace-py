@@ -1068,7 +1068,11 @@ class BotocoreTest(TracerTestCase):
         assert msg_str == "test"
         msg_attr = msg_body["MessageAttributes"]
         assert msg_attr.get("_datadog") is not None
-        headers = json.loads(msg_attr["_datadog"]["Value"])
+        msg_attr_value_in_b64 = msg_attr["_datadog"]["Value"]
+        base64_bytes = msg_attr_value_in_b64.encode("ascii")
+        message_bytes = base64.b64decode(base64_bytes)
+        msg_attr_value_in_str = message_bytes.decode("ascii")
+        headers = json.loads(msg_attr_value_in_str)
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)

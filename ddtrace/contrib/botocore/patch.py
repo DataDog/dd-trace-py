@@ -69,9 +69,11 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
 
     Inject trace headers into the an SQS or SNS record's MessageAttributes
     """
-    event_source = entry.get("eventSource", None)
+    event_source = entry.get("eventSource", entry.get("EventSource", ""))
     if event_source == "aws:sqs":
-        entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
+        # An Amazon SQS message can contain up to 10 metadata attributes.
+        if len(entry["messageAttributes"]) < 10:
+            entry["essageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
     elif event_source == "aws:sns":
         entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": json.dumps(trace_data)}
     else:
