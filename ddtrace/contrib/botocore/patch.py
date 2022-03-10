@@ -74,13 +74,15 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
     if event_source == "aws:sqs":
         # An Amazon SQS message can contain up to 10 metadata attributes.
         if len(entry["messageAttributes"]) < 10:
-            # Use String as changing this to Binary would be a breaking change as other tracers expect this to be a String.
+            # Use String as changing this to Binary would be a breaking 
+            # change as other tracers expect this to be a String.
             entry["messageAttributes"]["_datadog"] = {"dataType": "String", "stringValue": json.dumps(trace_data)}
         else:
             # In the event an SQS record has 10 or more msg attributes we cannot add our _datadog msg attribute
             log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
     elif event_source == "aws:sns":
-        # Use Binary since SNS subscription filter policies fail silently with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
+        # Use Binary since SNS subscription filter policies fail silently 
+        # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
         # AWS will encode our value if it sees "Binary"
         entry["MessageAttributes"]["_datadog"] = {"Type": "Binary", "Value": json.dumps(trace_data)}
     else:
