@@ -195,7 +195,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert_span_http_status_code(s, 500)
         assert s.error == 1
         assert s.get_tag(http.METHOD) == "GET"
-        assert "ZeroDivisionError" in s.get_tag(ERROR_TYPE), s._get_tags()
+        assert "ZeroDivisionError" in s.get_tag(ERROR_TYPE), s.get_tags()
         assert "by zero" in s.get_tag(ERROR_MSG)
         assert re.search('File ".*/contrib/cherrypy/web.py", line [0-9]+, in fatal', s.get_tag(ERROR_STACK))
 

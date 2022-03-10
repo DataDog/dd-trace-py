@@ -101,7 +101,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
                 # DEV: root.assert_metrics(metrics, exact=True) won't work here since we have another sample
                 #      rate keys getting added
                 if metric_value is None:
-                    assert ANALYTICS_SAMPLE_RATE_KEY not in root._get_metrics()
+                    assert ANALYTICS_SAMPLE_RATE_KEY not in root.get_metrics()
                 else:
                     assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == metric_value
                 self.reset()

@@ -54,7 +54,7 @@ def test_simple_query(connection, tracer):
     assert span.get_metric("out.port") == 3306
 
     assert_dict_issuperset(
-        span._get_tags(),
+        span.get_tags(),
         {
             "out.host": u"127.0.0.1",
             "db.name": u"test",
