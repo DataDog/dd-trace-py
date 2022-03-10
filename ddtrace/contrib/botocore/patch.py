@@ -73,7 +73,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
     if event_source == "aws:sqs":
         # An Amazon SQS message can contain up to 10 metadata attributes.
         if len(entry["messageAttributes"]) < 10:
-            entry["essageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
     elif event_source == "aws:sns":
         entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": json.dumps(trace_data)}
     else:
