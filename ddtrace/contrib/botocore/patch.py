@@ -84,7 +84,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
         # AWS will encode our value if it sees "Binary"
         entry["MessageAttributes"]["_datadog"] = {"Type": "Binary", "Value": json.dumps(trace_data)}
     else:
-        log.warning("skipping trace injection, eventSource is not SNS or SQS")
+        log.warning("skipping trace injection, event source is not SNS or SQS")
 
 
 def inject_trace_to_sqs_or_sns_batch_message(params, span):
