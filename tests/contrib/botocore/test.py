@@ -1010,7 +1010,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
-    def test_sns_send_message_trace_injection_with_message_attributes(self):
+    def test_sns_send_message_trace_injection_with_b64_message_attributes(self):
         sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
         sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
 
@@ -1068,11 +1068,10 @@ class BotocoreTest(TracerTestCase):
         assert msg_str == "test"
         msg_attr = msg_body["MessageAttributes"]
         assert msg_attr.get("_datadog") is not None
-        msg_attr_value_in_b64 = msg_attr["_datadog"]["Value"]
-        base64_bytes = msg_attr_value_in_b64.encode("ascii")
-        message_bytes = base64.b64decode(base64_bytes)
-        msg_attr_value_in_str = message_bytes.decode("ascii")
-        headers = json.loads(msg_attr_value_in_str)
+        msg_attr_val = msg_attr["_datadog"]["Value"]
+        print("type of msg attr val")
+        print(type(msg_attr_val))
+        headers = json.loads(b"")
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
