@@ -69,6 +69,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
 
     Inject trace headers into the an SQS or SNS record's MessageAttributes
     """
+    # SQS uses "eventSource" while SNS uses "EventSource"
     event_source = entry.get("eventSource", entry.get("EventSource", ""))
     if event_source == "aws:sqs":
         # An Amazon SQS message can contain up to 10 metadata attributes.
