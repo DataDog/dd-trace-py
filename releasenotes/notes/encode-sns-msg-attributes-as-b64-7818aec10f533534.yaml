@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Change SNS DataType->Binary and StringValue->BinaryValue to bypass policy filter bug Datadog/serverless-plugin-datadog#232. However we leave SQS message attributes as strings.
+    botocore: fix incorrect context propagation message attribute types for SNS. This addresses `Datadog/serverless-plugin-datadog#232<https://github.com/DataDog/serverless-plugin-datadog/issues/232>`_
