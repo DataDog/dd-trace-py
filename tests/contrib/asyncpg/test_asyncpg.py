@@ -3,7 +3,6 @@ from typing import Generator
 
 import asyncpg
 import pytest
-import pytest_asyncio
 
 from ddtrace import Pin
 from ddtrace import tracer
@@ -21,7 +20,7 @@ def patch_asyncpg():
     unpatch()
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def patched_conn():
     # type: () -> Generator[asyncpg.Connection, None, None]
     conn = await asyncpg.connect(
@@ -63,7 +62,9 @@ async def test_connect(snapshot_context):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.msg"])  # stack is noisy between releases
+@pytest.mark.snapshot(
+    ignores=["meta.error.stack", "meta.error.msg", "meta.error.type"]
+)  # stack is noisy between releases
 async def test_bad_connect():
     with pytest.raises(OSError):
         await asyncpg.connect(
@@ -109,7 +110,7 @@ async def test_select(patched_conn):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=["meta.error.stack"])  # stack is noisy between releases
 async def test_bad_query(patched_conn):
     with pytest.raises(asyncpg.exceptions.PostgresSyntaxError):
         await patched_conn.execute("malformed; query;dfaskjfd")
