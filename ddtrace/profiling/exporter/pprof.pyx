@@ -252,7 +252,9 @@ class _PprofConverter(object):
             ),
         )
 
-        self._location_values[location_key]["alloc-samples"] = sum(event.nevents for event in events)
+        self._location_values[location_key]["alloc-samples"] = round(
+            sum(event.nevents * (event.capture_pct / 100.0) for event in events)
+        )
         self._location_values[location_key]["alloc-space"] = round(
             sum(event.size / event.capture_pct * 100.0 for event in events)
         )

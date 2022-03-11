@@ -469,10 +469,12 @@ jobs:
 
   aiohttp:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: 'aiohttp'
           snapshot: true
+          docker_services: 'httpbin_local'
 
   asgi:
     <<: *contrib_job_small
