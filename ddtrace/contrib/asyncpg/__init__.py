@@ -28,16 +28,6 @@ Global Configuration
    Default: ``postgres``
 
 
-.. py:data:: ddtrace.config.asyncpg['trace_fetch_methods']
-
-   Whether to trace fetch methods of asyncpg cursor objects.
-
-   This option can also be set with the ``DD_ASYNCPG_TRACE_FETCH_METHODS``
-   environment variable.
-
-   Default: ``False``
-
-
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 

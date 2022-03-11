@@ -1,3 +1,4 @@
+import os
 from typing import Generator
 
 import asyncpg
@@ -8,6 +9,7 @@ from ddtrace import Pin
 from ddtrace import tracer
 from ddtrace.contrib.asyncpg import patch
 from ddtrace.contrib.asyncpg import unpatch
+from ddtrace.contrib.trace_utils import iswrapped
 from tests.contrib.config import POSTGRES_CONFIG
 
 
@@ -61,14 +63,13 @@ async def test_connect(snapshot_context):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.error.stack"])  # stack is noisy between releases
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.msg"])  # stack is noisy between releases
 async def test_bad_connect():
     with pytest.raises(OSError):
-        conn = await asyncpg.connect(
+        await asyncpg.connect(
             host="localhost",
             port=POSTGRES_CONFIG["port"] + 1,
         )
-        await conn.close()
 
 
 @pytest.mark.asyncio
@@ -164,3 +165,48 @@ async def test_parenting(patched_conn):
     with tracer.trace("parent2"):
         c = patched_conn.execute("SELECT 1")
     await c
+
+
+@pytest.mark.snapshot(async_mode=False)
+def test_configure_service_name_env(ddtrace_run_python_code_in_subprocess):
+    code = """
+import asyncio
+import sys
+import asyncpg
+from tests.contrib.config import POSTGRES_CONFIG
+
+async def test():
+    conn = await asyncpg.connect(
+        host=POSTGRES_CONFIG["host"],
+        port=POSTGRES_CONFIG["port"],
+        user=POSTGRES_CONFIG["user"],
+        database=POSTGRES_CONFIG["dbname"],
+        password=POSTGRES_CONFIG["password"],
+    )
+    await conn.execute("SELECT 1")
+    await conn.close()
+
+if sys.version_info >= (3, 7, 0):
+    asyncio.run(test())
+else:
+    asyncio.get_event_loop().run_until_complete(test())
+    """
+    env = os.environ.copy()
+    env["DD_ASYNCPG_SERVICE"] = "global-service-name"
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+    assert err == b""
+
+
+def test_patch_unpatch_asyncpg():
+    assert iswrapped(asyncpg.connect)
+    assert iswrapped(asyncpg.protocol.Protocol.execute)
+    assert iswrapped(asyncpg.protocol.Protocol.bind_execute)
+    assert iswrapped(asyncpg.protocol.Protocol.query)
+    assert iswrapped(asyncpg.protocol.Protocol.bind_execute_many)
+    unpatch()
+    assert not iswrapped(asyncpg.connect)
+    assert not iswrapped(asyncpg.protocol.Protocol.execute)
+    assert not iswrapped(asyncpg.protocol.Protocol.bind_execute)
+    assert not iswrapped(asyncpg.protocol.Protocol.query)
+    assert not iswrapped(asyncpg.protocol.Protocol.bind_execute_many)

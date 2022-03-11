@@ -1,7 +1,7 @@
 [[
   {
     "name": "postgres.connect",
-    "service": "postgres",
+    "service": "global-service-name",
     "resource": "postgres.connect",
     "trace_id": 0,
     "span_id": 1,
@@ -11,7 +11,7 @@
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "b3c25b4dd3a041b4abca7aaa170f96c2"
+      "runtime-id": "9d62261208a942c6a36bd7ca869132d2"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -19,15 +19,15 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 67620
+      "system.pid": 811
     },
-    "duration": 10725000,
-    "start": 1647034616731583000
+    "duration": 4652701,
+    "start": 1647032618018379324
   }],
 [
   {
     "name": "postgres.query",
-    "service": "custom-svc",
+    "service": "global-service-name",
     "resource": "SELECT 1",
     "trace_id": 1,
     "span_id": 1,
@@ -37,7 +37,7 @@
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "b3c25b4dd3a041b4abca7aaa170f96c2"
+      "runtime-id": "9d62261208a942c6a36bd7ca869132d2"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -46,8 +46,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 67620
+      "system.pid": 811
     },
-    "duration": 1379000,
-    "start": 1647034616745136000
+    "duration": 379825,
+    "start": 1647032618023475066
   }]]

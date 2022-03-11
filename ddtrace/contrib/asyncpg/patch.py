@@ -1,4 +1,3 @@
-import os
 from typing import TYPE_CHECKING
 
 from ddtrace import Pin
@@ -11,7 +10,6 @@ from ...ext import db
 from ...ext import net
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
-from ...internal.utils.formats import asbool
 from ..trace_utils import ext_service
 from ..trace_utils import unwrap
 from ..trace_utils import wrap
@@ -30,7 +28,6 @@ if TYPE_CHECKING:
 config._add(
     "asyncpg",
     dict(
-        trace_fetch_methods=asbool(os.getenv("DD_ASYNCPG_TRACE_FETCH_METHODS", default=False)),
         _default_service="postgres",
     ),
 )
@@ -58,9 +55,14 @@ class _TracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn, pin):
         super(_TracedConnection, self).__init__(conn)
         conn_pin = pin.clone(tags=_get_connection_tags(conn))
-        conn_pin.onto(self)
-        # Mutable copy so that data can be set on the connection.
+        # Keep the pin on the protocol
         conn_pin.onto(self._protocol)
+
+    def __setddpin__(self, pin):
+        pin.onto(self._protocol)
+
+    def __getddpin__(self):
+        return Pin.get_from(self._protocol)
 
 
 @with_traced_module
@@ -72,15 +74,10 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     with pin.tracer.trace(
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
+        # Need an ObjectProxy since Connection uses slots
         conn = _TracedConnection(await func(*args, **kwargs), pin)
         span.set_tags(_get_connection_tags(conn))
         return conn
-
-
-class _TracedCursorIterator(wrapt.ObjectProxy):
-    def __init__(self, cursor, pin):
-        super(_TracedCursorIterator, self).__init__(cursor)
-        pin.onto(self)
 
 
 async def _traced_query(pin, method, query, args, kwargs):
@@ -96,7 +93,6 @@ async def _traced_query(pin, method, query, args, kwargs):
 async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
     state = get_argument_value(args, kwargs, 0, "state")  # type: Union[str, PreparedStatement]
     query = state if isinstance(state, str) else state.query
-
     return await _traced_query(pin, func, query, args, kwargs)
 
 
