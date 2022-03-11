@@ -210,7 +210,9 @@ class Tracer(object):
         return func
 
     @removals.removed_property(
-        message="Use ddtrace.tracer.log instead", category=DDTraceDeprecationWarning, removal_version="1.0.0"
+        message="Use logging.getLogger('ddtrace.tracer') instead",
+        category=DDTraceDeprecationWarning,
+        removal_version="1.0.0",
     )
     def log(self):
         # type: () -> logging.Logger
