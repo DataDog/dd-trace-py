@@ -94,6 +94,10 @@ class _TracedConnection(wrapt.ObjectProxy):
 
 @with_traced_module
 async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
+    """Traced asyncpg.connect().
+
+    connect() is instrumented and patched to return a connection proxy.
+    """
     with pin.tracer.trace(
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
@@ -108,6 +112,7 @@ class _TracedCursorFactory(wrapt.ObjectProxy):
         pin.onto(self)
 
     def __aiter__(self):
+        # ObjectProxy doesn't support aiter so need to proxy manually.
         return self.__wrapped__.__aiter__()
 
     def __await__(self):
@@ -124,6 +129,11 @@ class _TracedCursorFactory(wrapt.ObjectProxy):
 
 @with_traced_module_sync
 def _traced_connection_cursor(asyncpg, pin, func, instance, args, kwargs):
+    """Traced asyncpg.Connection.cursor()
+
+    Trace cursor(), which returns a CursorFactory to return a proxy
+    cursor factory.
+    """
     return _TracedCursorFactory(func(*args, **kwargs), pin)
 
 
@@ -154,6 +164,11 @@ class _TracedCursor(wrapt.ObjectProxy):
 
 @with_traced_module
 async def _traced_cursor_init(asyncpg, pin, func, instance, args, kwargs):
+    """Traced asyncpg.cursor.Cursor._init
+
+    The _init method is used to create Cursor objects. It is patched
+    to return a proxy cursor.
+    """
     cursor = await func(*args, **kwargs)
     if config.asyncpg.trace_fetch_methods:
         return _TracedCursor(cursor, pin)
