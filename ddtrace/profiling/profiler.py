@@ -187,7 +187,7 @@ class _ProfilerInstance(service.Service):
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),
             memalloc.MemoryCollector(r),
-            threading.LockCollector(r, tracer=self.tracer),
+            threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
 
         exporters = self._build_default_exporters()
