@@ -121,7 +121,9 @@ except ImportError:
 if sys.version_info.major < 3:
     getrandbits = random.SystemRandom().getrandbits
 else:
-    getrandbits = random.getrandbits
+    # Use a wrapper that allows passing k as a kwargs like in Python 2
+    def getrandbits(k):
+        return random.getrandbits(k)
 
 
 if sys.version_info.major < 3:
