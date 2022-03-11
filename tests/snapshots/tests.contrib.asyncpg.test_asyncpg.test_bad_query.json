@@ -11,7 +11,7 @@
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "719a1af1bf3349cc9aa037a82353dab8"
+      "runtime-id": "b0bde09048cb4673b20dde71719550fc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -19,8 +19,39 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 21134
+      "system.pid": 1236
     },
-    "duration": 8769000,
-    "start": 1646897806834299000
+    "duration": 3513409,
+    "start": 1647014837763282232
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "malformed; query;dfaskjfd",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 1,
+    "meta": {
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "error.msg": "syntax error at or near \"malformed\"",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/asyncpg/patch.py\", line 72, in _traced_method\n    return await method(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3812_pytest-asyncio_asyncpg/lib/python3.8/site-packages/asyncpg/connection.py\", line 318, in execute\n    return await self._protocol.query(query, timeout)\n  File \"asyncpg/protocol/protocol.pyx\", line 338, in query\nasyncpg.exceptions.PostgresSyntaxError: syntax error at or near \"malformed\"\n",
+      "error.type": "asyncpg.exceptions.PostgresSyntaxError",
+      "out.host": "127.0.0.1",
+      "runtime-id": "b0bde09048cb4673b20dde71719550fc"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 1236
+    },
+    "duration": 1750865,
+    "start": 1647014837768422167
   }]]

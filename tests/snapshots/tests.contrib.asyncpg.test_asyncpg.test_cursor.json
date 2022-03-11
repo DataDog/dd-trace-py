@@ -11,7 +11,7 @@
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "7b513eaf1f8d43c69d123f85db6a01b4"
+      "runtime-id": "dd45decbe18b43409012e9c6a956ddcc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -19,16 +19,16 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 25785
+      "system.pid": 67009
     },
-    "duration": 6353000,
-    "start": 1646899182613772000
+    "duration": 5844000,
+    "start": 1646993092860981000
   }],
 [
   {
     "name": "postgres.query",
     "service": "postgres",
-    "resource": "\n        INSERT INTO test (name) VALUES ($1), ($2);\n        ",
+    "resource": "\n        CREATE TEMP TABLE test (id serial PRIMARY KEY, name varchar(12) NOT NULL UNIQUE);\n    ",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
@@ -37,7 +37,7 @@
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "7b513eaf1f8d43c69d123f85db6a01b4"
+      "runtime-id": "dd45decbe18b43409012e9c6a956ddcc"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -46,8 +46,35 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 25785
+      "system.pid": 67009
     },
-    "duration": 2674000,
-    "start": 1646899182626796000
+    "duration": 3937000,
+    "start": 1646993092868111000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "\n        INSERT INTO test (name) VALUES ($1), ($2);\n        ",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "dd45decbe18b43409012e9c6a956ddcc"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 67009
+    },
+    "duration": 1849000,
+    "start": 1646993092872671000
   }]]

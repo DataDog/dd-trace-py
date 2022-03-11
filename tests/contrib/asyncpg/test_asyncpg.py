@@ -5,6 +5,7 @@ import pytest
 import pytest_asyncio
 
 from ddtrace import Pin
+from ddtrace import tracer
 from ddtrace.contrib.asyncpg import patch
 from ddtrace.contrib.asyncpg import unpatch
 from tests.contrib.config import POSTGRES_CONFIG
@@ -139,6 +140,27 @@ async def test_cursor(patched_conn):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
+async def test_cursor_manual(patched_conn):
+    async with patched_conn.transaction():
+        cur = await patched_conn.cursor("SELECT generate_series(0, 100)")
+        await cur.forward(10)
+        await cur.fetchrow()
+        await cur.fetch(5)
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
 async def test_service_override_pin(patched_conn):
     Pin.override(patched_conn, service="custom-svc")
     await patched_conn.execute("SELECT 1")
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_parenting(patched_conn):
+    with tracer.trace("parent"):
+        await patched_conn.execute("SELECT 1")
+
+    with tracer.trace("parent2"):
+        c = patched_conn.execute("SELECT 1")
+    await c
