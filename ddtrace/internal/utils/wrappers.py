@@ -89,4 +89,4 @@ def safe_patch(
     if inspect.isclass(patchable) or inspect.ismodule(patchable):
         setattr(patchable, key, dest)
     elif hasattr(patchable, "__class__"):
-        setattr(patchable, key, dest.__get__(patchable, patchable.__class__))  # type: ignore[attr-defined]
+        setattr(patchable, key, dest.__get__(patchable, patchable.__class__))
