@@ -69,24 +69,22 @@ def inject_trace_data_to_message_attributes(trace_data, entry):
 
     Inject trace headers into the an SQS or SNS record's MessageAttributes
     """
-    # SQS uses "eventSource" while SNS uses "EventSource"
-    event_source = entry.get("eventSource", entry.get("EventSource", ""))
-    if event_source == "aws:sqs":
-        # An Amazon SQS message can contain up to 10 metadata attributes.
-        if len(entry["messageAttributes"]) < 10:
+    if len(entry["MessageAttributes"]) < 10:
+        # We expect entry to either have QueueUrl or TopicArn which comes from a boto3 publish() or send_message() call
+        if entry.get("QueueUrl"):
             # Use String as changing this to Binary would be a breaking
             # change as other tracers expect this to be a String.
-            entry["messageAttributes"]["_datadog"] = {"dataType": "String", "stringValue": json.dumps(trace_data)}
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
+        elif entry.get("TopicArn"):
+            # Use Binary since SNS subscription filter policies fail silently
+            # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
+            # AWS will encode our value if it sees "Binary"
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": json.dumps(trace_data)}
         else:
-            # In the event an SQS record has 10 or more msg attributes we cannot add our _datadog msg attribute
-            log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
-    elif event_source == "aws:sns":
-        # Use Binary since SNS subscription filter policies fail silently
-        # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
-        # AWS will encode our value if it sees "Binary"
-        entry["MessageAttributes"]["_datadog"] = {"Type": "Binary", "Value": json.dumps(trace_data)}
+            log.warning("skipping trace injection, event source is not SNS or SQS")
     else:
-        log.warning("skipping trace injection, event source is not SNS or SQS")
+        # In the event a record has 10 or more msg attributes we cannot add our _datadog msg attribute
+        log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
 def inject_trace_to_sqs_or_sns_batch_message(params, span):
