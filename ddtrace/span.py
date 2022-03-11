@@ -331,7 +331,7 @@ class Span(object):
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def _get_tags(self):
+    def get_tags(self):
         # type: () -> _MetaDictType
         """Return all tags."""
         return self._meta.copy()
@@ -385,10 +385,12 @@ class Span(object):
 
     def get_metric(self, key):
         # type: (_TagNameType) -> Optional[NumericType]
+        """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
-    def _get_metrics(self):
+    def get_metrics(self):
         # type: () -> _MetricDictType
+        """Return all metrics."""
         return self._metrics.copy()
 
     def to_dict(self):
