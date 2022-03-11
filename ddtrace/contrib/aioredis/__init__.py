@@ -31,7 +31,7 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure the aioredis integration on an per-instance basis use the
+To configure the aioredis integration on a per-instance basis use the
 ``Pin`` API::
 
     import aioredis

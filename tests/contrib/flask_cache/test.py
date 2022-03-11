@@ -44,7 +44,7 @@ class FlaskCacheTest(TracerTestCase):
             "flask_cache.backend": "simple",
         }
 
-        assert_dict_issuperset(span._get_tags(), expected_meta)
+        assert_dict_issuperset(span.get_tags(), expected_meta)
 
     def test_simple_cache_set(self):
         self.cache.set(u"á_complex_operation", u"with_á_value\nin two lines")
@@ -63,7 +63,7 @@ class FlaskCacheTest(TracerTestCase):
             "flask_cache.backend": "simple",
         }
 
-        assert_dict_issuperset(span._get_tags(), expected_meta)
+        assert_dict_issuperset(span.get_tags(), expected_meta)
 
     def test_simple_cache_add(self):
         self.cache.add(u"á_complex_number", 50)
@@ -82,7 +82,7 @@ class FlaskCacheTest(TracerTestCase):
             "flask_cache.backend": "simple",
         }
 
-        assert_dict_issuperset(span._get_tags(), expected_meta)
+        assert_dict_issuperset(span.get_tags(), expected_meta)
 
     def test_simple_cache_delete(self):
         self.cache.delete(u"á_complex_operation")
@@ -101,7 +101,7 @@ class FlaskCacheTest(TracerTestCase):
             "flask_cache.backend": "simple",
         }
 
-        assert_dict_issuperset(span._get_tags(), expected_meta)
+        assert_dict_issuperset(span.get_tags(), expected_meta)
 
     def test_simple_cache_delete_many(self):
         self.cache.delete_many("complex_operation", "another_complex_op")
@@ -120,7 +120,7 @@ class FlaskCacheTest(TracerTestCase):
             "flask_cache.backend": "simple",
         }
 
-        assert_dict_issuperset(span._get_tags(), expected_meta)
+        assert_dict_issuperset(span.get_tags(), expected_meta)
 
     def test_simple_cache_clear(self):
         self.cache.clear()
@@ -138,7 +138,7 @@ class FlaskCacheTest(TracerTestCase):
             "flask_cache.backend": "simple",
         }
 
-        assert_dict_issuperset(span._get_tags(), expected_meta)
+        assert_dict_issuperset(span.get_tags(), expected_meta)
 
     def test_simple_cache_get_many(self):
         self.cache.get_many("first_complex_op", "second_complex_op")
@@ -157,7 +157,7 @@ class FlaskCacheTest(TracerTestCase):
             "flask_cache.backend": "simple",
         }
 
-        assert_dict_issuperset(span._get_tags(), expected_meta)
+        assert_dict_issuperset(span.get_tags(), expected_meta)
 
     def test_simple_cache_set_many(self):
         self.cache.set_many(
@@ -186,8 +186,8 @@ class FlaskCacheTest(TracerTestCase):
             self.assertEqual(span.service, self.SERVICE)
             self.assertEqual(span.span_type, "cache")
             self.assertEqual(span.get_tag(CACHE_BACKEND), "simple")
-            self.assertTrue(net.TARGET_HOST not in span._get_tags())
-            self.assertTrue(net.TARGET_PORT not in span._get_tags())
+            self.assertTrue(net.TARGET_HOST not in span.get_tags())
+            self.assertTrue(net.TARGET_PORT not in span.get_tags())
 
     def test_default_span_tags_for_redis(self):
         # create the TracedCache instance for a Flask app
@@ -258,7 +258,7 @@ class FlaskCacheTest(TracerTestCase):
             "flask_cache.backend": "simple",
         }
 
-        assert_dict_issuperset(dd_span._get_tags(), expected_meta)
+        assert_dict_issuperset(dd_span.get_tags(), expected_meta)
 
     def test_analytics_default(self):
         self.cache.get(u"á_complex_operation")

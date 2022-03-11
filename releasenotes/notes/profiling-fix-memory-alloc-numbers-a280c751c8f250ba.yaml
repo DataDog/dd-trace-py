@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes wrong numbers of memory allocation being reported in the memory profiler.

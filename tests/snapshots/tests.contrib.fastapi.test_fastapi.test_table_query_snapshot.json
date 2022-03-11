@@ -12,18 +12,28 @@
       "http.status_code": "200",
       "http.url": "http://testserver/items/",
       "http.version": "1.1",
-      "runtime-id": "2f9a677918454fe5bd4c51af231454b2"
+      "runtime-id": "ca13d92107a949fcb9e9070e1bf4ffa3"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 715
+      "system.pid": 88983
     },
-    "duration": 544200,
-    "start": 1632157975162885300
-  }],
+    "duration": 1456000,
+    "start": 1646400964981676000
+  },
+     {
+       "name": "fastapi.serialize_response",
+       "service": "fastapi",
+       "resource": "fastapi.serialize_response",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 222000,
+       "start": 1646400964982594000
+     }],
 [
   {
     "name": "fastapi.request",
@@ -38,15 +48,25 @@
       "http.status_code": "200",
       "http.url": "http://testserver/items/test_id",
       "http.version": "1.1",
-      "runtime-id": "2f9a677918454fe5bd4c51af231454b2"
+      "runtime-id": "ca13d92107a949fcb9e9070e1bf4ffa3"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 715
+      "system.pid": 88983
     },
-    "duration": 724700,
-    "start": 1632157975166416700
-  }]]
+    "duration": 479000,
+    "start": 1646400964985955000
+  },
+     {
+       "name": "fastapi.serialize_response",
+       "service": "fastapi",
+       "resource": "fastapi.serialize_response",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 112000,
+       "start": 1646400964986203000
+     }]]
