@@ -1636,11 +1636,20 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9"),
+                    pys=["3.9"],
                     pkgs={
                         "asyncpg": [
                             "~=0.20.0",
                             "~=0.22.0",
+                            "~=0.24.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "asyncpg": [
                             "~=0.24.0",
                             latest,
                         ],
