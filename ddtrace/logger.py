@@ -4,6 +4,9 @@ import os
 
 
 def configure_ddtrace_logger():
+    # type: () -> None
+    """
+    """
     debug_log_level = os.environ.get("DD_TRACE_DEBUG", "false").lower() in ("true", "1")
     log_path = os.environ.get("DD_TRACE_LOG_FILE", None)
     max_file_bytes = os.environ.get("DD_TRACE_FILE_SIZE_BYTES", 15000000)
