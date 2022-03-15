@@ -109,7 +109,7 @@ class RefMsgpackEncoder(_EncoderBase):
 
 class RefMsgpackEncoderV03(RefMsgpackEncoder):
     def normalize(self, span):
-        d = span.to_dict()
+        d = RefMsgpackEncoderV03._span_to_dict(span)
         if not d["error"]:
             del d["error"]
         return d
