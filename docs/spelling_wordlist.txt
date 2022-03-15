@@ -23,6 +23,7 @@ aredis
 args
 asgi
 asyncio
+asyncpg
 attrs
 autodetected
 autopatching
