@@ -9,7 +9,7 @@ DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 def configure_ddtrace_logger():
     # type: () -> None
     """ """
-    debug_log_level = os.environ.get("DD_TRACE_DEBUG", "false").lower() in ("true", "1")
+    debug_enabled = os.environ.get("DD_TRACE_DEBUG", "false").lower() in ("true", "1")
     log_path = os.environ.get("DD_TRACE_LOG_FILE", None)
     max_file_bytes = int(os.environ.get("DD_TRACE_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
     num_backup = 1
@@ -19,7 +19,7 @@ def configure_ddtrace_logger():
     ddtrace_logger = logging.getLogger("ddtrace")
     ddtrace_logger.propagate = False
 
-    if debug_log_level is False:
+    if debug_enabled is False:
         ddtrace_logger.setLevel(logging.WARN)
     else:
         ddtrace_logger.setLevel(logging.DEBUG)
