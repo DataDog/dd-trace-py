@@ -15,6 +15,7 @@ def configure_ddtrace_logger():
     num_backup = 1
     log_format = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s"
     log_formatter = logging.Formatter(log_format)
+    ddtrace_handler = logging.Handler
 
     ddtrace_logger = logging.getLogger("ddtrace")
     ddtrace_logger.propagate = False
@@ -25,14 +26,12 @@ def configure_ddtrace_logger():
         ddtrace_logger.setLevel(logging.DEBUG)
 
     if log_path is not None:
-        rotating_handler = RotatingFileHandler(
-            filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup
-        )
-        rotating_handler.setFormatter(log_formatter)
-        ddtrace_logger.addHandler(rotating_handler)
+        ddtrace_handler = RotatingFileHandler(filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup)
+        ddtrace_handler.setFormatter(log_formatter)
+        ddtrace_logger.addHandler(ddtrace_handler)
         ddtrace_logger.debug("Debug mode has been enabled with debug logs logging to %s", log_path)
     else:
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(log_formatter)
-        ddtrace_logger.addHandler(stream_handler)
+        ddtrace_handler = logging.StreamHandler()
+        ddtrace_handler.setFormatter(log_formatter)
+        ddtrace_logger.addHandler(ddtrace_handler)
         ddtrace_logger.debug("Debug mode has been enabled with debug logs logging to stderr")
