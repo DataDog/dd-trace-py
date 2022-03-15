@@ -25,7 +25,9 @@ def configure_ddtrace_logger():
         ddtrace_logger.setLevel(logging.DEBUG)
 
     if log_path is not None:
-        ddtrace_file_handler = RotatingFileHandler(filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup)
+        ddtrace_file_handler = RotatingFileHandler(
+            filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup
+        )
         ddtrace_file_handler.setFormatter(log_formatter)
         ddtrace_logger.addHandler(ddtrace_file_handler)
         ddtrace_logger.debug("Debug mode has been enabled with debug logs logging to %s", log_path)
