@@ -783,7 +783,7 @@ def test_no_warnings():
     # which results in a trace being generated after the tracer shutdown
     # has been initiated which results in a deprecation warning.
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
-    out, err, status, pid = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
+    out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
 
     # Wrapt is using features deprecated in Python 3.10
@@ -791,11 +791,11 @@ def test_no_warnings():
     if sys.version_info < (3, 10, 0):
         assert err == b"", err
     else:
-        assert (
-            err
-            == (
+        # Assert that the only log lines in the output are import warnings
+        lines = err.splitlines()
+        assert len(lines) > 0, err
+        for line in lines:
+            assert line == (
                 b"<frozen importlib._bootstrap>:914: ImportWarning: "
-                b"ImportHookFinder.find_spec() not found; falling back to find_module()\n"
-            )
-            * 75
-        ), err
+                b"ImportHookFinder.find_spec() not found; falling back to find_module()"
+            ), err
