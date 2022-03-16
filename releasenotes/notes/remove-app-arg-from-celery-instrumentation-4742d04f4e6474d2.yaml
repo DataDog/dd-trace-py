@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Remove Pin.app deprecation warning from celery instrumentation.
