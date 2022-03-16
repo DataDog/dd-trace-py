@@ -121,10 +121,8 @@ def trace_before_publish(*args, **kwargs):
         # This weirdness is due to yet another Celery bug concerning
         # how headers get propagated in async flows
         # https://github.com/celery/celery/issues/4875
-        task_headers = kwargs.get("headers") or {}
-        task_headers.setdefault("headers", {})
-        task_headers["headers"].update(trace_headers)
-        kwargs["headers"] = task_headers
+        task_headers = kwargs.get("headers", {})
+        task_headers.update(trace_headers)
 
 
 def trace_after_publish(*args, **kwargs):
