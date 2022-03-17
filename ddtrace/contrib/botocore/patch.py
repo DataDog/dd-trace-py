@@ -61,8 +61,8 @@ class TraceInjectionDecodingError(Exception):
     pass
 
 
-def inject_trace_data_to_message_attributes(trace_data, entry, endpoint):
-    # type: (Dict[str, str], Dict[str, Any], Union[Literal["sqs"], Literal["sns"]]) -> None
+def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
+    # type: (Dict[str, str], Dict[str, Any], Optional[Union[Literal["sqs"], Literal["sns"]]]) -> None
     """
     :trace_data: trace headers to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
