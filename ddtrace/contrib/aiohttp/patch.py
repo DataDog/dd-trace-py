@@ -105,7 +105,7 @@ def _patch_client(aiohttp):
 
 def patch():
     # Legacy patch aiohttp_jinja2
-    from ddtrace.contrib.aiohttp_jinja2 import patch as aiohttp_jinja2_patch
+    from ddtrace.contrib.aiohttp_jinja2.patch import patch as aiohttp_jinja2_patch
 
     aiohttp_jinja2_patch()
 
@@ -125,7 +125,7 @@ def _unpatch_client(aiohttp):
 
 
 def unpatch():
-    from ddtrace.contrib.aiohttp_jinja2 import unpatch as aiohttp_jinja2_unpatch
+    from ddtrace.contrib.aiohttp_jinja2.patch import unpatch as aiohttp_jinja2_unpatch
 
     aiohttp_jinja2_unpatch()
 
