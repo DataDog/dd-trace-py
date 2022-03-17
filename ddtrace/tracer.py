@@ -88,6 +88,51 @@ _INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
+def _default_span_processors_factory(
+    trace_filters,  # type: List[TraceFilter]
+    trace_writer,  # type: TraceWriter
+    partial_flush_enabled,  # type: bool
+    partial_flush_min_spans,  # type: int
+    appsec_enabled,  # type: bool
+):
+    # type: (...) -> List[SpanProcessor]
+    """Construct the default list of span processors to use."""
+    trace_processors = []  # type: List[TraceProcessor]
+    trace_processors += [TraceTagsProcessor()]
+    trace_processors += [TraceSamplingProcessor()]
+    trace_processors += [TraceTopLevelSpanProcessor()]
+    trace_processors += trace_filters
+
+    span_processors = []  # type: List[SpanProcessor]
+
+    if appsec_enabled:
+        try:
+            from .appsec.processor import AppSecSpanProcessor
+
+            appsec_span_processor = AppSecSpanProcessor()
+            span_processors.append(appsec_span_processor)
+        except Exception as e:
+            # DDAS-001-01
+            log.error(
+                "[DDAS-001-01] "
+                "AppSec could not start because of an unexpected error. No security activities will be collected. "
+                "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
+                repr(e),
+            )
+            if config._raise:
+                raise
+
+    span_processors.append(
+        SpanAggregator(
+            partial_flush_enabled=partial_flush_enabled,
+            partial_flush_min_spans=partial_flush_min_spans,
+            trace_processors=trace_processors,
+            writer=trace_writer,
+        )
+    )
+    return span_processors
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -147,11 +192,16 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
             )
         self._writer = writer  # type: TraceWriter
-
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
-
-        self._initialize_span_processors()
+        self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", default=False))
+        self._span_processors = _default_span_processors_factory(
+            self._filters,
+            self._writer,
+            self._partial_flush_enabled,
+            self._partial_flush_min_spans,
+            self._appsec_enabled,
+        )
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
@@ -343,7 +393,30 @@ class Tracer(object):
             pass
         if isinstance(self._writer, AgentWriter):
             self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
-        self._initialize_span_processors()
+
+        if any(
+            x is not None
+            for x in [
+                partial_flush_min_spans,
+                partial_flush_enabled,
+                writer,
+                dogstatsd_url,
+                hostname,
+                port,
+                https,
+                uds_path,
+                api_version,
+                sampler,
+                settings.get("FILTERS") if settings is not None else None,
+            ]
+        ):
+            self._span_processors = _default_span_processors_factory(
+                self._filters,
+                self._writer,
+                self._partial_flush_enabled,
+                self._partial_flush_min_spans,
+                self._appsec_enabled,
+            )
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -378,8 +451,13 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
-        self._initialize_span_processors()
-
+        self._span_processors = _default_span_processors_factory(
+            self._filters,
+            self._writer,
+            self._partial_flush_enabled,
+            self._partial_flush_min_spans,
+            self._appsec_enabled,
+        )
         self._new_process = True
 
     def start_span(
@@ -592,42 +670,6 @@ class Tracer(object):
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
-
-    def _initialize_span_processors(self, appsec_enabled=asbool(os.getenv("DD_APPSEC_ENABLED", default=False))):
-        # type: (Optional[bool]) -> None
-        trace_processors = []  # type: List[TraceProcessor]
-        trace_processors += [TraceTagsProcessor()]
-        trace_processors += [TraceSamplingProcessor()]
-        trace_processors += [TraceTopLevelSpanProcessor()]
-        trace_processors += self._filters
-
-        self._span_processors = []  # type: List[SpanProcessor]
-
-        if appsec_enabled:
-            try:
-                from .appsec.processor import AppSecSpanProcessor
-
-                appsec_span_processor = AppSecSpanProcessor()
-                self._span_processors.append(appsec_span_processor)
-            except Exception as e:
-                # DDAS-001-01
-                log.error(
-                    "[DDAS-001-01] "
-                    "AppSec could not start because of an unexpected error. No security activities will be collected. "
-                    "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
-                    repr(e),
-                )
-                if config._raise:
-                    raise
-
-        self._span_processors.append(
-            SpanAggregator(
-                partial_flush_enabled=self._partial_flush_enabled,
-                partial_flush_min_spans=self._partial_flush_min_spans,
-                trace_processors=trace_processors,
-                writer=self._writer,
-            )
-        )
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

@@ -71,7 +71,7 @@ class CachedMethodDescriptor(object):
 
     def __get__(self, obj, objtype=None):
         # type: (Any, Optional[Type]) -> F
-        cached_method = cached(self._maxsize)(self._method.__get__(obj, objtype))  # type: ignore[attr-defined]
+        cached_method = cached(self._maxsize)(self._method.__get__(obj, objtype))
         setattr(obj, self._method.__name__, cached_method)
         return cached_method
 

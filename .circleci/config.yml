@@ -461,6 +461,14 @@ jobs:
       - run_tox_scenario:
           pattern: '^asyncio_contrib-'
 
+  asyncpg:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'asyncpg'
+          snapshot: true
+          docker_services: 'postgres'
+
   pylons:
     <<: *contrib_job
     steps:
@@ -469,10 +477,12 @@ jobs:
 
   aiohttp:
     <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
           pattern: 'aiohttp'
           snapshot: true
+          docker_services: 'httpbin_local'
 
   asgi:
     <<: *contrib_job_small
@@ -973,6 +983,7 @@ requires_tests: &requires_tests
     - aiopg
     - aioredis
     - asyncio
+    - asyncpg
     - algoliasearch
     - asgi
     - benchmarks
@@ -1042,7 +1053,7 @@ requires_tests: &requires_tests
 
 workflows:
   version: 2
-  test:
+  test: &workflow_test
     jobs:
       # Pre-checking before running all jobs
       - pre_check
@@ -1060,6 +1071,7 @@ workflows:
       - aiopg: *requires_base_venvs
       - aioredis: *requires_base_venvs
       - asyncio: *requires_base_venvs
+      - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
       - benchmarks: *requires_base_venvs
@@ -1129,3 +1141,14 @@ workflows:
 
       # Final reports
       - coverage_report: *requires_tests
+
+  test_nightly:
+    <<: *workflow_test
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - 0.x
+                - 1.x

@@ -94,9 +94,10 @@ class Span(OpenTracingSpan):
         return self.context.get_baggage_item(key)
 
     def set_operation_name(self, operation_name):
-        # type: (str) -> None
+        # type: (str) -> Span
         """Set the operation name."""
         self._dd_span.name = operation_name
+        return self
 
     def log_kv(self, key_values, timestamp=None):
         # type: (Dict[_TagNameType, Any], Optional[float]) -> Span
@@ -133,7 +134,7 @@ class Span(OpenTracingSpan):
         return self
 
     def set_tag(self, key, value):
-        # type: (_TagNameType, Any) -> None
+        # type: (_TagNameType, Any) -> Span
         """Set a tag on the span.
 
         This sets the tag on the underlying datadog span.
@@ -152,6 +153,7 @@ class Span(OpenTracingSpan):
             self._dd_span.context.sampling_priority = value
         else:
             self._dd_span.set_tag(key, value)
+        return self
 
     def _get_tag(self, key):
         # type: (_TagNameType) -> Optional[Text]

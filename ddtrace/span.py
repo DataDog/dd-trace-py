@@ -331,7 +331,7 @@ class Span(object):
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def _get_tags(self):
+    def get_tags(self):
         # type: () -> _MetaDictType
         """Return all tags."""
         return self._meta.copy()
@@ -385,47 +385,13 @@ class Span(object):
 
     def get_metric(self, key):
         # type: (_TagNameType) -> Optional[NumericType]
+        """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
-    def _get_metrics(self):
+    def get_metrics(self):
         # type: () -> _MetricDictType
+        """Return all metrics."""
         return self._metrics.copy()
-
-    def to_dict(self):
-        # type: () -> Dict[str, Any]
-        d = {
-            "trace_id": self.trace_id,
-            "parent_id": self.parent_id,
-            "span_id": self.span_id,
-            "service": self.service,
-            "resource": self.resource,
-            "name": self.name,
-            "error": self.error,
-        }
-
-        # a common mistake is to set the error field to a boolean instead of an
-        # int. let's special case that here, because it's sure to happen in
-        # customer code.
-        err = d.get("error")
-        if err and type(err) == bool:
-            d["error"] = 1
-
-        if self.start_ns:
-            d["start"] = self.start_ns
-
-        if self.duration_ns:
-            d["duration"] = self.duration_ns
-
-        if self._meta:
-            d["meta"] = self._meta
-
-        if self._metrics:
-            d["metrics"] = self._metrics
-
-        if self.span_type:
-            d["type"] = self.span_type
-
-        return d
 
     def set_traceback(self, limit=20):
         # type: (int) -> None

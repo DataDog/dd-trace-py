@@ -59,7 +59,7 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.get_tag("http.method"), "GET")
         self.assertEqual(span.get_tag(http.URL), "http://127.0.0.1:8000/hello/Jim/24")
         assert_span_http_status_code(span, 200)
-        assert http.QUERY_STRING not in span._get_tags()
+        assert http.QUERY_STRING not in span.get_tags()
 
         # See test_resources below for specifics of this difference
         if MOLTEN_VERSION >= (0, 7, 2):

@@ -69,13 +69,13 @@ RUN git clone --depth 1 --branch v2.2.4 git://github.com/pyenv/pyenv.git "${PYEN
 
 # Install all required python versions
 RUN \
-  pyenv install 2.7.18 \
-  && pyenv install 3.5.10 \
-  && pyenv install 3.6.15 \
-  && pyenv install 3.7.12 \
-  && pyenv install 3.8.12 \
-  && pyenv install 3.9.9 \
-  && pyenv install 3.10.1 \
+  pyenv install --keep 2.7.18 \
+  && pyenv install --keep 3.5.10 \
+  && pyenv install --keep 3.6.15 \
+  && pyenv install --keep 3.7.12 \
+  && pyenv install --keep 3.8.12 \
+  && pyenv install --keep 3.9.9 \
+  && pyenv install --keep 3.10.1 \
   # Order matters: first version is the global one
   && pyenv global 3.10.1 2.7.18 3.5.10 3.6.15 3.7.12 3.8.12 3.9.9 \
   && pip install --upgrade pip

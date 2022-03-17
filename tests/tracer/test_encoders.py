@@ -49,8 +49,8 @@ def span_to_tuple(span):
         span.start_ns or 0,
         span.duration_ns or 0,
         int(bool(span.error)),
-        span._get_tags() or {},
-        span._get_metrics() or {},
+        span.get_tags() or {},
+        span.get_metrics() or {},
         span.span_type,
     )
 
@@ -109,7 +109,7 @@ class RefMsgpackEncoder(_EncoderBase):
 
 class RefMsgpackEncoderV03(RefMsgpackEncoder):
     def normalize(self, span):
-        d = span.to_dict()
+        d = RefMsgpackEncoderV03._span_to_dict(span)
         if not d["error"]:
             del d["error"]
         return d
