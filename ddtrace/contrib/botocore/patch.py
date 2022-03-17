@@ -62,7 +62,7 @@ class TraceInjectionDecodingError(Exception):
 
 
 def inject_trace_data_to_message_attributes(trace_data, entry, endpoint):
-    # type: (Dict[str, str], Dict[str, Any], endpoint) -> None
+    # type: (Dict[str, str], Dict[str, Any], Union[Literal["sqs"], Literal["sns"]]) -> None
     """
     :trace_data: trace headers to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
@@ -90,7 +90,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint):
 
 
 def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint):
-    # type: (Any, Span, endpoint) -> None
+    # type: (Any, Span, Union[Literal["sqs"], Literal["sns"]]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -110,7 +110,7 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint):
 
 
 def inject_trace_to_sqs_or_sns_message(params, span, endpoint):
-    # type: (Any, Span, endpoint) -> None
+    # type: (Any, Span, Union[Literal["sqs"], Literal["sns"]]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -306,17 +306,17 @@ def patched_api_call(original_func, instance, args, kwargs):
                     if endpoint_name == "lambda" and operation == "Invoke":
                         inject_trace_to_client_context(params, span)
                     if endpoint_name == "sqs" and operation == "SendMessage":
-                        inject_trace_to_sqs_or_sns_message(params, span, "sqs")
+                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(params, span, "sqs")
+                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                     if endpoint_name == "events" and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
                     if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
                         inject_trace_to_kinesis_stream(params, span)
                     if endpoint_name == "sns" and operation == "Publish":
-                        inject_trace_to_sqs_or_sns_message(params, span, "sns")
+                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
                     if endpoint_name == "sns" and operation == "PublishBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(params, span, "sns")
+                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 
