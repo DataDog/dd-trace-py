@@ -72,6 +72,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint):
     """
     if "MessageAttributes" not in entry:
         entry["MessageAttributes"] = {}
+    # Max of 10 message attributes.
     if len(entry["MessageAttributes"]) < 10:
         if endpoint == "sqs":
             # Use String since changing this to Binary would be a breaking
