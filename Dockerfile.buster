@@ -80,15 +80,6 @@ RUN \
   && pyenv global 3.10.3 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.11 \
   && pip install --upgrade pip
 
-
-# Install sirun for running benchmarks
-# https://github.com/DataDog/sirun
-ENV SIRUN_VERSION=0.1.6
-RUN \
-  wget https://github.com/DataDog/sirun/releases/download/v${SIRUN_VERSION}/sirun-v${SIRUN_VERSION}-x86_64-unknown-linux-gnu.tar.gz \
-  && tar -C /usr/local/bin/ -zxf sirun-v${SIRUN_VERSION}-x86_64-unknown-linux-gnu.tar.gz \
-  && rm sirun-v${SIRUN_VERSION}-x86_64-unknown-linux-gnu.tar.gz
-
 # Install datadog-ci tool for uploading JUnit XML reports
 # https://www.npmjs.com/package/@datadog/datadog-ci
 RUN npm install -g @datadog/datadog-ci
