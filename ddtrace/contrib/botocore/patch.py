@@ -90,8 +90,8 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
-def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint):
-    # type: (Any, Span, Union[Literal["sqs"], Literal["sns"]]) -> None
+def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None):
+    # type: (Any, Span, Optional[Union[Literal["sqs"], Literal["sns"]]]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -110,8 +110,8 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint):
         inject_trace_data_to_message_attributes(trace_data, entry, endpoint)
 
 
-def inject_trace_to_sqs_or_sns_message(params, span, endpoint):
-    # type: (Any, Span, Union[Literal["sqs"], Literal["sns"]]) -> None
+def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None):
+    # type: (Any, Span, Optional[Union[Literal["sqs"], Literal["sns"]]]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
