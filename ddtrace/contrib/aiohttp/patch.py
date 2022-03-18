@@ -104,10 +104,15 @@ def _patch_client(aiohttp):
 
 
 def patch():
-    # Legacy patch aiohttp_jinja2
-    from ddtrace.contrib.aiohttp_jinja2.patch import patch as aiohttp_jinja2_patch
+    try:
+        # Legacy patch aiohttp_jinja2
+        from ddtrace.contrib.aiohttp_jinja2.patch import patch as aiohttp_jinja2_patch
 
-    aiohttp_jinja2_patch()
+        aiohttp_jinja2_patch()
+    except Exception:
+        # If importing or patching of aiohttp_jinja2 fails then still patch aiohttp
+        # It can fail if aiohttp_jinja2 is not installed, or if expected APIs change
+        log.debug("Failed to patch aiohttp_jinja2 from aiohttp integration", exc_info=True)
 
     import aiohttp
 
@@ -125,9 +130,13 @@ def _unpatch_client(aiohttp):
 
 
 def unpatch():
-    from ddtrace.contrib.aiohttp_jinja2.patch import unpatch as aiohttp_jinja2_unpatch
+    try:
+        from ddtrace.contrib.aiohttp_jinja2.patch import unpatch as aiohttp_jinja2_unpatch
 
-    aiohttp_jinja2_unpatch()
+        aiohttp_jinja2_unpatch()
+    except Exception:
+        # If importing or unpatching aiohttp_jinja2 fails then still unpatch aiohttp
+        log.debug("Failed to unpatch aiohttp_jinja2 from aiohttp integration", exc_info=True)
 
     import aiohttp
 
