@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    Use ``patch(aiohttp_jinja2=True)`` instead of ``patch(aiohttp=True)`` for
+    enabling/disabling ``aiohttp_jinja2`` integration.
