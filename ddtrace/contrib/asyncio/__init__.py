@@ -2,7 +2,7 @@
 This integration provides context management for tracing the execution flow
 of concurrent execution of ``asyncio.Task``.
 
-This integration is only necessary in Python < 3.7(where contextvars is not supported).
+This integration is only necessary in Python < 3.7 (where contextvars is not supported).
 For Python > 3.7 this works automatically without configuration.
 
 For asynchronous execution tracing to work properly the tracer must
