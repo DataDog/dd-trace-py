@@ -10,7 +10,6 @@ import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
-import warnings
 import weakref
 
 import mock
@@ -526,31 +525,6 @@ def test_tracer_shutdown_no_timeout():
     assert t._writer.stop.called
     assert not t._writer.join.called
 
-    with warnings.catch_warnings(record=True) as ws:
-        warnings.simplefilter("always")
-
-        # Do a write to start the writer.
-        with t.trace("something"):
-            pass
-
-        (w,) = ws
-        assert issubclass(w.category, DeprecationWarning)
-        assert (
-            str(w.message) == "Tracing with a tracer that has been shut down is being deprecated. "
-            "A new tracer should be created for generating new traces in version '1.0.0'"
-        )
-
-    with t.trace("something"):
-        pass
-
-    t.shutdown()
-    t._writer.stop.assert_has_calls(
-        [
-            mock.call(timeout=None),
-            mock.call(timeout=None),
-        ]
-    )
-
 
 def test_tracer_configure_writer_stop_unstarted():
     t = ddtrace.Tracer()
@@ -745,9 +719,9 @@ class EnvTracerTestCase(TracerTestCase):
         # The version will not be tagged if the service is not globally
         # configured.
         with self.trace("root", service="rootsvc") as root:
-            assert VERSION_KEY not in root._get_tags()
+            assert VERSION_KEY not in root.get_tags()
             with self.trace("child") as span:
-                assert VERSION_KEY not in span._get_tags()
+                assert VERSION_KEY not in span.get_tags()
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2"))
     def test_version_service(self):
@@ -758,20 +732,20 @@ class EnvTracerTestCase(TracerTestCase):
         with self.trace("django.request") as root:
             # Root span should be tagged
             assert root.service == "django"
-            assert VERSION_KEY in root._get_tags() and root.get_tag(VERSION_KEY) == "0.1.2"
+            assert VERSION_KEY in root.get_tags() and root.get_tag(VERSION_KEY) == "0.1.2"
 
             # Child spans should be tagged
             with self.trace("") as child1:
                 assert child1.service == "django"
-                assert VERSION_KEY in child1._get_tags() and child1.get_tag(VERSION_KEY) == "0.1.2"
+                assert VERSION_KEY in child1.get_tags() and child1.get_tag(VERSION_KEY) == "0.1.2"
 
             # Version should not be applied to spans of a service that isn't user-defined
             with self.trace("mysql.query", service="mysql") as span:
-                assert VERSION_KEY not in span._get_tags()
+                assert VERSION_KEY not in span.get_tags()
                 # Child should also not have a version
                 with self.trace("") as child2:
                     assert child2.service == "mysql"
-                    assert VERSION_KEY not in child2._get_tags()
+                    assert VERSION_KEY not in child2.get_tags()
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
@@ -1243,7 +1217,7 @@ def test_ctx(tracer, test_spans):
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
     assert s1.get_metric(SAMPLING_PRIORITY_KEY) == 1
     assert s2.get_metric(SAMPLING_PRIORITY_KEY) is None
-    assert ORIGIN_KEY not in s1._get_tags()
+    assert ORIGIN_KEY not in s1.get_tags()
 
     t = test_spans.pop_traces()
     assert len(t) == 1

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pymongo: fix ``write_command`` being patched with the wrong method signature.

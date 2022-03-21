@@ -229,7 +229,6 @@ setup(
         "tenacity>=5",
         "attrs>=19.2.0",
         "six>=1.12.0",
-        "pep562; python_version<'3.7'",
     ],
     extras_require={
         # users can include opentracing by having:

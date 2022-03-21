@@ -75,7 +75,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
     if django.VERSION >= (2, 2, 0):
         meta["http.route"] = "^$"
 
-    assert http.QUERY_STRING not in root._get_tags()
+    assert http.QUERY_STRING not in root.get_tags()
     root.assert_matches(
         name="django.request",
         service="django",
@@ -116,7 +116,7 @@ def test_django_v2XX_alter_root_resource(client, test_spans):
     if django.VERSION >= (2, 2, 0):
         meta["http.route"] = "^alter-resource/$"
 
-    assert http.QUERY_STRING not in root._get_tags()
+    assert http.QUERY_STRING not in root.get_tags()
     root.assert_matches(
         name="django.request",
         service="django",
@@ -729,7 +729,7 @@ def test_cache_get(test_spans):
         "django.cache.key": "missing_key",
     }
 
-    assert_dict_issuperset(span._get_tags(), expected_meta)
+    assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
 def test_cache_set(test_spans):
@@ -754,7 +754,7 @@ def test_cache_set(test_spans):
         "django.cache.key": "a_new_key",
     }
 
-    assert_dict_issuperset(span._get_tags(), expected_meta)
+    assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
 def test_cache_delete(test_spans):
@@ -778,7 +778,7 @@ def test_cache_delete(test_spans):
         "django.cache.key": "an_existing_key",
     }
 
-    assert_dict_issuperset(span._get_tags(), expected_meta)
+    assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
 @pytest.mark.skipif(django.VERSION >= (2, 1, 0), reason="")
@@ -813,8 +813,8 @@ def test_cache_incr_1XX(test_spans):
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_get._get_tags(), expected_meta)
-    assert_dict_issuperset(span_incr._get_tags(), expected_meta)
+    assert_dict_issuperset(span_get.get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
 
 
 @pytest.mark.skipif(django.VERSION < (2, 1, 0), reason="")
@@ -843,7 +843,7 @@ def test_cache_incr_2XX(test_spans):
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_incr._get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
 
 
 @pytest.mark.skipif(django.VERSION >= (2, 1, 0), reason="")
@@ -884,9 +884,9 @@ def test_cache_decr_1XX(test_spans):
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_get._get_tags(), expected_meta)
-    assert_dict_issuperset(span_incr._get_tags(), expected_meta)
-    assert_dict_issuperset(span_decr._get_tags(), expected_meta)
+    assert_dict_issuperset(span_get.get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
+    assert_dict_issuperset(span_decr.get_tags(), expected_meta)
 
 
 @pytest.mark.skipif(django.VERSION < (2, 1, 0), reason="")
@@ -921,8 +921,8 @@ def test_cache_decr_2XX(test_spans):
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_incr._get_tags(), expected_meta)
-    assert_dict_issuperset(span_decr._get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
+    assert_dict_issuperset(span_decr.get_tags(), expected_meta)
 
 
 def test_cache_get_many(test_spans):
@@ -960,7 +960,7 @@ def test_cache_get_many(test_spans):
         "django.cache.key": str(["missing_key", "another_key"]),
     }
 
-    assert_dict_issuperset(span_get_many._get_tags(), expected_meta)
+    assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
 
 
 def test_cache_set_many(test_spans):
@@ -1081,8 +1081,8 @@ def test_cached_view(client, test_spans):
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
     }
 
-    assert span_view._get_tags() == expected_meta_view
-    assert span_header._get_tags() == expected_meta_header
+    assert span_view.get_tags() == expected_meta_view
+    assert span_header.get_tags() == expected_meta_header
 
 
 @pytest.mark.django_db
@@ -1118,7 +1118,7 @@ def test_cached_template(client, test_spans):
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
     }
 
-    assert span_template_cache._get_tags() == expected_meta
+    assert span_template_cache.get_tags() == expected_meta
 
 
 """
@@ -1494,7 +1494,7 @@ def test_user_name_excluded(client, test_spans):
 
     # user name should not be present in root span tags
     root = test_spans.get_root_span()
-    assert "django.user.name" not in root._get_tags()
+    assert "django.user.name" not in root.get_tags()
     assert root.get_tag("django.user.is_authenticated") == "True"
 
 
@@ -1772,7 +1772,7 @@ class TestWSGI:
         if django.VERSION >= (2, 2, 0):
             meta["http.route"] = "^$"
 
-        assert http.QUERY_STRING not in root._get_tags()
+        assert http.QUERY_STRING not in root.get_tags()
         root.assert_matches(
             name="django.request",
             service="django",

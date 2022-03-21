@@ -89,6 +89,59 @@ _INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
+def _default_span_processors_factory(
+    trace_filters,  # type: List[TraceFilter]
+    trace_writer,  # type: TraceWriter
+    partial_flush_enabled,  # type: bool
+    partial_flush_min_spans,  # type: int
+    appsec_enabled,  # type: bool
+    compute_stats_enabled,  # type: bool
+    agent_url,  # type: str
+):
+    # type: (...) -> List[SpanProcessor]
+    """Construct the default list of span processors to use."""
+    trace_processors = []  # type: List[TraceProcessor]
+    trace_processors += [TraceTagsProcessor()]
+    trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
+    trace_processors += [TraceTopLevelSpanProcessor()]
+    trace_processors += trace_filters
+
+    span_processors = []  # type: List[SpanProcessor]
+
+    if appsec_enabled:
+        try:
+            from .appsec.processor import AppSecSpanProcessor
+
+            appsec_span_processor = AppSecSpanProcessor()
+            span_processors.append(appsec_span_processor)
+        except Exception as e:
+            # DDAS-001-01
+            log.error(
+                "[DDAS-001-01] "
+                "AppSec could not start because of an unexpected error. No security activities will be collected. "
+                "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
+                repr(e),
+            )
+            if config._raise:
+                raise
+
+    if compute_stats_enabled:
+        span_processors.append(
+            SpanStatsProcessorV06(
+                agent_url,
+            ),
+        )
+    span_processors.append(
+        SpanAggregator(
+            partial_flush_enabled=partial_flush_enabled,
+            partial_flush_min_spans=partial_flush_min_spans,
+            trace_processors=trace_processors,
+            writer=trace_writer,
+        )
+    )
+    return span_processors
+
+
 class Tracer(object):
     """
     Tracer is used to create, sample and submit spans that measure the
@@ -150,12 +203,18 @@ class Tracer(object):
                 compute_stats_enabled=self._compute_stats,
             )
         self._writer = writer  # type: TraceWriter
-
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
-
-        self._span_processors = []  # type: List[SpanProcessor]
-        self._initialize_span_processors(self._writer)
+        self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", default=False))
+        self._span_processors = _default_span_processors_factory(
+            self._filters,
+            self._writer,
+            self._partial_flush_enabled,
+            self._partial_flush_min_spans,
+            self._appsec_enabled,
+            self._compute_stats,
+            self._agent_url,
+        )
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
@@ -353,7 +412,31 @@ class Tracer(object):
         if isinstance(self._writer, AgentWriter):
             self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
 
-        self._initialize_span_processors(self._writer)
+        if any(
+            x is not None
+            for x in [
+                partial_flush_min_spans,
+                partial_flush_enabled,
+                writer,
+                dogstatsd_url,
+                hostname,
+                port,
+                https,
+                uds_path,
+                api_version,
+                sampler,
+                settings.get("FILTERS") if settings is not None else None,
+            ]
+        ):
+            self._span_processors = _default_span_processors_factory(
+                self._filters,
+                self._writer,
+                self._partial_flush_enabled,
+                self._partial_flush_min_spans,
+                self._appsec_enabled,
+                self._compute_stats,
+                self._agent_url,
+            )
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -388,11 +471,18 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
-        self._initialize_span_processors(self._writer)
-
+        self._span_processors = _default_span_processors_factory(
+            self._filters,
+            self._writer,
+            self._partial_flush_enabled,
+            self._partial_flush_min_spans,
+            self._appsec_enabled,
+            self._compute_stats,
+            self._agent_url,
+        )
         self._new_process = True
 
-    def _start_span(
+    def start_span(
         self,
         name,  # type: str
         child_of=None,  # type: Optional[Union[Span, Context]]
@@ -587,8 +677,6 @@ class Tracer(object):
         self._hooks.emit(self.__class__.start_span, span)
         return span
 
-    start_span = _start_span
-
     def _on_span_finish(self, span):
         # type: (Span) -> None
         active = self.current_span()
@@ -604,48 +692,6 @@ class Tracer(object):
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
-
-    def _initialize_span_processors(self, writer, appsec_enabled=asbool(os.getenv("DD_APPSEC_ENABLED", default=False))):
-        # type: (TraceWriter, Optional[bool]) -> None
-        # Shutdown the previous processors
-        for proc in self._span_processors:
-            proc.shutdown()
-        self._span_processors.clear()
-
-        trace_processors = []  # type: List[TraceProcessor]
-        trace_processors += [TraceSamplingProcessor(self._compute_stats)]
-        trace_processors += [TraceTagsProcessor()]
-        trace_processors += [TraceTopLevelSpanProcessor()]
-        trace_processors += self._filters
-
-        self._span_processors.append(
-            SpanAggregator(
-                partial_flush_enabled=self._partial_flush_enabled,
-                partial_flush_min_spans=self._partial_flush_min_spans,
-                trace_processors=trace_processors,
-                writer=writer,
-            )
-        )
-
-        if appsec_enabled:
-            try:
-                from .appsec.processor import AppSecSpanProcessor
-
-                appsec_span_processor = AppSecSpanProcessor()
-                self._span_processors.append(appsec_span_processor)
-            except Exception as e:
-                # DDAS-001-01
-                log.error(
-                    "[DDAS-001-01] "
-                    "AppSec could not start because of an unexpected error. No security activities will be collected. "
-                    "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
-                    repr(e),
-                )
-                if config._raise:
-                    raise
-        if self._compute_stats:
-            # SpanStatsProcessor depends on the top level tag set in the `TraceTopLevelSpanProcessor` above
-            self._span_processors.append(SpanStatsProcessorV06(self._agent_url))
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -664,7 +710,7 @@ class Tracer(object):
         else:
             log.log(level, msg)
 
-    def _trace(self, name, service=None, resource=None, span_type=None):
+    def trace(self, name, service=None, resource=None, span_type=None):
         # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
         """Activate and return a new span that inherits from the current active span.
 
@@ -714,8 +760,6 @@ class Tracer(object):
             span_type=span_type,
             activate=True,
         )
-
-    trace = _trace
 
     def current_root_span(self):
         # type: () -> Optional[Span]
@@ -867,44 +911,6 @@ class Tracer(object):
         """
         self._tags.update(tags)
 
-    def _restore_from_shutdown(self):
-        with self._shutdown_lock:
-            if self.start_span is self._start_span:
-                # Already restored
-                return
-
-            atexit.register(self._atexit)
-            forksafe.register(self._child_after_fork)
-
-            self.start_span = self._start_span
-            self.trace = self._trace
-
-            debtcollector.deprecate(
-                "Tracing with a tracer that has been shut down is being deprecated. "
-                "A new tracer should be created for generating new traces",
-                version="1.0.0",
-            )
-
-    def _shutdown_start_span(
-        self,
-        name,  # type: str
-        child_of=None,  # type: Optional[Union[Span, Context]]
-        service=None,  # type: Optional[str]
-        resource=None,  # type: Optional[str]
-        span_type=None,  # type: Optional[str]
-        activate=False,  # type: bool
-    ):
-        # type: (...) -> Span
-        self._restore_from_shutdown()
-
-        return self.start_span(name, child_of, service, resource, span_type, activate)
-
-    def _shutdown_trace(self, name, service=None, resource=None, span_type=None):
-        # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
-        self._restore_from_shutdown()
-
-        return self.trace(name, service, resource, span_type)
-
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None
         """Shutdown the tracer.
@@ -929,9 +935,6 @@ class Tracer(object):
         with self._shutdown_lock:
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
-
-            self.start_span = self._shutdown_start_span  # type: ignore[assignment]
-            self.trace = self._shutdown_trace  # type: ignore[assignment]
 
     @staticmethod
     def _use_log_writer():
