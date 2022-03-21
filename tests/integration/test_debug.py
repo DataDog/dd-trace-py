@@ -443,7 +443,7 @@ def test_debug_span_log():
     assert b"finishing span name='span'" in stderr
 
 
-def test_partial_flush_log(run_python_code_in_subprocess):
+def test_partial_flush_log():
     tracer = ddtrace.Tracer()
 
     tracer.configure(
@@ -459,20 +459,16 @@ def test_partial_flush_log(run_python_code_in_subprocess):
     assert partial_flush_enabled is True
     assert partial_flush_min_spans == 300
 
-    partial_flush_min_spans = "2"
-    env = os.environ.copy()
-    env["DD_TRACE_PARTIAL_FLUSH_ENABLED"] = "true"
-    env["DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"] = partial_flush_min_spans
 
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-from ddtrace import tracer
-
-print(tracer._partial_flush_enabled)
-assert tracer._partial_flush_enabled == True
-assert tracer._partial_flush_min_spans == 2
-""",
-        env=env,
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_PARTIAL_FLUSH_ENABLED="true",
+        DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2",
     )
+)
+def test_partial_flush_log_subprocess():
+    from ddtrace import tracer
 
-    assert status == 0, (out, err)
+    print(tracer._partial_flush_enabled)
+    assert tracer._partial_flush_enabled is True
+    assert tracer._partial_flush_min_spans == 2
