@@ -8,7 +8,6 @@ import typing
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import Literal
 from typing import Optional
 from typing import Union
 
@@ -64,7 +63,7 @@ class TraceInjectionDecodingError(Exception):
 
 
 def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
-    # type: (Dict[str, str], Dict[str, Any], Optional[Union[Literal["sqs"], Literal["sns"]]]) -> None
+    # type: (Dict[str, str], Dict[str, Any], Optional[str]) -> None
     """
     :trace_data: trace headers to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
@@ -93,7 +92,7 @@ def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
 
 
 def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None):
-    # type: (Any, Span, Optional[Union[Literal["sqs"], Literal["sns"]]]) -> None
+    # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
@@ -113,7 +112,7 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None):
 
 
 def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None):
-    # type: (Any, Span, Optional[Union[Literal["sqs"], Literal["sns"]]]) -> None
+    # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
