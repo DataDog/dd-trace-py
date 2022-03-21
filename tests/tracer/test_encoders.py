@@ -639,21 +639,21 @@ def test_custom_msgpack_encode_thread_safe(encoding):
     assert unpacked is not None
 
 
-@pytest.mark.parametrize("encoder_cls", ["JSONEncoder", "JSONEncoderV2"])
-def test_json_encoder_traces_bytes(encoder_cls, run_python_code_in_subprocess):
+@pytest.mark.subprocess(parametrize={"encoder_cls": ["JSONEncoder", "JSONEncoderV2"]})
+def test_json_encoder_traces_bytes():
     """
     Regression test for: https://github.com/DataDog/dd-trace-py/issues/3115
 
     Ensure we properly decode `bytes` objects when encoding with the JSONEncoder
     """
-    # Run test in a subprocess to test without setting file encoding to utf-8
-    code = """
-import json
+    import json
+    import os
 
-from ddtrace.internal.compat import PY3
-from ddtrace.internal.encoding import {0}
-from ddtrace.span import Span
+    from ddtrace.internal.compat import PY3
+    import ddtrace.internal.encoding as encoding
+    from ddtrace.span import Span
 
+<<<<<<< HEAD
 encoder = {0}()
 data = encoder.encode_traces(
          [
@@ -681,9 +681,32 @@ else:
     assert u"\\ufffdspan.b" == span_c["name"]
 """.format(
         encoder_cls
-    )
+=======
+    encoder_class_name = os.getenv("encoder_cls")
 
-    out, err, status, pid = run_python_code_in_subprocess(code)
-    assert status == 0, err
-    assert out == b""
-    assert err == b""
+    encoder = getattr(encoding, encoder_class_name)()
+    data = encoder.encode_traces(
+        [
+            [
+                Span(name=b"\x80span.a"),
+                Span(name=u"\x80span.b"),
+                Span(name="\x80span.b"),
+            ]
+        ]
+>>>>>>> c437ad25 (test: add marker for running tests in subprocess (#3383))
+    )
+    traces = json.loads(data)
+    if encoder_class_name == "JSONEncoderV2":
+        traces = traces["traces"]
+
+    assert len(traces) == 1
+    span_a, span_b, span_c = traces[0]
+
+    if PY3:
+        assert "\\x80span.a" == span_a["name"]
+        assert u"\x80span.b" == span_b["name"]
+        assert u"\x80span.b" == span_c["name"]
+    else:
+        assert u"\ufffdspan.a" == span_a["name"], span_a["name"]
+        assert u"\x80span.b" == span_b["name"]
+        assert u"\ufffdspan.b" == span_c["name"]
