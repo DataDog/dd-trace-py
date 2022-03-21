@@ -20,20 +20,17 @@ def test_gevent_warning(monkeypatch):
     assert b"RuntimeWarning: Loading ddtrace before using gevent monkey patching" in subp.stderr.read()
 
 
-def test_gevent_auto_patching(run_python_code_in_subprocess):
-    code = """
-import ddtrace; ddtrace.patch_all()
+@pytest.mark.subprocess
+def test_gevent_auto_patching():
+    import ddtrace
 
-import gevent  # Patch on import
-from ddtrace.contrib.gevent import GeventContextProvider
+    ddtrace.patch_all()
+    # Patch on import
+    import gevent  # noqa
 
+    from ddtrace.contrib.gevent import GeventContextProvider
 
-assert isinstance(ddtrace.tracer.context_provider, GeventContextProvider)
-"""
-
-    out, err, status, pid = run_python_code_in_subprocess(code)
-    assert status == 0, err
-    assert out == b""
+    assert isinstance(ddtrace.tracer.context_provider, GeventContextProvider)
 
 
 def test_gevent_ddtrace_run_auto_patching(ddtrace_run_python_code_in_subprocess):
