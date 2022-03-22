@@ -175,8 +175,6 @@ def test_debug_logs_go_to_stderr_ddtrace_run(ddtrace_run_python_code_in_subproce
 
     code = """
 import logging
-from ddtrace.logger import configure_ddtrace_logger
-import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
