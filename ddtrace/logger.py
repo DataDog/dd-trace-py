@@ -10,7 +10,7 @@ def configure_ddtrace_logger():
     # type: () -> None
     """ """
     debug_enabled = os.environ.get("DD_TRACE_DEBUG", "false").lower() in ("true", "1")
-    log_path = os.environ.get("DD_TRACE_LOG_FILE", None)
+    log_path = os.environ.get("DD_TRACE_LOG_FILE")
     max_file_bytes = int(os.environ.get("DD_TRACE_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
     num_backup = 1
     log_format = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s"
