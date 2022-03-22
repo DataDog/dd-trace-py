@@ -2,6 +2,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
+from ddtrace.internal.utils.formats import asbool
+
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 
@@ -9,7 +11,7 @@ DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 def configure_ddtrace_logger():
     # type: () -> None
     """ """
-    debug_enabled = os.environ.get("DD_TRACE_DEBUG", "false").lower() in ("true", "1")
+    debug_enabled = asbool(os.environ.get("DD_TRACE_DEBUG", "false"))
     log_path = os.environ.get("DD_TRACE_LOG_FILE")
     max_file_bytes = int(os.environ.get("DD_TRACE_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
     num_backup = 1
