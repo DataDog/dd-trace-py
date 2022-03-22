@@ -1,4 +1,0 @@
----
-features:
-  - |
-    HTTP connections for trace payloads to the agent will be reused when possible.
