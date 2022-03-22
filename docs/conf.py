@@ -574,6 +574,7 @@ class DDTraceReleaseNotesDirective(rst.Directive):
                 continue
 
             # Older versions did not have reno release notes
+            # DEV: Reno will fail if we try to run on a branch with no notes
             if (version.major, version.minor) < (0, 44):
                 LOG.info("skipping older version %s", version)
                 continue
