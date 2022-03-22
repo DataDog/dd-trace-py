@@ -132,7 +132,7 @@ services:
           - ./.ddriot:/root/project/.riot
 
     localstack:
-        image: localstack/localstack:0.13.1
+        image: localstack/localstack:0.14.1
         network_mode: bridge
         ports:
           - "127.0.0.1:4566:4566"
