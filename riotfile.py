@@ -131,6 +131,7 @@ venv = Venv(
             pkgs={
                 "mypy": latest,
                 "types-attrs": latest,
+                "types-docutils": latest,
                 "types-protobuf": latest,
                 "types-setuptools": latest,
                 "types-six": latest,
