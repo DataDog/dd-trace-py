@@ -61,28 +61,41 @@ class TraceInjectionDecodingError(Exception):
     pass
 
 
-def inject_trace_data_to_message_attributes(trace_data, entry):
-    # type: (Dict[str, str], Dict[str, Any]) -> None
+def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
+    # type: (Dict[str, str], Dict[str, Any], Optional[str]) -> None
     """
     :trace_data: trace headers to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
+    :endpoint: endpoint of message, "sqs" or "sns"
 
     Inject trace headers into the an SQS or SNS record's MessageAttributes
     """
     if "MessageAttributes" not in entry:
         entry["MessageAttributes"] = {}
-    # An Amazon SQS message can contain up to 10 metadata attributes.
+    # Max of 10 message attributes.
     if len(entry["MessageAttributes"]) < 10:
-        entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
+        if endpoint == "sqs":
+            # Use String since changing this to Binary would be a breaking
+            # change as other tracers expect this to be a String.
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
+        elif endpoint == "sns":
+            # Use Binary since SNS subscription filter policies fail silently
+            # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
+            # AWS will encode our value if it sees "Binary"
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": json.dumps(trace_data)}
+        else:
+            log.warning("skipping trace injection, endpoint is not SNS or SQS")
     else:
+        # In the event a record has 10 or more msg attributes we cannot add our _datadog msg attribute
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
-def inject_trace_to_sqs_or_sns_batch_message(params, span):
-    # type: (Any, Span) -> None
+def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None):
+    # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
+    :endpoint: endpoint of message, "sqs" or "sns"
 
     Inject trace headers into MessageAttributes for all SQS or SNS records inside a batch
     """
@@ -94,21 +107,22 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span):
     # or PublishBatchRequestEntries (in case of PublishBatch).
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
-        inject_trace_data_to_message_attributes(trace_data, entry)
+        inject_trace_data_to_message_attributes(trace_data, entry, endpoint)
 
 
-def inject_trace_to_sqs_or_sns_message(params, span):
-    # type: (Any, Span) -> None
+def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None):
+    # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
+    :endpoint: endpoint of message, "sqs" or "sns"
 
     Inject trace headers into MessageAttributes for the SQS or SNS record
     """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
 
-    inject_trace_data_to_message_attributes(trace_data, params)
+    inject_trace_data_to_message_attributes(trace_data, params, endpoint)
 
 
 def inject_trace_to_eventbridge_detail(params, span):
@@ -293,17 +307,17 @@ def patched_api_call(original_func, instance, args, kwargs):
                     if endpoint_name == "lambda" and operation == "Invoke":
                         inject_trace_to_client_context(params, span)
                     if endpoint_name == "sqs" and operation == "SendMessage":
-                        inject_trace_to_sqs_or_sns_message(params, span)
+                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(params, span)
+                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                     if endpoint_name == "events" and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
                     if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
                         inject_trace_to_kinesis_stream(params, span)
                     if endpoint_name == "sns" and operation == "Publish":
-                        inject_trace_to_sqs_or_sns_message(params, span)
+                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
                     if endpoint_name == "sns" and operation == "PublishBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(params, span)
+                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 
