@@ -28,6 +28,25 @@ hypothesis.settings.load_profile("default")
 # Hook for dynamic configuration of pytest in CI
 # https://docs.pytest.org/en/6.2.1/reference.html#pytest.hookspec.pytest_configure
 def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        """subprocess(status, out, err, args, env, parametrize, ddtrace_run):
+            Mark test functions whose body is to be run as stand-alone Python
+            code in a subprocess.
+
+            Arguments:
+                status: the expected exit code of the subprocess.
+                out: the expected stdout of the subprocess, or None to ignore.
+                err: the expected stderr of the subprocess, or None to ignore.
+                args: the command line arguments to pass to the subprocess.
+                env: the environment variables to override for the subprocess.
+                parametrize: whether to parametrize the test function. This is
+                    similar to the `parametrize` marker, but arguments are
+                    passed to the subprocess via environment variables.
+                ddtrace_run: whether to run the test using ddtrace-run.
+        """,
+    )
+
     if os.getenv("CI") != "true":
         return
 
