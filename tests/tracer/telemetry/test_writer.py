@@ -133,7 +133,7 @@ def test_add_integration(mock_time, mock_send_request, telemetry_writer):
                 "version": "",
                 "enabled": True,
                 "auto_enabled": True,
-                "compatible": "",
+                "compatible": True,
                 "error": "",
             },
             {
@@ -141,7 +141,7 @@ def test_add_integration(mock_time, mock_send_request, telemetry_writer):
                 "version": "",
                 "enabled": True,
                 "auto_enabled": False,
-                "compatible": "",
+                "compatible": True,
                 "error": "",
             },
         ]
