@@ -173,6 +173,7 @@ then ``None`` can be activated in the new task::
 
     tracer.context_provider.activate(None)
 
+.. note:: For Python < 3.7 the asyncio integration must be used: :ref:`asyncio`
 
 Manual Management
 ^^^^^^^^^^^^^^^^^

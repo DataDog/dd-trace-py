@@ -45,27 +45,24 @@ def test_get_application_with_values():
     assert application["env"] == "staging"
 
 
-def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
+@pytest.mark.subprocess(
+    env=dict(
+        DD_SERVICE="test_service",
+        DD_VERSION="12.34.56",
+        DD_ENV="prod",
+    )
+)
+def test_application_with_setenv():
     """
     validates the return value of get_application when DD_SERVICE, DD_VERSION, and DD_ENV environment variables are set
     """
-    monkeypatch.setenv("DD_SERVICE", "test_service")
-    monkeypatch.setenv("DD_VERSION", "12.34.56")
-    monkeypatch.setenv("DD_ENV", "prod")
+    from ddtrace import config
+    from ddtrace.internal.telemetry.data import get_application
 
-    out, err, status, _ = run_python_code_in_subprocess(
-        """
-from ddtrace.internal.telemetry.data import get_application
-from ddtrace import config
-
-application = get_application(config.service, config.version, config.env)
-assert application["service_name"] == "test_service"
-assert application["service_version"] == "12.34.56"
-assert application["env"] == "prod"
-"""
-    )
-
-    assert status == 0, (out, err)
+    application = get_application(config.service, config.version, config.env)
+    assert application["service_name"] == "test_service"
+    assert application["service_version"] == "12.34.56"
+    assert application["env"] == "prod"
 
 
 def test_get_application_is_cached():
