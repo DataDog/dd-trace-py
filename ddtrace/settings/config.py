@@ -142,7 +142,7 @@ class Config(object):
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
-        self._compute_stats = asbool(os.getenv("DD_TRACE_COMPUTE_STATS", False))
+        self._trace_compute_stats = asbool(os.getenv("DD_TRACE_COMPUTE_STATS", False))
 
     def __getattr__(self, name):
         if name not in self._config:

@@ -20,7 +20,6 @@ from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
-from ..utils.formats import asbool
 from ..writer import _human_size
 
 
@@ -92,12 +91,10 @@ def _span_aggr_key(span):
 class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
     """SpanProcessor for computing, collecting and submitting span metrics to the Datadog Agent."""
 
-    def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3, reuse_connections=None):
-        # type: (str, Optional[float], float, int, Optional[bool]) -> None
+    def __init__(self, agent_url, interval=None, timeout=1.0, retry_attempts=3):
+        # type: (str, Optional[float], float, int) -> None
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-        if reuse_connections is None:
-            reuse_connections = asbool(os.getenv("_DD_TRACE_STATS_WRITER_REUSE_CONNECTIONS", False))
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self._agent_url = agent_url
         self._timeout = timeout
@@ -115,9 +112,8 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         }  # type: Dict[str, str]
         self._lock = Lock()
         self._enabled = True
-        self._reuse_connections = reuse_connections
         self._retry_request = tenacity.Retrying(
-            # Use a Fibonacci policy with jitter
+            # Use a Fibonacci policy with jitter, same as AgentWriter.
             wait=tenacity.wait_random_exponential(
                 multiplier=0.618 * self.interval / (1.618 ** retry_attempts) / 2, exp_base=1.618
             ),
@@ -205,24 +201,14 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
 
         return serialized_buckets
 
-    def _reset_connection(self):
-        # type: () -> None
-        if self._connection is not None:
-            self._connection.close()
-            self._connection = None
-
     def _flush_stats(self, payload):
         # type: (bytes) -> None
         try:
-            if self._connection is None:
-                if self._reuse_connections:
-                    log.info("creating new connection to Datadog agent at %s", self._agent_endpoint)
-                self._connection = get_connection(self._agent_url, self._timeout)
-            self._connection.request("PUT", self._endpoint, payload, self._headers)
-            resp = get_connection_response(self._connection)
+            conn = get_connection(self._agent_url, self._timeout)
+            conn.request("PUT", self._endpoint, payload, self._headers)
+            resp = get_connection_response(conn)
         except Exception:
             log.error("failed to submit span stats to the Datadog agent at %s", self._agent_endpoint, exc_info=True)
-            self._reset_connection()
             raise
         else:
             if resp.status == 404:
@@ -240,9 +226,6 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
                 )
             else:
                 log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
-        finally:
-            if not self._reuse_connections:
-                self._reset_connection()
 
     def periodic(self):
         # type: (...) -> None

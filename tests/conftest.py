@@ -11,6 +11,7 @@ from tests.utils import snapshot_context as _snapshot_context
 
 
 def pytest_configure(config):
+    config.addinivalue_line("markers", "testagent(*args, **kwargs): mark test to send data to the test agent")
     config.addinivalue_line(
         "markers", "snapshot(*args, **kwargs): mark test to run as a snapshot test which sends traces to the test agent"
     )
@@ -65,6 +66,22 @@ def snapshot(request):
         token = _request_token(request).replace(" ", "_").replace(os.path.sep, "_")
         with _snapshot_context(token, *snap.args, **snap.kwargs) as snapshot:
             yield snapshot
+    else:
+        yield
+
+
+class TestAgentClient(object):
+    pass
+
+
+@pytest.fixture(autouse=True)
+def testagent(request):
+    marks = [m for m in request.node.iter_markers(name="testagent")]
+    assert len(marks) < 2, "Multiple testagent marks detected"
+    if marks:
+        snap = marks[0]
+        token = _request_token(request).replace(" ", "_").replace(os.path.sep, "_")
+        yield TestAgentClient()
     else:
         yield
 

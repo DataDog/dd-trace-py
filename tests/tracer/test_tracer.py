@@ -1676,31 +1676,3 @@ def test_tracer_memory_leak_span_processors(enabled):
     # Force gc
     gc.collect()
     assert len(spans) == 0
-
-
-def test_compute_stats_default_and_configure(run_python_code_in_subprocess):
-    """Super brittle test (depending on internals) making sure that configuring
-    stats computation should work.
-    """
-    from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-
-    t = Tracer()
-    assert t.writer._compute_stats is False
-    assert not any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-
-    t.configure(compute_stats_enabled=True)
-    assert any(isinstance(p, SpanStatsProcessorV06) for p in t._span_processors)
-    assert t.writer._compute_stats is True
-
-    env = os.environ.copy()
-    env.update({"DD_TRACE_COMPUTE_STATS": "true"})
-    out, err, status, _ = run_python_code_in_subprocess(
-        """
-from ddtrace import tracer
-from ddtrace import config
-assert config._compute_stats is True
-assert tracer.writer._compute_stats is True
-""",
-        env=env,
-    )
-    assert status == 0, out + err

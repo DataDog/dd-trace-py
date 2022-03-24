@@ -186,7 +186,7 @@ class Tracer(object):
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-        self._compute_stats = config._compute_stats
+        self._compute_stats = config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
         agent.verify_url(self._agent_url)
 
@@ -200,7 +200,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
-                compute_stats_enabled=self._compute_stats,
+                headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
@@ -404,7 +404,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
-                compute_stats_enabled=self._compute_stats,
+                headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
             )
         elif writer is None and isinstance(self._writer, LogWriter):
             # No need to do anything for the LogWriter.
@@ -426,6 +426,7 @@ class Tracer(object):
                 api_version,
                 sampler,
                 settings.get("FILTERS") if settings is not None else None,
+                compute_stats_enabled,
             ]
         ):
             self._span_processors = _default_span_processors_factory(
