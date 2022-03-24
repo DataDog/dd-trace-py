@@ -560,6 +560,22 @@ def test_tracer_shutdown_timeout():
     t._writer.stop.assert_called_once_with(timeout=2)
 
 
+def test_send_traces_after_shutdown():
+    t = ddtrace.Tracer()
+    assert isinstance(t._writer, AgentWriter)
+    t.shutdown()
+
+    with mock.patch.object(logging.Logger, "warning") as mock_logger:
+        with t.trace("something"):
+            pass
+
+    mock_logger.assert_has_calls(
+        [
+            mock.call("Tracer was shutdown. Spans generated after a tracer is shutdown will not be sent."),
+        ]
+    )
+
+
 def test_tracer_dogstatsd_url():
     t = ddtrace.Tracer()
     assert t._writer.dogstatsd.host == "localhost"
