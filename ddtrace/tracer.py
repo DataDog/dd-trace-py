@@ -742,7 +742,6 @@ class Tracer(object):
             activate=True,
         )
 
-
     def _current_context_store(self):
         span = self.current_root_span()
         if span is None:
