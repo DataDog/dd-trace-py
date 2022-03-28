@@ -127,17 +127,6 @@ def test_is_integer(obj, expected):
     assert is_integer(obj) is expected
 
 
-def test_pep562():
-    with pytest.raises(RuntimeError):
-        from tests.pep562_test import deprecated
-
-        print(deprecated)
-
-    from tests.pep562_test import whatever
-
-    assert whatever == "good module attribute"
-
-
 @pytest.mark.skipif(PY2, reason="This hypothesis test hangs occasionally on Python 2")
 @given(
     obj=st.one_of(

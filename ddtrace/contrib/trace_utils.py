@@ -8,9 +8,11 @@ from typing import Callable
 from typing import Dict
 from typing import Generator
 from typing import Iterator
+from typing import Mapping
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
+from typing import Union
 
 from ddtrace import Pin
 from ddtrace import config
@@ -249,28 +251,29 @@ def _no_cookies(data):
 
 
 def set_http_meta(
-    span,
-    integration_config,
+    span,  # type: Span
+    integration_config,  # type: IntegrationConfig
+    method=None,  # type: Optional[str]
+    url=None,  # type: Optional[str]
+    status_code=None,  # type: Optional[Union[int, str]]
+    status_msg=None,  # type: Optional[str]
+    query=None,  # type: Optional[str]
+    request_headers=None,  # type: Optional[Mapping[str, str]]
+    response_headers=None,  # type: Optional[Mapping[str, str]]
+    retries_remain=None,  # type: Optional[Union[int, str]]
     tracer=None,
-    method=None,
-    url=None,
     raw_uri=None,
-    status_code=None,
-    status_msg=None,
-    query=None,
     query_object=None,
     format_query_object=_identity,
     request_cookies=None,
-    request_headers=None,
     format_request_headers=_identity,
-    response_headers=None,
     format_response_headers=_identity,
     request_body=None,
     format_request_body=_identity,
     request_path_params=None,
     format_request_path_params=_identity,
-    retries_remain=None,
 ):
+    # type: (...) -> None
     if method is not None:
         span._set_str_tag(http.METHOD, method)
 

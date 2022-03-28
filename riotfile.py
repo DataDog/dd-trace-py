@@ -131,6 +131,7 @@ venv = Venv(
             pkgs={
                 "mypy": latest,
                 "types-attrs": latest,
+                "types-docutils": latest,
                 "types-protobuf": latest,
                 "types-setuptools": latest,
                 "types-six": latest,
@@ -1405,11 +1406,34 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # Python 3.5 is deprecated for aiohttp >= 3.0
-                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    # pytest-asyncio is incompatible with aiohttp 3.0+ in Python 3.6
+                    pys="3.6",
                     pkgs={
-                        "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.4", "~=3.5", "~=3.6"],
-                        "aiohttp_jinja2": "~=0.15",
+                        "aiohttp": [
+                            "~=3.0",
+                            "~=3.2",
+                            "~=3.4",
+                            "~=3.6",
+                            "~=3.8",
+                            latest,
+                        ],
+                        "aiohttp_jinja2": latest,
+                        "yarl": "~=1.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.10"),
+                    pkgs={
+                        "pytest-asyncio": [latest],
+                        "aiohttp": [
+                            "~=3.0",
+                            "~=3.2",
+                            "~=3.4",
+                            "~=3.6",
+                            "~=3.8",
+                            latest,
+                        ],
+                        "aiohttp_jinja2": latest,
                         "yarl": "~=1.0",
                     },
                 ),
@@ -1597,6 +1621,47 @@ venv = Venv(
                     latest,
                 ],
             },
+        ),
+        Venv(
+            name="asyncpg",
+            command="pytest {cmdargs} tests/contrib/asyncpg",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.8"),
+                    pkgs={
+                        "asyncpg": [
+                            "~=0.18.0",
+                            "~=0.20.0",
+                            "~=0.22.0",
+                            "~=0.24.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=["3.9"],
+                    pkgs={
+                        "asyncpg": [
+                            "~=0.20.0",
+                            "~=0.22.0",
+                            "~=0.24.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "asyncpg": [
+                            "~=0.24.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
         ),
     ],
 )

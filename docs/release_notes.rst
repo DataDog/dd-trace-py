@@ -5,71 +5,20 @@ Release Notes
     Load all release notes from the current branch when spell checking
     DEV: Without this we won't get spell checking on PRs or release
          notes that are not yet on a release branch.
+    DEV: We generate the notes in a separate file to avoid any refs/directives
+         colliding with the official notes. However, in order to get sphinx to
+         not complain it must also exist in a toctree somewhere, so we add here
+         hidden.
 
 .. only:: spelling
 
-   .. release-notes::
+    .. toctree::
+        :hidden:
+
+        _release_notes_all
 
 
-.. release-notes::
-   :branch: 0.58
-   :earliest-version: v0.58.0
-
-.. release-notes::
-   :branch: 0.57
-   :earliest-version: v0.57.0
-
-.. release-notes::
-   :branch: 0.56
-   :earliest-version: v0.56.0
-
-.. release-notes::
-   :branch: 0.55
-   :earliest-version: v0.55.0
-
-.. release-notes::
-   :branch: 0.54
-   :earliest-version: v0.54.0
-
-.. release-notes::
-   :branch: 0.53
-   :earliest-version: v0.53.0
-
-.. release-notes::
-   :branch: 0.52
-   :earliest-version: v0.52.0
-
-.. release-notes::
-   :branch: 0.51
-   :earliest-version: v0.51.0
-
-.. release-notes::
-   :branch: 0.50
-   :earliest-version: v0.50.0
-
-.. release-notes::
-   :branch: 0.49
-   :earliest-version: v0.49.0
-
-.. release-notes::
-   :branch: 0.48
-   :earliest-version: v0.48.0
-
-.. release-notes::
-   :branch: 0.47
-   :earliest-version: v0.47.0
-
-.. release-notes::
-   :branch: 0.46
-   :earliest-version: v0.46.0
-
-.. release-notes::
-   :branch: 0.45
-   :earliest-version: v0.45.0
-
-.. release-notes::
-   :branch: 0.44
-   :earliest-version: v0.44.0
+.. ddtrace-release-notes::
 
 
 Prior Releases

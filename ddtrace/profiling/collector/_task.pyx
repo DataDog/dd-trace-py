@@ -1,4 +1,3 @@
-import threading
 import weakref
 
 from ddtrace.internal import compat

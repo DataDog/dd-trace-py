@@ -19,8 +19,16 @@ RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
 RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
 
 
+def _enable_appsec(tracer):
+    tracer._appsec_enabled = True
+    # Hack: need to pass an argument to configure so that the processors are recreated
+    tracer.configure(api_version="v0.4")
+    return tracer
+
+
 def test_enable(tracer):
-    tracer._initialize_span_processors(appsec_enabled=True)
+    _enable_appsec(tracer)
+
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
 
@@ -39,16 +47,17 @@ def test_enable_custom_rules():
 def test_enable_bad_rules(rule, exc, tracer):
     with override_env(dict(DD_APPSEC_RULES=rule)):
         with pytest.raises(exc):
-            tracer._initialize_span_processors(appsec_enabled=True)
+            _enable_appsec(tracer)
 
     # by default enable must not crash but display errors in the logs
     with override_global_config(dict(_raise=False)):
         with override_env(dict(DD_APPSEC_RULES=rule)):
-            tracer._initialize_span_processors(appsec_enabled=True)
+            _enable_appsec(tracer)
 
 
 def test_retain_traces(tracer):
-    tracer._initialize_span_processors(appsec_enabled=True)
+    _enable_appsec(tracer)
+
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
 
@@ -56,7 +65,8 @@ def test_retain_traces(tracer):
 
 
 def test_valid_json(tracer):
-    tracer._initialize_span_processors(appsec_enabled=True)
+    _enable_appsec(tracer)
+
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
 
@@ -95,7 +105,7 @@ def test_headers_collection(tracer):
 
 @snapshot(include_tracer=True)
 def test_appsec_span_tags_snapshot(tracer):
-    tracer._initialize_span_processors(appsec_enabled=True)
+    _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")

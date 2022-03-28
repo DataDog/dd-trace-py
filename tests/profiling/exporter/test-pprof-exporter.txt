@@ -152,7 +152,7 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 3072
+  value: 2294
   value: 104
   value: 58
   label {
@@ -414,7 +414,7 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 1024
+  value: 512
   value: 680
   value: 340
   label {
@@ -582,7 +582,7 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 2048
+  value: 1024
   value: 136
   value: 68
   label {
@@ -750,7 +750,7 @@ sample {
   value: 0
   value: 0
   value: 0
-  value: 1024
+  value: 338
   value: 133
   value: 44
   label {

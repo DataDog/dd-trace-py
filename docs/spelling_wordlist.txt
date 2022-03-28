@@ -23,6 +23,7 @@ aredis
 args
 asgi
 asyncio
+asyncpg
 attrs
 autodetected
 autopatching
@@ -90,6 +91,7 @@ kwarg
 kwargs
 lifecycle
 lookups
+macOS
 mako
 mariadb
 memcached

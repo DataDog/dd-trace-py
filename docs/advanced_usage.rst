@@ -173,6 +173,7 @@ then ``None`` can be activated in the new task::
 
     tracer.context_provider.activate(None)
 
+.. note:: For Python < 3.7 the asyncio integration must be used: :ref:`asyncio`
 
 Manual Management
 ^^^^^^^^^^^^^^^^^
@@ -296,15 +297,31 @@ propagate a `rpc_metadata` dictionary over the wire::
             span.set_tag('my_rpc_method', method)
 
 
-Resolving deprecation warnings
-------------------------------
-Before upgrading, it’s a good idea to resolve any deprecation warnings raised by your project.
-These warnings must be fixed before upgrading, otherwise the ``ddtrace`` library
-will not work as expected. Our deprecation messages include the version where
-the behavior is altered or removed.
+.. _`Upgrading and deprecation warnings`:
 
-In Python, deprecation warnings are silenced by default. To enable them you may
-add the following flag or environment variable::
+Upgrading and deprecation warnings
+----------------------------------
+
+Before upgrading, we recommend resolving any deprecation warnings raised in your application. The messages for the deprecation warnings include the version when the API will be changed or removed.
+
+.. _upgrade-0.x:
+
+0.x Release Line
+^^^^^^^^^^^^^^^^
+
+As of v0.59.0, you can enable warning filters for ddtrace library deprecations.
+
+For those using ``pytest``, add a filter for the ``ddtrace.DDTraceDeprecationWarning`` warning category::
+
+    pytest -W "error::ddtrace.DDTraceDeprecationWarning" tests.py
+
+
+Otherwise, you must set the environment variable ``DD_TRACE_RAISE_DEPRECATIONWARNING`` which will configure the warning filter::
+
+    DD_TRACE_RAISE_DEPRECATIONWARNING=1 python app.py
+
+
+Before v0.59.0, you can still enable all deprecation warnings and filter the application or tests logs for deprecations specific the ``ddtrace`` library::
 
     $ python -Wall app.py
 

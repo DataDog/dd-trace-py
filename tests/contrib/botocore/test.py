@@ -1003,7 +1003,9 @@ class BotocoreTest(TracerTestCase):
         assert msg_str == "test"
         msg_attr = msg_body["MessageAttributes"]
         assert msg_attr.get("_datadog") is not None
-        headers = json.loads(msg_attr["_datadog"]["Value"])
+        assert msg_attr["_datadog"]["Type"] == "Binary"
+        datadog_value_decoded = base64.b64decode(msg_attr["_datadog"]["Value"])
+        headers = json.loads(datadog_value_decoded.decode())
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
@@ -1068,7 +1070,9 @@ class BotocoreTest(TracerTestCase):
         assert msg_str == "test"
         msg_attr = msg_body["MessageAttributes"]
         assert msg_attr.get("_datadog") is not None
-        headers = json.loads(msg_attr["_datadog"]["Value"])
+        assert msg_attr["_datadog"]["Type"] == "Binary"
+        datadog_value_decoded = base64.b64decode(msg_attr["_datadog"]["Value"])
+        headers = json.loads(datadog_value_decoded.decode())
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
