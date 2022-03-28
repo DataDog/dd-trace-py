@@ -205,7 +205,6 @@ class Tracer(object):
         )
 
         self._gateway = None  # type: Optional[_Gateway]
-        self._initialize_span_processors()
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
