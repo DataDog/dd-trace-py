@@ -207,7 +207,7 @@ class Tracer(object):
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
-            tracer=self
+            tracer=self,
         )
 
         self._hooks = _hooks.Hooks()
