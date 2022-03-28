@@ -106,7 +106,7 @@ services:
         volumes:
             - ./tests/snapshots:/snapshots
         environment:
-            - LOG_LEVEL=WARNING
+            - LOG_LEVEL=DEBUG
             - SNAPSHOT_DIR=/snapshots
             - SNAPSHOT_CI
     vertica:
