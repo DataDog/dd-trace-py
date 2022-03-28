@@ -95,6 +95,7 @@ def _default_span_processors_factory(
     partial_flush_enabled,  # type: bool
     partial_flush_min_spans,  # type: int
     appsec_enabled,  # type: bool
+    tracer,  # type: Tracer
 ):
     # type: (...) -> List[SpanProcessor]
     """Construct the default list of span processors to use."""
@@ -112,6 +113,8 @@ def _default_span_processors_factory(
 
             appsec_span_processor = AppSecSpanProcessor()
             span_processors.append(appsec_span_processor)
+            tracer._gateway = _Gateway()
+            appsec_span_processor.setup(tracer._gateway)
         except Exception as e:
             # DDAS-001-01
             log.error(
@@ -196,15 +199,17 @@ class Tracer(object):
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
         self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", default=False))
+        self._gateway = None  # type: Optional[_Gateway]
+
         self._span_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
+            tracer=self
         )
 
-        self._gateway = None  # type: Optional[_Gateway]
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
@@ -419,6 +424,7 @@ class Tracer(object):
                 self._partial_flush_enabled,
                 self._partial_flush_min_spans,
                 self._appsec_enabled,
+                tracer=self,
             )
 
         if context_provider is not None:
@@ -460,6 +466,7 @@ class Tracer(object):
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
+            tracer=self,
         )
         self._new_process = True
 

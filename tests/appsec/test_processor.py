@@ -74,7 +74,7 @@ def test_valid_json(tracer):
 
 
 def test_headers_collection(tracer):
-    tracer._initialize_span_processors(appsec_enabled=True)
+    _enable_appsec(tracer)
     gateway = tracer._gateway
     # request headers are always needed
     assert gateway.is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
