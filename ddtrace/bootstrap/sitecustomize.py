@@ -22,6 +22,8 @@ from ddtrace import constants
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.utils.flare import FlareProcessor
+from ddtrace.internal.utils.flare import TracerFlare
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
@@ -90,6 +92,9 @@ try:
 
     if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
         RuntimeWorker.enable()
+
+    if asbool(os.getenv("DD_TRACE_FLARE_ENABLED", default=False)):
+        FlareProcessor([TracerFlare(tracer)])
 
     opts = {}  # type: Dict[str, Any]
 

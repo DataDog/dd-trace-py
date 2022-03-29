@@ -3,15 +3,16 @@
 # Licensed under Simplified BSD License (see LICENSE)
 # reference: https://github.com/DataDog/dd-agent/blob/526559be731b6e47b12d7aa8b6d45cb8d9ac4d68/utils/flare.py
 
-import atexit
 import glob
 import json
 import logging
 import os
 from pathlib import Path
 import re
+import signal
 import tarfile
 from time import strftime
+from typing import List
 
 from ...internal.debug import collect as debug_collect
 
@@ -47,15 +48,31 @@ class Flare(object):
     def collect(self):
         raise NotImplementedError
 
+    @classmethod
+    def get_tar_path(self):
+        return self._tar.tar_path
+
+    @classmethod
     def move_file_to_tar(self, file):
         self._tar.add_file(file.name)
         # close and remove file
         file.close()
         os.remove(file.name)
 
-    @classmethod
-    def get_tar_path(self):
-        return self._tar.tar_path
+
+class FlareProcessor(object):
+    def __init__(self, flares):
+        # type: (List[Flare]) -> None
+        self.flares = flares
+        signal.signal(signal.SIGUSR1, self.send_flares)
+
+    def add_flare(self, flare):
+        # type: (Flare) -> None
+        self.flares.append(flare)
+
+    def send_flares(self, signalNumber, frame):
+        for flare in self.flares:
+            flare.collect()
 
 
 class LogFlare(Flare):
@@ -64,7 +81,6 @@ class LogFlare(Flare):
 
     def __init__(self):
         super(Flare, self).__init__()
-        atexit.register(self.collect)
 
     def collect(self):
         log.info("Collecting logs")
@@ -103,7 +119,6 @@ class TracerFlare(Flare):
     def __init__(self, tracer):
         self.tracer = tracer
         super(Flare, self).__init__()
-        atexit.register(self.collect)
 
     def collect(self):
         log.info("Collecting tracer configurations")

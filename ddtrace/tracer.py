@@ -17,7 +17,6 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
-from ddtrace.internal.utils.flare import TracerFlare
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -210,9 +209,6 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
-
-        if asbool(os.getenv("DD_TRACE_FLARE_ENABLED", default=False)):
-            self._flare = TracerFlare(self)
 
     def _atexit(self):
         # type: () -> None
