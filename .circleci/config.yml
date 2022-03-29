@@ -70,6 +70,20 @@ commands:
       # Make sure we install and run riot on Python 3
       - run: pip3 install riot
 
+  setup_riot_standalone:
+    description: "Install riot"
+    steps:
+      - run:
+          name: "Install standlone Python 3.8 and dependencies"
+          command: |
+             curl -L -o cpython.tar.gz https://github.com/indygreg/python-build-standalone/releases/download/20220318/cpython-3.10.3+20220318-x86_64-unknown-linux-gnu-install_only.tar.gz
+             tar -xvf cpython.tar.gz
+             echo 'export PATH='"$PWD"'/python/bin:$PATH' >> $BASH_ENV
+             source $BASH_ENV
+             sudo apt-get update
+             sudo apt-get install -y clang
+      - run: pip3 install riot
+
   restore_tox_cache:
     description: "Restore .tox directory from previous runs for faster installs"
     steps:
@@ -143,6 +157,77 @@ commands:
             - setup_riot
             - run:
                 command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+      - when:
+          condition:
+            << parameters.store_coverage >>
+          steps:
+            - save_coverage
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+
+  run_test_cimg:
+    description: "Run tests matching a pattern"
+    parameters:
+      version:
+        type: string
+        default: ""
+      pattern:
+        type: string
+        default: ""
+      wait:
+        type: string
+        default: ""
+      snapshot:
+        type: boolean
+        default: false
+      docker_services:
+        type: string
+        default: ""
+      store_coverage:
+        type: boolean
+        default: true
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: "Setup environment variables for riot"
+          command: |
+             echo 'export PATH='"$PWD"'/python/bin:$PATH' >> $BASH_ENV
+             source $BASH_ENV
+      - checkout
+      - when:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - setup_riot
+            - run: SNAPSHOT_CI=1 docker-compose up -d testagent << parameters.docker_services >>
+            - run:
+                command: docker-compose logs -f
+                background: true
+            - run:
+                environment:
+                  DD_TRACE_AGENT_URL: http://localhost:9126
+
+                command: |
+                  mv .riot .ddriot
+                  ./scripts/ddtest riot -v run --python=<< parameters.version >> --exitfirst --pass-env -s '<< parameters.pattern >>'
+      - unless:
+          condition:
+              << parameters.snapshot >>
+          steps:
+            - when:
+                condition:
+                  << parameters.wait >>
+                steps:
+                  - setup_tox
+                  - run:
+                      name: "Waiting for << parameters.wait >>"
+                      command: tox -e 'wait' << parameters.wait >>
+            - setup_riot
+            - run:
+                command: "riot -v run --python=<< parameters.version >> --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - when:
           condition:
             << parameters.store_coverage >>
@@ -342,6 +427,27 @@ jobs:
           paths:
             - "."
 
+  build_base_venvs_matrix:
+    parameters:
+      python:
+        type: string
+    docker:
+      - image: cimg/python:<< parameters.python >>
+    resource_class: *default_resource_class
+    steps:
+      - checkout
+      - setup_riot_standalone
+      - run:
+          name: "Run riotfile.py tests"
+          command: riot run -s riot-helpers
+      - run:
+          name: "Generate base virtual environments."
+          command: "riot -v generate --python=<< parameters.python >>"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "."
+
   appsec:
     <<: *machine_executor
     steps:
@@ -351,9 +457,22 @@ jobs:
 
   tracer:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_test:
           pattern: "tracer"
+
+  tracer_matrix:
+    parameters:
+      python:
+        type: string
+    docker:
+      - image: cimg/python:<< parameters.python >>
+    resource_class: *default_resource_class
+    steps:
+      - run_test_cimg:
+          pattern: "tracer"
+          version: << parameters.python >>
 
   opentracer:
     <<: *contrib_job
@@ -978,78 +1097,79 @@ requires_base_venvs: &requires_base_venvs
 
 requires_tests: &requires_tests
   requires:
-    - aiobotocore
-    - aiohttp
-    - aiopg
-    - aioredis
-    - asyncio
-    - asyncpg
-    - algoliasearch
-    - asgi
-    - benchmarks
-    - boto
-    - bottle
-    - cassandra
-    - celery
-    - cherrypy
-    - consul
-    - dbapi
-    - ddtracerun
-    - dogpile_cache
-    - django
-    - django_hosts
-    - djangorestframework
-    - elasticsearch
-    - falcon
-    - fastapi
-    - flask
-    - futures
-    - gevent
-    - grpc
-    - httplib
-    - httpx
-    - integration_agent5
-    - integration_agent
-    - integration_testagent
-    - vendor
-    - profile
-    - jinja2
-    - kombu
-    - mako
-    - mariadb
-    - molten
-    - mongoengine
-    - mysqlconnector
-    - mysqlpython
-    - opentracer
-    - psycopg
-    - pylibmc
-    - pylons
-    - pymemcache
-    - pymongo
-    - pymysql
-    - pynamodb
-    - pyodbc
-    - pyramid
-    - pytest
-    - aredis
-    - yaaredis
-    - redis
-    - rediscluster
-    - requests
-    - rq
-    - sanic
-    - snowflake
-    - sqlalchemy
-    - sqlite3
-    - starlette
-    - test_logging
+    # - aiobotocore
+    # - aiohttp
+    # - aiopg
+    # - aioredis
+    # - asyncio
+    # - asyncpg
+    # - algoliasearch
+    # - asgi
+    # - benchmarks
+    # - boto
+    # - bottle
+    # - cassandra
+    # - celery
+    # - cherrypy
+    # - consul
+    # - dbapi
+    # - ddtracerun
+    # - dogpile_cache
+    # - django
+    # - django_hosts
+    # - djangorestframework
+    # - elasticsearch
+    # - falcon
+    # - fastapi
+    # - flask
+    # - futures
+    # - gevent
+    # - grpc
+    # - httplib
+    # - httpx
+    # - integration_agent5
+    # - integration_agent
+    # - integration_testagent
+    # - vendor
+    # - profile
+    # - jinja2
+    # - kombu
+    # - mako
+    # - mariadb
+    # - molten
+    # - mongoengine
+    # - mysqlconnector
+    # - mysqlpython
+    # - opentracer
+    # - psycopg
+    # - pylibmc
+    # - pylons
+    # - pymemcache
+    # - pymongo
+    # - pymysql
+    # - pynamodb
+    # - pyodbc
+    # - pyramid
+    # - pytest
+    # - aredis
+    # - yaaredis
+    # - redis
+    # - rediscluster
+    # - requests
+    # - rq
+    # - sanic
+    # - snowflake
+    # - sqlalchemy
+    # - sqlite3
+    # - starlette
+    # - test_logging
     - tracer
-    - appsec
-    - tornado
-    - urllib3
-    - vertica
-    - wsgi
+    - tracer_matrix
+    # - appsec
+    # - tornado
+    # - urllib3
+    # - vertica
+    # - wsgi
 
 workflows:
   version: 2
@@ -1062,85 +1182,112 @@ workflows:
       # Build necessary base venvs for integration tests
       - build_base_venvs
 
+      - build_base_venvs_matrix:
+          name: build_base_venvs_matrix-<< matrix.python >>
+          matrix:
+            parameters:
+              python:
+                - "2.7"
+                - "3.5"
+                - "3.6"
+                - "3.7"
+                - "3.8"
+                - "3.9"
+                - "3.10"
       # Docs
       - build_docs: *requires_pre_check
 
       # Integration test suites
-      - aiobotocore: *requires_base_venvs
-      - aiohttp: *requires_base_venvs
-      - aiopg: *requires_base_venvs
-      - aioredis: *requires_base_venvs
-      - asyncio: *requires_base_venvs
-      - asyncpg: *requires_base_venvs
-      - algoliasearch: *requires_base_venvs
-      - asgi: *requires_base_venvs
-      - benchmarks: *requires_base_venvs
-      - boto: *requires_base_venvs
-      - bottle: *requires_base_venvs
-      - cassandra: *requires_base_venvs
-      - celery: *requires_base_venvs
-      - cherrypy: *requires_base_venvs
-      - consul: *requires_base_venvs
-      - dbapi: *requires_base_venvs
-      - ddtracerun: *requires_base_venvs
-      - django: *requires_base_venvs
-      - django_hosts: *requires_base_venvs
-      - djangorestframework: *requires_base_venvs
-      - dogpile_cache: *requires_base_venvs
-      - elasticsearch: *requires_base_venvs
-      - falcon: *requires_base_venvs
-      - fastapi: *requires_base_venvs
-      - flask: *requires_base_venvs
-      - futures: *requires_base_venvs
-      - gevent: *requires_base_venvs
-      - grpc: *requires_base_venvs
-      - httplib: *requires_base_venvs
-      - httpx: *requires_base_venvs
-      - integration_agent5: *requires_base_venvs
-      - integration_agent: *requires_base_venvs
-      - integration_testagent: *requires_base_venvs
-      - vendor: *requires_base_venvs
-      - profile: *requires_base_venvs
-      - jinja2: *requires_base_venvs
-      - kombu: *requires_base_venvs
-      - mako: *requires_base_venvs
-      - mariadb: *requires_base_venvs
-      - molten: *requires_base_venvs
-      - mongoengine: *requires_base_venvs
-      - mysqlconnector: *requires_base_venvs
-      - mysqlpython: *requires_base_venvs
-      - opentracer: *requires_base_venvs
-      - psycopg: *requires_base_venvs
-      - pylibmc: *requires_base_venvs
-      - pylons: *requires_base_venvs
-      - pymemcache: *requires_base_venvs
-      - pymongo: *requires_base_venvs
-      - pymysql: *requires_base_venvs
-      - pynamodb: *requires_base_venvs
-      - pyodbc: *requires_base_venvs
-      - pyramid: *requires_base_venvs
-      - pytest: *requires_base_venvs
-      - aredis: *requires_base_venvs
-      - yaaredis: *requires_base_venvs
-      - redis: *requires_base_venvs
-      - rediscluster: *requires_base_venvs
-      - requests: *requires_base_venvs
-      - rq: *requires_base_venvs
-      - sanic: *requires_base_venvs
-      - snowflake: *requires_base_venvs
-      - starlette: *requires_base_venvs
-      - sqlalchemy: *requires_base_venvs
-      - sqlite3: *requires_base_venvs
-      - test_logging: *requires_base_venvs
-      - tornado: *requires_base_venvs
+      # - aiobotocore: *requires_base_venvs
+      # - aiohttp: *requires_base_venvs
+      # - aiopg: *requires_base_venvs
+      # - aioredis: *requires_base_venvs
+      # - asyncio: *requires_base_venvs
+      # - asyncpg: *requires_base_venvs
+      # - algoliasearch: *requires_base_venvs
+      # - asgi: *requires_base_venvs
+      # - benchmarks: *requires_base_venvs
+      # - boto: *requires_base_venvs
+      # - bottle: *requires_base_venvs
+      # - cassandra: *requires_base_venvs
+      # - celery: *requires_base_venvs
+      # - cherrypy: *requires_base_venvs
+      # - consul: *requires_base_venvs
+      # - dbapi: *requires_base_venvs
+      # - ddtracerun: *requires_base_venvs
+      # - django: *requires_base_venvs
+      # - django_hosts: *requires_base_venvs
+      # - djangorestframework: *requires_base_venvs
+      # - dogpile_cache: *requires_base_venvs
+      # - elasticsearch: *requires_base_venvs
+      # - falcon: *requires_base_venvs
+      # - fastapi: *requires_base_venvs
+      # - flask: *requires_base_venvs
+      # - futures: *requires_base_venvs
+      # - gevent: *requires_base_venvs
+      # - grpc: *requires_base_venvs
+      # - httplib: *requires_base_venvs
+      # - httpx: *requires_base_venvs
+      # - integration_agent5: *requires_base_venvs
+      # - integration_agent: *requires_base_venvs
+      # - integration_testagent: *requires_base_venvs
+      # - vendor: *requires_base_venvs
+      # - profile: *requires_base_venvs
+      # - jinja2: *requires_base_venvs
+      # - kombu: *requires_base_venvs
+      # - mako: *requires_base_venvs
+      # - mariadb: *requires_base_venvs
+      # - molten: *requires_base_venvs
+      # - mongoengine: *requires_base_venvs
+      # - mysqlconnector: *requires_base_venvs
+      # - mysqlpython: *requires_base_venvs
+      # - opentracer: *requires_base_venvs
+      # - psycopg: *requires_base_venvs
+      # - pylibmc: *requires_base_venvs
+      # - pylons: *requires_base_venvs
+      # - pymemcache: *requires_base_venvs
+      # - pymongo: *requires_base_venvs
+      # - pymysql: *requires_base_venvs
+      # - pynamodb: *requires_base_venvs
+      # - pyodbc: *requires_base_venvs
+      # - pyramid: *requires_base_venvs
+      # - pytest: *requires_base_venvs
+      # - aredis: *requires_base_venvs
+      # - yaaredis: *requires_base_venvs
+      # - redis: *requires_base_venvs
+      # - rediscluster: *requires_base_venvs
+      # - requests: *requires_base_venvs
+      # - rq: *requires_base_venvs
+      # - sanic: *requires_base_venvs
+      # - snowflake: *requires_base_venvs
+      # - starlette: *requires_base_venvs
+      # - sqlalchemy: *requires_base_venvs
+      # - sqlite3: *requires_base_venvs
+      # - test_logging: *requires_base_venvs
+      # - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
-      - appsec: *requires_base_venvs
-      - urllib3: *requires_base_venvs
-      - vertica: *requires_base_venvs
-      - wsgi: *requires_base_venvs
+      - tracer_matrix:
+          matrix:
+            parameters:
+              python:
+                - "2.7"
+                - "3.5"
+                - "3.6"
+                - "3.7"
+                - "3.8"
+                - "3.9"
+                - "3.10"
+          requires:
+            - pre_check
+            - ccheck
+            - build_base_venvs_matrix-<< matrix.python >>
+      # - appsec: *requires_base_venvs
+      # - urllib3: *requires_base_venvs
+      # - vertica: *requires_base_venvs
+      # - wsgi: *requires_base_venvs
 
-      # Final reports
-      - coverage_report: *requires_tests
+      # # Final reports
+      # - coverage_report: *requires_tests
 
   test_nightly:
     <<: *workflow_test
