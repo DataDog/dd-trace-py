@@ -47,7 +47,7 @@ assert ddtrace_logger.handlers[0].maxBytes == 15 << 20 # 15 MB
 
 def test_unrelated_logger_loaded_last_in_debug(run_python_code_in_subprocess, tmpdir):
     """
-    When importing the tracer after logging has been configured,
+    When importing the tracer before logging has been configured,
         with debug mode and a custom log path,
         the ddtrace logger does not override any custom logs settings and
         the ddtrace logger continues to have its expected configuration and
