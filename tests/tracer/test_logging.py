@@ -32,6 +32,7 @@ assert custom_logger.level == logging.WARN
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
+assert len(ddtrace_logger.handlers) == 1
 assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 15 << 20 # 15 MB
 """
@@ -70,7 +71,8 @@ assert custom_logger.level == logging.WARN
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
-assert ddtrace_logger.handlers[0].__class__.__name__ == 'RotatingFileHandler'
+assert len(ddtrace_logger.handlers) == 1
+assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 200000
 """
 
@@ -98,7 +100,8 @@ import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
-assert ddtrace_logger.handlers[0].__class__.__name__ == 'RotatingFileHandler'
+assert len(ddtrace_logger.handlers) == 1
+assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 15 << 20
 
 child_logger = logging.getLogger('ddtrace.child')
@@ -129,7 +132,8 @@ import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
-assert ddtrace_logger.handlers[0].__class__.__name__ == 'StreamHandler'
+assert len(ddtrace_logger.handlers) == 1
+assert isinstance(ddtrace_logger.handlers[0], logging.StreamHandler)
 """
 
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
@@ -150,7 +154,8 @@ import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.WARN
-assert ddtrace_logger.handlers[0].__class__.__name__ == 'StreamHandler'
+assert len(ddtrace_logger.handlers) == 1
+assert isinstance(ddtrace_logger.handlers[0], logging.StreamHandler)
 
 ddtrace_logger.warning('warning log')
 """
@@ -176,7 +181,8 @@ import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
-assert ddtrace_logger.handlers[0].__class__.__name__ == 'StreamHandler'
+assert len(ddtrace_logger.handlers) == 1
+assert isinstance(ddtrace_logger.handlers[0], logging.StreamHandler)
 """
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
@@ -196,7 +202,8 @@ import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.WARN
-assert ddtrace_logger.handlers[0].__class__.__name__ == 'StreamHandler'
+assert len(ddtrace_logger.handlers) == 1
+assert isinstance(ddtrace_logger.handlers[0], logging.StreamHandler)
 
 ddtrace_logger.warning('warning log')
 """
@@ -230,7 +237,8 @@ assert custom_logger.level == logging.WARN
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
-assert ddtrace_logger.handlers[0].__class__.__name__ == 'RotatingFileHandler'
+assert len(ddtrace_logger.handlers) == 1
+assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 200000
 
 """
@@ -264,7 +272,8 @@ assert custom_logger.level == logging.WARN
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.WARN
-assert ddtrace_logger.handlers[0].__class__.__name__ == 'StreamHandler'
+assert len(ddtrace_logger.handlers) == 1
+assert isinstance(ddtrace_logger.handlers[0], logging.StreamHandler)
 
 ddtrace_logger.warning('warning log')
 
