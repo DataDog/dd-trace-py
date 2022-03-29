@@ -1,13 +1,17 @@
 import os
+import re
 
 
-def test_unrelated_logger_in_debug_with_patch_all(run_python_code_in_subprocess, tmpdir):
+LOG_PATTERN = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \w{1,} \[\w{1,}\] \[\w{1,}.\w{2}:\d{1,}\] {}- .{1,}"
+
+
+def test_unrelated_logger_loaded_first_in_debug(run_python_code_in_subprocess, tmpdir):
     """
     When importing the tracer after logging has been configured,
-                with debug mode and enabling a custom log path,
-                the ddtrace logger does not override any custom logs settings and
-                the ddtrace logger continues to have its expected configuration and
-                logs to a custom file path.
+        with debug mode and a custom log path,
+        the ddtrace logger does not override any custom logs settings and
+        the ddtrace logger continues to have its expected configuration and
+        logs to a custom file path.
     """
     env = os.environ.copy()
     env["DD_TRACE_DEBUG"] = "true"
@@ -23,15 +27,13 @@ assert custom_logger.level == logging.WARN
 
 import ddtrace
 
-ddtrace.patch_all()
-
 assert custom_logger.parent.name == 'root'
 assert custom_logger.level == logging.WARN
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
 assert ddtrace_logger.handlers[0].__class__.__name__ == 'RotatingFileHandler'
-assert ddtrace_logger.handlers[0].maxBytes == 15 << 20
+assert ddtrace_logger.handlers[0].maxBytes == 15 << 20 # 15 MB
 """
 
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
@@ -43,23 +45,22 @@ assert ddtrace_logger.handlers[0].maxBytes == 15 << 20
         assert len(content) > 0
 
 
-def test_unrelated_logger_loaded_last_patch_all(run_python_code_in_subprocess, tmpdir):
+def test_unrelated_logger_loaded_last_in_debug(run_python_code_in_subprocess, tmpdir):
     """
     When importing the tracer after logging has been configured,
-                with debug mode and enabling a custom log path,
-                the ddtrace logger does not override any custom logs settings and
-                the ddtrace logger continues to have its expected configuration and
-                logs to a custom file path.
+        with debug mode and a custom log path,
+        the ddtrace logger does not override any custom logs settings and
+        the ddtrace logger continues to have its expected configuration and
+        logs to a custom file path with the configured max bytes.
     """
     env = os.environ.copy()
     env["DD_TRACE_DEBUG"] = "true"
     log_file = tmpdir + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
+    env["DD_TRACE_FILE_SIZE_BYTES"] = "200000"
     code = """
 import ddtrace
 import logging
-
-ddtrace.patch_all()
 
 custom_logger = logging.getLogger('custom')
 custom_logger.setLevel(logging.WARN)
@@ -70,7 +71,7 @@ assert custom_logger.level == logging.WARN
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
 assert ddtrace_logger.handlers[0].__class__.__name__ == 'RotatingFileHandler'
-assert ddtrace_logger.handlers[0].maxBytes == 15 << 20
+assert ddtrace_logger.handlers[0].maxBytes == 200000
 """
 
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
@@ -95,8 +96,6 @@ def test_child_logger_inherits_settings_patch_all(run_python_code_in_subprocess,
 import logging
 import ddtrace
 
-ddtrace.patch_all()
-
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
 assert ddtrace_logger.handlers[0].__class__.__name__ == 'RotatingFileHandler'
@@ -119,7 +118,7 @@ assert child_logger.handlers == []
 
 def test_debug_logs_go_to_stderr_patch_all(run_python_code_in_subprocess):
     """
-    When setting up the default logger in debug mode,
+    When setting up the default logger in debug mode without a log path,
         it automatically logs to stderr.
     """
     env = os.environ.copy()
@@ -128,8 +127,6 @@ def test_debug_logs_go_to_stderr_patch_all(run_python_code_in_subprocess):
 import logging
 import ddtrace
 
-ddtrace.patch_all()
-
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
 assert ddtrace_logger.handlers[0].__class__.__name__ == 'StreamHandler'
@@ -137,7 +134,8 @@ assert ddtrace_logger.handlers[0].__class__.__name__ == 'StreamHandler'
 
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err != b""
+    assert re.search(LOG_PATTERN, str(err)) is not None
+    assert b"debug logs" in err
     assert out == b""
 
 
@@ -150,8 +148,6 @@ def test_warn_logs_go_to_stderr_patch_all(run_python_code_in_subprocess):
 import logging
 import ddtrace
 
-ddtrace.patch_all()
-
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.WARN
 assert ddtrace_logger.handlers[0].__class__.__name__ == 'StreamHandler'
@@ -161,7 +157,8 @@ ddtrace_logger.warning('warning log')
 
     out, err, status, pid = run_python_code_in_subprocess(code)
     assert status == 0, err
-    assert err != b""
+    assert re.search(LOG_PATTERN, str(err)) is not None
+    assert b"warning log" in err
     assert out == b""
 
 
@@ -175,6 +172,7 @@ def test_debug_logs_go_to_stderr_ddtrace_run(ddtrace_run_python_code_in_subproce
 
     code = """
 import logging
+import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
@@ -182,7 +180,8 @@ assert ddtrace_logger.handlers[0].__class__.__name__ == 'StreamHandler'
 """
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err != b""
+    assert re.search(LOG_PATTERN, str(err)) is not None
+    assert b"debug logs" in err
     assert out == b""
 
 
@@ -193,6 +192,7 @@ def test_warn_logs_go_to_stderr_ddtrace_run(ddtrace_run_python_code_in_subproces
     """
     code = """
 import logging
+import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.WARN
@@ -202,22 +202,24 @@ ddtrace_logger.warning('warning log')
 """
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code)
     assert status == 0, err
-    assert err != b""
+    assert re.search(LOG_PATTERN, str(err)) is not None
+    assert b"warning log" in err
     assert out == b""
 
 
 def test_unrelated_logger_in_debug_with_ddtrace_run(ddtrace_run_python_code_in_subprocess, tmpdir):
     """
     When using ddtrace-run after logging has been configured,
-                with debug mode and enabling a custom log path,
-                the ddtrace logger does not override any custom logs settings and
-                the ddtrace logger continues to have its expected configuration and
-                logs to a custom file path.
+        with debug mode and enabling a custom log path,
+        the ddtrace logger does not override any custom logs settings and
+        the ddtrace logger continues to have its expected configuration and
+        logs to a custom file path.
     """
     env = os.environ.copy()
     env["DD_TRACE_DEBUG"] = "true"
     log_file = tmpdir + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
+    env["DD_TRACE_FILE_SIZE_BYTES"] = "200000"
     code = """
 import logging
 custom_logger = logging.getLogger('custom')
@@ -229,7 +231,7 @@ assert custom_logger.level == logging.WARN
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
 assert ddtrace_logger.handlers[0].__class__.__name__ == 'RotatingFileHandler'
-assert ddtrace_logger.handlers[0].maxBytes == 15 << 20
+assert ddtrace_logger.handlers[0].maxBytes == 200000
 
 """
 
@@ -245,10 +247,10 @@ assert ddtrace_logger.handlers[0].maxBytes == 15 << 20
 def test_unrelated_logger_in_warn_with_ddtrace_run(ddtrace_run_python_code_in_subprocess):
     """
     When using ddtrace-run and a custom logger without debug mode enabled,
-                the ddtrace logger does not override any custom logs settings and
-                child loggers continue to inherit from the parent.
-                No debug logs from the tracer are created.
-                The custom logger logs continue to be emitted.
+        the ddtrace logger does not override any custom logs settings and
+        child loggers continue to inherit from the parent.
+        No debug logs from the tracer are created.
+        The custom logger logs continue to be emitted.
     """
     env = os.environ.copy()
     env["DD_TRACE_DEBUG"] = "false"
@@ -276,5 +278,6 @@ child_logger.warning('warning log')
 
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err != b""
+    assert re.search(LOG_PATTERN, str(err)) is not None
+    assert b"warning log" in err
     assert out == b""

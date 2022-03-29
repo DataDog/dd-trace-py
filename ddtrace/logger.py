@@ -19,7 +19,7 @@ def configure_ddtrace_logger():
     log_formatter = logging.Formatter(log_format)
 
     ddtrace_logger = logging.getLogger("ddtrace")
-    ddtrace_logger.propagate = False
+    ddtrace_logger.propagate = False  # prevent ddtrace logger from propagating logs to the root logger
 
     if debug_enabled is False:
         ddtrace_logger.setLevel(logging.WARN)
