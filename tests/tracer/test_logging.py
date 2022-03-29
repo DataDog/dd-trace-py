@@ -32,7 +32,7 @@ assert custom_logger.level == logging.WARN
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.level == logging.DEBUG
-assert ddtrace_logger.handlers[0].__class__.__name__ == 'RotatingFileHandler'
+assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 15 << 20 # 15 MB
 """
 
