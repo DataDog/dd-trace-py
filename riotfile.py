@@ -88,7 +88,12 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==21.4b2", "isort": [latest]},
+            pkgs={
+                "black": "==21.4b2",
+                "isort": [latest],
+                # See https://github.com/psf/black/issues/2964 for incompatibility with click==8.1.0
+                "click": "<8.1.0",
+            },
             venvs=[
                 Venv(
                     name="fmt",
@@ -131,6 +136,7 @@ venv = Venv(
             pkgs={
                 "mypy": latest,
                 "types-attrs": latest,
+                "types-docutils": latest,
                 "types-protobuf": latest,
                 "types-setuptools": latest,
                 "types-six": latest,
@@ -760,6 +766,8 @@ venv = Venv(
                         # https://github.com/pallets/markupsafe/issues/282
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
                     },
                 ),
                 Venv(
@@ -782,6 +790,8 @@ venv = Venv(
                         # https://github.com/pallets/markupsafe/issues/282
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
                     },
                 ),
                 # Flask >= 2.0.0
@@ -1421,19 +1431,99 @@ venv = Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
                         "aiohttp": ["~=2.0", "~=2.1", "~=2.2", "~=2.3"],
-                        "aiohttp_jinja2": ["~=0.12", "~=0.13", "~=0.15"],
                         "async-timeout": ["<4.0.0"],
                         "yarl": "~=0.18.0",
                     },
                 ),
                 Venv(
-                    # Python 3.5 is deprecated for aiohttp >= 3.0
-                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    # pytest-asyncio is incompatible with aiohttp 3.0+ in Python 3.6
+                    pys="3.6",
                     pkgs={
-                        "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.4", "~=3.5", "~=3.6"],
-                        "aiohttp_jinja2": "~=0.15",
+                        "aiohttp": [
+                            "~=3.0",
+                            "~=3.2",
+                            "~=3.4",
+                            "~=3.6",
+                            "~=3.8",
+                            latest,
+                        ],
                         "yarl": "~=1.0",
                     },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "pytest-asyncio": [latest],
+                        "aiohttp": [
+                            "~=3.0",
+                            "~=3.2",
+                            "~=3.4",
+                            "~=3.6",
+                            "~=3.8",
+                            latest,
+                        ],
+                        "yarl": "~=1.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="aiohttp_jinja2",
+            command="pytest {cmdargs} tests/contrib/aiohttp_jinja2",
+            pkgs={
+                "pytest-aiohttp": [latest],
+            },
+            venvs=[
+                Venv(
+                    pys="3.6",
+                    pkgs={
+                        "aiohttp": [
+                            "~=3.4",
+                            "~=3.6",
+                            latest,
+                        ],
+                        "aiohttp_jinja2": [
+                            "~=1.3.0",
+                            "~=1.4.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "pytest-asyncio": [latest],
+                        "aiohttp": [
+                            "~=3.4",
+                            "~=3.6",
+                            "~=3.8",
+                            latest,
+                        ],
+                    },
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "aiohttp_jinja2": [
+                                    "~=1.3.0",
+                                    "~=1.4.0",
+                                    latest,
+                                ],
+                                # Jinja2 makes breaking changes in 3.0.
+                                "jinja2": "<3.0",
+                                # MarkupSafe makes breaking changes in 2.1.
+                                "MarkupSafe": "<2.1",
+                            }
+                        ),
+                        Venv(
+                            pkgs={
+                                "aiohttp_jinja2": [
+                                    "~=1.5.0",
+                                    latest,
+                                ],
+                                "jinja2": latest,
+                            }
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -1619,6 +1709,47 @@ venv = Venv(
                     latest,
                 ],
             },
+        ),
+        Venv(
+            name="asyncpg",
+            command="pytest {cmdargs} tests/contrib/asyncpg",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.8"),
+                    pkgs={
+                        "asyncpg": [
+                            "~=0.18.0",
+                            "~=0.20.0",
+                            "~=0.22.0",
+                            "~=0.24.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=["3.9"],
+                    pkgs={
+                        "asyncpg": [
+                            "~=0.20.0",
+                            "~=0.22.0",
+                            "~=0.24.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "asyncpg": [
+                            "~=0.24.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
         ),
     ],
 )

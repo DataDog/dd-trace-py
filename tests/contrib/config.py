@@ -80,3 +80,8 @@ RABBITMQ_CONFIG = {
     "password": os.getenv("TEST_RABBITMQ_PASSWORD", "guest"),
     "port": int(os.getenv("TEST_RABBITMQ_PORT", 5672)),
 }
+
+HTTPBIN_CONFIG = {
+    "host": "localhost",
+    "port": 8001,
+}

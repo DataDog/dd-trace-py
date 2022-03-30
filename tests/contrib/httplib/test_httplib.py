@@ -165,7 +165,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         if config.httplib.trace_query_string:
             assert span.get_tag(http.QUERY_STRING) == query_string
         else:
-            assert http.QUERY_STRING not in span._get_tags()
+            assert http.QUERY_STRING not in span.get_tags()
 
     def test_httplib_request_get_request_qs(self):
         with self.override_http_config("httplib", dict(trace_query_string=True)):

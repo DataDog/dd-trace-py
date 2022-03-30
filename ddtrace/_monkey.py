@@ -53,6 +53,7 @@ PATCH_MODULES = {
     "sqlalchemy": False,  # Prefer DB client instrumentation
     "sqlite3": True,
     "aiohttp": True,  # requires asyncio (Python 3.4+)
+    "aiohttp_jinja2": True,
     "aiopg": True,
     "aiobotocore": False,
     "httplib": False,
@@ -75,7 +76,7 @@ PATCH_MODULES = {
     "fastapi": True,
     "dogpile_cache": True,
     "yaaredis": True,
-    "aiohttp_jinja2": False,  # disabled as this is handled by aiohttp for now.
+    "asyncpg": True,
 }
 
 _LOCK = threading.Lock()

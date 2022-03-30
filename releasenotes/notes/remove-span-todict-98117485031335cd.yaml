@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    ``Span.to_dict`` is removed.

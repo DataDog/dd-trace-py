@@ -145,7 +145,7 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "redis"
-        assert "cheese" in span._get_tags() and span.get_tag("cheese") == "camembert"
+        assert "cheese" in span.get_tags() and span.get_tag("cheese") == "camembert"
 
     def test_patch_unpatch(self):
         tracer = DummyTracer()
