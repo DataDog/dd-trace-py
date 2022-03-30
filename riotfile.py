@@ -1404,7 +1404,6 @@ venv = Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
                         "aiohttp": ["~=2.0", "~=2.1", "~=2.2", "~=2.3"],
-                        "aiohttp_jinja2": ["~=0.12", "~=0.13", "~=0.15"],
                         "async-timeout": ["<4.0.0"],
                         "yarl": "~=0.18.0",
                     },
@@ -1421,12 +1420,11 @@ venv = Venv(
                             "~=3.8",
                             latest,
                         ],
-                        "aiohttp_jinja2": latest,
                         "yarl": "~=1.0",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.7", max_version="3.10"),
+                    pys=select_pys(min_version="3.7"),
                     pkgs={
                         "pytest-asyncio": [latest],
                         "aiohttp": [
@@ -1437,9 +1435,68 @@ venv = Venv(
                             "~=3.8",
                             latest,
                         ],
-                        "aiohttp_jinja2": latest,
                         "yarl": "~=1.0",
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="aiohttp_jinja2",
+            command="pytest {cmdargs} tests/contrib/aiohttp_jinja2",
+            pkgs={
+                "pytest-aiohttp": [latest],
+            },
+            venvs=[
+                Venv(
+                    pys="3.6",
+                    pkgs={
+                        "aiohttp": [
+                            "~=3.4",
+                            "~=3.6",
+                            latest,
+                        ],
+                        "aiohttp_jinja2": [
+                            "~=1.3.0",
+                            "~=1.4.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "pytest-asyncio": [latest],
+                        "aiohttp": [
+                            "~=3.4",
+                            "~=3.6",
+                            "~=3.8",
+                            latest,
+                        ],
+                    },
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "aiohttp_jinja2": [
+                                    "~=1.3.0",
+                                    "~=1.4.0",
+                                    latest,
+                                ],
+                                # Jinja2 makes breaking changes in 3.0.
+                                "jinja2": "<3.0",
+                                # MarkupSafe makes breaking changes in 2.1.
+                                "MarkupSafe": "<2.1",
+                            }
+                        ),
+                        Venv(
+                            pkgs={
+                                "aiohttp_jinja2": [
+                                    "~=1.5.0",
+                                    latest,
+                                ],
+                                "jinja2": latest,
+                            }
+                        ),
+                    ],
                 ),
             ],
         ),
