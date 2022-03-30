@@ -802,7 +802,7 @@ def test_tracer_flare(ddtrace_run_python_code_in_subprocess):
     code = """from ddtrace import tracer
 import os
 import signal
-os.kill(os.getpid(), signal.SIGUSR1)
+os.kill(os.getpid(), signal.SIGUSR2)
 """
 
     try:

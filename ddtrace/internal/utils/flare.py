@@ -37,13 +37,20 @@ class TarFile(object):
 
     def add_file(self, file_name):
         with tarfile.open(self.tar_path, "w:bz2") as t:
-            # Open the tar file (context manager) and return it
             t.add(os.path.basename(file_name))
+            log.info("File: %s added to tar: %s.", file_name, self.tar_path)
+
+    def get_size(self):
+        if os.path.exists(self.tar_path):
+            return os.path.getsize(self.tar_path)
+        return 0
 
 
 class Flare(object):
     # Single tar file used by all ddtrace flares
     _tar = TarFile()
+    # We limit to 10MB arbitrarily (just like the trace agent flare)
+    MAX_SIZE = 10485000
 
     def collect(self):
         raise NotImplementedError
@@ -54,30 +61,42 @@ class Flare(object):
 
     @classmethod
     def move_file_to_tar(self, file):
-        self._tar.add_file(file.name)
-        # close and remove file
-        file.close()
-        os.remove(file.name)
+        if self.add_file_to_tar(file):
+            # close and remove file
+            file.close()
+            os.remove(file.name)
+
+    @classmethod
+    def add_file_to_tar(self, file):
+        if self._tar.get_size() + os.path.getsize(file.name) < self.MAX_SIZE:
+            self._tar.add_file(file.name)
+            return True
+        log.info("Log file can not be added to ddtrace flare: %s.", file.name)
+        return False
 
 
 class FlareProcessor(object):
     def __init__(self, flares):
         # type: (List[Flare]) -> None
         self.flares = flares
-        signal.signal(signal.SIGUSR1, self.send_flares)
+        self.previous_handler = signal.getsignal(signal.SIGUSR2)
+        signal.signal(signal.SIGUSR2, self.send_flares)
 
     def add_flare(self, flare):
         # type: (Flare) -> None
         self.flares.append(flare)
 
     def send_flares(self, signalNumber, frame):
+        # So we don't overwrite pre-existing signal handlers
+        self.previous_handler(signalNumber, frame)
         for flare in self.flares:
             flare.collect()
 
 
 class LogFlare(Flare):
-    # Copy this from trace-agent flare
-    LOGS_PATH = os.getenv("DD_TRACE_FLARE_LOG_PATH", default="PATH_WHICH_MATCHES_ALL_TRACER_LOGS")
+    # When this feature is shipped: https://github.com/DataDog/dd-trace-py/pull/3214,
+    # we can could use DD_TRACE_LOG_FILE instead
+    LOGS_PATH = os.getenv("DD_TRACE_FLARE_LOGS_TO_FLARE_REGEX", default="PATH_WHICH_MATCHES_ALL_TRACER_LOGS")
 
     def __init__(self):
         super(Flare, self).__init__()
@@ -85,9 +104,7 @@ class LogFlare(Flare):
     def collect(self):
         log.info("Collecting logs")
         for f in glob.glob(self.LOGS_PATH):
-            if os.access(f, os.R_OK):
-                self.move_file_to_tar(f)
-        log.info("Saving all log files to %s", self.get_tar_path())
+            self.add_file_to_tar(f)
 
 
 class TracerFlare(Flare):
@@ -124,7 +141,6 @@ class TracerFlare(Flare):
         log.info("Collecting tracer configurations")
         f = self.create_flare_file()
         self.move_file_to_tar(f)
-        log.info("Saving all log files to %s", self.get_tar_path())
 
     def create_flare_file(self):
         tracer_configs = {
