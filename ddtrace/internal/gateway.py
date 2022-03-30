@@ -26,7 +26,7 @@ class _Addresses(Enum):
 @attr.s(eq=False)
 class _Gateway(object):
 
-    _addresses_to_keep = attr.ib(type=Set[_Addresses], factory=set)
+    _addresses_to_keep = attr.ib(type=Set[str], factory=set)
 
     def clear(self):
         self._addresses_to_keep.clear()
