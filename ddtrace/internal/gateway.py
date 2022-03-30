@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Set
 from typing import TYPE_CHECKING
 
 import attr
@@ -6,7 +7,6 @@ import attr
 
 if TYPE_CHECKING:
     from ddtrace.span import _RequestStore
-    from typing import Set
 
 
 class _Addresses(Enum):
