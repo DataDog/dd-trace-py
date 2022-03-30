@@ -16,6 +16,8 @@ from ddtrace.internal.processor import SpanProcessor
 
 
 if TYPE_CHECKING:
+    from typing import Dict
+
     from ddtrace import Span
     from ddtrace.internal.gateway import _Gateway
 
@@ -54,6 +56,7 @@ COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 
 def _set_headers(span, headers):
+    # type: (Span, Dict) -> None
     for k in headers:
         if k.lower() in COLLECTED_REQUEST_HEADERS:
             span._set_str_tag(COLLECTED_HEADER_PREFIX + k.lower(), headers[k])
@@ -117,7 +120,7 @@ class AppSecSpanProcessor(SpanProcessor):
             return
         span.set_metric("_dd.appsec.enabled", 1.0)
         span._set_str_tag("_dd.runtime_family", "python")
-        store = span._store  # since we are on the 'web' span, the store is here!
+        store = span._request_store  # since we are on the 'web' span, the store is here!
         data = store.kept_addresses
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data)  # res is a serialized json

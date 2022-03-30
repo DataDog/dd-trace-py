@@ -18,6 +18,7 @@ from typing import Union
 from ddtrace import config
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.gateway import _Gateway
+from ddtrace.span import _RequestStore
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -750,10 +751,11 @@ class Tracer(object):
         )
 
     def _current_context_store(self):
+        # type: () -> Optional[_RequestStore]
         span = self.current_root_span()
         if span is None:
             return None
-        return span._store
+        return span._request_store
 
     def current_root_span(self):
         # type: () -> Optional[Span]

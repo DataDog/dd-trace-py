@@ -10,6 +10,7 @@ from typing import Optional
 from typing import Text
 from typing import Union
 
+import attr
 import six
 
 from . import config
@@ -48,6 +49,7 @@ _MetricDictType = Dict[_TagNameType, NumericType]
 log = get_logger(__name__)
 
 
+@attr.s(eq=False)
 class _RequestStore(object):
     """
     This class contains a request store:
@@ -56,10 +58,7 @@ class _RequestStore(object):
     As of right now, this behavior is handled by attaching the instance of the store to the root span
     """
 
-    __slots__ = ["kept_addresses"]
-
-    def __init__(self):
-        self.kept_addresses = {}  # type: Dict
+    kept_addresses = attr.ib(type=Dict, factory=dict)
 
 
 class Span(object):
@@ -75,7 +74,7 @@ class Span(object):
         "_meta",
         "error",
         "_metrics",
-        "_store",
+        "_request_store",
         "span_type",
         "start_ns",
         "duration_ns",
@@ -143,7 +142,7 @@ class Span(object):
         self._meta = {}  # type: _MetaDictType
         self.error = 0
         self._metrics = {}  # type: _MetricDictType
-        self._store = _RequestStore()  # type: _RequestStore
+        self._request_store = _RequestStore()  # type: _RequestStore
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
