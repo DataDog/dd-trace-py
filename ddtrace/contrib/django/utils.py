@@ -288,7 +288,7 @@ def _after_request_tags(pin, span, request, response):
                 tracer=pin.tracer,
                 method=request.method,
                 url=url,
-                raw_uri=url + "?" + request.GET.urlencode(),
+                raw_uri=url + "?" + request.GET.urlencode() if url is not None else None,
                 status_code=status,
                 query=request.META.get("QUERY_STRING", None),
                 query_object=request.GET.dict(),
@@ -297,6 +297,7 @@ def _after_request_tags(pin, span, request, response):
                 response_headers=response_headers,
                 format_response_headers=dict,
                 request_cookies=request.COOKIES,
+                request_path_params=request.resolver_match.kwargs,
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
