@@ -74,14 +74,8 @@ commands:
     description: "Install riot"
     steps:
       - run:
-          name: "Install standlone Python 3.8 and dependencies"
-          command: |
-             curl -L -o cpython.tar.gz https://github.com/indygreg/python-build-standalone/releases/download/20220318/cpython-3.10.3+20220318-x86_64-unknown-linux-gnu-install_only.tar.gz
-             tar -xvf cpython.tar.gz
-             echo 'export PATH='"$PWD"'/python/bin:$PATH' >> $BASH_ENV
-             source $BASH_ENV
-             sudo apt-get update
-             sudo apt-get install -y clang
+          name: "Install standalone Python 3.8 and dependencies"
+          command: .circleci/scripts/install_cpython_standalone.sh
       - run: pip3 install riot
 
   restore_tox_cache:
@@ -170,7 +164,7 @@ commands:
   run_test_cimg:
     description: "Run tests matching a pattern"
     parameters:
-      version:
+      python:
         type: string
         default: ""
       pattern:
@@ -212,7 +206,7 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  ./scripts/ddtest riot -v run --python=<< parameters.version >> --exitfirst --pass-env -s '<< parameters.pattern >>'
+                  ./scripts/ddtest riot -v run --python=<< parameters.python >> --exitfirst --pass-env -s '<< parameters.pattern >>'
       - unless:
           condition:
               << parameters.snapshot >>
@@ -227,7 +221,7 @@ commands:
                       command: tox -e 'wait' << parameters.wait >>
             - setup_riot
             - run:
-                command: "riot -v run --python=<< parameters.version >> --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                command: "riot -v run --python=<< parameters.python >> --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - when:
           condition:
             << parameters.store_coverage >>
@@ -433,10 +427,21 @@ jobs:
         type: string
     docker:
       - image: cimg/python:<< parameters.python >>
+      - image: cimg/python:3.10
     resource_class: *default_resource_class
     steps:
       - checkout
-      - setup_riot_standalone
+      # - when:
+      #     condition:
+      #         or:
+      #           - equal: [ 3.5, << parameters.snapshot >> ]
+      #           - equal: [ 2.7, << parameters.snapshot >> ]
+      #     steps:
+      #       - run:
+      #           name: "Install Python 3.10 with pyenv"
+      #           command: |
+      #             pyenv jjj
+      - setup_riot
       - run:
           name: "Run riotfile.py tests"
           command: riot run -s riot-helpers
@@ -472,7 +477,7 @@ jobs:
     steps:
       - run_test_cimg:
           pattern: "tracer"
-          version: << parameters.python >>
+          python: << parameters.python >>
 
   opentracer:
     <<: *contrib_job
