@@ -10,6 +10,9 @@ ENV LANG C.UTF-8
 # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
 ENV PYTHONUNBUFFERED=1
 ENV NODE_VERSION=node_16.x
+# Configure PATH environment for pyenv
+ENV PYENV_ROOT /root/.pyenv
+ENV PATH ${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH
 
 RUN \
   # Install system dependencies
@@ -59,25 +62,14 @@ RUN \
   && rm -rf /var/lib/apt/lists/*
 
 
-# Configure PATH environment for pyenv
-ENV PYENV_ROOT /root/.pyenv
-ENV PATH ${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:$PATH
+# Use .python-version to specify all Python versions for testing
+COPY .python-version /root/
 
 # Install pyenv
-RUN git clone --depth 1 --branch v2.2.5 https://github.com/pyenv/pyenv "${PYENV_ROOT}"
-
-
-# Install all required python versions
 RUN \
-  pyenv install --keep 2.7.18 \
-  && pyenv install --keep 3.5.10 \
-  && pyenv install --keep 3.6.15 \
-  && pyenv install --keep 3.7.13 \
-  && pyenv install --keep 3.8.13 \
-  && pyenv install --keep 3.9.11 \
-  && pyenv install --keep 3.10.3 \
-  # Order matters: first version is the global one
-  && pyenv global 3.10.3 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.11 \
+  git clone --depth 1 --branch v2.2.5 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+  && cd /root \
+  && pyenv local | xargs -L 1 pyenv install --keep \
   && pip install --upgrade pip
 
 # Install datadog-ci tool for uploading JUnit XML reports

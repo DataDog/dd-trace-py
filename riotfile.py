@@ -771,6 +771,8 @@ venv = Venv(
                         # https://github.com/pallets/markupsafe/issues/282
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
                     },
                 ),
                 Venv(
@@ -793,6 +795,8 @@ venv = Venv(
                         # https://github.com/pallets/markupsafe/issues/282
                         # DEV: Breaking change made in 2.1.0 release
                         "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
                     },
                 ),
                 # Flask >= 2.0.0
