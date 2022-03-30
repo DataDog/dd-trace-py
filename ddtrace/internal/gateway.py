@@ -6,6 +6,7 @@ import attr
 
 if TYPE_CHECKING:
     from ddtrace.span import _RequestStore
+    from typing import Set
 
 
 class _Addresses(Enum):
@@ -25,7 +26,7 @@ class _Addresses(Enum):
 @attr.s(eq=False)
 class _Gateway(object):
 
-    _addresses_to_keep = attr.ib(type=set[_Addresses], factory=set)
+    _addresses_to_keep = attr.ib(type=Set[_Addresses], factory=set)
 
     def clear(self):
         self._addresses_to_keep.clear()
