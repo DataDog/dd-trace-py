@@ -570,7 +570,7 @@ def test_tracer_shutdown_warning():
 
     mock_logger.assert_has_calls(
         [
-            mock.call("Spans started after tracer has been shut down will not sent to the Datadog Agent."),
+            mock.call("Spans started after the tracer has been shut down will not be sent to the Datadog Agent."),
         ]
     )
 
