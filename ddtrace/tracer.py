@@ -891,7 +891,7 @@ class Tracer(object):
 
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None
-        """Shutdown the tracer and flush finished traces. Calling shutdown multiple times is undefined behavior
+        """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.
 
         :param timeout: How long in seconds to wait for the background worker to flush traces
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
