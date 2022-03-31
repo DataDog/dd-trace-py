@@ -891,18 +891,18 @@ class Tracer(object):
 
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None
-        """Shutdown the tracer.
-
-        This will call shutdown on all SpanProcessors and stop the AgentWriter.
+        """Shutdown the tracer and flush finished traces.
 
         :param timeout: How long in seconds to wait for the background worker to flush traces
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        for processor in self._span_processors:
+        span_processors = self._span_processors
+        self._span_processors = []
+        for processor in span_processors:
             if hasattr(processor, "shutdown"):
                 processor.shutdown(timeout)
-        self._span_processors = []
+        
 
         with self._shutdown_lock:
             atexit.unregister(self._atexit)
