@@ -6,7 +6,6 @@ import grpc
 from grpc import aio
 import packaging.version
 import pytest
-import pytest_asyncio
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -73,7 +72,11 @@ class _SyncHelloServicer(HelloServicer):
     @classmethod
     def _assert_not_in_async_context(cls):
         try:
-            asyncio.get_running_loop()
+            try:
+                asyncio.get_running_loop()
+            except AttributeError:
+                # Python 3.6 doesn't have `asyncio.get_running_loop()`
+                asyncio.get_event_loop()
         except RuntimeError:
             pass
         else:
@@ -140,7 +143,9 @@ def tracer():
     tracer.pop()
 
 
-@pytest_asyncio.fixture(params=[_HelloServicer(), _SyncHelloServicer()])
+# `pytest_asyncio.fixture` cannot be used
+# with pytest-asyncio 0.16.0 which is the latest version available for Python3.6.
+@pytest.fixture(params=[_HelloServicer(), _SyncHelloServicer()])
 async def server_info(request, tracer, event_loop):
     """Configures grpc server and starts it in pytest-asyncio event loop.
     tracer fixture is imported to make sure the tracer is pinned to the modules.
