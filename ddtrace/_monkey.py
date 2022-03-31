@@ -33,7 +33,6 @@ PATCH_MODULES = {
     "futures": True,
     "gevent": True,
     "grpc": True,
-    "grpc_aio": True,
     "httpx": True,
     "mongoengine": True,
     "mysql": True,

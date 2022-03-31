@@ -622,15 +622,7 @@ jobs:
     parallelism: 6
     steps:
       - run_test:
-          pattern: "^grpc$"
-          snapshot: true
-
-  grpc_aio:
-    <<: *machine_executor
-    parallelism: 2
-    steps:
-      - run_test:
-          pattern: "^grpc_aio$"
+          pattern: "grpc"
           snapshot: true
 
   httplib:
@@ -1014,7 +1006,6 @@ requires_tests: &requires_tests
     - futures
     - gevent
     - grpc
-    - grpc_aio
     - httplib
     - httpx
     - integration_agent5
@@ -1103,7 +1094,6 @@ workflows:
       - futures: *requires_base_venvs
       - gevent: *requires_base_venvs
       - grpc: *requires_base_venvs
-      - grpc_aio: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
       - integration_agent5: *requires_base_venvs

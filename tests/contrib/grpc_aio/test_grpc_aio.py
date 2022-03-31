@@ -14,8 +14,8 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.grpc import constants
-from ddtrace.contrib.grpc_aio import patch
-from ddtrace.contrib.grpc_aio import unpatch
+from ddtrace.contrib.grpc import patch
+from ddtrace.contrib.grpc import unpatch
 from tests.contrib.grpc.hello_pb2 import HelloReply
 from tests.contrib.grpc.hello_pb2 import HelloRequest
 from tests.contrib.grpc.hello_pb2_grpc import HelloServicer
