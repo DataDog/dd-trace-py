@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Agent writer service is no longer restarted after the tracer is shut down.
