@@ -45,7 +45,6 @@ from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
 from .internal.processor.trace import TraceTopLevelSpanProcessor
 from .internal.runtime import get_runtime_id
-from .internal.service import ServiceStatus
 from .internal.service import ServiceStatusError
 from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
@@ -471,8 +470,7 @@ class Tracer(object):
         activate=False,  # type: bool
     ):
         # type: (...) -> Span
-        if isinstance(self._writer, AgentWriter) and self._writer.status == ServiceStatus.STOPPED:
-            log.warning("Tracer was shutdown. Spans generated after a tracer is shutdown will not be sent.")
+        log.warning("Tracer was shutdown. Spans generated after a tracer is shutdown will not be sent to the agent.")
         return self._start_span(name, child_of, service, resource, span_type, activate)
 
     def _start_span(
