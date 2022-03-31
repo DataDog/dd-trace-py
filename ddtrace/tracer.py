@@ -901,8 +901,8 @@ class Tracer(object):
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
         try:
-            self._writer.stop(timeout=timeout)
             self._span_processors = []
+            self._writer.stop(timeout=timeout)
         except service.ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass

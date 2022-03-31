@@ -560,6 +560,17 @@ def test_tracer_shutdown_timeout():
     t._writer.stop.assert_called_once_with(timeout=2)
 
 
+def test_tracer_shutdown():
+    t = ddtrace.Tracer()
+    t.shutdown()
+
+    with mock.patch.object(AgentWriter, "write") as mock_write:
+        with t.trace("something"):
+            pass
+
+    mock_write.assert_not_called()
+
+
 def test_tracer_dogstatsd_url():
     t = ddtrace.Tracer()
     assert t._writer.dogstatsd.host == "localhost"
