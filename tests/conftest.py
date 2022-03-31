@@ -11,6 +11,7 @@ from _pytest.runner import TestReport
 import pytest
 from six import PY2
 
+import ddtrace
 from ddtrace.internal.gateway import _Gateway
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -25,8 +26,16 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def tracer():
-    return DummyTracer()
+def use_global_tracer():
+    yield False
+
+
+@pytest.fixture
+def tracer(use_global_tracer):
+    if use_global_tracer:
+        return ddtrace.tracer
+    else:
+        return DummyTracer()
 
 
 @pytest.fixture
