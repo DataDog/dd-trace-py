@@ -297,7 +297,7 @@ def _after_request_tags(pin, span, request, response):
                 response_headers=response_headers,
                 format_response_headers=dict,
                 request_cookies=request.COOKIES,
-                request_path_params=request.resolver_match.kwargs,
+                request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
