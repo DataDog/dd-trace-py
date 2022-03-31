@@ -560,9 +560,8 @@ def test_tracer_shutdown_timeout():
     t._writer.stop.assert_called_once_with(timeout=2)
 
 
-def test_send_traces_after_shutdown():
+def test_tracer_shutdown_warning():
     t = ddtrace.Tracer()
-    assert isinstance(t._writer, AgentWriter)
     t.shutdown()
 
     with mock.patch.object(logging.Logger, "warning") as mock_logger:
@@ -571,7 +570,7 @@ def test_send_traces_after_shutdown():
 
     mock_logger.assert_has_calls(
         [
-            mock.call("Tracer was shutdown. Spans generated after a tracer is shutdown will not be sent."),
+            mock.call("Spans started after tracer has been shut down will not sent to the Datadog Agent."),
         ]
     )
 

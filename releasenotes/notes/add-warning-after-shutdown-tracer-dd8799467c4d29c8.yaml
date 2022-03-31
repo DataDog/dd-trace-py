@@ -1,4 +1,4 @@
 ---
-features:
+upgrade:
   - |
     Log warning when :py:meth:`ddtrace.tracer.start_span` is called after a tracer is shutdown.

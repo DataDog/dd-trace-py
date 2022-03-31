@@ -470,7 +470,7 @@ class Tracer(object):
         activate=False,  # type: bool
     ):
         # type: (...) -> Span
-        log.warning("Tracer was shutdown. Spans generated after a tracer is shutdown will not be sent to the agent.")
+        log.warning("Spans started after tracer has been shut down will not sent to the Datadog Agent.")
         return self._start_span(name, child_of, service, resource, span_type, activate)
 
     def _start_span(
