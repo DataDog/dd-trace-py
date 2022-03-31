@@ -891,22 +891,20 @@ class Tracer(object):
 
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None
-        """Shutdown the tracer.
-
-        This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
-        used for tracing after this method has been called. A new tracer instance is required to continue tracing.
+        """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.
 
         :param timeout: How long in seconds to wait for the background worker to flush traces
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        try:
-            self._writer.stop(timeout=timeout)
-        except service.ServiceStatusError:
-            # It's possible the writer never got started in the first place :(
-            pass
-
         with self._shutdown_lock:
+            # Thread safety: Ensures tracer is shutdown synchronously
+            span_processors = self._span_processors
+            self._span_processors = []
+            for processor in span_processors:
+                if hasattr(processor, "shutdown"):
+                    processor.shutdown(timeout)
+
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
 
