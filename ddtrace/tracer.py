@@ -891,20 +891,20 @@ class Tracer(object):
 
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None
-        """Shutdown the tracer and flush finished traces.
+        """Shutdown the tracer and flush finished traces. Calling shutdown multiple times is undefined behavior
 
         :param timeout: How long in seconds to wait for the background worker to flush traces
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        span_processors = self._span_processors
-        self._span_processors = []
-        for processor in span_processors:
-            if hasattr(processor, "shutdown"):
-                processor.shutdown(timeout)
-        
-
         with self._shutdown_lock:
+            # Thread safety: Ensures tracer is shutdown synchronously
+            span_processors = self._span_processors
+            self._span_processors = []
+            for processor in span_processors:
+                if hasattr(processor, "shutdown"):
+                    processor.shutdown(timeout)
+
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
 
