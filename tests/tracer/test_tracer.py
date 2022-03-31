@@ -517,13 +517,13 @@ def test_tracer_url():
 
 def test_tracer_shutdown_no_timeout():
     t = ddtrace.Tracer()
-    writer = mock.Mock(wraps=t._writer)
-    t._writer = writer
 
-    # The writer thread does not start until the first write.
-    t.shutdown()
-    assert t._writer.stop.called
-    assert not t._writer.join.called
+    with mock.patch.object(AgentWriter, "stop") as mock_stop:
+        with mock.patch.object(AgentWriter, "join") as mock_join:
+            t.shutdown()
+
+    mock_stop.assert_called()
+    mock_join.assert_not_called()
 
 
 def test_tracer_configure_writer_stop_unstarted():
@@ -551,13 +551,13 @@ def test_tracer_configure_writer_stop_started():
 
 def test_tracer_shutdown_timeout():
     t = ddtrace.Tracer()
-    t._writer = mock.Mock(wraps=t._writer)
 
-    with t.trace("something"):
-        pass
+    with mock.patch.object(AgentWriter, "stop") as mock_stop:
+        with t.trace("something"):
+            pass
 
-    t.shutdown(timeout=2)
-    t._writer.stop.assert_called_once_with(timeout=2)
+        t.shutdown(timeout=2)
+    mock_stop.assert_called_once_with(2)
 
 
 def test_tracer_shutdown():
