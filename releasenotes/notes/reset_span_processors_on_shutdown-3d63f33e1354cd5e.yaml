@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Spans should not be sent to the Agent after py:meth:`ddtrace.Tracer.shutdown` is called.

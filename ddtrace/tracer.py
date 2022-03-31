@@ -902,6 +902,7 @@ class Tracer(object):
         """
         try:
             self._writer.stop(timeout=timeout)
+            self._span_processors = []
         except service.ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
