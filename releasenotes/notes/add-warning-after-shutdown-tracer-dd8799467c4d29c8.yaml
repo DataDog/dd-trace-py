@@ -1,4 +1,4 @@
 ---
 upgrade:
   - |
-    Log warning when :py:meth:`ddtrace.tracer.start_span` is called after a tracer is shutdown.
+    Spans started after the tracer has been shut down will no longer be sent to the Datadog Agent.
