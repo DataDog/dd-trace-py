@@ -24,7 +24,8 @@ def test_gevent_warning(monkeypatch):
 def test_gevent_auto_patching():
     import ddtrace
 
-    ddtrace.patch_all()
+    # Disable tracing sqlite3 as it is used by coverage
+    ddtrace.patch_all(sqlite3=False)
     # Patch on import
     import gevent  # noqa
 
