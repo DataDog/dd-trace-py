@@ -172,8 +172,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="snapshot-fmt",
-                    # command="ddapm-test-agent-fmt {cmdargs} tests/snapshots/",
-                    command="echo 'hi'",
+                    command="ddapm-test-agent-fmt {cmdargs} tests/snapshots/",
                 ),
             ],
         ),
