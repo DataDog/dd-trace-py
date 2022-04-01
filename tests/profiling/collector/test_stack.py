@@ -73,7 +73,7 @@ def test_collect_once():
         if e.thread_name == "MainThread":
             if TESTING_GEVENT:
                 assert e.task_id > 0
-                assert e.task_name == e.thread_name
+                assert e.task_name is not None
             else:
                 assert e.task_id is None
                 assert e.task_name is None

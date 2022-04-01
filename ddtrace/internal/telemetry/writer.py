@@ -155,7 +155,7 @@ class TelemetryWriter(PeriodicService):
                 "version": "",
                 "enabled": True,
                 "auto_enabled": auto_enabled,
-                "compatible": "",
+                "compatible": True,
                 "error": "",
             }
             self._integrations_queue.append(integration)
