@@ -87,8 +87,6 @@ class DDLogger(logging.Logger):
     log messages from within the ``ddtrace`` package.
     """
 
-    __slots__ = ("buckets", "rate_limit")
-
     # Named tuple used for keeping track of a log lines current time bucket and the number of log lines skipped
     LoggingBucket = collections.namedtuple("LoggingBucket", ("bucket", "skipped"))
 
