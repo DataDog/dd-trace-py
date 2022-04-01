@@ -251,8 +251,6 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         except tenacity.RetryError:
             log.error("retry limit exceeded submitting span stats to the Datadog agent at %s", self._agent_endpoint)
 
-    on_shutdown = periodic
-
-    def shutdown(self):
+    def shutdown(self, timeout):
         self.periodic()
-        self.stop()
+        self.stop(timeout)

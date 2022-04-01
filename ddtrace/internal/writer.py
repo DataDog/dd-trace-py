@@ -56,7 +56,7 @@ DEFAULT_SMA_WINDOW = 10
 DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
 DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
 DEFAULT_PROCESSING_INTERVAL = 1.0
-DEFAULT_REUSE_CONNECTIONS = True
+DEFAULT_REUSE_CONNECTIONS = False
 
 
 def get_writer_buffer_size():
@@ -584,7 +584,3 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             self.periodic()
         finally:
             self._reset_connection()
-
-    def shutdown(self):
-        # type: () -> None
-        self.on_shutdown()

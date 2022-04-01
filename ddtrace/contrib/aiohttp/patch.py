@@ -104,11 +104,6 @@ def _patch_client(aiohttp):
 
 
 def patch():
-    # Legacy patch aiohttp_jinja2
-    from ddtrace.contrib.aiohttp_jinja2 import patch as aiohttp_jinja2_patch
-
-    aiohttp_jinja2_patch()
-
     import aiohttp
 
     if getattr(aiohttp, "_datadog_patch", False):
@@ -125,10 +120,6 @@ def _unpatch_client(aiohttp):
 
 
 def unpatch():
-    from ddtrace.contrib.aiohttp_jinja2 import unpatch as aiohttp_jinja2_unpatch
-
-    aiohttp_jinja2_unpatch()
-
     import aiohttp
 
     if not getattr(aiohttp, "_datadog_patch", False):

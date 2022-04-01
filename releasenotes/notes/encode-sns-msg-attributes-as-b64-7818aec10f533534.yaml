@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: fix incorrect context propagation message attribute types for SNS. This addresses `Datadog/serverless-plugin-datadog#232 <https://github.com/DataDog/serverless-plugin-datadog/issues/232>`_
