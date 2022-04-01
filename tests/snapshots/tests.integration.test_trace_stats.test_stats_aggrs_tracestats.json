@@ -10,7 +10,7 @@
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 17000,
+        "Duration": 54000,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -22,7 +22,7 @@
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 15000,
+        "Duration": 49000,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -34,7 +34,7 @@
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 111000,
+        "Duration": 72000,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -46,7 +46,7 @@
         "Synthetics": true,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 21000,
+        "Duration": 40000,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -58,7 +58,7 @@
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 52000,
+        "Duration": 72000,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -70,7 +70,7 @@
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 19000,
+        "Duration": 32000,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15
@@ -82,7 +82,7 @@
         "Synthetics": false,
         "Hits": 1,
         "TopLevelHits": 1,
-        "Duration": 17000,
+        "Duration": 28000,
         "Errors": 0,
         "OkSummary": 1046,
         "ErrorSummary": 15

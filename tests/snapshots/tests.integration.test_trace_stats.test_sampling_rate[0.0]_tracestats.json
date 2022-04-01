@@ -4,15 +4,15 @@
     "Duration": 10000000000,
     "Stats": [
       {
-        "Name": "name",
-        "Resource": "/users/list",
+        "Name": "operation",
+        "Resource": "operation",
         "Type": null,
         "Synthetics": false,
-        "Hits": 1000,
-        "TopLevelHits": 1000,
-        "Duration": 13699000,
+        "Hits": 10,
+        "TopLevelHits": 10,
+        "Duration": 427000,
         "Errors": 0,
-        "OkSummary": 2070,
+        "OkSummary": 1046,
         "ErrorSummary": 15
       }
     ]

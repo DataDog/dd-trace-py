@@ -10,10 +10,10 @@
         "Synthetics": false,
         "Hits": 1000,
         "TopLevelHits": 1000,
-        "Duration": 13931000,
-        "Errors": 500,
-        "OkSummary": 2070,
-        "ErrorSummary": 2070
+        "Duration": 47700000,
+        "Errors": 0,
+        "OkSummary": 4118,
+        "ErrorSummary": 15
       }
     ]
   }

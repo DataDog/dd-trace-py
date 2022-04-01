@@ -4,6 +4,7 @@ from typing import Generator
 import pytest
 
 from ddtrace import Tracer
+from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from ddtrace.sampler import DatadogSampler
@@ -18,7 +19,8 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 @pytest.fixture
 def sample_rate():
     # type: () -> Generator[float, None, None]
-    yield 1.0
+    # Default the sample rate to 0 so no traces are sent for requests.
+    yield 0.0
 
 
 @pytest.fixture
@@ -72,7 +74,6 @@ def test_sampling_rate(stats_tracer, sample_rate):
             pass
 
 
-@pytest.mark.parametrize("sample_rate", [0.0])
 @pytest.mark.snapshot()
 def test_stats_1000(stats_tracer, sample_rate):
     for i in range(1000):
@@ -80,7 +81,6 @@ def test_stats_1000(stats_tracer, sample_rate):
             pass
 
 
-@pytest.mark.parametrize("sample_rate", [0.0])
 @pytest.mark.snapshot()
 def test_stats_errors(stats_tracer, sample_rate):
     for i in range(1000):
@@ -89,7 +89,6 @@ def test_stats_errors(stats_tracer, sample_rate):
                 span.error = 1
 
 
-@pytest.mark.parametrize("sample_rate", [0.0])
 @pytest.mark.snapshot()
 def test_stats_aggrs(stats_tracer, sample_rate):
     """
@@ -122,3 +121,23 @@ def test_stats_aggrs(stats_tracer, sample_rate):
     # Type
     with stats_tracer.trace(name="diff-op", service="my-svc", span_type="db", resource="/users/list"):
         pass
+
+
+@pytest.mark.snapshot()
+def test_measured_span(stats_tracer):
+    for _ in range(10):
+        with stats_tracer.trace("parent"):  # Should have stats
+            with stats_tracer.trace("child"):  # Shouldn't have stats
+                pass
+    for _ in range(10):
+        with stats_tracer.trace("parent"):  # Should have stats
+            with stats_tracer.trace("child_stats") as span:  # Should have stats
+                span.set_tag(SPAN_MEASURED_KEY)
+
+
+@pytest.mark.snapshot()
+def test_top_level(stats_tracer):
+    for _ in range(100):
+        with stats_tracer.trace("parent", service="svc-one"):  # Should have stats
+            with stats_tracer.trace("child", service="svc-two"):  # Should have stats
+                pass

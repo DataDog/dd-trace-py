@@ -19,7 +19,6 @@ from tests.utils import snapshot_context as _snapshot_context
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "testagent(*args, **kwargs): mark test to send data to the test agent")
     config.addinivalue_line(
         "markers", "snapshot(*args, **kwargs): mark test to run as a snapshot test which sends traces to the test agent"
     )

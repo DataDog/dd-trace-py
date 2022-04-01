@@ -1,0 +1,20 @@
+[
+  {
+    "Start": 0,
+    "Duration": 10000000000,
+    "Stats": [
+      {
+        "Name": "name",
+        "Resource": "/users/list",
+        "Type": null,
+        "Synthetics": false,
+        "Hits": 1000,
+        "TopLevelHits": 1000,
+        "Duration": 28077000,
+        "Errors": 500,
+        "OkSummary": 2070,
+        "ErrorSummary": 2070
+      }
+    ]
+  }
+]
