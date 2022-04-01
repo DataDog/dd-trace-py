@@ -571,6 +571,21 @@ def test_tracer_shutdown():
     mock_write.assert_not_called()
 
 
+def test_tracer_shutdown_warning():
+    t = ddtrace.Tracer()
+    t.shutdown()
+
+    with mock.patch.object(logging.Logger, "warning") as mock_logger:
+        with t.trace("something"):
+            pass
+
+    mock_logger.assert_has_calls(
+        [
+            mock.call("Spans started after the tracer has been shut down will not be sent to the Datadog Agent."),
+        ]
+    )
+
+
 def test_tracer_dogstatsd_url():
     t = ddtrace.Tracer()
     assert t._writer.dogstatsd.host == "localhost"
