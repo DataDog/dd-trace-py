@@ -43,8 +43,9 @@ def telemetry_writer():
 @pytest.fixture
 def telemetry_writer_disabled():
     telemetry_writer = TelemetryWriter()
-    # TelemetryWriter should be disabled by default
-    assert telemetry_writer._enabled is False
+    # TelemetryWriter _enabled should be None by default
+    assert telemetry_writer._enabled is None
+    telemetry_writer._enabled = False
     yield telemetry_writer
 
 
