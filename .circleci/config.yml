@@ -270,6 +270,9 @@ jobs:
           name: "Flake8 check"
           command: riot run -s flake8
       - run:
+          name: "Slots check"
+          command: riot run -s slotscheck
+      - run:
           name: "Mypy check"
           command: riot run -s mypy
       - run:
@@ -481,7 +484,7 @@ jobs:
     parallelism: 6
     steps:
       - run_test:
-          pattern: 'aiohttp'
+          pattern: 'aiohttp'  # includes aiohttp_jinja2
           snapshot: true
           docker_services: 'httpbin_local'
 

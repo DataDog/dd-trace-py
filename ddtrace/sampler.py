@@ -52,12 +52,18 @@ class SamplingError(Exception):
 
 
 class BaseSampler(six.with_metaclass(abc.ABCMeta)):
+
+    __slots__ = ()
+
     @abc.abstractmethod
     def sample(self, span):
         pass
 
 
 class BasePrioritySampler(BaseSampler):
+
+    __slots__ = ()
+
     @abc.abstractmethod
     def update_rate_by_service_sample_rates(self, sample_rates):
         pass
@@ -105,6 +111,8 @@ class RateByServiceSampler(BasePrioritySampler):
     Keep (100 * `sample_rate`)% of the traces.
     The sample rate is kept independently for each service/env tuple.
     """
+
+    __slots__ = ("sample_rate", "_by_service_samplers")
 
     _default_key = "service:,env:"
 
@@ -340,8 +348,6 @@ class SamplingRule(BaseSampler):
     """
     Definition of a sampling rule used by :class:`DatadogSampler` for applying a sample rate on a span
     """
-
-    __slots__ = ("_sample_rate", "_sampling_id_threshold", "service", "name")
 
     NO_RULE = object()
 
