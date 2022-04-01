@@ -1,4 +1,5 @@
 import abc
+from typing import Optional
 
 import attr
 import six
@@ -49,5 +50,13 @@ class SpanProcessor(six.with_metaclass(abc.ABCMeta)):
 
         It can return any data which will be passed to any processors that are
         applied afterwards.
+        """
+        pass
+
+    def shutdown(self, timeout):
+        # type: (Optional[float]) -> None
+        """Called when the processor is done being used.
+
+        Any clean-up or flushing should be performed with this method.
         """
         pass
