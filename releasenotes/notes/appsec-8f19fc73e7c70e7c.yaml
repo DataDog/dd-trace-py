@@ -3,5 +3,5 @@ prelude: >
     Adding AppSec based on a simple gateway
 features:
   - |
-    The integrations for Django and Flask have been updated to forward path parameters, query stringds and raw URLs
+    The integrations for Django and Flask have been updated to forward path parameters, query strings and raw URLs
     to the gateway to be used with AppSec.
