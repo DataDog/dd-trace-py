@@ -162,7 +162,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="slotscheck",
-                    command="python -m slotscheck -v ddtrace/",
+                    command="python -m slotscheck -v {cmdargs}",
                 ),
             ],
         ),
