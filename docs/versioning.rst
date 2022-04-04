@@ -51,13 +51,13 @@ Interfaces
 
 
 The definition of the **internal** interface:
-    The ``ddtrace.internal`` package is internal
+    The ``ddtrace.internal`` module is internal
 
-    The ``ddtrace.vendor`` package is internal
+    The ``ddtrace.vendor`` module is internal
 
     Any module, function, class or attribute that is prefixed with a single underscore is internal
 
-    Any package, module, function, class or attribute that is contained within an internal package is internal
+    Any module, function, class or attribute that is contained within an internal module is internal
 
 
 The definition of the **public** interface:
