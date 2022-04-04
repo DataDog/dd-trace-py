@@ -79,10 +79,10 @@ context::
 .. important::
 
     Span objects are owned by the execution in which they are created and must
-    be finished in the same execution. To continue a trace in a different
-    execution then the ``span.context`` can be passed between executions and
-    activated. See the sections below for how to propagate spans and traces
-    across task, thread or process boundaries.
+    be finished in the same execution. The span context can be used to continue
+    a trace in a different execution by passing it and activating it on the other
+    end. See the sections below for how to propagate traces across task, thread or
+    process boundaries.
 
 
 Tracing Across Threads
@@ -96,12 +96,12 @@ threads::
 
     def _target(trace_ctx):
         tracer.context_provider.activate(trace_ctx)
-        with tracer.trace("second_thread") as span2:
-            # span2's parent will be the main_thread span
+        with tracer.trace("second_thread"):
+            # `second_thread`s parent will be the `main_thread` span
             time.sleep(1)
 
-    with tracer.trace("main_thread") as span:
-        thread = threading.Thread(target=_target, args=(span.context,))
+    with tracer.trace("main_thread"):
+        thread = threading.Thread(target=_target, args=(tracer.current_trace_context(),))
         thread.start()
         thread.join()
 
@@ -122,8 +122,8 @@ span has to be propagated as a context::
             time.sleep(1)
         tracer.shutdown()
 
-    with tracer.trace("work") as span:
-        proc = Process(target=_target, args=(span.context,))
+    with tracer.trace("work"):
+        proc = Process(target=_target, args=(tracer.current_trace_context(),))
         proc.start()
         time.sleep(1)
         proc.join()
