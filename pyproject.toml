@@ -57,3 +57,18 @@ exclude = [
   ".tox",
   ".venv",
 ]
+
+[tool.slotscheck]
+exclude-modules = '''
+(
+  ^ddtrace.(contrib|vendor)
+  # avoid sitecustomize modules as they start services
+  | ddtrace.bootstrap.sitecustomize
+  | ddtrace.profiling.bootstrap.sitecustomize
+  | ddtrace.profiling.auto
+  # protobuf file fails to import
+  | ddtrace.profiling.exporter.pprof_pre312_pb2
+  # TODO: resolve slot inheritance issues with profiling
+  | ddtrace.profiling.collector
+)
+'''

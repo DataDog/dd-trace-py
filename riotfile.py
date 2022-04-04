@@ -158,6 +158,16 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            pkgs={"slotscheck": latest},
+            venvs=[
+                Venv(
+                    name="slotscheck",
+                    command="python -m slotscheck -v {cmdargs}",
+                ),
+            ],
+        ),
+        Venv(
+            pys=["3"],
             pkgs={"ddapm-test-agent": ">=1.2.0"},
             venvs=[
                 Venv(

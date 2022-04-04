@@ -11,8 +11,10 @@ import six
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
+from ddtrace.span import _is_top_level
 
 
 log = get_logger(__name__)
@@ -94,9 +96,7 @@ class TraceTopLevelSpanProcessor(TraceProcessor):
 
         span_ids = {span.span_id for span in trace}
         for span in trace:
-            if span is span._local_root:
-                span.set_metric("_dd.top_level", 1)
-            elif span._parent and span.service != span._parent.service:
+            if _is_top_level(span):
                 span.set_metric("_dd.top_level", 1)
             elif span.parent_id and span.parent_id not in span_ids:
                 span.set_metric("_dd.top_level", 0)
@@ -202,7 +202,18 @@ class SpanAggregator(SpanProcessor):
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
 
-    def shutdown(self):
-        # type: () -> None
-        # TODO: have SpanAggregator own and shutdown its writer (currently `Tracer` owns it)
-        pass
+    def shutdown(self, timeout):
+        # type: (Optional[float]) -> None
+        """
+        This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
+        used for tracing after this method has been called. A new tracer instance is required to continue tracing.
+
+        :param timeout: How long in seconds to wait for the background worker to flush traces
+            before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
+        :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
+        """
+        try:
+            self._writer.stop(timeout)
+        except ServiceStatusError:
+            # It's possible the writer never got started in the first place :(
+            pass

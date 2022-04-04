@@ -35,6 +35,7 @@ from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
+from ddtrace.span import _is_top_level
 from ddtrace.tracer import Tracer
 from ddtrace.tracer import _has_aws_lambda_agent_extension
 from ddtrace.tracer import _in_aws_lambda
@@ -517,13 +518,13 @@ def test_tracer_url():
 
 def test_tracer_shutdown_no_timeout():
     t = ddtrace.Tracer()
-    writer = mock.Mock(wraps=t._writer)
-    t._writer = writer
 
-    # The writer thread does not start until the first write.
-    t.shutdown()
-    assert t._writer.stop.called
-    assert not t._writer.join.called
+    with mock.patch.object(AgentWriter, "stop") as mock_stop:
+        with mock.patch.object(AgentWriter, "join") as mock_join:
+            t.shutdown()
+
+    mock_stop.assert_called()
+    mock_join.assert_not_called()
 
 
 def test_tracer_configure_writer_stop_unstarted():
@@ -551,13 +552,39 @@ def test_tracer_configure_writer_stop_started():
 
 def test_tracer_shutdown_timeout():
     t = ddtrace.Tracer()
-    t._writer = mock.Mock(wraps=t._writer)
 
-    with t.trace("something"):
-        pass
+    with mock.patch.object(AgentWriter, "stop") as mock_stop:
+        with t.trace("something"):
+            pass
 
-    t.shutdown(timeout=2)
-    t._writer.stop.assert_called_once_with(timeout=2)
+        t.shutdown(timeout=2)
+    mock_stop.assert_called_once_with(2)
+
+
+def test_tracer_shutdown():
+    t = ddtrace.Tracer()
+    t.shutdown()
+
+    with mock.patch.object(AgentWriter, "write") as mock_write:
+        with t.trace("something"):
+            pass
+
+    mock_write.assert_not_called()
+
+
+def test_tracer_shutdown_warning():
+    t = ddtrace.Tracer()
+    t.shutdown()
+
+    with mock.patch.object(logging.Logger, "warning") as mock_logger:
+        with t.trace("something"):
+            pass
+
+    mock_logger.assert_has_calls(
+        [
+            mock.call("Spans started after the tracer has been shut down will not be sent to the Datadog Agent."),
+        ]
+    )
 
 
 def test_tracer_dogstatsd_url():
@@ -1676,3 +1703,21 @@ def test_tracer_memory_leak_span_processors(enabled):
     # Force gc
     gc.collect()
     assert len(spans) == 0
+
+
+def test_top_level(tracer):
+    with tracer.trace("parent", service="my-svc") as parent_span:
+        assert _is_top_level(parent_span)
+        with tracer.trace("child") as child_span:
+            assert not _is_top_level(child_span)
+            with tracer.trace("subchild") as subchild_span:
+                assert not _is_top_level(subchild_span)
+            with tracer.trace("subchild2", service="svc-2") as subchild_span2:
+                assert _is_top_level(subchild_span2)
+
+    with tracer.trace("parent", service="my-svc") as parent_span:
+        assert _is_top_level(parent_span)
+        with tracer.trace("child", service="child-svc") as child_span:
+            assert _is_top_level(child_span)
+        with tracer.trace("child2", service="child-svc") as child_span2:
+            assert _is_top_level(child_span2)
