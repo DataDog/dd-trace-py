@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Updates documentation to note running a flask app with ``python -m`` is not supported.

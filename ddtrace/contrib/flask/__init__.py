@@ -27,6 +27,7 @@ You may also enable Flask tracing automatically via ddtrace-run::
 
     ddtrace-run python app.py
 
+Note: ddtrace does not support runpy. Avoid using ``python -m`` to run your flask app.
 
 Configuration
 ~~~~~~~~~~~~~
