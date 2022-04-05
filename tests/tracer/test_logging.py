@@ -91,6 +91,7 @@ assert child_logger.handlers == []
         assert len(content) > 0
         assert re.search(LOG_PATTERN, content) is not None
 
+
 def test_unrelated_logger_in_debug_with_ddtrace_run(ddtrace_run_python_code_in_subprocess, tmpdir):
     """
     When using ddtrace-run with a custom logger,
@@ -190,6 +191,7 @@ ddtrace_logger.warning('warning log')
     assert b"warning log" in err
     assert out == b""
 
+
 def test_warn_logs_can_go_to_file(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
     """
     When setting up the default ddtrace logger when not in debug mode,
@@ -246,6 +248,7 @@ ddtrace_logger.warning('warning log')
         assert "warning log" in content
         assert re.search(LOG_PATTERN, content) is not None
 
+
 def test_debug_logs_go_to_stderr(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess):
     """
     When setting up the default logger in debug mode without a log path,
@@ -284,6 +287,7 @@ assert isinstance(ddtrace_logger.handlers[0], logging.StreamHandler)
     assert b"debug logs" in err
     assert out == b""
 
+
 def test_debug_logs_can_go_to_file(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
     """
     When setting up the default ddtrace logger in debug mode,
@@ -314,7 +318,8 @@ assert ddtrace_logger.handlers[0].backupCount == 1
     testfiles = os.listdir(tmpdir)
     files_created = 0
     for file in testfiles:
-        if 'testlog.log' in file: files_created = files_created + 1
+        if "testlog.log" in file:
+            files_created = files_created + 1
 
     assert files_created == 2
     with open(log_file) as file:
@@ -341,7 +346,8 @@ assert ddtrace_logger.handlers[0].backupCount == 1
     testfiles = os.listdir(tmpdir)
     files_created = 0
     for file in testfiles:
-        if 'testlog.log' in file: files_created = files_created + 1
+        if "testlog.log" in file:
+            files_created = files_created + 1
 
     assert files_created == 2
     with open(log_file) as file:
