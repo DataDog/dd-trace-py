@@ -114,11 +114,18 @@ jobs:
           repository: tiangolo/fastapi
           ref: 0.75.0
           path: fastapi
+      - uses: actions/cache@v2
+        id: cache
+        with:
+          path: ${{ env.pythonLocation }}
+          key: ${{ runner.os }}-python-${{ env.pythonLocation }}-fastapi
       #This step installs Flit, a way to put Python packages and modules on PyPI (More info at https://flit.readthedocs.io/en/latest/)
       - name: Install Flit
+        if: steps.cache.outputs.cache-hit != 'true'
         run: pip install flit
       #Installs all dependencies needed for FastAPI
       - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
         run: flit install --symlink
       - name: Inject ddtrace
         run: pip install ../ddtrace
