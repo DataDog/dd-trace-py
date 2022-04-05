@@ -1,8 +1,6 @@
 import bm
 import utils
 
-from ddtrace import Span as dd_Span
-
 
 class Span(bm.Scenario):
     nspans = bm.var(type=int)
@@ -26,7 +24,7 @@ class Span(bm.Scenario):
         def _(loops):
             for _ in range(loops):
                 for i in range(self.nspans):
-                    s = dd_Span(None, "test." + str(i), resource="resource", service="service")
+                    s = utils.gen_span("test." + str(i))
                     if settags:
                         s.set_tags(tags)
                     if setmetrics:
