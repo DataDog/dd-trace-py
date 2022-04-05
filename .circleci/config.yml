@@ -270,6 +270,9 @@ jobs:
           name: "Flake8 check"
           command: riot run -s flake8
       - run:
+          name: "Slots check"
+          command: riot run -s slotscheck
+      - run:
           name: "Mypy check"
           command: riot run -s mypy
       - run:
@@ -284,8 +287,9 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip
+      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip cppcheck
       - run: scripts/cformat.sh
+      - run: scripts/cppcheck.sh
       - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
@@ -388,7 +392,7 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-v5'
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
@@ -403,7 +407,7 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-latest'
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
 
   integration_testagent:
     <<: *machine_executor
@@ -420,7 +424,7 @@ jobs:
             DD_TRACE_AGENT_URL: http://localhost:9126
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-snapshot'
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
@@ -486,7 +490,7 @@ jobs:
     parallelism: 6
     steps:
       - run_test:
-          pattern: 'aiohttp'
+          pattern: 'aiohttp'  # includes aiohttp_jinja2
           snapshot: true
           docker_services: 'httpbin_local'
 

@@ -35,7 +35,6 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
-from .internal import service
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
@@ -46,6 +45,7 @@ from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
 from .internal.processor.trace import TraceTopLevelSpanProcessor
 from .internal.runtime import get_runtime_id
+from .internal.service import ServiceStatusError
 from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
@@ -372,7 +372,7 @@ class Tracer(object):
 
         try:
             self._writer.stop()
-        except service.ServiceStatusError:
+        except ServiceStatusError:
             # It's possible the writer never got started
             pass
 
@@ -460,7 +460,20 @@ class Tracer(object):
         )
         self._new_process = True
 
-    def start_span(
+    def _start_span_after_shutdown(
+        self,
+        name,  # type: str
+        child_of=None,  # type: Optional[Union[Span, Context]]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[str]
+        activate=False,  # type: bool
+    ):
+        # type: (...) -> Span
+        log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
+        return self._start_span(name, child_of, service, resource, span_type, activate)
+
+    def _start_span(
         self,
         name,  # type: str
         child_of=None,  # type: Optional[Union[Span, Context]]
@@ -654,6 +667,8 @@ class Tracer(object):
 
         self._hooks.emit(self.__class__.start_span, span)
         return span
+
+    start_span = _start_span
 
     def _on_span_finish(self, span):
         # type: (Span) -> None
@@ -891,24 +906,24 @@ class Tracer(object):
 
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None
-        """Shutdown the tracer.
-
-        This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
-        used for tracing after this method has been called. A new tracer instance is required to continue tracing.
+        """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.
 
         :param timeout: How long in seconds to wait for the background worker to flush traces
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        try:
-            self._writer.stop(timeout=timeout)
-        except service.ServiceStatusError:
-            # It's possible the writer never got started in the first place :(
-            pass
-
         with self._shutdown_lock:
+            # Thread safety: Ensures tracer is shutdown synchronously
+            span_processors = self._span_processors
+            self._span_processors = []
+            for processor in span_processors:
+                if hasattr(processor, "shutdown"):
+                    processor.shutdown(timeout)
+
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
+
+        self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 
     @staticmethod
     def _use_log_writer():

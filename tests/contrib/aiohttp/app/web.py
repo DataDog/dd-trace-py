@@ -2,8 +2,14 @@ import asyncio
 import os
 
 from aiohttp import web
-import aiohttp_jinja2
-import jinja2
+
+
+try:
+    import aiohttp_jinja2
+except ImportError:
+    aiohttp_jinja2 = None
+else:
+    import jinja2
 
 from ddtrace.contrib.aiohttp.middlewares import CONFIG_KEY
 
@@ -77,20 +83,6 @@ async def coro_2(request):
     return "OK"
 
 
-async def template_handler(request):
-    return aiohttp_jinja2.render_template("template.jinja2", request, {"text": "OK"})
-
-
-@aiohttp_jinja2.template("template.jinja2")
-async def template_decorator(request):
-    return {"text": "OK"}
-
-
-@aiohttp_jinja2.template("error.jinja2")
-async def template_error(request):
-    return {}
-
-
 async def delayed_handler(request):
     await asyncio.sleep(0.01)
     return web.Response(text="Done")
@@ -103,6 +95,20 @@ async def noop_middleware(app, handler):
         return response
 
     return middleware_handler
+
+
+if aiohttp_jinja2:
+
+    async def template_handler(request):
+        return aiohttp_jinja2.render_template("template.jinja2", request, {"text": "OK"})
+
+    @aiohttp_jinja2.template("template.jinja2")
+    async def template_decorator(request):
+        return {"text": "OK"}
+
+    @aiohttp_jinja2.template("error.jinja2")
+    async def template_error(request):
+        return {}
 
 
 def setup_app(loop=None):
@@ -129,11 +135,12 @@ def setup_app(loop=None):
     app.router.add_get("/uncaught_server_error", uncaught_server_error)
     app.router.add_get("/caught_server_error", caught_server_error)
     app.router.add_static("/statics", STATIC_DIR)
-    # configure templates
-    set_memory_loader(app)
-    app.router.add_get("/template/", template_handler)
-    app.router.add_get("/template_decorator/", template_decorator)
-    app.router.add_get("/template_error/", template_error)
+    if aiohttp_jinja2:
+        # configure templates
+        set_memory_loader(app)
+        app.router.add_get("/template/", template_handler)
+        app.router.add_get("/template_decorator/", template_decorator)
+        app.router.add_get("/template_error/", template_error)
     app.router.add_get("/response_headers/", response_headers)
 
     return app
