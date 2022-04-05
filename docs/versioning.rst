@@ -12,7 +12,7 @@ Release support
 
    * - Release
      - :ref:`Support level<versioning_support_levels>`
-     - Minimum Trace Agent
+     - Minimum Datadog Agent
    * - 0.x
      - :ref:`Maintenance<versioning_support_maintenace>`
      -
@@ -37,7 +37,7 @@ MINOR
 
     Any backwards compatible or incompatible changes to the internal :ref:`interface<versioning_interfaces>`
 
-    Adding a support for :ref:`runtime<versioning_supported_runtimes>`
+    Adding support for a :ref:`runtime<versioning_supported_runtimes>`
 
 PATCH
     Bug fixes that are backwards compatible
@@ -61,7 +61,7 @@ The definition of the **internal** interface:
 
 
 The definition of the **public** interface:
-    Any package, module, function, class or attribute that is not internal
+    Any module, function, class or attribute that is not internal
 
 
 .. _versioning_supported_runtimes:
@@ -81,7 +81,7 @@ Supported runtimes
    * - Linux
      - x86-64, i686, AArch64
      - CPython
-     - 3.10, 3.9, 3.8, 3.7, 3.6, 3.5, 2.7
+     - 2.7, 3.5-3.10
      - 1.x
    * - MacOS
      - Intel, Apple Silicon
