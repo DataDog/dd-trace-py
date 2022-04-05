@@ -4,6 +4,7 @@ import structlog
 from ddtrace import Tracer
 from ddtrace import config
 from ddtrace import tracer
+from ddtrace.context import Context
 from ddtrace.opentracer.tracer import Tracer as OT_Tracer
 from tests.utils import override_global_config
 
@@ -66,6 +67,20 @@ class TestCorrelationLogsContext(object):
         assert dd_log_record == {
             "span_id": str(span2.span_id),
             "trace_id": str(span2.trace_id),
+            "service": "test-service",
+            "env": "test-env",
+            "version": "test-version",
+        }
+
+        tracer.context_provider.activate(
+            Context(
+                span_id=234,
+                trace_id=4321,
+            )
+        )
+        assert test_tracer.get_log_correlation_context() == {
+            "span_id": "234",
+            "trace_id": "4321",
             "service": "test-service",
             "env": "test-env",
             "version": "test-version",
