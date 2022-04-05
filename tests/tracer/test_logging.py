@@ -35,6 +35,7 @@ assert ddtrace_logger.level == logging.DEBUG
 assert len(ddtrace_logger.handlers) == 1
 assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 15 << 20 # 15 MB
+assert ddtrace_logger.handlers[0].backupCount == 1
 """
 
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
@@ -74,6 +75,7 @@ assert ddtrace_logger.level == logging.DEBUG
 assert len(ddtrace_logger.handlers) == 1
 assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 200000
+assert ddtrace_logger.handlers[0].backupCount == 1
 """
 
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
@@ -103,6 +105,7 @@ assert ddtrace_logger.level == logging.DEBUG
 assert len(ddtrace_logger.handlers) == 1
 assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 15 << 20
+assert ddtrace_logger.handlers[0].backupCount == 1
 
 child_logger = logging.getLogger('ddtrace.child')
 assert child_logger.parent.name == 'ddtrace'
@@ -240,6 +243,7 @@ assert ddtrace_logger.level == logging.DEBUG
 assert len(ddtrace_logger.handlers) == 1
 assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 200000
+assert ddtrace_logger.handlers[0].backupCount == 1
 
 """
 
