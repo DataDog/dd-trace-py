@@ -94,6 +94,7 @@ commands:
     description: "Save pip cache directory"
     steps:
       - save_cache:
+          # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
           key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
           paths:
             - ".cache/pip"
