@@ -86,12 +86,12 @@ Supported runtimes
    * - MacOS
      - Intel, Apple Silicon
      - CPython
-     - 3.10, 3.9, 3.8, 3.7, 3.6, 3.5, 2.7
+     - 2.7, 3.5-3.10
      - 1.x
    * - Windows
      - 64bit, 32bit
      - CPython
-     - 3.10, 3.9, 3.8, 3.7, 3.6, 3.5, 2.7
+     - 2.7, 3.5-3.10
      - 1.x
 
 
