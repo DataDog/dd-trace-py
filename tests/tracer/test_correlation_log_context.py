@@ -78,9 +78,9 @@ class TestCorrelationLogsContext(object):
                 trace_id=4321,
             )
         )
-        assert dd_log_record == {
-            "span_id": str(span2.span_id),
-            "trace_id": str(span2.trace_id),
+        assert test_tracer.get_log_correlation_context() == {
+            "span_id": "234",
+            "trace_id": "4321",
             "service": "test-service",
             "env": "test-env",
             "version": "test-version",
