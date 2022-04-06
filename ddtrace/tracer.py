@@ -39,7 +39,6 @@ from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
-from .internal.processor.stats import SpanStatsProcessorV06
 from .internal.processor.trace import SpanAggregator
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
@@ -126,6 +125,10 @@ def _default_span_processors_factory(
                 raise
 
     if compute_stats_enabled:
+        # Inline the import to avoid pulling in ddsketch or protobuf
+        # when importing ddtrace.
+        from .internal.processor.stats import SpanStatsProcessorV06
+
         span_processors.append(
             SpanStatsProcessorV06(
                 agent_url,
