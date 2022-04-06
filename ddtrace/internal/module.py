@@ -97,7 +97,7 @@ class ModuleWatchdog(dict):
         # type: () -> None
         self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[Tuple[HookType, Any]]]
         self._origin_map = {origin(module): module for module in sys.modules.values()}
-        self._modules = sys.modules
+        self._modules = sys.modules  # type: Union[dict, ModuleWatchdog]
         self._finding = set()  # type: Set[str]
 
     def __enter__(self):
