@@ -38,7 +38,7 @@ def origin(module):
     try:
         orig = abspath(module.__file__)  # type: ignore[type-var]
     except (AttributeError, TypeError):
-        # Module is porbably only partially initialised, so we look at its
+        # Module is probably only partially initialised, so we look at its
         # spec instead
         try:
             orig = abspath(module.__spec__.origin)  # type: ignore
