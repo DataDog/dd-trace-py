@@ -193,5 +193,6 @@ Indices and tables
     benchmarks
     contributing
     troubleshooting
+    versioning
     api
     release_notes
