@@ -19,20 +19,15 @@ prelude: >
     Before upgrading to v1.0.0, we recommend users install
     ``ddtrace>=0.60.0,<1.0.0`` and enable deprecation warnings. All removals to
     the library interface and environment variables were deprecated on 0.x
-    branch. For more on migrating to 1.x, consult the :ref:`Upgrade
-    0.x<upgrade-0.x>` guide.
-
-    As a convenience, the following regular expression can be used to find all
-    environment variables removed in this release::
-
-    "DATADOG_[A-Z_]*|DATADOG_SERVICE_NAME|DD_CALL_BASIC_CONFIG|DD_LOGGING_RATE_LIMIT|DD_SERVICE_NAME|DD_TRACER_PARTIAL_FLUSH_ENABLED|DD_TRACER_PARTIAL_FLUSH_MIN_SPANS"
+    branch. For more on migrating to 1.x, consult :ref:`Upgrading from 0.x to
+    1.x<upgrade-0.x>`.
 
 
   .. warning::
     The changes to environment variables apply only to the configuration of the
     ddtrace library and not the Datadog Agent.
 
-  .. csv-table:: Upgrade from 0.x
+  .. csv-table::
    :widths: 30, 70
    :header: "Note", "Affected"
 

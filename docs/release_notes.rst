@@ -23,6 +23,7 @@ Release Notes
       ignore_notes:
         - "keep-alive-b5ec5febb435daad"
         - "aiohttp-98ae9ce70dda1dbc"
+        - "deprecate-aiohttp_jinja2-patching-from-aiohttp-be87600f308ca87a"
         - "aiohttp_jinja2-25d9a7b4e621fad2"
         - "asyncpg-45cdf83efdf9270d"
         - "encode-sns-msg-attributes-as-b64-7818aec10f533534"

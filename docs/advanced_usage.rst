@@ -306,10 +306,21 @@ Before upgrading, we recommend resolving any deprecation warnings raised in your
 
 .. _upgrade-0.x:
 
-0.x Release Line
-^^^^^^^^^^^^^^^^
+Upgrading from 0.x to 1.x
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As of v0.59.0, you can enable warning filters for ddtrace library deprecations.
+As of v0.60.0, you can enable warning filters for ddtrace library deprecations.
+
+To identify the deprecated environment variables, search a code base for the following patterns::
+
+    git grep -e "DATADOG_[A-Z_]*" \
+      -e "DATADOG_SERVICE_NAME" \
+      -e "DD_CALL_BASIC_CONFIG" \
+      -e "DD_LOGGING_RATE_LIMIT" \
+      -e "DD_SERVICE_NAME" \
+      -e "DD_TRACER_PARTIAL_FLUSH_ENABLED" \
+      -e "DD_TRACER_PARTIAL_FLUSH_MIN_SPANS"
+
 
 For those using ``pytest``, add a filter for the ``ddtrace.DDTraceDeprecationWarning`` warning category::
 
