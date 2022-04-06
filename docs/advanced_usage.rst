@@ -309,7 +309,7 @@ Before upgrading, we recommend resolving any deprecation warnings raised in your
 Upgrading from 0.x to 1.x
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As of v0.60.0, you can use warning filters for ``ddtrace.DDTraceDeprecationWarning`` to update your code.
+As of v0.60.0, you can use warning filters for ``ddtrace.DDTraceDeprecationWarning`` to find and replace usages of deprecated features.
 
 For those using ``pytest``::
 
