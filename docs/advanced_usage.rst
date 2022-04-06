@@ -309,9 +309,28 @@ Before upgrading, we recommend resolving any deprecation warnings raised in your
 Upgrading from 0.x to 1.x
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As of v0.60.0, you can enable warning filters for ddtrace library deprecations.
+As of v0.60.0, you can use warning filters for ``ddtrace.DDTraceDeprecationWarning`` to update your code.
 
-To identify the deprecated environment variables, search a code base for the following patterns::
+For those using ``pytest``::
+
+    pytest -W "error::ddtrace.DDTraceDeprecationWarning" tests.py
+
+
+Otherwise, you can set the environment variable ``DD_TRACE_RAISE_DEPRECATIONWARNING`` to configure the warning filter::
+
+    DD_TRACE_RAISE_DEPRECATIONWARNING=1 python app.py
+
+
+Though ``ddtrace.DDTraceDeprecationWarning`` is not available before v0.60.0, you can still enable all deprecation warnings and filter the application or tests logs for deprecations specific to the ``ddtrace`` library::
+
+    $ python -Wall app.py
+
+    # or
+
+    $ PYTHONWARNINGS=all python app.py
+
+
+In addition to deprecation warnings, you can search a code base using the following patterns to identify the deprecated environment variables::
 
     git grep -e "DATADOG_[A-Z_]*" \
       -e "DATADOG_SERVICE_NAME" \
@@ -321,24 +340,6 @@ To identify the deprecated environment variables, search a code base for the fol
       -e "DD_TRACER_PARTIAL_FLUSH_ENABLED" \
       -e "DD_TRACER_PARTIAL_FLUSH_MIN_SPANS"
 
-
-For those using ``pytest``, add a filter for the ``ddtrace.DDTraceDeprecationWarning`` warning category::
-
-    pytest -W "error::ddtrace.DDTraceDeprecationWarning" tests.py
-
-
-Otherwise, you must set the environment variable ``DD_TRACE_RAISE_DEPRECATIONWARNING`` which will configure the warning filter::
-
-    DD_TRACE_RAISE_DEPRECATIONWARNING=1 python app.py
-
-
-Before v0.59.0, you can still enable all deprecation warnings and filter the application or tests logs for deprecations specific the ``ddtrace`` library::
-
-    $ python -Wall app.py
-
-    # or
-
-    $ PYTHONWARNINGS=all python app.py
 
 
 Trace Filtering
