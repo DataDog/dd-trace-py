@@ -336,21 +336,22 @@ def test_priority_sampling_response(encoding, monkeypatch):
     s.set_tag("env", "my-env")
     s.finish()
     assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
-    t.shutdown()
+    t.flush()
 
-    # For some reason the agent doesn't start returning the service information
-    # immediately
-    import time
+    if "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers:
+        pass
+    else:
+        # For some reason the agent doesn't start returning the service information
+        # immediately
+        import time
 
-    time.sleep(5)
+        time.sleep(5)
 
-    t = Tracer()
-    s = t.trace("operation", service="my-svc")
-    s.set_tag("env", "my-env")
-    s.finish()
-    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
-    t.shutdown()
-    assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
+        s = t.trace("operation", service="my-svc")
+        s.set_tag("env", "my-env")
+        s.finish()
+        t.shutdown()
+        assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
 
 
 def test_bad_endpoint():
