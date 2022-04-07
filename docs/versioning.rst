@@ -37,11 +37,11 @@ Support levels
 
        .. _versioning_support_ga:
    * - General Availability (GA)
-     - Full implementation of all features. Full support for new features, bug and security fixes.
+     - Support for new features, bug and security fixes.
 
        .. _versioning_support_maintenace:
    * - Maintenance
-     - Full implementation of existing features. Does not receive new features. Support for critical bug fixes and security fixes only.
+     - Does not receive new features. Support for critical bug fixes and security fixes only.
    * - End-of-life
      - No support.
 
