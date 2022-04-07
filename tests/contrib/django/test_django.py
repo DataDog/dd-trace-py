@@ -501,6 +501,33 @@ def test_lambda_based_view(client, test_spans):
         assert span.resource == "GET tests.contrib.django.views.<lambda>"
 
 
+def test_django_request_context(client, test_spans):
+    def send_request(dd_origin):
+        resp = client.get("/", **{"x-datadog-origin": dd_origin, "x-datadog-trace-id": -1})
+        assert resp.status_code == 200
+
+    import threading
+
+    tds = []
+    for i in range(10):
+        # send synthetics request
+        synth = threading.Thread(target=send_request, args=("synthetics",))
+        # send other request
+        other = threading.Thread(target=send_request, args=("other",))
+        synth.start()
+        other.start()
+
+        tds.append(synth)
+        tds.append(other)
+
+    [td.join() for td in tds]
+    # Ensures 10 traces have dd_origin set to synthetics
+    sythetics_root_spans = [
+        root_span for root_span in test_spans.get_root_spans() if root_span.context.dd_origin == "synthetics"
+    ]
+    assert len(sythetics_root_spans) == 10
+
+
 def test_template_view(client, test_spans):
     resp = client.get("/template-view/")
     assert resp.status_code == 200
@@ -1692,8 +1719,8 @@ class _HttpRequest(django.http.HttpRequest):
     "request_cls,request_path,http_host",
     itertools.product(
         [django.http.HttpRequest, _HttpRequest, _MissingSchemeRequest],
-        [u"/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
-        [u"testserver", b"testserver", SimpleLazyObject(lambda: "testserver"), SimpleLazyObject(lambda: object())],
+        ["/;some/?awful/=path/foo:bar/", b"/;some/?awful/=path/foo:bar/"],
+        ["testserver", b"testserver", SimpleLazyObject(lambda: "testserver"), SimpleLazyObject(lambda: object())],
     ),
 )
 def test_helper_get_request_uri(request_cls, request_path, http_host):
