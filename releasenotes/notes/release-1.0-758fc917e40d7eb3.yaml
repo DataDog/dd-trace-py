@@ -1,27 +1,33 @@
 ---
 prelude: >
   The Datadog APM Python team is happy to announce the release of v1.0.0 of
-  ddtrace.
+  ddtrace. This release simplifies the public
+  :ref:`interface<versioning_interfaces>` and introduces a formal
+  :ref:`versioning policy<versioning>`. These changes unlock performance
+  improvements and new features while ensuring backwards compatibility for
+  users.
 
 
-  The first commit to the library was made on June 20, 2016. Nearly sixty minor
-  releases later, the library has grown immensely. The library now includes over
-  60 integrations for libraries. Moreover, the library has expanded out from
-  tracing to support the Continuous Profiler, and CI Visibility.
-
-
-  Our motivations for this major version release were:
-
-    - Clarify and simplify the public API.
-    - Introduce a versioning policy.
-    - Provide users a painless upgrade path.
+  The v1.0.0 release is an important milestone for the library as it has grown
+  substantially in scope. The first commit to the library was made on June 20,
+  2016. Nearly sixty minor releases later, the library now includes over 60
+  integrations for libraries and has expanded from tracing to
+  support the Continuous Profiler and CI Visibility.
 
 
   .. note::
-    Before upgrading to v1.0.0, we recommend users enable deprecation warnings after having installed ``ddtrace>=0.59.0,<1.0.0``. See the upgrading and deprecation warnings section on the the :ref:`0.x Release Line <upgrade-0.x>` for further details.
+    Before upgrading to v1.0.0, we recommend users install
+    ``ddtrace>=0.60.0,<1.0.0`` and enable deprecation warnings. All removals to
+    the library interface and environment variables were deprecated on 0.x
+    branch. For more on migrating to 1.x, consult :ref:`Upgrading from 0.x to
+    1.x<upgrade-0.x>`.
 
 
-  .. csv-table:: Upgrade from 0.x
+  .. warning::
+    The changes to environment variables apply only to the configuration of the
+    ddtrace library and not the Datadog Agent.
+
+  .. csv-table::
    :widths: 30, 70
    :header: "Note", "Affected"
 
