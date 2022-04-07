@@ -1,5 +1,5 @@
 ---
-upgrade:
+removed:
   - |
     ``ddtrace.constants.FILTERS_KEY`` is removed.
   - |

@@ -1,11 +1,13 @@
 ---
-upgrade:
+removed:
   - ".. _remove-span-tracer:
 
 
     ``Span.tracer`` is removed.
 
     "
+
+upgrade:
   - ".. _remove-span-init-tracer:
 
 

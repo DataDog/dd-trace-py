@@ -1,5 +1,5 @@
 ---
-upgrade:
+removed:
   - ".. _remove-ddtrace-encoding:
 
 

@@ -14,6 +14,8 @@ upgrade:
     and :py:meth:`ddtrace.Span.set_metric` instead.
 
     "
+
+removed:
   - ".. _remove-span-pprint:
 
 

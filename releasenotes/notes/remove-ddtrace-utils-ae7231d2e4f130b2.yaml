@@ -1,5 +1,5 @@
 ---
-upgrade:
+removed:
   - ".. _remove-ddtrace-utils:\n\nThe deprecated module ``ddtrace.utils`` and its
     submodules are removed:\n  - ``ddtrace.utils.attr``\n  - ``ddtrace.utils.attrdict``\n
     \ - ``ddtrace.utils.cache``\n  - ``ddtrace.utils.config``\n  - ``ddtrace.utils.deprecation``\n
