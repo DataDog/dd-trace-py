@@ -90,6 +90,21 @@ commands:
           paths:
             - ".tox"
 
+  save_pip_cache:
+    description: "Save pip cache directory"
+    steps:
+      - save_cache:
+          # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
+          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          paths:
+            - ".cache/pip"
+
+  restore_pip_cache:
+    description: "Restore pip cache directory"
+    steps:
+      - restore_cache:
+          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+
   run_test:
     description: "Run tests matching a pattern"
     parameters:
@@ -112,6 +127,7 @@ commands:
       - attach_workspace:
           at: .
       - checkout
+      - restore_pip_cache
       - when:
           condition:
               << parameters.snapshot >>
@@ -143,6 +159,7 @@ commands:
             - setup_riot
             - run:
                 command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+      - save_pip_cache
       - when:
           condition:
             << parameters.store_coverage >>
