@@ -21,18 +21,18 @@ Release Notes
 .. ddtrace-release-notes::
     "1.0.0":
       ignore_notes:
-        - "keep-alive-b5ec5febb435daad"
-        - "aiohttp-98ae9ce70dda1dbc"
-        - "deprecate-aiohttp_jinja2-patching-from-aiohttp-be87600f308ca87a"
-        - "aiohttp_jinja2-25d9a7b4e621fad2"
-        - "asyncpg-45cdf83efdf9270d"
-        - "encode-sns-msg-attributes-as-b64-7818aec10f533534"
-        - "fix-aiohttp-jinja2-import-2b7e29a14a58efdc"
-        - "fix-encode-tagset-value-2b8bb877a88bc75a"
-        - "fix-psutil-macos-0cd7d0f93b34e3e4"
-        - "profiling-fix-memory-alloc-numbers-a280c751c8f250ba"
-        - "pymongo-4.0.2-1f5d2b6af5c158d2"
-        - "disable-internal-tag-propagation-dff3e799fb056584"
+        - "keep-alive-b5ec5febb435daad.yaml"
+        - "aiohttp-98ae9ce70dda1dbc.yaml"
+        - "deprecate-aiohttp_jinja2-patching-from-aiohttp-be87600f308ca87a.yaml"
+        - "aiohttp_jinja2-25d9a7b4e621fad2.yaml"
+        - "asyncpg-45cdf83efdf9270d.yaml"
+        - "encode-sns-msg-attributes-as-b64-7818aec10f533534.yaml"
+        - "fix-aiohttp-jinja2-import-2b7e29a14a58efdc.yaml"
+        - "fix-encode-tagset-value-2b8bb877a88bc75a.yaml"
+        - "fix-psutil-macos-0cd7d0f93b34e3e4.yaml"
+        - "profiling-fix-memory-alloc-numbers-a280c751c8f250ba.yaml"
+        - "pymongo-4.0.2-1f5d2b6af5c158d2.yaml"
+        - "disable-internal-tag-propagation-dff3e799fb056584.yaml"
 
 
 Prior Releases
