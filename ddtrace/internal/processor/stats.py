@@ -175,6 +175,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
                     u"Name": six.ensure_text(name),
                     u"Resource": six.ensure_text(resource),
                     u"Synthetics": synthetics,
+                    u"HTTPStatusCode": http_status,
                     u"Hits": stat_aggr.hits,
                     u"TopLevelHits": stat_aggr.top_level_hits,
                     u"Duration": stat_aggr.duration,

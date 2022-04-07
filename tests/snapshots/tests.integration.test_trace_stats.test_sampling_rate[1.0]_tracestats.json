@@ -7,12 +7,13 @@
         "Name": "operation",
         "Resource": "operation",
         "Type": null,
+        "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 10,
         "TopLevelHits": 10,
-        "Duration": 606000,
+        "Duration": 126000,
         "Errors": 0,
-        "OkSummary": 2070,
+        "OkSummary": 1046,
         "ErrorSummary": 15
       }
     ]
