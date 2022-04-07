@@ -13,19 +13,12 @@ from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Set
-from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
-
-from bytecode import Bytecode
-from bytecode import Instr
 
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
 
-
-if TYPE_CHECKING and not PY2:
-    from importlib.abc import Loader
 
 log = get_logger(__name__)
 
@@ -65,19 +58,60 @@ def _resolve(path):
 
 
 # Borrowed from the wrapt module
-# https://github.com/GrahamDumpleton/wrapt/blob/0baff1b6ac8d64ffb08ea2d1610c7ed90115b9d5/src/wrapt/importer.py
-class _ImportHookChainedLoader:
+# https://github.com/GrahamDumpleton/wrapt/blob/df0e62c2740143cceb6cafea4c306dae1c559ef8/src/wrapt/importer.py
+
+if PY2:
+    find_spec = ModuleSpec = None
+    Loader = object
+else:
+    from importlib.abc import Loader
+    from importlib.machinery import ModuleSpec
+    from importlib.util import find_spec
+
+
+# DEV: This is used by Python 2 only
+class _ImportHookLoader(object):
+    def __init__(self, callback):
+        # type: (Callable[[ModuleType], None]) -> None
+        self.callback = callback
+
+    def load_module(self, fullname):
+        # type: (str) -> ModuleType
+        module = sys.modules[fullname]
+        self.callback(module)
+
+        return module
+
+
+class _ImportHookChainedLoader(Loader):
     def __init__(self, loader, callback):
         # type: (Loader, Callable[[ModuleType], None]) -> None
         self.loader = loader
         self.callback = callback
 
-    def load_module(self, fullname):
+        # DEV: load_module is deprecated so we define it at runtime if also
+        # defined by the default loader. We also check and define for the
+        # methods that are supposed to replace the load_module functionality.
+        if hasattr(loader, "load_module"):
+            self.load_module = self._load_module  # type: ignore[assignment]
+        if hasattr(loader, "create_module"):
+            self.create_module = self._create_module  # type: ignore[assignment]
+        if hasattr(loader, "exec_module"):
+            self.exec_module = self._exec_module  # type: ignore[assignment]
+
+    def _load_module(self, fullname):
         # type: (str) -> ModuleType
         module = self.loader.load_module(fullname)
         self.callback(module)
 
         return module
+
+    def _create_module(self, spec):
+        return self.loader.create_module(spec)
+
+    def _exec_module(self, module):
+        self.loader.exec_module(module)
+        self.callback(sys.modules[module.__name__])
 
     def get_code(self, mod_name):
         return self.loader.get_code(mod_name)
@@ -89,6 +123,10 @@ class ModuleWatchdog(dict):
     Replace the standard ``sys.modules`` dictionary to detect when modules are
     loaded/unloaded. This is also responsible for triggering any registered
     import hooks.
+
+    Subclasses might customize the default behavior by overriding the
+    ``after_import`` method, which is triggered on every module import, once
+    the subclass is installed.
     """
 
     _run_code = None
@@ -100,19 +138,6 @@ class ModuleWatchdog(dict):
         self._modules = sys.modules  # type: Union[dict, ModuleWatchdog]
         self._finding = set()  # type: Set[str]
 
-    def __enter__(self):
-        # type: () -> ModuleWatchdog
-        self._add_to_meta_path()
-        sys.modules = self
-        log.debug("%s installed", type(self))
-        return self
-
-    def __exit__(self, *exc):
-        # type: (Tuple[Any]) -> None
-        self._remove_from_meta_path()
-        sys.modules = self._modules
-        log.debug("%s uninstalled", type(self))
-
     def __getitem__(self, item):
         # type: (str) -> ModuleType
         return self._modules.__getitem__(item)
@@ -123,7 +148,7 @@ class ModuleWatchdog(dict):
 
     def _add_to_meta_path(self):
         # type: () -> None
-        sys.meta_path.insert(0, self)
+        sys.meta_path.insert(0, self)  # type: ignore[arg-type]
 
     def _remove_from_meta_path(self):
         # type: () -> None
@@ -197,16 +222,10 @@ class ModuleWatchdog(dict):
         try:
             if PY2:
                 __import__(fullname)
-                return self
+                return _ImportHookLoader(self.after_import)
 
-            try:
-                import importlib.util
-
-                spec = importlib.util.find_spec(fullname)
-                loader = spec.loader if spec is not None else None
-            except (ImportError, AttributeError):
-                loader = importlib.find_loader(fullname, path)
-            if loader:
+            loader = getattr(find_spec(fullname), "loader", None)
+            if loader and not isinstance(loader, _ImportHookChainedLoader):
                 return _ImportHookChainedLoader(loader, self.after_import)
 
         finally:
@@ -214,13 +233,27 @@ class ModuleWatchdog(dict):
 
         return None
 
-    def load_module(self, fullname):
-        # type: (str) -> ModuleType
-        # Python 2 only
-        module = sys.modules[fullname]
-        self.after_import(module)
+    def find_spec(self, fullname, path=None, target=None):
+        # type: (str, Optional[str], Optional[ModuleType]) -> Optional[ModuleSpec]
+        if fullname in self._finding:
+            return None
 
-        return module
+        self._finding.add(fullname)
+
+        try:
+            spec = find_spec(fullname)
+            if spec is None:
+                return None
+
+            loader = getattr(spec, "loader", None)
+
+            if loader and not isinstance(loader, _ImportHookChainedLoader):
+                spec.loader = _ImportHookChainedLoader(loader, self.after_import)
+
+            return spec
+
+        finally:
+            self._finding.remove(fullname)
 
     @classmethod
     def register_origin_hook(cls, origin, hook, arg):
@@ -326,12 +359,15 @@ class ModuleWatchdog(dict):
         raise ValueError("No hook registered for module %s with argument %r" % (module, arg))
 
     @classmethod
-    def install(cls, on_run_module=False):
-        # type: (bool) -> None
+    def install(cls, on_run_module=None):
+        # type: (Optional[Callable[[Callable[..., Any]], Callable[..., Any]]]) -> None
         """Install the module watchdog.
 
-        If `on_run_module` is True, then the watchdog will run hooks for the
-        module that is currently being run.
+        The optional `on_run_module` is a callable that implements a wrapper
+        around runpy._run_code. This can be passed in to catch when a module is
+        being loaded as a consequence of running it with the -m flag. For this
+        to work, the install method needs to be called in, e.g., a
+        custom sitecustomize.py file.
         """
         sys.modules = cls()
         sys.modules._add_to_meta_path()
@@ -342,67 +378,10 @@ class ModuleWatchdog(dict):
             # the moment when the module is loaded.
             import runpy
 
+            # We store the original function
             cls._run_code = runpy._run_code  # type: ignore[attr-defined]
 
-            def _run_module_hook():
-                # type: () -> None
-                # The module is loaded in the __main__ namespace. We need to
-                # compute its actual origin as this is not stored by the loader.
-                module = sys.modules["__main__"]
-                assert module.__spec__ is not None, "Main module '%r' has spec" % module
-                module_name = module.__spec__.name
-                module_path_base = abspath(join(*module_name.split(".")))
-
-                def _test_py_file(base_path):
-                    if isfile(base_path + ".py"):
-                        return base_path + ".py"
-                    return None
-
-                # Check if it is a .py file
-                module_origin = _test_py_file(module_path_base)
-                if module_origin is None:
-                    # If not, check if it is a __main__.py file.
-                    module_origin = _test_py_file(join(module_path_base, "__main__"))
-
-                if module_origin is not None:
-                    # Register the module origin mapping
-                    sys.modules._origin_map[module_origin] = module  # type: ignore[attr-defined]
-
-                    # Temporarily override the __file__ attribute to allow
-                    # any registered hooks to run.
-                    old_file = module.__file__
-                    module.__file__ = module_origin
-                    try:
-                        sys.modules.after_import(module)  # type: ignore[attr-defined]
-                    finally:
-                        module.__file__ = old_file
-
-            def _(*args, **kwargs):
-                abstract_code = Bytecode.from_code(args[0])
-                for i, instr in enumerate(abstract_code):
-                    if not isinstance(instr, Instr):
-                        continue
-
-                    if instr.name == "MAKE_FUNCTION" and abstract_code[i + 1].name == "STORE_NAME":
-                        # DEV: This is a bit dumb. Every time we find a function
-                        # definition, we re-trigger the hooks to see if there is
-                        # a new function to patch. This code is unlikely to be
-                        # exercised in practice, but it is important to be aware
-                        # of this behaviour.
-                        lineno = abstract_code[i + 1].lineno
-                        abstract_code[i + 2 : i + 2] = Bytecode(
-                            [
-                                Instr("LOAD_CONST", _run_module_hook, lineno=lineno),
-                                Instr("CALL_FUNCTION", 0, lineno=lineno),
-                                Instr("POP_TOP", lineno=lineno),
-                            ]
-                        )
-
-                args[1][_run_module_hook.__name__] = _run_module_hook
-                args = (abstract_code.to_code(),) + args[1:]
-                return cls._run_code(*args, **kwargs)
-
-            runpy._run_code = _  # type: ignore[attr-defined]
+            runpy._run_code = on_run_module(cls._run_code)  # type: ignore[attr-defined]
 
     @classmethod
     def is_installed(cls):
@@ -412,7 +391,11 @@ class ModuleWatchdog(dict):
     @classmethod
     def uninstall(cls):
         # type: () -> None
-        """Uninstall the module watchdog."""
+        """Uninstall the module watchdog.
+
+        This will uninstall only the most recently installed instance of this
+        class.
+        """
         parent, current = None, sys.modules
         while isinstance(current, ModuleWatchdog):
             if type(current) is cls:
