@@ -97,18 +97,20 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
         self._agent_url = agent_url
+        self._endpoint = "/v0.6/stats"
+        self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
         self._bucket_size_ns = int(interval * 1e9)  # type: int
         self._buckets = defaultdict(
             lambda: defaultdict(SpanAggrStats)
         )  # type: DefaultDict[int, DefaultDict[SpanAggrKey, SpanAggrStats]]
-        self._endpoint = "/v0.6/stats"
         self._headers = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
             "Content-Type": "application/msgpack",
         }  # type: Dict[str, str]
+        self._hostname = six.ensure_text(get_hostname())
         self._lock = Lock()
         self._enabled = True
         self._retry_request = tenacity.Retrying(
@@ -151,11 +153,6 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
                 stats.err_distribution.add(span.duration_ns)
             else:
                 stats.ok_distribution.add(span.duration_ns)
-
-    @property
-    def _agent_endpoint(self):
-        # type: () -> str
-        return "%s%s" % (self._agent_url, self._endpoint)
 
     def _serialize_buckets(self):
         # type: () -> List[Dict]
@@ -238,10 +235,10 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not serialized_stats:
             # No stats to report, short-circuit.
             return
-        raw_payload = {u"Stats": serialized_stats}  # type: Dict[str, Union[List[Dict], str]]
-        hostname = get_hostname()
-        if hostname:
-            raw_payload[u"Hostname"] = six.ensure_text(hostname)
+        raw_payload = {
+            u"Stats": serialized_stats,
+            u"Hostname": self._hostname,
+        }  # type: Dict[str, Union[List[Dict], str]]
         if config.env:
             raw_payload[u"Env"] = six.ensure_text(config.env)
         if config.version:
