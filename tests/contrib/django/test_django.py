@@ -502,8 +502,12 @@ def test_lambda_based_view(client, test_spans):
 
 
 def test_django_request_context(client, test_spans):
-    def send_request(dd_origin):
-        resp = client.get("/", **{"x-datadog-origin": dd_origin, "x-datadog-trace-id": -1})
+    def send_synth_request():
+        resp = client.get("/", **{"x-datadog-origin": "synthetics", "x-datadog-trace-id": -1})
+        assert resp.status_code == 200
+
+    def send_other_request():
+        resp = client.get("/", **{"x-datadog-trace-id": -1})
         assert resp.status_code == 200
 
     import threading
@@ -511,9 +515,9 @@ def test_django_request_context(client, test_spans):
     tds = []
     for i in range(10):
         # send synthetics request
-        synth = threading.Thread(target=send_request, args=("synthetics",))
+        synth = threading.Thread(target=send_synth_request)
         # send other request
-        other = threading.Thread(target=send_request, args=("other",))
+        other = threading.Thread(target=send_other_request)
         synth.start()
         other.start()
 
@@ -526,6 +530,37 @@ def test_django_request_context(client, test_spans):
         root_span for root_span in test_spans.get_root_spans() if root_span.context.dd_origin == "synthetics"
     ]
     assert len(sythetics_root_spans) == 10
+
+
+def test_django_context_send_traces_to_dd_org(client):
+    # run ddagent with dd-trace-py org API_KEY
+    def send_synth_request():
+        resp = client.get("/", **{"x-datadog-origin": "synthetics", "x-datadog-trace-id": -1})
+        assert resp.status_code == 200
+
+    def send_other_request():
+        resp = client.get("/", **{"x-datadog-trace-id": -1})
+        assert resp.status_code == 200
+
+    from ddtrace import Pin
+
+    Pin.override(django, service="munir-test-django")
+
+    import threading
+
+    tds = []
+    for i in range(10):
+        # send synthetics request
+        synth = threading.Thread(target=send_synth_request)
+        # send other request
+        other = threading.Thread(target=send_other_request)
+        synth.start()
+        other.start()
+
+        tds.append(synth)
+        tds.append(other)
+
+    [td.join() for td in tds]
 
 
 def test_template_view(client, test_spans):
