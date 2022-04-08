@@ -336,19 +336,21 @@ def test_priority_sampling_response(encoding, monkeypatch):
     s.set_tag("env", "my-env")
     s.finish()
     assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
-    t.shutdown()
+    t.flush()
 
-    # For some reason the agent doesn't start returning the service information
-    # immediately
-    import time
+    # If a previous test has run then the agent might reply immediately
+    if "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers:
+        # The Agent only returns updated sampling rates once 5 seconds have passed and another request has been sent.
+        import time
 
-    time.sleep(5)
+        time.sleep(5)
+        with t.trace("operation", service="my-svc") as s:
+            s.set_tag("env", "my-env")
+        t.flush()
 
-    t = Tracer()
-    s = t.trace("operation", service="my-svc")
-    s.set_tag("env", "my-env")
-    s.finish()
-    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
+        # Agent will now reply with the sampling rates
+        with t.trace("operation", service="my-svc") as s:
+            s.set_tag("env", "my-env")
     t.shutdown()
     assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
 
