@@ -1,8 +1,8 @@
 import starlette
 from starlette.middleware import Middleware
-from starlette.routing import Match
 
 from ddtrace import config
+from ddtrace import tracer
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -22,28 +22,9 @@ config._add(
 )
 
 
-def get_resource(scope):
-    path = None
-    routes = scope["app"].routes
-    for route in routes:
-        match, _ = route.matches(scope)
-        if match == Match.FULL:
-            path = route.path
-            break
-        elif match == Match.PARTIAL and path is None:
-            path = route.path
-    return path
-
-
-def span_modifier(span, scope):
-    resource = get_resource(scope)
-    if config.starlette["aggregate_resources"] and resource:
-        span.resource = "{} {}".format(scope["method"], resource)
-
-
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
-    mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette, span_modifier=span_modifier))
+    mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
     kwargs.update({"middleware": mw})
 
     wrapped(*args, **kwargs)
@@ -57,6 +38,17 @@ def patch():
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
 
+    handlers = [
+        "Mount",
+        "Route",
+        "Host",
+        "WebSocketRoute",
+    ]
+
+    # Wrap all of the handlers
+    for handler in handlers:
+        _w("starlette.routing", "{}.handle".format(handler), traced_handler)
+
 
 def unpatch():
     if not getattr(starlette, "_datadog_patch", False):
@@ -65,3 +57,19 @@ def unpatch():
     setattr(starlette, "_datadog_patch", False)
 
     _u(starlette.applications.Starlette, "__init__")
+
+
+def traced_handler(wrapped, instance, args, kwargs):
+    def _wrap(scope, receive, send):
+        if "__dd_paths__" in scope:
+            scope["__dd_paths__"].append(instance.path)
+
+        else:
+            scope["__dd_paths__"] = [instance.path]
+
+        # Update root span resource
+        span = tracer.current_root_span()
+        span.resource = "".join(scope["__dd_paths__"])
+        return wrapped(*args, **kwargs)
+
+    return _wrap(*args, **kwargs)
