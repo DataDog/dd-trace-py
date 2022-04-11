@@ -69,7 +69,7 @@ def traced_handler(wrapped, instance, args, kwargs):
 
         # Update root span resource
         span = tracer.current_root_span()
-        span.resource = "".join(scope["__dd_paths__"])
+        span.resource = "{} {}".format(scope["method"], "".join(scope["__dd_paths__"]))
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
