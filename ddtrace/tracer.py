@@ -291,18 +291,18 @@ class Tracer(object):
         span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
-        span = None
+        active = None  # type: Optional[Union[Context, Span]]
         if self.enabled:
-            span = self.current_span()
+            active = self.context_provider.active()
 
-        if span and span.service:
-            service = span.service
+        if isinstance(active, Span) and active.service:
+            service = active.service
         else:
             service = config.service
 
         return {
-            "trace_id": str(span.trace_id) if span else "0",
-            "span_id": str(span.span_id) if span else "0",
+            "trace_id": str(active.trace_id) if active else "0",
+            "span_id": str(active.span_id) if active else "0",
             "service": service or "",
             "version": config.version or "",
             "env": config.env or "",
