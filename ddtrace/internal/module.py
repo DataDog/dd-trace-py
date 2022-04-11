@@ -9,6 +9,7 @@ from types import ModuleType
 from typing import Any
 from typing import Callable
 from typing import DefaultDict
+from typing import Dict
 from typing import Iterator
 from typing import List
 from typing import Optional
@@ -18,6 +19,7 @@ from typing import Union
 
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
 
 
 log = get_logger(__name__)
@@ -25,9 +27,68 @@ log = get_logger(__name__)
 HookType = Callable[[ModuleType, Any], None]
 
 
+_run_code = None
+_post_run_module_hooks = []
+
+
+def _wrapped_run_code(*args, **kwargs):
+    # type: (*Any, **Any) -> Dict[str, Any]
+    global _run_code, _post_run_module_hooks
+
+    # DEV: If we are calling this wrapper then _run_code must have been set to
+    # the original runpy._run_code.
+    assert _run_code is not None
+
+    mod_name = get_argument_value(args, kwargs, 3, "mod_name")
+
+    try:
+        return _run_code(*args, **kwargs)
+    finally:
+        module = sys.modules[mod_name]
+        for hook in _post_run_module_hooks:
+            hook(module)
+
+
+def _patch_run_code():
+    # type: () -> None
+    global _run_code
+
+    if _run_code is None:
+        import runpy
+
+        _run_code = runpy._run_code  # type: ignore[attr-defined]
+        runpy._run_code = _wrapped_run_code  # type: ignore[attr-defined]
+
+
+def register_post_run_module_hook(hook):
+    # type: (Callable[[ModuleType], None]) -> None
+    """Register a post run module hook.
+
+    The hooks gets called after the module is loaded. For this to work, the
+    hook needs to be registered during the interpreter initialization, e.g. as
+    part of a sitecustomize.py script.
+    """
+    global _run_code, _post_run_module_hooks
+
+    _patch_run_code()
+
+    _post_run_module_hooks.append(hook)
+
+
+def unregister_post_run_module_hook(hook):
+    # type: (Callable[[ModuleType], None]) -> None
+    """Unregister a post run module hook.
+
+    If the hook was not registered, a ``ValueError`` exception is raised.
+    """
+    global _post_run_module_hooks
+
+    _post_run_module_hooks.remove(hook)
+
+
 def origin(module):
     # type: (ModuleType) -> str
-    """Get the origin of the module."""
+    """Get the origin source file of the module."""
     try:
         orig = abspath(module.__file__)  # type: ignore[type-var]
     except (AttributeError, TypeError):
@@ -359,29 +420,12 @@ class ModuleWatchdog(dict):
         raise ValueError("No hook registered for module %s with argument %r" % (module, arg))
 
     @classmethod
-    def install(cls, on_run_module=None):
-        # type: (Optional[Callable[[Callable[..., Any]], Callable[..., Any]]]) -> None
-        """Install the module watchdog.
-
-        The optional `on_run_module` is a callable that implements a wrapper
-        around runpy._run_code. This can be passed in to catch when a module is
-        being loaded as a consequence of running it with the -m flag. For this
-        to work, the install method needs to be called in, e.g., a
-        custom sitecustomize.py file.
-        """
+    def install(cls):
+        # type: () -> None
+        """Install the module watchdog."""
         sys.modules = cls()
         sys.modules._add_to_meta_path()
         log.debug("%s installed", cls)
-
-        if on_run_module:
-            # If the module is being exeecuted with -m, we patch runpy to catch
-            # the moment when the module is loaded.
-            import runpy
-
-            # We store the original function
-            cls._run_code = runpy._run_code  # type: ignore[attr-defined]
-
-            runpy._run_code = on_run_module(cls._run_code)  # type: ignore[attr-defined]
 
     @classmethod
     def is_installed(cls):

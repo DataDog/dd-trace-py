@@ -5,7 +5,6 @@ import sys
 import mock
 import pytest
 
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 
@@ -184,6 +183,10 @@ def test_module_watchdog_subclasses():
     assert not isinstance(sys.modules, ModuleWatchdog)
 
 
+def test_get_by_origin(module_watchdog):
+    assert module_watchdog.get_by_origin(__file__) is sys.modules[__name__]
+
+
 @pytest.mark.subprocess
 def test_module_import_hierarchy():
     from ddtrace.internal.module import ModuleWatchdog
@@ -206,8 +209,6 @@ def test_module_import_hierarchy():
     ImportCatcher.uninstall()
 
 
-if not PY2:
-
-    @pytest.mark.subprocess(env={"PYTHONPATH": dirname(__file__)}, run_module=True)
-    def test_on_run_module():
-        assert globals()["on_run_module_defined"]
+@pytest.mark.subprocess(env={"PYTHONPATH": dirname(__file__)}, run_module=True)
+def test_post_run_module_hook():
+    post_run_module = True  # noqa

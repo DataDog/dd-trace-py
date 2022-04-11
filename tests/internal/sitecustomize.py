@@ -1,13 +1,9 @@
-from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.module import register_post_run_module_hook
 
 
-def on_run_module(run_code):
-    def _(*args, **kwargs):
-        # Add on_run_module_defined to the globals.
-        args[1]["on_run_module_defined"] = True
-        return run_code(*args, **kwargs)
-
-    return _
+def post_run_module_hook(module):
+    assert module.__name__ == "__main__"
+    assert module.post_run_module
 
 
-ModuleWatchdog.install(on_run_module=on_run_module)
+register_post_run_module_hook(post_run_module_hook)
