@@ -209,6 +209,15 @@ def test_module_import_hierarchy():
     ImportCatcher.uninstall()
 
 
-@pytest.mark.subprocess(env={"PYTHONPATH": dirname(__file__)}, run_module=True)
+@pytest.mark.subprocess(
+    out="run module hook OK\n",
+    env=dict(PYTHONPATH=dirname(__file__)),
+    run_module=True,
+)
 def test_post_run_module_hook():
+    # DEV: This test runs the content of the sitecustomize.py file located in
+    # the same folder as this test file. The assertion logic is contained in the
+    # hook that gets triggered on module load. Proof of work is given by the
+    # generated output. Here we just define a module global variable to ensure
+    # that the module is loaded correctly.
     post_run_module = True  # noqa

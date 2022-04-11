@@ -20,6 +20,7 @@
 from datetime import datetime
 import os.path
 import re
+from typing import Any
 from typing import Optional
 
 from docutils import nodes
@@ -33,6 +34,7 @@ from reno import formatter
 from reno import loader
 from sphinx.util import logging
 from sphinx.util.nodes import nested_parse_with_titles
+import yaml
 
 
 # from setuptools-scm
@@ -394,6 +396,17 @@ class DDTraceReleaseNotesDirective(rst.Directive):
     release branch with only prereleases we will resolve to the rc1 version
     for that release. If there are any non-prereleases for that branch we will
     resolve to the first non-rc release.
+
+
+    This directive's content can be a yaml config mapping per-version specific
+    `reno options <https://docs.openstack.org/reno/latest/user/usage.html#configuring-reno>`.
+
+    For example::
+
+        .. ddtrace-release-notes::
+            "1.0.0":
+              ignore_notes:
+                - "keep-alive-b5ec5febb435daad"
     """
 
     has_content = True
@@ -559,7 +572,14 @@ class DDTraceReleaseNotesDirective(rst.Directive):
         4. Generate a reno config for reporting and generate the notes for each branch
         """
         # This is where we will aggregate the generated notes
-        title = " ".join(self.content)
+
+        # Parse version specific reno options from the directive
+        version_options = {}  # type: dict[Version, dict[str, Any]]
+        if self.has_content:
+            options = yaml.load("\n".join(self.content), Loader=yaml.CLoader)
+            if options:
+                version_options = {Version(version): data for version, data in options.items()}
+
         result = statemachine.ViewList()
 
         # Determine the max version we want to report for
@@ -596,6 +616,9 @@ class DDTraceReleaseNotesDirective(rst.Directive):
                 stop_at_branch_base=True,
                 earliest_version=earliest_version,
             )
+            if version in version_options:
+                conf.override(**version_options[version])
+
             LOG.info(
                 "scanning %s for %s release notes, stopping at %s",
                 os.path.join(self._repo.path, "releasenotes/notes"),
@@ -611,7 +634,6 @@ class DDTraceReleaseNotesDirective(rst.Directive):
                     ldr,
                     conf,
                     versions,
-                    title=title,
                     branch=branch,
                 )
 

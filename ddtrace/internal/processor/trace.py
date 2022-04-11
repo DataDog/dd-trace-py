@@ -58,9 +58,18 @@ class TraceSamplingProcessor(TraceProcessor):
     parts of the trace are unsampled when the whole trace should be sampled.
     """
 
+    _compute_stats_enabled = attr.ib(type=bool)
+
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
+            # When stats computation is enabled in the tracer then we can
+            # safely drop the traces.
+            if self._compute_stats_enabled:
+                priority = trace[0]._context.sampling_priority if trace[0]._context is not None else None
+                if priority is not None and priority <= 0:
+                    return None
+
             for span in trace:
                 if span.sampled:
                     return trace

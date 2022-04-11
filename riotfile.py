@@ -138,6 +138,7 @@ venv = Venv(
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
+                "types-PyYAML": latest,
                 "types-setuptools": latest,
                 "types-six": latest,
             },

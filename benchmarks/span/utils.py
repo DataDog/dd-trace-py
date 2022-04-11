@@ -1,5 +1,20 @@
+from functools import partial
 import random
 import string
+
+from ddtrace import Span
+from ddtrace import __version__ as ddtrace_version
+
+
+_Span = Span
+
+# DEV: 1.x dropped tracer positional argument
+if ddtrace_version.split(".")[0] == "0":
+    _Span = partial(_Span, None)
+
+
+def gen_span(name):
+    return _Span(name, resource="resource", service="service")
 
 
 def gen_tags(scenario):

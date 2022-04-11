@@ -173,15 +173,15 @@ def run_function_from_file(item, params=None):
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)
 
-    file_index = 1
     args = marker.kwargs.get("args", [])
-    args.insert(0, None)
+    args.insert(0, None)  # DEV: Script file name placeholder.
+
     if run_module:
         args.insert(0, "-m")
-        file_index += 1
+
     args.insert(0, sys.executable)
+
     if marker.kwargs.get("ddtrace_run", False):
-        file_index += 1
         args.insert(0, "ddtrace-run")
 
     env = os.environ.copy()
@@ -203,7 +203,7 @@ def run_function_from_file(item, params=None):
         dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
 
         start = time.time()
-        args[file_index] = fp.name if not run_module else basename(fp.name)[:-4]
+        args[args.index(None)] = fp.name if not run_module else basename(fp.name)[:-4]
         cwd = dirname(fp.name) if run_module else None
         out, err, status, _ = call_program(*args, env=env, cwd=cwd)
         end = time.time()
