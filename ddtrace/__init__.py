@@ -1,7 +1,7 @@
-from .logger import configure_ddtrace_logger
+from ._logger import configure_ddtrace_logger
 
 
-configure_ddtrace_logger()  # noqa: E402 - configure logger for startup/import logs
+configure_ddtrace_logger()  # noqa: E402 - configure logger for tracer logs
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
 from .pin import Pin  # noqa: E402
