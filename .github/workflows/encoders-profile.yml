@@ -35,7 +35,7 @@ jobs:
             sed -i 's|${{ github.workspace }}/ddtrace/||g' ${PREFIX}/artifacts/$a
           done
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: encoders-profile
           path: ${{ github.workspace }}/prefix/artifacts
