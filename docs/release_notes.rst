@@ -33,6 +33,7 @@ Release Notes
         - "profiling-fix-memory-alloc-numbers-a280c751c8f250ba.yaml"
         - "pymongo-4.0.2-1f5d2b6af5c158d2.yaml"
         - "disable-internal-tag-propagation-dff3e799fb056584.yaml"
+        - "add-span-get-tags-metrics-7969ba7843dcc24d.yaml"
 
 
 Prior Releases
