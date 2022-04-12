@@ -312,12 +312,15 @@ assert ddtrace_logger.handlers[0].backupCount == 1
     assert out == b""
 
     testfiles = os.listdir(tmpdir)
-    files_created = 0
-    for file in testfiles:
-        if "testlog.log" in file:
-            files_created = files_created + 1
+    log_files = [
+        filename for filename in testfiles if "testlog.log" in filename
+    ]
 
-    assert files_created == 2
+    assert log_files == [
+        "testlog.log",
+        "testlog.log.1"
+    ]
+
     with open(log_file) as file:
         content = file.read()
         assert len(content) > 0
@@ -340,12 +343,15 @@ assert ddtrace_logger.handlers[0].backupCount == 1
     assert out == b""
 
     testfiles = os.listdir(tmpdir)
-    files_created = 0
-    for file in testfiles:
-        if "testlog.log" in file:
-            files_created = files_created + 1
+    log_files = [
+        filename for filename in testfiles if "testlog.log" in filename
+    ]
 
-    assert files_created == 2
+    assert log_files == [
+        "testlog.log",
+        "testlog.log.1"
+    ]
+
     with open(log_file) as file:
         content = file.read()
         assert len(content) > 0
