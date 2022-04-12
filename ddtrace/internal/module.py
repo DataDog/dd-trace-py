@@ -16,6 +16,7 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.logger import get_logger
@@ -190,7 +191,7 @@ class ModuleWatchdog(dict):
     the subclass is installed.
     """
 
-    _run_code = None
+    _instance = None  # type: Optional[ModuleWatchdog]
 
     def __init__(self):
         # type: () -> None
@@ -211,12 +212,20 @@ class ModuleWatchdog(dict):
         # type: () -> None
         sys.meta_path.insert(0, self)  # type: ignore[arg-type]
 
-    def _remove_from_meta_path(self):
-        # type: () -> None
+    @classmethod
+    def _find_in_meta_path(cls):
+        # type: () -> Optional[int]
         for i, meta_path in enumerate(sys.meta_path):
-            if type(meta_path) is type(self):
-                sys.meta_path.pop(i)
-                return
+            if type(meta_path) is cls:
+                return i
+        return None
+
+    @classmethod
+    def _remove_from_meta_path(cls):
+        # type: () -> None
+        i = cls._find_in_meta_path()
+        if i is not None:
+            sys.meta_path.pop(i)
 
     def after_import(self, module):
         # type: (ModuleType) -> None
@@ -235,12 +244,15 @@ class ModuleWatchdog(dict):
             for hook, arg in hooks:
                 hook(module, arg)
 
-    def get_by_origin(self, origin):
+    @classmethod
+    def get_by_origin(cls, origin):
         # type: (str) -> Optional[ModuleType]
         """Lookup a module by its origin."""
+        cls._check_installed()
+
         path = _resolve(origin)
         if path is not None:
-            return self._origin_map.get(path)
+            return cls._instance._origin_map.get(path)  # type: ignore[union-attr]
         return None
 
     def __delitem__(self, name):
@@ -324,7 +336,7 @@ class ModuleWatchdog(dict):
 
         The hook will be called with the module object and the given argument.
         """
-        assert isinstance(sys.modules, cls), "%r is installed" % cls
+        cls._check_installed()
 
         # DEV: Under the hypothesis that this is only ever called by the probe
         # poller thread, there are no further actions to take. Should this ever
@@ -334,9 +346,10 @@ class ModuleWatchdog(dict):
             raise ValueError("Cannot resolve module origin %s" % origin)
 
         log.debug("Registering hook '%r' on path '%s'", hook, path)
-        sys.modules._hook_map[path].append((hook, arg))
+        instance = cast(ModuleWatchdog, cls._instance)
+        instance._hook_map[path].append((hook, arg))
         try:
-            module = sys.modules._origin_map[path]
+            module = instance._origin_map[path]
         except KeyError:
             # The module is not loaded yet. Nothing more we can do.
             return
@@ -351,25 +364,26 @@ class ModuleWatchdog(dict):
         """Unregister the hook registered with the given module origin and
         argument.
         """
-        assert isinstance(sys.modules, cls), "%r is installed" % cls
+        cls._check_installed()
 
         path = _resolve(origin)
         if path is None:
             raise ValueError("Module origin %s cannot be resolved", origin)
 
-        if path not in sys.modules._hook_map:
+        instance = cast(ModuleWatchdog, cls._instance)
+        if path not in instance._hook_map:
             raise ValueError("No hooks registered for origin %s" % origin)
 
-        for i, (_, a) in enumerate(sys.modules._hook_map[path]):
+        for i, (_, a) in enumerate(instance._hook_map[path]):
             if isinstance(a, list) and arg in a:
                 # DEV: This comes from the knowledge that sometimes the argument
                 # of the hook can be a list.
                 a.remove(arg)
                 if not a:
-                    sys.modules._hook_map[path].pop(i)
+                    instance._hook_map[path].pop(i)
                 return
             elif a is arg:
-                sys.modules._hook_map[path].pop(i)
+                instance._hook_map[path].pop(i)
                 return
         raise ValueError("No hook registered for origin %s with argument %r" % (origin, arg))
 
@@ -381,12 +395,13 @@ class ModuleWatchdog(dict):
 
         The hook will be called with the module object and the given argument.
         """
-        assert isinstance(sys.modules, cls), "%r is installed" % cls
+        cls._check_installed()
 
         log.debug("Registering hook '%r' on module '%s'", hook, module)
-        sys.modules._hook_map[module].append((hook, arg))
+        instance = cast(ModuleWatchdog, cls._instance)
+        instance._hook_map[module].append((hook, arg))
         try:
-            module_object = sys.modules[module]
+            module_object = instance[module]
         except KeyError:
             # The module is not loaded yet. Nothing more we can do.
             return
@@ -401,36 +416,46 @@ class ModuleWatchdog(dict):
         """Unregister the hook registered with the given module name and
         argument.
         """
-        assert isinstance(sys.modules, cls), "%r is installed" % cls
+        cls._check_installed()
 
-        if module not in sys.modules._hook_map:
+        instance = cast(ModuleWatchdog, cls._instance)
+        if module not in instance._hook_map:
             raise ValueError("No hooks registered for module %s" % module)
 
-        for i, (_, a) in enumerate(sys.modules._hook_map[module]):
+        for i, (_, a) in enumerate(instance._hook_map[module]):
             if isinstance(a, list) and arg in a:
                 # DEV: This comes from the knowledge that sometimes the argument
                 # of the hook can be a list.
                 a.remove(arg)
                 if not a:
-                    sys.modules._hook_map[module].pop(i)
+                    instance._hook_map[module].pop(i)
                 return
             elif a is arg:
-                sys.modules._hook_map[module].pop(i)
+                instance._hook_map[module].pop(i)
                 return
         raise ValueError("No hook registered for module %s with argument %r" % (module, arg))
+
+    @classmethod
+    def _check_installed(cls):
+        # type: () -> None
+        if not cls.is_installed():
+            raise RuntimeError("%s is not installed" % cls.__name__)
 
     @classmethod
     def install(cls):
         # type: () -> None
         """Install the module watchdog."""
-        sys.modules = cls()
+        if cls.is_installed():
+            raise RuntimeError("%s is already installed" % cls.__name__)
+
+        cls._instance = sys.modules = cls()
         sys.modules._add_to_meta_path()
         log.debug("%s installed", cls)
 
     @classmethod
     def is_installed(cls):
         """Check whether this module watchdog class is installed."""
-        return any(type(_) is cls for _ in sys.meta_path)
+        return cls._instance is not None and type(cls._instance) is cls
 
     @classmethod
     def uninstall(cls):
@@ -440,14 +465,17 @@ class ModuleWatchdog(dict):
         This will uninstall only the most recently installed instance of this
         class.
         """
+        cls._check_installed()
+
         parent, current = None, sys.modules
         while isinstance(current, ModuleWatchdog):
             if type(current) is cls:
-                current._remove_from_meta_path()
+                cls._remove_from_meta_path()
                 if parent is not None:
                     setattr(parent, "_modules", getattr(current, "_modules"))
                 else:
                     sys.modules = getattr(current, "_modules")
+                cls._instance = None
                 log.debug("ModuleWatchdog uninstalled")
                 return
             parent = current

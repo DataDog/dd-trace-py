@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 from os.path import dirname
 import sys
 
@@ -7,40 +6,18 @@ import pytest
 
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
+import tests.test_module
 
 
 @pytest.fixture
 def module_watchdog():
     ModuleWatchdog.install()
 
-    yield sys.modules
+    assert ModuleWatchdog.is_installed()
+
+    yield ModuleWatchdog
 
     ModuleWatchdog.uninstall()
-
-
-@contextmanager
-def unloaded_modules(modules):
-    module_loaded = [module in sys.modules for module in modules]
-    for module in modules:
-        try:
-            del sys.modules[module]
-        except KeyError:
-            pass
-        assert module not in sys.modules
-
-    yield
-
-    for module, was_loaded in zip(modules, module_loaded):
-        if was_loaded:
-            __import__(module)
-
-
-@contextmanager
-def no_pytest_meta_path_finder():
-    # ModuleWatchdog puts its MetaPathFinder in front of pytest one.
-    pytest_meta_path = sys.meta_path.pop(1)
-    yield
-    sys.meta_path.insert(1, pytest_meta_path)
 
 
 def test_watchdog_install_uninstall():
@@ -67,58 +44,102 @@ def test_import_module_hook_for_imported_module(module_watchdog):
     hook.assert_called_once_with(module, 10)
 
 
-def test_import_origin_hook_for_module_not_yet_imported(module_watchdog):
+def test_register_hook_without_install():
+    with pytest.raises(RuntimeError):
+        ModuleWatchdog.register_origin_hook(__file__, mock.Mock(), 42)
+
+    with pytest.raises(RuntimeError):
+        ModuleWatchdog.register_module_hook(__name__, mock.Mock(), 42)
+
+
+@pytest.mark.subprocess(env=dict(MODULE_ORIGIN=origin(tests.test_module)))
+def test_import_origin_hook_for_module_not_yet_imported():
+    import os
+    import sys
+
+    from mock import mock
+
+    from ddtrace.internal.module import ModuleWatchdog
+
     name = "tests.test_module"
+    path = os.getenv("MODULE_ORIGIN")
+    hook = mock.Mock()
+
+    ModuleWatchdog.install()
+
+    ModuleWatchdog.register_origin_hook(path, hook, 42)
+
+    hook.assert_not_called()
+    assert path in ModuleWatchdog._instance._hook_map
+    assert name not in sys.modules
+
+    # We import multiple times to check that the hook is called once only
     __import__(name)
-    path = origin(sys.modules[name])
-    with unloaded_modules([name]):
-        hook = mock.Mock()
-        module_watchdog.register_origin_hook(path, hook, 42)
-
-        hook.assert_not_called()
-        assert path in module_watchdog._hook_map
-
-        assert name not in sys.modules
-        with no_pytest_meta_path_finder():
-            __import__(name)
-            __import__(name)
-        assert name in sys.modules
-
-        hook.assert_called_once_with(sys.modules[name], 42)
-
-
-def test_import_module_hook_for_module_not_yet_imported(module_watchdog):
-    name = "tests.test_module"
     __import__(name)
-    with unloaded_modules([name]):
-        hook = mock.Mock()
-        module_watchdog.register_module_hook(name, hook, 42)
 
-        hook.assert_not_called()
-        assert name in module_watchdog._hook_map
+    assert name in sys.modules
 
-        assert name not in sys.modules
-        with no_pytest_meta_path_finder():
-            __import__(name)
-            __import__(name)
-        assert name in sys.modules
+    hook.assert_called_once_with(sys.modules[name], 42)
 
-        hook.assert_called_once_with(sys.modules[name], 42)
+    ModuleWatchdog.uninstall()
 
 
-def test_module_deleted(module_watchdog):
+@pytest.mark.subprocess
+def test_import_module_hook_for_module_not_yet_imported():
+    import sys
+
+    from mock import mock
+
+    from ddtrace.internal.module import ModuleWatchdog
+
     name = "tests.test_module"
-    with unloaded_modules([name]), no_pytest_meta_path_finder():
-        __import__(name)
-        path = origin(sys.modules[name])
+    hook = mock.Mock()
 
-        hook = mock.Mock()
-        module_watchdog.register_origin_hook(path, hook, 42)
-        module_watchdog.register_module_hook(name, hook, 42)
+    ModuleWatchdog.install()
 
-        del sys.modules[name]
+    ModuleWatchdog.register_module_hook(name, hook, 42)
 
-        assert path not in module_watchdog._origin_map
+    hook.assert_not_called()
+    assert name not in sys.modules
+
+    # We import multiple times to check that the hook is called once only
+    __import__(name)
+    __import__(name)
+
+    assert name in sys.modules
+
+    hook.assert_called_once_with(sys.modules[name], 42)
+
+    ModuleWatchdog.uninstall()
+
+
+@pytest.mark.subprocess(env=dict(MODULE_ORIGIN=origin(tests.test_module)))
+def test_module_deleted():
+    import os
+    import sys
+
+    from mock import mock
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    name = "tests.test_module"
+    path = os.getenv("MODULE_ORIGIN")
+    hook = mock.Mock()
+
+    ModuleWatchdog.install()
+
+    ModuleWatchdog.register_origin_hook(path, hook, 42)
+    ModuleWatchdog.register_module_hook(name, hook, 42)
+
+    __import__(name)
+
+    assert path in ModuleWatchdog._instance._origin_map
+
+    del sys.modules[name]
+
+    assert path not in ModuleWatchdog._instance._origin_map
+
+    ModuleWatchdog.uninstall()
 
 
 def test_module_unregister_origin_hook(module_watchdog):
@@ -134,7 +155,7 @@ def test_module_unregister_origin_hook(module_watchdog):
     with pytest.raises(ValueError):
         module_watchdog.unregister_origin_hook(path, 45)
 
-    assert module_watchdog._hook_map[path] == [(hook, 42), (hook, 44)]
+    assert module_watchdog._instance._hook_map[path] == [(hook, 42), (hook, 44)]
 
 
 def test_module_unregister_module_hook(module_watchdog):
@@ -150,21 +171,21 @@ def test_module_unregister_module_hook(module_watchdog):
     with pytest.raises(ValueError):
         module_watchdog.unregister_module_hook(module, 45)
 
-    assert module_watchdog._hook_map[module] == [(hook, 42), (hook, 44)]
+    assert module_watchdog._instance._hook_map[module] == [(hook, 42), (hook, 44)]
 
 
 def test_module_watchdog_multiple_install():
-    n = 3
-    for _ in range(n):
+    ModuleWatchdog.install()
+    with pytest.raises(RuntimeError):
         ModuleWatchdog.install()
 
-    i = 0
-    while ModuleWatchdog.is_installed() and i < n:
+    assert ModuleWatchdog.is_installed()
+
+    ModuleWatchdog.uninstall()
+    with pytest.raises(RuntimeError):
         ModuleWatchdog.uninstall()
-        i += 1
 
     assert not ModuleWatchdog.is_installed()
-    assert i == n
 
 
 def test_module_watchdog_subclasses():
