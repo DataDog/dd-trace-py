@@ -2,8 +2,8 @@ import ast
 import contextlib
 from itertools import product
 import os
-from os.path import basename
-from os.path import dirname
+from os.path import split
+from os.path import splitext
 import sys
 from tempfile import NamedTemporaryFile
 import time
@@ -173,17 +173,17 @@ def run_function_from_file(item, params=None):
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)
 
-    args = marker.kwargs.get("args", [])
-    args.insert(0, None)  # DEV: Script file name placeholder.
+    args = [sys.executable]
 
-    if run_module:
-        args.insert(0, "-m")
-
-    args.insert(0, sys.executable)
-
+    # Add ddtrace-run prefix in ddtrace-run mode
     if marker.kwargs.get("ddtrace_run", False):
         args.insert(0, "ddtrace-run")
 
+    # Add -m if running script as a module
+    if run_module:
+        args.append("-m")
+
+    # Override environment variables for the subprocess
     env = os.environ.copy()
     env.update(marker.kwargs.get("env", {}))
     if params is not None:
@@ -203,10 +203,23 @@ def run_function_from_file(item, params=None):
         dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
 
         start = time.time()
-        args[args.index(None)] = fp.name if not run_module else basename(fp.name)[:-4]
-        cwd = dirname(fp.name) if run_module else None
+
+        # If running a module with -m, we change directory to the module's
+        # folder and run the module directly.
+        if run_module:
+            cwd, module = split(splitext(fp.name)[0])
+            args.append(module)
+        else:
+            cwd = None
+            args.append(fp.name)
+
+        # Add any extra requested args
+        args.extend(marker.kwargs.get("args", []))
+
         out, err, status, _ = call_program(*args, env=env, cwd=cwd)
+
         end = time.time()
+
         excinfo = None
 
         if status != expected_status:
