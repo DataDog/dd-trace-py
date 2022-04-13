@@ -13,7 +13,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.gateway import _Addresses
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
-
+from ddtrace.internal.rate_limiter import RateLimiter
 
 if TYPE_CHECKING:
     from typing import Dict
@@ -23,12 +23,22 @@ if TYPE_CHECKING:
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
+DEFAULT_TRACE_RATE_LIMIT = 100
+DEFAULT_WAF_TIMEOUT = 20  # ms
 
 log = get_logger(__name__)
 
 
 def get_rules():
     return os.getenv("DD_APPSEC_RULES", default=DEFAULT_RULES)
+
+
+def get_rate_limiter():
+    return RateLimiter(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", default=DEFAULT_TRACE_RATE_LIMIT))
+
+
+def get_waf_timeout():
+    return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", default=DEFAULT_WAF_TIMEOUT))
 
 
 COLLECTED_REQUEST_HEADERS = {
@@ -67,6 +77,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
     rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
+    _rate_limiter = attr.ib(type=RateLimiter, factory=get_rate_limiter)
+    _waf_timeout = attr.ib(type=int, factory=get_waf_timeout)
 
     @property
     def enabled(self):
@@ -123,8 +135,12 @@ class AppSecSpanProcessor(SpanProcessor):
         store = span._request_store  # since we are on the 'web' span, the store is here!
         data = store.kept_addresses
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        res = self._ddwaf.run(data)  # res is a serialized json
+        res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
         if res is not None:
+            allowed = self._rate_limiter.is_allowed(span.start_ns)
+            if not allowed:
+                # TODO(vdeturckheim) _dd.<library prefix>.appsec.rate_limit.dropped_traces ++
+                return
             if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value in data:
                 _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value])
             # Partial DDAS-011-00
