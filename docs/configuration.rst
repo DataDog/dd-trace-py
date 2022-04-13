@@ -181,11 +181,11 @@ below:
    * - ``DD_TRACE_PROPAGATION_STYLE_EXTRACT``
      - String
      - ``datadog``
-     - Comma separated list of trace context headers to look for when parsing incoming requests.
+     - Comma separated list of propagation styles used for extracting trace context from inbound request headers.
 
        The supported values are ``datadog``, ``b3``, and ``b3 single header``.
 
-       When checking for request context we will take the first valid context in the order ``datadog``, ``b3``,
+       When checking inbound request headers we will take the first valid trace context in the order ``datadog``, ``b3``,
        then ``b3 single header``.
 
        Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
@@ -195,7 +195,7 @@ below:
    * - ``DD_TRACE_PROPAGATION_STYLE_INJECT``
      - String
      - ``datadog``
-     - Comma separated list of trace context headers to inject into outbound requests.
+     - Comma separated list of propagation styles used for injecting trace context into outbound request headers.
 
        The supported values are ``datadog``, ``b3``, and ``b3 single header``.
 
