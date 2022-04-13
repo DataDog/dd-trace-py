@@ -177,6 +177,33 @@ below:
      - The trace API version to use when sending traces to the Datadog agent.
        Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
 
+       .. _dd-trace-propagation-style-extract:
+   * - ``DD_TRACE_PROPAGATION_STYLE_EXTRACT``
+     - String
+     - ``datadog``
+     - Comma separated list of trace context headers to look for when parsing incoming requests.
+
+       The supported values are ``datadog``, ``b3``, and ``b3 single header``.
+
+       When checking for request context we will take the first valid context in the order ``datadog``, ``b3``,
+       then ``b3 single header``.
+
+       Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
+       headers when parsing incoming request headers for a trace context.
+
+       .. _dd-trace-propagation-style-inject:
+   * - ``DD_TRACE_PROPAGATION_STYLE_INJECT``
+     - String
+     - ``datadog``
+     - Comma separated list of trace context headers to inject into outbound requests.
+
+       The supported values are ``datadog``, ``b3``, and ``b3 single header``.
+
+       All provided styles are injected into the headers of outbound requests.
+
+       Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3"`` to inject both ``x-datadog-*`` and ``x-b3-*``
+       headers into outbound requests.
+
        .. _dd-profiling-enabled:
    * - ``DD_PROFILING_ENABLED``
      - Boolean
