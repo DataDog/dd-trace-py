@@ -15,16 +15,41 @@ Release support
    * - Release
      - :ref:`Support level<versioning_support_levels>`
      - Minimum Datadog Agent
-   * - 0.x
+   * - ``<1``
      - :ref:`Maintenance<versioning_support_maintenace>`
      -
-   * - 1.x
+   * - ``>=1.0,<2``
      - :ref:`General Availability<versioning_support_ga>`
      - 7.28
 
 
-Versions
-========
+.. _versioning_support_levels:
+
+Support levels
+==============
+
+
+.. list-table::
+   :header-rows: 1
+
+   * - Level
+     - Policy
+
+       .. _versioning_support_ga:
+   * - General Availability (GA)
+     - Support for new features, bug and security fixes.
+
+       .. _versioning_support_maintenace:
+   * - Maintenance
+     - Does not receive new features. Support for critical bug fixes and security fixes only.
+   * - End-of-life
+     - No support.
+
+
+.. _versioning_release:
+
+Release versions
+================
 
 
 The non-negative integer components of the **version format** (``v<MAJOR>.<MINOR>.<PATCH>``) are incremented by the criteria:
@@ -84,37 +109,14 @@ Supported runtimes
      - x86-64, i686, AArch64
      - CPython
      - 2.7, 3.5-3.10
-     - 1.x
+     - ``<2``
    * - MacOS
      - Intel, Apple Silicon
      - CPython
      - 2.7, 3.5-3.10
-     - 1.x
+     - ``<2``
    * - Windows
      - 64bit, 32bit
      - CPython
      - 2.7, 3.5-3.10
-     - 1.x
-
-
-.. _versioning_support_levels:
-
-Support levels
-==============
-
-
-.. list-table::
-   :header-rows: 1
-
-   * - Level
-     - Policy
-
-       .. _versioning_support_ga:
-   * - General Availability (GA)
-     - Full implementation of all features. Full support for new features, bug & security fixes.
-
-       .. _versioning_support_maintenace:
-   * - Maintenance
-     - Full implementation of existing features. Does not receive new features. Support for bug & security fixes only.
-   * - End-of-life
-     - No support.
+     - ``<2``
