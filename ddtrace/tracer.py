@@ -97,12 +97,14 @@ def _default_span_processors_factory(
     partial_flush_min_spans,  # type: int
     appsec_enabled,  # type: bool
     tracer,  # type: Tracer
+    compute_stats_enabled,  # type: bool
+    agent_url,  # type: str
 ):
     # type: (...) -> List[SpanProcessor]
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
-    trace_processors += [TraceSamplingProcessor()]
+    trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += [TraceTopLevelSpanProcessor()]
     trace_processors += trace_filters
 
@@ -127,6 +129,16 @@ def _default_span_processors_factory(
             if config._raise:
                 raise
 
+    if compute_stats_enabled:
+        # Inline the import to avoid pulling in ddsketch or protobuf
+        # when importing ddtrace.
+        from .internal.processor.stats import SpanStatsProcessorV06
+
+        span_processors.append(
+            SpanStatsProcessorV06(
+                agent_url,
+            ),
+        )
     span_processors.append(
         SpanAggregator(
             partial_flush_enabled=partial_flush_enabled,
@@ -182,7 +194,8 @@ class Tracer(object):
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-        self._agent_url = agent.get_trace_url() if url is None else url
+        self._compute_stats = config._trace_compute_stats
+        self._agent_url = agent.get_trace_url() if url is None else url  # type: str
         agent.verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
@@ -195,6 +208,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
+                headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
@@ -209,6 +223,8 @@ class Tracer(object):
             self._partial_flush_min_spans,
             self._appsec_enabled,
             tracer=self,
+            self._compute_stats,
+            self._agent_url,
         )
 
         self._hooks = _hooks.Hooks()
@@ -312,6 +328,7 @@ class Tracer(object):
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
         api_version=None,  # type: Optional[str]
+        compute_stats_enabled=None,  # type: Optional[bool]
     ):
         # type: (...) -> None
         """Configure a Tracer.
@@ -379,6 +396,9 @@ class Tracer(object):
         else:
             new_url = None
 
+        if compute_stats_enabled is not None:
+            self._compute_stats = compute_stats_enabled
+
         try:
             self._writer.stop()
         except ServiceStatusError:
@@ -396,6 +416,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
+                headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
             )
         elif writer is None and isinstance(self._writer, LogWriter):
             # No need to do anything for the LogWriter.
@@ -417,6 +438,7 @@ class Tracer(object):
                 api_version,
                 sampler,
                 settings.get("FILTERS") if settings is not None else None,
+                compute_stats_enabled,
             ]
         ):
             self._span_processors = _default_span_processors_factory(
@@ -426,6 +448,8 @@ class Tracer(object):
                 self._partial_flush_min_spans,
                 self._appsec_enabled,
                 tracer=self,
+                self._compute_stats,
+                self._agent_url,
             )
 
         if context_provider is not None:
@@ -468,6 +492,8 @@ class Tracer(object):
             self._partial_flush_min_spans,
             self._appsec_enabled,
             tracer=self,
+            self._compute_stats,
+            self._agent_url,
         )
         self._new_process = True
 

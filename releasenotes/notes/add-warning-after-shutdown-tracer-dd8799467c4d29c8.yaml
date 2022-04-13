@@ -1,4 +1,4 @@
 ---
 upgrade:
   - |
-    Spans started after the tracer has been shut down will no longer be sent to the Datadog Agent.
+    Spans started after ``Tracer.shutdown()`` has been called will no longer be sent to the Datadog Agent.
