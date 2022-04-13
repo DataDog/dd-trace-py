@@ -5,6 +5,7 @@ from json import loads
 import logging
 import os
 import sys
+import threading
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -310,6 +311,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
         self._conn = None  # type: Optional[ConnectionType]
+        self._conn_lck = threading.RLock()  # type: threading.RLock
         self._retry_upload = tenacity.Retrying(
             # Retry RETRY_ATTEMPTS times within the first half of the processing
             # interval, using a Fibonacci policy with jitter
@@ -375,13 +377,16 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def _reset_connection(self):
         # type: () -> None
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        with self._conn_lck:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
 
     def _put(self, data, headers):
         # type: (bytes, Dict[str, str]) -> Response
-        with StopWatch() as sw:
+        sw = StopWatch()
+        sw.start()
+        with self._conn_lck:
             if self._conn is None:
                 log.debug("creating new agent connection to %s with timeout %d", self.agent_url, self._timeout)
                 self._conn = get_connection(self.agent_url, self._timeout)
@@ -394,12 +399,15 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 else:
                     log_level = logging.DEBUG
                 log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._agent_endpoint)
-                return Response.from_http_response(resp)
             except Exception:
+                # Always reset the connection when an exception occurs
                 self._reset_connection()
                 raise
+            else:
+                return Response.from_http_response(resp)
             finally:
-                if self._conn and not self._reuse_connections:
+                # Reset the connection if reusing connections is disabled.
+                if not self._reuse_connections:
                     self._reset_connection()
 
     def _downgrade(self, payload, response):
