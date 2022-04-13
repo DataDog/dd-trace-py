@@ -194,5 +194,6 @@ Indices and tables
     contributing
     troubleshooting
     versioning
+    upgrading
     api
     release_notes
