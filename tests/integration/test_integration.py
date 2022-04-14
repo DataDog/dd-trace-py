@@ -787,7 +787,7 @@ patch_all()
         """,
         env=env,
     )
-    assert b"DEBUG:ddtrace._monkey:integration starlette not available (missing module: starlette)" in err
+    assert b"DEBUG:ddtrace._monkey:integration starlette not enabled (missing required module: starlette)" in err
 
 
 def test_no_warnings():

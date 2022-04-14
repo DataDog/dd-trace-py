@@ -228,7 +228,7 @@ def _patch_module(module, raise_errors=True):
     except IntegrationNotAvailableException as e:
         if raise_errors:
             raise
-        log.debug("integration %s not available (%s)", module, str(e))  # noqa: G200
+        log.debug("integration %s not enabled (%s)", module, str(e))  # noqa: G200
         return False
     except Exception:
         if raise_errors:
