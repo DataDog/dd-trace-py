@@ -269,6 +269,11 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="internal",
+            command="pytest {cmdargs} tests/internal/",
+            venvs=[Venv(pys=select_pys())],
+        ),
+        Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
