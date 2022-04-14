@@ -74,7 +74,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return self._ddwaf is not None
 
     def __attrs_post_init__(self):
-        # type: (None) -> None
+        # type: () -> None
         if self._ddwaf is None:
             try:
                 with open(self.rules, "r") as f:
