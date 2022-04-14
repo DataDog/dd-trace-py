@@ -855,7 +855,6 @@ jobs:
       - run_test:
           docker_services: 'mysql'
           pattern: 'aiomysql$'
-          snapshot: true
 
   aiopg:
     <<: *contrib_job
