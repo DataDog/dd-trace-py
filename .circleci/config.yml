@@ -849,13 +849,14 @@ jobs:
           pattern: 'aiobotocore'
 
   aiomysql:
-    <<: *machine_executor
-    parallelism: 4
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *mysql_server
     steps:
       - run_test:
+          wait: mysql
           pattern: 'aiomysql'
-          snapshot: true
-          docker_services: 'mysql'
 
   aiopg:
     <<: *contrib_job
