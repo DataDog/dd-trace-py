@@ -1740,5 +1740,47 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="opentracer",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/opentracer/core",
+        ),
+        Venv(
+            name="opentracer-asyncio",
+            pys=select_pys(min_version="3.5"),
+            command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+        ),
+        Venv(
+            name="opentracer-gevent",
+            command="pytest {cmdargs} tests/opentracer/test_tracer_gevent.py",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="2.7", max_version="3.6"), pkgs={"gevent": [">=1.1,<1.2", ">=1.2,<1.3"]}
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.8"), pkgs={"gevent": [">=1.3,<1.4", ">=1.4,<1.5"]}
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={
+                        "gevent": [
+                            ">=20.9,<20.10",
+                            ">=20.12,<20.13",
+                            ">=21.1,<21.2",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="opentracer-tornado",
+            pys=select_pys(min_version="3.5"),
+            command="pytest {cmdargs} tests/opentracer/test_tracer_tornado.py",
+            pkgs={"tornado": [">=4.4,<4.5", ">=4.5,<4.6"]},
+        ),
     ],
 )

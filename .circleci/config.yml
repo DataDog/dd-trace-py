@@ -387,8 +387,8 @@ jobs:
     <<: *contrib_job
     parallelism: 7
     steps:
-      - run_tox_scenario:
-          pattern: '^py..-opentracer'
+      - run_test:
+          pattern: 'opentracer'
 
   profile:
     <<: *contrib_job
