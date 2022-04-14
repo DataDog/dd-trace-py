@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 import attr
 
 from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec.gateway import _Addresses
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.appsec.gateway import _Addresses
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
