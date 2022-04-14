@@ -14,7 +14,6 @@ from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Set
-from typing import Tuple
 from typing import Union
 from typing import cast
 
@@ -25,11 +24,11 @@ from ddtrace.internal.utils import get_argument_value
 
 log = get_logger(__name__)
 
-HookType = Callable[[ModuleType, Any], None]
+ModuleHookType = Callable[[ModuleType], None]
 
 
 _run_code = None
-_post_run_module_hooks = []
+_post_run_module_hooks = []  # type: List[ModuleHookType]
 
 
 def _wrapped_run_code(*args, **kwargs):
@@ -62,7 +61,7 @@ def _patch_run_code():
 
 
 def register_post_run_module_hook(hook):
-    # type: (Callable[[ModuleType], None]) -> None
+    # type: (ModuleHookType) -> None
     """Register a post run module hook.
 
     The hooks gets called after the module is loaded. For this to work, the
@@ -77,7 +76,7 @@ def register_post_run_module_hook(hook):
 
 
 def unregister_post_run_module_hook(hook):
-    # type: (Callable[[ModuleType], None]) -> None
+    # type: (ModuleHookType) -> None
     """Unregister a post run module hook.
 
     If the hook was not registered, a ``ValueError`` exception is raised.
@@ -195,7 +194,7 @@ class ModuleWatchdog(dict):
 
     def __init__(self):
         # type: () -> None
-        self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[Tuple[HookType, Any]]]
+        self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
         self._origin_map = {origin(module): module for module in sys.modules.values()}
         self._modules = sys.modules  # type: Union[dict, ModuleWatchdog]
         self._finding = set()  # type: Set[str]
@@ -241,8 +240,8 @@ class ModuleWatchdog(dict):
 
         if hooks:
             log.debug("Calling %d registered hooks on import of module '%s'", len(hooks), module.__name__)
-            for hook, arg in hooks:
-                hook(module, arg)
+            for hook in hooks:
+                hook(module)
 
     @classmethod
     def get_by_origin(cls, origin):
@@ -329,12 +328,12 @@ class ModuleWatchdog(dict):
             self._finding.remove(fullname)
 
     @classmethod
-    def register_origin_hook(cls, origin, hook, arg):
-        # type: (str, HookType, Any) -> None
+    def register_origin_hook(cls, origin, hook):
+        # type: (str, ModuleHookType) -> None
         """Register a hook to be called when the module with the given origin is
         imported.
 
-        The hook will be called with the module object and the given argument.
+        The hook will be called with the module object as argument.
         """
         cls._check_installed()
 
@@ -347,7 +346,7 @@ class ModuleWatchdog(dict):
 
         log.debug("Registering hook '%r' on path '%s'", hook, path)
         instance = cast(ModuleWatchdog, cls._instance)
-        instance._hook_map[path].append((hook, arg))
+        instance._hook_map[path].append(hook)
         try:
             module = instance._origin_map[path]
         except KeyError:
@@ -356,10 +355,10 @@ class ModuleWatchdog(dict):
 
         # The module was already imported so we invoke the hook straight-away
         log.debug("Calling hook '%r' on already imported module '%s'", hook, module.__name__)
-        hook(module, arg)
+        hook(module)
 
     @classmethod
-    def unregister_origin_hook(cls, origin, arg):
+    def unregister_origin_hook(cls, origin, hook):
         # type: (str, Any) -> None
         """Unregister the hook registered with the given module origin and
         argument.
@@ -374,32 +373,28 @@ class ModuleWatchdog(dict):
         if path not in instance._hook_map:
             raise ValueError("No hooks registered for origin %s" % origin)
 
-        for i, (_, a) in enumerate(instance._hook_map[path]):
-            if isinstance(a, list) and arg in a:
-                # DEV: This comes from the knowledge that sometimes the argument
-                # of the hook can be a list.
-                a.remove(arg)
-                if not a:
-                    instance._hook_map[path].pop(i)
-                return
-            elif a is arg:
-                instance._hook_map[path].pop(i)
-                return
-        raise ValueError("No hook registered for origin %s with argument %r" % (origin, arg))
+        try:
+            if path in instance._hook_map:
+                hooks = instance._hook_map[path]
+                hooks.remove(hook)
+                if not hooks:
+                    del instance._hook_map[path]
+        except ValueError:
+            raise ValueError("Hook %r not registered for origin %s" % (hook, origin))
 
     @classmethod
-    def register_module_hook(cls, module, hook, arg):
-        # type: (str, HookType, Any) -> None
+    def register_module_hook(cls, module, hook):
+        # type: (str, ModuleHookType) -> None
         """Register a hook to be called when the module with the given name is
         imported.
 
-        The hook will be called with the module object and the given argument.
+        The hook will be called with the module object as argument.
         """
         cls._check_installed()
 
         log.debug("Registering hook '%r' on module '%s'", hook, module)
         instance = cast(ModuleWatchdog, cls._instance)
-        instance._hook_map[module].append((hook, arg))
+        instance._hook_map[module].append(hook)
         try:
             module_object = instance[module]
         except KeyError:
@@ -408,11 +403,11 @@ class ModuleWatchdog(dict):
 
         # The module was already imported so we invoke the hook straight-away
         log.debug("Calling hook '%r' on already imported module '%s'", hook, module)
-        hook(module_object, arg)
+        hook(module_object)
 
     @classmethod
-    def unregister_module_hook(cls, module, arg):
-        # type: (str, Any) -> None
+    def unregister_module_hook(cls, module, hook):
+        # type: (str, ModuleHookType) -> None
         """Unregister the hook registered with the given module name and
         argument.
         """
@@ -422,18 +417,14 @@ class ModuleWatchdog(dict):
         if module not in instance._hook_map:
             raise ValueError("No hooks registered for module %s" % module)
 
-        for i, (_, a) in enumerate(instance._hook_map[module]):
-            if isinstance(a, list) and arg in a:
-                # DEV: This comes from the knowledge that sometimes the argument
-                # of the hook can be a list.
-                a.remove(arg)
-                if not a:
-                    instance._hook_map[module].pop(i)
-                return
-            elif a is arg:
-                instance._hook_map[module].pop(i)
-                return
-        raise ValueError("No hook registered for module %s with argument %r" % (module, arg))
+        try:
+            if module in instance._hook_map:
+                hooks = instance._hook_map[module]
+                hooks.remove(hook)
+                if not hooks:
+                    del instance._hook_map[module]
+        except ValueError:
+            raise ValueError("Hook %r not registered for module %r" % (hook, module))
 
     @classmethod
     def _check_installed(cls):

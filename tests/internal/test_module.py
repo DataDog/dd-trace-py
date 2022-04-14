@@ -31,25 +31,25 @@ def test_watchdog_install_uninstall():
 def test_import_origin_hook_for_imported_module(module_watchdog):
     hook = mock.Mock()
     module = sys.modules[__name__]
-    module_watchdog.register_origin_hook(origin(module), hook, 10)
+    module_watchdog.register_origin_hook(origin(module), hook)
 
-    hook.assert_called_once_with(module, 10)
+    hook.assert_called_once_with(module)
 
 
 def test_import_module_hook_for_imported_module(module_watchdog):
     hook = mock.Mock()
     module = sys.modules[__name__]
-    module_watchdog.register_module_hook(module.__name__, hook, 10)
+    module_watchdog.register_module_hook(module.__name__, hook)
 
-    hook.assert_called_once_with(module, 10)
+    hook.assert_called_once_with(module)
 
 
 def test_register_hook_without_install():
     with pytest.raises(RuntimeError):
-        ModuleWatchdog.register_origin_hook(__file__, mock.Mock(), 42)
+        ModuleWatchdog.register_origin_hook(__file__, mock.Mock())
 
     with pytest.raises(RuntimeError):
-        ModuleWatchdog.register_module_hook(__name__, mock.Mock(), 42)
+        ModuleWatchdog.register_module_hook(__name__, mock.Mock())
 
 
 @pytest.mark.subprocess(env=dict(MODULE_ORIGIN=origin(tests.test_module)))
@@ -67,7 +67,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
 
     ModuleWatchdog.install()
 
-    ModuleWatchdog.register_origin_hook(path, hook, 42)
+    ModuleWatchdog.register_origin_hook(path, hook)
 
     hook.assert_not_called()
     assert path in ModuleWatchdog._instance._hook_map
@@ -79,7 +79,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
 
     assert name in sys.modules
 
-    hook.assert_called_once_with(sys.modules[name], 42)
+    hook.assert_called_once_with(sys.modules[name])
 
     ModuleWatchdog.uninstall()
 
@@ -97,7 +97,7 @@ def test_import_module_hook_for_module_not_yet_imported():
 
     ModuleWatchdog.install()
 
-    ModuleWatchdog.register_module_hook(name, hook, 42)
+    ModuleWatchdog.register_module_hook(name, hook)
 
     hook.assert_not_called()
     assert name not in sys.modules
@@ -108,7 +108,7 @@ def test_import_module_hook_for_module_not_yet_imported():
 
     assert name in sys.modules
 
-    hook.assert_called_once_with(sys.modules[name], 42)
+    hook.assert_called_once_with(sys.modules[name])
 
     ModuleWatchdog.uninstall()
 
@@ -128,8 +128,8 @@ def test_module_deleted():
 
     ModuleWatchdog.install()
 
-    ModuleWatchdog.register_origin_hook(path, hook, 42)
-    ModuleWatchdog.register_module_hook(name, hook, 42)
+    ModuleWatchdog.register_origin_hook(path, hook)
+    ModuleWatchdog.register_module_hook(name, hook)
 
     __import__(name)
 
@@ -146,32 +146,42 @@ def test_module_unregister_origin_hook(module_watchdog):
 
     hook = mock.Mock()
     path = origin(sys.modules[__name__])
-    module_watchdog.register_origin_hook(path, hook, 42)
-    module_watchdog.register_origin_hook(path, hook, 43)
-    module_watchdog.register_origin_hook(path, hook, 44)
 
-    module_watchdog.unregister_origin_hook(path, 43)
+    module_watchdog.register_origin_hook(path, hook)
+    assert module_watchdog._instance._hook_map[path] == [hook]
+
+    module_watchdog.register_origin_hook(path, hook)
+    assert module_watchdog._instance._hook_map[path] == [hook, hook]
+
+    module_watchdog.unregister_origin_hook(path, hook)
+    assert module_watchdog._instance._hook_map[path] == [hook]
+
+    module_watchdog.unregister_origin_hook(path, hook)
+
+    assert module_watchdog._instance._hook_map[path] == []
 
     with pytest.raises(ValueError):
-        module_watchdog.unregister_origin_hook(path, 45)
-
-    assert module_watchdog._instance._hook_map[path] == [(hook, 42), (hook, 44)]
+        module_watchdog.unregister_origin_hook(path, hook)
 
 
 def test_module_unregister_module_hook(module_watchdog):
 
     hook = mock.Mock()
     module = __name__
-    module_watchdog.register_module_hook(module, hook, 42)
-    module_watchdog.register_module_hook(module, hook, 43)
-    module_watchdog.register_module_hook(module, hook, 44)
+    module_watchdog.register_module_hook(module, hook)
+    assert module_watchdog._instance._hook_map[module] == [hook]
 
-    module_watchdog.unregister_module_hook(module, 43)
+    module_watchdog.register_module_hook(module, hook)
+    assert module_watchdog._instance._hook_map[module] == [hook, hook]
+
+    module_watchdog.unregister_module_hook(module, hook)
+    assert module_watchdog._instance._hook_map[module] == [hook]
+
+    module_watchdog.unregister_module_hook(module, hook)
+    assert module_watchdog._instance._hook_map[module] == []
 
     with pytest.raises(ValueError):
-        module_watchdog.unregister_module_hook(module, 45)
-
-    assert module_watchdog._instance._hook_map[module] == [(hook, 42), (hook, 44)]
+        module_watchdog.unregister_module_hook(module, hook)
 
 
 def test_module_watchdog_multiple_install():
@@ -231,7 +241,7 @@ def test_module_import_hierarchy():
 
 
 @pytest.mark.subprocess(
-    out="run module hook OK\n",
+    out="post_run_module_hook OK\n",
     env=dict(PYTHONPATH=dirname(__file__)),
     run_module=True,
 )
