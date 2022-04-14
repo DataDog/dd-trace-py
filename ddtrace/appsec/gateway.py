@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from ddtrace.span import _RequestStore
 
 
-class _Addresses(Enum):
+class _Addresses(object):
     SERVER_REQUEST_BODY = "server.request.body"
     SERVER_REQUEST_QUERY = "server.request.query"
     SERVER_REQUEST_HEADERS_NO_COOKIES = "server.request.headers.no_cookies"
