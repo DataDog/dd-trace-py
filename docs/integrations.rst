@@ -42,7 +42,6 @@ asgi
 ^^^^
 .. automodule:: ddtrace.contrib.asgi
 
-
 .. _aiohttp:
 
 aiohttp
