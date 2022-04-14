@@ -30,18 +30,18 @@ NO_CHILDREN = object()
 
 def assert_is_measured(span):
     """Assert that the span has the proper _dd.measured tag set"""
-    assert SPAN_MEASURED_KEY in span._get_metrics()
-    assert SPAN_MEASURED_KEY not in span._get_tags()
+    assert SPAN_MEASURED_KEY in span.get_metrics()
+    assert SPAN_MEASURED_KEY not in span.get_tags()
     assert span.get_metric(SPAN_MEASURED_KEY) == 1
 
 
 def assert_is_not_measured(span):
     """Assert that the span does not set _dd.measured"""
-    assert SPAN_MEASURED_KEY not in span._get_tags()
-    if SPAN_MEASURED_KEY in span._get_metrics():
+    assert SPAN_MEASURED_KEY not in span.get_tags()
+    if SPAN_MEASURED_KEY in span.get_metrics():
         assert span.get_metric(SPAN_MEASURED_KEY) == 0
     else:
-        assert SPAN_MEASURED_KEY not in span._get_metrics()
+        assert SPAN_MEASURED_KEY not in span.get_metrics()
 
 
 def assert_span_http_status_code(span, code):
@@ -90,6 +90,7 @@ def override_global_config(values):
         "version",
         "service",
         "_raise",
+        "_trace_compute_stats",
     ]
 
     # Grab the current values of all keys
@@ -596,7 +597,7 @@ class TestSpan(Span):
         :rtype: bool
         """
         if exact:
-            return self._get_tags() == meta
+            return self.get_tags() == meta
 
         for key, value in meta.items():
             if key not in self._meta:
@@ -646,7 +647,7 @@ class TestSpan(Span):
         :raises: AssertionError
         """
         if exact:
-            assert self._get_tags() == meta
+            assert self.get_tags() == meta
         else:
             for key, value in meta.items():
                 assert key in self._meta, "{0} meta does not have property {1!r}".format(self, key)

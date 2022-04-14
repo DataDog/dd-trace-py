@@ -5,74 +5,35 @@ Release Notes
     Load all release notes from the current branch when spell checking
     DEV: Without this we won't get spell checking on PRs or release
          notes that are not yet on a release branch.
+    DEV: We generate the notes in a separate file to avoid any refs/directives
+         colliding with the official notes. However, in order to get sphinx to
+         not complain it must also exist in a toctree somewhere, so we add here
+         hidden.
 
 .. only:: spelling
 
-   .. release-notes::
+    .. toctree::
+        :hidden:
 
-.. release-notes::
-   :branch: 0.59
-   :earliest-version: v0.59.0
+        _release_notes_all
 
-.. release-notes::
-   :branch: 0.58
-   :earliest-version: v0.58.0
 
-.. release-notes::
-   :branch: 0.57
-   :earliest-version: v0.57.0
-
-.. release-notes::
-   :branch: 0.56
-   :earliest-version: v0.56.0
-
-.. release-notes::
-   :branch: 0.55
-   :earliest-version: v0.55.0
-
-.. release-notes::
-   :branch: 0.54
-   :earliest-version: v0.54.0
-
-.. release-notes::
-   :branch: 0.53
-   :earliest-version: v0.53.0
-
-.. release-notes::
-   :branch: 0.52
-   :earliest-version: v0.52.0
-
-.. release-notes::
-   :branch: 0.51
-   :earliest-version: v0.51.0
-
-.. release-notes::
-   :branch: 0.50
-   :earliest-version: v0.50.0
-
-.. release-notes::
-   :branch: 0.49
-   :earliest-version: v0.49.0
-
-.. release-notes::
-   :branch: 0.48
-   :earliest-version: v0.48.0
-
-.. release-notes::
-   :branch: 0.47
-   :earliest-version: v0.47.0
-
-.. release-notes::
-   :branch: 0.46
-   :earliest-version: v0.46.0
-
-.. release-notes::
-   :branch: 0.45
-   :earliest-version: v0.45.0
-
-.. release-notes::
-   :branch: 0.44
-   :earliest-version: v0.44.0
+.. ddtrace-release-notes::
+    "1.0.0":
+      ignore_notes:
+        - "keep-alive-b5ec5febb435daad.yaml"
+        - "aiohttp-98ae9ce70dda1dbc.yaml"
+        - "deprecate-aiohttp_jinja2-patching-from-aiohttp-be87600f308ca87a.yaml"
+        - "aiohttp_jinja2-25d9a7b4e621fad2.yaml"
+        - "asyncpg-45cdf83efdf9270d.yaml"
+        - "encode-sns-msg-attributes-as-b64-7818aec10f533534.yaml"
+        - "fix-aiohttp-jinja2-import-2b7e29a14a58efdc.yaml"
+        - "fix-encode-tagset-value-2b8bb877a88bc75a.yaml"
+        - "fix-psutil-macos-0cd7d0f93b34e3e4.yaml"
+        - "profiling-fix-memory-alloc-numbers-a280c751c8f250ba.yaml"
+        - "pymongo-4.0.2-1f5d2b6af5c158d2.yaml"
+        - "disable-internal-tag-propagation-dff3e799fb056584.yaml"
+        - "add-span-get-tags-metrics-7969ba7843dcc24d.yaml"
 
 
 Prior Releases

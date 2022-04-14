@@ -1,4 +1,3 @@
-import threading
 import weakref
 
 from ddtrace.internal import compat
@@ -111,7 +110,7 @@ cpdef list_tasks(thread_id):
             (greenlet_id,
              _threading.get_thread_name(greenlet_id),
              greenlet.gr_frame)
-            for greenlet_id, greenlet in compat.iteritems(_gevent_tracer.greenlets)
+            for greenlet_id, greenlet in list(compat.iteritems(_gevent_tracer.greenlets))
             if not greenlet.dead
         ])
 

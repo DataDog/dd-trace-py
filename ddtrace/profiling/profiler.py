@@ -18,6 +18,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
@@ -187,7 +188,8 @@ class _ProfilerInstance(service.Service):
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),
             memalloc.MemoryCollector(r),
-            threading.LockCollector(r, tracer=self.tracer),
+            threading.ThreadingLockCollector(r, tracer=self.tracer),
+            asyncio.AsyncioLockCollector(r, tracer=self.tracer),
         ]
 
         exporters = self._build_default_exporters()

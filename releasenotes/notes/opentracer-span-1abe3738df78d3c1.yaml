@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    opentracer: update ``set_tag`` and ``set_operation_name`` to return a
+      reference to the span to match the OpenTracing spec.

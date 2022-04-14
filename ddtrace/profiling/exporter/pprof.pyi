@@ -84,7 +84,7 @@ class _PprofConverter:
         trace_type: str,
         frames: HashableStackTraceType,
         nframes: int,
-        events: typing.List[threading.LockAcquireEvent],
+        events: typing.List[threading.ThreadingLockAcquireEvent],
         sampling_ratio: float,
     ) -> None: ...
     def convert_lock_release_event(
@@ -100,7 +100,7 @@ class _PprofConverter:
         trace_type: str,
         frames: HashableStackTraceType,
         nframes: int,
-        events: typing.List[threading.LockReleaseEvent],
+        events: typing.List[threading.ThreadingLockReleaseEvent],
         sampling_ratio: float,
     ) -> None: ...
     def convert_stack_exception_event(

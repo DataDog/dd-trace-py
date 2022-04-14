@@ -1,13 +1,18 @@
-import sys
-
+import aiohttp_jinja2
 import pytest
 
-from .app.web import set_filesystem_loader
-from .app.web import set_package_loader
+from ddtrace import Pin
+from ddtrace import tracer
+from tests.contrib.aiohttp.app.web import set_filesystem_loader
+from tests.contrib.aiohttp.app.web import set_package_loader
+import tests.contrib.aiohttp.conftest  # noqa
 
 
-async def test_template_rendering(untraced_app_tracer, aiohttp_client):
-    app, tracer = untraced_app_tracer
+VERSION = tuple(map(int, aiohttp_jinja2.__version__.split(".")))
+
+
+async def test_template_rendering(untraced_app_tracer_jinja, aiohttp_client):
+    app, tracer = untraced_app_tracer_jinja
     client = await aiohttp_client(app)
     # it should trace a template rendering
     request = await client.request("GET", "/template/")
@@ -26,8 +31,32 @@ async def test_template_rendering(untraced_app_tracer, aiohttp_client):
     assert 0 == span.error
 
 
-async def test_template_rendering_filesystem(untraced_app_tracer, aiohttp_client, loop):
-    app, tracer = untraced_app_tracer
+async def test_template_rendering_snapshot(untraced_app_tracer_jinja, aiohttp_client, snapshot_context):
+    app, _ = untraced_app_tracer_jinja
+    Pin.override(aiohttp_jinja2, tracer=tracer)
+    with snapshot_context():
+        client = await aiohttp_client(app)
+        # it should trace a template rendering
+        request = await client.request("GET", "/template/")
+        assert 200 == request.status
+
+
+@pytest.mark.parametrize("use_global_tracer", [True])
+async def test_template_rendering_snapshot_patched_server(
+    patched_app_tracer_jinja, aiohttp_client, snapshot_context, use_global_tracer
+):
+    app, _ = patched_app_tracer_jinja
+    Pin.override(aiohttp_jinja2, tracer=tracer)
+    # Ignore meta.http.url tag as the port is not fixed on the server
+    with snapshot_context(ignores=["meta.http.url"]):
+        client = await aiohttp_client(app)
+        # it should trace a template rendering
+        request = await client.request("GET", "/template/")
+        assert 200 == request.status
+
+
+async def test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_client, loop):
+    app, tracer = untraced_app_tracer_jinja
     client = await aiohttp_client(app)
     # it should trace a template rendering with a FileSystemLoader
     set_filesystem_loader(app)
@@ -47,9 +76,9 @@ async def test_template_rendering_filesystem(untraced_app_tracer, aiohttp_client
     assert 0 == span.error
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="Not compatible with Python 3.5")
-async def test_template_rendering_package(untraced_app_tracer, aiohttp_client, loop):
-    app, tracer = untraced_app_tracer
+@pytest.mark.skipif(VERSION < (1, 5, 0), reason="Package loader doesn't work in older versions")
+async def test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_client, loop):
+    app, tracer = untraced_app_tracer_jinja
     client = await aiohttp_client(app)
     # it should trace a template rendering with a PackageLoader
     set_package_loader(app)
@@ -69,8 +98,8 @@ async def test_template_rendering_package(untraced_app_tracer, aiohttp_client, l
     assert 0 == span.error
 
 
-async def test_template_decorator(untraced_app_tracer, aiohttp_client, loop):
-    app, tracer = untraced_app_tracer
+async def test_template_decorator(untraced_app_tracer_jinja, aiohttp_client, loop):
+    app, tracer = untraced_app_tracer_jinja
     client = await aiohttp_client(app)
     # it should trace a template rendering
     request = await client.request("GET", "/template_decorator/")
@@ -89,8 +118,8 @@ async def test_template_decorator(untraced_app_tracer, aiohttp_client, loop):
     assert 0 == span.error
 
 
-async def test_template_error(untraced_app_tracer, aiohttp_client, loop):
-    app, tracer = untraced_app_tracer
+async def test_template_error(untraced_app_tracer_jinja, aiohttp_client, loop):
+    app, tracer = untraced_app_tracer_jinja
     client = await aiohttp_client(app)
     # it should trace a template rendering
     request = await client.request("GET", "/template_error/")

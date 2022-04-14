@@ -113,7 +113,7 @@ class GlobalConfigTestCase(TestCase):
 
         # Create our span
         span = self.tracer.start_span("web.request")
-        assert "web.request" not in span._get_tags()
+        assert "web.request" not in span.get_tags()
 
         # Emit the span
         self.config.web.hooks.emit("request", span)
@@ -135,7 +135,7 @@ class GlobalConfigTestCase(TestCase):
 
         # Create our span
         span = self.tracer.start_span("web.request")
-        assert "web.request" not in span._get_tags()
+        assert "web.request" not in span.get_tags()
 
         # Emit the span
         # DEV: The actual values don't matter, we just want to test args + kwargs usage
@@ -159,14 +159,14 @@ class GlobalConfigTestCase(TestCase):
 
         # Create our span
         span = self.tracer.start_span("web.request")
-        assert "web.request" not in span._get_tags()
+        assert "web.request" not in span.get_tags()
 
         # Emit the span
         # DEV: This also asserts that no exception was raised
         self.config.web.hooks.emit("request", span, "request", response="response")
 
         # Assert we did not update the span
-        assert "web.request" not in span._get_tags()
+        assert "web.request" not in span.get_tags()
 
     def test_settings_multiple_hooks(self):
         """
@@ -189,9 +189,9 @@ class GlobalConfigTestCase(TestCase):
 
         # Create our span
         span = self.tracer.start_span("web.request")
-        assert "web.request" not in span._get_tags()
-        assert "web.status" not in span._get_metrics()
-        assert "web.method" not in span._get_tags()
+        assert "web.request" not in span.get_tags()
+        assert "web.status" not in span.get_metrics()
+        assert "web.method" not in span.get_tags()
 
         # Emit the span
         self.config.web.hooks.emit("request", span)

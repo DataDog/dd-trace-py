@@ -56,7 +56,7 @@ DEFAULT_SMA_WINDOW = 10
 DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
 DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
 DEFAULT_PROCESSING_INTERVAL = 1.0
-DEFAULT_REUSE_CONNECTIONS = True
+DEFAULT_REUSE_CONNECTIONS = False
 
 
 def get_writer_buffer_size():
@@ -300,6 +300,7 @@ class AgentWriter(periodic.PeriodicService, BaseWriter):
         sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
+        headers=None,  # type: Optional[Dict[str, str]]
     ):
         # type: (...) -> None
         # Pre-conditions:
@@ -320,6 +321,8 @@ class AgentWriter(periodic.PeriodicService, BaseWriter):
             "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
         }
+        if headers:
+            self._headers.update(headers)
         self._timeout = timeout
         self._api_version = (
             api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")

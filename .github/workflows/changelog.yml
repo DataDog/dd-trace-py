@@ -14,7 +14,7 @@ jobs:
     name: Validate changelog
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         # Include all history and tags
         with:
           fetch-depth: 0
@@ -44,7 +44,7 @@ jobs:
           rst2html.py CHANGELOG.rst CHANGELOG.html
 
       - name: Upload CHANGELOG.rst
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: changelog
           path: |

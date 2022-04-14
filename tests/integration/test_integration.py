@@ -336,19 +336,21 @@ def test_priority_sampling_response(encoding, monkeypatch):
     s.set_tag("env", "my-env")
     s.finish()
     assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
-    t.shutdown()
+    t.flush()
 
-    # For some reason the agent doesn't start returning the service information
-    # immediately
-    import time
+    # If a previous test has run then the agent might reply immediately
+    if "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers:
+        # The Agent only returns updated sampling rates once 5 seconds have passed and another request has been sent.
+        import time
 
-    time.sleep(5)
+        time.sleep(5)
+        with t.trace("operation", service="my-svc") as s:
+            s.set_tag("env", "my-env")
+        t.flush()
 
-    t = Tracer()
-    s = t.trace("operation", service="my-svc")
-    s.set_tag("env", "my-env")
-    s.finish()
-    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
+        # Agent will now reply with the sampling rates
+        with t.trace("operation", service="my-svc") as s:
+            s.set_tag("env", "my-env")
     t.shutdown()
     assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
 
@@ -651,36 +653,28 @@ print(len(root.handlers))
         assert out == six.b("0\n")
 
 
-def test_writer_env_configuration(run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
-    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
-    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
-
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-import ddtrace
-
-assert ddtrace.tracer._writer._encoder.max_size == 1000
-assert ddtrace.tracer._writer._encoder.max_item_size == 1000
-assert ddtrace.tracer._writer._interval == 5.0
-""",
-        env=env,
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WRITER_BUFFER_SIZE_BYTES="1000",
+        DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES="5000",
+        DD_TRACE_WRITER_INTERVAL_SECONDS="5.0",
     )
-    assert status == 0, (out, err)
+)
+def test_writer_env_configuration():
+    import ddtrace
+
+    assert ddtrace.tracer._writer._encoder.max_size == 1000
+    assert ddtrace.tracer._writer._encoder.max_item_size == 1000
+    assert ddtrace.tracer._writer._interval == 5.0
 
 
-def test_writer_env_configuration_defaults(run_python_code_in_subprocess):
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-import ddtrace
+@pytest.mark.subprocess
+def test_writer_env_configuration_defaults():
+    import ddtrace
 
-assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
-assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
-assert ddtrace.tracer._writer._interval == 1.0
-""",
-    )
-    assert status == 0, (out, err)
+    assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
+    assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+    assert ddtrace.tracer._writer._interval == 1.0
 
 
 def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subprocess):
@@ -783,7 +777,7 @@ def test_no_warnings():
     # which results in a trace being generated after the tracer shutdown
     # has been initiated which results in a deprecation warning.
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
-    out, err, status, pid = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
+    out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
 
     # Wrapt is using features deprecated in Python 3.10
@@ -791,11 +785,11 @@ def test_no_warnings():
     if sys.version_info < (3, 10, 0):
         assert err == b"", err
     else:
-        assert (
-            err
-            == (
+        # Assert that the only log lines in the output are import warnings
+        lines = err.splitlines()
+        assert len(lines) > 0, err
+        for line in lines:
+            assert line == (
                 b"<frozen importlib._bootstrap>:914: ImportWarning: "
-                b"ImportHookFinder.find_spec() not found; falling back to find_module()\n"
-            )
-            * 75
-        ), err
+                b"ImportHookFinder.find_spec() not found; falling back to find_module()"
+            ), err
