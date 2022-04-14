@@ -848,6 +848,15 @@ jobs:
        - run_test:
           pattern: 'aiobotocore'
 
+  aiomysql:
+    <<: *machine_executor
+    parallelism: 4
+    steps:
+      - run_test:
+          docker_services: 'mysql'
+          pattern: 'aiomysql$'
+          snapshot: true
+
   aiopg:
     <<: *contrib_job
     docker:
@@ -1011,6 +1020,7 @@ requires_tests: &requires_tests
   requires:
     - aiobotocore
     - aiohttp
+    - aiomysql
     - aiopg
     - aioredis
     - asyncio
@@ -1099,6 +1109,7 @@ workflows:
       # Integration test suites
       - aiobotocore: *requires_base_venvs
       - aiohttp: *requires_base_venvs
+      - aiomysql: *requires_base_venvs
       - aiopg: *requires_base_venvs
       - aioredis: *requires_base_venvs
       - asyncio: *requires_base_venvs
