@@ -120,6 +120,7 @@ pymongo
 pymysql
 pynamodb
 pyodbc
+pyston
 pytest
 quickstart
 redis
