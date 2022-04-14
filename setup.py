@@ -18,6 +18,7 @@ DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
+
 def load_module_from_project_file(mod_name, fname):
     """
     Helper used to load a module from a file in this project
