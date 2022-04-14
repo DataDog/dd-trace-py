@@ -73,6 +73,11 @@ def test_import_origin_hook_for_module_not_yet_imported():
     assert path in ModuleWatchdog._instance._hook_map
     assert name not in sys.modules
 
+    # Check that we are not triggering hooks on the wrong module
+    import tests.internal  # noqa
+
+    hook.assert_not_called()
+
     # We import multiple times to check that the hook is called once only
     __import__(name)
     __import__(name)
@@ -101,6 +106,11 @@ def test_import_module_hook_for_module_not_yet_imported():
 
     hook.assert_not_called()
     assert name not in sys.modules
+
+    # Check that we are not triggering hooks on the wrong module
+    import tests.internal  # noqa
+
+    hook.assert_not_called()
 
     # We import multiple times to check that the hook is called once only
     __import__(name)
@@ -133,11 +143,21 @@ def test_module_deleted():
 
     __import__(name)
 
+    calls = [mock.call(sys.modules[name])] * 2
+    hook.assert_has_calls(calls)
+
     assert path in ModuleWatchdog._instance._origin_map
 
     del sys.modules[name]
 
     assert path not in ModuleWatchdog._instance._origin_map
+
+    # We are not deleting the registered hooks, so if we re-import the module
+    # new hook calls are triggered
+    __import__(name)
+
+    calls.extend([mock.call(sys.modules[name])] * 2)
+    hook.assert_has_calls(calls)
 
     ModuleWatchdog.uninstall()
 
