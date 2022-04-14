@@ -853,8 +853,9 @@ jobs:
     parallelism: 4
     steps:
       - run_test:
+          pattern: 'aiomysql'
+          snapshot: true
           docker_services: 'mysql'
-          pattern: 'aiomysql$'
 
   aiopg:
     <<: *contrib_job
