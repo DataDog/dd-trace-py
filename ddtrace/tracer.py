@@ -16,7 +16,7 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
-from ddtrace.appsec.gateway import _Gateway
+from ddtrace.appsec._gateway import _Gateway
 from ddtrace.filters import TraceFilter
 from ddtrace.span import _RequestStore
 from ddtrace.vendor import debtcollector
@@ -98,7 +98,7 @@ def _default_span_processors_factory(
     appsec_enabled,  # type: bool
     compute_stats_enabled,  # type: bool
     agent_url,  # type: str
-    tracer,  # type: Tracer
+    gateway,  # type: _Gateway
 ):
     # type: (...) -> List[SpanProcessor]
     """Construct the default list of span processors to use."""
@@ -114,10 +114,8 @@ def _default_span_processors_factory(
         try:
             from .appsec.processor import AppSecSpanProcessor
 
-            appsec_span_processor = AppSecSpanProcessor()
+            appsec_span_processor = AppSecSpanProcessor(gateway)
             span_processors.append(appsec_span_processor)
-            tracer._gateway = _Gateway()
-            appsec_span_processor.setup(tracer._gateway)
         except Exception as e:
             # DDAS-001-01
             log.error(
@@ -214,7 +212,7 @@ class Tracer(object):
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
         self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", default=False))
-        self._gateway = None  # type: Optional[_Gateway]
+        self._gateway = _Gateway()  # type: _Gateway
 
         self._span_processors = _default_span_processors_factory(
             self._filters,
@@ -224,7 +222,7 @@ class Tracer(object):
             self._appsec_enabled,
             self._compute_stats,
             self._agent_url,
-            tracer=self,
+            self._gateway,
         )
 
         self._hooks = _hooks.Hooks()
@@ -449,7 +447,7 @@ class Tracer(object):
                 self._appsec_enabled,
                 self._compute_stats,
                 self._agent_url,
-                tracer=self,
+                self._gateway,
             )
 
         if context_provider is not None:
@@ -493,7 +491,7 @@ class Tracer(object):
             self._appsec_enabled,
             self._compute_stats,
             self._agent_url,
-            tracer=self,
+            self._gateway,
         )
         self._new_process = True
 

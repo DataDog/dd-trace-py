@@ -202,11 +202,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec",
         ),
         Venv(
-            name="gateway",
-            pys=select_pys(),
-            command="pytest {cmdargs} tests/gateway",
-        ),
-        Venv(
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             venvs=[

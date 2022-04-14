@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING
 import attr
 
 from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec.gateway import _Addresses
+from ddtrace.appsec._gateway import _Addresses
+from ddtrace.appsec._gateway import _Gateway
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
@@ -19,7 +20,6 @@ if TYPE_CHECKING:
     from typing import Dict
 
     from ddtrace import Span
-    from ddtrace.appsec.gateway import _Gateway
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
@@ -65,6 +65,7 @@ def _set_headers(span, headers):
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
 
+    gateway = attr.ib(type=_Gateway)
     rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
 
@@ -73,7 +74,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return self._ddwaf is not None
 
     def __attrs_post_init__(self):
-        # type: () -> None
+        # type: (None) -> None
         if self._ddwaf is None:
             try:
                 with open(self.rules, "r") as f:
@@ -102,13 +103,10 @@ class AppSecSpanProcessor(SpanProcessor):
                 # Partial of DDAS-0005-00
                 log.warning("[DDAS-0005-00] WAF initialization failed")
                 raise
-
-    def setup(self, gateway):
-        # type: (_Gateway) -> None
         for address in self._ddwaf.required_data:
-            gateway.mark_needed(address)
+            self.gateway.mark_needed(address=address)
         # we always need the request headers
-        gateway.mark_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
+        self.gateway.mark_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES)
 
     def on_span_start(self, span):
         # type: (Span) -> None
@@ -125,8 +123,8 @@ class AppSecSpanProcessor(SpanProcessor):
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data)  # res is a serialized json
         if res is not None:
-            if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value in data:
-                _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value])
+            if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES in data:
+                _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES])
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span._set_str_tag("appsec.event", "true")

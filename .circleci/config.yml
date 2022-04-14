@@ -363,12 +363,6 @@ jobs:
           paths:
             - "."
 
-  gateway:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: 'gateway'
-
   appsec:
     <<: *machine_executor
     steps:

@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Set
 from typing import TYPE_CHECKING
 
@@ -25,6 +24,10 @@ class _Addresses(object):
 
 @attr.s(eq=False)
 class _Gateway(object):
+    """
+    This class keeps a state to know which addresses are needed by the consumer
+    If an address is needed, it can be written into a stor for the consumer to use later
+    """
 
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
 
@@ -43,6 +46,14 @@ class _Gateway(object):
     def mark_needed(self, address):
         # type: (str) -> None
         self._addresses_to_keep.add(address)
+
+    def propagate_one(self, store, address, original_value, formatter=None):
+        if original_value is None:
+            return
+        key = address
+        if not self.is_needed(key):
+            return
+        store.kept_addresses[key] = formatter(original_value) if formatter is not None else original_value
 
     def propagate(self, store, data):
         # type: (_RequestStore, dict) -> None

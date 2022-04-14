@@ -3,7 +3,8 @@ import os.path
 
 import pytest
 
-from ddtrace.appsec.gateway import _Addresses
+from ddtrace.appsec._gateway import _Addresses
+from ddtrace.appsec._gateway import _Gateway
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
@@ -37,7 +38,7 @@ def test_enable(tracer):
 
 def test_enable_custom_rules():
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        processor = AppSecSpanProcessor()
+        processor = AppSecSpanProcessor(_Gateway())
 
     assert processor.enabled
     assert processor.rules == RULES_GOOD_PATH
@@ -77,7 +78,7 @@ def test_headers_collection(tracer):
     _enable_appsec(tracer)
     gateway = tracer._gateway
     # request headers are always needed
-    assert gateway.is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
+    assert gateway.is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES)
 
     class Config(object):
         def __init__(self):

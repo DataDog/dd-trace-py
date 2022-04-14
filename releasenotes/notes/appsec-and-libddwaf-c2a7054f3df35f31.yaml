@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Upgrade libddwaf to 1.3.0 and recommended AppSec rules to 1.3.1.
