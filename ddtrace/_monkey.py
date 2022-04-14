@@ -12,6 +12,7 @@ from ddtrace.vendor.wrapt.importer import when_imported
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
+from .internal.utils.importlib import require_modules
 from .settings import _config as config
 from .vendor.debtcollector.removals import remove
 
@@ -114,6 +115,15 @@ class PatchException(Exception):
 
 
 class ModuleNotFoundException(PatchException):
+    pass
+
+
+class IntegrationNotAvailableException(PatchException):
+    """Exception for when an integration is not available.
+
+    Raised when the module required for an integration is not available.
+    """
+
     pass
 
 
@@ -223,6 +233,11 @@ def _patch_module(module, raise_errors=True):
         if raise_errors:
             raise
         return False
+    except IntegrationNotAvailableException as e:
+        if raise_errors:
+            raise
+        log.debug("integration %s not enabled (%s)", module, str(e))  # noqa: G200
+        return False
     except Exception:
         if raise_errors:
             raise
@@ -267,8 +282,11 @@ def _attempt_patch_module(module):
             # if patch() is not available in the module, it means
             # that the library is not installed in the environment
             if not hasattr(imported_module, "patch"):
-                raise AttributeError(
-                    "%s.patch is not found. '%s' is not configured for this environment" % (path, module)
+                required_mods = getattr(imported_module, "required_modules", [])
+                with require_modules(required_mods) as not_avail_mods:
+                    pass
+                raise IntegrationNotAvailableException(
+                    "missing required module%s: %s" % ("s" if len(not_avail_mods) > 1 else "", ",".join(not_avail_mods))
                 )
 
             imported_module.patch()
