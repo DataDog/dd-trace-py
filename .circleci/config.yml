@@ -376,7 +376,6 @@ jobs:
           pattern: 'appsec'
           snapshot: true
 
-
   tracer:
     <<: *contrib_job
     parallelism: 7

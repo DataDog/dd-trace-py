@@ -31,7 +31,7 @@ def get_rules():
     return os.getenv("DD_APPSEC_RULES", default=DEFAULT_RULES)
 
 
-COLLECTED_REQUEST_HEADERS = {
+_COLLECTED_REQUEST_HEADERS = {
     "accept",
     "accept-encoding",
     "accept-language",
@@ -52,7 +52,7 @@ COLLECTED_REQUEST_HEADERS = {
     "x-real-ip",
 }
 
-COLLECTED_HEADER_PREFIX = "http.request.headers."
+_COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 
 def _set_headers(span, headers):
