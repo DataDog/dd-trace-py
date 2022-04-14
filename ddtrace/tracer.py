@@ -96,9 +96,9 @@ def _default_span_processors_factory(
     partial_flush_enabled,  # type: bool
     partial_flush_min_spans,  # type: int
     appsec_enabled,  # type: bool
-    tracer,  # type: Tracer
     compute_stats_enabled,  # type: bool
     agent_url,  # type: str
+    tracer,  # type: Tracer
 ):
     # type: (...) -> List[SpanProcessor]
     """Construct the default list of span processors to use."""
@@ -222,9 +222,9 @@ class Tracer(object):
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
-            tracer=self,
             self._compute_stats,
             self._agent_url,
+            tracer=self,
         )
 
         self._hooks = _hooks.Hooks()
@@ -447,9 +447,9 @@ class Tracer(object):
                 self._partial_flush_enabled,
                 self._partial_flush_min_spans,
                 self._appsec_enabled,
-                tracer=self,
                 self._compute_stats,
                 self._agent_url,
+                tracer=self,
             )
 
         if context_provider is not None:
@@ -491,9 +491,9 @@ class Tracer(object):
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
-            tracer=self,
             self._compute_stats,
             self._agent_url,
+            tracer=self,
         )
         self._new_process = True
 
