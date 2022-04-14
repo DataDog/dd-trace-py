@@ -219,6 +219,7 @@ setup(
     # enum34 is an enum backport for earlier versions of python
     # funcsigs backport required for vendored debtcollector
     install_requires=[
+        "ddsketch>=2.0.1",
         "enum34; python_version<'3.4'",
         "funcsigs>=1.0.0; python_version=='2.7'",
         "typing; python_version<'3.5'",

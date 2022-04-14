@@ -90,6 +90,21 @@ commands:
           paths:
             - ".tox"
 
+  save_pip_cache:
+    description: "Save pip cache directory"
+    steps:
+      - save_cache:
+          # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
+          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          paths:
+            - ".cache/pip"
+
+  restore_pip_cache:
+    description: "Restore pip cache directory"
+    steps:
+      - restore_cache:
+          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+
   run_test:
     description: "Run tests matching a pattern"
     parameters:
@@ -112,6 +127,7 @@ commands:
       - attach_workspace:
           at: .
       - checkout
+      - restore_pip_cache
       - when:
           condition:
               << parameters.snapshot >>
@@ -143,6 +159,7 @@ commands:
             - setup_riot
             - run:
                 command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+      - save_pip_cache
       - when:
           condition:
             << parameters.store_coverage >>
@@ -270,6 +287,9 @@ jobs:
           name: "Flake8 check"
           command: riot run -s flake8
       - run:
+          name: "Slots check"
+          command: riot run -s slotscheck
+      - run:
           name: "Mypy check"
           command: riot run -s mypy
       - run:
@@ -284,8 +304,9 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip
+      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip cppcheck
       - run: scripts/cformat.sh
+      - run: scripts/cppcheck.sh
       - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
@@ -351,19 +372,21 @@ jobs:
 
   tracer:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_test:
           pattern: "tracer"
 
   opentracer:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
 
   profile:
     <<: *contrib_job
-    parallelism: 6
+    parallelism: 7
     steps:
       - run_tox_scenario:
           store_coverage: false
@@ -382,7 +405,7 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-v5'
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
@@ -397,7 +420,7 @@ jobs:
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-latest'
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
 
   integration_testagent:
     <<: *machine_executor
@@ -414,7 +437,7 @@ jobs:
             DD_TRACE_AGENT_URL: http://localhost:9126
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-snapshot'
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
@@ -519,7 +542,7 @@ jobs:
 
   celery:
     <<: *contrib_job
-    parallelism: 6
+    parallelism: 7
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -912,6 +935,7 @@ jobs:
 
   kombu:
     <<: *contrib_job
+    parallelism: 7
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image

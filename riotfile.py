@@ -138,6 +138,7 @@ venv = Venv(
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
+                "types-PyYAML": latest,
                 "types-setuptools": latest,
                 "types-six": latest,
             },
@@ -153,6 +154,16 @@ venv = Venv(
                 Venv(
                     name="hook-codespell",
                     command="codespell {cmdargs}",
+                ),
+            ],
+        ),
+        Venv(
+            pys=["3"],
+            pkgs={"slotscheck": latest},
+            venvs=[
+                Venv(
+                    name="slotscheck",
+                    command="python -m slotscheck -v {cmdargs}",
                 ),
             ],
         ),

@@ -35,7 +35,6 @@ from .internal import compat
 from .internal import debug
 from .internal import forksafe
 from .internal import hostname
-from .internal import service
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
@@ -46,6 +45,7 @@ from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
 from .internal.processor.trace import TraceTopLevelSpanProcessor
 from .internal.runtime import get_runtime_id
+from .internal.service import ServiceStatusError
 from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
@@ -94,12 +94,14 @@ def _default_span_processors_factory(
     partial_flush_enabled,  # type: bool
     partial_flush_min_spans,  # type: int
     appsec_enabled,  # type: bool
+    compute_stats_enabled,  # type: bool
+    agent_url,  # type: str
 ):
     # type: (...) -> List[SpanProcessor]
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
-    trace_processors += [TraceSamplingProcessor()]
+    trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += [TraceTopLevelSpanProcessor()]
     trace_processors += trace_filters
 
@@ -122,6 +124,16 @@ def _default_span_processors_factory(
             if config._raise:
                 raise
 
+    if compute_stats_enabled:
+        # Inline the import to avoid pulling in ddsketch or protobuf
+        # when importing ddtrace.
+        from .internal.processor.stats import SpanStatsProcessorV06
+
+        span_processors.append(
+            SpanStatsProcessorV06(
+                agent_url,
+            ),
+        )
     span_processors.append(
         SpanAggregator(
             partial_flush_enabled=partial_flush_enabled,
@@ -177,7 +189,8 @@ class Tracer(object):
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-        self._agent_url = agent.get_trace_url() if url is None else url
+        self._compute_stats = config._trace_compute_stats
+        self._agent_url = agent.get_trace_url() if url is None else url  # type: str
         agent.verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
@@ -190,6 +203,7 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
+                headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
@@ -201,6 +215,8 @@ class Tracer(object):
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
+            self._compute_stats,
+            self._agent_url,
         )
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -268,18 +284,18 @@ class Tracer(object):
         span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
-        span = None
+        active = None  # type: Optional[Union[Context, Span]]
         if self.enabled:
-            span = self.current_span()
+            active = self.context_provider.active()
 
-        if span and span.service:
-            service = span.service
+        if isinstance(active, Span) and active.service:
+            service = active.service
         else:
             service = config.service
 
         return {
-            "trace_id": str(span.trace_id) if span else "0",
-            "span_id": str(span.span_id) if span else "0",
+            "trace_id": str(active.trace_id) if active else "0",
+            "span_id": str(active.span_id) if active else "0",
             "service": service or "",
             "version": config.version or "",
             "env": config.env or "",
@@ -303,6 +319,7 @@ class Tracer(object):
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
         api_version=None,  # type: Optional[str]
+        compute_stats_enabled=None,  # type: Optional[bool]
     ):
         # type: (...) -> None
         """Configure a Tracer.
@@ -370,9 +387,12 @@ class Tracer(object):
         else:
             new_url = None
 
+        if compute_stats_enabled is not None:
+            self._compute_stats = compute_stats_enabled
+
         try:
             self._writer.stop()
-        except service.ServiceStatusError:
+        except ServiceStatusError:
             # It's possible the writer never got started
             pass
 
@@ -387,6 +407,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
+                headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
             )
         elif writer is None and isinstance(self._writer, LogWriter):
             # No need to do anything for the LogWriter.
@@ -408,6 +429,7 @@ class Tracer(object):
                 api_version,
                 sampler,
                 settings.get("FILTERS") if settings is not None else None,
+                compute_stats_enabled,
             ]
         ):
             self._span_processors = _default_span_processors_factory(
@@ -416,6 +438,8 @@ class Tracer(object):
                 self._partial_flush_enabled,
                 self._partial_flush_min_spans,
                 self._appsec_enabled,
+                self._compute_stats,
+                self._agent_url,
             )
 
         if context_provider is not None:
@@ -457,10 +481,25 @@ class Tracer(object):
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
+            self._compute_stats,
+            self._agent_url,
         )
         self._new_process = True
 
-    def start_span(
+    def _start_span_after_shutdown(
+        self,
+        name,  # type: str
+        child_of=None,  # type: Optional[Union[Span, Context]]
+        service=None,  # type: Optional[str]
+        resource=None,  # type: Optional[str]
+        span_type=None,  # type: Optional[str]
+        activate=False,  # type: bool
+    ):
+        # type: (...) -> Span
+        log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
+        return self._start_span(name, child_of, service, resource, span_type, activate)
+
+    def _start_span(
         self,
         name,  # type: str
         child_of=None,  # type: Optional[Union[Span, Context]]
@@ -654,6 +693,8 @@ class Tracer(object):
 
         self._hooks.emit(self.__class__.start_span, span)
         return span
+
+    start_span = _start_span
 
     def _on_span_finish(self, span):
         # type: (Span) -> None
@@ -891,24 +932,24 @@ class Tracer(object):
 
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None
-        """Shutdown the tracer.
-
-        This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
-        used for tracing after this method has been called. A new tracer instance is required to continue tracing.
+        """Shutdown the tracer and flush finished traces. Avoid calling shutdown multiple times.
 
         :param timeout: How long in seconds to wait for the background worker to flush traces
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        try:
-            self._writer.stop(timeout=timeout)
-        except service.ServiceStatusError:
-            # It's possible the writer never got started in the first place :(
-            pass
-
         with self._shutdown_lock:
+            # Thread safety: Ensures tracer is shutdown synchronously
+            span_processors = self._span_processors
+            self._span_processors = []
+            for processor in span_processors:
+                if hasattr(processor, "shutdown"):
+                    processor.shutdown(timeout)
+
             atexit.unregister(self._atexit)
             forksafe.unregister(self._child_after_fork)
+
+        self.start_span = self._start_span_after_shutdown  # type: ignore[assignment]
 
     @staticmethod
     def _use_log_writer():
