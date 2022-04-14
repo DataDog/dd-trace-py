@@ -14,6 +14,7 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sns
 from moto import mock_sqs
+import pytest
 
 
 # Older version of moto used kinesis to mock firehose
@@ -1013,6 +1014,7 @@ class BotocoreTest(TracerTestCase):
 
     @mock_sns
     @mock_sqs
+    @pytest.mark.xfail(strict=False)  # FIXME: flaky test
     def test_sns_send_message_trace_injection_with_message_attributes(self):
         sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
         sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
