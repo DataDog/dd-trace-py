@@ -311,6 +311,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
         self._conn = None  # type: Optional[ConnectionType]
+        # The connection has to be locked since there exists a race between
+        # the periodic thread of AgentWriter and other threads that might
+        # force a flush with `flush_queue()`.
         self._conn_lck = threading.RLock()  # type: threading.RLock
         self._retry_upload = tenacity.Retrying(
             # Retry RETRY_ATTEMPTS times within the first half of the processing
