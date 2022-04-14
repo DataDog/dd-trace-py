@@ -1,4 +1,4 @@
-from ddtrace.internal.gateway import _Addresses
+from ddtrace.appsec.gateway import _Addresses
 from ddtrace.span import _RequestStore
 
 

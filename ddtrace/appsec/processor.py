@@ -10,7 +10,7 @@ from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.gateway import _Addresses
+from ddtrace.appsec.gateway import _Addresses
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from typing import Dict
 
     from ddtrace import Span
-    from ddtrace.internal.gateway import _Gateway
+    from ddtrace.appsec.gateway import _Gateway
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
@@ -58,8 +58,8 @@ _COLLECTED_HEADER_PREFIX = "http.request.headers."
 def _set_headers(span, headers):
     # type: (Span, Dict) -> None
     for k in headers:
-        if k.lower() in COLLECTED_REQUEST_HEADERS:
-            span._set_str_tag(COLLECTED_HEADER_PREFIX + k.lower(), headers[k])
+        if k.lower() in _COLLECTED_REQUEST_HEADERS:
+            span._set_str_tag(_COLLECTED_HEADER_PREFIX + k.lower(), headers[k])
 
 
 @attr.s(eq=False)

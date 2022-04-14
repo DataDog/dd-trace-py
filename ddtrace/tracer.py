@@ -17,7 +17,7 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
-from ddtrace.internal.gateway import _Gateway
+from ddtrace.appsec.gateway import _Gateway
 from ddtrace.span import _RequestStore
 from ddtrace.vendor import debtcollector
 
