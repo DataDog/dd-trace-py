@@ -15,8 +15,8 @@ from tests.utils import assert_is_measured
 
 
 AIOMYSQL_CONFIG = dict(MYSQL_CONFIG)
-AIOMYSQL_CONFIG['db'] = AIOMYSQL_CONFIG['database']
-del AIOMYSQL_CONFIG['database']
+AIOMYSQL_CONFIG["db"] = AIOMYSQL_CONFIG["database"]
+del AIOMYSQL_CONFIG["database"]
 
 
 class AiomysqlTestCase(AsyncioTestCase):
@@ -108,7 +108,7 @@ class AiomysqlTestCase(AsyncioTestCase):
         assert span.service == service
         assert span.get_tag("sql.query") == q
         assert span.error == 1
-        assert span.get_metric("out.port") == AIOMYSQL_CONFIG['port']
+        assert span.get_metric("out.port") == AIOMYSQL_CONFIG["port"]
         assert span.span_type == "sql"
 
     @mark_asyncio
