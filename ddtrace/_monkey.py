@@ -272,7 +272,7 @@ def _attempt_patch_module(module):
                 with require_modules(required_mods) as not_avail_mods:
                     pass
                 raise IntegrationNotAvailableException(
-                    "missing module%s: %s" % ("s" if len(not_avail_mods) > 1 else "", ",".join(not_avail_mods))
+                    "missing required module%s: %s" % ("s" if len(not_avail_mods) > 1 else "", ",".join(not_avail_mods))
                 )
 
             imported_module.patch()
