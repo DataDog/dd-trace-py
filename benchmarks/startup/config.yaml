@@ -1,0 +1,22 @@
+startup_with_ddtrace_run: &defaults
+  telemetry_enabled: "false"
+  use_ddtrace_run: "true"
+  with_trace: "false"
+
+startup_without_ddtrace_run:
+  <<: *defaults
+  use_ddtrace_run: "false"
+
+ddtrace_run_startup_with_telemetry:
+  <<: *defaults
+  telemetry_enabled: "true"
+
+ddtrace_run_startup_then_send_trace:
+  <<: *defaults
+  with_trace: "true"
+
+ddtrace_run_startup_with_telemetry_then_send_trace:
+  <<: *defaults
+  with_trace: "true"
+  telemetry_enabled: "true"
+
