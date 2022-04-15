@@ -86,6 +86,8 @@ def override_global_config(values):
         "analytics_enabled",
         "report_hostname",
         "health_metrics_enabled",
+        "_propagation_style_extract",
+        "_propagation_style_inject",
         "env",
         "version",
         "service",
