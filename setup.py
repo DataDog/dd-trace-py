@@ -16,6 +16,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
+IS_PYSTON = hasattr(sys, "pyston_version_info")
+
 
 def load_module_from_project_file(mod_name, fname):
     """
@@ -184,7 +186,7 @@ else:
         ddwaf_libraries = ["ddwaf"]
 
 
-if sys.version_info[:2] >= (3, 4):
+if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
