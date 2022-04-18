@@ -2,6 +2,7 @@ import inspect
 from typing import Any
 from typing import Awaitable
 from typing import Callable
+from typing import Dict
 from typing import Iterable
 from typing import Union
 
@@ -31,10 +32,9 @@ from ..grpc.utils import set_grpc_method_meta
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
 
 
-try:
-    _STATUS_MAP = {s.value[0]: s for s in grpc.StatusCode}
-except KeyError:
-    _STATUS_MAP = dict()
+# Used to get a status code from integer
+# as `grpc._cython.cygrpc._ServicerContext.code()` returns an integer.
+_INT2CODE: Dict[int, grpc.StatusCode] = {s.value[0]: s for s in grpc.StatusCode}
 
 
 def _is_coroutine_rpc_method_handler(handler):
@@ -83,8 +83,8 @@ def _handle_server_exception(
         return
     if hasattr(servicer_context, "details"):
         span._set_str_tag(ERROR_MSG, to_unicode(servicer_context.details()))
-    if hasattr(servicer_context, "code") and servicer_context.code() != 0 and servicer_context.code() in _STATUS_MAP:
-        span._set_str_tag(ERROR_TYPE, to_unicode(_STATUS_MAP[servicer_context.code()]))
+    if hasattr(servicer_context, "code") and servicer_context.code() != 0 and servicer_context.code() in _INT2CODE:
+        span._set_str_tag(ERROR_TYPE, to_unicode(_INT2CODE[servicer_context.code()]))
 
 
 async def _wrap_aio_stream_response(
