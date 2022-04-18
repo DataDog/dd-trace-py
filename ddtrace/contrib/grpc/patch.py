@@ -13,14 +13,23 @@ from .server_interceptor import create_server_interceptor
 
 
 try:
+    # `grpc.aio` is only available with `grpcio>=1.32`.
     import grpc.aio
 
     from .aio_client_interceptor import create_aio_client_interceptors
     from .aio_server_interceptor import create_aio_server_interceptor
 
     HAS_GRPC_AIO = True
+    # NOTE: These are not defined in constants.py because we would end up having
+    # try-except in both files.
+    GRPC_AIO_PIN_MODULE_SERVER = grpc.aio.Server
+    GRPC_AIO_PIN_MODULE_CLIENT = grpc.aio.Channel
 except ImportError:
     HAS_GRPC_AIO = False
+    # NOTE: These are defined just to prevent a 'not defined' error.
+    # Be sure not to use them when `HAS_GRPC_AIO` is False.
+    GRPC_AIO_PIN_MODULE_SERVER = None
+    GRPC_AIO_PIN_MODULE_CLIENT = None
 
 
 config._add(
@@ -90,11 +99,11 @@ def _patch_client():
 
 
 def _patch_aio_client():
-    if getattr(constants.GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False):
+    if getattr(GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False):
         return
-    setattr(constants.GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", True)
+    setattr(GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", True)
 
-    Pin().onto(constants.GRPC_AIO_PIN_MODULE_CLIENT)
+    Pin().onto(GRPC_AIO_PIN_MODULE_CLIENT)
 
     _w("grpc.aio", "insecure_channel", _aio_client_channel_interceptor)
     _w("grpc.aio", "secure_channel", _aio_client_channel_interceptor)
@@ -115,13 +124,13 @@ def _unpatch_client():
 
 
 def _unpatch_aio_client():
-    if not getattr(constants.GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False):
+    if not getattr(GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False):
         return
-    setattr(constants.GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False)
+    setattr(GRPC_AIO_PIN_MODULE_CLIENT, "__datadog_patch", False)
 
-    pin = Pin.get_from(constants.GRPC_AIO_PIN_MODULE_CLIENT)
+    pin = Pin.get_from(GRPC_AIO_PIN_MODULE_CLIENT)
     if pin:
-        pin.remove_from(constants.GRPC_AIO_PIN_MODULE_CLIENT)
+        pin.remove_from(GRPC_AIO_PIN_MODULE_CLIENT)
 
     _u(grpc.aio, "insecure_channel")
     _u(grpc.aio, "secure_channel")
@@ -138,11 +147,11 @@ def _patch_server():
 
 
 def _patch_aio_server():
-    if getattr(constants.GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False):
+    if getattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False):
         return
-    setattr(constants.GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", True)
+    setattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", True)
 
-    Pin().onto(constants.GRPC_AIO_PIN_MODULE_SERVER)
+    Pin().onto(GRPC_AIO_PIN_MODULE_SERVER)
 
     _w("grpc.aio", "server", _aio_server_constructor_interceptor)
 
@@ -160,13 +169,13 @@ def _unpatch_server():
 
 
 def _unpatch_aio_server():
-    if not getattr(constants.GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False):
+    if not getattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False):
         return
-    setattr(constants.GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False)
+    setattr(GRPC_AIO_PIN_MODULE_SERVER, "__datadog_patch", False)
 
-    pin = Pin.get_from(constants.GRPC_AIO_PIN_MODULE_SERVER)
+    pin = Pin.get_from(GRPC_AIO_PIN_MODULE_SERVER)
     if pin:
-        pin.remove_from(constants.GRPC_AIO_PIN_MODULE_SERVER)
+        pin.remove_from(GRPC_AIO_PIN_MODULE_SERVER)
 
     _u(grpc.aio, "server")
 
@@ -223,7 +232,7 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
 
 
 def _aio_server_constructor_interceptor(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(constants.GRPC_AIO_PIN_MODULE_SERVER)
+    pin = Pin.get_from(grpc.aio.Server)
 
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)

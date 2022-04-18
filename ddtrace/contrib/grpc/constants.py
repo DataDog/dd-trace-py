@@ -1,15 +1,6 @@
 import grpc
 
 
-try:
-    from grpc import aio
-
-    GRPC_AIO_PIN_MODULE_SERVER = aio.Server
-    GRPC_AIO_PIN_MODULE_CLIENT = aio.Channel
-except ImportError:
-    pass
-
-
 GRPC_PIN_MODULE_SERVER = grpc.Server
 GRPC_PIN_MODULE_CLIENT = grpc.Channel
 GRPC_METHOD_PATH_KEY = "grpc.method.path"
