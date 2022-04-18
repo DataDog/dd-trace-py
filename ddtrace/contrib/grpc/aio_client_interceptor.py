@@ -131,6 +131,8 @@ class _ClientInterceptor:
 
         return span, client_call_details
 
+    # NOTE: Since this function is executed as an async generator when the RPC is called,
+    # `continuation` must be called before the RPC.
     async def _wrap_stream_response(
         self,
         call,  # type: Union[aio.StreamStreamCall, aio.UnaryStreamCall]
@@ -154,6 +156,7 @@ class _ClientInterceptor:
             await _handle_cancelled_error(call, span)
             raise
 
+    # NOTE: `continuation` must be called inside of this function to catch exceptions.
     async def _wrap_unary_response(
         self,
         continuation,  # type: Callable[[], Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]]
