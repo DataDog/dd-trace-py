@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Add tracing support for the ``grpc.aio`` library.
+    Add support for ``grpc.aio``.
