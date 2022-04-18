@@ -84,6 +84,9 @@ def _patch(elasticsearch):
     elasticsearch._datadog_patch = True
     _w(elasticsearch.transport, "Transport.perform_request", _get_perform_request(elasticsearch))
     Pin().onto(elasticsearch.transport.Transport)
+    if hasattr(elasticsearch, "_async"):
+        _w(elasticsearch._async.transport, "AsyncTransport.perform_request", _get_perform_request(elasticsearch))
+        Pin().onto(elasticsearch._async.transport.AsyncTransport)
 
 
 def unpatch():
@@ -95,6 +98,8 @@ def _unpatch(elasticsearch):
     if getattr(elasticsearch, "_datadog_patch", False):
         elasticsearch._datadog_patch = False
         _u(elasticsearch.transport.Transport, "perform_request")
+        if hasattr(elasticsearch, "_async"):
+            _u(elasticsearch._async.transport.AsyncTransport, "perform_request")
 
 
 def _get_perform_request(elasticsearch):
