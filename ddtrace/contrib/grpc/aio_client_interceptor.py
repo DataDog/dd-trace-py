@@ -144,6 +144,8 @@ class _ClientInterceptor:
                 yield response
             code = await call.code()
             details = await call.details()
+            # NOTE: The callback is registered after the iteration is done,
+            # otherwise `call.code()` and `call.details()` block indefinitely.
             call.add_done_callback(_done_callback(span, code, details))
         except aio.AioRpcError as rpc_error:
             # NOTE: We can also handle the error in done callbacks,
@@ -167,6 +169,9 @@ class _ClientInterceptor:
             call = await continuation()
             code = await call.code()
             details = await call.details()
+            # NOTE: As both `code` and `details` are available after the RPC is done (= we get `call` object),
+            # and we can't call awaitable functions inside the non-async callback,
+            # there is no other way but to register the callback here.
             call.add_done_callback(_done_callback(span, code, details))
             return call
         except aio.AioRpcError as rpc_error:
