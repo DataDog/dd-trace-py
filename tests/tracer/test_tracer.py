@@ -1721,3 +1721,27 @@ def test_top_level(tracer):
             assert _is_top_level(child_span)
         with tracer.trace("child2", service="child-svc") as child_span2:
             assert _is_top_level(child_span2)
+
+
+def test_ctx_api():
+    from ddtrace import _context
+
+    tracer = Tracer()
+
+    with pytest.raises(ValueError):
+        _context.get("key")
+    with pytest.raises(ValueError):
+        _context.set_item("key", "val")
+
+    with tracer.trace("root"):
+        v = _context.get("my.val")
+        assert v is None
+
+        _context.set_item("appsec.key", "val")
+        assert _context.get("appsec.key") == "val"
+
+        with tracer.trace("child"):
+            assert _context.get("appsec.key") == "val"
+
+    with pytest.raises(ValueError):
+        _context.get("appsec.key")

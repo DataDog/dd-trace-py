@@ -15,9 +15,10 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace import Pin
+from ddtrace import _context
 from ddtrace import config
-from ddtrace.appsec._gateway import _Addresses
 from ddtrace.ext import http
+from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -233,14 +234,6 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
-def _identity(x):
-    return x
-
-
-def _no_cookies(data):
-    return {key: value for key, value in data.items() if key.lower() not in ("cookie", "set-cookie")}
-
-
 def set_http_meta(
     span,  # type: Span
     integration_config,  # type: IntegrationConfig
@@ -252,17 +245,9 @@ def set_http_meta(
     request_headers=None,  # type: Optional[Mapping[str, str]]
     response_headers=None,  # type: Optional[Mapping[str, str]]
     retries_remain=None,  # type: Optional[Union[int, str]]
-    tracer=None,
-    raw_uri=None,
-    query_object=None,
-    format_query_object=_identity,
-    request_cookies=None,
-    format_request_headers=_identity,
-    format_response_headers=_identity,
-    request_body=None,
-    format_request_body=_identity,
-    request_path_params=None,
-    format_request_path_params=_identity,
+    raw_uri=None,  # type: Optional[str]
+    request_cookies=None,  # type: Optional[Dict[str, str]]
+    request_path_params=None,  # type: Optional[Dict[str, str]]
 ):
     # type: (...) -> None
     if method is not None:
@@ -296,32 +281,31 @@ def set_http_meta(
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
 
-    if tracer is None or tracer._gateway is None:  # tracer has a gateway only when AppSec is enabled
-        return
-    gateway = tracer._gateway
-    if gateway.needed_address_count == 0:
-        return
-    store = tracer._current_context_store()
-
-    gateway.propagate_one(store, _Addresses.SERVER_REQUEST_URI_RAW, raw_uri)
-    gateway.propagate_one(store, _Addresses.SERVER_RESPONSE_STATUS, status_code, str)
-    gateway.propagate_one(store, _Addresses.SERVER_REQUEST_QUERY, query_object, format_query_object)
-    gateway.propagate_one(store, _Addresses.SERVER_REQUEST_COOKIES, request_cookies)
-    gateway.propagate_one(store, _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES, request_headers, format_request_headers)
-    req_cookies_key = _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES
-    if req_cookies_key in store.kept_addresses:
-        store.kept_addresses[req_cookies_key] = _no_cookies(store.kept_addresses[req_cookies_key])
-
-    gateway.propagate_one(
-        store, _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES, response_headers, format_response_headers
-    )
-
-    res_cookies_key = _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES
-    if res_cookies_key in store.kept_addresses:
-        store.kept_addresses[res_cookies_key] = _no_cookies(store.kept_addresses[res_cookies_key])
-
-    gateway.propagate_one(store, _Addresses.SERVER_REQUEST_BODY, request_body, format_request_body)
-    gateway.propagate_one(store, _Addresses.SERVER_REQUEST_PATH_PARAMS, request_path_params, format_request_path_params)
+    if config._appsec:
+        request_headers = dict(request_headers) if request_headers is not None else None
+        response_headers = dict(response_headers) if response_headers is not None else None
+        status_code = str(status_code) if status_code is not None else None
+        try:
+            query_object = parse.parse_qs(query)
+        except Exception:
+            query_object = None
+        _context.set_multi(
+            {
+                k: v
+                for k, v in [
+                    ("http.request.uri", raw_uri),
+                    ("http.request.method", method),
+                    ("http.request.query", query_object),
+                    ("http.request.cookies", request_cookies),
+                    ("http.request.headers", request_headers),
+                    ("http.response.headers", response_headers),
+                    ("http.response.status", status_code),
+                    ("http.request.path_params", request_path_params),
+                ]
+                if v is not None
+            },
+            span=span,
+        )
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):

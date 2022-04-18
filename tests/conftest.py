@@ -14,7 +14,6 @@ import pytest
 from six import PY2
 
 import ddtrace
-from ddtrace.appsec._gateway import _Gateway
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -45,11 +44,6 @@ def test_spans(tracer):
     container = TracerSpanContainer(tracer)
     yield container
     container.reset()
-
-
-@pytest.fixture
-def gateway():
-    return _Gateway()
 
 
 @pytest.fixture

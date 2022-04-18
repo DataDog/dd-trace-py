@@ -3,8 +3,6 @@ import os.path
 
 import pytest
 
-from ddtrace.appsec._gateway import _Addresses
-from ddtrace.appsec._gateway import _Gateway
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
@@ -31,14 +29,14 @@ def test_enable(tracer):
     _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
+        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert span.get_metric("_dd.appsec.enabled") == 1.0
 
 
 def test_enable_custom_rules():
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        processor = AppSecSpanProcessor(_Gateway())
+        processor = AppSecSpanProcessor()
 
     assert processor.enabled
     assert processor.rules == RULES_GOOD_PATH
@@ -60,7 +58,7 @@ def test_retain_traces(tracer):
     _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
+        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert span.context.sampling_priority == USER_KEEP
 
@@ -69,16 +67,13 @@ def test_valid_json(tracer):
     _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
+        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
 
 def test_headers_collection(tracer):
     _enable_appsec(tracer)
-    gateway = tracer._gateway
-    # request headers are always needed
-    assert gateway.is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES)
 
     class Config(object):
         def __init__(self):
@@ -89,7 +84,6 @@ def test_headers_collection(tracer):
         set_http_meta(
             span,
             Config(),
-            tracer=tracer,
             raw_uri="http://example.com/.git",
             status_code="404",
             request_headers={
@@ -110,6 +104,6 @@ def test_appsec_span_tags_snapshot(tracer):
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
-        set_http_meta(span, {}, tracer=tracer, raw_uri="http://example.com/.git", status_code="404")
+        set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))

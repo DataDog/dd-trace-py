@@ -276,10 +276,8 @@ def _wrap_start_response(func, span, request, pin):
         trace_utils.set_http_meta(
             span,
             config.flask,
-            tracer=pin.tracer,
             status_code=code,
             response_headers=headers,
-            format_response_headers=dict,
         )
         return func(status_code, headers)
 
@@ -330,17 +328,12 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         trace_utils.set_http_meta(
             span,
             config.flask,
-            tracer=pin.tracer,
             method=request.method,
             url=request.base_url,
             raw_uri=request.url,
             query=request.query_string,
-            query_object=request.args,
-            format_query_object=dict,
             request_headers=request.headers,
-            format_request_headers=dict,
             request_path_params=request.args,
-            format_request_path_params=dict,
         )
 
         return wrapped(environ, start_response)

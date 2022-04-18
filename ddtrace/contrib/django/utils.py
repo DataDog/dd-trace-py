@@ -285,17 +285,13 @@ def _after_request_tags(pin, span, request, response):
             trace_utils.set_http_meta(
                 span,
                 config.django,
-                tracer=pin.tracer,
                 method=request.method,
                 url=url,
                 raw_uri=url + "?" + request.GET.urlencode() if url is not None else None,
                 status_code=status,
                 query=request.META.get("QUERY_STRING", None),
-                query_object=request.GET.dict(),
                 request_headers=request_headers,
-                format_request_headers=dict,
                 response_headers=response_headers,
-                format_response_headers=dict,
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
             )
