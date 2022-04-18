@@ -22,13 +22,13 @@ jobs:
       run:
         working-directory: bottle
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: ddtrace
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: bottlepy/bottle
           ref: master
@@ -61,15 +61,15 @@ jobs:
       run:
         working-directory: django
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: ddtrace
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: django/django
           ref: stable/3.1.x
           path: django
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v3
         with:
           python-version: "3.8"
       - name: Install pylibmc libmemcached package
@@ -94,7 +94,7 @@ jobs:
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
         run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
 
-  fastapi-testsuite-0_63:
+  fastapi-testsuite-0_75:
     runs-on: ubuntu-latest
     env:
       DD_TESTING_RAISE: true
@@ -103,30 +103,34 @@ jobs:
       run:
         working-directory: fastapi
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: ddtrace
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: tiangolo/fastapi
-          ref: 0.63.0
+          ref: 0.75.0
           path: fastapi
+      - uses: actions/cache@v3.0.2
+        id: cache
+        with:
+          path: ${{ env.pythonLocation }}
+          key: ${{ runner.os }}-python-${{ env.pythonLocation }}-fastapi
       #This step installs Flit, a way to put Python packages and modules on PyPI (More info at https://flit.readthedocs.io/en/latest/)
       - name: Install Flit
+        if: steps.cache.outputs.cache-hit != 'true'
         run: pip install flit
       #Installs all dependencies needed for FastAPI
       - name: Install Dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
         run: flit install --symlink
-      #Reverts SQLalchemy to v1.3.24. Newest version breaks tests due to RowProxy module being deprecated in latest v1.4.11 More info: (https://docs.sqlalchemy.org/en/14/changelog/migration_14.html#rowproxy-is-no-longer-a-proxy-is-now-called-row-and-behaves-like-an-enhanced-named-tuple)
-      - name: Downgrade SQLalchemy
-        run: pip install --force-reinstall SQLAlchemy==1.3.24
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Test
-        run: ddtrace-run pytest tests
+        run: ddtrace-run pytest -p no:warnings tests
 
   flask-testsuite-1_1_4:
     runs-on: ubuntu-latest
@@ -138,28 +142,31 @@ jobs:
       run:
         working-directory: flask
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: ddtrace
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: pallets/flask
           ref: 1.1.4
           path: flask
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.8'
       - name: Install tox
         run: pip install tox
       - name: Create tox env
         run: tox -e py38 --notest
-      - name: Inject ddtrace
-        run: .tox/py38/bin/pip install ../ddtrace
       - name: Add pytest configuration for ddtrace
         run: echo -e "[pytest]\nddtrace-patch-all = 1" > pytest.ini
       - name: Run tests
         # test_exception_propagation is broken upstream
-        run: tox -e py38 -- -k 'not test_exception_propagation and not test_memory_consumption'
+        run: |
+          source .tox/py38/bin/activate
+          pip install ../ddtrace
+          pip install -e .
+          pip install --upgrade MarkupSafe==2.0.1
+          pytest -p no:warnings -k 'not test_exception_propagation and not test_memory_consumption' tests/
 
   httpx-testsuite-0_22_0:
     runs-on: ubuntu-latest
@@ -167,15 +174,15 @@ jobs:
       run:
         working-directory: httpx
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: ddtrace
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: encode/httpx
           ref: 0.22.0
           path: httpx
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.9'
       - name: Install dependencies
@@ -201,15 +208,15 @@ jobs:
       run:
         working-directory: mako
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: ddtrace
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: sqlalchemy/mako
           ref: rel_1_1_4
           path: mako
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.8'
       - name: Install tox
@@ -232,13 +239,13 @@ jobs:
       run:
         working-directory: starlette
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: ddtrace
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: encode/starlette
           ref: 0.17.1
@@ -261,13 +268,13 @@ jobs:
       run:
         working-directory: requests
     steps:
-      - uses: actions/setup-python@v2
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.9'
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: ddtrace
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           repository: psf/requests
           ref: v2.26.0
@@ -276,5 +283,39 @@ jobs:
         run: pip install ../ddtrace
       - name: Install dependencies
         run: "make init"
+      - name: MarkupSafe fix
+        run: pip install --upgrade MarkupSafe==2.0.1
       - name: Run tests
         run: ddtrace-run pytest -p no:warnings tests
+
+  asyncpg-testsuite-0_25_0:
+    # https://github.com/MagicStack/asyncpg/blob/v0.25.0/.github/workflows/tests.yml#L125
+    runs-on: "ubuntu-latest"
+    env:
+      DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: true
+    defaults:
+      run:
+        working-directory: asyncpg
+    steps:
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v3
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v3
+        with:
+          repository: magicstack/asyncpg
+          ref: v0.25.0
+          path: asyncpg
+          fetch-depth: 50
+          submodules: true
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip setuptools wheel
+          python -m pip install -e .[test]
+      - name: Run tests
+        run: ddtrace-run python setup.py test

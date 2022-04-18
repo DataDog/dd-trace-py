@@ -10,7 +10,6 @@ import os
 from os import getpid
 import threading
 from unittest.case import SkipTest
-import warnings
 import weakref
 
 import mock
@@ -36,6 +35,7 @@ from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
+from ddtrace.span import _is_top_level
 from ddtrace.tracer import Tracer
 from ddtrace.tracer import _has_aws_lambda_agent_extension
 from ddtrace.tracer import _in_aws_lambda
@@ -518,38 +518,13 @@ def test_tracer_url():
 
 def test_tracer_shutdown_no_timeout():
     t = ddtrace.Tracer()
-    writer = mock.Mock(wraps=t._writer)
-    t._writer = writer
 
-    # The writer thread does not start until the first write.
-    t.shutdown()
-    assert t._writer.stop.called
-    assert not t._writer.join.called
+    with mock.patch.object(AgentWriter, "stop") as mock_stop:
+        with mock.patch.object(AgentWriter, "join") as mock_join:
+            t.shutdown()
 
-    with warnings.catch_warnings(record=True) as ws:
-        warnings.simplefilter("always")
-
-        # Do a write to start the writer.
-        with t.trace("something"):
-            pass
-
-        (w,) = ws
-        assert issubclass(w.category, DeprecationWarning)
-        assert (
-            str(w.message) == "Tracing with a tracer that has been shut down is being deprecated. "
-            "A new tracer should be created for generating new traces in version '1.0.0'"
-        )
-
-    with t.trace("something"):
-        pass
-
-    t.shutdown()
-    t._writer.stop.assert_has_calls(
-        [
-            mock.call(timeout=None),
-            mock.call(timeout=None),
-        ]
-    )
+    mock_stop.assert_called()
+    mock_join.assert_not_called()
 
 
 def test_tracer_configure_writer_stop_unstarted():
@@ -577,13 +552,39 @@ def test_tracer_configure_writer_stop_started():
 
 def test_tracer_shutdown_timeout():
     t = ddtrace.Tracer()
-    t._writer = mock.Mock(wraps=t._writer)
 
-    with t.trace("something"):
-        pass
+    with mock.patch.object(AgentWriter, "stop") as mock_stop:
+        with t.trace("something"):
+            pass
 
-    t.shutdown(timeout=2)
-    t._writer.stop.assert_called_once_with(timeout=2)
+        t.shutdown(timeout=2)
+    mock_stop.assert_called_once_with(2)
+
+
+def test_tracer_shutdown():
+    t = ddtrace.Tracer()
+    t.shutdown()
+
+    with mock.patch.object(AgentWriter, "write") as mock_write:
+        with t.trace("something"):
+            pass
+
+    mock_write.assert_not_called()
+
+
+def test_tracer_shutdown_warning():
+    t = ddtrace.Tracer()
+    t.shutdown()
+
+    with mock.patch.object(logging.Logger, "warning") as mock_logger:
+        with t.trace("something"):
+            pass
+
+    mock_logger.assert_has_calls(
+        [
+            mock.call("Spans started after the tracer has been shut down will not be sent to the Datadog Agent."),
+        ]
+    )
 
 
 def test_tracer_dogstatsd_url():
@@ -745,9 +746,9 @@ class EnvTracerTestCase(TracerTestCase):
         # The version will not be tagged if the service is not globally
         # configured.
         with self.trace("root", service="rootsvc") as root:
-            assert VERSION_KEY not in root._get_tags()
+            assert VERSION_KEY not in root.get_tags()
             with self.trace("child") as span:
-                assert VERSION_KEY not in span._get_tags()
+                assert VERSION_KEY not in span.get_tags()
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2"))
     def test_version_service(self):
@@ -758,20 +759,20 @@ class EnvTracerTestCase(TracerTestCase):
         with self.trace("django.request") as root:
             # Root span should be tagged
             assert root.service == "django"
-            assert VERSION_KEY in root._get_tags() and root.get_tag(VERSION_KEY) == "0.1.2"
+            assert VERSION_KEY in root.get_tags() and root.get_tag(VERSION_KEY) == "0.1.2"
 
             # Child spans should be tagged
             with self.trace("") as child1:
                 assert child1.service == "django"
-                assert VERSION_KEY in child1._get_tags() and child1.get_tag(VERSION_KEY) == "0.1.2"
+                assert VERSION_KEY in child1.get_tags() and child1.get_tag(VERSION_KEY) == "0.1.2"
 
             # Version should not be applied to spans of a service that isn't user-defined
             with self.trace("mysql.query", service="mysql") as span:
-                assert VERSION_KEY not in span._get_tags()
+                assert VERSION_KEY not in span.get_tags()
                 # Child should also not have a version
                 with self.trace("") as child2:
                     assert child2.service == "mysql"
-                    assert VERSION_KEY not in child2._get_tags()
+                    assert VERSION_KEY not in child2.get_tags()
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_detect_agentless_env_with_lambda(self):
@@ -865,19 +866,20 @@ def test_tracer_set_runtime_tags():
     assert span.get_tag("runtime-id") == span2.get_tag("runtime-id")
 
 
+def _test_tracer_runtime_tags_fork_task(tracer, q):
+    span = tracer.start_span("foobaz")
+    q.put(span.get_tag("runtime-id"))
+    span.finish()
+
+
 def test_tracer_runtime_tags_fork():
     tracer = ddtrace.Tracer()
-
-    def task(tracer, q):
-        span = tracer.start_span("foobaz")
-        q.put(span.get_tag("runtime-id"))
-        span.finish()
 
     span = tracer.start_span("foobar")
     span.finish()
 
     q = multiprocessing.Queue()
-    p = multiprocessing.Process(target=task, args=(tracer, q))
+    p = multiprocessing.Process(target=_test_tracer_runtime_tags_fork_task, args=(tracer, q))
     p.start()
     p.join()
 
@@ -1242,7 +1244,7 @@ def test_ctx(tracer, test_spans):
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
     assert s1.get_metric(SAMPLING_PRIORITY_KEY) == 1
     assert s2.get_metric(SAMPLING_PRIORITY_KEY) is None
-    assert ORIGIN_KEY not in s1._get_tags()
+    assert ORIGIN_KEY not in s1.get_tags()
 
     t = test_spans.pop_traces()
     assert len(t) == 1
@@ -1701,3 +1703,21 @@ def test_tracer_memory_leak_span_processors(enabled):
     # Force gc
     gc.collect()
     assert len(spans) == 0
+
+
+def test_top_level(tracer):
+    with tracer.trace("parent", service="my-svc") as parent_span:
+        assert _is_top_level(parent_span)
+        with tracer.trace("child") as child_span:
+            assert not _is_top_level(child_span)
+            with tracer.trace("subchild") as subchild_span:
+                assert not _is_top_level(subchild_span)
+            with tracer.trace("subchild2", service="svc-2") as subchild_span2:
+                assert _is_top_level(subchild_span2)
+
+    with tracer.trace("parent", service="my-svc") as parent_span:
+        assert _is_top_level(parent_span)
+        with tracer.trace("child", service="child-svc") as child_span:
+            assert _is_top_level(child_span)
+        with tracer.trace("child2", service="child-svc") as child_span2:
+            assert _is_top_level(child_span2)

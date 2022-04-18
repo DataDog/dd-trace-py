@@ -163,8 +163,10 @@ def test_aggregator_partial_flush_0_spans():
     assert writer.pop() == []
     parent.finish()
     assert writer.pop() == [parent]
+    assert parent.get_metric("_dd.py.partial_flush") == 1
     child.finish()
     assert writer.pop() == [child]
+    assert child.get_metric("_dd.py.partial_flush") == 1
 
 
 def test_aggregator_partial_flush_2_spans():
@@ -216,8 +218,11 @@ def test_aggregator_partial_flush_2_spans():
     assert writer.pop() == []
     child2.finish()
     assert writer.pop() == [child1, child2]
+    assert child1.get_metric("_dd.py.partial_flush") == 2
+    assert child2.get_metric("_dd.py.partial_flush") is None
     parent.finish()
     assert writer.pop() == [parent]
+    assert parent.get_metric("_dd.py.partial_flush") is None
 
 
 def test_trace_top_level_span_processor_partial_flushing():
@@ -242,7 +247,7 @@ def test_trace_top_level_span_processor_partial_flushing():
     assert child2.get_metric("_dd.top_level") == 0
 
     # child span 3 was partial flushed WITH the parent span in the trace chunk
-    assert "_dd.top_level" not in child3._get_metrics()
+    assert "_dd.top_level" not in child3.get_metrics()
     assert parent.get_metric("_dd.top_level") == 1
 
 
@@ -257,7 +262,7 @@ def test_trace_top_level_span_processor_same_service_name():
             pass
 
     assert parent.get_metric("_dd.top_level") == 1
-    assert "_dd.top_level" not in child._get_metrics()
+    assert "_dd.top_level" not in child.get_metrics()
 
 
 def test_trace_top_level_span_processor_different_service_name():

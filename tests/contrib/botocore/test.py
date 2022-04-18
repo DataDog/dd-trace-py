@@ -14,6 +14,7 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sns
 from moto import mock_sqs
+import pytest
 
 
 # Older version of moto used kinesis to mock firehose
@@ -27,6 +28,7 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import unpatch
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -1003,13 +1005,16 @@ class BotocoreTest(TracerTestCase):
         assert msg_str == "test"
         msg_attr = msg_body["MessageAttributes"]
         assert msg_attr.get("_datadog") is not None
-        headers = json.loads(msg_attr["_datadog"]["Value"])
+        assert msg_attr["_datadog"]["Type"] == "Binary"
+        datadog_value_decoded = base64.b64decode(msg_attr["_datadog"]["Value"])
+        headers = json.loads(datadog_value_decoded.decode())
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
 
     @mock_sns
     @mock_sqs
+    @pytest.mark.xfail(strict=False)  # FIXME: flaky test
     def test_sns_send_message_trace_injection_with_message_attributes(self):
         sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
         sqs = self.session.create_client("sqs", region_name="us-east-1", endpoint_url="http://localhost:4566")
@@ -1068,7 +1073,9 @@ class BotocoreTest(TracerTestCase):
         assert msg_str == "test"
         msg_attr = msg_body["MessageAttributes"]
         assert msg_attr.get("_datadog") is not None
-        headers = json.loads(msg_attr["_datadog"]["Value"])
+        assert msg_attr["_datadog"]["Type"] == "Binary"
+        datadog_value_decoded = base64.b64decode(msg_attr["_datadog"]["Value"])
+        headers = json.loads(datadog_value_decoded.decode())
         assert headers is not None
         assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
         assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
@@ -1630,3 +1637,53 @@ class BotocoreTest(TracerTestCase):
             assert "_datadog" not in headers
 
         client.delete_stream(StreamName=stream_name)
+
+    @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
+    def test_secretsmanager(self):
+        from moto import mock_secretsmanager
+
+        with mock_secretsmanager():
+            client = self.session.create_client("secretsmanager", region_name="us-east-1")
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+
+            resp = client.create_secret(Name="/my/secrets", SecretString="supersecret-string")
+            assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+            spans = self.get_spans()
+            assert len(spans) == 1
+            span = spans[0]
+
+            assert span.name == "secretsmanager.command"
+            assert span.resource == "secretsmanager.createsecret"
+            assert span.get_tag("params.Name") == "/my/secrets"
+            assert span.get_tag("aws.operation") == "CreateSecret"
+            assert span.get_tag("aws.region") == "us-east-1"
+            assert span.get_tag("aws.agent") == "botocore"
+            assert span.get_tag("http.status_code") == "200"
+            assert span.get_tag("params.SecretString") is None
+            assert span.get_tag("params.SecretBinary") is None
+
+    @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
+    def test_secretsmanager_binary(self):
+        from moto import mock_secretsmanager
+
+        with mock_secretsmanager():
+            client = self.session.create_client("secretsmanager", region_name="us-east-1")
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+
+            resp = client.create_secret(Name="/my/secrets", SecretBinary=b"supersecret-binary")
+            assert resp["ResponseMetadata"]["HTTPStatusCode"] == 200
+
+            spans = self.get_spans()
+            assert len(spans) == 1
+            span = spans[0]
+
+            assert span.name == "secretsmanager.command"
+            assert span.resource == "secretsmanager.createsecret"
+            assert span.get_tag("params.Name") == "/my/secrets"
+            assert span.get_tag("aws.operation") == "CreateSecret"
+            assert span.get_tag("aws.region") == "us-east-1"
+            assert span.get_tag("aws.agent") == "botocore"
+            assert span.get_tag("http.status_code") == "200"
+            assert span.get_tag("params.SecretString") is None
+            assert span.get_tag("params.SecretBinary") is None
