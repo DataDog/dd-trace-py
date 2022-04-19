@@ -287,9 +287,7 @@ def _after_request_tags(pin, span, request, response):
                 config.django,
                 method=request.method,
                 url=url,
-                raw_uri=url + "?" + request.META["QUERY_STRING"]
-                if url is not None and "QUERY_STRING" in request.META
-                else None,
+                raw_uri=url + "?" + request.META.get("QUERY_STRING", "") if url is not None else None,
                 status_code=status,
                 query=request.META.get("QUERY_STRING", None),
                 request_headers=request_headers,
