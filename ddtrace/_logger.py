@@ -37,6 +37,7 @@ def configure_ddtrace_logger():
         ddtrace_logger.debug("Debug mode has been enabled for the ddtrace logger.")
 
     if log_path is not None:
+        log_path = os.path.abspath(log_path)
         ddtrace_file_handler = RotatingFileHandler(
             filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup
         )
