@@ -247,11 +247,24 @@ def set_http_meta(
     retries_remain=None,  # type: Optional[Union[int, str]]
     raw_uri=None,  # type: Optional[str]
     request_cookies=None,  # type: Optional[Dict[str, str]]
-    # request_path_params is the representation of the framework URL without the request data
-    # for instance, /posts/:id for a route where /posts/<id:int> is allowed
     request_path_params=None,  # type: Optional[Dict[str, str]]
 ):
     # type: (...) -> None
+    """
+    Set HTTP metas on the span
+
+    :param method: the HTTP method
+    :param url: the HTTP URL
+    :param status_code: the HTTP status code
+    :param status_msg: the HTTP status message
+    :param query: the HTTP query part of the URI as a string
+    :param request_headers: the HTTP request headers
+    :param response_headers: the HTTP response headers
+    :param raw_uri: the full raw HTTP URI (including ports and query)
+    :param request_cookies: the HTTP request cookies as a dict
+    :param request_path_params: the representation of the framework URL without the request data for instance,
+    /posts/:id for a route where /posts/<id:int> is allowed
+    """
     if method is not None:
         span._set_str_tag(http.METHOD, method)
 
@@ -284,10 +297,13 @@ def set_http_meta(
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec:
+        # let's make sure these objects implement the fill Dict API here - the copy also limits the impact of
+        # downstream side effects
         request_headers = dict(request_headers) if request_headers is not None else None
         response_headers = dict(response_headers) if response_headers is not None else None
         status_code = str(status_code) if status_code is not None else None
         try:
+            # In non-unicode cases, this can fail, let's be safe
             query_object = parse.parse_qs(query)
         except Exception:
             query_object = None
