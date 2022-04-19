@@ -4,7 +4,7 @@ import re
 import pytest
 
 
-LOG_PATTERN = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \w{1,} \[\S{1,}\] \[\w{1,}.\w{2}:\d{1,}\] - .{1,}"
+LOG_PATTERN = r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \w{1,} \[\S{1,}\] \[\w{1,}.\w{2}:\d{1,}\] - .{1,}$"
 
 
 @pytest.mark.parametrize("dd_trace_debug", ["true", "false", None])
