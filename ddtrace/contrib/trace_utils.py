@@ -247,6 +247,8 @@ def set_http_meta(
     retries_remain=None,  # type: Optional[Union[int, str]]
     raw_uri=None,  # type: Optional[str]
     request_cookies=None,  # type: Optional[Dict[str, str]]
+    # request_path_params is the representation of the framework URL without the request data
+    # for instance, /posts/:id for a route where /posts/<id:int> is allowed
     request_path_params=None,  # type: Optional[Dict[str, str]]
 ):
     # type: (...) -> None
