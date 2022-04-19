@@ -129,7 +129,7 @@ assert custom_logger.level == logging.WARN
 
 def test_warn_logs_streamhandler_default(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess):
     """
-    When DD_TRACE_DEBUG is false, warn logs are emitted to StreamHandler
+    When DD_TRACE_DEBUG is not set, warn logs are emitted to StreamHandler
         following a configured logging.basicConfig and its defined format.
     """
     code = """
