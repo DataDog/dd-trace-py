@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
-from .provider import _DD_CONTEXTVAR
-from .span import Span
+from ddtrace.provider import _DD_CONTEXTVAR
+from ddtrace.span import Span
 
 
 if TYPE_CHECKING:
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from typing import Optional
     from typing import Union
 
-    from .context import Context
+    from ddtrace.context import Context
 
 
 def get(key, span=None):

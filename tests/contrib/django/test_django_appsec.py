@@ -1,6 +1,6 @@
 import json
 
-from ddtrace import _context
+from ddtrace.internal import _context
 
 
 def test_django_simple_attack(client, test_spans, tracer):

@@ -1724,7 +1724,7 @@ def test_top_level(tracer):
 
 
 def test_ctx_api():
-    from ddtrace import _context
+    from ddtrace.internal import _context
 
     tracer = Tracer()
 

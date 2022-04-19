@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import attr
 
-from ddtrace import _context
+from ddtrace.internal import _context
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY

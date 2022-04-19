@@ -1,6 +1,6 @@
 import json
 
-from ddtrace import _context
+from ddtrace.internal import _context
 from tests.contrib.flask import BaseFlaskTestCase
 
 

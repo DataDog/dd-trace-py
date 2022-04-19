@@ -13,7 +13,7 @@ import pytest
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace import _context
+from ddtrace.internal import _context
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http

@@ -15,7 +15,7 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace import Pin
-from ddtrace import _context
+from ddtrace.internal import _context
 from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.internal.compat import parse
