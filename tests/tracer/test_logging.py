@@ -9,7 +9,9 @@ LOG_PATTERN = r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \w{1,} \[\S{1,}\] \[\
 
 @pytest.mark.parametrize("dd_trace_debug", ["true", "false", None])
 @pytest.mark.parametrize("dd_trace_log_file", ["example.log", None])
-def test_unrelated_logger_loaded_first_in_debug(dd_trace_debug, dd_trace_log_file, run_python_code_in_subprocess, tmpdir):
+def test_unrelated_logger_loaded_first_in_debug(
+    dd_trace_debug, dd_trace_log_file, run_python_code_in_subprocess, tmpdir
+):
     """
     When the tracer is imported after logging has been configured in debug mode,
         the ddtrace logger does not override any custom logs settings.
@@ -51,10 +53,11 @@ ddtrace_logger.warning('ddtrace warning log')
         assert out == b""
 
 
-
 @pytest.mark.parametrize("dd_trace_debug", ["true", "false", None])
 @pytest.mark.parametrize("dd_trace_log_file", ["example.log", None])
-def test_unrelated_logger_loaded_last_in_debug(dd_trace_debug, dd_trace_log_file, run_python_code_in_subprocess, tmpdir):
+def test_unrelated_logger_loaded_last_in_debug(
+    dd_trace_debug, dd_trace_log_file, run_python_code_in_subprocess, tmpdir
+):
     """
     When the tracer is imported before logging has been configured in debug mode,
         the ddtrace logger does not override any custom logs settings.
@@ -177,6 +180,7 @@ ddtrace_logger.warning('ddtrace warning log')
         assert b"ddtrace warning log" in err
         if dd_trace_debug == "true":
             assert "ddtrace.commands.ddtrace_run" in str(err)  # comes from ddtrace-run debug logging
+
 
 def test_warn_logs_streamhandler_default(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess):
     """
@@ -368,14 +372,9 @@ for attempt in range(100):
     assert out == b""
 
     testfiles = os.listdir(tmpdir)
-    log_files = [
-        filename for filename in testfiles if "testlog.log" in filename
-    ]
+    log_files = [filename for filename in testfiles if "testlog.log" in filename]
 
-    assert log_files == [
-        "testlog.log",
-        "testlog.log.1"
-    ]
+    assert log_files == ["testlog.log", "testlog.log.1"]
 
     with open(log_file) as file:
         content = file.read()
@@ -402,14 +401,9 @@ for attempt in range(100):
     assert out == b""
 
     testfiles = os.listdir(tmpdir)
-    log_files = [
-        filename for filename in testfiles if "testlog.log" in filename
-    ]
+    log_files = [filename for filename in testfiles if "testlog.log" in filename]
 
-    assert log_files == [
-        "testlog.log",
-        "testlog.log.1"
-    ]
+    assert log_files == ["testlog.log", "testlog.log.1"]
 
     with open(log_file) as file:
         content = file.read()
