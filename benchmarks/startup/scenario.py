@@ -12,13 +12,21 @@ class Startup(bm.Scenario):
     with_trace = bm.var_bool()
 
     def run(self):
+        env = os.environ.copy()
+        env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = str(self.telemetry_enabled)
+        env["DD_RUNTIME_METRICS_ENABLED"] = str(self.runtime_metrics_enabled)
+
         code = "import ddtrace"
         if self.with_trace:
-            # queue and encode trace but don't send to the agent
-            # requests to the agent will raise an exception in a benchmark test
+            # mock agent endpoint
+            env["DD_TRACE_AGENT_URL"] = "http://localhost:8126"
+            env["DD_TRACE_API_VERSION"] = "v0.4"
             code += """
-import mock
-ddtrace.tracer._writer._send_payload = mock.Mock()
+import httpretty
+# mock agent endpoint
+httpretty.enable()
+httpretty.register_uri(httpretty.PUT, 'http://localhost:8126/v0.4/traces')
+
 with ddtrace.tracer.trace('test-x', service='bench-test'):
     pass
 """
@@ -26,10 +34,6 @@ with ddtrace.tracer.trace('test-x', service='bench-test'):
         cmd = [sys.executable, "-c", code]
         if self.use_ddtrace_run:
             cmd = ["ddtrace-run"] + cmd
-
-        env = os.environ.copy()
-        env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = str(self.telemetry_enabled)
-        env["DD_RUNTIME_METRICS_ENABLED"] = str(self.runtime_metrics_enabled)
 
         def _(loops):
             for _ in range(loops):
