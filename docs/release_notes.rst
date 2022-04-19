@@ -22,9 +22,6 @@ Release Notes
     "1.1.0":
       ignore_notes:
         # Ignore 1.0 release notes
-        - "fix-pyston-memalloc-e8f4002e5c11df8c.yaml"
-        - "log-correlation-context-0ca54b5caf687b2d.yaml"
-        - "profiling-asyncio-fix-missing-main-thread-dec4b0759094c571.yaml"
         - "1.0-remove-default-sampler-d1f6bcb2b23ca8a7.yaml"
         - "add-span-get-tags-metrics-7969ba7843dcc24d.yaml"
         - "add-warning-after-shutdown-tracer-dd8799467c4d29c8.yaml"
