@@ -849,7 +849,7 @@ jobs:
           pattern: 'aiobotocore'
 
   aiomysql:
-    <<: *contrib_job
+    <<: *contrib_job_small
     docker:
       - image: *ddtrace_dev_image
       - *mysql_server
