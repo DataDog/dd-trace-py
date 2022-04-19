@@ -8,6 +8,11 @@ startup_without_ddtrace_run:
   <<: *defaults
   use_ddtrace_run: "false"
 
+startup_with_telemetry:
+  <<: *defaults
+  use_ddtrace_run: "false"
+  telemetry_enabled: "true"
+
 ddtrace_run_with_telemetry:
   <<: *defaults
   telemetry_enabled: "true"

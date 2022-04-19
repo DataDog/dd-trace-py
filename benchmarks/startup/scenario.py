@@ -13,20 +13,30 @@ class Startup(bm.Scenario):
 
     def run(self):
         env = os.environ.copy()
-        env["DD_INSTRUMENTATION_TELEMETRY_ENABLED"] = str(self.telemetry_enabled)
         env["DD_RUNTIME_METRICS_ENABLED"] = str(self.runtime_metrics_enabled)
+        env["DD_TRACE_AGENT_URL"] = "http://localhost:8126"
+        env["DD_TRACE_API_VERSION"] = "v0.4"
 
         code = "import ddtrace"
-        if self.with_trace:
-            # mock agent endpoint
-            env["DD_TRACE_AGENT_URL"] = "http://localhost:8126"
-            env["DD_TRACE_API_VERSION"] = "v0.4"
+        if self.with_trace or self.telemetry_enabled:
             code += """
 import httpretty
-# mock agent endpoint
-httpretty.enable()
-httpretty.register_uri(httpretty.PUT, 'http://localhost:8126/v0.4/traces')
+httpretty.enable(allow_net_connect=False)
+"""
 
+        if self.telemetry_enabled:
+            code += """
+telemetry_url =  '%s/%s' % (
+    'http://localhost:8126',
+    ddtrace.internal.telemetry.telemetry_writer.ENDPOINT
+)
+httpretty.register_uri(httpretty.POST, telemetry_url)
+ddtrace.internal.telemetry.telemetry_writer.enable()
+"""
+
+        if self.with_trace:
+            code += """
+httpretty.register_uri(httpretty.PUT, 'http://localhost:8126/v0.4/traces')
 with ddtrace.tracer.trace('test-x', service='bench-test'):
     pass
 """
