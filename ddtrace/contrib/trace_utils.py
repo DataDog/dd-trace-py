@@ -297,10 +297,6 @@ def set_http_meta(
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec:
-        # let's make sure these objects implement the fill Dict API here - the copy also limits the impact of
-        # downstream side effects
-        request_headers = request_headers
-        response_headers = response_headers
         status_code = str(status_code) if status_code is not None else None
         try:
             # In non-unicode cases, this can fail, let's be safe
