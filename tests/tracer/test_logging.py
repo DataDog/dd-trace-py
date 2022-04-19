@@ -275,7 +275,7 @@ ddtrace_logger.debug('debug log')
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
     assert re.search(LOG_PATTERN, str(err)) is None
-    assert "program executable" in str(err)
+    assert "program executable" in str(err)  # comes from ddtrace-run debug logging
     assert b"warning log" in err
     assert b"debug log" in err
     assert out == b""
