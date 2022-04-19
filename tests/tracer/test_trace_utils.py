@@ -13,10 +13,10 @@ import pytest
 from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
-from ddtrace.internal import _context
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
+from ddtrace.internal import _context
 from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
