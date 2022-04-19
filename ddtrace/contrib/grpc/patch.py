@@ -232,7 +232,7 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
 
 
 def _aio_server_constructor_interceptor(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(grpc.aio.Server)
+    pin = Pin.get_from(GRPC_AIO_PIN_MODULE_SERVER)
 
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
