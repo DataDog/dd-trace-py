@@ -299,8 +299,8 @@ def set_http_meta(
     if config._appsec:
         # let's make sure these objects implement the fill Dict API here - the copy also limits the impact of
         # downstream side effects
-        request_headers = dict(request_headers) if request_headers is not None else None
-        response_headers = dict(response_headers) if response_headers is not None else None
+        request_headers = request_headers
+        response_headers = response_headers
         status_code = str(status_code) if status_code is not None else None
         try:
             # In non-unicode cases, this can fail, let's be safe
