@@ -196,6 +196,8 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span._set_str_tag("appsec.event", "true")
             span._set_str_tag("_dd.appsec.json", '{"triggers":%s}' % (res,))
+            # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
+            # specs are updated.
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
                 span._set_str_tag(ORIGIN_KEY, "appsec")
