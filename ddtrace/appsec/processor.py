@@ -7,12 +7,12 @@ from typing import TYPE_CHECKING
 
 import attr
 
-from ddtrace.internal import _context
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
@@ -78,7 +78,7 @@ def _set_headers(span, headers):
     # type: (Span, Dict) -> None
     for k in headers:
         if k.lower() in _COLLECTED_REQUEST_HEADERS:
-            span._set_str_tag(_normalize_tag_name('request', k), headers[k])
+            span._set_str_tag(_normalize_tag_name("request", k), headers[k])
 
 
 @attr.s(eq=False)
