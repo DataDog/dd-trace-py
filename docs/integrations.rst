@@ -50,11 +50,25 @@ aiohttp
 .. automodule:: ddtrace.contrib.aiohttp
 
 
+.. _aiohttp_jinja2:
+
+aiohttp_jinja2
+^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.aiohttp_jinja2
+
+
 .. _asyncio:
 
 asyncio
 ^^^^^^^
 .. automodule:: ddtrace.contrib.asyncio
+
+
+.. _asyncpg:
+
+asyncpg
+^^^^^^^
+.. automodule:: ddtrace.contrib.asyncpg
 
 
 .. _botocore:

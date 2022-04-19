@@ -76,7 +76,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag("http.method"), "GET")
         self.assertEqual(req_span.get_tag(http.URL), "http://localhost/")
         assert_span_http_status_code(req_span, 200)
-        assert http.QUERY_STRING not in req_span._get_tags()
+        assert http.QUERY_STRING not in req_span.get_tags()
 
         # Handler span
         handler_span = spans[4]

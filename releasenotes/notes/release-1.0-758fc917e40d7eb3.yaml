@@ -1,0 +1,268 @@
+---
+prelude: >
+  The Datadog APM Python team is happy to announce the release of v1.0.0 of
+  ddtrace. This release introduces a formal :ref:`versioning policy<versioning>`
+  that simplifies the public :ref:`interface<versioning_interfaces>` and defines
+  a :ref:`release version policy<versioning_release>` for backwards compatible
+  and incompatible changes to the public interface.
+
+
+  The v1.0.0 release is an important milestone for the library as it has grown
+  substantially in scope. The first commit to the library was made on June 20,
+  2016. Nearly sixty minor releases later, the library now includes over sixty
+  integrations for libraries. And the library has expanded from Tracing to support the
+  Continuous Profiler and CI Visibility.
+
+
+  .. important::
+    Before upgrading to v1.0.0, we recommend users install
+    ``ddtrace>=0.60.0,<1.0.0`` and enable deprecation warnings. All removals to
+    the library interface and environment variables were deprecated on 0.x
+    branch. Consult :ref:`Upgrade 0.x<upgrade-0.x>` for recommendations
+    on migrating from the 0.x release branch.
+
+
+  .. note::
+    The changes to environment variables apply only to the configuration of the
+    ddtrace library and not the Datadog Agent.
+
+
+
+  Upgrading summary
+
+  ~~~~~~~~~~~~~~~~~
+
+
+  Functionality changes
+
+  *********************
+
+  The default logging configuration functionality of ``ddtrace-run`` has
+  changed to address conflicts with application logging configuration. See
+  :ref:`note on the new default behavior<disable-basic-config-call-by-default>`
+  and :ref:`note on deprecation<deprecate-basic-config-call>` for future
+  removal.
+
+
+  Removed legacy environment variables
+
+  ************************************
+
+  These environment variables have been removed. In all cases the same
+  functionality is provided by other environment variables and replacements are
+  provided as recommended actions for upgrading.
+
+
+  .. list-table::
+    :header-rows: 1
+    :widths: 45, 45, 10
+
+    * - Variable
+      - Replacement
+      - Note
+    * - ``DATADOG_`` prefix
+      - ``DD_`` prefix
+      - :ref:`📝<remove-datadog-envs>`
+    * - ``DATADOG_SERVICE_NAME``
+      - ``DD_SERVICE``
+      - :ref:`📝<remove-legacy-service-name-envs>`
+    * - ``DD_LOGGING_RATE_LIMIT``
+      - ``DD_TRACE_LOGGING_RATE``
+      - :ref:`📝<remove-logging-env>`
+    * - ``DD_TRACER_PARTIAL_FLUSH_ENABLED``
+      - ``DD_TRACE_PARTIAL_FLUSH_ENABLED``
+      - :ref:`📝<remove-partial-flush-enabled-env>`
+    * - ``DD_TRACER_PARTIAL_FLUSH_MIN_SPANS``
+      - ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS``
+      - :ref:`📝<remove-partial-flush-min-envs>`
+
+
+  Removed legacy tracing interfaces
+
+  *********************************
+
+  These methods and module attributes have been removed. Where the same
+  functionality is provided by a different public method or module attribute, a
+  recommended action is provided for upgrading. In a few limited cases, because
+  the interface was no longer used or had been moved to the internal interface,
+  it was removed and so no action is provided for upgrading.
+
+
+  .. list-table::
+    :header-rows: 1
+    :widths: 45, 45, 10
+
+    * - Module
+      - Method/Attribute
+      - Note
+    * - ``ddtrace.context``
+      - ``Context.clone``
+      - :ref:`📝<remove-clone-context>`
+    * - ``ddtrace.pin``
+      - ``Pin.app``
+      - :ref:`📝<remove-pin-app>`
+    * -
+      - ``Pin.app_type``
+      - :ref:`📝<remove-pin-apptype>`
+    * - ``ddtrace.sampler``
+      - ``Sampler.default_sampler``
+      - :ref:`📝<remove-default-sampler>`
+    * - ``ddtrace.span``
+      - ``Span.tracer``
+      - :ref:`📝<remove-span-tracer>`
+    * -
+      - ``Span.__init__(tracer=)``
+      - :ref:`📝<remove-span-init-tracer>`
+    * -
+      - ``Span.meta``
+      - :ref:`📝<remove-span-meta>`
+    * -
+      - ``Span.metrics``
+      - :ref:`📝<remove-span-metrics>`
+    * -
+      - ``Span.set_meta``
+      - :ref:`📝<remove-span-set-meta>`
+    * -
+      - ``Span.set_metas``
+      - :ref:`📝<remove-span-set-metas>`
+    * -
+      - ``Span.pprint``
+      - :ref:`📝<remove-span-pprint>`
+    * - ``ddtrace.tracer``
+      - ``Tracer.debug_logging``
+      - :ref:`📝<remove-tracer-debug-logging>`
+    * -
+      - ``Tracer.get_call_context``
+      - :ref:`📝<remove-tracer-get-call-context>`
+    * -
+      - ``Tracer.tags``
+      - :ref:`📝<remove-tracer-tags>`
+    * -
+      - ``Tracer.writer``
+      - :ref:`📝<remove-tracer-writer>`
+    * -
+      - ``Tracer.__call__``
+      - :ref:`📝<remove-tracer-call>`
+    * -
+      - ``Tracer.global_excepthook``
+      - :ref:`📝<remove-tracer-global-excepthook>`
+    * -
+      - ``Tracer.log``
+      - :ref:`📝<remove-tracer-log>`
+    * -
+      - ``Tracer.priority_sampler``
+      - :ref:`📝<remove-tracer-priority-sampler>`
+    * -
+      - ``Tracer.sampler``
+      - :ref:`📝<remove-tracer-sampler>`
+    * -
+      - ``Tracer.set_service_info``
+      - :ref:`📝<remove-tracer-set-service-info>`
+    * - ``ddtrace.ext``
+      - ``SpanTypes``
+      - :ref:`📝<remove-span-types-enum>`
+    * - ``ddtrace.helpers``
+      - ``get_correlation_ids``
+      - :ref:`📝<remove-helpers>`
+    * - ``ddtrace.settings``
+      - ``Config.HTTPServerConfig``
+      - :ref:`📝<remove-config-httpserver>`
+
+
+  Removed legacy integration tracing
+
+  **********************************
+
+  These tracing functions in integrations were no longer used for automatic
+  instrumentation so have been removed. Any manual instrumentation code in an
+  application will need to be replaced with :py:meth:`ddtrace.patch_all` or
+  :py:meth:`ddtrace.patch` when upgrading.
+
+
+  .. list-table::
+    :header-rows: 1
+    :widths: 45, 50, 5
+
+    * - Module
+      - Function/Class
+      -
+    * - ``ddtrace.contrib.cassandra``
+      - ``get_traced_cassandra``
+      - :ref:`📝<remove-cassandra-traced>`
+    * - ``ddtrace.contrib.celery``
+      - ``patch_task``
+      - :ref:`📝<remove-celery-patch-task>`
+    * - ``ddtrace.contrib.celery``
+      - ``unpatch_task``
+      - :ref:`📝<remove-celery-unpatch-task>`
+    * - ``ddtrace.contrib.flask``
+      - ``middleware.TraceMiddleware``
+      - :ref:`📝<remove-flask-middleware>`
+    * - ``ddtrace.contrib.mongoengine``
+      - ``trace_mongoengine``
+      - :ref:`📝<remove-mongoengine-traced>`
+    * - ``ddtrace.contrib.mysql``
+      - ``get_traced_mysql_connection``
+      - :ref:`📝<remove-mysql-legacy>`
+    * - ``ddtrace.contrib.psycopg``
+      - ``connection_factory``
+      - :ref:`📝<remove-psycopg-legacy>`
+    * - ``ddtrace.contrib.pymongo``
+      - ``patch.trace_mongo_client``
+      - :ref:`📝<remove-pymongo-client>`
+    * - ``ddtrace.contrib.pymysql``
+      - ``tracers.get_traced_pymysql_connection``
+      - :ref:`📝<remove-pymysql-connection>`
+    * - ``ddtrace.contrib.requests``
+      - ``legacy``
+      - :ref:`📝<remove-requests-legacy-distributed>`
+    * - ``ddtrace.contrib.redis``
+      - ``tracers.get_traced_redis``
+      - :ref:`📝<remove-redis-traced>`
+    * - ``ddtrace.contrib.redis``
+      - ``tracers.get_traced_redis_from``
+      - :ref:`📝<remove-redis-traced-from>`
+    * - ``ddtrace.contrib.sqlite3``
+      - ``connection_factory``
+      - :ref:`📝<remove-sqlite3-legacy>`
+
+
+  Removed deprecated modules
+
+  **************************
+
+  These modules have been removed. Many were moved to the internal interface as
+  they were not intended to be used as part of the public interface. In these
+  cases, no action is provided for upgrading. In a few cases, other modules are
+  provided as alternatives to maintain functionality. See the notes for more
+  information.
+
+
+  .. list-table::
+    :header-rows: 1
+    :widths: 90, 10
+
+    * - Module
+      - Note
+    * - ``ddtrace.compat``
+      - :ref:`📝<remove-ddtrace-compat>`
+    * - ``ddtrace.contrib.util``
+      - :ref:`📝<remove-contrib-util>`
+    * - ``ddtrace.encoding``
+      - :ref:`📝<remove-ddtrace-encoding>`
+    * - ``ddtrace.ext.errors``
+      - :ref:`📝<remove-ext-errors>`
+    * - ``ddtrace.ext.priority``
+      - :ref:`📝<remove-ext-priority>`
+    * - ``ddtrace.ext.system``
+      - :ref:`📝<remove-ext-system>`
+    * - ``ddtrace.http``
+      - :ref:`📝<remove-http>`
+    * - ``ddtrace.monkey``
+      - :ref:`📝<remove-ddtrace-monkey>`
+    * - ``ddtrace.propagation.utils``
+      - :ref:`📝<remove-ddtrace-propagation-utils>`
+    * - ``ddtrace.util``
+      - :ref:`📝<remove-ddtrace-util>`
+    * - ``ddtrace.utils``
+      - :ref:`📝<remove-ddtrace-utils>`

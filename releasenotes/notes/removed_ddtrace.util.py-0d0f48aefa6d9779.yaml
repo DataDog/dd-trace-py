@@ -1,4 +1,8 @@
 ---
 upgrade:
-  - |
-    The ``ddtrace.util`` module has been removed.
+  - ".. _remove-ddtrace-util:
+
+
+    ``ddtrace.util`` is removed.
+
+    "
