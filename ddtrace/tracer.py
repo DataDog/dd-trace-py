@@ -392,6 +392,7 @@ class Tracer(object):
 
         try:
             self._writer.stop()
+            self._writer.join()
         except ServiceStatusError:
             # It's possible the writer never got started
             pass

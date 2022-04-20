@@ -174,6 +174,11 @@ class TraceWriter(six.with_metaclass(abc.ABCMeta)):
         pass
 
     @abc.abstractmethod
+    def join(self):
+        # type: () -> None
+        pass
+
+    @abc.abstractmethod
     def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
         pass
@@ -209,6 +214,10 @@ class LogWriter(TraceWriter):
 
     def stop(self, timeout=None):
         # type: (Optional[float]) -> None
+        return
+
+    def join(self):
+        # type: () -> None
         return
 
     def write(self, spans=None):
@@ -578,17 +587,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             self._set_drop_rate()
             self._metrics_reset()
 
-    def periodic(self):
-        self.flush_queue(raise_exc=False)
-
-    def _stop_service(  # type: ignore[override]
-        self,
-        timeout=None,  # type: Optional[float]
-    ):
-        # type: (...) -> None
-        # FIXME: don't join() on stop(), let the caller handle this
-        super(AgentWriter, self)._stop_service()
-        self.join(timeout=timeout)
+    periodic = flush_queue
 
     def on_shutdown(self):
         try:

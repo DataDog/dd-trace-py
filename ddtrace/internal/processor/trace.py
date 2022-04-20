@@ -223,6 +223,7 @@ class SpanAggregator(SpanProcessor):
         """
         try:
             self._writer.stop(timeout)
+            self._writer.join()
         except ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
