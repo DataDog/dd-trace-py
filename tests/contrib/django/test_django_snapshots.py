@@ -6,7 +6,6 @@ import sys
 import django
 import pytest
 
-from ddtrace import config
 from tests.utils import snapshot
 from tests.webclient import Client
 
@@ -15,7 +14,7 @@ SERVER_PORT = 8000
 
 
 @contextmanager
-def daphne_client(django_asgi):
+def daphne_client(django_asgi, additional_env=None):
     """Runs a django app hosted with a daphne webserver in a subprocess and
     returns a client which can be used to query it.
 
@@ -26,6 +25,7 @@ def daphne_client(django_asgi):
     # Make sure to copy the environment as we need the PYTHONPATH and _DD_TRACE_WRITER_ADDITIONAL_HEADERS (for the test
     # token) propagated to the new process.
     env = os.environ.copy()
+    env.update(additional_env or {})
     assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
     env.update(
         {
@@ -217,11 +217,8 @@ def test_asgi_500():
     },
 )
 def test_appsec_enabled():
-    try:
-        config._appsec_enabled = True
-        with daphne_client("application") as client:
-            resp = client.get("/")
-            assert resp.status_code == 200
-            assert resp.content == b"Hello, test app."
-    finally:
-        config._appsec_enabled = False
+    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
+    assert 0

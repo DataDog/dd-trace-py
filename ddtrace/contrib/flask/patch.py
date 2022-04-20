@@ -9,6 +9,7 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...internal.compat import ensure_text
 from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
@@ -258,7 +259,7 @@ def unpatch():
 # DEV: The downside to using `start_response` is we do not have a `Flask.Response` object here,
 #   only `status_code`, and `headers` to work with
 #   On the bright side, this works in all versions of Flask (or any WSGI app actually)
-def _wrap_start_response(func, span, request, pin):
+def _wrap_start_response(func, span, request):
     def traced_start_response(status_code, headers):
         code, _, _ = status_code.partition(" ")
         # If values are accessible, set the resource as `<method> <path>` and add other request tags
@@ -316,9 +317,10 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
         span._set_str_tag(FLASK_VERSION, flask_version_str)
 
-        start_response = _wrap_start_response(start_response, span, request, pin)
+        start_response = _wrap_start_response(start_response, span, request)
         try:
-            query = request.query_string.decode("utf8", errors="replace")
+            # request.query_string is bytes
+            query = ensure_text(request.query_string)
         except Exception:
             query = ""
 
