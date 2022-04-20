@@ -263,7 +263,7 @@ def set_http_meta(
     :param raw_uri: the full raw HTTP URI (including ports and query)
     :param request_cookies: the HTTP request cookies as a dict
     :param request_path_params: the representation of the framework URL without the request data for instance,
-    /posts/:id for a route where /posts/<id:int> is allowed
+        /posts/:id for a route where /posts/<id:int> is allowed
     """
     if method is not None:
         span._set_str_tag(http.METHOD, method)
