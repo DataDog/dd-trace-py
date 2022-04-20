@@ -1,10 +1,14 @@
 name: Add milestone to pull requests
 on:
+  # Only run when a PR is closed
   pull_request:
+    types:
+      - closed
 
 jobs:
   add_milestone_to_pr:
-    if: github.event.pull_request.milestone == null
+    # Only run if the PR was closed due to a merge
+    if: github.event.pull_request.merged == true
     name: Add milestone to merged pull requests
     runs-on: ubuntu-latest
     steps:
