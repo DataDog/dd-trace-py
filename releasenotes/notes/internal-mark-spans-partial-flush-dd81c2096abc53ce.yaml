@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    internal: mark trace payloads as being partial flushed
