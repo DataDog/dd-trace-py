@@ -327,7 +327,7 @@ def test_ext_service(int_config, pin, config_val, default, expected):
             {"my-header": "value1"},
             {"resp-header": "val"},
             "http://localhost/search?q=test+query&q2=val",
-            {"/search": lambda x: x},
+            {"id": "val", "name": "vlad"},
             None,
         ),
     ],
@@ -396,17 +396,17 @@ def test_set_http_meta(
 
     if appsec_enabled:
         if uri is not None:
-            assert _context.get("http.request.uri", span=span) == uri
+            assert _context.get_item("http.request.uri", span=span) == uri
         if method is not None:
-            assert _context.get("http.request.method", span=span) == method
+            assert _context.get_item("http.request.method", span=span) == method
         if query is not None:
-            assert _context.get("http.request.query", span=span) == parse.parse_qs(query)
+            assert _context.get_item("http.request.query", span=span) == parse.parse_qs(query)
         if request_headers is not None:
-            assert _context.get("http.request.headers", span=span) == request_headers
+            assert _context.get_item("http.request.headers", span=span) == request_headers
         if response_headers is not None:
-            assert _context.get("http.response.headers", span=span) == response_headers
+            assert _context.get_item("http.response.headers", span=span) == response_headers
         if path_params is not None:
-            assert _context.get("http.request.path_params", span=span) == path_params
+            assert _context.get_item("http.request.path_params", span=span) == path_params
 
 
 @mock.patch("ddtrace.settings.config.log")
