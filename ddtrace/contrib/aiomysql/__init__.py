@@ -24,8 +24,8 @@ To configure the integration on an per-connection basis use the
     import aiomysql
 
     # This will report a span with the default settings
-   conn = await aiomysql.connect(host='127.0.0.1', port=3306,
-                                  user='root', password='', db='mysql',
+   conn = await aiomysql.connect(host="127.0.0.1", port=3306,
+                                  user="root", password="", db="mysql",
                                   loop=loop)
 
     # Use a pin to override the service name for this connection.
