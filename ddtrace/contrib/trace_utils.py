@@ -306,7 +306,7 @@ def set_http_meta(
                 query_object = None
         else:
             query_object = None
-        _context.set_multi(
+        _context.set_items(
             {
                 k: v
                 for k, v in [

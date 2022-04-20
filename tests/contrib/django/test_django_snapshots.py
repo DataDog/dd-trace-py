@@ -6,6 +6,7 @@ import sys
 import django
 import pytest
 
+from ddtrace import config
 from tests.utils import snapshot
 from tests.webclient import Client
 
@@ -206,3 +207,21 @@ def test_asgi_500():
     with daphne_client("application") as client:
         resp = client.get("/error-500/")
         assert resp.status_code == 500
+
+
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
+@snapshot(
+    ignores=["meta.error.stack"],
+    variants={
+        "3x": django.VERSION >= (3, 2, 0),
+    },
+)
+def test_appsec_enabled():
+    try:
+        config._appsec_enabled = True
+        with daphne_client("application") as client:
+            resp = client.get("/")
+            assert resp.status_code == 200
+            assert resp.content == b"Hello, test app."
+    finally:
+        config._appsec_enabled = False

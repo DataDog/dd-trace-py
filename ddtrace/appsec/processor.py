@@ -148,42 +148,42 @@ class AppSecSpanProcessor(SpanProcessor):
 
         data = {}
         if self._is_needed(_Addresses.SERVER_REQUEST_QUERY):
-            request_query = _context.get("http.request.query", span=span)
+            request_query = _context.get_item("http.request.query", span=span)
             if request_query is not None:
                 data[_Addresses.SERVER_REQUEST_QUERY] = request_query
 
         if self._is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES):
-            request_headers = _context.get("http.request.headers", span=span)
+            request_headers = _context.get_item("http.request.headers", span=span)
             if request_headers is not None:
                 data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES] = _no_cookies(request_headers)
 
         if self._is_needed(_Addresses.SERVER_REQUEST_URI_RAW):
-            uri = _context.get("http.request.uri", span=span)
+            uri = _context.get_item("http.request.uri", span=span)
             if uri is not None:
                 data[_Addresses.SERVER_REQUEST_URI_RAW] = uri
 
         if self._is_needed(_Addresses.SERVER_REQUEST_METHOD):
-            request_method = _context.get("http.request.method", span=span)
+            request_method = _context.get_item("http.request.method", span=span)
             if request_method is not None:
                 data[_Addresses.SERVER_REQUEST_METHOD] = request_method
 
         if self._is_needed(_Addresses.SERVER_REQUEST_PATH_PARAMS):
-            path_params = _context.get("http.request.path_params", span=span)
+            path_params = _context.get_item("http.request.path_params", span=span)
             if path_params is not None:
                 data[_Addresses.SERVER_REQUEST_PATH_PARAMS] = path_params
 
         if self._is_needed(_Addresses.SERVER_REQUEST_COOKIES):
-            cookies = _context.get("http.request.cookies", span=span)
+            cookies = _context.get_item("http.request.cookies", span=span)
             if cookies is not None:
                 data[_Addresses.SERVER_REQUEST_COOKIES] = cookies
 
         if self._is_needed(_Addresses.SERVER_RESPONSE_STATUS):
-            status = _context.get("http.response.status", span=span)
+            status = _context.get_item("http.response.status", span=span)
             if status is not None:
                 data[_Addresses.SERVER_RESPONSE_STATUS] = status
 
         if self._is_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES):
-            response_headers = _context.get("http.response.headers", span=span)
+            response_headers = _context.get_item("http.response.headers", span=span)
             if response_headers is not None:
                 data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _no_cookies(response_headers)
 

@@ -1729,19 +1729,26 @@ def test_ctx_api():
     tracer = Tracer()
 
     with pytest.raises(ValueError):
-        _context.get("key")
+        _context.get_item("key")
     with pytest.raises(ValueError):
         _context.set_item("key", "val")
 
     with tracer.trace("root"):
-        v = _context.get("my.val")
+        v = _context.get_item("my.val")
         assert v is None
 
         _context.set_item("appsec.key", "val")
-        assert _context.get("appsec.key") == "val"
+        _context.set_items({"appsec.key2": "val2", "appsec.key3": "val3"})
+        assert _context.get_item("appsec.key") == "val"
+        assert _context.get_item("appsec.key2") == "val2"
+        assert _context.get_item("appsec.key3") == "val3"
+        assert _context.get_items(["appsec.key"]) == ["val"]
+        assert _context.get_items(["appsec.key", "appsec.key2", "appsec.key3"]) == ["val", "val2", "val3"]
 
         with tracer.trace("child"):
-            assert _context.get("appsec.key") == "val"
+            assert _context.get_item("appsec.key") == "val"
 
     with pytest.raises(ValueError):
-        _context.get("appsec.key")
+        _context.get_item("appsec.key")
+    with pytest.raises(ValueError):
+        _context.get_items(["appsec.key"])
