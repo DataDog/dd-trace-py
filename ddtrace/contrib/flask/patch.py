@@ -318,10 +318,9 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
         start_response = _wrap_start_response(start_response, span, request, pin)
         try:
-            query = request.query_string.decode(ecoding='utf-8', errors='replace')
+            query = request.query_string.decode(ecoding="utf-8", errors="replace")
         except Exception:
             query = ""
-
 
         # DEV: We set response status code in `_wrap_start_response`
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
