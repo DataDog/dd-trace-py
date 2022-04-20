@@ -298,10 +298,13 @@ def set_http_meta(
 
     if config._appsec:
         status_code = str(status_code) if status_code is not None else None
-        try:
-            # In non-unicode cases, this can fail, let's be safe
-            query_object = parse.parse_qs(query)
-        except Exception:
+        if query is not None:
+            try:
+                # In non-unicode cases, this can fail, let's be safe
+                query_object = parse.parse_qs(query)
+            except Exception:
+                query_object = None
+        else:
             query_object = None
         _context.set_multi(
             {

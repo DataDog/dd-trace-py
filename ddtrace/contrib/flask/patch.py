@@ -326,7 +326,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             method=request.method,
             url=request.base_url,
             raw_uri=request.url,
-            query=request.query_string,
+            query=request.query_string.decode(),
             request_headers=request.headers,
             request_path_params=request.args,
         )
