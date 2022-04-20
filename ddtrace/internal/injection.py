@@ -24,6 +24,12 @@ class InvalidLine(Exception):
 
 def _inject_hook(code, hook, lineno, arg):
     # type: (Bytecode, _HookType, int, Any) -> None
+    """Inject a hook at the given line number inside an abstract code object.
+
+    The hook is called with the given argument, which is also used as an
+    identifier for the hook itself. This should be kept in case the hook needs
+    to be removed.
+    """
     for i, instr in enumerate(code):
         try:
             if instr.lineno == lineno:
@@ -35,7 +41,6 @@ def _inject_hook(code, hook, lineno, arg):
     else:
         raise InvalidLine("Line %d is blank or a comment line" % lineno)
 
-    # actual injection
     code[i:i] = Bytecode(
         [
             Instr("LOAD_CONST", hook, lineno=lineno),
@@ -48,8 +53,15 @@ def _inject_hook(code, hook, lineno, arg):
 
 def _eject_hook(code, line, arg):
     # type: (Bytecode, int, Any) -> None
+    """Eject a hook from the abstract code object at the given line number.
+
+    The hook is identified by its argument. This ensures that only the right
+    hook is ejected.
+    """
     for i, instr in enumerate(code):
         try:
+            # DEV: We look at the expected opcode pattern to match the injected
+            # hook and we also test for the expected opcode arguments
             if (
                 instr.lineno == line
                 and code[i + 1].arg is arg
@@ -65,7 +77,6 @@ def _eject_hook(code, line, arg):
     else:
         raise InvalidLine("Line %d does not contain a hook" % line)
 
-    # actual ejection
     del code[i : i + 4]
 
 
@@ -76,7 +87,11 @@ def _function_with_new_code(f, abstract_code):
 
 def inject_hooks(f, hs):
     # type: (FunctionType, List[Tuple[_HookType, int, Any]]) -> FunctionType
-    """Bulk-inject a list of hooks into a function."""
+    """Bulk-inject a list of hooks into a function.
+
+    Hooks are specified via a list of tuples, where each tuple contains the hook
+    itself, the line number and the identifying argument passed to the hook.
+    """
     f_code = f.__code__
     abstract_code = Bytecode.from_code(f_code)
 
@@ -98,8 +113,8 @@ def eject_hooks(f, ls):
     # type: (FunctionType, List[Tuple[int, Any]]) -> FunctionType
     """Bulk-eject a list of hooks from a function.
 
-    The hooks are identified by their line number and the argument passed to the
-    hook.
+    The hooks are specified via a list of tuples, where each tuple contains the
+    hook line number and the identifying argument.
     """
     f_code = f.__code__
     abstract_code = Bytecode.from_code(f_code)
