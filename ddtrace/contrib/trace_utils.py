@@ -298,21 +298,13 @@ def set_http_meta(
 
     if config._appsec:
         status_code = str(status_code) if status_code is not None else None
-        if type(query) is str:
-            try:
-                # In non-unicode cases, this can fail, let's be safe
-                query_object = parse.parse_qs(query)
-            except Exception:
-                query_object = None
-        else:
-            query_object = None
+
         _context.set_items(
             {
                 k: v
                 for k, v in [
                     ("http.request.uri", raw_uri),
                     ("http.request.method", method),
-                    ("http.request.query", query_object),
                     ("http.request.cookies", request_cookies),
                     ("http.request.headers", request_headers),
                     ("http.response.headers", response_headers),
