@@ -10,6 +10,6 @@ def test_django_simple_attack(client, test_spans, tracer):
     assert client.get("/.git?q=1").status_code == 404
     root_span = test_spans.spans[0]
     assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
-    assert _context.get("http.request.uri", span=root_span) == "http://testserver/.git?q=1"
-    assert _context.get("http.request.query", span=root_span)["q"] == ["1"]
-    assert _context.get("http.request.headers", span=root_span) is not None
+    assert _context.get_item("http.request.uri", span=root_span) == "http://testserver/.git?q=1"
+    assert _context.get_item("http.request.query", span=root_span)["q"] == ["1"]
+    assert _context.get_item("http.request.headers", span=root_span) is not None

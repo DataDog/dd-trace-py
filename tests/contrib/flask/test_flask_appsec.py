@@ -15,5 +15,5 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         root_span = spans[0]
 
         assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
-        assert _context.get("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
-        assert _context.get("http.request.query", span=root_span)["q"] == ["1"]
+        assert _context.get_item("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
+        assert _context.get_item("http.request.query", span=root_span)["q"] == ["1"]
