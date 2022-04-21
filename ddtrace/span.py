@@ -61,6 +61,7 @@ class Span(object):
         "_meta",
         "error",
         "_metrics",
+        "_store",
         "span_type",
         "start_ns",
         "duration_ns",
@@ -146,6 +147,7 @@ class Span(object):
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
+        self._store = None  # type: Optional[Dict[str, Any]]
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -153,6 +155,18 @@ class Span(object):
             self._ignored_exceptions = [exc]
         else:
             self._ignored_exceptions.append(exc)
+
+    def _set_ctx_item(self, key, val):
+        # type: (str, Any) -> None
+        if not self._store:
+            self._store = {}
+        self._store[key] = val
+
+    def _get_ctx_item(self, key):
+        # type: (str) -> Optional[Any]
+        if not self._store:
+            return None
+        return self._store.get(key)
 
     @property
     def start(self):

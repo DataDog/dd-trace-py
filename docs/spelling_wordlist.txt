@@ -174,3 +174,5 @@ wsgi
 xfail
 yaaredis
 Kinesis
+AppSec
+libddwaf
