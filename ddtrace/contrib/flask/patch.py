@@ -9,6 +9,7 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...internal.compat import ensure_text
 from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
@@ -258,7 +259,7 @@ def unpatch():
 # DEV: The downside to using `start_response` is we do not have a `Flask.Response` object here,
 #   only `status_code`, and `headers` to work with
 #   On the bright side, this works in all versions of Flask (or any WSGI app actually)
-def _wrap_start_response(func, span, request, pin):
+def _wrap_start_response(func, span, request):
     def traced_start_response(status_code, headers):
         code, _, _ = status_code.partition(" ")
         # If values are accessible, set the resource as `<method> <path>` and add other request tags
@@ -273,14 +274,7 @@ def _wrap_start_response(func, span, request, pin):
         if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
             span.resource = u" ".join((request.method, code))
 
-        trace_utils.set_http_meta(
-            span,
-            config.flask,
-            tracer=pin.tracer,
-            status_code=code,
-            response_headers=headers,
-            format_response_headers=dict,
-        )
+        trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=headers)
         return func(status_code, headers)
 
     return traced_start_response
@@ -323,24 +317,24 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
         span._set_str_tag(FLASK_VERSION, flask_version_str)
 
-        start_response = _wrap_start_response(start_response, span, request, pin)
+        start_response = _wrap_start_response(start_response, span, request)
+        try:
+            # request.query_string is bytes
+            query = ensure_text(request.query_string)
+        except Exception:
+            query = ""
 
         # DEV: We set response status code in `_wrap_start_response`
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
         trace_utils.set_http_meta(
             span,
             config.flask,
-            tracer=pin.tracer,
             method=request.method,
             url=request.base_url,
             raw_uri=request.url,
-            query=request.query_string,
-            query_object=request.args,
-            format_query_object=dict,
+            query=query,
             request_headers=request.headers,
-            format_request_headers=dict,
             request_path_params=request.args,
-            format_request_path_params=dict,
         )
 
         return wrapped(environ, start_response)

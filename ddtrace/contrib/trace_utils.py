@@ -17,7 +17,8 @@ from typing import Union
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
-from ddtrace.internal.gateway import _Addresses
+from ddtrace.internal import _context
+from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -233,23 +234,6 @@ def ext_service(pin, int_config, default=None):
     return default
 
 
-def _identity(x):
-    return x
-
-
-def _add_if_needed(gateway, target, original_value, address, formatter=None):
-    if original_value is None:
-        return
-    key = address.value
-    if not gateway.is_needed(key):
-        return
-    target[key] = formatter(original_value) if formatter is not None else original_value
-
-
-def _no_cookies(data):
-    return {key: value for key, value in data.items() if key.lower() not in ("cookie", "set-cookie")}
-
-
 def set_http_meta(
     span,  # type: Span
     integration_config,  # type: IntegrationConfig
@@ -261,19 +245,26 @@ def set_http_meta(
     request_headers=None,  # type: Optional[Mapping[str, str]]
     response_headers=None,  # type: Optional[Mapping[str, str]]
     retries_remain=None,  # type: Optional[Union[int, str]]
-    tracer=None,
-    raw_uri=None,
-    query_object=None,
-    format_query_object=_identity,
-    request_cookies=None,
-    format_request_headers=_identity,
-    format_response_headers=_identity,
-    request_body=None,
-    format_request_body=_identity,
-    request_path_params=None,
-    format_request_path_params=_identity,
+    raw_uri=None,  # type: Optional[str]
+    request_cookies=None,  # type: Optional[Dict[str, str]]
+    request_path_params=None,  # type: Optional[Dict[str, str]]
 ):
     # type: (...) -> None
+    """
+    Set HTTP metas on the span
+
+    :param method: the HTTP method
+    :param url: the HTTP URL
+    :param status_code: the HTTP status code
+    :param status_msg: the HTTP status message
+    :param query: the HTTP query part of the URI as a string
+    :param request_headers: the HTTP request headers
+    :param response_headers: the HTTP response headers
+    :param raw_uri: the full raw HTTP URI (including ports and query)
+    :param request_cookies: the HTTP request cookies as a dict
+    :param request_path_params: the parameters of the HTTP URL as set by the framework: /posts/<id:int> would give us
+         { "id": <int_value> }
+    """
     if method is not None:
         span._set_str_tag(http.METHOD, method)
 
@@ -305,39 +296,33 @@ def set_http_meta(
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
 
-    if tracer is None or tracer._gateway is None:  # tracer has a gateway only when AppSec is enabled
-        return
-    gateway = tracer._gateway
-    if gateway.needed_address_count == 0:
-        return
-
-    data = {}
-    _add_if_needed(gateway, data, raw_uri, _Addresses.SERVER_REQUEST_URI_RAW)
-    _add_if_needed(gateway, data, status_code, _Addresses.SERVER_RESPONSE_STATUS, str)  # make sure it's a string
-    _add_if_needed(gateway, data, query_object, _Addresses.SERVER_REQUEST_QUERY, format_query_object)
-    _add_if_needed(gateway, data, request_cookies, _Addresses.SERVER_REQUEST_COOKIES)
-    _add_if_needed(gateway, data, request_headers, _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES, format_request_headers)
-    req_cookies_key = _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value
-    if req_cookies_key in data:
-        data[req_cookies_key] = _no_cookies(data[req_cookies_key])
-
-    _add_if_needed(
-        gateway, data, response_headers, _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES, format_response_headers
-    )
-    res_cookies_key = _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES.value
-    if res_cookies_key in data:
-        data[res_cookies_key] = _no_cookies(data[res_cookies_key])
-
-    _add_if_needed(gateway, data, request_body, _Addresses.SERVER_REQUEST_BODY, format_request_body)
-    _add_if_needed(
-        gateway, data, request_path_params, _Addresses.SERVER_REQUEST_PATH_PARAMS, format_request_path_params
-    )
-
-    if len(data.keys()) == 0:
-        return
-
-    store = tracer._current_context_store()
-    gateway.propagate(store, data)
+    if config._appsec:
+        status_code = str(status_code) if status_code is not None else None
+        if query is not None:
+            try:
+                # In non-unicode cases, this can fail, let's be safe
+                query_object = parse.parse_qs(query)
+            except Exception:
+                query_object = None
+        else:
+            query_object = None
+        _context.set_items(
+            {
+                k: v
+                for k, v in [
+                    ("http.request.uri", raw_uri),
+                    ("http.request.method", method),
+                    ("http.request.query", query_object),
+                    ("http.request.cookies", request_cookies),
+                    ("http.request.headers", request_headers),
+                    ("http.response.headers", response_headers),
+                    ("http.response.status", status_code),
+                    ("http.request.path_params", request_path_params),
+                ]
+                if v is not None
+            },
+            span=span,
+        )
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):

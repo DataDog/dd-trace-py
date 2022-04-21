@@ -16,6 +16,8 @@ from ddtrace import Tracer
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
+from ddtrace.internal import _context
+from ddtrace.internal.compat import parse
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -297,29 +299,71 @@ def test_ext_service(int_config, pin, config_val, default, expected):
     assert trace_utils.ext_service(pin, int_config.myint, default) == expected
 
 
+@pytest.mark.parametrize("appsec_enabled", [False, True])
 @pytest.mark.parametrize(
-    "method,url,status_code,status_msg,query,request_headers",
+    "method,url,status_code,status_msg,query,request_headers,response_headers,uri,path_params,cookies",
     [
-        ("GET", "http://localhost/", 0, None, None, None),
-        ("GET", "http://localhost/", 200, "OK", None, None),
-        (None, None, None, None, None, None),
-        ("GET", "http://localhost/", 200, "OK", None, {"my-header": "value1"}),
-        ("GET", "http://localhost/", 200, "OK", "search?q=test+query", {"my-header": "value1"}),
+        ("GET", "http://localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/", 200, "OK", None, None, None, None, None, None),
+        (None, None, None, None, None, None, None, None, None, None),
+        (
+            "GET",
+            "http://localhost/",
+            200,
+            "OK",
+            None,
+            {"my-header": "value1"},
+            {"resp-header": "val"},
+            "http://localhost/",
+            None,
+            None,
+        ),
+        (
+            "GET",
+            "http://localhost/",
+            200,
+            "OK",
+            "q=test+query&q2=val",
+            {"my-header": "value1"},
+            {"resp-header": "val"},
+            "http://localhost/search?q=test+query&q2=val",
+            {"id": "val", "name": "vlad"},
+            None,
+        ),
     ],
 )
-def test_set_http_meta(span, int_config, method, url, status_code, status_msg, query, request_headers):
+def test_set_http_meta(
+    span,
+    int_config,
+    method,
+    url,
+    status_code,
+    status_msg,
+    query,
+    request_headers,
+    response_headers,
+    uri,
+    path_params,
+    cookies,
+    appsec_enabled,
+):
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
-    trace_utils.set_http_meta(
-        span,
-        int_config,
-        method=method,
-        url=url,
-        status_code=status_code,
-        status_msg=status_msg,
-        query=query,
-        request_headers=request_headers,
-    )
+    with override_global_config({"_appsec_enabled": appsec_enabled}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method=method,
+            url=url,
+            status_code=status_code,
+            status_msg=status_msg,
+            query=query,
+            raw_uri=uri,
+            request_headers=request_headers,
+            response_headers=response_headers,
+            request_cookies=cookies,
+            request_path_params=path_params,
+        )
     if method is not None:
         assert span.get_tag(http.METHOD) == method
     else:
@@ -349,6 +393,20 @@ def test_set_http_meta(span, int_config, method, url, status_code, status_msg, q
         for header, value in request_headers.items():
             tag = "http.request.headers." + header
             assert span.get_tag(tag) == value
+
+    if appsec_enabled:
+        if uri is not None:
+            assert _context.get_item("http.request.uri", span=span) == uri
+        if method is not None:
+            assert _context.get_item("http.request.method", span=span) == method
+        if query is not None:
+            assert _context.get_item("http.request.query", span=span) == parse.parse_qs(query)
+        if request_headers is not None:
+            assert _context.get_item("http.request.headers", span=span) == request_headers
+        if response_headers is not None:
+            assert _context.get_item("http.response.headers", span=span) == response_headers
+        if path_params is not None:
+            assert _context.get_item("http.request.path_params", span=span) == path_params
 
 
 @mock.patch("ddtrace.settings.config.log")
@@ -382,7 +440,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     trace_utils.set_http_meta(
         span,
         int_config.myint,
-        request_headers={"HTTP_REQUEST_HEADER", "value"},
+        request_headers={"HTTP_REQUEST_HEADER": "value"},
         response_headers={"HTTP_RESPONSE_HEADER": "value"},
     )
     assert list(span.get_tags().keys()) == [

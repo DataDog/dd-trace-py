@@ -336,19 +336,21 @@ def test_priority_sampling_response(encoding, monkeypatch):
     s.set_tag("env", "my-env")
     s.finish()
     assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
-    t.shutdown()
+    t.flush()
 
-    # For some reason the agent doesn't start returning the service information
-    # immediately
-    import time
+    # If a previous test has run then the agent might reply immediately
+    if "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers:
+        # The Agent only returns updated sampling rates once 5 seconds have passed and another request has been sent.
+        import time
 
-    time.sleep(5)
+        time.sleep(5)
+        with t.trace("operation", service="my-svc") as s:
+            s.set_tag("env", "my-env")
+        t.flush()
 
-    t = Tracer()
-    s = t.trace("operation", service="my-svc")
-    s.set_tag("env", "my-env")
-    s.finish()
-    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
+        # Agent will now reply with the sampling rates
+        with t.trace("operation", service="my-svc") as s:
+            s.set_tag("env", "my-env")
     t.shutdown()
     assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
 
@@ -767,6 +769,25 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     # Assert no logging exceptions in stderr
     assert b"KeyError: 'dd.service'" not in err
     assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err
+
+
+def test_no_module_debug_log(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        dict(
+            DD_TRACE_DEBUG="1",
+        )
+    )
+    out, err, _, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+from ddtrace import patch_all
+logging.basicConfig(level=logging.DEBUG)
+patch_all()
+        """,
+        env=env,
+    )
+    assert b"DEBUG:ddtrace._monkey:integration starlette not enabled (missing required module: starlette)" in err
 
 
 def test_no_warnings():

@@ -17,7 +17,6 @@ from .compat import user_is_authenticated
 
 log = get_logger(__name__)
 
-
 # Set on patch, when django is imported
 Resolver404 = None
 DJANGO22 = None
@@ -282,20 +281,19 @@ def _after_request_tags(pin, span, request, response):
             _set_resolver_tags(pin, span, request)
 
             response_headers = dict(response.items()) if response else {}
+            raw_uri = url
+            if raw_uri and request.META.get("QUERY_STRING"):
+                raw_uri += "?" + request.META["QUERY_STRING"]
             trace_utils.set_http_meta(
                 span,
                 config.django,
-                tracer=pin.tracer,
                 method=request.method,
                 url=url,
-                raw_uri=url + "?" + request.GET.urlencode() if url is not None else None,
+                raw_uri=raw_uri,
                 status_code=status,
                 query=request.META.get("QUERY_STRING", None),
-                query_object=request.GET.dict(),
                 request_headers=request_headers,
-                format_request_headers=dict,
                 response_headers=response_headers,
-                format_response_headers=dict,
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
             )

@@ -17,8 +17,6 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
-from ddtrace.internal.gateway import _Gateway
-from ddtrace.span import _RequestStore
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -96,13 +94,14 @@ def _default_span_processors_factory(
     partial_flush_enabled,  # type: bool
     partial_flush_min_spans,  # type: int
     appsec_enabled,  # type: bool
-    tracer,  # type: Tracer
+    compute_stats_enabled,  # type: bool
+    agent_url,  # type: str
 ):
     # type: (...) -> List[SpanProcessor]
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
-    trace_processors += [TraceSamplingProcessor()]
+    trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
     trace_processors += [TraceTopLevelSpanProcessor()]
     trace_processors += trace_filters
 
@@ -114,8 +113,6 @@ def _default_span_processors_factory(
 
             appsec_span_processor = AppSecSpanProcessor()
             span_processors.append(appsec_span_processor)
-            tracer._gateway = _Gateway()
-            appsec_span_processor.setup(tracer._gateway)
         except Exception as e:
             # DDAS-001-01
             log.error(
@@ -127,6 +124,16 @@ def _default_span_processors_factory(
             if config._raise:
                 raise
 
+    if compute_stats_enabled:
+        # Inline the import to avoid pulling in ddsketch or protobuf
+        # when importing ddtrace.
+        from .internal.processor.stats import SpanStatsProcessorV06
+
+        span_processors.append(
+            SpanStatsProcessorV06(
+                agent_url,
+            ),
+        )
     span_processors.append(
         SpanAggregator(
             partial_flush_enabled=partial_flush_enabled,
@@ -182,7 +189,8 @@ class Tracer(object):
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-        self._agent_url = agent.get_trace_url() if url is None else url
+        self._compute_stats = config._trace_compute_stats
+        self._agent_url = agent.get_trace_url() if url is None else url  # type: str
         agent.verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
@@ -195,12 +203,12 @@ class Tracer(object):
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
+                headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
-        self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", default=False))
-        self._gateway = None  # type: Optional[_Gateway]
+        self._appsec_enabled = config._appsec_enabled
 
         self._span_processors = _default_span_processors_factory(
             self._filters,
@@ -208,7 +216,8 @@ class Tracer(object):
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
-            tracer=self,
+            self._compute_stats,
+            self._agent_url,
         )
 
         self._hooks = _hooks.Hooks()
@@ -312,6 +321,7 @@ class Tracer(object):
         partial_flush_enabled=None,  # type: Optional[bool]
         partial_flush_min_spans=None,  # type: Optional[int]
         api_version=None,  # type: Optional[str]
+        compute_stats_enabled=None,  # type: Optional[bool]
     ):
         # type: (...) -> None
         """Configure a Tracer.
@@ -379,6 +389,9 @@ class Tracer(object):
         else:
             new_url = None
 
+        if compute_stats_enabled is not None:
+            self._compute_stats = compute_stats_enabled
+
         try:
             self._writer.stop()
         except ServiceStatusError:
@@ -396,6 +409,7 @@ class Tracer(object):
                 report_metrics=config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
+                headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
             )
         elif writer is None and isinstance(self._writer, LogWriter):
             # No need to do anything for the LogWriter.
@@ -417,6 +431,7 @@ class Tracer(object):
                 api_version,
                 sampler,
                 settings.get("FILTERS") if settings is not None else None,
+                compute_stats_enabled,
             ]
         ):
             self._span_processors = _default_span_processors_factory(
@@ -425,7 +440,8 @@ class Tracer(object):
                 self._partial_flush_enabled,
                 self._partial_flush_min_spans,
                 self._appsec_enabled,
-                tracer=self,
+                self._compute_stats,
+                self._agent_url,
             )
 
         if context_provider is not None:
@@ -467,7 +483,8 @@ class Tracer(object):
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
-            tracer=self,
+            self._compute_stats,
+            self._agent_url,
         )
         self._new_process = True
 
@@ -764,13 +781,6 @@ class Tracer(object):
             span_type=span_type,
             activate=True,
         )
-
-    def _current_context_store(self):
-        # type: () -> Optional[_RequestStore]
-        span = self.current_root_span()
-        if span is None:
-            return None
-        return span._request_store
 
     def current_root_span(self):
         # type: () -> Optional[Span]

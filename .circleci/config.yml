@@ -90,6 +90,21 @@ commands:
           paths:
             - ".tox"
 
+  save_pip_cache:
+    description: "Save pip cache directory"
+    steps:
+      - save_cache:
+          # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
+          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          paths:
+            - ".cache/pip"
+
+  restore_pip_cache:
+    description: "Restore pip cache directory"
+    steps:
+      - restore_cache:
+          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+
   run_test:
     description: "Run tests matching a pattern"
     parameters:
@@ -112,6 +127,7 @@ commands:
       - attach_workspace:
           at: .
       - checkout
+      - restore_pip_cache
       - when:
           condition:
               << parameters.snapshot >>
@@ -143,6 +159,7 @@ commands:
             - setup_riot
             - run:
                 command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+      - save_pip_cache
       - when:
           condition:
             << parameters.store_coverage >>
@@ -346,12 +363,6 @@ jobs:
           paths:
             - "."
 
-  gateway:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: 'gateway'
-
   appsec:
     <<: *machine_executor
     steps:
@@ -359,22 +370,29 @@ jobs:
           pattern: 'appsec'
           snapshot: true
 
+  internal:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "internal"
 
   tracer:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_test:
           pattern: "tracer"
 
   opentracer:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
 
   profile:
     <<: *contrib_job
-    parallelism: 6
+    parallelism: 7
     steps:
       - run_tox_scenario:
           store_coverage: false
@@ -530,7 +548,7 @@ jobs:
 
   celery:
     <<: *contrib_job
-    parallelism: 6
+    parallelism: 7
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -624,13 +642,14 @@ jobs:
 
   gevent:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
   grpc:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 7
     steps:
       - run_test:
           pattern: "grpc"
@@ -923,6 +942,7 @@ jobs:
 
   kombu:
     <<: *contrib_job
+    parallelism: 7
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
@@ -1057,7 +1077,6 @@ requires_tests: &requires_tests
     - test_logging
     - tracer
     - appsec
-    - gateway
     - tornado
     - urllib3
     - vertica
@@ -1111,6 +1130,7 @@ workflows:
       - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
+      - internal: *requires_base_venvs
       - vendor: *requires_base_venvs
       - profile: *requires_base_venvs
       - jinja2: *requires_base_venvs
@@ -1147,7 +1167,6 @@ workflows:
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
       - appsec: *requires_base_venvs
-      - gateway: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs

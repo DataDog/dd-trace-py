@@ -10,7 +10,6 @@ from typing import Optional
 from typing import Text
 from typing import Union
 
-import attr
 import six
 
 from . import config
@@ -49,18 +48,6 @@ _MetricDictType = Dict[_TagNameType, NumericType]
 log = get_logger(__name__)
 
 
-@attr.s(eq=False)
-class _RequestStore(object):
-    """
-    This class contains a request store:
-    One instance is associated with a given incoming HTTP request
-    It is created when the request gets in and will be destroyed when the HTTP response is fully emitted
-    As of right now, this behavior is handled by attaching the instance of the store to the root span
-    """
-
-    kept_addresses = attr.ib(type=Dict, factory=dict)
-
-
 class Span(object):
 
     __slots__ = [
@@ -74,7 +61,7 @@ class Span(object):
         "_meta",
         "error",
         "_metrics",
-        "_request_store",
+        "_store",
         "span_type",
         "start_ns",
         "duration_ns",
@@ -142,7 +129,6 @@ class Span(object):
         self._meta = {}  # type: _MetaDictType
         self.error = 0
         self._metrics = {}  # type: _MetricDictType
-        self._request_store = _RequestStore()  # type: _RequestStore
 
         # timing
         self.start_ns = time_ns() if start is None else int(start * 1e9)  # type: int
@@ -161,6 +147,7 @@ class Span(object):
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
+        self._store = None  # type: Optional[Dict[str, Any]]
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -168,6 +155,18 @@ class Span(object):
             self._ignored_exceptions = [exc]
         else:
             self._ignored_exceptions.append(exc)
+
+    def _set_ctx_item(self, key, val):
+        # type: (str, Any) -> None
+        if not self._store:
+            self._store = {}
+        self._store[key] = val
+
+    def _get_ctx_item(self, key):
+        # type: (str) -> Optional[Any]
+        if not self._store:
+            return None
+        return self._store.get(key)
 
     @property
     def start(self):

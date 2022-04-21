@@ -86,10 +86,14 @@ def override_global_config(values):
         "analytics_enabled",
         "report_hostname",
         "health_metrics_enabled",
+        "_propagation_style_extract",
+        "_propagation_style_inject",
         "env",
         "version",
         "service",
         "_raise",
+        "_trace_compute_stats",
+        "_appsec_enabled",
     ]
 
     # Grab the current values of all keys

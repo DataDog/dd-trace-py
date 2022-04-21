@@ -202,11 +202,6 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec",
         ),
         Venv(
-            name="gateway",
-            pys=select_pys(),
-            command="pytest {cmdargs} tests/gateway",
-        ),
-        Venv(
             pys=select_pys(),
             pkgs={"pytest-benchmark": latest, "msgpack": latest},
             venvs=[
@@ -272,6 +267,11 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="internal",
+            command="pytest {cmdargs} tests/internal/",
+            venvs=[Venv(pys=select_pys())],
         ),
         Venv(
             name="runtime",
@@ -371,18 +371,6 @@ venv = Venv(
                         "kombu": "~=4.3.0",
                     },
                 ),
-                Venv(
-                    pys=select_pys(max_version="3.6"),
-                    pkgs={
-                        "pytest": "~=3.10",
-                        "celery": [
-                            "~=4.0.2",
-                            "~=4.1.1",
-                        ],
-                        "redis": "~=3.5",
-                        "kombu": "~=4.4.0",
-                    },
-                ),
                 # Celery 4.2 is now limited to Kombu 4.3
                 # https://github.com/celery/celery/commit/1571d414461f01ae55be63a03e2adaa94dbcb15d
                 Venv(
@@ -417,9 +405,7 @@ venv = Venv(
                     },
                     pkgs={
                         "celery": [
-                            # Pin until https://github.com/celery/celery/issues/6829 is resolved.
-                            # "~=5.0.5",
-                            "==5.0.5",
+                            "~=5.0.5",
                             "~=5.0",  # most recent 5.x
                             latest,
                         ],

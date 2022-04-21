@@ -2,6 +2,7 @@ import errno
 import json
 import os
 import os.path
+from typing import Set
 from typing import TYPE_CHECKING
 
 import attr
@@ -9,8 +10,9 @@ import attr
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
+from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.gateway import _Addresses
+from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -19,8 +21,7 @@ from ddtrace.vendor.dogstatsd import statsd
 if TYPE_CHECKING:
     from typing import Dict
 
-    from ddtrace import Span
-    from ddtrace.internal.gateway import _Gateway
+    from ddtrace.span import Span
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
@@ -30,8 +31,26 @@ DEFAULT_WAF_TIMEOUT = 20  # ms
 log = get_logger(__name__)
 
 
+def _no_cookies(data):
+    # type: (Dict[str, str]) -> Dict[str, str]
+    return {key: value for key, value in data.items() if key.lower() not in ("cookie", "set-cookie")}
+
+
 def get_rules():
+    # type: () -> str
     return os.getenv("DD_APPSEC_RULES", default=DEFAULT_RULES)
+
+
+class _Addresses(object):
+    SERVER_REQUEST_BODY = "server.request.body"
+    SERVER_REQUEST_QUERY = "server.request.query"
+    SERVER_REQUEST_HEADERS_NO_COOKIES = "server.request.headers.no_cookies"
+    SERVER_REQUEST_URI_RAW = "server.request.uri.raw"
+    SERVER_REQUEST_METHOD = "server.request.method"
+    SERVER_REQUEST_PATH_PARAMS = "server.request.path_params"
+    SERVER_REQUEST_COOKIES = "server.request.cookies"
+    SERVER_RESPONSE_STATUS = "server.response.status"
+    SERVER_RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
 
 
 def get_rate_limiter():
@@ -63,14 +82,14 @@ COLLECTED_REQUEST_HEADERS = {
     "x-real-ip",
 }
 
-COLLECTED_HEADER_PREFIX = "http.request.headers."
+_COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 
 def _set_headers(span, headers):
     # type: (Span, Dict) -> None
     for k in headers:
-        if k.lower() in COLLECTED_REQUEST_HEADERS:
-            span._set_str_tag(COLLECTED_HEADER_PREFIX + k.lower(), headers[k])
+        if k.lower() in _COLLECTED_REQUEST_HEADERS:
+            span._set_str_tag(_normalize_tag_name("request", k), headers[k])
 
 
 @attr.s(eq=False)
@@ -78,6 +97,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
+    _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=get_rate_limiter)
     _waf_timeout = attr.ib(type=int, factory=get_waf_timeout)
 
@@ -115,17 +135,22 @@ class AppSecSpanProcessor(SpanProcessor):
                 # Partial of DDAS-0005-00
                 log.warning("[DDAS-0005-00] WAF initialization failed")
                 raise
-
-    def setup(self, gateway):
-        # type: (_Gateway) -> None
         for address in self._ddwaf.required_data:
-            gateway.mark_needed(address)
+            self._mark_needed(address)
         # we always need the request headers
-        gateway.mark_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value)
+        self._mark_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES)
 
     def on_span_start(self, span):
         # type: (Span) -> None
         pass
+
+    def _mark_needed(self, address):
+        # type: (str) -> None
+        self._addresses_to_keep.add(address)
+
+    def _is_needed(self, address):
+        # type: (str) -> bool
+        return address in self._addresses_to_keep
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -133,8 +158,48 @@ class AppSecSpanProcessor(SpanProcessor):
             return
         span.set_metric("_dd.appsec.enabled", 1.0)
         span._set_str_tag("_dd.runtime_family", "python")
-        store = span._request_store  # since we are on the 'web' span, the store is here!
-        data = store.kept_addresses
+
+        data = {}
+        if self._is_needed(_Addresses.SERVER_REQUEST_QUERY):
+            request_query = _context.get_item("http.request.query", span=span)
+            if request_query is not None:
+                data[_Addresses.SERVER_REQUEST_QUERY] = request_query
+
+        if self._is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES):
+            request_headers = _context.get_item("http.request.headers", span=span)
+            if request_headers is not None:
+                data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES] = _no_cookies(request_headers)
+
+        if self._is_needed(_Addresses.SERVER_REQUEST_URI_RAW):
+            uri = _context.get_item("http.request.uri", span=span)
+            if uri is not None:
+                data[_Addresses.SERVER_REQUEST_URI_RAW] = uri
+
+        if self._is_needed(_Addresses.SERVER_REQUEST_METHOD):
+            request_method = _context.get_item("http.request.method", span=span)
+            if request_method is not None:
+                data[_Addresses.SERVER_REQUEST_METHOD] = request_method
+
+        if self._is_needed(_Addresses.SERVER_REQUEST_PATH_PARAMS):
+            path_params = _context.get_item("http.request.path_params", span=span)
+            if path_params is not None:
+                data[_Addresses.SERVER_REQUEST_PATH_PARAMS] = path_params
+
+        if self._is_needed(_Addresses.SERVER_REQUEST_COOKIES):
+            cookies = _context.get_item("http.request.cookies", span=span)
+            if cookies is not None:
+                data[_Addresses.SERVER_REQUEST_COOKIES] = cookies
+
+        if self._is_needed(_Addresses.SERVER_RESPONSE_STATUS):
+            status = _context.get_item("http.response.status", span=span)
+            if status is not None:
+                data[_Addresses.SERVER_RESPONSE_STATUS] = status
+
+        if self._is_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES):
+            response_headers = _context.get_item("http.response.headers", span=span)
+            if response_headers is not None:
+                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _no_cookies(response_headers)
+
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
         if res is not None:
@@ -142,12 +207,14 @@ class AppSecSpanProcessor(SpanProcessor):
             if not allowed:
                 statsd.increment('_dd.py.appsec.rate_limit.dropped_traces')
                 return
-            if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value in data:
-                _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES.value])
+            if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES in data:
+                _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES])
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span._set_str_tag("appsec.event", "true")
             span._set_str_tag("_dd.appsec.json", '{"triggers":%s}' % (res,))
+            # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
+            # specs are updated.
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
                 span._set_str_tag(ORIGIN_KEY, "appsec")
