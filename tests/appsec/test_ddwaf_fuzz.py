@@ -1,4 +1,4 @@
-# import sys
+import sys
 
 from hypothesis import given
 from hypothesis import strategies as st
@@ -26,9 +26,7 @@ def test_ddwaf_objects_wrapper(obj, kwargs):
 
 
 if __name__ == "__main__":
-    # import atheris
-    pass
+    import atheris
 
-    # FIXME(@vdeturckheim): un-comment this for next release
-    # atheris.Setup(sys.argv, atheris.instrument_func(test_ddwaf_objects_wrapper.hypothesis.fuzz_one_input))
-    # atheris.Fuzz()
+    atheris.Setup(sys.argv, atheris.instrument_func(test_ddwaf_objects_wrapper.hypothesis.fuzz_one_input))
+    atheris.Fuzz()
