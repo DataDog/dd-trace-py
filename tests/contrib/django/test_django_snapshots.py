@@ -14,7 +14,7 @@ SERVER_PORT = 8000
 
 
 @contextmanager
-def daphne_client(django_asgi):
+def daphne_client(django_asgi, additional_env=None):
     """Runs a django app hosted with a daphne webserver in a subprocess and
     returns a client which can be used to query it.
 
@@ -25,6 +25,7 @@ def daphne_client(django_asgi):
     # Make sure to copy the environment as we need the PYTHONPATH and _DD_TRACE_WRITER_ADDITIONAL_HEADERS (for the test
     # token) propagated to the new process.
     env = os.environ.copy()
+    env.update(additional_env or {})
     assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
     env.update(
         {
@@ -206,3 +207,20 @@ def test_asgi_500():
     with daphne_client("application") as client:
         resp = client.get("/error-500/")
         assert resp.status_code == 500
+
+
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
+@snapshot(ignores=["meta.error.stack"])
+def test_appsec_enabled():
+    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
+
+
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
+@snapshot(ignores=["meta.error.stack"])
+def test_appsec_enabled_attack():
+    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
+        resp = client.get("/.git")
+        assert resp.status_code == 404

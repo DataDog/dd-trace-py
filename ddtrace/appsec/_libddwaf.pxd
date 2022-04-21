@@ -27,6 +27,12 @@ cdef extern from "include/ddwaf.h":
         uint64_t nbEntries
         DDWAF_OBJ_TYPE type
 
+    ctypedef struct ddwaf_ruleset_info:
+        uint16_t loaded
+        uint16_t failed
+        ddwaf_object errors
+        const char *version
+
     ctypedef struct ddwaf_handle:
         pass
 
@@ -45,7 +51,7 @@ cdef extern from "include/ddwaf.h":
 
     ctypedef void (*ddwaf_object_free_fn)(ddwaf_object *object);
 
-    ddwaf_handle ddwaf_init(const ddwaf_object* rules, const ddwaf_config* config);
+    ddwaf_handle ddwaf_init(const ddwaf_object* rules, const ddwaf_config* config, ddwaf_ruleset_info *info);
     ddwaf_context ddwaf_context_init(const ddwaf_handle handle, ddwaf_object_free_fn obj_free);
     DDWAF_RET_CODE ddwaf_run(ddwaf_context context, ddwaf_object* data, ddwaf_result* result, uint64_t timeout);
     void ddwaf_context_destroy(ddwaf_context context);
