@@ -55,7 +55,7 @@ class _Addresses(object):
 
 
 def get_rate_limiter():
-    return RateLimiter(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", default=DEFAULT_TRACE_RATE_LIMIT))
+    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", default=DEFAULT_TRACE_RATE_LIMIT)))
 
 
 def get_waf_timeout():

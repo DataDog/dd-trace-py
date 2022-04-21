@@ -107,3 +107,23 @@ def test_appsec_span_tags_snapshot(tracer):
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+def test_appsec_span_rate_limit(tracer):
+    os.environ["DD_APPSEC_TRACE_RATE_LIMIT"] = "1"
+    _enable_appsec(tracer)
+
+    # we have 2 spans going through with a rate limit of 1: this is because the first span will update the rate
+    # limiter last update timestamp. In other words, we need a first call to reset the rate limiter's clock
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span1:
+        set_http_meta(span1, {}, raw_uri="http://example.com/.git", status_code="404")
+
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span2:
+        set_http_meta(span2, {}, raw_uri="http://example.com/.git", status_code="404")
+
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span3:
+        set_http_meta(span3, {}, raw_uri="http://example.com/.git", status_code="404")
+
+    assert "_dd.appsec.json" in span1._meta
+    assert "_dd.appsec.json" in span2._meta
+    assert "_dd.appsec.json" not in span3._meta
+    del os.environ["DD_APPSEC_TRACE_RATE_LIMIT"]
