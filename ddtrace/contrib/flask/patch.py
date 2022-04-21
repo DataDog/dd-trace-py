@@ -9,7 +9,6 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...internal.compat import ensure_text
 from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
@@ -318,11 +317,6 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         span._set_str_tag(FLASK_VERSION, flask_version_str)
 
         start_response = _wrap_start_response(start_response, span, request)
-        try:
-            # request.query_string is bytes
-            query = ensure_text(request.query_string)
-        except Exception:
-            query = ""
 
         # DEV: We set response status code in `_wrap_start_response`
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
@@ -332,7 +326,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             method=request.method,
             url=request.base_url,
             raw_uri=request.url,
-            query=query,
+            query=request.query_string,
             request_headers=request.headers,
             request_path_params=request.args,
         )

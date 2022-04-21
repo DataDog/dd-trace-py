@@ -54,14 +54,6 @@ class _Addresses(object):
     SERVER_RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
 
 
-def get_rate_limiter():
-    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", default=DEFAULT_TRACE_RATE_LIMIT)))
-
-
-def get_waf_timeout():
-    return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", default=DEFAULT_WAF_TIMEOUT))
-
-
 _COLLECTED_REQUEST_HEADERS = {
     "accept",
     "accept-encoding",

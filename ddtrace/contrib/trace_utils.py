@@ -18,7 +18,6 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
 from ddtrace.internal import _context
-from ddtrace.internal.compat import parse
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -298,21 +297,13 @@ def set_http_meta(
 
     if config._appsec:
         status_code = str(status_code) if status_code is not None else None
-        if query is not None:
-            try:
-                # In non-unicode cases, this can fail, let's be safe
-                query_object = parse.parse_qs(query)
-            except Exception:
-                query_object = None
-        else:
-            query_object = None
+
         _context.set_items(
             {
                 k: v
                 for k, v in [
                     ("http.request.uri", raw_uri),
                     ("http.request.method", method),
-                    ("http.request.query", query_object),
                     ("http.request.cookies", request_cookies),
                     ("http.request.headers", request_headers),
                     ("http.response.headers", response_headers),
