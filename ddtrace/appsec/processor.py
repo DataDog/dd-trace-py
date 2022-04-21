@@ -85,14 +85,24 @@ def _set_headers(span, headers):
             span._set_str_tag(_normalize_tag_name("request", k), headers[k])
 
 
+def _get_rate_limiter():
+    # type: () -> RateLimiter
+    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT_TRACE_RATE_LIMIT)))
+
+
+def _get_waf_timeout():
+    # type: () -> int
+    return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT_WAF_TIMEOUT))
+
+
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
 
     rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
-    _rate_limiter = attr.ib(type=RateLimiter, factory=get_rate_limiter)
-    _waf_timeout = attr.ib(type=int, factory=get_waf_timeout)
+    _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
+    _waf_timeout = attr.ib(type=int, factory=_get_waf_timeout)
 
     @property
     def enabled(self):
