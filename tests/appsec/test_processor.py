@@ -108,6 +108,7 @@ def test_appsec_span_tags_snapshot(tracer):
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
+
 def test_appsec_span_rate_limit(tracer):
     os.environ["DD_APPSEC_TRACE_RATE_LIMIT"] = "1"
     _enable_appsec(tracer)
