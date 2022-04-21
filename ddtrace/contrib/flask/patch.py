@@ -9,7 +9,6 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...internal.compat import ensure_text
 from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
