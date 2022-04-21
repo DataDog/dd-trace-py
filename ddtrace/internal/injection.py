@@ -106,7 +106,8 @@ def inject_hooks(f, hooks):
         except InvalidLine:
             failed.append((hook, line, arg))
 
-    _function_with_new_code(f, abstract_code)
+    if len(failed) < len(hooks):
+        _function_with_new_code(f, abstract_code)
 
     return failed
 
@@ -129,7 +130,8 @@ def eject_hooks(f, hooks):
         except InvalidLine:
             failed.append((hook, line, arg))
 
-    _function_with_new_code(f, abstract_code)
+    if len(failed) < len(hooks):
+        _function_with_new_code(f, abstract_code)
 
     return failed
 
