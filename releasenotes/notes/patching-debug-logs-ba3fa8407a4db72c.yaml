@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Improve debug logs for tracer patching.
