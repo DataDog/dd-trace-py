@@ -61,7 +61,7 @@ def get_waf_timeout():
     return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", default=DEFAULT_WAF_TIMEOUT))
 
 
-COLLECTED_REQUEST_HEADERS = {
+_COLLECTED_REQUEST_HEADERS = {
     "accept",
     "accept-encoding",
     "accept-language",
