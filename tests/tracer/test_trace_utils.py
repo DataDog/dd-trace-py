@@ -399,8 +399,6 @@ def test_set_http_meta(
             assert _context.get_item("http.request.uri", span=span) == uri
         if method is not None:
             assert _context.get_item("http.request.method", span=span) == method
-        if query is not None:
-            assert _context.get_item("http.request.query", span=span) == parse.parse_qs(query)
         if request_headers is not None:
             assert _context.get_item("http.request.headers", span=span) == request_headers
         if response_headers is not None:
