@@ -111,7 +111,7 @@ def throwexcstuff():
 
 
 # TODO: We don't support lambdas for the same reasons we don't support local
-# functions. See comment in ddtrace.debugger._function.map
+# functions.
 def lambdastuff():
     return (lambda x: x << 1)(21)
 

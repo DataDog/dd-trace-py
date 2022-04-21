@@ -23,7 +23,7 @@ def injected_hook(f, hook, arg):
 
     yield f
 
-    eject_hook(f, line, arg)
+    eject_hook(f, hook, line, arg)
 
     if sys.version_info[:2] not in {(3, 5), (3, 6)}:
         assert f.__code__ == code
@@ -73,7 +73,7 @@ def test_eject_hook():
     hook = mock.Mock()
 
     lo = min(linenos(injection_target))
-    result = eject_hook(inject_hook(injection_target, hook, lo, hook), lo, hook)
+    result = eject_hook(inject_hook(injection_target, hook, lo, hook), hook, lo, hook)
 
     assert result(1, 2) == (2, 1)
 
@@ -81,15 +81,36 @@ def test_eject_hook():
 
 
 def test_inject_hooks():
-    hooks = [mock.Mock("hook%d" % _) for _ in range(2)]
+    n = 2
+    hooks = [mock.Mock("hook%d" % _) for _ in range(n)]
 
     lo = min(linenos(injection_target))
-    lines = list(range(lo, lo + 2))
-    idents = [42, 43]
-    result = inject_hooks(injection_target, list(zip(hooks, lines, idents)))
-    assert result(1, 2) == (2, 1)
+    lines = list(range(lo, lo + n))
+    idents = list(range(42, 42 + n))
+
+    failed = inject_hooks(injection_target, list(zip(hooks, lines, idents)))
+    assert failed == []
+
+    assert injection_target(1, 2) == (2, 1)
 
     for hook, ident in zip(hooks, idents):
+        hook.assert_called_with(ident)
+
+
+def test_inject_hooks_some_invalid():
+    lines = list(linenos(injection_target))
+    lines.append(max(lines) + 10)
+    n = len(lines)
+    hooks = [mock.Mock("hook%d" % _) for _ in range(n)]
+
+    idents = list(range(42, 42 + n))
+
+    failed = inject_hooks(injection_target, list(zip(hooks, lines, idents)))
+    assert failed == [(hooks[-1], lines[-1], idents[-1])]
+
+    assert injection_target(1, 2) == (2, 1)
+
+    for hook, ident in zip(hooks[:-1], idents):
         hook.assert_called_with(ident)
 
 
@@ -98,8 +119,34 @@ def test_eject_hooks():
 
     lo = min(linenos(injection_target))
     lines = list(range(lo, lo + 2))
-    result = eject_hooks(inject_hooks(injection_target, list(zip(hooks, lines, hooks))), list(zip(lines, hooks)))
-    assert result(1, 2) == (2, 1)
+    hook_data = list(zip(hooks, lines, hooks))
+    failed = inject_hooks(injection_target, hook_data)
+    assert failed == []
+
+    failed = eject_hooks(injection_target, hook_data)
+    assert failed == []
+
+    assert injection_target(1, 2) == (2, 1)
+
+    for hook in hooks:
+        hook.assert_not_called()
+
+
+def test_eject_hooks_some_invalid():
+    hooks = [mock.Mock("hook%d" % _) for _ in range(2)]
+
+    lo = min(linenos(injection_target))
+    lines = list(range(lo, lo + 2))
+    hook_data = list(zip(hooks, lines, hooks))
+    failed = inject_hooks(injection_target, hook_data)
+    assert failed == []
+
+    invalid_hook = (hooks[-1], lines[-1] + 200, hooks[-1])
+    hook_data.append(invalid_hook)
+    failed = eject_hooks(injection_target, hook_data)
+    assert failed == [invalid_hook]
+
+    assert injection_target(1, 2) == (2, 1)
 
     for hook in hooks:
         hook.assert_not_called()
@@ -113,10 +160,13 @@ def test_eject_hooks_same_line():
     shuffled_lines = list(lines)
     shuffle(shuffled_lines)
 
-    result = eject_hooks(
-        inject_hooks(injection_target, list(zip(hooks, lines, hooks))), list(zip(shuffled_lines, hooks))
-    )
-    assert result(1, 2) == (2, 1)
+    failed = inject_hooks(injection_target, list(zip(hooks, lines, hooks)))
+    assert failed == []
+
+    failed = eject_hooks(injection_target, list(zip(hooks, shuffled_lines, hooks)))
+    assert failed == []
+
+    assert injection_target(1, 2) == (2, 1)
 
     for hook in hooks:
         hook.assert_not_called()

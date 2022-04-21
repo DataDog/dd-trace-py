@@ -7,11 +7,9 @@ from typing import Tuple
 from bytecode import Bytecode
 from bytecode import Instr
 
-from ddtrace.internal.utils.importlib import func_name
 
-
-_HookType = Callable[[Any], Any]
-
+HookType = Callable[[Any], Any]
+HookInfoType = Tuple[HookType, int, Any]
 
 HOOK_ARG_PREFIX = "_hook_arg"
 
@@ -23,7 +21,7 @@ class InvalidLine(Exception):
 
 
 def _inject_hook(code, hook, lineno, arg):
-    # type: (Bytecode, _HookType, int, Any) -> None
+    # type: (Bytecode, HookType, int, Any) -> None
     """Inject a hook at the given line number inside an abstract code object.
 
     The hook is called with the given argument, which is also used as an
@@ -39,8 +37,12 @@ def _inject_hook(code, hook, lineno, arg):
             # pseudo-instruction (e.g. label)
             pass
     else:
-        raise InvalidLine("Line %d is blank or a comment line" % lineno)
+        raise InvalidLine("Line %d does not exist or is either blank or a comment" % lineno)
 
+    # DEV: This is the bytecode equivalent of
+    # >>> hook(arg)
+    # Additionally, we must discard the return value (top of the stack) to
+    # restore the stack to the state prior to the call.
     code[i:i] = Bytecode(
         [
             Instr("LOAD_CONST", hook, lineno=lineno),
@@ -51,8 +53,8 @@ def _inject_hook(code, hook, lineno, arg):
     )
 
 
-def _eject_hook(code, line, arg):
-    # type: (Bytecode, int, Any) -> None
+def _eject_hook(code, hook, line, arg):
+    # type: (Bytecode, HookType, int, Any) -> None
     """Eject a hook from the abstract code object at the given line number.
 
     The hook is identified by its argument. This ensures that only the right
@@ -64,6 +66,7 @@ def _eject_hook(code, line, arg):
             # hook and we also test for the expected opcode arguments
             if (
                 instr.lineno == line
+                and code[i].arg is hook
                 and code[i + 1].arg is arg
                 and [code[_].name for _ in range(i, i + 4)] == ["LOAD_CONST", "LOAD_CONST", "CALL_FUNCTION", "POP_TOP"]
             ):
@@ -85,70 +88,76 @@ def _function_with_new_code(f, abstract_code):
     return f
 
 
-def inject_hooks(f, hs):
-    # type: (FunctionType, List[Tuple[_HookType, int, Any]]) -> FunctionType
+def inject_hooks(f, hooks):
+    # type: (FunctionType, List[HookInfoType]) -> List[HookInfoType]
     """Bulk-inject a list of hooks into a function.
 
     Hooks are specified via a list of tuples, where each tuple contains the hook
     itself, the line number and the identifying argument passed to the hook.
+
+    Returns the list of hooks that failed to be injected.
     """
-    f_code = f.__code__
-    abstract_code = Bytecode.from_code(f_code)
+    abstract_code = Bytecode.from_code(f.__code__)
 
-    # sanity check
-    assert len(abstract_code), "Abstract code has opcodes"
+    failed = []
+    for hook, line, arg in hooks:
+        try:
+            _inject_hook(abstract_code, hook, line, arg)
+        except InvalidLine:
+            failed.append((hook, line, arg))
 
-    lines = {_.lineno for _ in abstract_code if hasattr(_, "lineno")}
-    for _, line, _ in hs:
-        if line not in lines:
-            raise InvalidLine("Invalid line number '%d' for function '%s'" % (line, func_name(f)))
+    _function_with_new_code(f, abstract_code)
 
-    for h, line, arg in hs:
-        _inject_hook(abstract_code, h, line, arg)
-
-    return _function_with_new_code(f, abstract_code)
+    return failed
 
 
-def eject_hooks(f, ls):
-    # type: (FunctionType, List[Tuple[int, Any]]) -> FunctionType
+def eject_hooks(f, hooks):
+    # type: (FunctionType, List[HookInfoType]) -> List[HookInfoType]
     """Bulk-eject a list of hooks from a function.
 
     The hooks are specified via a list of tuples, where each tuple contains the
     hook line number and the identifying argument.
+
+    Returns the list of hooks that failed to be ejected.
     """
-    f_code = f.__code__
-    abstract_code = Bytecode.from_code(f_code)
+    abstract_code = Bytecode.from_code(f.__code__)
 
-    # sanity check
-    assert len(abstract_code)
+    failed = []
+    for hook, line, arg in hooks:
+        try:
+            _eject_hook(abstract_code, hook, line, arg)
+        except InvalidLine:
+            failed.append((hook, line, arg))
 
-    linenos = {_.lineno for _ in abstract_code if hasattr(_, "lineno")}
-    for line, _ in ls:
-        if line not in linenos:
-            raise InvalidLine("Invalid line number '%d' for function '%s'" % (line, func_name(f)))
+    _function_with_new_code(f, abstract_code)
 
-    for line, arg in ls:
-        _eject_hook(abstract_code, line, arg)
-
-    return _function_with_new_code(f, abstract_code)
+    return failed
 
 
-def inject_hook(f, h, line, arg):
-    # type: (FunctionType, _HookType, int, Any) -> FunctionType
+def inject_hook(f, hook, line, arg):
+    # type: (FunctionType, HookType, int, Any) -> FunctionType
     """Inject a hook into a function.
 
     The hook is injected at the given line number and called with the given
     argument. The latter is also used as an identifier for the hook. This should
     be kept in case the hook needs to be removed.
     """
-    return inject_hooks(f, [(h, line, arg)])
+    abstract_code = Bytecode.from_code(f.__code__)
+
+    _inject_hook(abstract_code, hook, line, arg)
+
+    return _function_with_new_code(f, abstract_code)
 
 
-def eject_hook(f, line, arg):
-    # type: (FunctionType, int, Any) -> FunctionType
+def eject_hook(f, hook, line, arg):
+    # type: (FunctionType, HookType, int, Any) -> FunctionType
     """Eject a hook from a function.
 
     The hook is identified by its line number and the argument passed to the
     hook.
     """
-    return eject_hooks(f, [(line, arg)])
+    abstract_code = Bytecode.from_code(f.__code__)
+
+    _eject_hook(abstract_code, hook, line, arg)
+
+    return _function_with_new_code(f, abstract_code)
