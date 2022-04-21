@@ -18,6 +18,7 @@ from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.vendor.dogstatsd import statsd
 
+
 if TYPE_CHECKING:
     from typing import Dict
 
@@ -205,7 +206,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if res is not None:
             allowed = self._rate_limiter.is_allowed(span.start_ns)
             if not allowed:
-                statsd.increment('_dd.py.appsec.rate_limit.dropped_traces')
+                statsd.increment("_dd.py.appsec.rate_limit.dropped_traces")
                 return
             if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES in data:
                 _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES])
