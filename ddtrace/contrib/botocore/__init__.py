@@ -37,6 +37,21 @@ Configuration
     Default: ``False``
 
 
+.. py:data:: ddtrace.config.botocore['s3_head_object_404_as_error']
+
+    Whether any ``botocore.exceptions.ClientError`` exceptions raise for 404 responses to
+    S3 ``HeadObject`` API calls should mark the representing span as an error.
+
+    By default we mark these spans as having an exception.
+
+    You can disable this behavior (ignore the exception) by configuring
+    ``ddtrace.config.botocore.s3_head_object_404_as_error = True`` or by setting the environment
+    variable ``DD_BOTOCORE_S3_HEAD_OBJECT_404_AS_ERROR=true``.
+
+
+    Default: ``True``
+
+
 Example::
 
     from ddtrace import config

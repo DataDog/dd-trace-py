@@ -5,6 +5,7 @@ import json
 import unittest
 import zipfile
 
+import botocore.exceptions
 import botocore.session
 from moto import mock_ec2
 from moto import mock_events
@@ -26,6 +27,9 @@ except ImportError:
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.botocore.patch import patch
 from ddtrace.contrib.botocore.patch import unpatch
 from ddtrace.internal.compat import PY2
@@ -138,6 +142,63 @@ class BotocoreTest(TracerTestCase):
             span = spans[0]
             assert span.error == 1
             assert span.resource == "s3.listobjects"
+
+    @mock_s3
+    def test_s3_head_404_default(self):
+        """
+        By default we attach exception information to s3 HeadObject
+        API calls with a 404 response
+        """
+        s3 = self.session.create_client("s3", region_name="us-west-2")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
+
+        # We need a bucket for this test
+        s3.create_bucket(Bucket="test", CreateBucketConfiguration=dict(LocationConstraint="us-west-2"))
+        try:
+            with pytest.raises(botocore.exceptions.ClientError):
+                s3.head_object(Bucket="test", Key="unknown")
+        finally:
+            # Make sure to always delete the bucket after we are done
+            s3.delete_bucket(Bucket="test")
+
+        spans = self.get_spans()
+        assert len(spans) == 3
+
+        head_object = spans[1]
+        assert head_object.name == "s3.command"
+        assert head_object.resource == "s3.headobject"
+        assert head_object.error == 1
+        for t in (ERROR_MSG, ERROR_STACK, ERROR_TYPE):
+            assert head_object.get_tag(t) is not None
+
+    @mock_s3
+    def test_s3_head_404_errors_disabled(self):
+        """
+        When setting config.botocore.s3_head_object_404_as_error = False
+        we do not attach exception information to S3 HeadObject 404 responses
+        """
+        s3 = self.session.create_client("s3", region_name="us-west-2")
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
+
+        # We need a bucket for this test
+        s3.create_bucket(Bucket="test", CreateBucketConfiguration=dict(LocationConstraint="us-west-2"))
+        try:
+            with pytest.raises(botocore.exceptions.ClientError):
+                with self.override_config("botocore", {"s3_head_object_404_as_error": False}):
+                    s3.head_object(Bucket="test", Key="unknown")
+        finally:
+            # Make sure to always delete the bucket after we are done
+            s3.delete_bucket(Bucket="test")
+
+        spans = self.get_spans()
+        assert len(spans) == 3
+
+        head_object = spans[1]
+        assert head_object.name == "s3.command"
+        assert head_object.resource == "s3.headobject"
+        assert head_object.error == 0
+        for t in (ERROR_MSG, ERROR_STACK, ERROR_TYPE):
+            assert head_object.get_tag(t) is None
 
     @mock_s3
     def test_s3_put(self):

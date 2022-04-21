@@ -11,6 +11,7 @@ from typing import List
 from typing import Optional
 
 import botocore.client
+import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.vendor import wrapt
@@ -49,6 +50,7 @@ config._add(
     {
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
+        "s3_head_object_404_as_error": asbool(os.getenv("DD_BOTOCORE_S3_HEAD_OBJECT_404_AS_ERROR", default=True)),
     },
 )
 
@@ -333,20 +335,39 @@ def patched_api_call(original_func, instance, args, kwargs):
         if region_name is not None:
             span._set_str_tag("aws.region", region_name)
 
-        result = original_func(*args, **kwargs)
-
-        response_meta = result.get("ResponseMetadata")
-        if response_meta:
-            if "HTTPStatusCode" in response_meta:
-                span.set_tag(http.STATUS_CODE, response_meta["HTTPStatusCode"])
-
-            if "RetryAttempts" in response_meta:
-                span.set_tag("retry_attempts", response_meta["RetryAttempts"])
-
-            if "RequestId" in response_meta:
-                span.set_tag("aws.requestid", response_meta["RequestId"])
-
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
 
-        return result
+        try:
+            result = original_func(*args, **kwargs)
+            _set_response_metadata_tags(span, result)
+
+            return result
+        except botocore.exceptions.ClientError as e:
+            # `ClientError.response` contains the result, so we can still grab response metadata
+            _set_response_metadata_tags(span, e.response)
+
+            # Do not mark 404 response for s3.headobject as an error span
+            if span.resource == "s3.headobject" and not config.botocore.s3_head_object_404_as_error:
+                status_code = span.get_tag(http.STATUS_CODE)
+                if status_code == "404":
+                    span._ignore_exception(botocore.exceptions.ClientError)
+
+            raise
+
+
+def _set_response_metadata_tags(span, result):
+    # type: (Span, Dict[str, Any]) -> None
+    if not result.get("ResponseMetadata"):
+        return
+
+    response_meta = result["ResponseMetadata"]
+
+    if "HTTPStatusCode" in response_meta:
+        span.set_tag(http.STATUS_CODE, response_meta["HTTPStatusCode"])
+
+    if "RetryAttempts" in response_meta:
+        span.set_tag("retry_attempts", response_meta["RetryAttempts"])
+
+    if "RequestId" in response_meta:
+        span.set_tag("aws.requestid", response_meta["RequestId"])
