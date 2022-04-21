@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    internal: improve debug logs for tracer patching
