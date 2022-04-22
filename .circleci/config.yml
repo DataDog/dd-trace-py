@@ -642,13 +642,14 @@ jobs:
 
   gevent:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
   grpc:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 7
     steps:
       - run_test:
           pattern: "grpc"
