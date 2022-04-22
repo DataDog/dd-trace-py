@@ -38,11 +38,13 @@ def _transform_headers(data):
         if header in ("cookie", "set-cookie"):
             continue
         if header in normalized:  # if a header with the same lowercase name already exists, let's make it an array
-            if not isinstance(normalized[header], list):
-                normalized[header] = [normalized[header]]  # type: ignore
-            normalized[header].append(value)  # type: ignore
-            continue
-        normalized[header] = value
+            existing = normalized[header]
+            if isinstance(existing, list):
+                existing.append(value)
+            else:
+                normalized[header] = [existing, value]
+        else:
+            normalized[header] = value
     return normalized
 
 
