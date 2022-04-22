@@ -44,7 +44,7 @@ def test_transform_headers():
     ) == {
         "hello": "world",
         "foo": ["bar1", "bar2", "bar3"],
-        "     bar": "baz",
+        "bar": "baz",
     }
 
 
