@@ -2,10 +2,12 @@
 Trace queries to aws api done via botocore client
 """
 import base64
+import collections
 import json
 import os
 import typing
 from typing import Any
+from typing import DefaultDict
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -14,6 +16,7 @@ import botocore.client
 import botocore.exceptions
 
 from ddtrace import config
+from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -44,13 +47,29 @@ MAX_EVENTBRIDGE_DETAIL_SIZE = 1 << 18  # 256KB
 
 log = get_logger(__name__)
 
+
+def _parse_client_error_ignores(value):
+    # type: (Optional[str]) -> DefaultDict[str, Config._HTTPServerConfig]
+    ignores = collections.defaultdict(Config._HTTPServerConfig)
+
+    if not value:
+        return ignores
+
+    # Expected format: <operation>:<error-statuses>[,<operation>:<error-statuses> ...]
+    for part in value.split(","):
+        operation, error_statuses = part.split(":")
+        ignores[operation].error_statuses = error_statuses
+
+    return ignores
+
+
 # Botocore default settings
 config._add(
     "botocore",
     {
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
-        "s3_head_object_404_as_error": asbool(os.getenv("DD_BOTOCORE_S3_HEAD_OBJECT_404_AS_ERROR", default=True)),
+        "client_error_ignores": _parse_client_error_ignores(os.getenv("DD_BOTOCORE_CLIENT_ERROR_IGNORES")),
     },
 )
 
@@ -347,12 +366,16 @@ def patched_api_call(original_func, instance, args, kwargs):
             # `ClientError.response` contains the result, so we can still grab response metadata
             _set_response_metadata_tags(span, e.response)
 
-            # Do not mark 404 response for s3.headobject as an error span
-            if span.resource == "s3.headobject" and not config.botocore.s3_head_object_404_as_error:
+            # Check if the user defined an ignore rule for this exception
+            client_error_ignores = (
+                config.botocore.client_error_ignores
+            )  # type: DefaultDict[str, Config._HTTPServerConfig]
+            if span.resource in client_error_ignores:
                 status_code = span.get_tag(http.STATUS_CODE)
-                if status_code == "404":
-                    span._ignore_exception(botocore.exceptions.ClientError)
-
+                if status_code:
+                    status_code = int(status_code)
+                    if client_error_ignores[span.resource].is_error_code(status_code):
+                        span._ignore_exception(botocore.exceptions.ClientError)
             raise
 
 

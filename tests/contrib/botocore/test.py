@@ -174,7 +174,7 @@ class BotocoreTest(TracerTestCase):
     @mock_s3
     def test_s3_head_404_errors_disabled(self):
         """
-        When setting config.botocore.s3_head_object_404_as_error = False
+        When add 404 as a client error ignore for "s3.headobject" operation
         we do not attach exception information to S3 HeadObject 404 responses
         """
         s3 = self.session.create_client("s3", region_name="us-west-2")
@@ -182,11 +182,15 @@ class BotocoreTest(TracerTestCase):
 
         # We need a bucket for this test
         s3.create_bucket(Bucket="test", CreateBucketConfiguration=dict(LocationConstraint="us-west-2"))
+
+        config.botocore.client_error_ignores["s3.headobject"].error_statuses = "404"
         try:
             with pytest.raises(botocore.exceptions.ClientError):
-                with self.override_config("botocore", {"s3_head_object_404_as_error": False}):
-                    s3.head_object(Bucket="test", Key="unknown")
+                s3.head_object(Bucket="test", Key="unknown")
         finally:
+            # Make sure we reset the config when we are done
+            del config.botocore.client_error_ignores["s3.headobject"]
+
             # Make sure to always delete the bucket after we are done
             s3.delete_bucket(Bucket="test")
 
