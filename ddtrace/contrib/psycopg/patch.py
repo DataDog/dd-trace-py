@@ -22,12 +22,8 @@ config._add(
     dict(
         _default_service="postgres",
         _dbapi_span_name_prefix="postgres",
-<<<<<<< HEAD
         trace_fetch_methods=asbool(get_env("psycopg", "trace_fetch_methods", default=False)),
-=======
-        trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
-        trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
->>>>>>> 80d3eef1 (feat(tracing): add option to enable tracing of psycopg2.connect function (#3607))
+        trace_connect=asbool(get_env("psycopg", "trace_connect", default=False)),
     ),
 )
 
