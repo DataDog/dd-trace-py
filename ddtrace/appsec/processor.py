@@ -2,8 +2,10 @@ import errno
 import json
 import os
 import os.path
-from typing import Set
+from typing import List
+from typing import Set, Any
 from typing import TYPE_CHECKING
+from typing import Union
 
 import attr
 
@@ -29,13 +31,13 @@ log = get_logger(__name__)
 
 
 def _transform_headers(data):
-    # type: (Dict[str, str]) -> Dict[str, str]
-    normalized = {}
+    # type: (Dict[str, str]) -> Dict[str, Union[str, List[str]]]
+    normalized = {}  # type: Dict[str, Union[str, List[str]]]
     for header, value in data.items():
         header = header.lower()
-        if header in ("cookie", "set-cookie"):  # TODO: Move this tuple to a frozenset ?
+        if header in ("cookie", "set-cookie"):
             continue
-        if header in normalized:
+        if header in normalized:  # if a header with the same lowercase name already exists, let's make it an array
             if not isinstance(normalized[header], list):
                 normalized[header] = [normalized[header]]
             normalized[header].append(value)

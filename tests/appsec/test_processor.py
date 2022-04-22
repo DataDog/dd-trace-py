@@ -38,7 +38,7 @@ def test_transform_headers():
             "Foo": "bar1",
             "foo": "bar2",
             "fOO": "bar3",
-            "     BAR": "baz",
+            "BAR": "baz",
             "COOKIE": "secret",
         }
     ) == {
