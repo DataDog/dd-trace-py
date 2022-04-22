@@ -42,11 +42,9 @@ def test_transform_headers():
             "COOKIE": "secret",
         }
     )
-    assert transformed == {"hello": "world", "foo": ["bar1", "bar2", "bar3"], "bar": "baz",} or transformed == {
-        "hello": "world",
-        "foo": ["bar3", "bar2", "bar1"],
-        "bar": "baz",
-    }
+    assert transformed["hello"] == "world"
+    assert transformed["bar"] == "baz"
+    assert set(transformed["foo"]) == {"bar1", "bar2", "bar3"}
 
 
 def test_enable(tracer):
