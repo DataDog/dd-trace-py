@@ -32,14 +32,16 @@ def _enable_appsec(tracer):
 
 
 def test_transform_headers():
-    assert _transform_headers({
-        "hello": "world",
-        "Foo": "bar1",
-        "foo": "bar2",
-        "fOO": "bar3",
-        "     BAR": "baz",
-        "COOKIE": "secret",
-    }) == {
+    assert _transform_headers(
+        {
+            "hello": "world",
+            "Foo": "bar1",
+            "foo": "bar2",
+            "fOO": "bar3",
+            "     BAR": "baz",
+            "COOKIE": "secret",
+        }
+    ) == {
         "hello": "world",
         "foo": ["bar1", "bar2", "bar3"],
         "     bar": "baz",
