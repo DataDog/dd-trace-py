@@ -6,9 +6,10 @@ import bm
 
 
 class Startup(bm.Scenario):
-    telemetry_enabled = bm.var_bool()
+    with_ddtrace_run = bm.var_bool()
     runtime_metrics_enabled = bm.var_bool()
-    use_ddtrace_run = bm.var_bool()
+    with_httpretty = bm.var_bool()
+    telemetry_enabled = bm.var_bool()
     with_trace = bm.var_bool()
 
     def run(self):
@@ -18,31 +19,28 @@ class Startup(bm.Scenario):
         env["DD_TRACE_API_VERSION"] = "v0.4"
 
         code = "import ddtrace"
-        if self.with_trace or self.telemetry_enabled:
+        if self.with_httpretty:
             code += """
 import httpretty
 httpretty.enable(allow_net_connect=False)
-"""
 
-        if self.telemetry_enabled:
-            code += """
 telemetry_url =  '%s/%s' % (
     'http://localhost:8126',
     ddtrace.internal.telemetry.telemetry_writer.ENDPOINT
 )
 httpretty.register_uri(httpretty.POST, telemetry_url)
-ddtrace.internal.telemetry.telemetry_writer.enable()
+
+httpretty.register_uri(httpretty.PUT, 'http://localhost:8126/v0.4/traces')
 """
+
+        if self.telemetry_enabled:
+            code += "\nddtrace.internal.telemetry.telemetry_writer.enable()"
 
         if self.with_trace:
-            code += """
-httpretty.register_uri(httpretty.PUT, 'http://localhost:8126/v0.4/traces')
-with ddtrace.tracer.trace('test-x', service='bench-test'):
-    pass
-"""
+            code += "\nspan = ddtrace.tracer.trace('test-x', service='bench-test'); span.finish()"
 
         cmd = [sys.executable, "-c", code]
-        if self.use_ddtrace_run:
+        if self.with_ddtrace_run:
             cmd = ["ddtrace-run"] + cmd
 
         def _(loops):

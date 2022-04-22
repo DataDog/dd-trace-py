@@ -1,32 +1,41 @@
 startup_with_ddtrace_run: &defaults
-  use_ddtrace_run: "true"
-  telemetry_enabled: "false"
+  with_ddtrace_run: "true"
   runtime_metrics_enabled: "false"
+  with_httpretty: "false"
+  telemetry_enabled: "false"
   with_trace: "false"
 
 startup_without_ddtrace_run:
   <<: *defaults
-  use_ddtrace_run: "false"
+  with_ddtrace_run: "false"
 
-startup_with_telemetry:
+startup_with_httpretty_enabled:
   <<: *defaults
-  use_ddtrace_run: "false"
+  with_httpretty: "false"
+
+startup_with_telemetry_and_httpretty:
+  <<: *defaults
+  with_ddtrace_run: "false"
+  with_httpretty: "true"
   telemetry_enabled: "true"
 
-ddtrace_run_with_telemetry:
+ddtrace_run_with_telemetry_and_httpretty:
   <<: *defaults
+  with_httpretty: "true"
   telemetry_enabled: "true"
 
 ddtrace_run_with_runtime_metrics:
   <<: *defaults
   runtime_metrics_enabled: "true"
 
-ddtrace_run_then_send_trace:
+ddtrace_run_then_send_trace_with_httpretty:
   <<: *defaults
   with_trace: "true"
+  with_httpretty: "true"
 
-ddtrace_run_with_telemetry_then_send_trace:
+ddtrace_run_with_telemetry_then_send_trace_with_httpretty:
   <<: *defaults
   with_trace: "true"
+  with_httpretty: "true"
   telemetry_enabled: "true"
 
