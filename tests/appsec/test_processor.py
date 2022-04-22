@@ -99,7 +99,7 @@ def test_header_attack(tracer):
     _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(span, Config(), request_headers={"User-Agent": "Arachni/v1"})
+        set_http_meta(span, Config(), request_headers={"User-Agent": "Arachni/v1", "user-agent": "aa"})
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
