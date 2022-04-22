@@ -90,7 +90,7 @@ _COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 
 def _set_headers(span, headers):
-    # type: (Span, Dict) -> None
+    # type: (Span, Dict[str, Union[str, List[str]]]) -> None
     for k in headers:
         if k.lower() in _COLLECTED_REQUEST_HEADERS:
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
