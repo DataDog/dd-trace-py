@@ -42,6 +42,7 @@ def test_transform_headers():
             "COOKIE": "secret",
         }
     )
+    assert set(transformed.keys()) == {"hello", "bar", "foo"}
     assert transformed["hello"] == "world"
     assert transformed["bar"] == "baz"
     assert set(transformed["foo"]) == {"bar1", "bar2", "bar3"}
