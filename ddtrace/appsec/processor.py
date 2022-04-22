@@ -93,7 +93,7 @@ def _set_headers(span, headers):
     # type: (Span, Dict) -> None
     for k in headers:
         if k.lower() in _COLLECTED_REQUEST_HEADERS:
-            span._set_str_tag(_normalize_tag_name("request", k), headers[k])
+            span.set_tag(_normalize_tag_name("request", k), headers[k])
 
 
 @attr.s(eq=False)
