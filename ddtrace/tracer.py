@@ -208,7 +208,8 @@ class Tracer(object):
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
-        self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", default=False))
+        self._appsec_enabled = config._appsec_enabled
+
         self._span_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
@@ -218,6 +219,7 @@ class Tracer(object):
             self._compute_stats,
             self._agent_url,
         )
+
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
