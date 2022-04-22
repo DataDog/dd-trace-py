@@ -18,6 +18,11 @@ RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
 RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
 
 
+class Config(object):
+    def __init__(self):
+        self.is_header_tracing_configured = False
+
+
 def _enable_appsec(tracer):
     tracer._appsec_enabled = True
     # Hack: need to pass an argument to configure so that the processors are recreated
@@ -72,12 +77,17 @@ def test_valid_json(tracer):
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
 
-def test_headers_collection(tracer):
+def test_header_attack(tracer):
     _enable_appsec(tracer)
 
-    class Config(object):
-        def __init__(self):
-            self.is_header_tracing_configured = False
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        set_http_meta(span, Config(), request_headers={"User-Agent": "Arachni/v1"})
+
+    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+
+def test_headers_collection(tracer):
+    _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
 

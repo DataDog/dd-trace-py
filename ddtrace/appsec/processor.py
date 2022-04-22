@@ -28,9 +28,9 @@ DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
 log = get_logger(__name__)
 
 
-def _no_cookies(data):
+def _transform_headers(data):
     # type: (Dict[str, str]) -> Dict[str, str]
-    return {key: value for key, value in data.items() if key.lower() not in ("cookie", "set-cookie")}
+    return {key.lower(): value for key, value in data.items() if key.lower() not in ("cookie", "set-cookie")}
 
 
 def get_rules():
@@ -155,7 +155,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if self._is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES):
             request_headers = _context.get_item("http.request.headers", span=span)
             if request_headers is not None:
-                data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES] = _no_cookies(request_headers)
+                data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES] = _transform_headers(request_headers)
 
         if self._is_needed(_Addresses.SERVER_REQUEST_URI_RAW):
             uri = _context.get_item("http.request.uri", span=span)
@@ -185,7 +185,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if self._is_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES):
             response_headers = _context.get_item("http.response.headers", span=span)
             if response_headers is not None:
-                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _no_cookies(response_headers)
+                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_headers(response_headers)
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data)  # res is a serialized json
