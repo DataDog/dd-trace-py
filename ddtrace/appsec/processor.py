@@ -30,7 +30,13 @@ log = get_logger(__name__)
 
 def _transform_headers(data):
     # type: (Dict[str, str]) -> Dict[str, str]
-    return {key.lower(): value for key, value in data.items() if key.lower() not in ("cookie", "set-cookie")}
+    normalized = {}
+    for header, value in data.items():
+        header = header.lower()
+        if header in ("cookie", "set-cookie"):   # TODO: Move this tuple to a frozenset ?
+            continue
+        normalized[header] = value
+    return normalized
 
 
 def get_rules():
