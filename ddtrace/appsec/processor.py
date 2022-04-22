@@ -93,6 +93,7 @@ def _set_headers(span, headers):
     # type: (Span, Dict) -> None
     for k in headers:
         if k.lower() in _COLLECTED_REQUEST_HEADERS:
+            # since the header value can now be a list, we can't write it as a str tag directly
             span.set_tag(_normalize_tag_name("request", k), headers[k])
 
 
