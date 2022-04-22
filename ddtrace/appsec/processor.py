@@ -39,8 +39,8 @@ def _transform_headers(data):
             continue
         if header in normalized:  # if a header with the same lowercase name already exists, let's make it an array
             if not isinstance(normalized[header], list):
-                normalized[header] = [normalized[header]]
-            normalized[header].append(value)
+                normalized[header] = [normalized[header]]  # type: ignore
+            normalized[header].append(value)  # type: ignore
             continue
         normalized[header] = value
     return normalized
