@@ -4,6 +4,7 @@ import os.path
 import pytest
 
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec.processor import _transform_headers
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
@@ -28,6 +29,21 @@ def _enable_appsec(tracer):
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     return tracer
+
+
+def test_transform_headers():
+    assert _transform_headers({
+        "hello": "world",
+        "Foo": "bar1",
+        "foo": "bar2",
+        "fOO": "bar3",
+        "     BAR": "baz",
+        "COOKIE": "secret",
+    }) == {
+        "hello": "world",
+        "foo": ["bar1", "bar2", "bar3"],
+        "     bar": "baz",
+    }
 
 
 def test_enable(tracer):

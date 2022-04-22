@@ -35,6 +35,11 @@ def _transform_headers(data):
         header = header.lower()
         if header in ("cookie", "set-cookie"):   # TODO: Move this tuple to a frozenset ?
             continue
+        if header in normalized:
+            if not isinstance(normalized[header], list):
+                normalized[header] = [normalized[header]]
+            normalized[header].append(value)
+            continue
         normalized[header] = value
     return normalized
 
