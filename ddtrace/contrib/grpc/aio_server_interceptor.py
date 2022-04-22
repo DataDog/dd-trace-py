@@ -2,7 +2,6 @@ import inspect
 from typing import Any
 from typing import Awaitable
 from typing import Callable
-from typing import Dict
 from typing import Iterable
 from typing import Union
 
@@ -34,7 +33,7 @@ Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandl
 
 # Used to get a status code from integer
 # as `grpc._cython.cygrpc._ServicerContext.code()` returns an integer.
-_INT2CODE: Dict[int, grpc.StatusCode] = {s.value[0]: s for s in grpc.StatusCode}
+_INT2CODE = {s.value[0]: s for s in grpc.StatusCode}
 
 
 def _is_coroutine_rpc_method_handler(handler):
