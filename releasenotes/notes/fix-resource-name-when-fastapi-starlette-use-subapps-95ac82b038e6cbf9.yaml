@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes root span resource naming when Starlette or Fastapi sub-applications are used.
