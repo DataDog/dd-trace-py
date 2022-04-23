@@ -58,9 +58,22 @@ def unpatch():
 
     _u(starlette.applications.Starlette, "__init__")
 
+    handlers = [
+        starlette.routing.Mount,
+        starlette.routing.Route,
+        starlette.routing.Host,
+        starlette.routing.WebSocketRoute,
+    ]
+
+    # Unwrap all of the handlers
+    for handler in handlers:
+        _u(handler, "handle")
+
 
 def traced_handler(wrapped, instance, args, kwargs):
     def _wrap(scope, receive, send):
+        # Since handle can be called multiple times for one request, we take the path of each instance
+        # Then combine them at the end to get the correct resource name
         if "__dd_paths__" in scope:
             scope["__dd_paths__"].append(instance.path)
 

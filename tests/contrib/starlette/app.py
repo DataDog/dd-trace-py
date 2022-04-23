@@ -8,6 +8,7 @@ from starlette.responses import FileResponse
 from starlette.responses import PlainTextResponse
 from starlette.responses import Response
 from starlette.responses import StreamingResponse
+from starlette.routing import Mount
 from starlette.routing import Route
 
 
@@ -117,6 +118,8 @@ def get_app(engine):
         Route("/users/{userid:int}/{attribute:str}", endpoint=success, name="multi_path_params", methods=["GET"]),
         Route("/notes", endpoint=list_notes, methods=["GET"]),
         Route("/notes", endpoint=add_note, methods=["POST"]),
+        Mount("/sub-app", Starlette(routes=[Route("/hello", endpoint=success, name="200", methods=["GET"])])),
     ]
+
     app = Starlette(routes=routes, on_startup=[database.connect], on_shutdown=[database.disconnect])
     return app

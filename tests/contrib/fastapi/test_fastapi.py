@@ -8,6 +8,8 @@ import pytest
 import ddtrace
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
+from ddtrace.contrib.starlette import patch as starlette_patch
+from ddtrace.contrib.starlette import unpatch as starlette_unpatch
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -30,9 +32,11 @@ def tracer():
 
     setattr(ddtrace, "tracer", tracer)
     fastapi_patch()
+    starlette_patch()
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
     fastapi_unpatch()
+    starlette_unpatch()
 
 
 @pytest.fixture
@@ -57,8 +61,10 @@ def client(tracer):
 @pytest.fixture
 def snapshot_app():
     fastapi_patch()
+    starlette_patch()
     application = app.get_app()
     yield application
+    starlette_unpatch()
     fastapi_unpatch()
 
 
@@ -457,6 +463,25 @@ def test_service_can_be_overridden(client, tracer, test_spans):
 
     span = spans[0][0]
     assert span.service == "test-override-service"
+
+
+def test_subapp(client, tracer, test_spans):
+    response = client.get("/sub-app/hello")
+    assert response.status_code == 200
+    assert response.json() == {"Greeting": "Hello"}
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+    request_span = spans[0][0]
+    assert request_span.service == "fastapi"
+    assert request_span.name == "fastapi.request"
+    assert request_span.resource == "GET /sub-app/hello"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/sub-app/hello"
+    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("http.query.string") is None
 
 
 @snapshot()
