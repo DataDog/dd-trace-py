@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Added support for ``aipg~=0.16.0``.
+    Added support for ``aiopg~=0.16.0``.

@@ -98,7 +98,7 @@ class RateSamplerTest(unittest.TestCase):
             assert len(samples) <= 1, "there should be 0 or 1 spans"
             sampled = 1 == len(samples)
             for j in range(10):
-                other_span = Span(None, str(i), trace_id=span.trace_id)
+                other_span = Span(str(i), trace_id=span.trace_id)
                 assert sampled == tracer._sampler.sample(
                     other_span
                 ), "sampling should give the same result for a given trace_id"
@@ -590,7 +590,7 @@ def test_sampling_rule_sample(sample_rate):
     rule = SamplingRule(sample_rate=sample_rate)
 
     iterations = int(1e4 / sample_rate)
-    sampled = sum(rule.sample(Span(None, name=str(i))) for i in range(iterations))
+    sampled = sum(rule.sample(Span(name=str(i))) for i in range(iterations))
 
     # Less than 5% deviation when 'enough' iterations (arbitrary, just check if it converges)
     deviation = abs(sampled - (iterations * sample_rate)) / (iterations * sample_rate)
@@ -603,14 +603,14 @@ def test_sampling_rule_sample_rate_1():
     rule = SamplingRule(sample_rate=1)
 
     iterations = int(1e4)
-    assert all(rule.sample(Span(tracer=None, name=str(i))) for i in range(iterations))
+    assert all(rule.sample(Span(name=str(i))) for i in range(iterations))
 
 
 def test_sampling_rule_sample_rate_0():
     rule = SamplingRule(sample_rate=0)
 
     iterations = int(1e4)
-    assert sum(rule.sample(Span(tracer=None, name=str(i))) for i in range(iterations)) == 0
+    assert sum(rule.sample(Span(name=str(i))) for i in range(iterations)) == 0
 
 
 def test_datadog_sampler_init():

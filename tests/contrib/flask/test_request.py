@@ -76,7 +76,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag("http.method"), "GET")
         self.assertEqual(req_span.get_tag(http.URL), "http://localhost/")
         assert_span_http_status_code(req_span, 200)
-        assert http.QUERY_STRING not in req_span._get_tags()
+        assert http.QUERY_STRING not in req_span.get_tags()
 
         # Handler span
         handler_span = spans[4]
@@ -886,6 +886,19 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         span = traces[0][0]
         assert span.get_tag("http.request.headers.my-header") == "my_value"
         assert span.get_tag("http.request.headers.host") == "localhost"
+
+    def test_correct_resource_when_middleware_error(self):
+        @self.app.route("/helloworld")
+        @self.app.before_first_request
+        def error():
+            raise Exception()
+
+        self.client.get("/helloworld")
+
+        spans = self.get_spans()
+        req_span = spans[0]
+        assert req_span.resource == "GET /helloworld"
+        assert req_span.get_tag("http.status_code") == "500"
 
     def test_http_response_header_tracing(self):
         @self.app.route("/response_headers")

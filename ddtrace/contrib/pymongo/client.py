@@ -17,6 +17,7 @@ from ...ext import mongo as mongox
 from ...ext import net as netx
 from ...internal.compat import iteritems
 from ...internal.logger import get_logger
+from ...internal.utils import get_argument_value
 from .parse import parse_msg
 from .parse import parse_query
 from .parse import parse_spec
@@ -62,7 +63,7 @@ class TracedMongoClient(ObjectProxy):
             client._topology = TracedTopology(client._topology)
 
         # Default Pin
-        ddtrace.Pin(service=mongox.SERVICE, app=mongox.SERVICE).onto(self)
+        ddtrace.Pin(service=mongox.SERVICE).onto(self)
 
     def __setddpin__(self, pin):
         pin.onto(self._topology)
@@ -190,7 +191,8 @@ class TracedSocket(ObjectProxy):
         with self.__trace(cmd):
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
-    def write_command(self, request_id, msg):
+    def write_command(self, *args, **kwargs):
+        msg = get_argument_value(args, kwargs, 1, "msg")
         cmd = None
         try:
             cmd = parse_msg(msg)
@@ -200,10 +202,10 @@ class TracedSocket(ObjectProxy):
         pin = ddtrace.Pin.get_from(self)
         # if we couldn't parse it, don't try to trace it.
         if not cmd or not pin or not pin.enabled():
-            return self.__wrapped__.write_command(request_id, msg)
+            return self.__wrapped__.write_command(*args, **kwargs)
 
         with self.__trace(cmd) as s:
-            result = self.__wrapped__.write_command(request_id, msg)
+            result = self.__wrapped__.write_command(*args, **kwargs)
             if result:
                 s.set_metric(mongox.ROWS, result.get("n", -1))
             return result

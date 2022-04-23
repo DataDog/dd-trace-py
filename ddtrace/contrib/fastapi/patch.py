@@ -1,6 +1,8 @@
 import fastapi
 from fastapi.middleware import Middleware
+import fastapi.routing
 
+from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.internal.logger import get_logger
@@ -28,12 +30,39 @@ def traced_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
 
 
+async def traced_serialize_response(wrapped, instance, args, kwargs):
+    """Wrapper for fastapi.routing.serialize_response function.
+
+    This function is called on all non-Response objects to
+    convert them to a serializable form.
+
+    This is the wrapper which calls ``jsonable_encoder``.
+
+    This function does not do the actual encoding from
+    obj -> json string  (e.g. json.dumps()). That is handled
+    by the Response.render function.
+
+    DEV: We do not wrap ``jsonable_encoder`` because it calls
+    itself recursively, so there is a chance the overhead
+    added by creating spans will be higher than desired for
+    the result.
+    """
+    pin = Pin.get_from(fastapi)
+    if not pin or not pin.enabled:
+        return await wrapped(*args, **kwargs)
+
+    with pin.tracer.trace("fastapi.serialize_response"):
+        return await wrapped(*args, **kwargs)
+
+
 def patch():
     if getattr(fastapi, "_datadog_patch", False):
         return
 
     setattr(fastapi, "_datadog_patch", True)
+    Pin().onto(fastapi)
     _w("fastapi.applications", "FastAPI.__init__", traced_init)
+    _w("fastapi.routing", "serialize_response", traced_serialize_response)
 
 
 def unpatch():
@@ -43,3 +72,4 @@ def unpatch():
     setattr(fastapi, "_datadog_patch", False)
 
     _u(fastapi.applications.FastAPI, "__init__")
+    _u(fastapi.routing, "serialize_response")

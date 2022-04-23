@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pytest: fix unsafe access to xfail reason.

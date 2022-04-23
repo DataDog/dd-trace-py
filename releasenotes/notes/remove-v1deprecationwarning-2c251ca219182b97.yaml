@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    ``ddtrace.warnings.DDTraceDeprecationWarning`` is removed.
+  - |
+    ``DD_TRACE_RAISE_DEPRECATIONWARNING`` environment variable is removed.

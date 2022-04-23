@@ -16,6 +16,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
+IS_PYSTON = hasattr(sys, "pyston_version_info")
+
 
 def load_module_from_project_file(mod_name, fname):
     """
@@ -184,7 +186,7 @@ else:
         ddwaf_libraries = ["ddwaf"]
 
 
-if sys.version_info[:2] >= (3, 4):
+if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     ext_modules = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -198,6 +200,16 @@ if sys.version_info[:2] >= (3, 4):
     ]
 else:
     ext_modules = []
+
+
+bytecode = [
+    "dead-bytecode; python_version<'3.0'",  # backport of bytecode for Python 2.7
+    "bytecode~=0.12.0; python_version=='3.5'",
+    "bytecode~=0.13.0; python_version=='3.6'",
+    "bytecode~=0.13.0; python_version=='3.7'",
+    "bytecode; python_version>='3.8'",
+]
+
 
 setup(
     name="ddtrace",
@@ -219,6 +231,7 @@ setup(
     # enum34 is an enum backport for earlier versions of python
     # funcsigs backport required for vendored debtcollector
     install_requires=[
+        "ddsketch>=2.0.1",
         "enum34; python_version<'3.4'",
         "funcsigs>=1.0.0; python_version=='2.7'",
         "typing; python_version<'3.5'",
@@ -228,8 +241,8 @@ setup(
         "tenacity>=5",
         "attrs>=19.2.0",
         "six>=1.12.0",
-        "pep562; python_version<'3.7'",
-    ],
+    ]
+    + bytecode,
     extras_require={
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]

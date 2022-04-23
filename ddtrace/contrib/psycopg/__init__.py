@@ -6,9 +6,9 @@ Enabling
 ~~~~~~~~
 
 The psycopg integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
 
-Or use :ref:`patch()<patch>` to manually enable the integration::
+Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(psycopg=True)
@@ -31,6 +31,15 @@ Global Configuration
    Whether or not to trace fetch methods.
 
    Can also configured via the ``DD_PSYCOPG_TRACE_FETCH_METHODS`` environment variable.
+
+   Default: ``False``
+
+
+.. py:data:: ddtrace.config.psycopg["trace_connect"]
+
+   Whether or not to trace ``psycopg2.connect`` method.
+
+   Can also configured via the ``DD_PSYCOPG_TRACE_CONNECT`` environment variable.
 
    Default: ``False``
 
@@ -58,8 +67,7 @@ required_modules = ["psycopg2"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .connection import connection_factory
         from .patch import patch
         from .patch import patch_conn
 
-        __all__ = ["connection_factory", "patch", "patch_conn"]
+        __all__ = ["patch", "patch_conn"]

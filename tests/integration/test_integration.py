@@ -56,7 +56,7 @@ def test_debug_mode():
 
     p = subprocess.Popen(
         [sys.executable, "-c", "import ddtrace"],
-        env=dict(DD_TRACE_DEBUG="true"),
+        env=dict(DD_TRACE_DEBUG="true", DD_CALL_BASIC_CONFIG="true"),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -336,19 +336,21 @@ def test_priority_sampling_response(encoding, monkeypatch):
     s.set_tag("env", "my-env")
     s.finish()
     assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
-    t.shutdown()
+    t.flush()
 
-    # For some reason the agent doesn't start returning the service information
-    # immediately
-    import time
+    # If a previous test has run then the agent might reply immediately
+    if "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers:
+        # The Agent only returns updated sampling rates once 5 seconds have passed and another request has been sent.
+        import time
 
-    time.sleep(5)
+        time.sleep(5)
+        with t.trace("operation", service="my-svc") as s:
+            s.set_tag("env", "my-env")
+        t.flush()
 
-    t = Tracer()
-    s = t.trace("operation", service="my-svc")
-    s.set_tag("env", "my-env")
-    s.finish()
-    assert "service:my-svc,env:my-env" not in t._writer._priority_sampler._by_service_samplers
+        # Agent will now reply with the sampling rates
+        with t.trace("operation", service="my-svc") as s:
+            s.set_tag("env", "my-env")
     t.shutdown()
     assert "service:my-svc,env:my-env" in t._writer._priority_sampler._by_service_samplers
 
@@ -600,6 +602,7 @@ s2.finish()
         env=dict(
             DD_TRACE_LOGS_INJECTION=str(logs_injection).lower(),
             DD_TRACE_DEBUG=str(debug_mode).lower(),
+            DD_CALL_BASIC_CONFIG="true",
         ),
     )
     try:
@@ -622,7 +625,7 @@ def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_con
         When false
             We do not call logging.basicConfig()
         When not set
-            We call logging.basicConfig()
+            We do not call logging.basicConfig()
     """
     env = os.environ.copy()
 
@@ -632,7 +635,7 @@ def test_call_basic_config(ddtrace_run_python_code_in_subprocess, call_basic_con
         env["DD_CALL_BASIC_CONFIG"] = str(call_basic_config).lower()
         has_root_handlers = call_basic_config
     else:
-        has_root_handlers = True
+        has_root_handlers = False
 
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
@@ -650,36 +653,28 @@ print(len(root.handlers))
         assert out == six.b("0\n")
 
 
-def test_writer_env_configuration(run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
-    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
-    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
-
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-import ddtrace
-
-assert ddtrace.tracer.writer._encoder.max_size == 1000
-assert ddtrace.tracer.writer._encoder.max_item_size == 1000
-assert ddtrace.tracer.writer._interval == 5.0
-""",
-        env=env,
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WRITER_BUFFER_SIZE_BYTES="1000",
+        DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES="5000",
+        DD_TRACE_WRITER_INTERVAL_SECONDS="5.0",
     )
-    assert status == 0, (out, err)
+)
+def test_writer_env_configuration():
+    import ddtrace
+
+    assert ddtrace.tracer._writer._encoder.max_size == 1000
+    assert ddtrace.tracer._writer._encoder.max_item_size == 1000
+    assert ddtrace.tracer._writer._interval == 5.0
 
 
-def test_writer_env_configuration_defaults(run_python_code_in_subprocess):
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-import ddtrace
+@pytest.mark.subprocess
+def test_writer_env_configuration_defaults():
+    import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
-assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
-assert ddtrace.tracer.writer._interval == 1.0
-""",
-    )
-    assert status == 0, (out, err)
+    assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
+    assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+    assert ddtrace.tracer._writer._interval == 1.0
 
 
 def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subprocess):
@@ -692,9 +687,9 @@ def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subproc
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 1000
-assert ddtrace.tracer.writer._encoder.max_item_size == 1000
-assert ddtrace.tracer.writer._interval == 5.0
+assert ddtrace.tracer._writer._encoder.max_size == 1000
+assert ddtrace.tracer._writer._encoder.max_item_size == 1000
+assert ddtrace.tracer._writer._interval == 5.0
 """,
         env=env,
     )
@@ -706,9 +701,9 @@ def test_writer_env_configuration_ddtrace_run_defaults(ddtrace_run_python_code_i
         """
 import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
-assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
-assert ddtrace.tracer.writer._interval == 1.0
+assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
+assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+assert ddtrace.tracer._writer._interval == 1.0
 """,
     )
     assert status == 0, (out, err)
@@ -756,6 +751,7 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     env = os.environ.copy()
     env["DD_TRACE_DEBUG"] = "true"
     env["DD_LOGS_INJECTION"] = "true"
+    env["DD_CALL_BASIC_CONFIG"] = "true"
 
     # DEV: We don't actually have to execute any code to validate this
     out, err, status, pid = ddtrace_run_python_code_in_subprocess("", env=env)
@@ -775,13 +771,32 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err
 
 
+def test_no_module_debug_log(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        dict(
+            DD_TRACE_DEBUG="1",
+        )
+    )
+    out, err, _, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+from ddtrace import patch_all
+logging.basicConfig(level=logging.DEBUG)
+patch_all()
+        """,
+        env=env,
+    )
+    assert b"DEBUG:ddtrace._monkey:integration starlette not enabled (missing required module: starlette)" in err
+
+
 def test_no_warnings():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown
     # which results in a trace being generated after the tracer shutdown
     # has been initiated which results in a deprecation warning.
     env["DD_TRACE_SQLITE3_ENABLED"] = "false"
-    out, err, status, pid = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
+    out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
 
     # Wrapt is using features deprecated in Python 3.10
@@ -789,11 +804,11 @@ def test_no_warnings():
     if sys.version_info < (3, 10, 0):
         assert err == b"", err
     else:
-        assert (
-            err
-            == (
+        # Assert that the only log lines in the output are import warnings
+        lines = err.splitlines()
+        assert len(lines) > 0, err
+        for line in lines:
+            assert line == (
                 b"<frozen importlib._bootstrap>:914: ImportWarning: "
-                b"ImportHookFinder.find_spec() not found; falling back to find_module()\n"
-            )
-            * 75
-        ), err
+                b"ImportHookFinder.find_spec() not found; falling back to find_module()"
+            ), err

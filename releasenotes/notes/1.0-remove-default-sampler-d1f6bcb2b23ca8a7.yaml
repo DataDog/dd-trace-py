@@ -1,0 +1,8 @@
+---
+upgrade:
+  - ".. _remove-default-sampler:
+
+
+    The deprecated attribute ``ddtrace.Sampler.default_sampler`` is removed.
+
+    "

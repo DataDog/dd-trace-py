@@ -42,9 +42,7 @@ class Span(OpenTracingSpan):
         self.finished = False
         self._lock = threading.Lock()
         # use a datadog span
-        dd_span = DatadogSpan(None, operation_name, context=context._dd_context)
-        dd_span._tracer = tracer._dd_tracer
-        self._dd_span = dd_span
+        self._dd_span = DatadogSpan(operation_name, context=context._dd_context)
 
     def finish(self, finish_time=None):
         # type: (Optional[float]) -> None
@@ -96,9 +94,10 @@ class Span(OpenTracingSpan):
         return self.context.get_baggage_item(key)
 
     def set_operation_name(self, operation_name):
-        # type: (str) -> None
+        # type: (str) -> Span
         """Set the operation name."""
         self._dd_span.name = operation_name
+        return self
 
     def log_kv(self, key_values, timestamp=None):
         # type: (Dict[_TagNameType, Any], Optional[float]) -> Span
@@ -135,7 +134,7 @@ class Span(OpenTracingSpan):
         return self
 
     def set_tag(self, key, value):
-        # type: (_TagNameType, Any) -> None
+        # type: (_TagNameType, Any) -> Span
         """Set a tag on the span.
 
         This sets the tag on the underlying datadog span.
@@ -154,6 +153,7 @@ class Span(OpenTracingSpan):
             self._dd_span.context.sampling_priority = value
         else:
             self._dd_span.set_tag(key, value)
+        return self
 
     def _get_tag(self, key):
         # type: (_TagNameType) -> Optional[Text]

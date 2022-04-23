@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Dict
 from typing import List
@@ -14,7 +15,6 @@ from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
-from ..utils.formats import get_env
 from ..utils.time import StopWatch
 from .data import get_application
 from .data import get_host_info
@@ -24,7 +24,7 @@ log = get_logger(__name__)
 
 
 def _get_interval_or_default():
-    return float(get_env("instrumentation_telemetry", "interval_seconds", default=60))
+    return float(os.getenv("DD_INSTRUMENTATION_TELEMETRY_INTERVAL_SECONDS", default=60))
 
 
 class TelemetryWriter(PeriodicService):
@@ -40,7 +40,9 @@ class TelemetryWriter(PeriodicService):
         # type: (Optional[str]) -> None
         super(TelemetryWriter, self).__init__(interval=_get_interval_or_default())
 
-        self._enabled = False  # type: bool
+        # _enabled is None at startup, and is only set to true or false
+        # after the config has been processed
+        self._enabled = None  # type: Optional[bool]
         self._agent_url = agent_url or get_trace_url()
 
         self._encoder = JSONEncoderV2()
@@ -145,7 +147,7 @@ class TelemetryWriter(PeriodicService):
         :param bool auto_enabled: True if module is enabled in _monkey.PATCH_MODULES
         """
         with self._lock:
-            if not self._enabled:
+            if self._enabled is not None and not self._enabled:
                 return
 
             integration = {
@@ -153,7 +155,7 @@ class TelemetryWriter(PeriodicService):
                 "version": "",
                 "enabled": True,
                 "auto_enabled": auto_enabled,
-                "compatible": "",
+                "compatible": True,
                 "error": "",
             }
             self._integrations_queue.append(integration)
@@ -167,6 +169,7 @@ class TelemetryWriter(PeriodicService):
 
         payload = {
             "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
+            "integrations": self._flush_integrations_queue(),
             "configurations": [],
         }
         self.add_event(payload, "app-started")
@@ -217,17 +220,18 @@ class TelemetryWriter(PeriodicService):
     def disable(self):
         # type: () -> None
         """
-        Disable the telemetry collection service.
+        Disable the telemetry collection service and drop the existing integrations and events
         Once disabled, telemetry collection can be re-enabled by calling ``enable`` again.
         """
         with self._lock:
+            self._integrations_queue = []
+            self._enabled = False
             if self.status == ServiceStatus.STOPPED:
                 return
 
             forksafe.unregister(self._restart)
 
             self.stop()
-            self._enabled = False
 
             self.join()
 

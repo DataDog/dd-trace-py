@@ -1,9 +1,11 @@
 """
-This integration provides automatic instrumentation to trace the execution flow
-of concurrent execution of ``asyncio.Task``. Also it provides a legacy context
-provider for supporting tracing of asynchronous execution in Python < 3.7.
+This integration provides context management for tracing the execution flow
+of concurrent execution of ``asyncio.Task``.
 
-For asynchronous execution tracing in Python < 3.7 to work properly the tracer must
+This integration is only necessary in Python < 3.7 (where contextvars is not supported).
+For Python > 3.7 this works automatically without configuration.
+
+For asynchronous execution tracing to work properly the tracer must
 be configured as follows::
 
     import asyncio
@@ -27,7 +29,7 @@ handled between scheduled coroutines and ``Future`` invoked in separated
 threads:
 
     * ``set_call_context(task, ctx)``: attach the context to the given ``Task``
-      so that it will be available from the ``tracer.get_call_context()``
+      so that it will be available from the ``tracer.current_trace_context()``
     * ``ensure_future(coro_or_future, *, loop=None)``: wrapper for the
       ``asyncio.ensure_future`` that attaches the current context to a new
       ``Task`` instance

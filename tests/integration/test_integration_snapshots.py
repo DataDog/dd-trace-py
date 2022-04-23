@@ -57,15 +57,15 @@ def test_multiple_traces(tracer):
 def test_filters(writer, tracer):
     if writer == "sync":
         writer = AgentWriter(
-            tracer.writer.agent_url,
+            tracer.agent_trace_url,
             priority_sampler=tracer._priority_sampler,
             sync_mode=True,
         )
         # Need to copy the headers which contain the test token to associate
         # traces with this test case.
-        writer._headers = tracer.writer._headers
+        writer._headers = tracer._writer._headers
     else:
-        writer = tracer.writer
+        writer = tracer._writer
 
     class FilterMutate(object):
         def __init__(self, key, value):
@@ -98,15 +98,15 @@ def test_filters(writer, tracer):
 def test_sampling(writer, tracer):
     if writer == "sync":
         writer = AgentWriter(
-            tracer.writer.agent_url,
+            tracer.agent_trace_url,
             priority_sampler=tracer._priority_sampler,
             sync_mode=True,
         )
         # Need to copy the headers which contain the test token to associate
         # traces with this test case.
-        writer._headers = tracer.writer._headers
+        writer._headers = tracer._writer._headers
     else:
-        writer = tracer.writer
+        writer = tracer._writer
 
     tracer.configure(writer=writer)
 

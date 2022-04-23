@@ -21,8 +21,6 @@ Install with :code:`pip`::
 
     pip version 18 and above is required to install the library.
 
-    It is strongly suggested to pin the version of the library you deploy.
-
 
 Quickstart
 ----------
@@ -57,7 +55,7 @@ being picked up correctly and that the tracer will be able to connect to the Dat
 Note: ``--info`` Only reflects configurations made via environment variables, not those made in code.
 
 
-If ``ddtrace-run`` isn't suitable for your application then :ref:`patch_all`
+If ``ddtrace-run`` isn't suitable for your application then :py:func:`ddtrace.patch_all`
 can be used::
 
     from ddtrace import config, patch_all

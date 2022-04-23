@@ -30,10 +30,10 @@ class CeleryTagsTest(CeleryBaseTestCase):
             "custom_meta": "custom_value",
         }
 
-        span = Span(None, "test")
+        span = Span("test")
         set_tags_from_context(span, context)
-        metas = span._get_tags()
-        metrics = span._get_metrics()
+        metas = span.get_tags()
+        metrics = span.get_metrics()
         sentinel = object()
         assert metas["celery.correlation_id"] == "44b7f305"
         assert metas["celery.delivery_info"] == '{"eager": "True"}'
@@ -49,14 +49,14 @@ class CeleryTagsTest(CeleryBaseTestCase):
 
     def test_tags_from_context_empty_keys(self):
         # it should not extract empty keys
-        span = Span(None, "test")
+        span = Span("test")
         context = {
             "correlation_id": None,
             "exchange": "",
             "timelimit": (None, None),
             "retries": 0,
         }
-        tags = span._get_tags()
+        tags = span.get_tags()
 
         set_tags_from_context(span, context)
         assert {} == tags

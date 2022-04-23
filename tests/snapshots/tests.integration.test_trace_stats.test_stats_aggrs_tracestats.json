@@ -1,0 +1,99 @@
+[
+  {
+    "Start": 0,
+    "Duration": 10000000000,
+    "Stats": [
+      {
+        "Name": "diff-op",
+        "Resource": "/users/list",
+        "Type": "db",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 7000,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      },
+      {
+        "Name": "diff-op",
+        "Resource": "/users/list",
+        "Type": "web",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 8000,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      },
+      {
+        "Name": "op",
+        "Resource": "/users/list",
+        "Type": "web",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 42000,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      },
+      {
+        "Name": "op",
+        "Resource": "/users/list",
+        "Type": "web",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 10000,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      },
+      {
+        "Name": "op",
+        "Resource": "/users/list",
+        "Type": "web",
+        "HTTPStatusCode": 200,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 14000,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      },
+      {
+        "Name": "op",
+        "Resource": "/users/list",
+        "Type": "web",
+        "HTTPStatusCode": 0,
+        "Synthetics": true,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 10000,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      },
+      {
+        "Name": "op",
+        "Resource": "/users/view",
+        "Type": "web",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 13000,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      }
+    ]
+  }
+]

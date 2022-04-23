@@ -50,12 +50,51 @@ class _EncoderBase(object):
         """
         raise NotImplementedError()
 
+    @staticmethod
+    def _span_to_dict(span):
+        # type: () -> Dict[str, Any]
+        d = {
+            "trace_id": span.trace_id,
+            "parent_id": span.parent_id,
+            "span_id": span.span_id,
+            "service": span.service,
+            "resource": span.resource,
+            "name": span.name,
+            "error": span.error,
+        }
+
+        # a common mistake is to set the error field to a boolean instead of an
+        # int. let's special case that here, because it's sure to happen in
+        # customer code.
+        err = d.get("error")
+        if err and type(err) == bool:
+            d["error"] = 1
+
+        if span.start_ns:
+            d["start"] = span.start_ns
+
+        if span.duration_ns:
+            d["duration"] = span.duration_ns
+
+        if span._meta:
+            d["meta"] = span._meta
+
+        if span._metrics:
+            d["metrics"] = span._metrics
+
+        if span.span_type:
+            d["type"] = span.span_type
+
+        return d
+
 
 class JSONEncoder(json.JSONEncoder, _EncoderBase):
     content_type = "application/json"
 
     def encode_traces(self, traces):
-        normalized_traces = [[JSONEncoder._normalize_span(span.to_dict()) for span in trace] for trace in traces]
+        normalized_traces = [
+            [JSONEncoder._normalize_span(JSONEncoder._span_to_dict(span)) for span in trace] for trace in traces
+        ]
         return self.encode(normalized_traces)
 
     @staticmethod
@@ -95,7 +134,7 @@ class JSONEncoderV2(JSONEncoder):
     @staticmethod
     def _convert_span(span):
         # type: (Span) -> Dict[str, Any]
-        sp = span.to_dict()
+        sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("trace_id"))
         sp["parent_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("parent_id"))

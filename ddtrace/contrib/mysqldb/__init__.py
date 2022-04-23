@@ -5,9 +5,9 @@ Enabling
 ~~~~~~~~
 
 The integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
 
-Or use :ref:`patch()<patch>` to manually enable the integration::
+Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(mysqldb=True)
@@ -30,6 +30,19 @@ Global Configuration
    Whether or not to trace fetch methods.
 
    Can also configured via the ``DD_MYSQLDB_TRACE_FETCH_METHODS`` environment variable.
+
+   Default: ``False``
+
+.. _mysqldb_config_trace_connect:
+
+.. py:data:: ddtrace.config.mysqldb["trace_connect"]
+
+   Whether or not to trace connecting.
+
+   Can also be configured via the ``DD_MYSQLDB_TRACE_CONNECT`` environment variable.
+
+   Note that if you are overriding the service name via the Pin on an individual cursor, that will not affect
+   connect traces. The service name must also be overridden on the Pin on the MySQLdb module.
 
    Default: ``False``
 

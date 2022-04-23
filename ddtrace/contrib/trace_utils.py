@@ -8,13 +8,16 @@ from typing import Callable
 from typing import Dict
 from typing import Generator
 from typing import Iterator
+from typing import Mapping
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
+from typing import Union
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
+from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -231,17 +234,36 @@ def ext_service(pin, int_config, default=None):
 
 
 def set_http_meta(
-    span,
-    integration_config,
-    method=None,
-    url=None,
-    status_code=None,
-    status_msg=None,
-    query=None,
-    request_headers=None,
-    response_headers=None,
-    retries_remain=None,
+    span,  # type: Span
+    integration_config,  # type: IntegrationConfig
+    method=None,  # type: Optional[str]
+    url=None,  # type: Optional[str]
+    status_code=None,  # type: Optional[Union[int, str]]
+    status_msg=None,  # type: Optional[str]
+    query=None,  # type: Optional[str]
+    request_headers=None,  # type: Optional[Mapping[str, str]]
+    response_headers=None,  # type: Optional[Mapping[str, str]]
+    retries_remain=None,  # type: Optional[Union[int, str]]
+    raw_uri=None,  # type: Optional[str]
+    request_cookies=None,  # type: Optional[Dict[str, str]]
+    request_path_params=None,  # type: Optional[Dict[str, str]]
 ):
+    # type: (...) -> None
+    """
+    Set HTTP metas on the span
+
+    :param method: the HTTP method
+    :param url: the HTTP URL
+    :param status_code: the HTTP status code
+    :param status_msg: the HTTP status message
+    :param query: the HTTP query part of the URI as a string
+    :param request_headers: the HTTP request headers
+    :param response_headers: the HTTP response headers
+    :param raw_uri: the full raw HTTP URI (including ports and query)
+    :param request_cookies: the HTTP request cookies as a dict
+    :param request_path_params: the parameters of the HTTP URL as set by the framework: /posts/<id:int> would give us
+         { "id": <int_value> }
+    """
     if method is not None:
         span._set_str_tag(http.METHOD, method)
 
@@ -272,6 +294,26 @@ def set_http_meta(
 
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
+
+    if config._appsec:
+        status_code = str(status_code) if status_code is not None else None
+
+        _context.set_items(
+            {
+                k: v
+                for k, v in [
+                    ("http.request.uri", raw_uri),
+                    ("http.request.method", method),
+                    ("http.request.cookies", request_cookies),
+                    ("http.request.headers", request_headers),
+                    ("http.response.headers", response_headers),
+                    ("http.response.status", status_code),
+                    ("http.request.path_params", request_path_params),
+                ]
+                if v is not None
+            },
+            span=span,
+        )
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):

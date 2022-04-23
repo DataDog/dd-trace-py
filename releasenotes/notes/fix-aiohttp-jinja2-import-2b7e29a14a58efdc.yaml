@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    aiohttp: fix issue causing ``ddtrace.contrib.aiohttp_jinja2.patch`` module to be imported instead of the ``patch()`` function.

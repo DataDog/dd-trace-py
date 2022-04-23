@@ -1,0 +1,27 @@
+---
+upgrade:
+  - ".. _remove-tracer-sampler:
+
+
+    ``ddtrace.Tracer.sampler`` is removed.
+
+    "
+  - ".. _remove-tracer-priority-sampler:
+
+
+    ``ddtrace.Tracer.priority_sampler`` is removed.
+
+    "
+  - ".. _remove-tracer-tags:
+
+
+    ``ddtrace.Tracer.tags`` is removed. Use the environment variable :ref:`DD_TAGS<dd-tags>`
+    to set the global tags instead.
+
+    "
+  - ".. _remove-tracer-log:
+
+
+    ``ddtrace.Tracer.log`` was removed.
+
+    "

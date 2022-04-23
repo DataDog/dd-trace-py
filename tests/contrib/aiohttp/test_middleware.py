@@ -76,7 +76,7 @@ async def test_param_handler(app_tracer, aiohttp_client, loop, query_string, tra
     if app[CONFIG_KEY].get("trace_query_string"):
         assert query_string == span.get_tag(http.QUERY_STRING)
     else:
-        assert http.QUERY_STRING not in span._get_tags()
+        assert http.QUERY_STRING not in span.get_tags()
 
 
 async def test_404_handler(app_tracer, aiohttp_client):
@@ -455,11 +455,11 @@ async def test_analytics_integration_enabled(app_tracer, aiohttp_client):
     client = await aiohttp_client(app)
     app["datadog_trace"]["analytics_enabled"] = True
     app["datadog_trace"]["analytics_sample_rate"] = 0.5
-    request = await client.request("GET", "/template/")
+    request = await client.request("GET", "/")
     await request.text()
 
     # Assert root span sets the appropriate metric
-    root = get_root_span(tracer.writer.spans)
+    root = get_root_span(tracer.pop())
     root.assert_structure(dict(name="aiohttp.request", metrics={ANALYTICS_SAMPLE_RATE_KEY: 0.5}))
 
 
@@ -467,11 +467,11 @@ async def test_analytics_integration_default(app_tracer, aiohttp_client):
     """Check trace has analytics sample rate set"""
     app, tracer = app_tracer
     client = await aiohttp_client(app)
-    request = await client.request("GET", "/template/")
+    request = await client.request("GET", "/")
     await request.text()
 
     # Assert root span does not have the appropriate metric
-    root = get_root_span(tracer.writer.spans)
+    root = get_root_span(tracer.pop())
     assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
@@ -480,9 +480,9 @@ async def test_analytics_integration_disabled(app_tracer, aiohttp_client):
     app, tracer = app_tracer
     client = await aiohttp_client(app)
     app["datadog_trace"]["analytics_enabled"] = False
-    request = await client.request("GET", "/template/")
+    request = await client.request("GET", "/")
     await request.text()
 
     # Assert root span does not have the appropriate metric
-    root = get_root_span(tracer.writer.spans)
+    root = get_root_span(tracer.pop())
     assert root.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None

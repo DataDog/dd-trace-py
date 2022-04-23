@@ -1,0 +1,27 @@
+---
+upgrade:
+  - |
+    .. _remove-flask-middleware:
+
+
+    Removed deprecated middleware ``ddtrace.contrib.flask.middleware.py:TraceMiddleware``. Use :py:meth:`ddtrace.patch_all` or :py:meth:`ddtrace.patch` instead.
+  - |
+    .. _remove-pymongo-client:
+
+
+    Removed deprecated function ``ddtrace.contrib.pymongo.patch.py:trace_mongo_client``. Use :py:meth:`ddtrace.patch_all` or :py:meth:`ddtrace.patch` instead.
+  - |
+    .. _remove-pymysql-connection:
+
+
+    Removed deprecated function ``ddtrace.contrib.pymysql.tracers.py:get_traced_pymysql_connection``. Use :py:meth:`ddtrace.patch_all` or :py:meth:`ddtrace.patch` instead.
+  - |
+    .. _remove-redis-traced:
+
+
+    Removed deprecated function ``ddtrace.contrib.redis.tracers.py:get_traced_redis``. Use :py:meth:`ddtrace.patch_all` or :py:meth:`ddtrace.patch` instead.
+  - |
+    .. _remove-redis-traced-from:
+
+
+    Removed deprecated function ``ddtrace.contrib.redis.tracers.py:get_traced_redis_from``. Use :py:meth:`ddtrace.patch_all` or :py:meth:`ddtrace.patch` instead.

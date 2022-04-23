@@ -16,6 +16,7 @@ from ddtrace import Tracer
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
+from ddtrace.internal import _context
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -41,7 +42,7 @@ def span(tracer):
 class TestHeaders(object):
     @pytest.fixture()
     def span(self):
-        yield Span(None, "some_span")
+        yield Span("some_span")
 
     @pytest.fixture()
     def config(self):
@@ -297,38 +298,80 @@ def test_ext_service(int_config, pin, config_val, default, expected):
     assert trace_utils.ext_service(pin, int_config.myint, default) == expected
 
 
+@pytest.mark.parametrize("appsec_enabled", [False, True])
 @pytest.mark.parametrize(
-    "method,url,status_code,status_msg,query,request_headers",
+    "method,url,status_code,status_msg,query,request_headers,response_headers,uri,path_params,cookies",
     [
-        ("GET", "http://localhost/", 0, None, None, None),
-        ("GET", "http://localhost/", 200, "OK", None, None),
-        (None, None, None, None, None, None),
-        ("GET", "http://localhost/", 200, "OK", None, {"my-header": "value1"}),
-        ("GET", "http://localhost/", 200, "OK", "search?q=test+query", {"my-header": "value1"}),
+        ("GET", "http://localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/", 200, "OK", None, None, None, None, None, None),
+        (None, None, None, None, None, None, None, None, None, None),
+        (
+            "GET",
+            "http://localhost/",
+            200,
+            "OK",
+            None,
+            {"my-header": "value1"},
+            {"resp-header": "val"},
+            "http://localhost/",
+            None,
+            None,
+        ),
+        (
+            "GET",
+            "http://localhost/",
+            200,
+            "OK",
+            "q=test+query&q2=val",
+            {"my-header": "value1"},
+            {"resp-header": "val"},
+            "http://localhost/search?q=test+query&q2=val",
+            {"id": "val", "name": "vlad"},
+            None,
+        ),
     ],
 )
-def test_set_http_meta(span, int_config, method, url, status_code, status_msg, query, request_headers):
+def test_set_http_meta(
+    span,
+    int_config,
+    method,
+    url,
+    status_code,
+    status_msg,
+    query,
+    request_headers,
+    response_headers,
+    uri,
+    path_params,
+    cookies,
+    appsec_enabled,
+):
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
-    trace_utils.set_http_meta(
-        span,
-        int_config,
-        method=method,
-        url=url,
-        status_code=status_code,
-        status_msg=status_msg,
-        query=query,
-        request_headers=request_headers,
-    )
+    with override_global_config({"_appsec_enabled": appsec_enabled}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method=method,
+            url=url,
+            status_code=status_code,
+            status_msg=status_msg,
+            query=query,
+            raw_uri=uri,
+            request_headers=request_headers,
+            response_headers=response_headers,
+            request_cookies=cookies,
+            request_path_params=path_params,
+        )
     if method is not None:
         assert span.get_tag(http.METHOD) == method
     else:
-        assert http.METHOD not in span._get_tags()
+        assert http.METHOD not in span.get_tags()
 
     if url is not None:
         assert span.get_tag(http.URL) == stringify(url)
     else:
-        assert http.URL not in span._get_tags()
+        assert http.URL not in span.get_tags()
 
     if status_code is not None:
         assert span.get_tag(http.STATUS_CODE) == str(status_code)
@@ -337,7 +380,7 @@ def test_set_http_meta(span, int_config, method, url, status_code, status_msg, q
         else:
             assert span.error == 0
     else:
-        assert http.STATUS_CODE not in span._get_tags()
+        assert http.STATUS_CODE not in span.get_tags()
 
     if status_msg is not None:
         assert span.get_tag(http.STATUS_MSG) == stringify(status_msg)
@@ -349,6 +392,18 @@ def test_set_http_meta(span, int_config, method, url, status_code, status_msg, q
         for header, value in request_headers.items():
             tag = "http.request.headers." + header
             assert span.get_tag(tag) == value
+
+    if appsec_enabled:
+        if uri is not None:
+            assert _context.get_item("http.request.uri", span=span) == uri
+        if method is not None:
+            assert _context.get_item("http.request.method", span=span) == method
+        if request_headers is not None:
+            assert _context.get_item("http.request.headers", span=span) == request_headers
+        if response_headers is not None:
+            assert _context.get_item("http.response.headers", span=span) == response_headers
+        if path_params is not None:
+            assert _context.get_item("http.request.path_params", span=span) == path_params
 
 
 @mock.patch("ddtrace.settings.config.log")
@@ -382,10 +437,10 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     trace_utils.set_http_meta(
         span,
         int_config.myint,
-        request_headers={"HTTP_REQUEST_HEADER", "value"},
+        request_headers={"HTTP_REQUEST_HEADER": "value"},
         response_headers={"HTTP_RESPONSE_HEADER": "value"},
     )
-    assert list(span._get_tags().keys()) == [
+    assert list(span.get_tags().keys()) == [
         "runtime-id",
     ]
     mock_store_headers.assert_not_called()
@@ -405,7 +460,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
 def test_bad_http_code(mock_log, span, int_config, val, bad):
     trace_utils.set_http_meta(span, int_config, status_code=val)
     if bad:
-        assert http.STATUS_CODE not in span._get_tags()
+        assert http.STATUS_CODE not in span.get_tags()
         mock_log.debug.assert_called_once_with("failed to convert http status code %r to int", val)
     else:
         assert span.get_tag(http.STATUS_CODE) == str(val)
@@ -575,26 +630,26 @@ def test_sanitized_url_in_http_meta(span, int_config):
 )
 def test_set_flattened_tags_is_flat(items):
     """Ensure that flattening of a nested dict results in a normalized, 1-level dict"""
-    span = Span(None, "test")
+    span = Span("test")
     trace_utils.set_flattened_tags(span, items)
-    assert isinstance(span._get_tags(), dict)
-    assert not any(isinstance(v, dict) for v in span._get_tags().values())
+    assert isinstance(span.get_tags(), dict)
+    assert not any(isinstance(v, dict) for v in span.get_tags().values())
 
 
 def test_set_flattened_tags_keys():
     """Ensure expected keys in flattened dictionary"""
     d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
     e = dict(A=1, B=2, C_A=3, C_B=4, C_C_A=5, C_C_B=6)
-    span = Span(None, "test")
+    span = Span("test")
     trace_utils.set_flattened_tags(span, d.items(), sep="_")
-    assert span._get_metrics() == e
+    assert span.get_metrics() == e
 
 
 def test_set_flattened_tags_exclude_policy():
     """Ensure expected keys in flattened dictionary with exclusion set"""
     d = dict(A=1, B=2, C=dict(A=3, B=4, C=dict(A=5, B=6)))
     e = dict(A=1, B=2, C_B=4)
-    span = Span(None, "test")
+    span = Span("test")
 
     trace_utils.set_flattened_tags(span, d.items(), sep="_", exclude_policy=lambda tag: tag in {"C_A", "C_C"})
-    assert span._get_metrics() == e
+    assert span.get_metrics() == e

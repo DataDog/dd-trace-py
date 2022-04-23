@@ -1,3 +1,5 @@
+import os
+
 # 3p
 import kombu
 
@@ -11,7 +13,6 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import kombu as kombux
 from ...internal.utils import get_argument_value
-from ...internal.utils.formats import get_env
 from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator
@@ -28,7 +29,7 @@ from .utils import get_routing_key_from_args
 config._add(
     "kombu",
     {
-        "service_name": config.service or get_env("kombu", "service_name", default=DEFAULT_SERVICE),
+        "service_name": config.service or os.getenv("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE),
     },
 )
 
@@ -60,14 +61,13 @@ def patch():
         prod_service = None
     # DEV: backwards-compatibility for users who set a kombu service
     else:
-        prod_service = get_env("kombu", "service_name", default=DEFAULT_SERVICE)
+        prod_service = os.getenv("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE)
 
     Pin(
         service=prod_service,
-        app="kombu",
     ).onto(kombu.messaging.Producer)
 
-    Pin(service=config.kombu["service_name"], app="kombu").onto(kombu.messaging.Consumer)
+    Pin(service=config.kombu["service_name"]).onto(kombu.messaging.Consumer)
 
 
 def unpatch():
