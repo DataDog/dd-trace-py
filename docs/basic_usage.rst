@@ -27,7 +27,7 @@ used.
 the application, they must be patched *prior* to being imported. So make sure
 to call ``patch_all`` *before* importing libraries that are to be instrumented.
 
-More information about ``patch_all`` is available in the :ref:`patch_all` API
+More information about ``patch_all`` is available in the :py:func:`patch_all<ddtrace.patch_all>` API
 documentation.
 
 

@@ -6,9 +6,9 @@ Enabling
 ~~~~~~~~
 
 The redis integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
 
-Or use :ref:`patch()<patch>` to manually enable the integration::
+Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(redis=True)
@@ -30,7 +30,7 @@ Global Configuration
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
-To configure particular redis instances use the :ref:`Pin<Pin>` API::
+To configure particular redis instances use the :class:`Pin <ddtrace.Pin>` API::
 
     import redis
     from ddtrace import Pin
@@ -53,7 +53,5 @@ required_modules = ["redis", "redis.client"]
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
-        from .tracers import get_traced_redis
-        from .tracers import get_traced_redis_from
 
-        __all__ = ["get_traced_redis", "get_traced_redis_from", "patch"]
+        __all__ = ["patch"]

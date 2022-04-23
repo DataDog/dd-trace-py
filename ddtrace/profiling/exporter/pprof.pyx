@@ -12,6 +12,7 @@ from ddtrace.internal.utils import config
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
+from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
@@ -252,7 +253,9 @@ class _PprofConverter(object):
             ),
         )
 
-        self._location_values[location_key]["alloc-samples"] = sum(event.nevents for event in events)
+        self._location_values[location_key]["alloc-samples"] = round(
+            sum(event.nevents * (event.capture_pct / 100.0) for event in events)
+        )
         self._location_values[location_key]["alloc-space"] = round(
             sum(event.size / event.capture_pct * 100.0 for event in events)
         )
@@ -282,7 +285,7 @@ class _PprofConverter(object):
         trace_type,  # type: str
         frames,  # type: HashableStackTraceType
         nframes,  # type: int
-        events,  # type: typing.List[threading.LockAcquireEvent]
+        events,  # type: typing.List[_lock.LockAcquireEvent]
         sampling_ratio,  # type: float
     ):
         # type: (...) -> None
@@ -319,7 +322,7 @@ class _PprofConverter(object):
         trace_type,  # type: str
         frames,  # type: HashableStackTraceType
         nframes,  # type: int
-        events,  # type: typing.List[threading.LockReleaseEvent]
+        events,  # type: typing.List[_lock.LockReleaseEvent]
         sampling_ratio,  # type: float
     ):
         # type: (...) -> None
@@ -502,7 +505,7 @@ class PprofExporter(exporter.Exporter):
 
     def _lock_event_group_key(
         self,
-        event: threading.LockEventBase,
+        event: _lock.LockEventBase,
     ) -> LockEventGroupKey:
         return LockEventGroupKey(
             _none_to_str(event.lock_name),
@@ -519,8 +522,8 @@ class PprofExporter(exporter.Exporter):
         )
 
     def _group_lock_events(
-        self, events: typing.Iterable[threading.LockEventBase]
-    ) -> typing.Iterator[typing.Tuple[LockEventGroupKey, typing.Iterator[threading.LockEventBase]]]:
+        self, events: typing.Iterable[_lock.LockEventBase]
+    ) -> typing.Iterator[typing.Tuple[LockEventGroupKey, typing.Iterator[_lock.LockEventBase]]]:
         return itertools.groupby(
             sorted(events, key=self._lock_event_group_key),
             key=self._lock_event_group_key,
@@ -556,7 +559,7 @@ class PprofExporter(exporter.Exporter):
     def _get_event_trace_resource(self, event: event.StackBasedEvent) -> str:
         trace_resource = ""
         # Do not export trace_resource for non Web spans for privacy concerns.
-        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB.value:
+        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB:
             (trace_resource,) = event.trace_resource_container
         return ensure_str(trace_resource, errors="backslashreplace")
 
@@ -615,8 +618,8 @@ class PprofExporter(exporter.Exporter):
 
         # Handle Lock events
         for event_class, convert_fn in (
-            (threading.LockAcquireEvent, converter.convert_lock_acquire_event),
-            (threading.LockReleaseEvent, converter.convert_lock_release_event),
+            (_lock.LockAcquireEvent, converter.convert_lock_acquire_event),
+            (_lock.LockReleaseEvent, converter.convert_lock_release_event),
         ):
             lock_events = events.get(event_class, [])  # type: ignore[call-overload]
             sampling_sum_pct = sum(event.sampling_pct for event in lock_events)

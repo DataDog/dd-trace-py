@@ -18,6 +18,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
@@ -30,13 +31,6 @@ from ._asyncio import DdtraceProfilerEventLoopPolicy
 
 
 LOG = logging.getLogger(__name__)
-
-
-def _get_service_name():
-    for service_name_var in ("DD_SERVICE", "DD_SERVICE_NAME", "DATADOG_SERVICE_NAME"):
-        service_name = os.environ.get(service_name_var)
-        if service_name is not None:
-            return service_name
 
 
 class Profiler(object):
@@ -118,7 +112,7 @@ class _ProfilerInstance(service.Service):
 
     # User-supplied values
     url = attr.ib(default=None)
-    service = attr.ib(factory=_get_service_name)
+    service = attr.ib(factory=lambda: os.environ.get("DD_SERVICE"))
     tags = attr.ib(factory=dict, type=typing.Dict[str, bytes])
     env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
     version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
@@ -194,7 +188,8 @@ class _ProfilerInstance(service.Service):
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),
             memalloc.MemoryCollector(r),
-            threading.LockCollector(r, tracer=self.tracer),
+            threading.ThreadingLockCollector(r, tracer=self.tracer),
+            asyncio.AsyncioLockCollector(r, tracer=self.tracer),
         ]
 
         exporters = self._build_default_exporters()

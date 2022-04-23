@@ -1,11 +1,9 @@
 import logging
 
 import mock
-from pytest import warns
 
 from ddtrace.internal.logger import DDLogger
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.deprecation import RemovedInDDTrace10Warning
 from tests.utils import BaseTestCase
 
 
@@ -144,16 +142,6 @@ class DDLoggerTestCase(BaseTestCase):
         # Set specific log level
         log = DDLogger("test.logger", level=logging.DEBUG)
         self.assertEqual(log.level, logging.DEBUG)
-
-    def test_logger_deprecated_rate_limit(self):
-        with self.override_env(dict(DD_LOGGING_RATE_LIMIT="10")), warns(RemovedInDDTrace10Warning):
-            log = DDLogger("test.logger")
-            self.assertEqual(log.rate_limit, 10)
-
-        # Ensure correct precedence
-        with self.override_env(dict(DD_LOGGING_RATE_LIMIT="10", DD_TRACE_LOGGING_RATE="20")):
-            log = DDLogger("test.logger")
-            self.assertEqual(log.rate_limit, 20)
 
     def test_logger_log(self):
         """

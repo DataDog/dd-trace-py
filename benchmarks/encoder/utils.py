@@ -1,9 +1,17 @@
+from functools import partial
 import random
 import string
 
+from ddtrace import Span
+from ddtrace import __version__ as ddtrace_version
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
-from ddtrace.span import Span
 
+
+_Span = Span
+
+# DEV: 1.x dropped tracer positional argument
+if ddtrace_version.split(".")[0] == "0":
+    _Span = partial(_Span, None)
 
 try:
     # the introduction of the buffered encoder changed the internal api
@@ -49,7 +57,7 @@ def gen_traces(config):
             span_name = random.choice(span_names)
             resource = random.choice(resources)
             service = random.choice(services)
-            with Span(None, span_name, resource=resource, service=service, parent_id=parent_id) as span:
+            with _Span(span_name, resource=resource, service=service, parent_id=parent_id) as span:
                 if i == 0 and config.dd_origin:
                     # Since we're not using the tracer API, a span's context isn't automatically propagated
                     # to its children. The encoder only checks the root span's context in a trace for dd_origin, so

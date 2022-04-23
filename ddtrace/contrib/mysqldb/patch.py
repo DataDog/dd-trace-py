@@ -1,14 +1,18 @@
+import os
+
 import MySQLdb
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.dbapi import TracedConnection
+from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
+from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...internal.utils.formats import asbool
-from ...internal.utils.formats import get_env
 from ...internal.utils.wrappers import unwrap as _u
 
 
@@ -16,7 +20,9 @@ config._add(
     "mysqldb",
     dict(
         _default_service="mysql",
-        trace_fetch_methods=asbool(get_env("mysqldb", "trace_fetch_methods", default=False)),
+        _dbapi_span_name_prefix="mysql",
+        trace_fetch_methods=asbool(os.getenv("DD_MYSQLDB_TRACE_FETCH_METHODS", default=False)),
+        trace_connect=asbool(os.getenv("DD_MYSQLDB_TRACE_CONNECT", default=False)),
     ),
 )
 
@@ -33,6 +39,8 @@ def patch():
         return
     setattr(MySQLdb, "__datadog_patch", True)
 
+    Pin().onto(MySQLdb)
+
     # `Connection` and `connect` are aliases for
     # `Connect`; patch them too
     _w("MySQLdb", "Connect", _connect)
@@ -47,6 +55,10 @@ def unpatch():
         return
     setattr(MySQLdb, "__datadog_patch", False)
 
+    pin = Pin.get_from(MySQLdb)
+    if pin:
+        pin.remove_from(MySQLdb)
+
     # unpatch MySQLdb
     _u(MySQLdb, "Connect")
     if hasattr(MySQLdb, "Connection"):
@@ -56,7 +68,16 @@ def unpatch():
 
 
 def _connect(func, instance, args, kwargs):
-    conn = func(*args, **kwargs)
+    pin = Pin.get_from(MySQLdb)
+
+    if not pin or not pin.enabled() or not config.mysqldb.trace_connect:
+        conn = func(*args, **kwargs)
+    else:
+        with pin.tracer.trace(
+            "MySQLdb.connection.connect", service=ext_service(pin, config.mysqldb), span_type=SpanTypes.SQL
+        ) as span:
+            span.set_tag(SPAN_MEASURED_KEY)
+            conn = func(*args, **kwargs)
     return patch_conn(conn, *args, **kwargs)
 
 
@@ -65,7 +86,7 @@ def patch_conn(conn, *args, **kwargs):
         t: kwargs[k] if k in kwargs else args[p] for t, (k, p) in KWPOS_BY_TAG.items() if k in kwargs or len(args) > p
     }
     tags[net.TARGET_PORT] = conn.port
-    pin = Pin(app="mysql", tags=tags)
+    pin = Pin(tags=tags)
 
     # grab the metadata from the conn
     wrapped = TracedConnection(conn, pin=pin, cfg=config.mysqldb)

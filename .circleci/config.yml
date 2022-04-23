@@ -90,6 +90,21 @@ commands:
           paths:
             - ".tox"
 
+  save_pip_cache:
+    description: "Save pip cache directory"
+    steps:
+      - save_cache:
+          # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
+          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          paths:
+            - ".cache/pip"
+
+  restore_pip_cache:
+    description: "Restore pip cache directory"
+    steps:
+      - restore_cache:
+          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+
   run_test:
     description: "Run tests matching a pattern"
     parameters:
@@ -112,6 +127,7 @@ commands:
       - attach_workspace:
           at: .
       - checkout
+      - restore_pip_cache
       - when:
           condition:
               << parameters.snapshot >>
@@ -143,6 +159,7 @@ commands:
             - setup_riot
             - run:
                 command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+      - save_pip_cache
       - when:
           condition:
             << parameters.store_coverage >>
@@ -270,6 +287,9 @@ jobs:
           name: "Flake8 check"
           command: riot run -s flake8
       - run:
+          name: "Slots check"
+          command: riot run -s slotscheck
+      - run:
           name: "Mypy check"
           command: riot run -s mypy
       - run:
@@ -284,8 +304,9 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip
+      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip cppcheck
       - run: scripts/cformat.sh
+      - run: scripts/cppcheck.sh
       - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
@@ -322,8 +343,8 @@ jobs:
       # Print tests/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage report --ignore-errors --omit=ddtrace/
-      # Print diff-cover report to stdout (compares against origin/master)
-      - run: diff-cover --compare-branch origin/master coverage.xml
+      # Print diff-cover report to stdout (compares against origin/1.x)
+      - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
 
   build_base_venvs:
     executor: ddtrace_dev
@@ -349,21 +370,29 @@ jobs:
           pattern: 'appsec'
           snapshot: true
 
+  internal:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "internal"
+
   tracer:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_test:
           pattern: "tracer"
 
   opentracer:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
 
   profile:
     <<: *contrib_job
-    parallelism: 6
+    parallelism: 7
     steps:
       - run_tox_scenario:
           store_coverage: false
@@ -461,6 +490,14 @@ jobs:
       - run_tox_scenario:
           pattern: '^asyncio_contrib-'
 
+  asyncpg:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'asyncpg'
+          snapshot: true
+          docker_services: 'postgres'
+
   pylons:
     <<: *contrib_job
     steps:
@@ -468,10 +505,13 @@ jobs:
           pattern: '^pylons_contrib-'
 
   aiohttp:
-    <<: *contrib_job
+    <<: *machine_executor
+    parallelism: 6
     steps:
       - run_test:
-          pattern: 'aiohttp'
+          pattern: 'aiohttp'  # includes aiohttp_jinja2
+          snapshot: true
+          docker_services: 'httpbin_local'
 
   asgi:
     <<: *contrib_job_small
@@ -508,7 +548,7 @@ jobs:
 
   celery:
     <<: *contrib_job
-    parallelism: 6
+    parallelism: 7
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -602,13 +642,14 @@ jobs:
 
   gevent:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
   grpc:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 7
     steps:
       - run_test:
           pattern: "grpc"
@@ -751,10 +792,11 @@ jobs:
           pattern: '^requests_gevent_contrib-'
 
   sanic:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^sanic_contrib-'
+      - run_test:
+          pattern: "sanic"
+          snapshot: true
 
   snowflake:
     <<: *machine_executor
@@ -805,6 +847,16 @@ jobs:
     steps:
        - run_test:
           pattern: 'aiobotocore'
+
+  aiomysql:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *mysql_server
+    steps:
+      - run_test:
+          wait: mysql
+          pattern: 'aiomysql'
 
   aiopg:
     <<: *contrib_job
@@ -900,6 +952,7 @@ jobs:
 
   kombu:
     <<: *contrib_job
+    parallelism: 7
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
@@ -968,9 +1021,11 @@ requires_tests: &requires_tests
   requires:
     - aiobotocore
     - aiohttp
+    - aiomysql
     - aiopg
     - aioredis
     - asyncio
+    - asyncpg
     - algoliasearch
     - asgi
     - benchmarks
@@ -1040,7 +1095,7 @@ requires_tests: &requires_tests
 
 workflows:
   version: 2
-  test:
+  test: &workflow_test
     jobs:
       # Pre-checking before running all jobs
       - pre_check
@@ -1055,9 +1110,11 @@ workflows:
       # Integration test suites
       - aiobotocore: *requires_base_venvs
       - aiohttp: *requires_base_venvs
+      - aiomysql: *requires_base_venvs
       - aiopg: *requires_base_venvs
       - aioredis: *requires_base_venvs
       - asyncio: *requires_base_venvs
+      - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
       - benchmarks: *requires_base_venvs
@@ -1085,6 +1142,7 @@ workflows:
       - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
+      - internal: *requires_base_venvs
       - vendor: *requires_base_venvs
       - profile: *requires_base_venvs
       - jinja2: *requires_base_venvs
@@ -1127,3 +1185,14 @@ workflows:
 
       # Final reports
       - coverage_report: *requires_tests
+
+  test_nightly:
+    <<: *workflow_test
+    triggers:
+      - schedule:
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only:
+                - 0.x
+                - 1.x

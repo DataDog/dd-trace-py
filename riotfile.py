@@ -88,7 +88,12 @@ venv = Venv(
     venvs=[
         Venv(
             pys=["3"],
-            pkgs={"black": "==21.4b2", "isort": [latest]},
+            pkgs={
+                "black": "==21.4b2",
+                "isort": [latest],
+                # See https://github.com/psf/black/issues/2964 for incompatibility with click==8.1.0
+                "click": "<8.1.0",
+            },
             venvs=[
                 Venv(
                     name="fmt",
@@ -131,7 +136,9 @@ venv = Venv(
             pkgs={
                 "mypy": latest,
                 "types-attrs": latest,
+                "types-docutils": latest,
                 "types-protobuf": latest,
+                "types-PyYAML": latest,
                 "types-setuptools": latest,
                 "types-six": latest,
             },
@@ -147,6 +154,16 @@ venv = Venv(
                 Venv(
                     name="hook-codespell",
                     command="codespell {cmdargs}",
+                ),
+            ],
+        ),
+        Venv(
+            pys=["3"],
+            pkgs={"slotscheck": latest},
+            venvs=[
+                Venv(
+                    name="slotscheck",
+                    command="python -m slotscheck -v {cmdargs}",
                 ),
             ],
         ),
@@ -252,6 +269,11 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="internal",
+            command="pytest {cmdargs} tests/internal/",
+            venvs=[Venv(pys=select_pys())],
+        ),
+        Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
@@ -349,18 +371,6 @@ venv = Venv(
                         "kombu": "~=4.3.0",
                     },
                 ),
-                Venv(
-                    pys=select_pys(max_version="3.6"),
-                    pkgs={
-                        "pytest": "~=3.10",
-                        "celery": [
-                            "~=4.0.2",
-                            "~=4.1.1",
-                        ],
-                        "redis": "~=3.5",
-                        "kombu": "~=4.4.0",
-                    },
-                ),
                 # Celery 4.2 is now limited to Kombu 4.3
                 # https://github.com/celery/celery/commit/1571d414461f01ae55be63a03e2adaa94dbcb15d
                 Venv(
@@ -395,9 +405,7 @@ venv = Venv(
                     },
                     pkgs={
                         "celery": [
-                            # Pin until https://github.com/celery/celery/issues/6829 is resolved.
-                            # "~=5.0.5",
-                            "==5.0.5",
+                            "~=5.0.5",
                             "~=5.0",  # most recent 5.x
                             latest,
                         ],
@@ -505,7 +513,7 @@ venv = Venv(
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
-                "psycopg2": ["~=2.8.0"],
+                "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
@@ -717,6 +725,12 @@ venv = Venv(
                         "flask": ["~=0.12.0"],
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
@@ -724,10 +738,20 @@ venv = Venv(
                     # TODO: Re-enable coverage for Flask tests
                     command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
-                    pkgs={"flask": ["~=0.12.0"], "pytest": "~=3.0", "more_itertools": "<8.11.0"},
+                    pkgs={
+                        "flask": ["~=0.12.0"],
+                        "pytest": "~=3.0",
+                        "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
                 ),
                 # Flask 1.x.x
                 Venv(
@@ -738,6 +762,14 @@ venv = Venv(
                             "~=1.1.0",
                             "~=1.0",  # latest 1.x
                         ],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.1.0 release
+                        "itsdangerous": "<2.1.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
                     },
                 ),
                 Venv(
@@ -745,8 +777,8 @@ venv = Venv(
                     # TODO: Re-enable coverage for Flask tests
                     command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
                         "flask": [
@@ -754,6 +786,14 @@ venv = Venv(
                             "~=1.1.0",
                             "~=1.0",  # latest 1.x
                         ],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                        # DEV: Flask 1.0.x is missing a maximum version for werkzeug dependency
+                        "werkzeug": "<2.0",
                     },
                 ),
                 # Flask >= 2.0.0
@@ -772,8 +812,8 @@ venv = Venv(
                     # TODO: Re-enable coverage for Flask tests
                     command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
                     env={
-                        "DATADOG_SERVICE_NAME": "test.flask.service",
-                        "DATADOG_PATCH_MODULES": "jinja2:false",
+                        "DD_SERVICE": "test.flask.service",
+                        "DD_PATCH_MODULES": "jinja2:false",
                     },
                     pkgs={
                         "flask": [
@@ -804,6 +844,12 @@ venv = Venv(
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
@@ -815,12 +861,31 @@ venv = Venv(
                         "werkzeug": "<1.0",
                         "pytest": "~=3.0",
                         "more_itertools": "<8.11.0",
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3"),
                     pkgs={
                         "flask": ["~=1.0.0", "~=1.1.0", latest],
+                        "flask-caching": ["~=1.10.0", latest],
+                        # https://github.com/pallets/itsdangerous/issues/290
+                        # DEV: Breaking change made in 2.0 release
+                        "itsdangerous": "<2.0",
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3"),
+                    pkgs={
+                        "flask": [latest],
                         "flask-caching": ["~=1.10.0", latest],
                     },
                 ),
@@ -1136,6 +1201,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="aiomysql",
+            pys=select_pys(min_version="3.7"),
+            command="pytest {cmdargs} tests/contrib/aiomysql",
+            pkgs={
+                "pytest-asyncio": latest,
+                "aiomysql": ["~=0.1.0", latest],
+            },
+        ),
+        Venv(
             name="pytest",
             command="pytest {cmdargs} tests/contrib/pytest",
             venvs=[
@@ -1341,19 +1415,99 @@ venv = Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
                         "aiohttp": ["~=2.0", "~=2.1", "~=2.2", "~=2.3"],
-                        "aiohttp_jinja2": ["~=0.12", "~=0.13", "~=0.15"],
                         "async-timeout": ["<4.0.0"],
                         "yarl": "~=0.18.0",
                     },
                 ),
                 Venv(
-                    # Python 3.5 is deprecated for aiohttp >= 3.0
-                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    # pytest-asyncio is incompatible with aiohttp 3.0+ in Python 3.6
+                    pys="3.6",
                     pkgs={
-                        "aiohttp": ["~=3.0", "~=3.1", "~=3.2", "~=3.3", "~=3.4", "~=3.5", "~=3.6"],
-                        "aiohttp_jinja2": "~=0.15",
+                        "aiohttp": [
+                            "~=3.0",
+                            "~=3.2",
+                            "~=3.4",
+                            "~=3.6",
+                            "~=3.8",
+                            latest,
+                        ],
                         "yarl": "~=1.0",
                     },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "pytest-asyncio": [latest],
+                        "aiohttp": [
+                            "~=3.0",
+                            "~=3.2",
+                            "~=3.4",
+                            "~=3.6",
+                            "~=3.8",
+                            latest,
+                        ],
+                        "yarl": "~=1.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="aiohttp_jinja2",
+            command="pytest {cmdargs} tests/contrib/aiohttp_jinja2",
+            pkgs={
+                "pytest-aiohttp": [latest],
+            },
+            venvs=[
+                Venv(
+                    pys="3.6",
+                    pkgs={
+                        "aiohttp": [
+                            "~=3.4",
+                            "~=3.6",
+                            latest,
+                        ],
+                        "aiohttp_jinja2": [
+                            "~=1.3.0",
+                            "~=1.4.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "pytest-asyncio": [latest],
+                        "aiohttp": [
+                            "~=3.4",
+                            "~=3.6",
+                            "~=3.8",
+                            latest,
+                        ],
+                    },
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "aiohttp_jinja2": [
+                                    "~=1.3.0",
+                                    "~=1.4.0",
+                                    latest,
+                                ],
+                                # Jinja2 makes breaking changes in 3.0.
+                                "jinja2": "<3.0",
+                                # MarkupSafe makes breaking changes in 2.1.
+                                "MarkupSafe": "<2.1",
+                            }
+                        ),
+                        Venv(
+                            pkgs={
+                                "aiohttp_jinja2": [
+                                    "~=1.5.0",
+                                    latest,
+                                ],
+                                "jinja2": latest,
+                            }
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -1362,11 +1516,18 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.9"),
-                    pkgs={"jinja2": [("~=2.%d.0" % m) for m in range(7, 12)]},
+                    pkgs={
+                        "jinja2": [("~=2.%d.0" % m) for m in range(9, 12)],
+                        # https://github.com/pallets/markupsafe/issues/282
+                        # DEV: Breaking change made in 2.1.0 release
+                        "markupsafe": "<2.0",
+                    },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    pkgs={"jinja2": ["~=3.0.0", latest]},
+                    pkgs={
+                        "jinja2": ["~=3.0.0", latest],
+                    },
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
@@ -1419,6 +1580,51 @@ venv = Venv(
                     latest,
                 ],
             },
+        ),
+        Venv(
+            name="sanic",
+            command="pytest {cmdargs} tests/contrib/sanic",
+            pkgs={
+                "pytest-asyncio": latest,
+                "requests": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "sanic": ["~=19.12", "~=20.12"],
+                        "pytest-sanic": ["~=1.6.2"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": ["~=21.3.0"],
+                        "pytest-sanic": latest,
+                        "httpx": ["~=0.15.4"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": [
+                            "~=21.6.0",
+                        ],
+                        "pytest-sanic": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": [
+                            "~=21.9.0",
+                            "~=21.12.0",
+                            latest,
+                        ],
+                        "sanic-testing": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="snowflake",
@@ -1487,6 +1693,47 @@ venv = Venv(
                     latest,
                 ],
             },
+        ),
+        Venv(
+            name="asyncpg",
+            command="pytest {cmdargs} tests/contrib/asyncpg",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.8"),
+                    pkgs={
+                        "asyncpg": [
+                            "~=0.18.0",
+                            "~=0.20.0",
+                            "~=0.22.0",
+                            "~=0.24.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=["3.9"],
+                    pkgs={
+                        "asyncpg": [
+                            "~=0.20.0",
+                            "~=0.22.0",
+                            "~=0.24.0",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "asyncpg": [
+                            "~=0.24.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
         ),
     ],
 )

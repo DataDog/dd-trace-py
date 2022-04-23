@@ -74,6 +74,12 @@ def snapshot_client(snapshot_app):
         yield test_client
 
 
+def assert_serialize_span(serialize_span):
+    assert serialize_span.service == "fastapi"
+    assert serialize_span.name == "fastapi.serialize_response"
+    assert serialize_span.error == 0
+
+
 def test_read_homepage(client, tracer, test_spans):
     response = client.get("/", headers={"sleep": "False"})
     assert response.status_code == 200
@@ -81,8 +87,8 @@ def test_read_homepage(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /"
@@ -92,6 +98,10 @@ def test_read_homepage(client, tracer, test_spans):
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") is None
 
+    assert serialize_span.service == "fastapi"
+    assert serialize_span.name == "fastapi.serialize_response"
+    assert serialize_span.error == 0
+
 
 def test_read_item_success(client, tracer, test_spans):
     response = client.get("/items/foo", headers={"X-Token": "DataDog"})
@@ -100,8 +110,8 @@ def test_read_item_success(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
@@ -109,6 +119,8 @@ def test_read_item_success(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/foo"
     assert request_span.get_tag("http.status_code") == "200"
+
+    assert_serialize_span(serialize_span)
 
 
 def test_read_item_bad_token(client, tracer, test_spans):
@@ -156,8 +168,8 @@ def test_read_item_query_string(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
@@ -166,6 +178,8 @@ def test_read_item_query_string(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/items/foo"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "q=query"
+
+    assert_serialize_span(serialize_span)
 
 
 def test_200_multi_query_string(client, tracer, test_spans):
@@ -177,8 +191,8 @@ def test_200_multi_query_string(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
@@ -187,6 +201,8 @@ def test_200_multi_query_string(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/items/foo"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "name=Foo&q=query"
+
+    assert_serialize_span(serialize_span)
 
 
 def test_create_item_success(client, tracer, test_spans):
@@ -200,8 +216,8 @@ def test_create_item_success(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
 
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
@@ -211,6 +227,8 @@ def test_create_item_success(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/items/"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") is None
+
+    assert_serialize_span(serialize_span)
 
 
 def test_create_item_bad_token(client, tracer, test_spans):
@@ -344,8 +362,8 @@ def test_path_param_aggregate(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /users/{userid:str}"
@@ -353,6 +371,8 @@ def test_path_param_aggregate(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID"
     assert request_span.get_tag("http.status_code") == "200"
+
+    assert_serialize_span(serialize_span)
 
 
 def test_mid_path_param_aggregate(client, tracer, test_spans):
@@ -363,8 +383,8 @@ def test_mid_path_param_aggregate(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /users/{userid:str}/info"
@@ -372,6 +392,8 @@ def test_mid_path_param_aggregate(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID/info"
     assert request_span.get_tag("http.status_code") == "200"
+
+    assert_serialize_span(serialize_span)
 
 
 def test_multi_path_param_aggregate(client, tracer, test_spans):
@@ -382,8 +404,8 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /users/{userid:str}/{attribute:str}"
@@ -391,6 +413,8 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID/name"
     assert request_span.get_tag("http.status_code") == "200"
+
+    assert_serialize_span(serialize_span)
 
 
 def test_distributed_tracing(client, tracer, test_spans):
@@ -406,8 +430,8 @@ def test_distributed_tracing(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /"
@@ -417,6 +441,8 @@ def test_distributed_tracing(client, tracer, test_spans):
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.parent_id == 5555
     assert request_span.trace_id == 9999
+
+    assert_serialize_span(serialize_span)
 
 
 @pytest.mark.asyncio
@@ -434,23 +460,27 @@ async def test_multiple_requests(application, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 2
-    assert len(spans[0]) == 1
-    assert len(spans[1]) == 1
+    assert len(spans[0]) == 2
+    assert len(spans[1]) == 2
 
-    r1_span = spans[0][0]
+    r1_span, s1_span = spans[0]
     assert r1_span.service == "fastapi"
     assert r1_span.name == "fastapi.request"
     assert r1_span.resource == "GET /"
     assert r1_span.get_tag("http.method") == "GET"
     assert r1_span.get_tag("http.url") == "http://testserver/"
 
-    r2_span = spans[1][0]
+    assert_serialize_span(s1_span)
+
+    r2_span, s2_span = spans[1]
     assert r2_span.service == "fastapi"
     assert r2_span.name == "fastapi.request"
     assert r2_span.resource == "GET /"
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/"
     assert r1_span.trace_id != r2_span.trace_id
+
+    assert_serialize_span(s2_span)
 
 
 def test_service_can_be_overridden(client, tracer, test_spans):
@@ -472,7 +502,7 @@ def test_subapp(client, tracer, test_spans):
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
-    assert len(spans[0]) == 2
+    assert len(spans[0]) == 3
     request_span = spans[0][0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"

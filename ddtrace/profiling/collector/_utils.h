@@ -85,7 +85,8 @@ random_range(uint64_t max)
             memmove(arr->tab + pos + count, arr->tab + pos + len, (arr->count - pos - len) * sizeof(*items));          \
             arr->count += count - len;                                                                                 \
         }                                                                                                              \
-        memcpy(arr->tab + pos, items, count * sizeof(*items));                                                         \
+        if (count)                                                                                                     \
+            memcpy(arr->tab + pos, items, count * sizeof(*items));                                                     \
     }                                                                                                                  \
     static inline type_t pfx##_array_take(pfx##_array_t* arr, size_type pos)                                           \
     {                                                                                                                  \

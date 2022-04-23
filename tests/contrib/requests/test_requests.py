@@ -123,7 +123,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert_span_http_status_code(s, 200)
         assert s.error == 0
         assert s.span_type == "http"
-        assert http.QUERY_STRING not in s._get_tags()
+        assert http.QUERY_STRING not in s.get_tags()
 
     def test_200_send(self):
         # when calling send directly
@@ -505,7 +505,6 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         """
         pin = Pin(
             service=__name__,
-            app="requests",
             _config={
                 "service_name": __name__,
                 "distributed_tracing": False,
@@ -530,7 +529,6 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         """
         pin = Pin(
             service=__name__,
-            app="requests",
             _config={
                 "service_name": __name__,
                 "distributed_tracing": False,

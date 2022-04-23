@@ -4,6 +4,7 @@ import structlog
 from ddtrace import Tracer
 from ddtrace import config
 from ddtrace import tracer
+from ddtrace.context import Context
 from ddtrace.opentracer.tracer import Tracer as OT_Tracer
 from tests.utils import override_global_config
 
@@ -26,6 +27,29 @@ def tracer_injection(logger, log_method, event_dict):
 
 
 class TestCorrelationLogsContext(object):
+    def test_get_log_correlation_service(self, global_config):
+        """Ensure expected DDLogRecord service is generated via get_correlation_log_record."""
+        with tracer.trace("test-span-1", service="span-service") as span1:
+            dd_log_record = tracer.get_log_correlation_context()
+        assert dd_log_record == {
+            "span_id": str(span1.span_id),
+            "trace_id": str(span1.trace_id),
+            "service": "span-service",
+            "env": "test-env",
+            "version": "test-version",
+        }
+
+        test_tracer = Tracer()
+        with test_tracer.trace("test-span-2", service="span-service") as span2:
+            dd_log_record = test_tracer.get_log_correlation_context()
+        assert dd_log_record == {
+            "span_id": str(span2.span_id),
+            "trace_id": str(span2.trace_id),
+            "service": "span-service",
+            "env": "test-env",
+            "version": "test-version",
+        }
+
     def test_get_log_correlation_context(self, global_config):
         """Ensure expected DDLogRecord is generated via get_correlation_log_record."""
         with tracer.trace("test-span-1") as span1:
@@ -48,9 +72,23 @@ class TestCorrelationLogsContext(object):
             "version": "test-version",
         }
 
+        tracer.context_provider.activate(
+            Context(
+                span_id=234,
+                trace_id=4321,
+            )
+        )
+        assert test_tracer.get_log_correlation_context() == {
+            "span_id": "234",
+            "trace_id": "4321",
+            "service": "test-service",
+            "env": "test-env",
+            "version": "test-version",
+        }
+
     def test_get_log_correlation_context_opentracer(self, global_config):
         """Ensure expected DDLogRecord generated via get_correlation_log_record with an opentracing Tracer."""
-        ot_tracer = OT_Tracer()
+        ot_tracer = OT_Tracer(service_name="test-service")
         with ot_tracer.start_active_span("operation") as scope:
             dd_span = scope._span._dd_span
             dd_log_record = ot_tracer.get_log_correlation_context()

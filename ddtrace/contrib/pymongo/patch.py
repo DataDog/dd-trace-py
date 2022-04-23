@@ -10,7 +10,6 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import mongo as mongox
-from ...internal.utils.deprecation import deprecated
 from ..trace_utils import unwrap as _u
 from .client import TracedMongoClient
 from .client import set_address_tags
@@ -40,18 +39,11 @@ def unpatch():
     setattr(pymongo, "MongoClient", _MongoClient)
 
 
-@deprecated(message="Use patching instead (see the docs).", version="1.0.0")
-def trace_mongo_client(client, tracer, service=mongox.SERVICE):
-    traced_client = TracedMongoClient(client)
-    Pin(service=service, tracer=tracer).onto(traced_client)
-    return traced_client
-
-
 def patch_pymongo_module():
     if getattr(pymongo, "_datadog_patch", False):
         return
     setattr(pymongo, "_datadog_patch", True)
-    Pin(app=mongox.SERVICE).onto(pymongo.server.Server)
+    Pin().onto(pymongo.server.Server)
 
     # Whenever a pymongo command is invoked, the lib either:
     # - Creates a new socket & performs a TCP handshake

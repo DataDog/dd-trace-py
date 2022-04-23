@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support to reuse HTTP connections when sending trace payloads to the agent. This feature is disabled by default. Set ``DD_TRACE_WRITER_REUSE_CONNECTIONS=true`` to enable this feature.

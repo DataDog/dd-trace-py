@@ -1,13 +1,19 @@
+AArch
+AnyCallable
 CPython
 Fargate
 Firehose
 Gunicorn
+HTTPPropagator
 INfo
 IPv
 MySQL
 OpenTracing
+Runtimes
+SpanContext
 aiobotocore
 aiohttp
+aiomysql
 aiopg
 aioredis
 algolia
@@ -20,6 +26,7 @@ aredis
 args
 asgi
 asyncio
+asyncpg
 attrs
 autodetected
 autopatching
@@ -30,6 +37,7 @@ booleans
 boto
 botocore
 CGroup
+cassandra
 cgroups
 cherrypy
 codepath
@@ -86,6 +94,7 @@ kwarg
 kwargs
 lifecycle
 lookups
+macOS
 mako
 mariadb
 memcached
@@ -118,6 +127,7 @@ pymongo
 pymysql
 pynamodb
 pyodbc
+pyston
 pytest
 quickstart
 redis
@@ -128,6 +138,7 @@ respawn
 rq
 runnable
 runtime
+runtimes
 runtime-id
 sanic
 screenshots
@@ -163,3 +174,5 @@ wsgi
 xfail
 yaaredis
 Kinesis
+AppSec
+libddwaf

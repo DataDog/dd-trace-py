@@ -1,0 +1,9 @@
+---
+upgrade:
+  - ".. _remove-mysql-legacy:
+
+
+    mysql: The deprecated method ``ddtrace.contrib.mysql.get_traced_mysql_connection``
+    is removed. Use ``ddtrace.patch(mysql=True)`` or ``ddtrace.patch_all()`` instead.
+
+    "

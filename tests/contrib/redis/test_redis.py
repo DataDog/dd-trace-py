@@ -4,27 +4,14 @@ import redis
 import ddtrace
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.redis import get_traced_redis
 from ddtrace.contrib.redis.patch import patch
 from ddtrace.contrib.redis.patch import unpatch
-from ddtrace.internal import compat
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 from ..config import REDIS_CONFIG
-
-
-def test_redis_legacy():
-    # ensure the old interface isn't broken, but doesn't trace
-    tracer = DummyTracer()
-    TracedRedisCache = get_traced_redis(tracer, "foo")
-    r = TracedRedisCache(port=REDIS_CONFIG["port"])
-    r.set("a", "b")
-    got = r.get("a")
-    assert compat.to_unicode(got) == "b"
-    assert not tracer.pop()
 
 
 class TestRedisPatch(TracerTestCase):
@@ -158,7 +145,7 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "redis"
-        assert "cheese" in span._get_tags() and span.get_tag("cheese") == "camembert"
+        assert "cheese" in span.get_tags() and span.get_tag("cheese") == "camembert"
 
     def test_patch_unpatch(self):
         tracer = DummyTracer()

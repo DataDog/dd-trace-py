@@ -1,0 +1,22 @@
+---
+upgrade:
+  - ".. _remove-span-meta:
+
+
+    ``ddtrace.Span.meta`` is removed. Use :py:meth:`ddtrace.Span.get_tag`
+    and :py:meth:`ddtrace.Span.set_tag` instead.
+
+    "
+  - ".. _remove-span-metrics:
+
+
+    ``ddtrace.Span.metrics`` is removed. Use :py:meth:`ddtrace.Span.get_metric`
+    and :py:meth:`ddtrace.Span.set_metric` instead.
+
+    "
+  - ".. _remove-span-pprint:
+
+
+    ``ddtrace.Span.pprint`` is removed.
+
+    "

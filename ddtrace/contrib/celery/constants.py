@@ -16,6 +16,5 @@ TASK_RUN = "run"
 TASK_RETRY_REASON_KEY = "celery.retry.reason"
 
 # Service info
-APP = "celery"
 PRODUCER_SERVICE = config._get_service(default="celery-producer")
 WORKER_SERVICE = config._get_service(default="celery-worker")

@@ -1,0 +1,8 @@
+---
+upgrade:
+  - ".. _remove-cassandra-traced:
+
+
+    cassandra: ``get_traced_cassandra`` is removed. Use ``ddtrace.patch(cassandra=True)`` or ``ddtrace.patch_all()`` instead.
+
+    "

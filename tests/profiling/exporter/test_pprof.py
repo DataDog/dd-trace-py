@@ -4,9 +4,9 @@ import mock
 import six
 
 from ddtrace import ext
+from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
-from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof
 
 
@@ -331,7 +331,7 @@ TEST_EVENTS = {
             thread_name="MainThread",
             local_root_span_id=1322219321,
             span_id=49343,
-            trace_type=ext.SpanTypes.WEB.value,
+            trace_type=ext.SpanTypes.WEB,
             trace_resource_container=["myresource"],
             frames=[
                 ("foobar.py", 23, "func1"),
@@ -444,8 +444,8 @@ TEST_EVENTS = {
             nframes=3,
         ),
     ],
-    threading.LockAcquireEvent: [
-        threading.LockAcquireEvent(
+    _lock.LockAcquireEvent: [
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=1,
             thread_id=67892304,
@@ -459,13 +459,13 @@ TEST_EVENTS = {
             task_name="mytask",
             local_root_span_id=23435,
             span_id=345432,
-            trace_type=ext.SpanTypes.WEB.value,
+            trace_type=ext.SpanTypes.WEB,
             trace_resource_container=[u"myresource"],
             nframes=3,
             wait_time_ns=74839,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=2,
             thread_id=67892304,
@@ -483,7 +483,7 @@ TEST_EVENTS = {
             wait_time_ns=7483,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=3,
             thread_id=67892304,
@@ -497,7 +497,7 @@ TEST_EVENTS = {
             wait_time_ns=7489,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=4,
             thread_id=67892304,
@@ -511,7 +511,7 @@ TEST_EVENTS = {
             wait_time_ns=4839,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=5,
             thread_id=67892304,
@@ -525,7 +525,7 @@ TEST_EVENTS = {
             wait_time_ns=748394,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=6,
             thread_id=67892304,
@@ -539,7 +539,7 @@ TEST_EVENTS = {
             wait_time_ns=748339,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=7,
             thread_id=67892304,
@@ -554,8 +554,8 @@ TEST_EVENTS = {
             sampling_pct=10,
         ),
     ],
-    threading.LockReleaseEvent: [
-        threading.LockReleaseEvent(
+    _lock.LockReleaseEvent: [
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=1,
             thread_id=67892304,
@@ -569,7 +569,7 @@ TEST_EVENTS = {
             locked_for_ns=74839,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=2,
             thread_id=67892304,
@@ -583,7 +583,7 @@ TEST_EVENTS = {
             locked_for_ns=7483,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=3,
             thread_id=67892304,
@@ -597,7 +597,7 @@ TEST_EVENTS = {
             locked_for_ns=7489,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=4,
             thread_id=67892304,
@@ -611,7 +611,7 @@ TEST_EVENTS = {
             locked_for_ns=4839,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=5,
             thread_id=67892304,
@@ -625,7 +625,7 @@ TEST_EVENTS = {
             locked_for_ns=748394,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=6,
             thread_id=67892304,
@@ -639,7 +639,7 @@ TEST_EVENTS = {
             locked_for_ns=748339,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=7,
             thread_id=67892304,

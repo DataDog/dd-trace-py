@@ -11,8 +11,10 @@ import six
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
+from ddtrace.span import _is_top_level
 
 
 log = get_logger(__name__)
@@ -56,9 +58,18 @@ class TraceSamplingProcessor(TraceProcessor):
     parts of the trace are unsampled when the whole trace should be sampled.
     """
 
+    _compute_stats_enabled = attr.ib(type=bool)
+
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
+            # When stats computation is enabled in the tracer then we can
+            # safely drop the traces.
+            if self._compute_stats_enabled:
+                priority = trace[0]._context.sampling_priority if trace[0]._context is not None else None
+                if priority is not None and priority <= 0:
+                    return None
+
             for span in trace:
                 if span.sampled:
                     return trace
@@ -94,9 +105,7 @@ class TraceTopLevelSpanProcessor(TraceProcessor):
 
         span_ids = {span.span_id for span in trace}
         for span in trace:
-            if span is span._local_root:
-                span.set_metric("_dd.top_level", 1)
-            elif span._parent and span.service != span._parent.service:
+            if _is_top_level(span):
                 span.set_metric("_dd.top_level", 1)
             elif span.parent_id and span.parent_id not in span_ids:
                 span.set_metric("_dd.top_level", 0)
@@ -180,6 +189,7 @@ class SpanAggregator(SpanProcessor):
 
                 if should_partial_flush:
                     log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
+                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 trace.num_finished -= num_finished
 
@@ -200,3 +210,19 @@ class SpanAggregator(SpanProcessor):
 
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
+
+    def shutdown(self, timeout):
+        # type: (Optional[float]) -> None
+        """
+        This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
+        used for tracing after this method has been called. A new tracer instance is required to continue tracing.
+
+        :param timeout: How long in seconds to wait for the background worker to flush traces
+            before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
+        :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
+        """
+        try:
+            self._writer.stop(timeout)
+        except ServiceStatusError:
+            # It's possible the writer never got started in the first place :(
+            pass

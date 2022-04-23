@@ -1,7 +1,3 @@
-from ddtrace.internal.compat import ensure_pep562
-from ddtrace.vendor import debtcollector
-
-
 SAMPLE_RATE_METRIC_KEY = "_sample_rate"
 SAMPLING_PRIORITY_KEY = "_sampling_priority_v1"
 ANALYTICS_SAMPLE_RATE_KEY = "_dd1.sr.eausr"
@@ -37,33 +33,3 @@ AUTO_REJECT = 0
 AUTO_KEEP = 1
 # Use this to explicitly inform the backend that a trace should be kept and stored.
 USER_KEEP = 2
-
-
-_DEPRECATED = {
-    # TODO: Removal of this attribute does not require the addition of a
-    # constant as it has only a single use for passing trace filters in the
-    # settings to the tracer.
-    "FILTERS_KEY": "FILTERS",
-    # TODO: Moved to other modules but cannot reference here due to circular imports
-    # ddtrace.contrib.logging.patch._LOG_SPAN_KEY
-    # ddtrace.span._NUMERIC_TAGS
-    "NUMERIC_TAGS": (ANALYTICS_SAMPLE_RATE_KEY,),
-    "LOG_SPAN_KEY": "__datadog_log_span",
-}
-
-
-def __getattr__(name):
-    if name in _DEPRECATED:
-        debtcollector.deprecate(
-            ("%s.%s is deprecated" % (__name__, name)),
-            removal_version="1.0.0",
-        )
-        return _DEPRECATED[name]
-
-    if name in globals():
-        return globals()[name]
-
-    raise AttributeError("%s has no attribute %s", __name__, name)
-
-
-ensure_pep562(__name__)

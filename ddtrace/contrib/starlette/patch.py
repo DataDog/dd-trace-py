@@ -1,5 +1,6 @@
 import starlette
 from starlette.middleware import Middleware
+from starlette.routing import BaseRoute
 
 from ddtrace import config
 from ddtrace import tracer
@@ -74,15 +75,19 @@ def traced_handler(wrapped, instance, args, kwargs):
     def _wrap(scope, receive, send):
         # Since handle can be called multiple times for one request, we take the path of each instance
         # Then combine them at the end to get the correct resource name
-        if "__dd_paths__" in scope:
-            scope["__dd_paths__"].append(instance.path)
+        if isinstance(instance, BaseRoute):
+            if "__dd_paths__" in scope:
+                scope["__dd_paths__"].append(instance.path)
 
-        else:
-            scope["__dd_paths__"] = [instance.path]
+            else:
+                scope["__dd_paths__"] = [instance.path]
 
-        # Update root span resource
-        span = tracer.current_root_span()
-        span.resource = "{} {}".format(scope["method"], "".join(scope["__dd_paths__"]))
+            method = scope["method"] if "method" in scope else ""
+
+            span = tracer.current_root_span()
+            # Update root span resource
+            if span:
+                span.resource = "{} {}".format(method, "".join(scope["__dd_paths__"]))
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
