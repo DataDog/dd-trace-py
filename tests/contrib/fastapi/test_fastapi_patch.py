@@ -12,7 +12,7 @@ class TestFastapiPatch(PatchTestCase.Base):
         self.assert_wrapped(fastapi.__init__)
 
     def assert_not_module_patched(self, fastapi):
-        self.assert_wrapped(fastapi.__init__)
+        self.assert_not_wrapped(fastapi.__init__)
 
     def assert_not_module_double_patched(self, fastapi):
         self.assert_not_double_wrapped(fastapi.__init__)
