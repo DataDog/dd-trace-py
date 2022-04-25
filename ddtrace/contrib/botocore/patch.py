@@ -373,8 +373,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             if span.resource in client_error_ignores:
                 status_code = span.get_tag(http.STATUS_CODE)
                 if status_code:
-                    status_code = int(status_code)
-                    if client_error_ignores[span.resource].is_error_code(status_code):
+                    if client_error_ignores[span.resource].is_error_code(int(status_code)):
                         span._ignore_exception(botocore.exceptions.ClientError)
             raise
 
