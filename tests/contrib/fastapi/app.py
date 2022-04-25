@@ -104,7 +104,7 @@ def get_app():
 
     subapp = FastAPI()
 
-    @subapp.get("/hello")
+    @subapp.get("/hello/{name}")
     def hello():
         return {"Greeting": "Hello"}
 

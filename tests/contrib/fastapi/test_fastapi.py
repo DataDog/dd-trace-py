@@ -496,7 +496,7 @@ def test_service_can_be_overridden(client, tracer, test_spans):
 
 
 def test_subapp(client, tracer, test_spans):
-    response = client.get("/sub-app/hello")
+    response = client.get("/sub-app/hello/name")
     assert response.status_code == 200
     assert response.json() == {"Greeting": "Hello"}
 
@@ -506,10 +506,10 @@ def test_subapp(client, tracer, test_spans):
     request_span = spans[0][0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
-    assert request_span.resource == "GET /sub-app/hello"
+    assert request_span.resource == "GET /sub-app/hello/{name}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/sub-app/hello"
+    assert request_span.get_tag("http.url") == "http://testserver/sub-app/hello/name"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") is None
 
