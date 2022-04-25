@@ -66,12 +66,14 @@ def traced_handler(wrapped, instance, args, kwargs):
         else:
             scope["__dd_paths__"] = [instance.path]
 
-        method = scope.get("method") if "method" in scope else "Unknown"
-
         span = tracer.current_root_span()
         # Update root span resource
         if span:
-            span.resource = "{} {}".format(method, "".join(scope["__dd_paths__"]))
+            path = "".join(scope["__dd_paths__"])
+            if scope.get("method"):
+                span.resource = "{} {}".format(scope["method"], path)
+            else:
+                span.resource = path
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
