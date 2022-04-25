@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add tracing support for ``aiomysql>=0.1.0``.
