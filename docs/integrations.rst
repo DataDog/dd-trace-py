@@ -42,12 +42,17 @@ asgi
 ^^^^
 .. automodule:: ddtrace.contrib.asgi
 
-
 .. _aiohttp:
 
 aiohttp
 ^^^^^^^
 .. automodule:: ddtrace.contrib.aiohttp
+
+.. _aiomysql:
+
+aiomysql
+^^^^^^^^
+.. automodule:: ddtrace.contrib.aiomysql
 
 
 .. _aiohttp_jinja2:

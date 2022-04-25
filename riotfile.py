@@ -1201,6 +1201,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="aiomysql",
+            pys=select_pys(min_version="3.7"),
+            command="pytest {cmdargs} tests/contrib/aiomysql",
+            pkgs={
+                "pytest-asyncio": latest,
+                "aiomysql": ["~=0.1.0", latest],
+            },
+        ),
+        Venv(
             name="pytest",
             command="pytest {cmdargs} tests/contrib/pytest",
             venvs=[
