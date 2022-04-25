@@ -6,7 +6,7 @@ class TestFastapiPatch(PatchTestCase.Base):
     __integration_name__ = "fastapi"
     __module_name__ = "fastapi"
     __patch_func__ = patch
-    __unpatch_func__ = None
+    __unpatch_func__ = unpatch
 
     def assert_module_patched(self, fastapi):
         self.assert_wrapped(fastapi.__init__)
