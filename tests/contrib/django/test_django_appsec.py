@@ -25,7 +25,6 @@ def test_django_querystrings(client, test_spans, tracer):
     assert _context.get_item("http.request.query", span=root_span)["b"] == ""
     assert _context.get_item("http.request.query", span=root_span)["c"] == "d"
     assert "d" not in _context.get_item("http.request.query", span=root_span)
-    self.client.get("/")
-    spans = self.pop_spans()
-    root_span = spans[0]
+    client.client.get("/")
+    root_span = test_spans.spans[0]
     assert len(_context.get_item("http.request.query", span=root_span)) == 0
