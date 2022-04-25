@@ -38,14 +38,9 @@ def patch():
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
 
-    handlers = [
-        "Mount",
-        "Route",
-    ]
-
-    # Wrap all of the handlers
-    for handler in handlers:
-        _w("starlette.routing", "{}.handle".format(handler), traced_handler)
+    # Wrap the handlers
+    _w("starlette.routing", "Mount.handle", traced_handler)
+    _w("starlette.routing", "Route.handle", traced_handler)
 
 
 def unpatch():
@@ -56,14 +51,9 @@ def unpatch():
 
     _u(starlette.applications.Starlette, "__init__")
 
-    handlers = [
-        starlette.routing.Mount,
-        starlette.routing.Route,
-    ]
-
-    # Unwrap all of the handlers
-    for handler in handlers:
-        _u(handler, "handle")
+    # Unwrap the handlers
+    _u(starlette.routing.Mount, "handle")
+    _u(starlette.routing.Route, "handle")
 
 
 def traced_handler(wrapped, instance, args, kwargs):
@@ -76,7 +66,7 @@ def traced_handler(wrapped, instance, args, kwargs):
         else:
             scope["__dd_paths__"] = [instance.path]
 
-        method = scope["method"] if "method" in scope else ""
+        method = scope.get("method") if "method" in scope else "Unknown"
 
         span = tracer.current_root_span()
         # Update root span resource

@@ -8,8 +8,6 @@ import pytest
 import ddtrace
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
-from ddtrace.contrib.starlette import patch as starlette_patch
-from ddtrace.contrib.starlette import unpatch as starlette_unpatch
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -32,11 +30,9 @@ def tracer():
 
     setattr(ddtrace, "tracer", tracer)
     fastapi_patch()
-    starlette_patch()
     yield tracer
     setattr(ddtrace, "tracer", original_tracer)
     fastapi_unpatch()
-    starlette_unpatch()
 
 
 @pytest.fixture
@@ -61,10 +57,8 @@ def client(tracer):
 @pytest.fixture
 def snapshot_app():
     fastapi_patch()
-    starlette_patch()
     application = app.get_app()
     yield application
-    starlette_unpatch()
     fastapi_unpatch()
 
 
