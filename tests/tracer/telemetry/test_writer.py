@@ -121,9 +121,9 @@ def test_add_app_started_event(mock_time, mock_send_request, telemetry_writer):
 
 
 def test_add_app_closing_event(mock_time, mock_send_request, telemetry_writer):
-    """asserts that shutdown() queues and sends an app-closing telemetry request"""
+    """asserts that on_shutdown() queues and sends an app-closing telemetry request"""
     # send app closed event
-    telemetry_writer.shutdown()
+    telemetry_writer.on_shutdown()
     # assert that one request was sent
     assert len(httpretty.latest_requests()) == 1
     # ensure an app closing event was sent
@@ -212,7 +212,7 @@ def test_send_failing_request(mock_status, mock_send_request, telemetry_writer):
     """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
     with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
         # sends failing app-closing event
-        telemetry_writer.shutdown()
+        telemetry_writer.on_shutdown()
         # asserts unsuccessful status code was logged
         log.warning.assert_called_with(
             "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
@@ -224,7 +224,7 @@ def test_send_failing_request(mock_status, mock_send_request, telemetry_writer):
     assert len(httpretty.latest_requests()) == 1
 
 
-def test_send_request_exception(telemetry_writer):
+def test_send_request_exception():
     """asserts that an error is logged when an exception is raised by the http client"""
     # create a telemetry writer with an invalid agent url.
     # this will raise an Exception on _send_request
@@ -233,7 +233,7 @@ def test_send_request_exception(telemetry_writer):
 
     with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
         # sends failing app-closing event
-        telemetry_writer.shutdown()
+        telemetry_writer.on_shutdown()
         # assert an exception was logged
         log.warning.assert_called_with(
             "failed to send telemetry to the Datadog Agent at %s/%s.",
@@ -241,6 +241,12 @@ def test_send_request_exception(telemetry_writer):
             telemetry_writer.ENDPOINT,
             exc_info=True,
         )
+
+
+def test_telemetry_graceful_shutdown(mock_time, mock_send_request, telemetry_writer):
+    telemetry_writer.start()
+    telemetry_writer.stop()
+    assert httpretty.last_request().parsed_body == _get_request_body({}, "app-closing")
 
 
 def _get_request_body(payload, payload_type, seq_id=1):

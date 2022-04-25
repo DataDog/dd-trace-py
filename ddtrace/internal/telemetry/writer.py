@@ -4,6 +4,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ...internal import atexit
 from ...internal import forksafe
 from ...settings import _config as config
 from ..agent import get_connection
@@ -116,10 +117,14 @@ class TelemetryWriter(PeriodicService):
                     exc_info=True,
                 )
 
-    def shutdown(self):
-        # type: () -> None
+    def on_shutdown(self):
         self._app_closing_event()
         self.periodic()
+
+    def _stop_service(self, *args, **kwargs):
+        # type: (...) -> None
+        super(TelemetryWriter, self)._stop_service()
+        self.join()
 
     def add_event(self, payload, payload_type):
         # type: (Dict, str) -> None
@@ -230,10 +235,9 @@ class TelemetryWriter(PeriodicService):
                 return
 
             forksafe.unregister(self._restart)
+            atexit.unregister(self.stop)
 
-            self.stop()
-
-            self.join()
+        self.stop()
 
     def enable(self):
         # type: () -> None
@@ -249,6 +253,7 @@ class TelemetryWriter(PeriodicService):
             self._enabled = True
 
             forksafe.register(self._restart)
+            atexit.register(self.stop)
 
         # add_event _locks around adding to the events queue
         self.app_started_event()
