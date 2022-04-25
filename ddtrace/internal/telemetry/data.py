@@ -73,7 +73,7 @@ def get_host_info():
     global _host_info
     if _host_info is None:
         _host_info = {
-            "os": platform.platform(aliased=True, terse=True),
+            "os": sys.platform,
             "hostname": get_hostname(),
             "os_version": _get_os_version(),
             "kernel_name": platform.system(),

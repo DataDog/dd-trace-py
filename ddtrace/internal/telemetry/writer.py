@@ -133,10 +133,11 @@ class TelemetryWriter(PeriodicService):
         with self._lock:
             if not self._enabled:
                 return
-
-            request = self._create_telemetry_request(payload, payload_type, self._sequence)
+            sequence = self._sequence
             self._sequence += 1
-            self._events_queue.append(request)
+
+        request = self._create_telemetry_request(payload, payload_type, sequence)
+        self._events_queue.append(request)
 
     def add_integration(self, integration_name, auto_enabled):
         # type: (str, bool) -> None
@@ -163,8 +164,8 @@ class TelemetryWriter(PeriodicService):
     def app_started_event(self):
         # type: () -> None
         """Sent when TelemetryWriter is enabled or forks"""
-        # pkg_resources import is inlined for performance reasons
-        # This import is an expensive operation
+        # pkg_resources import is inlined for performance reasons. This import is an expensive operation
+        # TODO: find an alternative
         import pkg_resources
 
         payload = {
