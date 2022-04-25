@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes deprecation warning for ``asyncio.coroutine`` decorator.
