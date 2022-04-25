@@ -18,7 +18,6 @@ from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
-from ddtrace.vendor.dogstatsd import statsd
 
 
 if TYPE_CHECKING:
