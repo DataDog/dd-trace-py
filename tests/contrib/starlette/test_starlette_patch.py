@@ -1,4 +1,5 @@
-from ddtrace.contrib.starlette import patch, unpatch
+from ddtrace.contrib.starlette import patch
+from ddtrace.contrib.starlette import unpatch
 from tests.contrib.patch import PatchTestCase
 
 
