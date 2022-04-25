@@ -1,6 +1,5 @@
 import starlette
 from starlette.middleware import Middleware
-from starlette.routing import BaseRoute
 
 from ddtrace import config
 from ddtrace import tracer
@@ -42,8 +41,6 @@ def patch():
     handlers = [
         "Mount",
         "Route",
-        "Host",
-        "WebSocketRoute",
     ]
 
     # Wrap all of the handlers
@@ -62,8 +59,6 @@ def unpatch():
     handlers = [
         starlette.routing.Mount,
         starlette.routing.Route,
-        starlette.routing.Host,
-        starlette.routing.WebSocketRoute,
     ]
 
     # Unwrap all of the handlers
@@ -75,19 +70,18 @@ def traced_handler(wrapped, instance, args, kwargs):
     def _wrap(scope, receive, send):
         # Since handle can be called multiple times for one request, we take the path of each instance
         # Then combine them at the end to get the correct resource name
-        if isinstance(instance, BaseRoute):
-            if "__dd_paths__" in scope:
-                scope["__dd_paths__"].append(instance.path)
+        if "__dd_paths__" in scope:
+            scope["__dd_paths__"].append(instance.path)
 
-            else:
-                scope["__dd_paths__"] = [instance.path]
+        else:
+            scope["__dd_paths__"] = [instance.path]
 
-            method = scope["method"] if "method" in scope else ""
+        method = scope["method"] if "method" in scope else ""
 
-            span = tracer.current_root_span()
-            # Update root span resource
-            if span:
-                span.resource = "{} {}".format(method, "".join(scope["__dd_paths__"]))
+        span = tracer.current_root_span()
+        # Update root span resource
+        if span:
+            span.resource = "{} {}".format(method, "".join(scope["__dd_paths__"]))
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
