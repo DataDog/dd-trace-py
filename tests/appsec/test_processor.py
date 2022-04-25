@@ -4,6 +4,7 @@ import os.path
 import pytest
 
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec.processor import _transform_headers
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
@@ -18,11 +19,33 @@ RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
 RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
 
 
+class Config(object):
+    def __init__(self):
+        self.is_header_tracing_configured = False
+
+
 def _enable_appsec(tracer):
     tracer._appsec_enabled = True
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     return tracer
+
+
+def test_transform_headers():
+    transformed = _transform_headers(
+        {
+            "hello": "world",
+            "Foo": "bar1",
+            "foo": "bar2",
+            "fOO": "bar3",
+            "BAR": "baz",
+            "COOKIE": "secret",
+        }
+    )
+    assert set(transformed.keys()) == {"hello", "bar", "foo"}
+    assert transformed["hello"] == "world"
+    assert transformed["bar"] == "baz"
+    assert set(transformed["foo"]) == {"bar1", "bar2", "bar3"}
 
 
 def test_enable(tracer):
@@ -72,12 +95,17 @@ def test_valid_json(tracer):
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
 
-def test_headers_collection(tracer):
+def test_header_attack(tracer):
     _enable_appsec(tracer)
 
-    class Config(object):
-        def __init__(self):
-            self.is_header_tracing_configured = False
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        set_http_meta(span, Config(), request_headers={"User-Agent": "Arachni/v1", "user-agent": "aa"})
+
+    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+
+def test_headers_collection(tracer):
+    _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
 
