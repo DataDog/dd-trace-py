@@ -13,38 +13,41 @@ class Startup(bm.Scenario):
     with_trace = bm.var_bool()
 
     def run(self):
+        # setup subprocess environment variables
         env = os.environ.copy()
         env["DD_RUNTIME_METRICS_ENABLED"] = str(self.runtime_metrics_enabled)
-        env["DD_TRACE_AGENT_URL"] = "http://localhost:8126"
-        env["DD_TRACE_API_VERSION"] = "v0.4"
 
-        code = "import ddtrace"
+        # initialize subprocess args
+        subp_cmd = []
+        code = "import ddtrace; ddtrace.patch_all()\n"
+        if self.with_ddtrace_run:
+            subp_cmd = ["ddtrace-run"]
+            code = ""
+
         if self.with_httpretty:
+            # mock requests to the trace agent
+            env["DD_TRACE_API_VERSION"] = "v0.4"
             code += """
 import httpretty
+from ddtrace import tracer
+from ddtrace.internal.telemetry import telemetry_writer
+
 httpretty.enable(allow_net_connect=False)
-
-telemetry_url =  '%s/%s' % (
-    'http://localhost:8126',
-    ddtrace.internal.telemetry.telemetry_writer.ENDPOINT
-)
-httpretty.register_uri(httpretty.POST, telemetry_url)
-
-httpretty.register_uri(httpretty.PUT, 'http://localhost:8126/v0.4/traces')
+httpretty.register_uri(httpretty.PUT, '%s/%s' % (tracer.agent_trace_url, 'v0.4/traces'))
+httpretty.register_uri(httpretty.POST, '%s/%s' % ('http://localhost:8126', telemetry_writer.ENDPOINT))
 """
 
         if self.telemetry_enabled:
-            code += "\nddtrace.internal.telemetry.telemetry_writer.enable()"
+            code += "telemetry_writer.enable()\n"
 
         if self.with_trace:
-            code += "\nspan = ddtrace.tracer.trace('test-x', service='bench-test'); span.finish()"
+            code += "span = tracer.trace('test-x', service='bench-test'); span.finish()\n"
 
-        cmd = [sys.executable, "-c", code]
-        if self.with_ddtrace_run:
-            cmd = ["ddtrace-run"] + cmd
+        # stage code for execution in a subprocess
+        subp_cmd += [sys.executable, "-c", code]
 
         def _(loops):
             for _ in range(loops):
-                subprocess.check_output(cmd, env=env)
+                subprocess.check_output(subp_cmd, env=env)
 
         yield _
