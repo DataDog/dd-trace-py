@@ -35,6 +35,15 @@ Global Configuration
    Default: ``False``
 
 
+.. py:data:: ddtrace.config.psycopg["trace_connect"]
+
+   Whether or not to trace ``psycopg2.connect`` method.
+
+   Can also configured via the ``DD_PSYCOPG_TRACE_CONNECT`` environment variable.
+
+   Default: ``False``
+
+
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 
