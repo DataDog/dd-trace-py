@@ -222,9 +222,11 @@ class AppSecSpanProcessor(SpanProcessor):
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
         if res is not None:
+            # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
+            # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
             if not allowed:
-                statsd.increment("_dd.py.appsec.rate_limit.dropped_traces")
+                # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return
             if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES in data:
                 _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES])
