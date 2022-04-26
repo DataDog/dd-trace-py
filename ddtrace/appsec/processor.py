@@ -92,12 +92,14 @@ _COLLECTED_REQUEST_HEADERS = {
 
 def _set_headers(span, kind, headers, extra_collect={}):
     # type: (Span, str, Dict[str, Union[str, List[str]]], Set[str]) -> None
-    always_collect = frozenset({
-        "content-length",
-        "content-type",
-        "Content-Encoding",
-        "Content-Language",
-    })
+    always_collect = frozenset(
+        {
+            "content-length",
+            "content-type",
+            "Content-Encoding",
+            "Content-Language",
+        }
+    )
     for k in headers:
         low = k.lower()
         if low in always_collect or low in extra_collect:
