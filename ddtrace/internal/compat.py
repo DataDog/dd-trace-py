@@ -145,7 +145,7 @@ else:
     main_thread = threading.main_thread()
 
 
-if PYTHON_VERSION_INFO[0:2] >= (3, 4):
+if PYTHON_VERSION_INFO[0:2] >= (3, 5):
     from asyncio import iscoroutinefunction
 
     # Execute from a string to get around syntax errors from `yield from`
@@ -170,17 +170,15 @@ if PYTHON_VERSION_INFO[0:2] >= (3, 4):
         :param dict kw_params: keyword arguments given to the Tracer.trace()
         \"\"\"
         @functools.wraps(coro)
-        @asyncio.coroutine
-        def func_wrapper(*args, **kwargs):
+        async def func_wrapper(*args, **kwargs):
             with tracer.trace(*params, **kw_params):
-                result = yield from coro(*args, **kwargs)  # noqa: E999
+                result = await coro(*args, **kwargs)
                 return result
 
         return func_wrapper
     """
         )
     )
-
 else:
     # asyncio is missing so we can't have coroutines; these
     # functions are used only to ensure code executions in case
