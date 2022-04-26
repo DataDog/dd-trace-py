@@ -90,18 +90,17 @@ _COLLECTED_REQUEST_HEADERS = {
 }
 
 
-_COLLECTED_RESPONSE_HEADERS = {
-    "content-length",
-    "content-type",
-    "Content-Encoding",
-    "Content-Language",
-}
-
-
-def _set_headers(span, kind, to_collect, headers):
-    # type: (Span, str, Set[str], Dict[str, Union[str, List[str]]]) -> None
+def _set_headers(span, kind, headers, extra_collect={}):
+    # type: (Span, str, Dict[str, Union[str, List[str]]], Set[str]) -> None
+    always_collect = frozenset({
+        "content-length",
+        "content-type",
+        "Content-Encoding",
+        "Content-Language",
+    })
     for k in headers:
-        if k.lower() in to_collect:
+        low = k.lower()
+        if low in always_collect or low in extra_collect:
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
             span.set_tag(_normalize_tag_name(kind, k), headers[k])
 
@@ -236,9 +235,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return
             if request_headers is not None:
-                _set_headers(span, "request", _COLLECTED_REQUEST_HEADERS, request_headers)
+                _set_headers(span, "request", request_headers, _COLLECTED_REQUEST_HEADERS)
             if response_headers is not None:
-                _set_headers(span, "response", _COLLECTED_RESPONSE_HEADERS, response_headers)
+                _set_headers(span, "response", response_headers)
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span._set_str_tag("appsec.event", "true")
