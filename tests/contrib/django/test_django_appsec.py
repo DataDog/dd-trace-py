@@ -27,3 +27,12 @@ def test_django_querystrings(client, test_spans, tracer):
     client.get("/")
     root_span = test_spans.spans[0]
     assert not _context.get_item("http.request.query", span=root_span)
+
+
+def test_no_django_querystrings(client, test_spans, tracer):
+    tracer._appsec_enabled = True
+    # Hack: need to pass an argument to configure so that the processors are recreated
+    tracer.configure(api_version="v0.4")
+    client.get("/")
+    root_span = test_spans.spans[0]
+    assert not _context.get_item("http.request.query", span=root_span)
