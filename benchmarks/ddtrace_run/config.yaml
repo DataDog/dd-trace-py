@@ -1,13 +1,23 @@
-startup_with_ddtrace_run: &defaults
+ddtrace_run: &defaults
   with_ddtrace_run: "true"
   with_httpretty: "false"
   runtime_metrics_enabled: "false"
   telemetry_enabled: "false"
   with_trace: "false"
+  profiling_enabled: "false"
+  appsec_enabled: "false"
 
-startup_without_ddtrace_run:
+patch_all_without_ddtrace_run:
   <<: *defaults
   with_ddtrace_run: "false"
+
+ddtrace_run_with_runtime_metrics:
+  <<: *defaults
+  runtime_metrics_enabled: "true"
+
+ddtrace_run_with_appsec_enabled:
+  <<: *defaults
+  appsec_enabled: "true"
 
 ddtrace_run_with_httpretty_enabled:
   <<: *defaults
@@ -18,9 +28,10 @@ ddtrace_run_with_telemetry_and_httpretty:
   with_httpretty: "true"
   telemetry_enabled: "true"
 
-ddtrace_run_with_runtime_metrics:
+ddtrace_run_with_profiling_and_httpretty:
   <<: *defaults
-  runtime_metrics_enabled: "true"
+  with_httpretty: "true"
+  profiling_enabled: "true"
 
 ddtrace_run_then_send_trace_with_httpretty:
   <<: *defaults

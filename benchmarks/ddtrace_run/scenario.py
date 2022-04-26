@@ -5,9 +5,11 @@ import sys
 import bm
 
 
-class Startup(bm.Scenario):
+class DDtraceRun(bm.Scenario):
     with_ddtrace_run = bm.var_bool()
     runtime_metrics_enabled = bm.var_bool()
+    profiling_enabled = bm.var_bool()
+    appsec_enabled = bm.var_bool()
     with_httpretty = bm.var_bool()
     telemetry_enabled = bm.var_bool()
     with_trace = bm.var_bool()
@@ -16,6 +18,7 @@ class Startup(bm.Scenario):
         # setup subprocess environment variables
         env = os.environ.copy()
         env["DD_RUNTIME_METRICS_ENABLED"] = str(self.runtime_metrics_enabled)
+        env["DD_APPSEC_ENABLED"] = str(self.appsec_enabled)
 
         # initialize subprocess args
         subp_cmd = []
@@ -34,7 +37,8 @@ from ddtrace.internal.telemetry import telemetry_writer
 
 httpretty.enable(allow_net_connect=False)
 httpretty.register_uri(httpretty.PUT, '%s/%s' % (tracer.agent_trace_url, 'v0.4/traces'))
-httpretty.register_uri(httpretty.POST, '%s/%s' % ('http://localhost:8126', telemetry_writer.ENDPOINT))
+httpretty.register_uri(httpretty.POST, '%s/%s' % (tracer.agent_trace_url, telemetry_writer.ENDPOINT))
+httpretty.register_uri(httpretty.POST, '%s/%s' % (tracer.agent_trace_url, 'profiling/v1/input'))
 """
 
         if self.telemetry_enabled:
@@ -42,6 +46,9 @@ httpretty.register_uri(httpretty.POST, '%s/%s' % ('http://localhost:8126', telem
 
         if self.with_trace:
             code += "span = tracer.trace('test-x', service='bench-test'); span.finish()\n"
+
+        if self.profiling_enabled:
+            code += "import ddtrace.profiling.auto\n"
 
         # stage code for execution in a subprocess
         subp_cmd += [sys.executable, "-c", code]
