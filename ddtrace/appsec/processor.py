@@ -86,15 +86,21 @@ _COLLECTED_REQUEST_HEADERS = {
     "x-real-ip",
 }
 
-_COLLECTED_HEADER_PREFIX = "http.request.headers."
+
+_COLLECTED_RESPONSE_HEADERS = {
+    "content-length",
+    "content-type",
+    "Content-Encoding",
+    "Content-Language",
+}
 
 
-def _set_headers(span, headers):
-    # type: (Span, Dict[str, Union[str, List[str]]]) -> None
+def _set_headers(span, kind, to_collect, headers):
+    # type: (Span, str, Set[str], Dict[str, Union[str, List[str]]]) -> None
     for k in headers:
-        if k.lower() in _COLLECTED_REQUEST_HEADERS:
+        if k.lower() in to_collect:
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            span.set_tag(_normalize_tag_name("request", k), headers[k])
+            span.set_tag(_normalize_tag_name(kind, k), headers[k])
 
 
 @attr.s(eq=False)
@@ -206,8 +212,14 @@ class AppSecSpanProcessor(SpanProcessor):
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data)  # res is a serialized json
         if res is not None:
-            if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES in data:
-                _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES])
+            if _context.get_item("http.request.headers", span=span) is not None:
+                _set_headers(
+                    span, "request", _COLLECTED_REQUEST_HEADERS, _context.get_item("http.request.headers", span=span)
+                )
+            if _context.get_item("http.response.headers", span=span) is not None:
+                _set_headers(
+                    span, "response", _COLLECTED_RESPONSE_HEADERS, _context.get_item("http.response.headers", span=span)
+                )
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span._set_str_tag("appsec.event", "true")
