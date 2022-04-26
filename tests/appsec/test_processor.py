@@ -143,8 +143,9 @@ def test_appsec_span_rate_limit(tracer):
 
         # we have 2 spans going through with a rate limit of 1: this is because the first span will update the rate
         # limiter last update timestamp. In other words, we need a first call to reset the rate limiter's clock
-        with tracer.trace("test", span_type=SpanTypes.WEB) as span1:  # aligning rate limiter clock with this span (this
-            # span will go through as it is linked to the init window)
+        # DEV: aligning rate limiter clock with this span (this
+        #      span will go through as it is linked to the init window)
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span1:
             set_http_meta(span1, {}, raw_uri="http://example.com/.git", status_code="404")
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span2:
