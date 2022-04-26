@@ -1294,6 +1294,42 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="grpc_aio",
+            command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.6"),
+                    pkgs={
+                        "grpcio": ["~=1.32.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.8"),
+                    pkgs={
+                        "grpcio": ["~=1.32.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.9"),
+                    pkgs={
+                        # 3.9 wheels are not provided in 1.32
+                        "grpcio": ["~=1.33.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        # 3.10 wheels were started to be provided in 1.41
+                        # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
+                        "grpcio": ["~=1.42.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="rq",
             command="pytest tests/contrib/rq",
             venvs=[
