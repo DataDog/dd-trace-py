@@ -1,4 +1,5 @@
-from ddtrace.contrib.fastapi import patch, unpatch
+from ddtrace.contrib.fastapi import patch
+from ddtrace.contrib.fastapi import unpatch
 from tests.contrib.patch import PatchTestCase
 
 
