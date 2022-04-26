@@ -41,6 +41,9 @@ TYPE = TEST_TYPE = "test.type"
 # XFail Reason
 XFAIL_REASON = TEST_XFAIL_REASON = "pytest.xfail.reason"
 
+# Test Codeowners
+CODE_OWNERS = "test.codeowners"
+
 
 class Status(Enum):
     PASS = "pass"

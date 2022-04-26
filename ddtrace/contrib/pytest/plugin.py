@@ -81,6 +81,17 @@ def pytest_configure(config):
         if ci_tags.get(ci.git.REPOSITORY_URL, None) and int_service(None, ddtrace.config.pytest) == "pytest":
             repository_name = _extract_repository_name(ci_tags[ci.git.REPOSITORY_URL])
             ddtrace.config.pytest["service"] = repository_name
+
+        try:
+            from ddtrace.internal.codeowners import Codeowners
+
+            ddtrace.config.pytest["_codeowners"] = Codeowners()
+        except ValueError:
+            # the CODEOWNERS file is not available
+            pass
+        except Exception:
+            log.warning("Failed to load CODEOWNERS", exc_info=True)
+
         Pin(tags=ci_tags, _config=ddtrace.config.pytest).onto(config)
 
 
@@ -137,6 +148,15 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tag(test.SUITE, item.dtest.globs["__name__"])
         span.set_tag(test.TYPE, SpanTypes.TEST)
         span.set_tag(test.FRAMEWORK_VERSION, pytest.__version__)
+
+        codeowners = pin._config.get("_codeowners")
+        if codeowners is not None and item.location and item.location[0]:
+            try:
+                handles = codeowners.of(item.location[0])
+                if handles:
+                    span.set_tag(test.CODE_OWNERS, json.dumps(handles))
+            except KeyError:
+                log.debug("no matching codeowners for {location}".format(location=item.location[0]))
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error
