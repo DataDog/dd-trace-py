@@ -356,6 +356,9 @@ jobs:
           name: "Run riotfile.py tests"
           command: riot run -s riot-helpers
       - run:
+          name: "Run scripts/*.py tests"
+          command: riot run -s scripts
+      - run:
           name: "Generate base virtual environments."
           command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v generate --python=PY"
       - persist_to_workspace:
@@ -848,6 +851,16 @@ jobs:
        - run_test:
           pattern: 'aiobotocore'
 
+  aiomysql:
+    <<: *contrib_job_small
+    docker:
+      - image: *ddtrace_dev_image
+      - *mysql_server
+    steps:
+      - run_test:
+          wait: mysql
+          pattern: 'aiomysql'
+
   aiopg:
     <<: *contrib_job
     docker:
@@ -1011,6 +1024,7 @@ requires_tests: &requires_tests
   requires:
     - aiobotocore
     - aiohttp
+    - aiomysql
     - aiopg
     - aioredis
     - asyncio
@@ -1099,6 +1113,7 @@ workflows:
       # Integration test suites
       - aiobotocore: *requires_base_venvs
       - aiohttp: *requires_base_venvs
+      - aiomysql: *requires_base_venvs
       - aiopg: *requires_base_venvs
       - aioredis: *requires_base_venvs
       - asyncio: *requires_base_venvs

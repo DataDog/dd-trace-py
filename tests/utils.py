@@ -93,6 +93,7 @@ def override_global_config(values):
         "service",
         "_raise",
         "_trace_compute_stats",
+        "_appsec_enabled",
     ]
 
     # Grab the current values of all keys
