@@ -12,7 +12,8 @@ def test_django_simple_attack(client, test_spans, tracer):
     assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
     assert _context.get_item("http.request.uri", span=root_span) == "http://testserver/.git?q=1"
     assert _context.get_item("http.request.headers", span=root_span) is not None
-    assert _context.get_item("http.request.query", span=root_span) == {"q": "1"}
+    query = dict(_context.get_item("http.request.query", span=root_span))
+    assert query == {"q": "1"} or query == {"q": ["1"]}
 
 
 def test_django_querystrings(client, test_spans, tracer):
@@ -21,7 +22,8 @@ def test_django_querystrings(client, test_spans, tracer):
     tracer.configure(api_version="v0.4")
     client.get("/?a=1&b&c=d")
     root_span = test_spans.spans[0]
-    assert _context.get_item("http.request.query", span=root_span) == {"a": "1", "b": "", "c": "d"}
+    query = dict(_context.get_item("http.request.query", span=root_span))
+    assert query == {"a": "1", "b": "", "c": "d"} or query == {"a": ["1"], "b": [""], "c": ["d"]}
     client.client.get("/")
     root_span = test_spans.spans[0]
     assert not _context.get_item("http.request.query", span=root_span)
