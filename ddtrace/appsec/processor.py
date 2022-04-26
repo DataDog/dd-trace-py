@@ -17,6 +17,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
+from ddtrace.internal.rate_limiter import RateLimiter
 
 
 if TYPE_CHECKING:
@@ -26,6 +27,8 @@ if TYPE_CHECKING:
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
+DEFAULT_TRACE_RATE_LIMIT = 100
+DEFAULT_WAF_TIMEOUT = 20  # ms
 
 log = get_logger(__name__)
 
@@ -103,12 +106,24 @@ def _set_headers(span, kind, to_collect, headers):
             span.set_tag(_normalize_tag_name(kind, k), headers[k])
 
 
+def _get_rate_limiter():
+    # type: () -> RateLimiter
+    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT_TRACE_RATE_LIMIT)))
+
+
+def _get_waf_timeout():
+    # type: () -> int
+    return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT_WAF_TIMEOUT))
+
+
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
 
     rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
+    _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
+    _waf_timeout = attr.ib(type=int, factory=_get_waf_timeout)
 
     @property
     def enabled(self):
@@ -212,8 +227,14 @@ class AppSecSpanProcessor(SpanProcessor):
             data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = response_headers
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        res = self._ddwaf.run(data)  # res is a serialized json
+        res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
         if res is not None:
+            # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
+            # events
+            allowed = self._rate_limiter.is_allowed(span.start_ns)
+            if not allowed:
+                # TODO: add metric collection to keep an eye (when it's name is clarified)
+                return
             if request_headers is not None:
                 _set_headers(span, "request", _COLLECTED_REQUEST_HEADERS, request_headers)
             if response_headers is not None:

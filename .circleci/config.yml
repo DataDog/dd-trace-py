@@ -356,6 +356,9 @@ jobs:
           name: "Run riotfile.py tests"
           command: riot run -s riot-helpers
       - run:
+          name: "Run scripts/*.py tests"
+          command: riot run -s scripts
+      - run:
           name: "Generate base virtual environments."
           command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v generate --python=PY"
       - persist_to_workspace:
