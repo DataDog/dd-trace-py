@@ -96,8 +96,8 @@ def _set_headers(span, kind, headers, extra_collect={}):
         {
             "content-length",
             "content-type",
-            "Content-Encoding",
-            "Content-Language",
+            "content-encoding",
+            "content-language",
         }
     )
     for k in headers:
