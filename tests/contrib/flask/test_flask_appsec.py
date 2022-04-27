@@ -16,3 +16,19 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
         assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
         assert _context.get_item("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
+        query = dict(_context.get_item("http.request.query", span=root_span))
+        assert query == {"q": "1"} or query == {"q": ["1"]}
+
+    def test_flask_querystrings(self):
+        self.tracer._appsec_enabled = True
+        # Hack: need to pass an argument to configure so that the processors are recreated
+        self.tracer.configure(api_version="v0.4")
+        self.client.get("/?a=1&b&c=d")
+        spans = self.pop_spans()
+        root_span = spans[0]
+        query = dict(_context.get_item("http.request.query", span=root_span))
+        assert query == {"a": "1", "b": "", "c": "d"} or query == {"a": ["1"], "b": [""], "c": ["d"]}
+        self.client.get("/")
+        spans = self.pop_spans()
+        root_span = spans[0]
+        assert len(_context.get_item("http.request.query", span=root_span)) == 0
