@@ -241,6 +241,7 @@ def set_http_meta(
     status_code=None,  # type: Optional[Union[int, str]]
     status_msg=None,  # type: Optional[str]
     query=None,  # type: Optional[str]
+    parsed_query=None,  # type: Optional[Mapping[str, str]]
     request_headers=None,  # type: Optional[Mapping[str, str]]
     response_headers=None,  # type: Optional[Mapping[str, str]]
     retries_remain=None,  # type: Optional[Union[int, str]]
@@ -257,6 +258,7 @@ def set_http_meta(
     :param status_code: the HTTP status code
     :param status_msg: the HTTP status message
     :param query: the HTTP query part of the URI as a string
+    :param parsed_query: the HTTP query part of the URI as parsed by the framework and forwarded to the user code
     :param request_headers: the HTTP request headers
     :param response_headers: the HTTP response headers
     :param raw_uri: the full raw HTTP URI (including ports and query)
@@ -305,6 +307,7 @@ def set_http_meta(
                     ("http.request.uri", raw_uri),
                     ("http.request.method", method),
                     ("http.request.cookies", request_cookies),
+                    ("http.request.query", parsed_query),
                     ("http.request.headers", request_headers),
                     ("http.response.headers", response_headers),
                     ("http.response.status", status_code),
