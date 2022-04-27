@@ -140,7 +140,7 @@ class Codeowners(object):
         cwd = cwd or os.getcwd()
         for location in self.KNOWN_LOCATIONS:
             path = os.path.join(cwd, location)
-            if os.path.exists(path):
+            if os.path.isfile(path):
                 return path
         raise ValueError("CODEOWNERS file not found")
 
