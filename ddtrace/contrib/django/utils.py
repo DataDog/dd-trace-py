@@ -1,3 +1,9 @@
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Text
+from typing import Union
+
 from django.utils.functional import SimpleLazyObject
 import six
 
@@ -10,6 +16,7 @@ from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
 from ...internal.logger import get_logger
+from ...internal.utils.formats import stringify_cache_args
 from ...vendor.wrapt import FunctionWrapper
 from .compat import get_resolver
 from .compat import user_is_authenticated
@@ -23,6 +30,9 @@ Resolver404 = None
 DJANGO22 = None
 
 REQUEST_DEFAULT_RESOURCE = "__django_request"
+
+_quantize_text = Union[Text, bytes]
+_quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
 
 
 def resource_from_cache_prefix(resource, cache):
@@ -38,19 +48,28 @@ def resource_from_cache_prefix(resource, cache):
     return name.lower()
 
 
-def quantize_key_values(key):
+def quantize_key_values(keys):
+    # type: (_quantize_param) -> Text
     """
-    Used in the Django trace operation method, it ensures that if a dict
-    with values is used, we removes the values from the span meta
-    attributes. For example::
+    Used for Django cache key normalization.
 
-        >>> quantize_key_values({'key': 'value'})
-        # returns ['key']
+    If a dict is provided we return a list of keys as text.
+
+    If a list or tuple is provided we convert each element to text.
+
+    If text is provided we convert to text.
     """
-    if isinstance(key, dict):
-        return key.keys()
+    args = []  # type: List[Union[Text, bytes, Any]]
 
-    return key
+    # Normalize input values into a List[Text, bytes]
+    if isinstance(keys, dict):
+        args = list(keys.keys())
+    elif isinstance(keys, (list, tuple)):
+        args = keys
+    else:
+        args = [keys]
+
+    return stringify_cache_args(args)
 
 
 def get_django_2_route(request, resolver_match):

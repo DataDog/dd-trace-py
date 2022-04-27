@@ -3,11 +3,15 @@ import aredis
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
+<<<<<<< HEAD
+=======
+from ...internal.utils.formats import stringify_cache_args
+from ...internal.utils.wrappers import unwrap
+>>>>>>> 8a9756bc (fix(django,redis): allow unicode cache keys (#3299))
 from ...pin import Pin
 from ...utils.wrappers import unwrap
 from ..redis.util import _trace_redis_cmd
 from ..redis.util import _trace_redis_execute_pipeline
-from ..redis.util import format_command_args
 
 
 config._add("aredis", dict(_default_service="redis"))
@@ -64,7 +68,7 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    cmds = [format_command_args(c) for c, _ in instance.command_stack]
+    cmds = [stringify_cache_args(c) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
     with _trace_redis_execute_pipeline(pin, config.aredis, resource, instance):
         return await func(*args, **kwargs)

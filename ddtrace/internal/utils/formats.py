@@ -3,13 +3,28 @@ import os
 import re
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Text
 from typing import TypeVar
 from typing import Union
 
+<<<<<<< HEAD
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 from ...vendor.debtcollector import deprecate
+=======
+from ..compat import binary_type
+from ..compat import ensure_text
+from ..compat import stringify
+from ..compat import text_type
+
+
+VALUE_PLACEHOLDER = "?"
+VALUE_MAX_LEN = 100
+VALUE_TOO_LONG_MARK = "..."
+CMD_MAX_LEN = 1000
+>>>>>>> 8a9756bc (fix(django,redis): allow unicode cache keys (#3299))
 
 
 T = TypeVar("T")
@@ -155,3 +170,36 @@ def parse_tags_str(tags_str):
             parsed_tags[key] = value
 
     return parsed_tags
+
+
+def stringify_cache_args(args):
+    # type: (List[Any]) -> Text
+    """Convert a list of arguments into a space concatenated string
+
+    This function is useful to convert a list of cache keys
+    into a resource name or tag value with a max size limit.
+    """
+    length = 0
+    out = []  # type: List[Text]
+    for arg in args:
+        try:
+            if isinstance(arg, (binary_type, text_type)):
+                cmd = ensure_text(arg, errors="backslashreplace")
+            else:
+                cmd = stringify(arg)
+
+            if len(cmd) > VALUE_MAX_LEN:
+                cmd = cmd[:VALUE_MAX_LEN] + VALUE_TOO_LONG_MARK
+
+            if length + len(cmd) > CMD_MAX_LEN:
+                prefix = cmd[: CMD_MAX_LEN - length]
+                out.append("%s%s" % (prefix, VALUE_TOO_LONG_MARK))
+                break
+
+            out.append(cmd)
+            length += len(cmd)
+        except Exception:
+            out.append(VALUE_PLACEHOLDER)
+            break
+
+    return " ".join(out)

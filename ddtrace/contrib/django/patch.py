@@ -135,8 +135,10 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         span._set_str_tag("django.cache.backend", cache_backend)
 
         if args:
+            # Key can be a list of strings, an individual string, or a dict
+            # Quantize will ensure we have a space separated list of keys
             keys = utils.quantize_key_values(args[0])
-            span._set_str_tag("django.cache.key", str(keys))
+            span._set_str_tag("django.cache.key", keys)
 
         return func(*args, **kwargs)
 
