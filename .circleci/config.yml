@@ -332,11 +332,6 @@ jobs:
       - run: coverage json --ignore-errors
       - store_artifacts:
           path: coverage.json
-      # Generate and save HTML report
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage html --ignore-errors
-      - store_artifacts:
-          path: htmlcov
       # Print ddtrace/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage report --ignore-errors --omit=tests/
