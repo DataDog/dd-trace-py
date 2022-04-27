@@ -4,6 +4,10 @@ import re
 import sys
 import textwrap
 import threading
+from types import BuiltinFunctionType
+from types import BuiltinMethodType
+from types import FunctionType
+from types import MethodType
 from typing import Any
 from typing import AnyStr
 from typing import Optional
@@ -11,6 +15,9 @@ from typing import Text
 from typing import Union
 
 import six
+
+from ddtrace.vendor.wrapt.wrappers import BoundFunctionWrapper
+from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
 
 __all__ = [
@@ -29,6 +36,9 @@ __all__ = [
 PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
+
+if not PY2:
+    long = int
 
 # Infos about python passed to the trace agent through the header
 PYTHON_VERSION = platform.python_version()
@@ -237,3 +247,40 @@ def maybe_stringify(obj):
     if obj is not None:
         return stringify(obj)
     return None
+
+
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, type(None), type, long])
+BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
+BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
+
+
+try:
+    from types import MethodWrapperType
+
+except ImportError:
+    MethodWrapperType = object().__init__.__class__  # type: ignore[misc]
+
+CALLABLE_TYPES = (
+    BuiltinMethodType,
+    BuiltinFunctionType,
+    FunctionType,
+    MethodType,
+    MethodWrapperType,
+    FunctionWrapper,
+    BoundFunctionWrapper,
+    property,
+    classmethod,
+    staticmethod,
+)
+BUILTIN = "__builtin__" if PY2 else "builtins"
+
+
+try:
+    from typing import Collection
+except ImportError:
+    from typing import List
+    from typing import Set
+    from typing import Tuple
+    from typing import Union
+
+    Collection = Union[List, Set, Tuple]  # type: ignore[misc,assignment]
