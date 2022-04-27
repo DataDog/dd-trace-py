@@ -311,6 +311,7 @@ def _after_request_tags(pin, span, request, response):
                 raw_uri=raw_uri,
                 status_code=status,
                 query=request.META.get("QUERY_STRING", None),
+                parsed_query=request.GET,
                 request_headers=request_headers,
                 response_headers=response_headers,
                 request_cookies=request.COOKIES,
