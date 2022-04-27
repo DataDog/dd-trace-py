@@ -3,11 +3,11 @@ import redis
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
+from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
 from ..trace_utils import unwrap
 from .util import _trace_redis_cmd
 from .util import _trace_redis_execute_pipeline
-from .util import format_command_args
 
 
 config._add("redis", dict(_default_service="redis"))
@@ -81,7 +81,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    cmds = [format_command_args(c) for c, _ in instance.command_stack]
+    cmds = [stringify_cache_args(c) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
     with _trace_redis_execute_pipeline(pin, config.redis, resource, instance):
         return func(*args, **kwargs)
