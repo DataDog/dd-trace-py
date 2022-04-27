@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from ddtrace.internal import _context
 from tests.contrib.flask import BaseFlaskTestCase
 
@@ -18,6 +20,24 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         assert _context.get_item("http.request.uri", span=root_span) == "http://localhost/.git?q=1"
         query = dict(_context.get_item("http.request.query", span=root_span))
         assert query == {"q": "1"} or query == {"q": ["1"]}
+
+    @pytest.skip("broken for now")
+    def test_flask_dynamic_url_param(self):
+
+        @self.app.route("/params/<item>")
+        def dynamic_url(item):
+            return item
+
+        self.tracer._appsec_enabled = True
+        # Hack: need to pass an argument to configure so that the processors are recreated
+        self.tracer.configure(api_version="v0.4")
+        resp = self.client.get("/params/attack")
+        assert resp.status_code == 200
+        spans = self.pop_spans()
+        root_span = spans[0]
+        assert dict(_context.get_item("http.request.path_params", span=root_span)) == {"item": "attack"}
+
+
 
     def test_flask_querystrings(self):
         self.tracer._appsec_enabled = True
