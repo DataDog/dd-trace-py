@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django,redis: fix unicode decode error when using unicode cache key on Python 2.7
