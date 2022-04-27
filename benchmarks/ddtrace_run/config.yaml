@@ -1,46 +1,46 @@
-ddtrace_run: &defaults
-  with_ddtrace_run: "true"
-  with_httpretty: "false"
-  runtime_metrics_enabled: "false"
-  telemetry_enabled: "false"
-  with_trace: "false"
-  profiling_enabled: "false"
-  appsec_enabled: "false"
+auto_baseline: &defaults
+  ddtrace_run: "true"
+  http: "true"
+  runtimemetrics: "false"
+  telemetry: "false"
+  tracing: "false"
+  profiling: "false"
+  appsec: "false"
 
-patch_all_without_ddtrace_run:
+manual_baseline:
   <<: *defaults
-  with_ddtrace_run: "false"
+  ddtrace_run: "false"
 
-ddtrace_run_with_runtime_metrics:
+auto_runtimemetrics:
   <<: *defaults
-  runtime_metrics_enabled: "true"
+  runtimemetrics: "true"
 
-ddtrace_run_with_appsec_enabled:
+auto_appsec:
   <<: *defaults
-  appsec_enabled: "true"
+  appsec: "true"
 
-ddtrace_run_with_httpretty_enabled:
+auto_baseline_disable_http:
   <<: *defaults
-  with_httpretty: "true"
+  http: "false"
 
-ddtrace_run_with_telemetry_and_httpretty:
+auto_telemetry:
   <<: *defaults
-  with_httpretty: "true"
-  telemetry_enabled: "true"
+  telemetry: "true"
 
-ddtrace_run_with_profiling_and_httpretty:
+auto_profiling:
   <<: *defaults
-  with_httpretty: "true"
-  profiling_enabled: "true"
+  profiling: "true"
 
-ddtrace_run_then_send_trace_with_httpretty:
+auto_tracing:
   <<: *defaults
-  with_trace: "true"
-  with_httpretty: "true"
+  tracing: "true"
 
-ddtrace_run_with_telemetry_then_send_trace_with_httpretty:
+auto_tracing_telemetry:
   <<: *defaults
-  with_trace: "true"
-  with_httpretty: "true"
-  telemetry_enabled: "true"
+  tracing: "true"
+  telemetry: "true"
 
+auto_tracing_appsec:
+  <<: *defaults
+  tracing: "true"
+  appsec: "true"
