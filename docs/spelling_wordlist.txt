@@ -13,6 +13,7 @@ Runtimes
 SpanContext
 aiobotocore
 aiohttp
+aiomysql
 aiopg
 aioredis
 algolia
