@@ -166,6 +166,11 @@ class Codeowners(object):
                 if path is None:
                     continue
 
+                try:
+                    pattern = path_to_regex(path)
+                except ValueError:
+                    continue
+
                 owners = []
                 for owner in elements:
                     if owner:
@@ -173,7 +178,7 @@ class Codeowners(object):
 
                 if not owners:
                     continue
-                patterns.append((path_to_regex(path), owners))
+                patterns.append((pattern, owners))
             # Order is important. The last matching pattern has the most precedence.
             patterns.reverse()
             self.patterns = patterns
