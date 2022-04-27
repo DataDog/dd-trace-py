@@ -97,8 +97,8 @@ _ALWAYS_COLLECT_HEADERS = frozenset(
     {
         "content-length",
         "content-type",
-        "Content-Encoding",
-        "Content-Language",
+        "content-encoding",
+        "content-language",
     }
 )
 
