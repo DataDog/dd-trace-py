@@ -156,7 +156,7 @@ def pytest_runtest_protocol(item, nextitem):
                 if handles:
                     span.set_tag(test.CODE_OWNERS, json.dumps(handles))
             except KeyError:
-                log.debug("no matching codeowners for {location}".format(location=item.location[0]))
+                log.debug("no matching codeowners for %s", item.location[0])
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error
