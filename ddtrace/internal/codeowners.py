@@ -157,8 +157,10 @@ class Codeowners(object):
                 if line.startswith("#"):
                     continue
                 if line.startswith("[") and line.endswith("]"):
+                    # found a code owners section
                     continue
                 if line.startswith("^[") and line.endswith("]"):
+                    # found an optional code owners section
                     continue
 
                 elements = iter(line.split())
