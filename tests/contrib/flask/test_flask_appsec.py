@@ -23,7 +23,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
     @pytest.skip("broken for now")
     def test_flask_dynamic_url_param(self):
-
         @self.app.route("/params/<item>")
         def dynamic_url(item):
             return item
@@ -36,8 +35,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
         assert dict(_context.get_item("http.request.path_params", span=root_span)) == {"item": "attack"}
-
-
 
     def test_flask_querystrings(self):
         self.tracer._appsec_enabled = True
