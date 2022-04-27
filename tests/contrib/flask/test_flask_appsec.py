@@ -21,7 +21,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         query = dict(_context.get_item("http.request.query", span=root_span))
         assert query == {"q": "1"} or query == {"q": ["1"]}
 
-    @pytest.skip("broken for now")
+    @pytest.mark.skip("broken for now")
     def test_flask_dynamic_url_param(self):
         @self.app.route("/params/<item>")
         def dynamic_url(item):
