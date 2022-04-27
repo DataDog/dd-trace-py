@@ -3,6 +3,7 @@ import json
 import os
 import os.path
 from typing import List
+from typing import Optional
 from typing import Set
 from typing import TYPE_CHECKING
 from typing import Union
@@ -68,41 +69,45 @@ class _Addresses(object):
     SERVER_RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
 
 
-_COLLECTED_REQUEST_HEADERS = {
-    "accept",
-    "accept-encoding",
-    "accept-language",
-    "content-encoding",
-    "content-language",
-    "content-length",
-    "content-type",
-    "forwarded",
-    "forwarded-for",
-    "host",
-    "true-client-ip",
-    "user-agent",
-    "via",
-    "x-client-ip",
-    "x-cluster-client-ip",
-    "x-forwarded",
-    "x-forwarded-for",
-    "x-real-ip",
-}
+_COLLECTED_REQUEST_HEADERS = frozenset(
+    {
+        "accept",
+        "accept-encoding",
+        "accept-language",
+        "content-encoding",
+        "content-language",
+        "content-length",
+        "content-type",
+        "forwarded",
+        "forwarded-for",
+        "host",
+        "true-client-ip",
+        "user-agent",
+        "via",
+        "x-client-ip",
+        "x-cluster-client-ip",
+        "x-forwarded",
+        "x-forwarded-for",
+        "x-real-ip",
+    }
+)
 
 
-def _set_headers(span, kind, headers, extra_collect={}):
-    # type: (Span, str, Dict[str, Union[str, List[str]]], Set[str]) -> None
-    always_collect = frozenset(
-        {
-            "content-length",
-            "content-type",
-            "content-encoding",
-            "content-language",
-        }
-    )
+_ALWAYS_COLLECT_HEADERS = frozenset(
+    {
+        "content-length",
+        "content-type",
+        "Content-Encoding",
+        "Content-Language",
+    }
+)
+
+
+def _set_headers(span, kind, headers, extra_collect=None):
+    # type: (Span, str, Dict[str, Union[str, List[str]]], Optional[frozenset[str]]) -> None
     for k in headers:
         low = k.lower()
-        if low in always_collect or low in extra_collect:
+        if low in _ALWAYS_COLLECT_HEADERS or extra_collect is not None and low in extra_collect:
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
             span.set_tag(_normalize_tag_name(kind, k), headers[k])
 
