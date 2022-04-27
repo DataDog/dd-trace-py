@@ -107,7 +107,7 @@ def _set_headers(span, kind, headers, extra_collect=None):
     # type: (Span, str, Dict[str, Union[str, List[str]]], Optional[frozenset[str]]) -> None
     for k in headers:
         low = k.lower()
-        if low in _ALWAYS_COLLECT_HEADERS or extra_collect is not None and low in extra_collect:
+        if low in _ALWAYS_COLLECT_HEADERS or low in (extra_collect or {}):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
             span.set_tag(_normalize_tag_name(kind, k), headers[k])
 
