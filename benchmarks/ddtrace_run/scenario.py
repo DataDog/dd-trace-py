@@ -28,7 +28,7 @@ class DDtraceRun(bm.Scenario):
             code = ""
 
         if self.http:
-            # mock requests to the trace agent
+            # mock requests to the trace agent before starting services
             env["DD_TRACE_API_VERSION"] = "v0.4"
             code += """
 import httpretty
