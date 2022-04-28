@@ -277,6 +277,7 @@ venv = Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
             venvs=[Venv(pys=select_pys())],
+            pkgs={"httpretty": "==0.9.7"},
         ),
         Venv(
             name="runtime",
