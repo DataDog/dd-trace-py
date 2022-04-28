@@ -541,6 +541,34 @@ def test_custom_msgpack_encode_v05():
     ]
 
 
+def test_ci_agentless_encoder_v1():
+    from ddtrace.ci.internal.encoding import AgentlessEncoderV1
+
+    metadata={
+        "*": {
+            "runtime-id": "d1a7273c-fcd7-419d-a4ff-f1c0f5e22c32",
+            "language": "python",
+            "env": "test",
+        },
+    }
+    encoder = AgentlessEncoderV1(metadata=metadata)
+    trace = [
+        [
+            Span(name="v05-test", service="foo", resource="test_1", span_type="test"),
+            Span(name="v05-test", service="foo", resource="POST", span_type="http"),
+            Span(name=None, service="bar"),
+        ]
+    ]
+
+    encoded_traces = encoder.decode(encoder.encode_traces(trace))
+    assert 1 == encoded_traces["version"]
+    assert 3 == len(encoded_traces["events"])
+    assert "test" == encoded_traces["events"][0]["type"]
+    assert "span" == encoded_traces["events"][1]["type"]
+    assert "span" == encoded_traces["events"][2]["type"]
+    assert metadata == encoded_traces["metadata"]
+
+
 def string_table_test(t, offset=0):
     assert len(t) == 1 + offset
     id1 = t.index("foobar")

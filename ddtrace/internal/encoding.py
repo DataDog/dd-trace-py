@@ -52,7 +52,7 @@ class _EncoderBase(object):
 
     @staticmethod
     def _span_to_dict(span):
-        # type: () -> Dict[str, Any]
+        # type: (Span) -> Dict[str, Any]
         d = {
             "trace_id": span.trace_id,
             "parent_id": span.parent_id,

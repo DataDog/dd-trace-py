@@ -43,12 +43,12 @@ class AgentlessWriter(TraceWriter):
     def __init__(
         self,
         intake_url,  # type: str
+        api_key,  # type: str
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size=None,  # type: Optional[int]
         max_payload_size=None,  # type: Optional[int]
         timeout=agent.get_trace_agent_timeout(),  # type: float
-        api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
         metadata=None,  # type: Optional[Dict[str, str]]
@@ -65,7 +65,8 @@ class AgentlessWriter(TraceWriter):
         self._buffer_size = buffer_size or get_writer_buffer_size()
         self._max_payload_size = max_payload_size or get_writer_max_payload_size()
         self._headers = {
-            "dd-api-key": os.environ.get("DD_API_KEY", os.environ.get("DATADOG_API_KEY")),
+            # TODO os.environ.get("DD_API_KEY", os.environ.get("DATADOG_API_KEY"))
+            "dd-api-key": api_key,
         }
         if headers:
             self._headers.update(headers)
@@ -79,7 +80,6 @@ class AgentlessWriter(TraceWriter):
         if metadata:
             self._metadata.update(metadata)
         self._timeout = timeout
-        self._api_version = api_version or 1
 
         self._endpoint = "/api/v2/citestcycle"
 
@@ -119,7 +119,6 @@ class AgentlessWriter(TraceWriter):
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
             timeout=self._timeout,
-            api_version=self._api_version,
         )
 
     def _reset_connection(self):
