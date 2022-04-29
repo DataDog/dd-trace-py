@@ -11,20 +11,25 @@ import uuid
 import six
 import tenacity
 
+import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import compat
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
-from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.agent import get_connection
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.internal.writer import Response, get_writer_buffer_size, get_writer_max_payload_size
+from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.internal.writer import _human_size
+from ddtrace.internal.writer import get_writer_buffer_size
+from ddtrace.internal.writer import get_writer_max_payload_size
 from ddtrace.internal.writer import get_writer_reuse_connections
+
+from .encoding import AgentlessEncoderV1
 
 
 if TYPE_CHECKING:
@@ -61,32 +66,41 @@ class AgentlessWriter(TraceWriter):
             raise ValueError("Max payload size must be positive")
 
         super(AgentlessWriter, self).__init__()
-        self.intake_url = intake_url
+        self.intake_url = intake_url  # https://citestcycle-intake.{site}
+        self.interval = 5  # seconds
+        self._spans = []
         self._buffer_size = buffer_size or get_writer_buffer_size()
         self._max_payload_size = max_payload_size or get_writer_max_payload_size()
+
         self._headers = {
             # TODO os.environ.get("DD_API_KEY", os.environ.get("DATADOG_API_KEY"))
             "dd-api-key": api_key,
+            "Datadog-Meta-Lang": "python",
+            "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
+            "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
+            "Datadog-Meta-Tracer-Version": ddtrace.__version__,
         }
         if headers:
             self._headers.update(headers)
-        self._metadata = {
-            "language": "python",
-            "language_version": compat.PYTHON_VERSION,
-            # "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
-            # "Datadog-Meta-Tracer-Version": ddtrace.__version__,
-            "runtime-id": uuid.uuid4().hex,
-        }
-        if metadata:
-            self._metadata.update(metadata)
+        self._container_info = container.get_container_info()
+        if self._container_info and self._container_info.container_id:
+            self._headers.update(
+                {
+                    "Datadog-Container-Id": self._container_info.container_id,
+                }
+            )
+
+        self._metadata = metadata
         self._timeout = timeout
 
         self._endpoint = "/api/v2/citestcycle"
 
-        self._encoder = MsgpackEncoderV05(
+        self._encoder = AgentlessEncoderV1(
             max_size=self._buffer_size,
             max_item_size=self._max_payload_size,
         )
+        if metadata:
+            self._encoder.metadata.update(metadata)
 
         self._headers.update({"Content-Type": self._encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
@@ -223,8 +237,9 @@ class AgentlessWriter(TraceWriter):
     def flush_queue(self, raise_exc=False):
         # type: (bool) -> None
         try:
-            n_traces = len(self._encoder)
+            n_traces = len(self._spans)
             encoded = self._encoder.encode()
+            self._spans = []
             if encoded is None:
                 return
         except Exception:
@@ -238,3 +253,7 @@ class AgentlessWriter(TraceWriter):
                 e.reraise()
             else:
                 log.error("failed to send traces to Datadog Agent at %s", self._intake_endpoint, exc_info=True)
+
+    def stop(self, timeout=None):
+        # type: (Optional[float]) -> None
+        return
