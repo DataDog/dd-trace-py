@@ -189,6 +189,13 @@ gevent
 .. automodule:: ddtrace.contrib.gevent
 
 
+.. _graphql:
+
+graphql
+^^^^^^
+.. automodule:: ddtrace.contrib.graphql
+
+
 .. _grpc:
 
 Grpc

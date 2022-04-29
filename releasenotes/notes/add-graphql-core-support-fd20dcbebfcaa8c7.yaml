@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Add tracing support for the ``graphql-core``. Version 1.1+ is fully
+    supported.
