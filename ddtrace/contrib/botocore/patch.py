@@ -161,10 +161,9 @@ def inject_trace_to_eventbridge_detail(params, span):
 
 
 def get_kinesis_data_object(data):
-    # type: (str, Optional[bool]) -> Optional[Dict[str, Any]]
+    # type: (str) -> Optional[Dict[str, Any]]
     """
     :data: the data from a kinesis stream
-    :try_b64: whether we should try to decode the string as base64
 
     The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
     We support injecting our trace context in the following two cases:

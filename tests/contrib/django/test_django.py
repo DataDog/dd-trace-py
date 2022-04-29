@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import itertools
 import os
 import subprocess
@@ -732,6 +733,30 @@ def test_cache_get(test_spans):
     assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
+def test_cache_get_unicode(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+
+    cache.get(u"😐")
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.service == "django"
+    assert span.resource == "django.core.cache.backends.locmem.get"
+    assert span.name == "django.cache"
+    assert span.span_type == "cache"
+    assert span.error == 0
+
+    expected_meta = {
+        "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
+        "django.cache.key": u"😐",
+    }
+
+    assert_dict_issuperset(span.get_tags(), expected_meta)
+
+
 def test_cache_set(test_spans):
     # get the default cache
     cache = django.core.cache.caches["default"]
@@ -957,7 +982,7 @@ def test_cache_get_many(test_spans):
 
     expected_meta = {
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-        "django.cache.key": str(["missing_key", "another_key"]),
+        "django.cache.key": "missing_key another_key",
     }
 
     assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
@@ -1071,8 +1096,7 @@ def test_cached_view(client, test_spans):
     expected_meta_view = {
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": (
-            "views.decorators.cache.cache_page.."
-            "GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8427e.en-us"
+            "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
     }
 
