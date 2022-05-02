@@ -6,8 +6,7 @@ attributes to the log record.
 
 2. Updating the log formatter used by the application. In order to inject
 tracing information into a log the formatter must be updated to include the
-tracing attributes from the log record. ``ddtrace-run`` will do this
-automatically for you by specifying a format. For more detail or instructions
+tracing attributes from the log record. For more detail or instructions
 for how to do this manually see the manual section below.
 
 With these in place the trace information will be injected into a log entry
@@ -18,8 +17,8 @@ ddtrace-run
 -----------
 
 When using ``ddtrace-run``, enable patching by setting the environment variable
-``DD_LOGS_INJECTION=true``. The logger by default will have a format that
-includes trace information::
+``DD_LOGS_INJECTION=true``. This will make the tracing correlation attributes
+available to be used in a log format (see below for the format to use).
 
     import logging
     from ddtrace import tracer
