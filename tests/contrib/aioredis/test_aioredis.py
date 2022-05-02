@@ -79,6 +79,13 @@ async def test_basic_request(redis_client):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
+async def test_unicode_request(redis_client):
+    val = await redis_client.get(u"😐")
+    assert val is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
 async def test_decoding_non_utf8_args(redis_client):
     await redis_client.set(b"\x80foo", b"\x80abc")
     val = await redis_client.get(b"\x80foo")
