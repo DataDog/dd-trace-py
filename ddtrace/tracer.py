@@ -169,7 +169,7 @@ class Tracer(object):
         Create a new ``Tracer`` instance. A global tracer is already initialized
         for common usage, so there is no need to initialize your own ``Tracer``.
 
-        :param url: The Datadog agent URL.
+        :param url: The Datadog agent or intake URL.
         :param dogstatsd_url: The DogStatsD URL.
         """
         self._filters = []  # type: List[TraceFilter]
@@ -193,8 +193,12 @@ class Tracer(object):
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
         agent.verify_url(self._agent_url)
 
-        if self._use_log_writer() and url is None:
-            writer = LogWriter()  # type: TraceWriter
+        if asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+            from .ci.internal.writer import AgentlessWriter
+
+            writer = AgentlessWriter()  # type: TraceWriter
+        elif self._use_log_writer() and url is None:
+            writer = LogWriter()
         else:
             writer = AgentWriter(
                 agent_url=self._agent_url,
@@ -401,6 +405,13 @@ class Tracer(object):
         if writer is not None:
             self._writer = writer
         elif any(x is not None for x in [new_url, api_version, sampler, dogstatsd_url]):
+            if not isinstance(self._writer, AgentWriter):
+                # Prevent Agentless writer from being reconfigured.
+                raise TypeError(
+                    "Only AgentWriter can be reconfigured, got: %s. "
+                    "Provide writer instance instead" % type(self._writer)
+                )
+
             self._writer = AgentWriter(
                 self._agent_url,
                 sampler=self._sampler,
