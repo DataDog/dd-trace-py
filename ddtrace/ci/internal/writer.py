@@ -6,8 +6,8 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
-import uuid
 
+from _typeshed import SupportsKeysAndGetItem
 import six
 import tenacity
 
@@ -48,7 +48,7 @@ class AgentlessWriter(TraceWriter):
     def __init__(
         self,
         intake_url,  # type: str
-        api_key,  # type: str
+        api_key=None,  # type: Optional[str]
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size=None,  # type: Optional[int]
@@ -56,7 +56,7 @@ class AgentlessWriter(TraceWriter):
         timeout=agent.get_trace_agent_timeout(),  # type: float
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
-        metadata=None,  # type: Optional[Dict[str, str]]
+        metadata=None,  # type: Optional[SupportsKeysAndGetItem[str, Dict[str, str]]]
     ):
         # type: (...) -> None
         # Pre-conditions:
@@ -68,7 +68,7 @@ class AgentlessWriter(TraceWriter):
         super(AgentlessWriter, self).__init__()
         self.intake_url = intake_url  # https://citestcycle-intake.{site}
         self.interval = 5  # seconds
-        self._spans = []
+        self._api_key = api_key or os.environ.get("DATADOG_API_KEY", os.environ.get("DD_API_KEY"))
         self._buffer_size = buffer_size or get_writer_buffer_size()
         self._max_payload_size = max_payload_size or get_writer_max_payload_size()
 
@@ -130,6 +130,7 @@ class AgentlessWriter(TraceWriter):
         # type: () -> AgentlessWriter
         return self.__class__(
             intake_url=self.intake_url,
+            api_key=self._api_key,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
             timeout=self._timeout,
@@ -237,9 +238,8 @@ class AgentlessWriter(TraceWriter):
     def flush_queue(self, raise_exc=False):
         # type: (bool) -> None
         try:
-            n_traces = len(self._spans)
+            n_traces = len(self._encoder)
             encoded = self._encoder.encode()
-            self._spans = []
             if encoded is None:
                 return
         except Exception:
