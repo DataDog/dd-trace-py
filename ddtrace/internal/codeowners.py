@@ -4,8 +4,6 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.vendor.psutil._common import open_text
-
 
 def path_to_regex(pattern):
     # type: (str) -> re.Pattern
@@ -147,7 +145,7 @@ class Codeowners(object):
     def parse(self):
         # type: () -> None
         """Parse CODEOWNERS file and store the lines and regexes."""
-        with open_text(self.path) as f:
+        with open(self.path) as f:
             patterns = []
             for line in f.readlines():
                 line = line.strip()
