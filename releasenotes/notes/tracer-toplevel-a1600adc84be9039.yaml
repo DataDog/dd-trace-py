@@ -2,5 +2,9 @@
 fixes:
   - |
     Set required header to indicate top level span computation is done in the
-    client. This fixes an issue where spans were erroneously being marked as
-    top level when partial flushing or in certain asynchronous applications.
+    client to the Datadog agent. This fixes an issue where spans were
+    erroneously being marked as top level when partial flushing or in certain
+    asynchronous applications.
+
+    The impact of this bug is the unintended computation of stats for non-top
+    level spans.
