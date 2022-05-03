@@ -80,7 +80,7 @@ venv = Venv(
         "coverage": latest,
         "pytest-cov": latest,
         "opentracing": latest,
-        "hypothesis": latest,
+        "hypothesis": "<6.45.1",
     },
     env={
         "DD_TESTING_RAISE": "1",
@@ -277,6 +277,7 @@ venv = Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
             venvs=[Venv(pys=select_pys())],
+            pkgs={"httpretty": "==0.9.7"},
         ),
         Venv(
             name="runtime",
