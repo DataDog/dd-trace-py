@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    internal: normalize header names in asm
+    internal: normalize header names in ASM
