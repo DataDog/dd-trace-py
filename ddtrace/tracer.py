@@ -96,6 +96,7 @@ def _default_span_processors_factory(
     appsec_enabled,  # type: bool
     compute_stats_enabled,  # type: bool
     agent_url,  # type: str
+    civisibility_agentless_enabled,  # type: bool
 ):
     # type: (...) -> List[SpanProcessor]
     """Construct the default list of span processors to use."""
@@ -123,6 +124,12 @@ def _default_span_processors_factory(
             )
             if config._raise:
                 raise
+
+    if civisibility_agentless_enabled:
+        from .internal.processor.truncator import NormalizeSpanProcessor
+        from .internal.processor.truncator import TruncateSpanProcessor
+
+        span_processors.extend([TruncateSpanProcessor(), NormalizeSpanProcessor()])
 
     if compute_stats_enabled:
         # Inline the import to avoid pulling in ddsketch or protobuf
@@ -193,7 +200,7 @@ class Tracer(object):
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
         agent.verify_url(self._agent_url)
 
-        if asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+        if config._civisibility_agentless_enabled:
             from .ci.internal.writer import AgentlessWriter
 
             writer = AgentlessWriter()  # type: TraceWriter
@@ -213,6 +220,7 @@ class Tracer(object):
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
         self._appsec_enabled = config._appsec_enabled
+        self._civisibility_agentless_enabled = config._civisibility_agentless_enabled
 
         self._span_processors = _default_span_processors_factory(
             self._filters,
@@ -222,6 +230,7 @@ class Tracer(object):
             self._appsec_enabled,
             self._compute_stats,
             self._agent_url,
+            self._civisibility_agentless_enabled,
         )
 
         self._hooks = _hooks.Hooks()
@@ -453,6 +462,7 @@ class Tracer(object):
                 self._appsec_enabled,
                 self._compute_stats,
                 self._agent_url,
+                self._civisibility_agentless_enabled,
             )
 
         if context_provider is not None:

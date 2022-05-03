@@ -197,6 +197,7 @@ class Config(object):
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
         self._trace_compute_stats = asbool(os.getenv("DD_TRACE_COMPUTE_STATS", False))
         self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", False))
+        self._civisibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))
 
     def __getattr__(self, name):
         if name not in self._config:
