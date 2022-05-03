@@ -20,6 +20,7 @@ When using ``ddtrace-run``, enable patching by setting the environment variable
 ``DD_LOGS_INJECTION=true``. This will make the tracing correlation attributes
 available to be used in a log format (see below for the format to use).
 
+
     import logging
     from ddtrace import tracer
 
