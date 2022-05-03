@@ -400,6 +400,7 @@ def test_span_types(encoding, span, tags):
     [
         (MsgpackEncoderV03, b"meta"),
         (MsgpackEncoderV05, 9),
+        # TODO (jirikuncar): add AgentlessEncoderV1
     ],
 )
 def test_encoder_propagates_dd_origin(Encoder, item):
@@ -544,23 +545,25 @@ def test_custom_msgpack_encode_v05():
 def test_ci_agentless_encoder_v1():
     from ddtrace.ci.internal.encoding import AgentlessEncoderV1
 
-    metadata={
+    max_item_size = 1 << 10
+    encoder = AgentlessEncoderV1(max_item_size << 1, max_item_size)
+    encoder.metadata = metadata = {
         "*": {
             "runtime-id": "d1a7273c-fcd7-419d-a4ff-f1c0f5e22c32",
             "language": "python",
             "env": "test",
         },
     }
-    encoder = AgentlessEncoderV1(metadata=metadata)
     trace = [
-        [
-            Span(name="v05-test", service="foo", resource="test_1", span_type="test"),
-            Span(name="v05-test", service="foo", resource="POST", span_type="http"),
-            Span(name=None, service="bar"),
-        ]
+        Span(name="v05-test", service="foo", resource="test_1", span_type="test"),
+        Span(name="v05-test", service="foo", resource="POST", span_type="http"),
+        Span(name=None, service="bar"),
     ]
+    encoder.put(trace)
+    assert len(encoder) == 1
 
-    encoded_traces = encoder.decode(encoder.encode_traces(trace))
+    encoded_traces = msgpack.unpackb(encoder.encode(), raw=True, strict_map_key=False)
+
     assert 1 == encoded_traces["version"]
     assert 3 == len(encoded_traces["events"])
     assert "test" == encoded_traces["events"][0]["type"]
