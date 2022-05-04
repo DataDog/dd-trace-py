@@ -196,10 +196,12 @@ class AppSecSpanProcessor(SpanProcessor):
                 data[_Addresses.SERVER_REQUEST_QUERY] = request_query
 
         request_headers = _context.get_item("http.request.headers", span=span)
-        if request_headers is not None:
-            request_headers = _transform_headers(request_headers)
         if self._is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES) and request_headers is not None:
             data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES] = _transform_headers(request_headers)
+
+        response_headers = _context.get_item("http.response.headers", span=span)
+        if self._is_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES) and response_headers is not None:
+            data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_headers(response_headers)
 
         if self._is_needed(_Addresses.SERVER_REQUEST_URI_RAW):
             uri = _context.get_item("http.request.uri", span=span)
@@ -226,12 +228,6 @@ class AppSecSpanProcessor(SpanProcessor):
             if status is not None:
                 data[_Addresses.SERVER_RESPONSE_STATUS] = status
 
-        response_headers = _context.get_item("http.response.headers", span=span)
-        if response_headers is not None:
-            response_headers = _transform_headers(response_headers)
-        if self._is_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES) and response_headers is not None:
-            data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = response_headers
-
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
         if res is not None:
@@ -241,10 +237,18 @@ class AppSecSpanProcessor(SpanProcessor):
             if not allowed:
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return
-            if request_headers is not None:
-                _set_headers(span, "request", request_headers, _COLLECTED_REQUEST_HEADERS)
-            if response_headers is not None:
-                _set_headers(span, "response", response_headers)
+            if _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES in data:
+                _set_headers(span, "response", data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES])
+            elif response_headers is not None:
+                _set_headers(span, "response", _transform_headers(response_headers))
+
+            if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES in data:
+                _set_headers(
+                    span, "request", data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES], _COLLECTED_REQUEST_HEADERS
+                )
+            elif request_headers is not None:
+                _set_headers(span, "request", _transform_headers(request_headers), _COLLECTED_REQUEST_HEADERS)
+
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span._set_str_tag("appsec.event", "true")
