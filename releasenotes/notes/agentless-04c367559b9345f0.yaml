@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add support for submitting test information directly to CI Visibility intake endpoint.
