@@ -145,7 +145,7 @@ def wrap_bytecode(wrapper, wrapped):
 
     # If the function has special flags set, like the generator, async generator
     # or coroutine, inject unraveling code before the return opcode.
-    if CompilerFlags.GENERATOR & code.co_flags:
+    if CompilerFlags.GENERATOR & code.co_flags and not (CompilerFlags.COROUTINE & code.co_flags):
         stopiter = Label()
         loop = Label()
         genexit = Label()
