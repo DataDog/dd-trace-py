@@ -35,8 +35,6 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(gevent=True)
 
 
-**Note:** these calls need to be performed before calling the gevent patching.
-
 Example of the context propagation::
 
     def my_parent_function():
