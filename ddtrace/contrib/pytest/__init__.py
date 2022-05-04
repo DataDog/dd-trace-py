@@ -30,7 +30,7 @@ alongside ``--ddtrace`` or by adding this to your configuration::
      addopts = -p no:ddtrace
 
    See the `pytest documentation
-   <https://docs.pytest.org/en/latest/how-to/plugins.html#deactivating-unregistering-a-plugin-by-name>`_
+   <https://docs.pytest.org/en/7.1.x/how-to/plugins.html#deactivating-unregistering-a-plugin-by-name>`_
    for more details.
 
 
