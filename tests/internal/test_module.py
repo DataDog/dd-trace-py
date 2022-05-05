@@ -234,10 +234,6 @@ def test_module_watchdog_subclasses():
     assert not isinstance(sys.modules, ModuleWatchdog)
 
 
-def test_get_by_origin(module_watchdog):
-    assert module_watchdog.get_by_origin(__file__) is sys.modules[__name__]
-
-
 @pytest.mark.subprocess
 def test_module_import_hierarchy():
     from ddtrace.internal.module import ModuleWatchdog
@@ -272,3 +268,7 @@ def test_post_run_module_hook():
     # generated output. Here we just define a module global variable to ensure
     # that the module is loaded correctly.
     post_run_module = True  # noqa
+
+
+def test_get_by_origin(module_watchdog):
+    assert module_watchdog.get_by_origin(__file__) is sys.modules[__name__]

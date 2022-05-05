@@ -122,8 +122,6 @@ if PY2:
     from py_compile import MAGIC
     from py_compile import wr_long
 
-    from _pytest._code.code import ExceptionInfo
-
     def dump_code_to_file(code, file):
         file.write(MAGIC)
         wr_long(file, long(time.time()))  # noqa
@@ -207,8 +205,6 @@ def run_function_from_file(item, params=None):
     with NamedTemporaryFile(mode="wb", suffix=".pyc") as fp:
         dump_code_to_file(compile(FunctionDefFinder(func).find(file), file, "exec"), fp.file)
 
-        start = time.time()
-
         # If running a module with -m, we change directory to the module's
         # folder and run the module directly.
         if run_module:
@@ -221,33 +217,20 @@ def run_function_from_file(item, params=None):
         # Add any extra requested args
         args.extend(marker.kwargs.get("args", []))
 
-        out, err, status, _ = call_program(*args, env=env, cwd=cwd)
+        def _subprocess_wrapper():
+            out, err, status, _ = call_program(*args, env=env, cwd=cwd)
 
-        end = time.time()
+            if status != expected_status:
+                raise AssertionError(
+                    "Expected status %s, got %s.\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                    % (expected_status, status, err.decode("utf-8"))
+                )
+            elif expected_out is not None and out != expected_out:
+                raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
+            elif expected_err is not None and err != expected_err:
+                raise AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
 
-        excinfo = None
-
-        if status != expected_status:
-            excinfo = AssertionError(
-                "Expected status %s, got %s.\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (expected_status, status, err.decode("utf-8"))
-            )
-        elif expected_out is not None and out != expected_out:
-            excinfo = AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
-        elif expected_err is not None and err != expected_err:
-            excinfo = AssertionError("STDERR: Expected [%s] got [%s]" % (expected_err, err))
-
-        if PY2 and excinfo is not None:
-            try:
-                raise excinfo
-            except Exception:
-                excinfo = ExceptionInfo(sys.exc_info())
-
-        call_info_args = dict(result=None, excinfo=excinfo, start=start, stop=end, when="call")
-        if not PY2:
-            call_info_args["duration"] = end - start
-
-        return TestReport.from_item_and_call(item, CallInfo(**call_info_args))
+        return TestReport.from_item_and_call(item, CallInfo.from_call(_subprocess_wrapper, "call"))
 
 
 @pytest.hookimpl(tryfirst=True)
