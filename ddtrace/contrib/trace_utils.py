@@ -179,7 +179,8 @@ def distributed_tracing_enabled(int_config, default=False):
     return default
 
 
-def int_service(pin, int_config, default=None):
+def int_service(pin, int_config=None, default=None):
+    # type: (Optional[Pin], Optional[IntegrationConfig], Optional[str]) -> Optional[str]
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -187,26 +188,26 @@ def int_service(pin, int_config, default=None):
     For internal integrations we prioritize overrides, then global defaults and
     lastly the default provided by the integration.
     """
-    int_config = int_config or {}
 
     # Pin has top priority since it is user defined in code
-    if pin and pin.service:
+    if pin is not None and pin.service:
         return pin.service
 
-    # Config is next since it is also configured via code
-    # Note that both service and service_name are used by
-    # integrations.
-    if "service" in int_config and int_config.service is not None:
-        return int_config.service
-    if "service_name" in int_config and int_config.service_name is not None:
-        return int_config.service_name
+    if int_config is not None:
+        # Config is next since it is also configured via code
+        # Note that both service and service_name are used by
+        # integrations.
+        if "service" in int_config and int_config.service is not None:
+            return int_config.service
+        if "service_name" in int_config and int_config.service_name is not None:
+            return int_config.service_name
 
-    global_service = int_config.global_config._get_service()
-    if global_service:
-        return global_service
+        global_service = int_config.global_config._get_service()
+        if global_service:
+            return global_service
 
-    if "_default_service" in int_config and int_config._default_service is not None:
-        return int_config._default_service
+        if "_default_service" in int_config and int_config._default_service is not None:
+            return int_config._default_service
 
     return default
 

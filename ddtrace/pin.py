@@ -10,7 +10,7 @@ from .vendor import wrapt
 
 
 if TYPE_CHECKING:
-    from .tracer import Tracer
+    from .tracing.tracer import Tracer
 
 
 log = get_logger(__name__)

@@ -9,7 +9,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.vertica.patch import patch
 from ddtrace.contrib.vertica.patch import unpatch
-from ddtrace.settings.config import _deepmerge
+from ddtrace.tracing.config import _deepmerge
 from ddtrace.vendor import wrapt
 from tests.contrib.config import VERTICA_CONFIG
 from tests.opentracer.utils import init_tracer

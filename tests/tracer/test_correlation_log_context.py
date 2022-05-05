@@ -2,10 +2,10 @@ import pytest
 import structlog
 
 from ddtrace import Tracer
-from ddtrace import config
 from ddtrace import tracer
 from ddtrace.context import Context
 from ddtrace.opentracer.tracer import Tracer as OT_Tracer
+from ddtrace.settings.config import config
 from tests.utils import override_global_config
 
 

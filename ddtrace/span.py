@@ -12,7 +12,8 @@ from typing import Union
 
 import six
 
-from . import config
+from ddtrace.settings.config import config
+
 from .constants import ANALYTICS_SAMPLE_RATE_KEY
 from .constants import ERROR_MSG
 from .constants import ERROR_STACK

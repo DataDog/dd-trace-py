@@ -9,7 +9,7 @@ import bm
 
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
-from ddtrace.tracer import Tracer
+from ddtrace.tracing.tracer import Tracer
 
 
 class NoopWriter(TraceWriter):

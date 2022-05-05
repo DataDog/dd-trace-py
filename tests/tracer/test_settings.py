@@ -3,6 +3,7 @@ import pytest
 from ddtrace.settings import Config
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
+from ddtrace.tracing.config import TracerConfig
 from tests.utils import BaseTestCase
 from tests.utils import override_env
 
@@ -10,45 +11,45 @@ from tests.utils import override_env
 class TestConfig(BaseTestCase):
     def test_environment_analytics_enabled(self):
         with self.override_env(dict(DD_ANALYTICS_ENABLED="True")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.analytics_enabled)
 
         with self.override_env(dict(DD_ANALYTICS_ENABLED="False")):
-            config = Config()
+            config = TracerConfig()
             self.assertFalse(config.analytics_enabled)
 
         with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.analytics_enabled)
 
         with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
+            config = TracerConfig()
             self.assertFalse(config.analytics_enabled)
 
     def test_environment_analytics_overrides(self):
         with self.override_env(dict(DD_ANALYTICS_ENABLED="False", DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.analytics_enabled)
 
         with self.override_env(dict(DD_ANALYTICS_ENABLED="False", DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
+            config = TracerConfig()
             self.assertFalse(config.analytics_enabled)
 
         with self.override_env(dict(DD_ANALYTICS_ENABLED="True", DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.analytics_enabled)
 
         with self.override_env(dict(DD_ANALYTICS_ENABLED="True", DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
+            config = TracerConfig()
             self.assertFalse(config.analytics_enabled)
 
     def test_logs_injection(self):
         with self.override_env(dict(DD_LOGS_INJECTION="True")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.logs_injection)
 
         with self.override_env(dict(DD_LOGS_INJECTION="false")):
-            config = Config()
+            config = TracerConfig()
             self.assertFalse(config.logs_injection)
 
     def test_service(self):
@@ -62,7 +63,7 @@ class TestConfig(BaseTestCase):
             self.assertEqual(config.service, "my-service")
 
     def test_http_config(self):
-        config = Config()
+        config = TracerConfig()
         config._add("django", dict())
         assert config.django.trace_query_string is None
         config.http.trace_query_string = True
@@ -70,7 +71,7 @@ class TestConfig(BaseTestCase):
         assert config.django.trace_query_string is True
 
         # Integration usage
-        config = Config()
+        config = TracerConfig()
         config._add("django", dict())
         config.django.http.trace_query_string = True
         assert config.http.trace_query_string is None
@@ -134,7 +135,7 @@ class TestHttpConfig(BaseTestCase):
 
 class TestIntegrationConfig(BaseTestCase):
     def setUp(self):
-        self.config = Config()
+        self.config = TracerConfig()
         self.integration_config = IntegrationConfig(self.config, "test")
 
     def test_is_a_dict(self):
@@ -184,40 +185,40 @@ class TestIntegrationConfig(BaseTestCase):
         self.assertIsNone(self.config.foo.analytics_enabled)
 
         with self.override_env(dict(DD_ANALYTICS_ENABLED="True")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.analytics_enabled)
             self.assertIsNone(config.foo.analytics_enabled)
 
         with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.analytics_enabled)
             self.assertIsNone(config.foo.analytics_enabled)
 
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.foo.analytics_enabled)
             self.assertEqual(config.foo.analytics_sample_rate, 1.0)
 
         with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.foo.analytics_enabled)
             self.assertEqual(config.foo.analytics_sample_rate, 1.0)
 
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="False")):
-            config = Config()
+            config = TracerConfig()
             self.assertFalse(config.foo.analytics_enabled)
 
         with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="False")):
-            config = Config()
+            config = TracerConfig()
             self.assertFalse(config.foo.analytics_enabled)
 
         with self.override_env(dict(DD_FOO_ANALYTICS_ENABLED="True", DD_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.foo.analytics_enabled)
             self.assertEqual(config.foo.analytics_sample_rate, 0.5)
 
         with self.override_env(dict(DD_TRACE_FOO_ANALYTICS_ENABLED="True", DD_TRACE_FOO_ANALYTICS_SAMPLE_RATE="0.5")):
-            config = Config()
+            config = TracerConfig()
             self.assertTrue(config.foo.analytics_enabled)
             self.assertEqual(config.foo.analytics_sample_rate, 0.5)
 
@@ -249,22 +250,22 @@ class TestIntegrationConfig(BaseTestCase):
         self.assertIsNone(ic.get_analytics_sample_rate())
 
         with self.override_env(dict(DD_ANALYTICS_ENABLED="True")):
-            config = Config()
+            config = TracerConfig()
             ic = IntegrationConfig(config, "foo")
             self.assertEqual(ic.get_analytics_sample_rate(use_global_config=True), 1.0)
 
         with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="True")):
-            config = Config()
+            config = TracerConfig()
             ic = IntegrationConfig(config, "foo")
             self.assertEqual(ic.get_analytics_sample_rate(use_global_config=True), 1.0)
 
         with self.override_env(dict(DD_ANALYTICS_ENABLED="False")):
-            config = Config()
+            config = TracerConfig()
             ic = IntegrationConfig(config, "foo")
             self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
 
         with self.override_env(dict(DD_TRACE_ANALYTICS_ENABLED="False")):
-            config = Config()
+            config = TracerConfig()
             ic = IntegrationConfig(config, "foo")
             self.assertIsNone(ic.get_analytics_sample_rate(use_global_config=True))
 
@@ -296,7 +297,7 @@ class TestIntegrationConfig(BaseTestCase):
     ),
 )
 def test_config_is_header_tracing_configured(global_headers, int_headers, expected):
-    config = Config()
+    config = TracerConfig()
     integration_config = config.myint
 
     if global_headers is not None:
@@ -313,7 +314,7 @@ def test_config_is_header_tracing_configured(global_headers, int_headers, expect
 
 def test_environment_header_tags():
     with override_env(dict(DD_TRACE_HEADER_TAGS="Host:http.host,User-agent:http.user_agent")):
-        config = Config()
+        config = TracerConfig()
 
     assert config.http.is_header_tracing_configured
     assert config._header_tag_name("Host") == "http.host"

@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace import config as global_config
 from ddtrace.settings import Config
+from ddtrace.tracing.config import TracerConfig
 
 from ..utils import DummyTracer
 from ..utils import override_env
@@ -14,7 +15,7 @@ class GlobalConfigTestCase(TestCase):
     """Test the `Configuration` class that stores integration settings"""
 
     def setUp(self):
-        self.config = Config()
+        self.config = TracerConfig()
         self.tracer = DummyTracer()
 
     def test_registration(self):
@@ -53,7 +54,7 @@ class GlobalConfigTestCase(TestCase):
 
     def test_global_configuration(self):
         # ensure a global configuration is available in the `ddtrace` module
-        assert isinstance(global_config, Config)
+        assert isinstance(global_config, TracerConfig)
 
     def test_settings_merge(self):
         """

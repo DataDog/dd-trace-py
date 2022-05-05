@@ -2,7 +2,7 @@ from typing import Dict
 from typing import FrozenSet
 from typing import Optional
 
-from ddtrace import config
+from ddtrace.tracing.config import config
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT

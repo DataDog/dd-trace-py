@@ -27,7 +27,7 @@ class IntegrationConfig(AttrDict):
     def __init__(self, global_config, name, *args, **kwargs):
         """
         :param global_config:
-        :type global_config: Config
+        :type global_config: TracerConfig
         :param args:
         :param kwargs:
         """

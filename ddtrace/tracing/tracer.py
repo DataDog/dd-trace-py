@@ -15,48 +15,49 @@ from typing import Set
 from typing import TypeVar
 from typing import Union
 
-from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.settings.config import config
 from ddtrace.vendor import debtcollector
 
-from . import _hooks
-from ._monkey import patch
-from .constants import AUTO_KEEP
-from .constants import AUTO_REJECT
-from .constants import ENV_KEY
-from .constants import HOSTNAME_KEY
-from .constants import PID
-from .constants import SAMPLE_RATE_METRIC_KEY
-from .constants import VERSION_KEY
-from .context import Context
-from .internal import agent
-from .internal import atexit
-from .internal import compat
-from .internal import debug
-from .internal import forksafe
-from .internal import hostname
-from .internal.dogstatsd import get_dogstatsd_client
-from .internal.logger import get_logger
-from .internal.logger import hasHandlers
-from .internal.processor import SpanProcessor
-from .internal.processor.trace import SpanAggregator
-from .internal.processor.trace import TraceProcessor
-from .internal.processor.trace import TraceSamplingProcessor
-from .internal.processor.trace import TraceTagsProcessor
-from .internal.processor.trace import TraceTopLevelSpanProcessor
-from .internal.runtime import get_runtime_id
-from .internal.service import ServiceStatusError
-from .internal.utils.formats import asbool
-from .internal.writer import AgentWriter
-from .internal.writer import LogWriter
-from .internal.writer import TraceWriter
-from .provider import DefaultContextProvider
-from .sampler import BasePrioritySampler
-from .sampler import BaseSampler
-from .sampler import DatadogSampler
-from .sampler import RateByServiceSampler
-from .sampler import RateSampler
-from .span import Span
+from .. import _hooks
+from .._monkey import patch
+from ..constants import AUTO_KEEP
+from ..constants import AUTO_REJECT
+from ..constants import ENV_KEY
+from ..constants import HOSTNAME_KEY
+from ..constants import PID
+from ..constants import SAMPLE_RATE_METRIC_KEY
+from ..constants import VERSION_KEY
+from ..context import Context
+from ..internal import agent
+from ..internal import atexit
+from ..internal import compat
+from ..internal import debug
+from ..internal import forksafe
+from ..internal import hostname
+from ..internal.dogstatsd import get_dogstatsd_client
+from ..internal.logger import get_logger
+from ..internal.logger import hasHandlers
+from ..internal.processor import SpanProcessor
+from ..internal.processor.trace import SpanAggregator
+from ..internal.processor.trace import TraceProcessor
+from ..internal.processor.trace import TraceSamplingProcessor
+from ..internal.processor.trace import TraceTagsProcessor
+from ..internal.processor.trace import TraceTopLevelSpanProcessor
+from ..internal.runtime import get_runtime_id
+from ..internal.service import ServiceStatusError
+from ..internal.utils.formats import asbool
+from ..internal.writer import AgentWriter
+from ..internal.writer import LogWriter
+from ..internal.writer import TraceWriter
+from ..provider import DefaultContextProvider
+from ..sampler import BasePrioritySampler
+from ..sampler import BaseSampler
+from ..sampler import DatadogSampler
+from ..sampler import RateByServiceSampler
+from ..sampler import RateSampler
+from ..span import Span
+from .config import config as tracer_config
 
 
 log = get_logger(__name__)
@@ -74,7 +75,7 @@ if debug_mode and not hasHandlers(log) and call_basic_config:
         message="`logging.basicConfig()` should be called in a user's application."
         " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
     )
-    if config.logs_injection:
+    if tracer_config.logs_injection:
         # We need to ensure logging is patched in case the tracer logs during initialization
         patch(logging=True)
         logging.basicConfig(level=logging.DEBUG, format=DD_LOG_FORMAT)
@@ -109,7 +110,7 @@ def _default_span_processors_factory(
 
     if appsec_enabled:
         try:
-            from .appsec.processor import AppSecSpanProcessor
+            from ..appsec.processor import AppSecSpanProcessor
 
             appsec_span_processor = AppSecSpanProcessor()
             span_processors.append(appsec_span_processor)
@@ -127,7 +128,7 @@ def _default_span_processors_factory(
     if compute_stats_enabled:
         # Inline the import to avoid pulling in ddsketch or protobuf
         # when importing ddtrace.
-        from .internal.processor.stats import SpanStatsProcessorV06
+        from ..internal.processor.stats import SpanStatsProcessorV06
 
         span_processors.append(
             SpanStatsProcessorV06(
@@ -189,7 +190,7 @@ class Tracer(object):
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
         self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
-        self._compute_stats = config._trace_compute_stats
+        self._compute_stats = tracer_config._trace_compute_stats
         self._agent_url = agent.get_trace_url() if url is None else url  # type: str
         agent.verify_url(self._agent_url)
 
@@ -201,13 +202,14 @@ class Tracer(object):
                 sampler=self._sampler,
                 priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                report_metrics=config.health_metrics_enabled,
+                report_metrics=tracer_config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
+        # TODO: different way of enabling appsec?
         self._appsec_enabled = config._appsec_enabled
 
         self._span_processors = _default_span_processors_factory(
@@ -406,7 +408,7 @@ class Tracer(object):
                 sampler=self._sampler,
                 priority_sampler=self._priority_sampler,
                 dogstatsd=get_dogstatsd_client(self._dogstatsd_url),
-                report_metrics=config.health_metrics_enabled,
+                report_metrics=tracer_config.health_metrics_enabled,
                 sync_mode=self._use_sync_mode(),
                 api_version=api_version,
                 headers={"Datadog-Client-Computed-Stats": "yes"} if compute_stats_enabled else {},
@@ -415,7 +417,7 @@ class Tracer(object):
             # No need to do anything for the LogWriter.
             pass
         if isinstance(self._writer, AgentWriter):
-            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)  # type: ignore[has-type]
+            self._writer.dogstatsd = get_dogstatsd_client(self._dogstatsd_url)
 
         if any(
             x is not None
@@ -630,7 +632,7 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             span._local_root = span
-            if config.report_hostname:
+            if tracer_config.report_hostname:
                 span._set_str_tag(HOSTNAME_KEY, hostname.get_hostname())
             span.sampled = self._sampler.sample(span)
             # Old behavior

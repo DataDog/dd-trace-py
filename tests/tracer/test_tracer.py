@@ -35,10 +35,11 @@ from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings import Config
+from ddtrace.settings.config import config
 from ddtrace.span import _is_top_level
-from ddtrace.tracer import Tracer
-from ddtrace.tracer import _has_aws_lambda_agent_extension
-from ddtrace.tracer import _in_aws_lambda
+from ddtrace.tracing.tracer import Tracer
+from ddtrace.tracing.tracer import _has_aws_lambda_agent_extension
+from ddtrace.tracing.tracer import _in_aws_lambda
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import TracerTestCase
 from tests.utils import override_global_config
@@ -843,9 +844,9 @@ class EnvTracerTestCase(TracerTestCase):
     @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
     def test_tags_from_DD_TAGS_override(self):
         t = ddtrace.Tracer()
-        ddtrace.config.env = "env"
-        ddtrace.config.service = "service"
-        ddtrace.config.version = "0.123"
+        config.env = "env"
+        config.service = "service"
+        config.version = "0.123"
         with t.trace("test") as s:
             assert s.service == "service"
             assert s.get_tag("env") == "env"
@@ -1441,10 +1442,10 @@ def test_service_mapping():
     @contextlib.contextmanager
     def override_service_mapping(service_mapping):
         with override_env(dict(DD_SERVICE_MAPPING=service_mapping)):
-            assert ddtrace.config.service_mapping == {}
-            ddtrace.config.service_mapping = Config().service_mapping
+            assert config.service_mapping == {}
+            config.service_mapping = Config().service_mapping
             yield
-            ddtrace.config.service_mapping = {}
+            config.service_mapping = {}
 
     # Test single mapping
     with override_service_mapping("foo:bar"), ddtrace.Tracer().trace("renaming", service="foo") as span:

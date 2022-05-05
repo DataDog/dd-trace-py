@@ -21,6 +21,7 @@ from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV03 as Encoder
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.settings.config import config
 from ddtrace.vendor import wrapt
 from tests.subprocesstest import SubprocessTestCase
 
@@ -82,33 +83,42 @@ def override_global_config(values):
     """
     # List of global variables we allow overriding
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
-    global_config_keys = [
+    global_tracer_config_keys = {
         "analytics_enabled",
         "report_hostname",
         "health_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
+        "_trace_compute_stats",
+    }
+
+    global_config_keys = [
         "env",
         "version",
         "service",
         "_raise",
-        "_trace_compute_stats",
         "_appsec_enabled",
     ]
 
     # Grab the current values of all keys
-    originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
+    originals = dict((key, getattr(ddtrace.config, key)) for key in global_tracer_config_keys)
+    old_global_config = dict(config.__dict__)
 
     # Override from the passed in keys
     for key, value in values.items():
-        if key in global_config_keys:
+        if key in global_tracer_config_keys:
             setattr(ddtrace.config, key, value)
+        elif key in global_config_keys:
+            setattr(config, key, value)
+
     try:
         yield
     finally:
         # Reset all to their original values
         for key, value in originals.items():
             setattr(ddtrace.config, key, value)
+        config.__dict__.clear()
+        config.__dict__.update(old_global_config)
 
 
 @contextlib.contextmanager

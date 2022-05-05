@@ -13,6 +13,7 @@ import ddtrace
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.sampler import DatadogSampler
+from ddtrace.settings.config import config as _config
 
 from .logger import get_logger
 
@@ -108,7 +109,7 @@ def collect(tracer):
 
     pip_version = packages_available.get("pip", "N/A")
 
-    from ddtrace.tracer import log
+    from ddtrace.tracing.tracer import log
 
     return dict(
         # Timestamp UTC ISO 8601
@@ -127,21 +128,21 @@ def collect(tracer):
         in_virtual_env=is_venv,
         agent_url=agent_url,
         agent_error=agent_error,
-        env=ddtrace.config.env or "",
+        env=_config.env or "",
         is_global_tracer=tracer == ddtrace.tracer,
         enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),
         tracer_enabled=tracer.enabled,
         sampler_type=type(tracer._sampler).__name__ if tracer._sampler else "N/A",
         priority_sampler_type=type(tracer._priority_sampler).__name__ if tracer._priority_sampler else "N/A",
         sampler_rules=sampler_rules,
-        service=ddtrace.config.service or "",
+        service=_config.service or "",
         debug=log.isEnabledFor(logging.DEBUG),
         enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
         analytics_enabled=ddtrace.config.analytics_enabled,
         log_injection_enabled=ddtrace.config.logs_injection,
         health_metrics_enabled=ddtrace.config.health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
-        dd_version=ddtrace.config.version or "",
+        dd_version=_config.version or "",
         priority_sampling_enabled=tracer._priority_sampler is not None,
         global_tags=os.getenv("DD_TAGS", ""),
         tracer_tags=tags_to_str(tracer._tags),

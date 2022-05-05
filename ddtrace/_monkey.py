@@ -12,7 +12,7 @@ from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
 from .internal.utils.importlib import require_modules
-from .settings import _config as config
+from .tracing.config import config
 
 
 log = get_logger(__name__)

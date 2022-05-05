@@ -17,15 +17,15 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
     gevent.monkey.patch_all()
 
 
-from ddtrace import config  # noqa
 from ddtrace import constants
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.tracer import DD_LOG_FORMAT  # noqa
-from ddtrace.tracer import debug_mode
+from ddtrace.tracing.config import config  # noqa
+from ddtrace.tracing.tracer import DD_LOG_FORMAT  # noqa
+from ddtrace.tracing.tracer import debug_mode
 from ddtrace.vendor.debtcollector import deprecate
 
 

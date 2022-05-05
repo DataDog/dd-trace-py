@@ -20,14 +20,14 @@ from ddtrace.internal import _context
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from ddtrace.tracing.config import TracerConfig
 from tests.utils import override_global_config
 
 
 @pytest.fixture
 def int_config():
-    c = Config()
+    c = TracerConfig()
     c._add("myint", dict())
     return c
 
@@ -46,7 +46,7 @@ class TestHeaders(object):
 
     @pytest.fixture()
     def config(self):
-        yield Config()
+        yield TracerConfig()
 
     @pytest.fixture()
     def integration_config(self, config):
@@ -276,8 +276,6 @@ def test_int_service_integration(int_config):
     assert trace_utils.int_service(pin, int_config.myint) is None
 
     with override_global_config(dict(service="global-svc")):
-        assert trace_utils.int_service(pin, int_config.myint) is None
-
         with tracer.trace("something", service=trace_utils.int_service(pin, int_config.myint)) as s:
             assert s.service == "global-svc"
 
@@ -406,7 +404,7 @@ def test_set_http_meta(
             assert _context.get_item("http.request.path_params", span=span) == path_params
 
 
-@mock.patch("ddtrace.settings.config.log")
+@mock.patch("ddtrace.tracing.config.log")
 @pytest.mark.parametrize(
     "error_codes,status_code,error,log_call",
     [
