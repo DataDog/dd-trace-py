@@ -64,7 +64,7 @@ async def test_wrap_async_generator_send():
 
 @pytest.mark.asyncio
 async def test_double_async_for_with_exception():
-    wrapper_run = False
+    channel = None
 
     class StreamConsumed(Exception):
         pass
@@ -82,11 +82,13 @@ async def test_double_async_for_with_exception():
             async for part in self._stream:
                 yield part
 
-    def wrapper(f, args, kwargs):
-        nonlocal wrapper_run
+    async def wrapper(f, args, kwargs):
+        nonlocal channel
 
-        wrapper_run = True
-        return f(*args, **kwargs)
+        channel = [_ async for _ in f(*args, **kwargs)]
+        for _ in channel:
+            yield _
+        return
 
     async def stream():
         yield b"hello"
@@ -99,6 +101,6 @@ async def test_double_async_for_with_exception():
     s = AsyncIteratorByteStream(stream())
 
     assert b"".join([_ async for _ in s]) == b"hello"
-    assert wrapper_run
+    assert channel == [b"hello", b""]
     with pytest.raises(StreamConsumed):
         b"".join([_ async for _ in s])
