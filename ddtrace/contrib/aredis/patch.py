@@ -3,11 +3,8 @@ import aredis
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-<<<<<<< HEAD
-=======
 from ...internal.utils.formats import stringify_cache_args
 from ...internal.utils.wrappers import unwrap
->>>>>>> 8a9756bc (fix(django,redis): allow unicode cache keys (#3299))
 from ...pin import Pin
 from ...utils.wrappers import unwrap
 from ..redis.util import _trace_redis_cmd

@@ -9,22 +9,19 @@ from typing import Text
 from typing import TypeVar
 from typing import Union
 
-<<<<<<< HEAD
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
-from ...vendor.debtcollector import deprecate
-=======
 from ..compat import binary_type
 from ..compat import ensure_text
 from ..compat import stringify
 from ..compat import text_type
+from ...vendor.debtcollector import deprecate
 
 
 VALUE_PLACEHOLDER = "?"
 VALUE_MAX_LEN = 100
 VALUE_TOO_LONG_MARK = "..."
 CMD_MAX_LEN = 1000
->>>>>>> 8a9756bc (fix(django,redis): allow unicode cache keys (#3299))
 
 
 T = TypeVar("T")
