@@ -4,7 +4,7 @@
 [![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)](https://pypi.org/project/ddtrace/)
 [![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
 
-<img align="right" src="https://user-images.githubusercontent.com/6321485/167082083-53f6e48f-1843-4708-9b98-587c94f7ddb3.png" alt="bits agent" width="200px"/>
+<img align="right" src="https://user-images.githubusercontent.com/6321485/167082083-53f6e48f-1843-4708-9b98-587c94f7ddb3.png" alt="bits python" width="200px"/>
 
 This repository contains `ddtrace`, Datadog's APM client Python package. `ddtrace` contains APIs to automatically or
 manually [trace](https://docs.datadoghq.com/tracing/visualization/#trace) and
