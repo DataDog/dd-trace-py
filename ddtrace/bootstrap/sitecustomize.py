@@ -95,6 +95,7 @@ try:
         trace_enabled = True
     else:
         trace_enabled = False
+        opts["enabled"] = False
 
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
