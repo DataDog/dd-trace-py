@@ -279,6 +279,9 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
                         if config.option.verbose > 2:
                             terminalreporter.write_line(line)
                         f.write(line)
+                # alternative way to submit coverage data
+                with open(os.path.join(config.rootdir, ".coverage-ci-v2.json"), "w") as f:
+                    f.write(json.dumps(CIVisibilityReporter(cov).yield_per_context_v2(), indent=None))
 
 
 class CoveragePlugin:
@@ -352,6 +355,40 @@ class CIVisibilityReporter:
                     ],
                 },
             }
+
+    def yield_per_context_v2(self, morfs=None):
+        """Yield the coverage report for each available context."""
+        # lazy import to avoid a hard dependency
+        from coverage.report import get_analysis_to_report
+
+        # filename -> line number -> test_ids
+
+        def segments(lines_with_context):
+            def as_segments(it):
+                sequence = list(it)
+                if len(sequence) == 1:
+                    return (str(sequence[0][0]), sequence[0][1])
+                return (str(sequence[0][0]) + "-" + str(sequence[-1][0]), sequence[0][1])
+
+            executed = sorted(lines_with_context)
+            return dict(as_segments(g) for _, g in groupby(executed, lambda n, c=count(): (n[0] - next(c), n[1])))
+
+        return {
+            f: r
+            for f, r in (
+                (
+                    file_reporter.relative_filename(),
+                    segments(
+                        (int(line), sorted(test_ids))
+                        for line, test_ids in analysis.data.contexts_by_lineno(analysis.filename).items()
+                        if test_ids and test_ids != [""]
+                    ),
+                )
+                for file_reporter, analysis in get_analysis_to_report(self.coverage, morfs)
+                if analysis.executed
+            )
+            if r
+        }
 
     def build(self, morfs=None, test_id=None):
         """Generate a CI Visibility structure.
