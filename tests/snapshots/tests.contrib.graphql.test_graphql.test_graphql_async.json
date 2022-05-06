@@ -1,0 +1,35 @@
+[[
+  {
+    "name": "test-async",
+    "service": "graphql",
+    "resource": "test-async",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "runtime-id": "09a688a07a134b5d9bb600300886b8ab"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 165
+    },
+    "duration": 104313900,
+    "start": 1652112237389238300
+  },
+     {
+       "name": "graphql",
+       "service": "graphql",
+       "resource": "{ hello }",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 104085800,
+       "start": 1652112237389394900
+     }]]
