@@ -278,7 +278,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
                         line = json.dumps(coverage, indent=None)
                         if config.option.verbose > 2:
                             terminalreporter.write_line(line)
-                        f.write(line)
+                        f.write(line + "\n")
                 # alternative way to submit coverage data
                 with open(os.path.join(config.rootdir, ".coverage-ci-v2.json"), "w") as f:
                     f.write(json.dumps(CIVisibilityReporter(cov).yield_per_context_v2(), indent=None))
@@ -302,6 +302,7 @@ class CoveragePlugin:
         span = _extract_span(item)
         if span is not None:
             context = str(span.trace_id)
+        # NOTE: alternatively we could keep a track of context to span ID mapping
         self.cov.switch_context(context)
         os.environ["COV_CORE_CONTEXT"] = context
 
