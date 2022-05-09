@@ -1,7 +1,6 @@
 import asyncio
 
 import sanic
-from sanic.exceptions import NotFound
 
 import ddtrace
 from ddtrace import config
@@ -258,7 +257,7 @@ async def sanic_http_lifecycle_exception(request, exception):
 
     # Do not attach exception traceback on 404 errors
     # DEV: We still need to set `__dd_span_call_finish` below
-    if not isinstance(exception, NotFound):
+    if not hasattr(exception, "status_code") or 500 <= exception.status_code < 600:
         ex_type = type(exception)
         ex_tb = getattr(exception, "__traceback__", None)
         span.set_exc_info(ex_type, exception, ex_tb)
