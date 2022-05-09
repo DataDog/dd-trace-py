@@ -1,13 +1,12 @@
-import os
 from typing import Any
 from typing import List
 from typing import TYPE_CHECKING
-import uuid
 
 import ddtrace
-from ddtrace.internal import compat
+from ddtrace import config
 from ddtrace.internal._encoding import ListBufferedEncoder
 from ddtrace.internal._encoding import packb
+from ddtrace.internal.ci import get_runtime_id
 from ddtrace.internal.encoding import _EncoderBase
 
 
@@ -27,8 +26,8 @@ class AgentlessEncoderV1(ListBufferedEncoder):
             "*": {
                 "language": "python",
                 "library_version": ddtrace.__version__,
-                "runtime-id": uuid.uuid4().hex,
-                "env": os.environ.get("DD_ENV", "none"),
+                "runtime-id": get_runtime_id(),
+                "env": config.env,
             }
         }
 
