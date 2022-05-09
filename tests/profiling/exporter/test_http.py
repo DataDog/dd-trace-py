@@ -65,13 +65,12 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
         for part in msg.get_payload():
             items[part.get_param("name", header="content-disposition")].append(part.get_payload(decode=True))
         for key, check in {
-            "recording-start": lambda x: x[0] == b"1970-01-01T00:00:00Z",
-            "recording-end": lambda x: x[0].startswith(b"20"),
-            "runtime": lambda x: x[0] == platform.python_implementation().encode(),
-            "format": lambda x: x[0] == b"pprof",
-            "type": lambda x: x[0] == b"cpu+alloc+exceptions",
+            "start": lambda x: x[0] == b"1970-01-01T00:00:00Z",
+            "end": lambda x: x[0].startswith(b"20"),
+            "family": lambda x: x[0] == b"python",
+            "version": lambda x: x[0] == b"3",
             "tags[]": self._check_tags,
-            "chunk-data": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
+            "data[auto.pprof]": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
         }.items():
             if not check(items[key]):
                 self.send_error(400, "Wrong value for %s: %r" % (key, items[key]))
