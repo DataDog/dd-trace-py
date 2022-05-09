@@ -27,7 +27,6 @@ class AgentlessEncoderV1(ListBufferedEncoder):
             "*": {
                 "language": "python",
                 "library_version": ddtrace.__version__,
-                "language_version": compat.PYTHON_VERSION,
                 "runtime-id": uuid.uuid4().hex,
                 "env": os.environ.get("DD_ENV", "none"),
             }
