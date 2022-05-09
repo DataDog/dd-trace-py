@@ -94,6 +94,41 @@ jobs:
         # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
         run: DD_TRACE_REQUESTS_ENABLED=0 ddtrace-run tests/runtests.py
 
+  graphene-testsuite-3_0:
+    runs-on: ubuntu-latest
+    env:
+      DD_PROFILING_ENABLED: true
+      DD_TESTING_RAISE: true
+    defaults:
+      run:
+        working-directory: graphene
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v3
+        with:
+          repository: graphql-python/graphene
+          # TODO: bump ref to `graphene>3.0.0`.
+          # Unreleased CI fix: https://github.com/graphql-python/graphene/pull/1412
+          ref: 03277a55123fd2f8a8465c5fa671f7fb0d004c26
+          path: graphene
+      - uses: actions/setup-python@v3
+        with:
+          python-version: "3.9"
+      - name: Install graphene
+        run: pip install -e "../graphene[test]"
+      - name: "Upgrade pytest_asyncio"
+        # pytest_asyncio==0.17 raises `assert type in (None, "pathlist", "args", "linelist", "bool")`
+        # https://github.com/graphql-python/graphene/blob/03277a55123fd2f8a8465c5fa671f7fb0d004c26/setup.py#L52
+        run: pip install "pytest-asyncio>0.17,<2"
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Set Pythonpath
+        run: echo "PYTHONPATH=." >> $GITHUB_ENV
+      - name: Run tests
+        run: ddtrace-run pytest graphene
+
   fastapi-testsuite-0_75:
     runs-on: ubuntu-latest
     env:
