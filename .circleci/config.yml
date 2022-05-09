@@ -847,14 +847,13 @@ jobs:
           pattern: 'aiobotocore'
 
   aiomysql:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
+    <<: *machine_executor
     steps:
       - run_test:
+          docker_services: 'mysql'
           wait: mysql
           pattern: 'aiomysql'
+          snapshot: true
 
   aiopg:
     <<: *contrib_job
