@@ -199,6 +199,11 @@ class Config(object):
         self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", False))
         self._civisibility_agentless_enabled = asbool(os.getenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", False))
 
+        # Shared configuration for intake endpoints
+        self.site = os.environ.get("DD_SITE", default="datadoghq.com")
+        # Make sure that the configuration value is not logged
+        self.api_key = os.environ.get("DD_API_KEY", default=None)
+
     def __getattr__(self, name):
         if name not in self._config:
             self._config[name] = IntegrationConfig(self, name)

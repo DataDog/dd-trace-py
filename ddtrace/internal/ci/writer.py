@@ -3,6 +3,7 @@ from typing import Dict
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from ddtrace import config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.writer import HTTPWriter
 
@@ -56,13 +57,13 @@ class AgentlessWriter(HTTPWriter):
             headers = {}
 
         if "dd-api-key" not in headers:
-            api_key = os.environ.get("DATADOG_API_KEY", os.environ.get("DD_API_KEY"))  # type: Optional[str]
+            api_key = config.api_key  # type: Optional[str]
             if api_key is None:
-                raise ValueError("DATADOG_API_KEY or DD_API_KEY must be set")
+                raise ValueError("DD_API_KEY must be set")
             headers["dd-api-key"] = api_key
 
         if intake_url is None:
-            intake_url = self.ENDPOINT_TEMPLATE.format(os.environ.get("DD_SITE", "datadoghq.com"))
+            intake_url = self.ENDPOINT_TEMPLATE.format(config.site)
 
         super(AgentlessWriter, self).__init__(
             intake_url=intake_url,
