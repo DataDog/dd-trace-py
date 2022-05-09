@@ -543,7 +543,7 @@ def test_custom_msgpack_encode_v05():
 
 
 def test_ci_agentless_encoder_v1():
-    from ddtrace.ci.internal.encoding import AgentlessEncoderV1
+    from ddtrace.internal.ci.encoding import AgentlessEncoderV1
 
     max_item_size = 1 << 10
     encoder = AgentlessEncoderV1(max_item_size << 1, max_item_size)

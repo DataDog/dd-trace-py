@@ -201,7 +201,7 @@ class Tracer(object):
         agent.verify_url(self._agent_url)
 
         if config._civisibility_agentless_enabled:
-            from .ci.internal.writer import AgentlessWriter
+            from .internal.ci.writer import AgentlessWriter
 
             writer = AgentlessWriter()  # type: TraceWriter
         elif self._use_log_writer() and url is None:
