@@ -247,6 +247,21 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="settings",
+            command="pytest {cmdargs} tests/settings/",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "msgpack": latest,
+                        "attrs": ["==19.2.0", latest],
+                        "packaging": ["==17.1", latest],
+                        "structlog": latest,
+                    },
+                )
+            ],
+        ),
+        Venv(
             name="integration",
             pys=select_pys(),
             command="pytest --no-cov {cmdargs} tests/integration/",
