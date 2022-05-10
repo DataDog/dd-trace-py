@@ -1391,12 +1391,23 @@ venv = Venv(
         ),
         Venv(
             name="graphql",
-            pys=select_pys(min_version="3.6"),
             command="pytest {cmdargs} tests/contrib/graphql",
-            pkgs={
-                "graphql-core": latest,
-                "pytest-asyncio": latest,
-            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pkgs={
+                        # graphql-core<=2.2 is not supported in python 3.10
+                        "graphql-core": ["~=2.0.0", "~=2.1.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "graphql-core": ["~=2.2.0", "~=2.3.0", "~=3.0.0", "~=3.1.0", "~=3.2.0", latest],
+                        "pytest-asyncio": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="rq",

@@ -1,6 +1,6 @@
 [[
   {
-    "name": "graphql_sync",
+    "name": "graphql",
     "service": "graphql",
     "resource": "{ hello }",
     "trace_id": 0,
@@ -8,7 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
-      "runtime-id": "de75655f8d294bb0b81ef43c08dc9b57"
+      "runtime-id": "28574f10b5ff45168b0b55f36d886b4a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -16,8 +16,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 405
+      "system.pid": 229
     },
-    "duration": 2291000,
-    "start": 1652295557619794000
+    "duration": 1282000,
+    "start": 1652295402477858000
   }]]

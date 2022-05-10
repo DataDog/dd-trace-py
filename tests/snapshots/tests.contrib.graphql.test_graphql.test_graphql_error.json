@@ -7,12 +7,8 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 1,
     "meta": {
-      "error.msg": "Cannot query field 'invalid_schema' on type 'RootQueryType'.\n\nGraphQL request:1:3\n1 | { invalid_schema }\n  |   ^",
-      "error.stack": "",
-      "error.type": "graphql.error.graphql_error.GraphQLError",
-      "runtime-id": "36e3f6492a6c45708a74b8e8ffad9fad"
+      "runtime-id": "de75655f8d294bb0b81ef43c08dc9b57"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,8 +16,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 1344
+      "system.pid": 405
     },
-    "duration": 2031500,
-    "start": 1652123415793499800
+    "duration": 2048000,
+    "start": 1652295557640590000
   }]]

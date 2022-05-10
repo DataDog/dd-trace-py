@@ -1,13 +1,13 @@
+import re
 from typing import Union
 
 import graphql
-from graphql.language import Source
+from graphql.language.source import Source
 
 from ddtrace import Span
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.internal.compat import stringify
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
@@ -18,26 +18,34 @@ from ...ext import SpanTypes
 
 
 config._add("graphql", dict(_default_service="graphql"))
-graphql_version = getattr(graphql, "version_info", "0.0.0")
+
+
+graphql_version_str = getattr(graphql, "__version__", "0.0.0")
+graphql_version = tuple([int(i) for i in graphql_version_str.split(".")])
 
 
 def patch():
-    if getattr(graphql, "_datadog_patch", False) or graphql_version < (1, 1):
+    if getattr(graphql, "_datadog_patch", False):
         return
 
     setattr(graphql, "_datadog_patch", True)
-    _w(graphql, "graphql_sync", _traced_graphql_sync)
-    _w(graphql, "graphql", _traced_graphql)
+
+    if graphql_version < (3, 0):
+        _w(graphql, "graphql", _traced_graphql_sync)
+    else:
+        _w(graphql, "graphql", _traced_graphql_async)
+        _w(graphql, "graphql_sync", _traced_graphql_sync)
     Pin().onto(graphql)
 
 
 def unpatch():
-    if not getattr(graphql, "_datadog_patch", False) or graphql_version < (1, 1):
+    if not getattr(graphql, "_datadog_patch", False):
         return
 
     setattr(graphql, "_datadog_patch", False)
     _u(graphql, "graphql")
-    _u(graphql, "graphql_sync")
+    if graphql_version >= (3, 0):
+        _u(graphql, "graphql_sync")
 
 
 def _traced_graphql_sync(func, instance, args, kwargs):
@@ -45,37 +53,34 @@ def _traced_graphql_sync(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    resource = _get_source(args, kwargs)
+    resource = _get_source_str(args, kwargs)
 
     with pin.tracer.trace(
-        name="graphql_sync",
+        name=func.__name__,
         resource=resource,
-        service=trace_utils.ext_service(pin, config.graphql),
+        service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.WEB,
     ) as span:
         _init_span(span)
         result = func(*args, **kwargs)
-        _set_span_errors(result, span)
         return result
 
 
-async def _traced_graphql(func, instance, args, kwargs):
+async def _traced_graphql_async(func, instance, args, kwargs):
     pin = Pin.get_from(graphql)
     if not pin or not pin.enabled():
-        return func(*args, **kwargs)
+        return await func(*args, **kwargs)
 
-    resource = _get_source(args, kwargs)
+    resource = _get_source_str(args, kwargs)
 
     with pin.tracer.trace(
-        name="graphql",
+        name=func.__name__,
         resource=resource,
-        service=trace_utils.ext_service(pin, config.graphql),
+        service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.WEB,
     ) as span:
         _init_span(span)
-        result = await func(*args, **kwargs)
-        _set_span_errors(result, span)
-        return result
+        return await func(*args, **kwargs)
 
 
 def _init_span(span):
@@ -87,24 +92,12 @@ def _init_span(span):
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
 
-def _get_source(f_args, f_kwargs):
+def _get_source_str(f_args, f_kwargs):
     # type (Any, Any) -> str
     source = get_argument_value(f_args, f_kwargs, 1, "source")  # type: Union[str, Source]
     if isinstance(source, Source):
-        return source.body
+        source_str = source.body
     else:
-        return source
-
-
-def _set_span_errors(result, span):
-    # type (graphql.ExecutionResult, Span) -> None
-    if not result.errors:
-        return
-
-    # Set first error in the ExecutionResult on the Span
-    exception = result.errors[0]
-    span.set_exc(type(exception), exception, getattr(exception, "__traceback__") or "")
-
-    for i in range(1, len(result.errors)):
-        error_msg = stringify(result.errors[i])
-        span.set_tag("other_errors.%d.*" % (i,), error_msg)
+        source_str = source
+    # remove new lines, tabs and extra whitespace from source_str
+    return re.sub(r"\s+", " ", source_str).strip()

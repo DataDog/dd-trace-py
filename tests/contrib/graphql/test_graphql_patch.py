@@ -1,3 +1,4 @@
+from ddtrace.contrib.graphql import graphql_version
 from ddtrace.contrib.graphql import patch
 from tests.contrib.patch import PatchTestCase
 
@@ -10,12 +11,16 @@ class TestGraphqlPatch(PatchTestCase.Base):
 
     def assert_module_patched(self, graphql):
         self.assert_wrapped(graphql.graphql)
-        self.assert_wrapped(graphql.graphql_sync)
+
+        if graphql_version >= (2, 0, 0):
+            self.assert_wrapped(graphql.graphql_sync)
 
     def assert_not_module_patched(self, graphql):
         self.assert_not_wrapped(graphql.graphql)
-        self.assert_not_wrapped(graphql.graphql_sync)
+        if graphql_version >= (2, 0, 0):
+            self.assert_not_wrapped(graphql.graphql_sync)
 
     def assert_not_module_double_patched(self, graphql):
         self.assert_not_double_wrapped(graphql.graphql)
-        self.assert_not_double_wrapped(graphql.graphql_sync)
+        if graphql_version >= (2, 0, 0):
+            self.assert_not_double_wrapped(graphql.graphql_sync)

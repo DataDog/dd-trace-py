@@ -1,5 +1,5 @@
 ---
 features:
   - |
-    Add tracing support for the ``graphql-core``. Version 1.1+ is fully
-    supported.
+    Add tracing support for ``graphql-core``. Version 2.0+ is fully
+    supported. By transitive dependencies graphene>2.0 is also supported.

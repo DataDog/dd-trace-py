@@ -7,17 +7,17 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
-      "runtime-id": "09a688a07a134b5d9bb600300886b8ab"
+      "runtime-id": "de75655f8d294bb0b81ef43c08dc9b57"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 165
+      "system.pid": 405
     },
-    "duration": 104313900,
-    "start": 1652112237389238300
+    "duration": 105368000,
+    "start": 1652295557480803000
   },
      {
        "name": "graphql",
@@ -30,6 +30,6 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 104085800,
-       "start": 1652112237389394900
+       "duration": 105017000,
+       "start": 1652295557480987000
      }]]
