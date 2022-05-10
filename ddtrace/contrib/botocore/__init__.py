@@ -50,7 +50,7 @@ Configuration
         config.botocore['error_statuses']['s3.headobject'].error_statuses = '404,500-599'
 
 
-    See `HTTP - Custom Error Codes` <_http-custom-error> documentation for more examples.
+    See :ref:`HTTP - Custom Error Codes<http-custom-error>` documentation for more examples.
 
 
 Example::
