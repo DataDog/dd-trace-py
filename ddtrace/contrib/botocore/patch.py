@@ -7,7 +7,6 @@ import json
 import os
 import typing
 from typing import Any
-from typing import DefaultDict
 from typing import Dict
 from typing import List
 from typing import Optional
