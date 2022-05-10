@@ -282,6 +282,12 @@ def test_int_service_integration(int_config):
             assert s.service == "global-svc"
 
 
+@pytest.mark.parametrize("default", [None, "foo"])
+def test_int_ext_service_none_pin_int_config(default):
+    assert trace_utils.int_service(None, None, default) == default
+    assert trace_utils.ext_service(None, None, default) == default
+
+
 @pytest.mark.parametrize(
     "pin,config_val,default,expected",
     [
