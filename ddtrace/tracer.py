@@ -506,6 +506,7 @@ class Tracer(object):
             self._appsec_enabled,
             self._compute_stats,
             self._agent_url,
+            self._civisibility_agentless_enabled,
         )
         self._new_process = True
 
