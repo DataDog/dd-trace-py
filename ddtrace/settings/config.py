@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.internal.utils.attrdict import DefaultAttrDict
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
@@ -101,7 +102,7 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
-class Config(object):
+class Config(DefaultAttrDict):
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
     this instance to register their defaults, so that they're public
@@ -148,8 +149,7 @@ class Config(object):
             return False
 
     def __init__(self):
-        # use a dict as underlying storing mechanism
-        self._config = {}
+        super(Config, self).__init__(IntegrationConfig)
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
@@ -198,12 +198,6 @@ class Config(object):
         self._trace_compute_stats = asbool(os.getenv("DD_TRACE_COMPUTE_STATS", False))
         self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", False))
 
-    def __getattr__(self, name):
-        if name not in self._config:
-            self._config[name] = IntegrationConfig(self, name)
-
-        return self._config[name]
-
     def get_from(self, obj):
         """Retrieves the configuration for the given object.
         Any object that has an attached `Pin` must have a configuration
@@ -242,9 +236,9 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, integration, _deepmerge(existing, settings))
+            self[integration] = IntegrationConfig(self, integration, _deepmerge(existing, settings))
         else:
-            self._config[integration] = IntegrationConfig(self, integration, settings)
+            self[integration] = IntegrationConfig(self, integration, settings)
 
     def trace_headers(self, whitelist):
         """

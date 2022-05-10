@@ -34,11 +34,10 @@ class IntegrationConfig(AttrDict):
         super(IntegrationConfig, self).__init__(*args, **kwargs)
 
         # Set internal properties for this `IntegrationConfig`
-        # DEV: By-pass the `__setattr__` overrides from `AttrDict` to set real properties
-        object.__setattr__(self, "global_config", global_config)
-        object.__setattr__(self, "integration_name", name)
-        object.__setattr__(self, "hooks", Hooks())
-        object.__setattr__(self, "http", HttpConfig())
+        self.global_config = global_config
+        self.integration_name = name
+        self.hooks = Hooks()
+        self.http = HttpConfig()
 
         analytics_enabled, analytics_sample_rate = self._get_analytics_settings()
         self.setdefault("analytics_enabled", analytics_enabled)

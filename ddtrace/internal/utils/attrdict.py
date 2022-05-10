@@ -1,10 +1,9 @@
 from typing import Any
+from typing import Callable
 
 
-class AttrDict(dict):
-    """
-    dict implementation that allows for item attribute access
-
+class AttrDict(object):
+    """Dict-like object that allows for item attribute access
 
     Example::
 
@@ -20,23 +19,39 @@ class AttrDict(dict):
        print(data.key)
     """
 
-    def __getattr__(self, key):
-        # type: (str) -> Any
-        if key in self:
-            return self[key]
-        return object.__getattribute__(self, key)
+    def __init__(self, *args, **kwargs):
+        # type: (Any, Any) -> None
+        self.__dict__.update(*args, **kwargs)
 
-    def __setattr__(self, key, value):
+    def __getattr__(self, name):
+        # type: (str) -> Any
+        return getattr(self.__dict__, name)
+
+    def __contains__(self, name):
+        # type: (str) -> bool
+        return name in self.__dict__
+
+    def __getitem__(self, name):
+        # type: (str) -> Any
+        return self.__dict__[name]
+
+    def __setitem__(self, name, value):
         # type: (str, Any) -> None
-        # 1) Ensure if the key exists from a dict key we always prefer that
-        # 2) If we do not have an existing key but we do have an attr, set that
-        # 3) No existing key or attr exists, so set a key
-        if key in self:
-            # Update any existing key
-            self[key] = value
-        elif hasattr(self, key):
-            # Allow overwriting an existing attribute, e.g. `self.global_config = dict()`
-            object.__setattr__(self, key, value)
-        else:
-            # Set a new key
-            self[key] = value
+        self.__dict__[name] = value
+
+
+class DefaultAttrDict(AttrDict):
+    """AttrDict with a default value for missing keys."""
+
+    def __init__(self, default):
+        # type: (Callable[[DefaultAttrDict, str], Any]) -> None
+        super(DefaultAttrDict, self).__init__()
+        self.__default_attrdict_constructor__ = default
+
+    def __getattr__(self, name):
+        # type: (str) -> Any
+        try:
+            return super(DefaultAttrDict, self).__getattr__(name)
+        except AttributeError:
+            value = self[name] = self.__default_attrdict_constructor__(self, name)
+            return value

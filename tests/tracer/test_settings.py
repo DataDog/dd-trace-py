@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.internal.utils.attrdict import AttrDict
 from ddtrace.settings import Config
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
@@ -137,8 +138,8 @@ class TestIntegrationConfig(BaseTestCase):
         self.config = Config()
         self.integration_config = IntegrationConfig(self.config, "test")
 
-    def test_is_a_dict(self):
-        assert isinstance(self.integration_config, dict)
+    def test_is_attrdict(self):
+        assert isinstance(self.integration_config, AttrDict)
 
     def test_allow_item_access(self):
         self.integration_config["setting"] = "value"
