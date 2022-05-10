@@ -13,15 +13,15 @@
       "http.status_code": "200",
       "http.url": "http://127.0.0.1:8000/traced-simple-asgi-app/",
       "http.version": "1.1",
-      "runtime-id": "74a5040e28844593a7cbe579f49ab5e4"
+      "runtime-id": "54d01a28639b463c9739dbb5f3d531db"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 3299
+      "system.pid": 80754
     },
-    "duration": 491700,
-    "start": 1641325348884634800
+    "duration": 175000,
+    "start": 1652215107989187000
   }]]

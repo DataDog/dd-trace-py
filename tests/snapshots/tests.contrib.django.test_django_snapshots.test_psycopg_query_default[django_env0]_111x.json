@@ -1,0 +1,290 @@
+[[
+  {
+    "name": "sqlite.query",
+    "service": "defaultdb",
+    "resource": "\n            SELECT name, type FROM sqlite_master\n            WHERE type in ('table', 'view') AND NOT name='sqlite_sequence'\n            ORDER BY name",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "django.db.alias": "default",
+      "django.db.vendor": "sqlite",
+      "runtime-id": "92fa3ac2f57c462e9bb8ffde79247b73"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": -1,
+      "system.pid": 31590
+    },
+    "duration": 140000,
+    "start": 1652239268206992000
+  }],
+[
+  {
+    "name": "sqlite.query",
+    "service": "defaultdb",
+    "resource": "PRAGMA foreign_keys",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "django.db.alias": "default",
+      "django.db.vendor": "sqlite",
+      "runtime-id": "92fa3ac2f57c462e9bb8ffde79247b73"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": -1,
+      "system.pid": 31590
+    },
+    "duration": 33000,
+    "start": 1652239268207382000
+  }],
+[
+  {
+    "name": "sqlite.query",
+    "service": "defaultdb",
+    "resource": "PRAGMA foreign_keys = 0",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "django.db.alias": "default",
+      "django.db.vendor": "sqlite",
+      "runtime-id": "92fa3ac2f57c462e9bb8ffde79247b73"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": -1,
+      "system.pid": 31590
+    },
+    "duration": 23000,
+    "start": 1652239268207442000
+  }],
+[
+  {
+    "name": "sqlite.query",
+    "service": "defaultdb",
+    "resource": "BEGIN",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "django.db.alias": "default",
+      "django.db.vendor": "sqlite",
+      "runtime-id": "92fa3ac2f57c462e9bb8ffde79247b73"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": -1,
+      "system.pid": 31590
+    },
+    "duration": 20000,
+    "start": 1652239268207528000
+  }],
+[
+  {
+    "name": "sqlite.query",
+    "service": "defaultdb",
+    "resource": "CREATE TABLE \"django_migrations\" (\"id\" integer NOT NULL PRIMARY KEY AUTOINCREMENT, \"app\" varchar(255) NOT NULL, \"name\" varchar(255) NOT NULL, \"applied\" datetime NOT NULL)",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "django.db.alias": "default",
+      "django.db.vendor": "sqlite",
+      "runtime-id": "92fa3ac2f57c462e9bb8ffde79247b73"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": -1,
+      "system.pid": 31590
+    },
+    "duration": 150000,
+    "start": 1652239268207650000
+  }],
+[
+  {
+    "name": "sqlite.query",
+    "service": "defaultdb",
+    "resource": "PRAGMA foreign_keys = 0",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "django.db.alias": "default",
+      "django.db.vendor": "sqlite",
+      "runtime-id": "92fa3ac2f57c462e9bb8ffde79247b73"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": -1,
+      "system.pid": 31590
+    },
+    "duration": 20000,
+    "start": 1652239268207873000
+  }],
+[
+  {
+    "name": "sqlite.query",
+    "service": "defaultdb",
+    "resource": "SELECT \"django_migrations\".\"app\", \"django_migrations\".\"name\" FROM \"django_migrations\"",
+    "trace_id": 6,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "django.db.alias": "default",
+      "django.db.vendor": "sqlite",
+      "runtime-id": "92fa3ac2f57c462e9bb8ffde79247b73"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": -1,
+      "system.pid": 31590
+    },
+    "duration": 40000,
+    "start": 1652239268208509000
+  }],
+[
+  {
+    "name": "django.request",
+    "service": "django",
+    "resource": "GET tests.contrib.django.views.psycopg_query_default",
+    "trace_id": 7,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
+      "django.response.class": "django.http.response.HttpResponse",
+      "django.user.is_authenticated": "False",
+      "django.view": "tests.contrib.django.views.psycopg_query_default",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8000/psycopg_query_default/",
+      "runtime-id": "92fa3ac2f57c462e9bb8ffde79247b73"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 31590
+    },
+    "duration": 34306000,
+    "start": 1652239268234611000
+  },
+     {
+       "name": "django.view",
+       "service": "django",
+       "resource": "tests.contrib.django.views.psycopg_query_default",
+       "trace_id": 7,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 34055000,
+       "start": 1652239268234737000
+     },
+        {
+          "name": "postgres.query",
+          "service": "postgres",
+          "resource": "SET TIME ZONE %s",
+          "trace_id": 7,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "sql",
+          "meta": {
+            "db.application": "None",
+            "db.name": "postgres",
+            "db.user": "postgres",
+            "out.host": "127.0.0.1"
+          },
+          "metrics": {
+            "_dd.measured": 1,
+            "_dd.top_level": 1,
+            "db.rowcount": -1,
+            "out.port": 5432
+          },
+          "duration": 1882000,
+          "start": 1652239268265583000
+        },
+        {
+          "name": "postgres.query",
+          "service": "postgresdb",
+          "resource": "select 'one' as x",
+          "trace_id": 7,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "sql",
+          "meta": {
+            "django.db.alias": "postgres",
+            "django.db.vendor": "postgresql"
+          },
+          "metrics": {
+            "_dd.measured": 1,
+            "_dd.top_level": 1,
+            "db.rowcount": 1,
+            "sql.rows": 1
+          },
+          "duration": 1203000,
+          "start": 1652239268267562000
+        },
+           {
+             "name": "postgres.query",
+             "service": "postgres",
+             "resource": "select 'one' as x",
+             "trace_id": 7,
+             "span_id": 5,
+             "parent_id": 4,
+             "type": "sql",
+             "meta": {
+               "db.application": "None",
+               "db.name": "postgres",
+               "db.user": "postgres",
+               "out.host": "127.0.0.1"
+             },
+             "metrics": {
+               "_dd.measured": 1,
+               "_dd.top_level": 1,
+               "db.rowcount": 1,
+               "out.port": 5432,
+               "sql.rows": 1
+             },
+             "duration": 1090000,
+             "start": 1652239268267666000
+           }]]

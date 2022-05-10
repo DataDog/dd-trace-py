@@ -608,6 +608,7 @@ jobs:
     parallelism: 6
     steps:
       - run_test:
+          wait: postgres redis
           pattern: 'django$'
           snapshot: true
           docker_services: "memcached redis postgres"

@@ -2,39 +2,44 @@
   {
     "name": "django.request",
     "service": "django",
-    "resource": "GET partial",
+    "resource": "GET ^$",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
     "meta": {
-      "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
+      "_dd.runtime_family": "python",
+      "asgi.version": "3.0",
+      "django.request.class": "django.core.handlers.asgi.ASGIRequest",
       "django.response.class": "django.http.response.HttpResponse",
       "django.user.is_authenticated": "False",
-      "django.view": "partial-view",
+      "django.view": "tests.contrib.django.views.index",
       "http.method": "GET",
+      "http.route": "^$",
       "http.status_code": "200",
-      "http.url": "http://localhost:8000/partial-view/",
-      "runtime-id": "3e3b69f95ec24585a443b1a114592689"
+      "http.url": "http://localhost:8000/",
+      "http.version": "1.1",
+      "runtime-id": "fed87235edbd485fa4c4e8a748000198"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
+      "_dd.appsec.enabled": 1.0,
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 30117
+      "system.pid": 66906
     },
-    "duration": 187000,
-    "start": 1652238518519751000
+    "duration": 2229000,
+    "start": 1652210114860488000
   },
      {
        "name": "django.view",
        "service": "django",
-       "resource": "partial",
+       "resource": "tests.contrib.django.views.index",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 14000,
-       "start": 1652238518519849000
+       "duration": 31000,
+       "start": 1652210114861661000
      }]]

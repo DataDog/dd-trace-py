@@ -1,20 +1,59 @@
-from contextlib import contextmanager
 import os
+import signal
 import subprocess
 import sys
+import time
 
 import django
 import pytest
+import tenacity
 
-from tests.utils import snapshot
+from ddtrace.internal.utils.formats import parse_tags_str
 from tests.webclient import Client
 
 
-SERVER_PORT = 8000
+@pytest.fixture
+def django_port():
+    yield "8000"
 
 
-@contextmanager
-def daphne_client(django_asgi, additional_env=None):
+@pytest.fixture
+def django_wsgi_application():
+    yield "application"
+
+
+@pytest.fixture
+def django_app():
+    if django.VERSION >= (2, 0, 0):
+        yield "django_app"
+    else:
+        yield "django1_app"
+
+
+@pytest.fixture
+def django_settings(django_app):
+    yield "tests.contrib.django.%s.settings" % django_app
+
+
+@pytest.fixture
+def django_command(django_wsgi_application, django_port):
+    cmd = [
+        "ddtrace-run",
+        "python",
+        os.path.join(os.path.dirname(__file__), "manage.py"),
+        "runserver",
+        "8000",
+    ]
+    yield cmd
+
+
+@pytest.fixture
+def django_env():
+    yield {}
+
+
+@pytest.fixture
+def django_client(django_command, django_settings, django_env, django_port, snapshot):
     """Runs a django app hosted with a daphne webserver in a subprocess and
     returns a client which can be used to query it.
 
@@ -22,52 +61,72 @@ def daphne_client(django_asgi, additional_env=None):
     at the end of the testcase.
     """
 
-    # Make sure to copy the environment as we need the PYTHONPATH and _DD_TRACE_WRITER_ADDITIONAL_HEADERS (for the test
-    # token) propagated to the new process.
+    # Make sure to copy the environment as we need the PYTHONPATH.
     env = os.environ.copy()
-    env.update(additional_env or {})
-    assert "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env, "Client fixture needs test token in headers"
+    headers = parse_tags_str(env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
+    headers.update({"X-Datadog-Test-Session-Token": snapshot.token})
+    headers = ",".join(["%s:%s" % (k, v) for k, v in headers.items()])
     env.update(
         {
-            "DJANGO_SETTINGS_MODULE": "tests.contrib.django.django_app.settings",
+            "DJANGO_SETTINGS_MODULE": django_settings,
+            "DD_TRACE_SQLITE3_ENABLED": "0",
+            # Middleware generates large snapshots with redundant info'
+            # For readability we disable it but at least one test case should
+            # override this value to ensure the middleware spans.
+            "DD_DJANGO_INSTRUMENT_MIDDLEWARE": "0",
+            # Database spans can be noisy as operations can happen unrelated
+            # to the endpoint tested.
+            # Tests which access the database should override this flag.
+            "DD_DJANGO_INSTRUMENT_DATABASES": "0",
+            "_DD_TRACE_WRITER_ADDITIONAL_HEADERS": headers,
         }
     )
+    env.update(django_env)
 
-    # ddtrace-run uses execl which replaces the process but the webserver process itself might spawn new processes.
-    # Right now it doesn't but it's possible that it might in the future (ex. uwsgi).
-    cmd = ["ddtrace-run", "daphne", "-p", str(SERVER_PORT), "tests.contrib.django.asgi:%s" % django_asgi]
+    # ddtrace-run python manage.py and other webservers might exec or fork into another
+    # process, so we need to os.setsid() to create a process group (all of which will
+    # listen to signals sent to the parent) so that we can kill the whole application.
     proc = subprocess.Popen(
-        cmd,
+        django_command,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         close_fds=True,
         env=env,
+        preexec_fn=os.setsid,
     )
-
-    client = Client("http://localhost:%d" % SERVER_PORT)
-
-    # Wait for the server to start up
-    client.wait()
-
     try:
+        client = Client("http://localhost:%s" % django_port)
+        # Wait for the server to start up
+        try:
+            client.wait()
+        except tenacity.RetryError:
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
+            raise TimeoutError(
+                "Server failed to start\n======DJANGO STDOUT=====%s\n\n======DJANGO STDERR=====%s\n" % (stdout, stderr)
+            )
         yield client
-    finally:
         resp = client.get_ignored("/shutdown-tracer")
-        assert resp.status_code == 200
-        proc.terminate()
+        assert resp.status_code == 200, resp.text
+        # At this point the traces have been sent to the test agent
+        # but the test agent hasn't necessarily finished processing
+        # the traces (race condition) so wait just a bit for that
+        # processing to complete.
+        time.sleep(0.2)
+    finally:
+        os.killpg(proc.pid, signal.SIGUSR1)
+        proc.wait()
 
 
-@pytest.mark.skipif(django.VERSION < (2, 0), reason="")
-@snapshot(variants={"21x": (2, 0) <= django.VERSION < (2, 2), "": django.VERSION >= (2, 2)})
-def test_urlpatterns_include(client):
-    """
-    When a view is specified using `django.urls.include`
-        The view is traced
-    """
-    assert client.get("/include/test/").status_code == 200
-
-
-@snapshot(
+@pytest.mark.parametrize(
+    "django_env",
+    [
+        {
+            "DD_DJANGO_INSTRUMENT_MIDDLEWARE": "1",
+        }
+    ],
+)
+@pytest.mark.snapshot(
     variants={
         "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
@@ -75,16 +134,42 @@ def test_urlpatterns_include(client):
         "": django.VERSION >= (2, 2),
     }
 )
-def test_middleware_trace_callable_view(client):
+def test_wsgi_200(django_client, django_env):
+    """
+    When a view is specified using `django.urls.include`
+        The view is traced
+    """
+    assert django_client.get("/").status_code == 200
+
+
+@pytest.mark.skipif(django.VERSION < (2, 0), reason="")
+@pytest.mark.snapshot(variants={"21x": (2, 0) <= django.VERSION < (2, 2), "": django.VERSION >= (2, 2)})
+def test_urlpatterns_include(django_client):
+    """
+    When a view is specified using `django.urls.include`
+        The view is traced
+    """
+    assert django_client.get("/include/test/").status_code == 200
+
+
+@pytest.mark.snapshot(
+    variants={
+        "18x": django.VERSION < (1, 9),
+        "111x": (1, 9) <= django.VERSION < (1, 12),
+        "21x": (1, 12) < django.VERSION < (2, 2),
+        "": django.VERSION >= (2, 2),
+    }
+)
+def test_middleware_trace_callable_view(django_client):
     # ensures that the internals are properly traced when using callable views
-    assert client.get("/feed-view/").status_code == 200
+    assert django_client.get("/feed-view/").status_code == 200
 
 
 @pytest.mark.skipif(
     sys.version_info >= (3, 10, 0),
     reason=("func_name changed with Python 3.10 which changes the resource name." "TODO: new snapshot required."),
 )
-@snapshot(
+@pytest.mark.snapshot(
     variants={
         "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
@@ -92,13 +177,12 @@ def test_middleware_trace_callable_view(client):
         "": django.VERSION >= (2, 2),
     }
 )
-def test_middleware_trace_partial_based_view(client):
+def test_middleware_trace_partial_based_view(django_client):
     # ensures that the internals are properly traced when using a function views
-    assert client.get("/partial-view/").status_code == 200
+    assert django_client.get("/partial-view/").status_code == 200
 
 
-@pytest.mark.django_db
-@snapshot(
+@pytest.mark.snapshot(
     variants={
         "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
@@ -106,96 +190,85 @@ def test_middleware_trace_partial_based_view(client):
         "": django.VERSION >= (2, 2),
     }
 )
-def test_safe_string_encoding(client):
-    assert client.get("/safe-template/").status_code == 200
+def test_404_exceptions(django_client):
+    assert django_client.get("/404-view/").status_code == 404
 
 
-@snapshot(
+@pytest.mark.snapshot(
     variants={
         "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
         "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
-    }
+    },
+    ignores=["meta.out.host"],
 )
-def test_404_exceptions(client):
-    assert client.get("/404-view/").status_code == 404
-
-
-@pytest.fixture()
-def psycopg2_patched(transactional_db):
-    from django.db import connections
-
-    from ddtrace.contrib.psycopg.patch import patch
-    from ddtrace.contrib.psycopg.patch import unpatch
-
-    patch()
-
-    # # force recreate connection to ensure psycopg2 patching has occurred
-    del connections["postgres"]
-    connections["postgres"].close()
-    connections["postgres"].connect()
-
-    yield
-
-    unpatch()
-
-
-@snapshot(ignores=["meta.out.host"])
-@pytest.mark.django_db
-def test_psycopg_query_default(client, psycopg2_patched):
+@pytest.mark.parametrize(
+    "django_env",
+    [
+        {
+            "DD_DJANGO_INSTRUMENT_DATABASES": "1",
+        }
+    ],
+)
+def test_psycopg_query_default(django_client, django_env):
     """Execute a psycopg2 query on a Django database wrapper"""
-    from django.db import connections
-    from psycopg2.sql import SQL
-
-    query = SQL("""select 'one' as x""")
-    conn = connections["postgres"]
-    with conn.cursor() as cur:
-        cur.execute(query)
-        rows = cur.fetchall()
-        assert len(rows) == 1, rows
-        assert rows[0][0] == "one"
+    assert django_client.get("/psycopg_query_default/").status_code == 200
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot(
+@pytest.mark.snapshot(
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
-    token_override="tests.contrib.django.test_django_snapshots.test_asgi_200",
 )
-@pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
-def test_asgi_200(django_asgi):
-    with daphne_client(django_asgi) as client:
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert resp.content == b"Hello, test app."
+@pytest.mark.parametrize(
+    "django_command",
+    [
+        ["ddtrace-run", "daphne", "-p", "8000", "tests.contrib.django.asgi:application"],
+        ["ddtrace-run", "daphne", "-p", "8000", "tests.contrib.django.asgi:channels_application"],
+    ],
+)
+def test_asgi_200(django_client, django_command):
+    resp = django_client.get("/")
+    assert resp.status_code == 200
+    assert resp.content == b"Hello, test app."
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot()
-def test_asgi_200_simple_app():
+@pytest.mark.snapshot
+@pytest.mark.parametrize(
+    "django_command",
+    [
+        ["ddtrace-run", "daphne", "-p", "8000", "tests.contrib.django.asgi:channels_application"],
+    ],
+)
+def test_asgi_200_simple_app(django_command, django_client):
     # The path simple-asgi-app/ routes to an ASGI Application that is not traced
     # This test should generate an empty snapshot
-    with daphne_client("channels_application") as client:
-        resp = client.get("/simple-asgi-app/")
-        assert resp.status_code == 200
-        assert resp.content == b"Hello World. It's me simple asgi app"
+    resp = django_client.get("/simple-asgi-app/")
+    assert resp.status_code == 200
+    assert resp.content == b"Hello World. It's me simple asgi app"
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot()
-def test_asgi_200_traced_simple_app():
-    with daphne_client("channels_application") as client:
-        resp = client.get("/traced-simple-asgi-app/")
-        assert resp.status_code == 200
-        assert resp.content == b"Hello World. It's me simple asgi app"
+@pytest.mark.snapshot
+@pytest.mark.parametrize(
+    "django_command",
+    [
+        ["ddtrace-run", "daphne", "-p", "8000", "tests.contrib.django.asgi:channels_application"],
+    ],
+)
+def test_asgi_200_traced_simple_app(django_client, django_command):
+    resp = django_client.get("/traced-simple-asgi-app/")
+    assert resp.status_code == 200
+    assert resp.content == b"Hello World. It's me simple asgi app"
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot(
+@pytest.mark.snapshot(
     ignores=["meta.error.stack"],
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
@@ -203,24 +276,41 @@ def test_asgi_200_traced_simple_app():
         "3x": django.VERSION >= (3, 2, 0),
     },
 )
-def test_asgi_500():
-    with daphne_client("application") as client:
-        resp = client.get("/error-500/")
-        assert resp.status_code == 500
+@pytest.mark.parametrize(
+    "django_command",
+    [
+        ["ddtrace-run", "daphne", "-p", "8000", "tests.contrib.django.asgi:application"],
+    ],
+)
+def test_asgi_500(django_client, django_command):
+    resp = django_client.get("/error-500/")
+    assert resp.status_code == 500
 
 
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack"])
-def test_appsec_enabled():
-    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert resp.content == b"Hello, test app."
+@pytest.mark.snapshot(ignores=["meta.error.stack"])
+@pytest.mark.parametrize("django_env", [{"DD_APPSEC_ENABLED": "true"}])
+@pytest.mark.parametrize(
+    "django_command",
+    [
+        ["ddtrace-run", "daphne", "-p", "8000", "tests.contrib.django.asgi:application"],
+    ],
+)
+def test_appsec_enabled(django_client, django_env, django_command):
+    resp = django_client.get("/")
+    assert resp.status_code == 200
+    assert resp.content == b"Hello, test app."
 
 
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack"])
-def test_appsec_enabled_attack():
-    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
-        resp = client.get("/.git")
-        assert resp.status_code == 404
+@pytest.mark.parametrize("django_env", [{"DD_APPSEC_ENABLED": "true"}])
+@pytest.mark.parametrize(
+    "django_command",
+    [
+        ["ddtrace-run", "daphne", "-p", "8000", "tests.contrib.django.asgi:application"],
+    ],
+)
+@pytest.mark.snapshot(ignores=["meta.error.stack"])
+def test_appsec_enabled_attack(django_client, django_env, django_command):
+    resp = django_client.get("/.git")
+    assert resp.status_code == 404

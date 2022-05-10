@@ -10,7 +10,7 @@
     "meta": {
       "django.db.alias": "default",
       "django.db.vendor": "sqlite",
-      "runtime-id": "e87ab4f668b545fe9ad05d87856d5e3d"
+      "runtime-id": "e1a80b3d63474fcd8c9d0ef26cb33727"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -19,10 +19,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": -1,
-      "system.pid": 67757
+      "system.pid": 69612
     },
-    "duration": 141000,
-    "start": 1652210230474073000
+    "duration": 219000,
+    "start": 1652210640888869000
   }],
 [
   {
@@ -42,7 +42,7 @@
       "http.route": "^psycopg_query_default/$",
       "http.status_code": "200",
       "http.url": "http://localhost:8000/psycopg_query_default/",
-      "runtime-id": "e87ab4f668b545fe9ad05d87856d5e3d"
+      "runtime-id": "e1a80b3d63474fcd8c9d0ef26cb33727"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -50,10 +50,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67757
+      "system.pid": 69612
     },
-    "duration": 44209000,
-    "start": 1652210230579804000
+    "duration": 114638000,
+    "start": 1652210640971021000
   },
      {
        "name": "django.view",
@@ -62,8 +62,8 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 43882000,
-       "start": 1652210230579984000
+       "duration": 114274000,
+       "start": 1652210640971209000
      },
         {
           "name": "postgres.query",
@@ -85,8 +85,8 @@
             "db.rowcount": -1,
             "out.port": 5432
           },
-          "duration": 5132000,
-          "start": 1652210230617349000
+          "duration": 2691000,
+          "start": 1652210641079363000
         },
         {
           "name": "postgres.query",
@@ -106,8 +106,8 @@
             "db.rowcount": 1,
             "sql.rows": 1
           },
-          "duration": 1243000,
-          "start": 1652210230622581000
+          "duration": 3261000,
+          "start": 1652210641082174000
         },
            {
              "name": "postgres.query",
@@ -130,6 +130,6 @@
                "out.port": 5432,
                "sql.rows": 1
              },
-             "duration": 1179000,
-             "start": 1652210230622615000
+             "duration": 3189000,
+             "start": 1652210641082214000
            }]]

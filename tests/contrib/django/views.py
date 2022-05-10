@@ -66,6 +66,20 @@ def error_500(request):
     raise Exception("Error 500")
 
 
+def psycopg_query_default(request):
+    from django.db import connections
+    from psycopg2.sql import SQL
+
+    query = SQL("""select 'one' as x""")
+    conn = connections["postgres"]
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+        assert len(rows) == 1, rows
+        assert rows[0][0] == "one"
+    return HttpResponse(status=200)
+
+
 class FeedView(Feed):
     """
     A callable view that is part of the Django framework
@@ -178,3 +192,9 @@ class ComposedView(TemplateView, CustomDispatchView):
 
 def not_found_view(request):
     raise Http404("DNE")
+
+
+def shutdown(request):
+    # Endpoint used to flush traces to the agent when doing snapshots.
+    tracer.flush()
+    return HttpResponse(status=200)

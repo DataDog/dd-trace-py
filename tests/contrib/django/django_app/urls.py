@@ -8,8 +8,6 @@ from django.urls import re_path
 from django.views.decorators.cache import cache_page
 from django.views.generic import TemplateView
 
-from ddtrace import tracer
-
 from .. import views
 
 
@@ -41,12 +39,6 @@ def authenticated_view(request):
     return HttpResponse(status=200)
 
 
-def shutdown(request):
-    # Endpoint used to flush traces to the agent when doing snapshots.
-    tracer.shutdown()
-    return HttpResponse(status=200)
-
-
 urlpatterns = [
     handler(r"^$", views.index),
     handler(r"^simple/$", views.BasicView.as_view()),
@@ -74,6 +66,7 @@ urlpatterns = [
     handler(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
     handler(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
     handler(r"^404-view/$", views.not_found_view, name="404-view"),
-    handler(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
+    handler(r"^psycopg_query_default/$", views.psycopg_query_default),
+    handler(r"^shutdown-tracer/$", views.shutdown, name="shutdown-tracer"),
     handler(r"^alter-resource/$", views.alter_resource),
 ]

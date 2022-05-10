@@ -1,0 +1,64 @@
+[[
+  {
+    "name": "django.request",
+    "service": "django",
+    "resource": "GET ^error-500/$",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 1,
+    "meta": {
+      "asgi.version": "3.0",
+      "django.request.class": "django.core.handlers.asgi.ASGIRequest",
+      "django.response.class": "django.http.response.HttpResponseServerError",
+      "django.user.is_authenticated": "False",
+      "django.view": "error-500",
+      "http.method": "GET",
+      "http.route": "^error-500/$",
+      "http.status_code": "500",
+      "http.url": "http://localhost:8000/error-500/",
+      "http.version": "1.1",
+      "runtime-id": "606cf4d2e146476aa03ca46390e29eaa"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 45969
+    },
+    "duration": 42040000,
+    "start": 1652245889848481000
+  },
+     {
+       "name": "django.view",
+       "service": "django",
+       "resource": "tests.contrib.django.views.error_500",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "error": 1,
+       "meta": {
+         "error.msg": "Error 500",
+         "error.stack": "Traceback (most recent call last):\n  File \"/Users/kverhoog/dev/dd-trace-py/ddtrace/contrib/django/patch.py\", line 226, in wrapped\n    return func(*args, **kwargs)\n  File \"/Users/kverhoog/dev/dd-trace-py/./tests/contrib/django/views.py\", line 66, in error_500\n    raise Exception(\"Error 500\")\nException: Error 500\n",
+         "error.type": "builtins.Exception"
+       },
+       "duration": 1420000,
+       "start": 1652245889850400000
+     },
+     {
+       "name": "django.template.render",
+       "service": "django",
+       "resource": "django.template.base.Template.render",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "template",
+       "meta": {
+         "django.template.engine.class": "django.template.engine.Engine"
+       },
+       "duration": 22764000,
+       "start": 1652245889864416000
+     }]]

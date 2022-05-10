@@ -55,6 +55,10 @@ class Client(object):
 
 
 class PingFilter(TraceFilter):
+    """TraceFilter to be used in test web applications when making test requests
+    with ``Client``.
+    """
+
     def process_trace(self, trace):
         # Filter out all traces with trace_id = 1
         # This is done to prevent certain traces from being included in snapshots and
