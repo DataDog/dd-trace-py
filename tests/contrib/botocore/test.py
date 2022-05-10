@@ -167,15 +167,15 @@ class BotocoreTest(TracerTestCase):
         head_object = spans[1]
         assert head_object.name == "s3.command"
         assert head_object.resource == "s3.headobject"
-        assert head_object.error == 1
+        assert head_object.error == 0
         for t in (ERROR_MSG, ERROR_STACK, ERROR_TYPE):
-            assert head_object.get_tag(t) is not None
+            assert head_object.get_tag(t) is None
 
     @mock_s3
-    def test_s3_head_404_errors_disabled(self):
+    def test_s3_head_404_as_errors(self):
         """
-        When add 404 as a client error ignore for "s3.headobject" operation
-        we do not attach exception information to S3 HeadObject 404 responses
+        When add 404 as a error status for "s3.headobject" operation
+            we attach exception information to S3 HeadObject 404 responses
         """
         s3 = self.session.create_client("s3", region_name="us-west-2")
         Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
@@ -183,13 +183,13 @@ class BotocoreTest(TracerTestCase):
         # We need a bucket for this test
         s3.create_bucket(Bucket="test", CreateBucketConfiguration=dict(LocationConstraint="us-west-2"))
 
-        config.botocore.client_error_ignores["s3.headobject"].error_statuses = "404"
+        config.botocore.error_statuses["s3.headobject"].error_statuses = "404,500-599"
         try:
             with pytest.raises(botocore.exceptions.ClientError):
                 s3.head_object(Bucket="test", Key="unknown")
         finally:
             # Make sure we reset the config when we are done
-            del config.botocore.client_error_ignores["s3.headobject"]
+            del config.botocore.error_statuses["s3.headobject"]
 
             # Make sure to always delete the bucket after we are done
             s3.delete_bucket(Bucket="test")
@@ -200,9 +200,9 @@ class BotocoreTest(TracerTestCase):
         head_object = spans[1]
         assert head_object.name == "s3.command"
         assert head_object.resource == "s3.headobject"
-        assert head_object.error == 0
+        assert head_object.error == 1
         for t in (ERROR_MSG, ERROR_STACK, ERROR_TYPE):
-            assert head_object.get_tag(t) is None
+            assert head_object.get_tag(t) is not None
 
     @mock_s3
     def test_s3_put(self):

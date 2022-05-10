@@ -48,28 +48,13 @@ MAX_EVENTBRIDGE_DETAIL_SIZE = 1 << 18  # 256KB
 log = get_logger(__name__)
 
 
-def _parse_client_error_ignores(value):
-    # type: (Optional[str]) -> DefaultDict[str, Config._HTTPServerConfig]
-    ignores = collections.defaultdict(Config._HTTPServerConfig)
-
-    if not value:
-        return ignores
-
-    # Expected format: <operation>:<error-statuses>[,<operation>:<error-statuses> ...]
-    for part in value.split(","):
-        operation, error_statuses = part.split(":")
-        ignores[operation].error_statuses = error_statuses
-
-    return ignores
-
-
 # Botocore default settings
 config._add(
     "botocore",
     {
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
-        "client_error_ignores": _parse_client_error_ignores(os.getenv("DD_BOTOCORE_CLIENT_ERROR_IGNORES")),
+        "error_statuses": collections.defaultdict(Config._HTTPServerConfig),
     },
 )
 
@@ -366,15 +351,11 @@ def patched_api_call(original_func, instance, args, kwargs):
             # `ClientError.response` contains the result, so we can still grab response metadata
             _set_response_metadata_tags(span, e.response)
 
-            # Check if the user defined an ignore rule for this exception
-            client_error_ignores = (
-                config.botocore.client_error_ignores
-            )  # type: DefaultDict[str, Config._HTTPServerConfig]
-            if span.resource in client_error_ignores:
-                status_code = span.get_tag(http.STATUS_CODE)
-                if status_code:
-                    if client_error_ignores[span.resource].is_error_code(int(status_code)):
-                        span._ignore_exception(botocore.exceptions.ClientError)
+            # If we have a status code, and the status code is not an error,
+            #   then ignore the exception being raised
+            status_code = span.get_tag(http.STATUS_CODE)
+            if status_code and not config.botocore.error_statuses[span.resource].is_error_code(int(status_code)):
+                span._ignore_exception(botocore.exceptions.ClientError)
             raise
 
 
@@ -386,7 +367,12 @@ def _set_response_metadata_tags(span, result):
     response_meta = result["ResponseMetadata"]
 
     if "HTTPStatusCode" in response_meta:
-        span.set_tag(http.STATUS_CODE, response_meta["HTTPStatusCode"])
+        status_code = response_meta["HTTPStatusCode"]
+        span.set_tag(http.STATUS_CODE, status_code)
+
+        # Mark this span as an error if requested
+        if config.botocore.error_statuses[span.resource].is_error_code(int(status_code)):
+            span.error = 1
 
     if "RetryAttempts" in response_meta:
         span.set_tag("retry_attempts", response_meta["RetryAttempts"])

@@ -37,19 +37,20 @@ Configuration
     Default: ``False``
 
 
-.. py:data:: ddtrace.config.botocore['s3_head_object_404_as_error']
+.. py:data:: ddtrace.config.botocore['error_statuses'][<operation>].error_statuses = "<error statuses>"
 
-    Whether any ``botocore.exceptions.ClientError`` exceptions raise for 404 responses to
-    S3 ``HeadObject`` API calls should mark the representing span as an error.
+    Definition of which HTTP status codes to consider for making a span as an error span.
 
-    By default we mark these spans as having an exception.
+    By default response status codes of ``'500-599'`` are considered as errors for all endpoints.
 
-    You can disable this behavior (ignore the exception) by configuring
-    ``ddtrace.config.botocore.s3_head_object_404_as_error = True`` or by setting the environment
-    variable ``DD_BOTOCORE_S3_HEAD_OBJECT_404_AS_ERROR=true``.
+    Example marking 404, and 5xx as errors for ``s3.headobject`` API calls::
+
+        from ddtrace import config
+
+        config.botocore['error_statuses']['s3.headobject'].error_statuses = '404,500-599'
 
 
-    Default: ``True``
+    See `HTTP - Custom Error Codes` <_http-custom-error> documentation for more examples.
 
 
 Example::

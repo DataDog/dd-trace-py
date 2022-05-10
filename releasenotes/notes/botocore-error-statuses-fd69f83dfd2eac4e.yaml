@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    botocore: allow omitting exceptions from S3 ``HeadObject`` 404 responses from span metadata.
+    botocore: allow defining error status codes for specific API operations.
 
     See our :ref:`botocore` document for more information on how to enable this feature.
