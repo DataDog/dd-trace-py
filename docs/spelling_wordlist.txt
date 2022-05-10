@@ -129,6 +129,7 @@ pynamodb
 pyodbc
 pyston
 pytest
+pytest-bdd
 quickstart
 redis
 rediscluster

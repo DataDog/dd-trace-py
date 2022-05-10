@@ -38,6 +38,9 @@ TRAITS = TEST_TRAITS = "test.traits"
 # Test Type
 TYPE = TEST_TYPE = "test.type"
 
+# Test File
+FILE = TEST_FILE = "test.file"
+
 # XFail Reason
 XFAIL_REASON = TEST_XFAIL_REASON = "pytest.xfail.reason"
 

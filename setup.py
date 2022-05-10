@@ -255,7 +255,10 @@ setup(
         "console_scripts": [
             "ddtrace-run = ddtrace.commands.ddtrace_run:main",
         ],
-        "pytest11": ["ddtrace = ddtrace.contrib.pytest.plugin"],
+        "pytest11": [
+            "ddtrace = ddtrace.contrib.pytest.plugin",
+            "ddtrace.pytest_bdd = ddtrace.contrib.pytest_bdd.plugin",
+        ],
         "gevent.plugins.monkey.did_patch_all": [
             "ddtrace_gevent_check = ddtrace_gevent_check:gevent_patch_all",
         ],
