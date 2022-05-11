@@ -21,7 +21,7 @@ orbs:
 
 machine_executor: &machine_executor
   machine:
-    image: ubuntu-2004:202107-02
+    image: ubuntu-2004:current
   environment:
     - BOTO_CONFIG: /dev/null
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
