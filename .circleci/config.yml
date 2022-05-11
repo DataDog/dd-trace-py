@@ -116,7 +116,7 @@ commands:
         default: ""
     steps:
       # Retry pulls in case they fail
-      - run: for i in {1..3}; do docker-compose pull << parameters.services >> && break || sleep 3; done
+      - run: for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done
       - run: << parameters.env >> docker-compose up -d << parameters.services >>
       - run:
           command: docker-compose logs -f
