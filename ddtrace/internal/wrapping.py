@@ -21,8 +21,7 @@ from bytecode import CompilerFlags
 from bytecode import Instr
 from bytecode import Label
 
-
-PY = sys.version_info[:2]
+from .compat import PYTHON_VERSION_INFO as PY
 
 
 class WrapperFunction(Protocol):

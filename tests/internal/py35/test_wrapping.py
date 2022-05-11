@@ -6,6 +6,23 @@ from ddtrace.internal.wrapping import wrap
 from tests.internal.py35.asyncstuff import async_func as asyncfoo
 
 
+def test_wrap_generator_yield_from():
+    channel = []
+
+    def wrapper(f, args, kwargs):
+        channel[:] = []
+        for _ in f(*args, **kwargs):
+            channel.append(_)
+            yield _
+
+    def g():
+        yield from range(10)
+
+    wrap(g, wrapper)
+
+    assert list(g()) == list(range(10)) == channel
+
+
 @pytest.mark.asyncio
 async def test_wrap_coroutine():
     channel = []
