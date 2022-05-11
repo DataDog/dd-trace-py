@@ -249,7 +249,8 @@ jobs:
       - uses: actions/checkout@v3
         with:
           repository: sqlalchemy/mako
-          ref: rel_1_1_4
+          # See https://gerrit.sqlalchemy.org/c/sqlalchemy/mako/+/3827
+          ref: eae8e3aaa420f4305450e4f1a55881ea9a46bba0
           path: mako
       - uses: actions/setup-python@v3
         with:
