@@ -429,17 +429,20 @@ class Span(object):
         if self._ignored_exceptions and any([issubclass(exc_type, e) for e in self._ignored_exceptions]):  # type: ignore[arg-type]  # noqa
             return
 
-        self.error = 1
-
         # get the traceback
         buff = StringIO()
         traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=20)
         tb = buff.getvalue()
+        exc_msg = stringify(exc_val)
+        self.set_exc_fields(exc_type, exc_msg, tb)
 
+    def set_exc_fields(self, exc_type, exc_msg, tb):
+        # type: (Any, str, str) -> None
         # readable version of type (e.g. exceptions.ZeroDivisionError)
+        self.error = 1
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self._meta[ERROR_MSG] = stringify(exc_val)
+        self._meta[ERROR_MSG] = exc_msg
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
 

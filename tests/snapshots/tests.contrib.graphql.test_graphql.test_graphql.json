@@ -1,6 +1,6 @@
 [[
   {
-    "name": "graphql",
+    "name": "graphql.query",
     "service": "graphql",
     "resource": "{ hello }",
     "trace_id": 0,
@@ -8,7 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
-      "runtime-id": "de75655f8d294bb0b81ef43c08dc9b57"
+      "runtime-id": "42777e0c6ac34fa99a6041c31db2afdb"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -16,8 +16,64 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 405
+      "system.pid": 87109
     },
-    "duration": 3358000,
-    "start": 1652295557435003000
-  }]]
+    "duration": 2144000,
+    "start": 1653306006315877000
+  },
+     {
+       "name": "graphql.parse",
+       "service": "graphql",
+       "resource": "graphql.parse",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 147000,
+       "start": 1653306006316573000
+     },
+     {
+       "name": "graphql.validate",
+       "service": "graphql",
+       "resource": "graphql.validate",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "web",
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 620000,
+       "start": 1653306006316797000
+     },
+     {
+       "name": "graphql.execute",
+       "service": "graphql",
+       "resource": "graphql.execute",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "web",
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 491000,
+       "start": 1653306006317492000
+     },
+        {
+          "name": "graphql.resolve",
+          "service": "graphql",
+          "resource": "hello",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 4,
+          "type": "web",
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 79000,
+          "start": 1653306006317649000
+        }]]
