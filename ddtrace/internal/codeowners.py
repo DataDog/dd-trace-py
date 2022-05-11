@@ -171,10 +171,7 @@ class Codeowners(object):
                 except ValueError:
                     continue
 
-                owners = []
-                for owner in elements:
-                    if owner:
-                        owners.append(owner)
+                owners = [owner for owner in elements if owner]
 
                 if not owners:
                     continue
