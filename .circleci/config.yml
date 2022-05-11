@@ -734,7 +734,13 @@ jobs:
     executor: ddtrace_dev
     steps:
       - run_test:
-          pattern: 'pytest'
+          pattern: 'pytest$'
+
+  pytestbdd:
+    executor: ddtrace_dev
+    steps:
+      - run_test:
+          pattern: 'pytest_bdd'
 
   pymemcache:
     <<: *contrib_job

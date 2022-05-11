@@ -1217,7 +1217,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest {cmdargs} tests/contrib/pytest",
+            command="pytest {cmdargs} tests/contrib/pytest/",
             venvs=[
                 Venv(
                     pys=["2.7"],
@@ -1253,7 +1253,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest-bdd",
-            command="pytest {cmdargs} tests/contrib/pytest_bdd",
+            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
             venvs=[
                 Venv(
                     pys=["2.7"],
