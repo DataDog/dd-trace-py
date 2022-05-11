@@ -47,7 +47,7 @@ def wrap_bytecode(wrapper, wrapped):
     The nature of the wrapped function is also honored, meaning that a generator
     function will return a generator function, and a coroutine function will
     return a coroutine function, and so on. The signature is also preserved to
-    avoid braking, e.g., usages of the ``inspect`` module.
+    avoid breaking, e.g., usages of the ``inspect`` module.
     """
 
     def compare_exc(label, lineno):
