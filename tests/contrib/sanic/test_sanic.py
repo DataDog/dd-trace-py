@@ -6,6 +6,7 @@ import pytest
 from sanic import Sanic
 from sanic import __version__ as sanic_version
 from sanic.config import DEFAULT_CONFIG
+from sanic.exceptions import InvalidUsage
 from sanic.exceptions import ServerError
 from sanic.response import json
 from sanic.response import stream
@@ -83,6 +84,10 @@ def app(tracer):
             await response.write("bar")
 
         return stream(sample_streaming_fn, content_type="text/csv")
+
+    @app.route("/error400")
+    async def error_400(request):
+        raise InvalidUsage("Something bad with the request")
 
     @app.route("/error")
     async def error(request):
@@ -262,10 +267,14 @@ async def test_streaming_response(tracer, client, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_error_app(tracer, client, test_spans):
-    response = await client.get("/nonexistent")
-    assert _response_status(response) == 404
-    assert "not found" in await _response_text(response)
+@pytest.mark.parametrize(
+    "status_code,url,content",
+    [(400, "/error400", "Something bad with the request"), (404, "/nonexistent", "not found")],
+)
+async def test_error_app(tracer, client, test_spans, status_code, url, content):
+    response = await client.get(url)
+    assert _response_status(response) == status_code
+    assert content in await _response_text(response)
 
     spans = test_spans.pop_traces()
     assert len(spans) == 1
@@ -281,9 +290,9 @@ async def test_error_app(tracer, client, test_spans):
     assert request_span.get_tag(ERROR_STACK) is None
 
     assert request_span.get_tag("http.method") == "GET"
-    assert re.search("/nonexistent$", request_span.get_tag("http.url"))
+    assert re.search(f"{url}$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "404"
+    assert request_span.get_tag("http.status_code") == str(status_code)
 
 
 @pytest.mark.asyncio
