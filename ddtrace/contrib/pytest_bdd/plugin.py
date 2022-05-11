@@ -54,9 +54,16 @@ class _PytestBddPlugin:
             # store parsed step arguments
             parser = getattr(step_func, "parser", None)
             if parser is not None:
+                converters = getattr(step_func, "converters", {})
                 parameters = {}
                 try:
                     for arg, value in parser.parse_arguments(step.name).items():
+                        try:
+                            if arg in converters:
+                                value = converters[arg](value)
+                        except Exception:
+                            # Ignore invalid converters
+                            pass
                         parameters[arg] = value
                 except Exception:
                     pass
@@ -76,7 +83,6 @@ class _PytestBddPlugin:
             span.finish()
 
     @staticmethod
-    @pytest.hookimpl(trylast=True)
     def pytest_bdd_step_error(request, feature, scenario, step, step_func, step_func_args, exception):
         span = _extract_span(step_func)
         if span is not None:

@@ -1,8 +1,10 @@
+import json
 import os
 
 import pytest
 
 from ddtrace import Pin
+from ddtrace.ext import test
 from tests.utils import TracerTestCase
 
 
@@ -37,6 +39,69 @@ class TestPytest(TracerTestCase):
         return self.testdir.runpytest_subprocess(*args)
 
     def test_pytest_bdd_scenario(self):
+        """Test that pytest-bdd traces scenario with all steps."""
+        self.testdir.makefile(
+            ".feature",
+            parameters="""
+                Feature: Parameters
+                    Scenario: Passing scenario
+                        Given I have 0 bars
+                        When I eat it
+                        Then I have -1 bars
+
+                    Scenario: Failing scenario
+                        Given I have 2 bars
+                        When I eat it
+                        Then I have 0 bar
+
+                    Scenario: Failing converter
+                        Given I have no bar
+                """,
+        )
+        py_file = self.testdir.makepyfile(
+            """
+            from pytest_bdd import scenarios, given, then, when, parsers
+
+            scenarios("parameters.feature")
+
+            BAR = None
+
+            @given(parsers.re("^I have (?P<bars>[^ ]+) bar$"))  # loose regex
+            def have_simple(bars):
+                global BAR
+                BAR = bars
+
+            @given(parsers.re("^I have (?P<bars>\\d+) bars$"), converters=dict(bars=int))
+            def have(bars):
+                global BAR
+                BAR = bars
+
+            @when("I eat it")
+            def eat():
+                global BAR
+                BAR -= 1
+
+            @then(parsers.parse("I have {bars:d} bar"))
+            def check_parse(bars):
+                assert BAR == bars
+
+            @then(parsers.cfparse("I have {bars:d} bars"))
+            def check_cfparse(bars):
+                assert BAR == bars
+            """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        self.inline_run("--ddtrace", file_name)
+        spans = self.pop_spans()
+
+        assert len(spans) == 10
+        assert json.loads(spans[1].get_tag(test.PARAMETERS)) == {"bars": 0}
+        assert json.loads(spans[3].get_tag(test.PARAMETERS)) == {"bars": -1}
+        assert json.loads(spans[5].get_tag(test.PARAMETERS)) == {"bars": 2}
+        assert json.loads(spans[7].get_tag(test.PARAMETERS)) == {"bars": 0}
+        assert json.loads(spans[9].get_tag(test.PARAMETERS)) == {"bars": "no"}
+
+    def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""
         self.testdir.makefile(
             ".feature",

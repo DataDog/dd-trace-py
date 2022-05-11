@@ -1273,7 +1273,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "pytest": [
+                        "pytest-bdd": [
                             ">=4.0,<5.0",
                             latest,
                         ],
