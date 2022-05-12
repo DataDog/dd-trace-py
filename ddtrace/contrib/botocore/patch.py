@@ -53,7 +53,7 @@ config._add(
     {
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
-        "error_statuses": collections.defaultdict(Config._HTTPServerConfig),
+        "operations": collections.defaultdict(Config._HTTPServerConfig),
     },
 )
 
@@ -353,7 +353,7 @@ def patched_api_call(original_func, instance, args, kwargs):
             # If we have a status code, and the status code is not an error,
             #   then ignore the exception being raised
             status_code = span.get_tag(http.STATUS_CODE)
-            if status_code and not config.botocore.error_statuses[span.resource].is_error_code(int(status_code)):
+            if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
                 span._ignore_exception(botocore.exceptions.ClientError)
             raise
 
@@ -370,7 +370,7 @@ def _set_response_metadata_tags(span, result):
         span.set_tag(http.STATUS_CODE, status_code)
 
         # Mark this span as an error if requested
-        if config.botocore.error_statuses[span.resource].is_error_code(int(status_code)):
+        if config.botocore.operations[span.resource].is_error_code(int(status_code)):
             span.error = 1
 
     if "RetryAttempts" in response_meta:
