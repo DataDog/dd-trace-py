@@ -32,6 +32,7 @@ autodetected
 autopatching
 backend
 backends
+bdd
 bikeshedding
 booleans
 boto
