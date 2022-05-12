@@ -21,7 +21,7 @@ orbs:
 
 machine_executor: &machine_executor
   machine:
-    image: ubuntu-2004:202107-02
+    image: ubuntu-2004:current
   environment:
     - BOTO_CONFIG: /dev/null
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
@@ -116,7 +116,7 @@ commands:
         default: ""
     steps:
       # Retry pulls in case they fail
-      - run: for i in {1..3}; do docker-compose pull << parameters.services >> && break || sleep 3; done
+      - run: for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done
       - run: << parameters.env >> docker-compose up -d << parameters.services >>
       - run:
           command: docker-compose logs -f
