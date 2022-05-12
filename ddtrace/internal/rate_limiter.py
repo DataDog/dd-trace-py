@@ -173,15 +173,22 @@ class BudgetRateLimiterWithJitter(object):
 
     The jitter is induced by a uniform distribution. The rate limit can be
     specified with ``limit_rate`` and the time scale can be controlled with the
-    ``tau`` parameter (which defaults to 1 second). By default, the
-    ``RateLimitExceeded`` exception is raised when the rate limit is exceeded.
-    This can be changed by setting ``raise_on_exceed`` to ``False``. The
-    ``on_exceed`` argument can be used to pass a callback that is to be called
-    whenever the rate limit is exceeded. The ``call_once`` argument controls
-    whether the callback should be called only once for every rate limit excess
-    or every time the rate limiter is invoked.
+    ``tau`` parameter (which defaults to 1 second). The initial budget is the
+    product between ``limit_rate`` and the time-scale parameter ``tau``, which
+    is also taken as the maximum budget. By default, the ``RateLimitExceeded``
+    exception is raised when the rate limit is exceeded. This can be changed by
+    setting ``raise_on_exceed`` to ``False``. The ``on_exceed`` argument can be
+    used to pass a callback that is to be called whenever the rate limit is
+    exceeded. The ``call_once`` argument controls whether the callback should be
+    called only once for every rate limit excess or every time the rate limiter
+    is invoked.
 
     Instances of this class can also be used as decorators.
+
+    Since the initial and maximum budget are set to ``limit_rate * tau``, the
+    rate limiter could have an initial burst phase. When this is not desired,
+    ``tau`` should be set to ``1 / limit_rate`` to ensure an initial and maximum
+    budget of ``1``.
     """
 
     limit_rate = attr.ib(type=float)

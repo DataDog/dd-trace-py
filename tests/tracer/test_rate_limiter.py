@@ -194,6 +194,23 @@ def test_rate_limiter_with_jitter_expected_calls(rate_limit):
     assert exceeded == rate_limit * 9
 
 
+@pytest.mark.parametrize("rate_limit", list(range(1, 10)))
+def test_rate_limiter_with_jitter_expected_calls_tau(rate_limit):
+    limiter = BudgetRateLimiterWithJitter(limit_rate=rate_limit, tau=1.0 / rate_limit)
+    acc = []
+
+    exceeded = 0
+    for i in range(rate_limit * 10):
+        try:
+            limiter.limit(lambda n: acc.append(n), i)
+        except RateLimitExceeded:
+            exceeded += 1
+
+    # With tau = 1 / rate_limit we have an initial budget of 1 and therefore we
+    # expect a single call in a tight loop.
+    assert acc == [0]
+
+
 @pytest.mark.parametrize("rate_limit", list(range(10)))
 def test_rate_limiter_with_jitter_expected_calls_decorator(rate_limit):
     acc = []
