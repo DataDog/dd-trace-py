@@ -5,11 +5,13 @@ import sys
 import mock
 import pytest
 
-from ddtrace import Pin
+import ddtrace
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
-from ddtrace.contrib.pytest.plugin import _extract_repository_name
+from ddtrace.contrib.pytest.plugin import is_enabled
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.internal.ci.recorder import CIRecorder
+from ddtrace.internal.ci.recorder import _extract_repository_name
 from tests.utils import TracerTestCase
 
 
@@ -24,11 +26,13 @@ class TestPytest(TracerTestCase):
 
         class PinTracer:
             @staticmethod
+            @pytest.hookimpl(tryfirst=True)
             def pytest_configure(config):
-                if Pin.get_from(config) is not None:
-                    Pin.override(config, tracer=self.tracer)
+                assert not CIRecorder.enabled
+                if is_enabled(config):
+                    CIRecorder.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
-        return self.testdir.inline_run(*args, plugins=[PinTracer()])
+        return self.testdir.inline_run(*args, plugins=[PinTracer])
 
     def subprocess_run(self, *args):
         """Execute test script with test tracer."""
@@ -515,14 +519,11 @@ class TestPytest(TracerTestCase):
         py_file = self.testdir.makepyfile(
             """
             import pytest
-            import ddtrace
-            from ddtrace import Pin
 
-            def test_service(ddspan, pytestconfig):
-                tracer = Pin.get_from(pytestconfig).tracer
-                with tracer.trace("SPAN2") as span2:
-                    with tracer.trace("SPAN3") as span3:
-                        with tracer.trace("SPAN4") as span4:
+            def test_service(ddtracer):
+                with ddtracer.trace("SPAN2") as span2:
+                    with ddtracer.trace("SPAN3") as span3:
+                        with ddtracer.trace("SPAN4") as span4:
                             assert True
         """
         )
@@ -722,7 +723,7 @@ def test_repository_name_extracted(repository_url, repository_name):
 def test_repository_name_not_extracted_warning():
     """If provided an invalid repository url, should raise warning and return original repository url"""
     repository_url = "https://github.com:organ[ization/repository-name"
-    with mock.patch("ddtrace.contrib.pytest.plugin.log") as mock_log:
+    with mock.patch("ddtrace.internal.ci.recorder.log") as mock_log:
         extracted_repository_name = _extract_repository_name(repository_url)
         assert extracted_repository_name == repository_url
     mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)

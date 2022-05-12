@@ -5,19 +5,14 @@ from typing import Dict
 import pytest
 
 import ddtrace
-from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
 from ddtrace.contrib.pytest.constants import KIND
-from ddtrace.contrib.trace_utils import int_service
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import ci
 from ddtrace.ext import test
-from ddtrace.filters import TraceCiVisibilityFilter
-from ddtrace.internal import compat
+from ddtrace.internal.ci.recorder import CIRecorder
 from ddtrace.internal.logger import get_logger
-from ddtrace.pin import Pin
 
 
 PATCH_ALL_HELP_MSG = "Call ddtrace.patch_all before running tests."
@@ -37,17 +32,6 @@ def _extract_span(item):
 def _store_span(item, span):
     """Store span at `pytest.Item` instance."""
     setattr(item, "_datadog_span", span)
-
-
-def _extract_repository_name(repository_url):
-    # type: (str) -> str
-    """Extract repository name from repository url."""
-    try:
-        return compat.parse.urlparse(repository_url).path.rstrip(".git").rpartition("/")[-1]
-    except ValueError:
-        # In case of parsing error, default to repository url
-        log.warning("Repository name cannot be parsed from repository_url: %s", repository_url)
-        return repository_url
 
 
 def pytest_addoption(parser):
@@ -76,35 +60,30 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
-    if is_enabled(config):
-        ci_tags = ci.tags()
-        if ci_tags.get(ci.git.REPOSITORY_URL, None) and int_service(None, ddtrace.config.pytest) == "pytest":
-            repository_name = _extract_repository_name(ci_tags[ci.git.REPOSITORY_URL])
-            ddtrace.config.pytest["service"] = repository_name
-        Pin(tags=ci_tags, _config=ddtrace.config.pytest).onto(config)
 
 
 def pytest_sessionstart(session):
-    pin = Pin.get_from(session.config)
-    if pin is not None:
-        tracer_filters = pin.tracer._filters
-        if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
-            tracer_filters += [TraceCiVisibilityFilter()]
-            pin.tracer.configure(settings={"FILTERS": tracer_filters})
+    if is_enabled(session.config):
+        CIRecorder.enable(config=ddtrace.config.pytest)
 
 
 def pytest_sessionfinish(session, exitstatus):
     """Flush open tracer."""
-    pin = Pin.get_from(session.config)
-    if pin is not None:
-        pin.tracer.shutdown()
+    if is_enabled(session.config) and CIRecorder.enabled:
+        CIRecorder.disable()
 
 
 @pytest.fixture(scope="function")
 def ddspan(request):
-    pin = Pin.get_from(request.config)
-    if pin:
+    if CIRecorder.enabled:
         return _extract_span(request.node)
+
+
+@pytest.fixture(scope="session")
+def ddtracer():
+    if CIRecorder.enabled:
+        return CIRecorder._instance.tracer
+    return ddtrace.tracer
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -115,19 +94,14 @@ def patch_all(request):
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem):
-    pin = Pin.get_from(item.config)
-    if pin is None:
+    if not CIRecorder.enabled:
         yield
         return
-    with pin.tracer.trace(
+    with CIRecorder._instance.tracer.trace(
         ddtrace.config.pytest.operation_name,
-        service=int_service(pin, ddtrace.config.pytest),
         resource=item.nodeid,
         span_type=SpanTypes.TEST,
     ) as span:
-        span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
-        span.context.sampling_priority = AUTO_KEEP
-        span.set_tags(pin.tags)
         span.set_tag(SPAN_KIND, KIND)
         span.set_tag(test.FRAMEWORK, FRAMEWORK)
         span.set_tag(test.NAME, item.name)
@@ -171,6 +145,9 @@ def _extract_reason(call):
 def pytest_runtest_makereport(item, call):
     """Store outcome for tracing."""
     outcome = yield
+
+    if not CIRecorder.enabled:
+        return
 
     span = _extract_span(item)
     if span is None:
