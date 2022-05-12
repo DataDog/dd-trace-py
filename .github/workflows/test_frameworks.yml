@@ -214,6 +214,8 @@ jobs:
           python-version: '3.8'
       - name: Install tox
         run: pip install tox
+      - name: Pin pygments to avoid breaking test
+        run: sed -i 's/pygments/pygments~=2.11.0/' tox.ini
       - name: Create tox env
         run: tox -e py --notest
       - name: Inject ddtrace
