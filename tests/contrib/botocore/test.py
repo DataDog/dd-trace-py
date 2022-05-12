@@ -183,13 +183,13 @@ class BotocoreTest(TracerTestCase):
         # We need a bucket for this test
         s3.create_bucket(Bucket="test", CreateBucketConfiguration=dict(LocationConstraint="us-west-2"))
 
-        config.botocore.error_statuses["s3.headobject"].error_statuses = "404,500-599"
+        config.botocore.operations["s3.headobject"].error_statuses = "404,500-599"
         try:
             with pytest.raises(botocore.exceptions.ClientError):
                 s3.head_object(Bucket="test", Key="unknown")
         finally:
             # Make sure we reset the config when we are done
-            del config.botocore.error_statuses["s3.headobject"]
+            del config.botocore.operations["s3.headobject"]
 
             # Make sure to always delete the bucket after we are done
             s3.delete_bucket(Bucket="test")
