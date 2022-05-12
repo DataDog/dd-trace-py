@@ -15,6 +15,7 @@ from moto import mock_lambda
 from moto import mock_s3
 from moto import mock_sns
 from moto import mock_sqs
+import pytest
 
 
 # Older version of moto used kinesis to mock firehose
