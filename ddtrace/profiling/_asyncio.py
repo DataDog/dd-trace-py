@@ -72,5 +72,4 @@ class DdtraceProfilerEventLoopPolicy(DefaultEventLoopPolicy):
 
     def _ddtrace_get_loop(self, thread_id):
         # type: (...) -> typing.Optional[asyncio.AbstractEventLoop]
-        self._clear_threads()
         return self.loop_per_thread.get_object(thread_id)
