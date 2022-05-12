@@ -51,14 +51,9 @@ log = get_logger(__name__)
 config._add(
     "botocore",
     {
-<<<<<<< HEAD
         "distributed_tracing": asbool(get_env("botocore", "distributed_tracing", default=True)),
         "invoke_with_legacy_context": asbool(get_env("botocore", "invoke_with_legacy_context", default=False)),
-=======
-        "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
-        "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
->>>>>>> 92ecfbbb (feat(botocore): allow specifying which http status codes are errors (#3606))
     },
 )
 
