@@ -62,6 +62,12 @@ async def test_basics(snapshot_context, traced_yaaredis):
 
 
 @pytest.mark.asyncio
+async def test_unicode(snapshot_context, traced_yaaredis):
+    with snapshot_context():
+        await traced_yaaredis.get(u"😐")
+
+
+@pytest.mark.asyncio
 async def test_analytics_without_rate(snapshot_context, traced_yaaredis):
     with override_config("yaaredis", dict(analytics_enabled=True)):
         with snapshot_context():
