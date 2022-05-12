@@ -77,7 +77,7 @@ commands:
           # In the cache key:
           #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
           #                              much faster.
-          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
+          key: tox-cache-{{ .Environment.CACHE_EXPIRE_HASH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
 
   save_tox_cache:
     description: "Save .tox directory into cache for faster installs next time"
@@ -86,7 +86,7 @@ commands:
           # In the cache key:
           #   - .Environment.CIRCLE_JOB: We do separate tox environments by job name, so caching and restoring is
           #                              much faster.
-          key: tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
+          key: tox-cache-{{ .Environment.CACHE_EXPIRE_HASH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}
           paths:
             - ".tox"
 
