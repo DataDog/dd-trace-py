@@ -2,6 +2,7 @@
 Trace queries to aws api done via botocore client
 """
 import base64
+import collections
 import json
 import typing
 from typing import Any
@@ -10,8 +11,10 @@ from typing import List
 from typing import Optional
 
 import botocore.client
+import botocore.exceptions
 
 from ddtrace import config
+from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -43,12 +46,19 @@ MAX_EVENTBRIDGE_DETAIL_SIZE = 1 << 18  # 256KB
 
 log = get_logger(__name__)
 
+
 # Botocore default settings
 config._add(
     "botocore",
     {
+<<<<<<< HEAD
         "distributed_tracing": asbool(get_env("botocore", "distributed_tracing", default=True)),
         "invoke_with_legacy_context": asbool(get_env("botocore", "invoke_with_legacy_context", default=False)),
+=======
+        "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
+        "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
+        "operations": collections.defaultdict(Config._HTTPServerConfig),
+>>>>>>> 92ecfbbb (feat(botocore): allow specifying which http status codes are errors (#3606))
     },
 )
 
@@ -334,20 +344,43 @@ def patched_api_call(original_func, instance, args, kwargs):
         if region_name is not None:
             span._set_str_tag("aws.region", region_name)
 
-        result = original_func(*args, **kwargs)
-
-        response_meta = result.get("ResponseMetadata")
-        if response_meta:
-            if "HTTPStatusCode" in response_meta:
-                span.set_tag(http.STATUS_CODE, response_meta["HTTPStatusCode"])
-
-            if "RetryAttempts" in response_meta:
-                span.set_tag("retry_attempts", response_meta["RetryAttempts"])
-
-            if "RequestId" in response_meta:
-                span.set_tag("aws.requestid", response_meta["RequestId"])
-
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
 
-        return result
+        try:
+            result = original_func(*args, **kwargs)
+            _set_response_metadata_tags(span, result)
+
+            return result
+        except botocore.exceptions.ClientError as e:
+            # `ClientError.response` contains the result, so we can still grab response metadata
+            _set_response_metadata_tags(span, e.response)
+
+            # If we have a status code, and the status code is not an error,
+            #   then ignore the exception being raised
+            status_code = span.get_tag(http.STATUS_CODE)
+            if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
+                span._ignore_exception(botocore.exceptions.ClientError)
+            raise
+
+
+def _set_response_metadata_tags(span, result):
+    # type: (Span, Dict[str, Any]) -> None
+    if not result.get("ResponseMetadata"):
+        return
+
+    response_meta = result["ResponseMetadata"]
+
+    if "HTTPStatusCode" in response_meta:
+        status_code = response_meta["HTTPStatusCode"]
+        span.set_tag(http.STATUS_CODE, status_code)
+
+        # Mark this span as an error if requested
+        if config.botocore.operations[span.resource].is_error_code(int(status_code)):
+            span.error = 1
+
+    if "RetryAttempts" in response_meta:
+        span.set_tag("retry_attempts", response_meta["RetryAttempts"])
+
+    if "RequestId" in response_meta:
+        span.set_tag("aws.requestid", response_meta["RequestId"])
