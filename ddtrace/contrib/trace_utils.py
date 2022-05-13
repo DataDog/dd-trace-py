@@ -180,8 +180,8 @@ def distributed_tracing_enabled(int_config, default=False):
     return default
 
 
-def int_service(pin=None, int_config=None, default=None):
-    # type: (Optional[Pin], Optional[IntegrationConfig], Optional[str]) -> Optional[str]
+def int_service(pin, int_config, default=None):
+    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -193,27 +193,26 @@ def int_service(pin=None, int_config=None, default=None):
     if pin is not None and pin.service:
         return pin.service
 
-    if int_config is not None:
-        # Config is next since it is also configured via code
-        # Note that both service and service_name are used by
-        # integrations.
-        if "service" in int_config and int_config.service is not None:
-            return cast(str, int_config.service)
-        if "service_name" in int_config and int_config.service_name is not None:
-            return cast(str, int_config.service_name)
+    # Config is next since it is also configured via code
+    # Note that both service and service_name are used by
+    # integrations.
+    if "service" in int_config and int_config.service is not None:
+        return cast(str, int_config.service)
+    if "service_name" in int_config and int_config.service_name is not None:
+        return cast(str, int_config.service_name)
 
-        global_service = int_config.global_config._get_service()
-        if global_service:
-            return cast(str, global_service)
+    global_service = int_config.global_config._get_service()
+    if global_service:
+        return cast(str, global_service)
 
-        if "_default_service" in int_config and int_config._default_service is not None:
-            return cast(str, int_config._default_service)
+    if "_default_service" in int_config and int_config._default_service is not None:
+        return cast(str, int_config._default_service)
 
     return default
 
 
 def ext_service(pin, int_config, default=None):
-    # type: (Optional[Pin], Optional[IntegrationConfig], Optional[str]) -> Optional[str]
+    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
@@ -221,14 +220,13 @@ def ext_service(pin, int_config, default=None):
     if pin is not None and pin.service:
         return pin.service
 
-    if int_config is not None:
-        if "service" in int_config and int_config.service is not None:
-            return cast(str, int_config.service)
-        if "service_name" in int_config and int_config.service_name is not None:
-            return cast(str, int_config.service_name)
+    if "service" in int_config and int_config.service is not None:
+        return cast(str, int_config.service)
+    if "service_name" in int_config and int_config.service_name is not None:
+        return cast(str, int_config.service_name)
 
-        if "_default_service" in int_config and int_config._default_service is not None:
-            return cast(str, int_config._default_service)
+    if "_default_service" in int_config and int_config._default_service is not None:
+        return cast(str, int_config._default_service)
 
     # A default is required since it's an external service.
     return default
