@@ -161,12 +161,20 @@ class Codeowners(object):
                     # found an optional code owners section
                     continue
 
-                try:
-                    pattern = path_to_regex(line.split()[0])
-                except ValueError, IndexError:
+                elements = line.split()
+                if len(elements) < 2:
                     continue
 
-                owners = [owner for owner in elements if owner]
+                path = elements[0]
+                if path is None:
+                    continue
+
+                try:
+                    pattern = path_to_regex(path)
+                except (ValueError, IndexError):
+                    continue
+
+                owners = [owner for owner in elements[1:] if owner]
 
                 if not owners:
                     continue
