@@ -90,8 +90,6 @@ commands:
           paths:
             - ".tox"
 
-<<<<<<< HEAD
-=======
   save_pip_cache:
     description: "Save pip cache directory"
     steps:
@@ -124,7 +122,6 @@ commands:
           command: docker-compose logs -f
           background: true
 
->>>>>>> 3c514921 (ci: retry docker pulls if fails (#3697))
   run_test:
     description: "Run tests matching a pattern"
     parameters:
