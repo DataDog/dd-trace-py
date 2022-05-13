@@ -94,7 +94,7 @@ class TestPytest(TracerTestCase):
         self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
-        assert len(spans) == 10
+        assert len(spans) == 10  # 3 scenarios + 7 steps
         assert json.loads(spans[1].get_tag(test.PARAMETERS)) == {"bars": 0}
         assert json.loads(spans[3].get_tag(test.PARAMETERS)) == {"bars": -1}
         assert json.loads(spans[5].get_tag(test.PARAMETERS)) == {"bars": 2}
