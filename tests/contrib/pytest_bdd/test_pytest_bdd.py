@@ -38,7 +38,7 @@ class TestPytest(TracerTestCase):
         """Execute test script with test tracer."""
         return self.testdir.runpytest_subprocess(*args)
 
-    def test_pytest_bdd_scenario(self):
+    def test_pytest_bdd_scenario_with_parameters(self):
         """Test that pytest-bdd traces scenario with all steps."""
         self.testdir.makefile(
             ".feature",
@@ -101,7 +101,7 @@ class TestPytest(TracerTestCase):
         assert json.loads(spans[7].get_tag(test.PARAMETERS)) == {"bars": 0}
         assert json.loads(spans[9].get_tag(test.PARAMETERS)) == {"bars": "no"}
 
-    def test_pytest_bdd_scenario_with_parameters(self):
+    def test_pytest_bdd_scenario(self):
         """Test that pytest-bdd traces scenario with all steps."""
         self.testdir.makefile(
             ".feature",
