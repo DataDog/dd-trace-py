@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace.debugging.function.discovery import FunctionDiscovery
+from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.internal.compat import PY2
 import tests.submod.stuff as stuff
 
