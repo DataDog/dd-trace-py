@@ -8,7 +8,6 @@ import django
 import pytest
 import tenacity
 
-from ddtrace.internal.utils.formats import parse_tags_str
 from tests.webclient import Client
 
 
@@ -53,7 +52,7 @@ def django_env():
 
 
 @pytest.fixture
-def django_client(django_command, django_settings, django_env, django_port, snapshot):
+def django_client(django_command, django_settings, django_env, django_port):
     """Runs a django app hosted with a daphne webserver in a subprocess and
     returns a client which can be used to query it.
 
@@ -63,12 +62,14 @@ def django_client(django_command, django_settings, django_env, django_port, snap
 
     # Make sure to copy the environment as we need the PYTHONPATH.
     env = os.environ.copy()
-    headers = parse_tags_str(env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
-    headers.update({"X-Datadog-Test-Session-Token": snapshot.token})
-    headers = ",".join(["%s:%s" % (k, v) for k, v in headers.items()])
+    assert (
+        "_DD_TRACE_WRITER_ADDITIONAL_HEADERS" in env
+        and "X-Datadog-Test-Session-Token" in env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
+    ), "Need to ensure X-Datadog-Test-Session-Token is provided to the application for snapshots to be correlated"
     env.update(
         {
             "DJANGO_SETTINGS_MODULE": django_settings,
+            # Avoid noisy database spans being output on app startup/teardown.
             "DD_TRACE_SQLITE3_ENABLED": "0",
             # Middleware generates large snapshots with redundant info'
             # For readability we disable it but at least one test case should
@@ -78,7 +79,6 @@ def django_client(django_command, django_settings, django_env, django_port, snap
             # to the endpoint tested.
             # Tests which access the database should override this flag.
             "DD_DJANGO_INSTRUMENT_DATABASES": "0",
-            "_DD_TRACE_WRITER_ADDITIONAL_HEADERS": headers,
         }
     )
     env.update(django_env)

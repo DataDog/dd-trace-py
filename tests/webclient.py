@@ -13,7 +13,6 @@ class Client(object):
     def __init__(self, base_url):
         # type: (str) -> None
         self._base_url = base_url
-        self._session = requests.Session()
         # Propagate traces with trace_id = 1 for the ping trace so we can filter them out.
         c, d = Context(trace_id=1, span_id=1), {}
         HTTPPropagator.inject(c, d)
@@ -24,7 +23,7 @@ class Client(object):
         return six.moves.urllib.parse.urljoin(self._base_url, path)
 
     def get(self, path, **kwargs):
-        return self._session.get(self._url(path), **kwargs)
+        return requests.get(self._url(path), timeout=10, **kwargs)
 
     def get_ignored(self, path, **kwargs):
         """Do a normal get request but signal that the trace should be filtered out.
@@ -34,13 +33,13 @@ class Client(object):
         headers = kwargs.get("headers", {}).copy()
         headers.update(self._ignore_headers)
         kwargs["headers"] = headers
-        return self._session.get(self._url(path), **kwargs)
+        return requests.get(self._url(path), **kwargs)
 
     def post(self, path, *args, **kwargs):
-        return self._session.post(self._url(path), *args, **kwargs)
+        return requests.post(self._url(path), *args, **kwargs)
 
     def request(self, method, path, *args, **kwargs):
-        return self._session.request(method, self._url(path), *args, **kwargs)
+        return requests.request(method, self._url(path), *args, **kwargs)
 
     def wait(self, path="/", max_tries=100, delay=0.1):
         # type: (str, int, float) -> None

@@ -196,5 +196,5 @@ def not_found_view(request):
 
 def shutdown(request):
     # Endpoint used to flush traces to the agent when doing snapshots.
-    tracer.flush()
+    tracer.shutdown()
     return HttpResponse(status=200)
