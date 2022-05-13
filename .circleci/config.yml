@@ -396,6 +396,13 @@ jobs:
       - run_test:
           pattern: "tracer"
 
+  debugger:
+    <<: *contrib_job
+    parallelism: 7
+    steps:
+      - run_test:
+          pattern: "debugger"
+
   opentracer:
     <<: *contrib_job
     parallelism: 7
@@ -1094,6 +1101,7 @@ requires_tests: &requires_tests
     - starlette
     - test_logging
     - tracer
+    - debugger
     - appsec
     - tornado
     - urllib3
@@ -1185,6 +1193,7 @@ workflows:
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
+      - debugger: *requires_base_venvs
       - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
