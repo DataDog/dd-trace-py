@@ -14,6 +14,7 @@ import attr
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.trace_utils import int_service
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.internal import compat
 from ddtrace.internal import forksafe
@@ -36,7 +37,7 @@ def _extract_repository_name(repository_url):
 
 
 @attr.s(eq=False)
-class CIRecorder:
+class CIRecorder(object):
     # It behaves similar to a Pin by keeping track of used tracer and other configuration.
     # The important difference is that it is a singleton as it doesn't make sense to have
     # to enable CI Visibility mode multiple times.
@@ -76,10 +77,17 @@ class CIRecorder:
     ):
         # type: (...) -> None
         if span.parent_id is None:
+            # DEV: shall we assert that the root span is a test span?
+            # We could remove that check from TraceCiVisibilityFilter.
+            assert span.span_type == SpanTypes.TEST
+
             span.service = self._service
             span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
             span.context.sampling_priority = AUTO_KEEP
             span.set_tags(self._tags)
+
+            # DEV: it might not be necessary to add library_version when using agentless mode
+            span._set_str_tag(ci.LIBRARY_VERSION, ddtrace.__version__)
 
     @classmethod
     def disable(cls):
@@ -91,6 +99,7 @@ class CIRecorder:
             forksafe.unregister(cls._restart)
 
             recorder = cls._instance
+            recorder.tracer.deregister_on_start_span(recorder._set_test_defaults_on_span)
             try:
                 recorder.tracer.shutdown()
             except Exception:
@@ -111,8 +120,16 @@ class CIRecorder:
 
     @classmethod
     def _restart(cls):
+        # DEV: would it be better to use re-entrant lock?
+        with cls._lock:
+            if cls.enabled:
+                tracer = cls._instance.tracer
+                config = cls._instance.config
+            else:
+                tracer = config = None
+
         cls.disable()
-        cls.enable()
+        cls.enable(tracer=tracer, config=config)
 
     @classmethod
     def enable(cls, tracer=None, config=None):
