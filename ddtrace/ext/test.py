@@ -42,7 +42,7 @@ TYPE = TEST_TYPE = "test.type"
 XFAIL_REASON = TEST_XFAIL_REASON = "pytest.xfail.reason"
 
 # Test Codeowners
-CODE_OWNERS = "test.codeowners"
+CODEOWNERS = TEST_CODEOWNERS = "test.codeowners"
 
 
 class Status(Enum):

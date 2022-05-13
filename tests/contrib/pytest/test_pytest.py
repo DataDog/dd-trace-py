@@ -725,8 +725,8 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 2
-        assert json.loads(spans[0].get_tag(test.CODE_OWNERS)) == ["@default-team"], spans[0]
-        assert json.loads(spans[1].get_tag(test.CODE_OWNERS)) == ["@team-b", "@backup-b"], spans[1]
+        assert json.loads(spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], spans[0]
+        assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
 
 
 @pytest.mark.parametrize(
