@@ -34,8 +34,8 @@ class _PytestBddPlugin:
             if span is not None:
                 location = os.path.relpath(scenario.feature.filename, str(request.config.rootdir))
                 span.set_tag(test.NAME, scenario.name)
-                span.set_tag(test.SUITE, location)
-                # TODO: add code owner of the "scenario.feature.filename"
+                span.set_tag(test.SUITE, location)  # override test suite name with .feature location
+                # TODO: add code owner of the location after https://github.com/DataDog/dd-trace-py/pull/3635 is merged
 
     @staticmethod
     @pytest.hookimpl(tryfirst=True)

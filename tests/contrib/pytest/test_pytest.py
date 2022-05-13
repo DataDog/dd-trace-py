@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.ext import ci
 from ddtrace.ext import test
@@ -320,10 +321,10 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 2
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[0].get_tag(test.RESULT) == test.Status.XFAIL.value
-        assert spans[0].get_tag(test.XFAIL_REASON) == "test should fail"
+        assert spans[0].get_tag(XFAIL_REASON) == "test should fail"
         assert spans[1].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[1].get_tag(test.RESULT) == test.Status.XFAIL.value
-        assert spans[1].get_tag(test.XFAIL_REASON) == "test should xfail"
+        assert spans[1].get_tag(XFAIL_REASON) == "test should xfail"
 
     def test_xfail_runxfail_fails(self):
         """Test xfail with --runxfail flags should not crash when failing."""
@@ -386,10 +387,10 @@ class TestPytest(TracerTestCase):
         assert len(spans) == 2
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[0].get_tag(test.RESULT) == test.Status.XPASS.value
-        assert spans[0].get_tag(test.XFAIL_REASON) == "test should fail"
+        assert spans[0].get_tag(XFAIL_REASON) == "test should fail"
         assert spans[1].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[1].get_tag(test.RESULT) == test.Status.XPASS.value
-        assert spans[1].get_tag(test.XFAIL_REASON) == "test should not xfail"
+        assert spans[1].get_tag(XFAIL_REASON) == "test should not xfail"
 
     def test_xpass_strict(self):
         """Test xpass (unexpected passing) with strict=True, should be marked as fail."""
@@ -412,7 +413,7 @@ class TestPytest(TracerTestCase):
         assert spans[0].get_tag(test.RESULT) == test.Status.XPASS.value
         # Note: XFail (strict=True) does not mark the reason with result.wasxfail but into result.longrepr,
         # however it provides the entire traceback/error into longrepr.
-        assert "test should fail" in spans[0].get_tag(test.XFAIL_REASON)
+        assert "test should fail" in spans[0].get_tag(XFAIL_REASON)
 
     def test_tags(self):
         """Test ddspan tags."""
