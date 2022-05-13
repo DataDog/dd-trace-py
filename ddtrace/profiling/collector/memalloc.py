@@ -49,7 +49,7 @@ class MemoryHeapSampleEvent(event.StackBasedEvent):
 
 
 def _get_default_heap_sample_size(
-    default_heap_sample_size=512 * 1024,  # type: int
+    default_heap_sample_size=1024 * 1024,  # type: int
 ):
     # type: (...) -> int
     heap_sample_size = os.environ.get("DD_PROFILING_HEAP_SAMPLE_SIZE")
@@ -81,7 +81,7 @@ def _get_default_heap_sample_size(
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 
-    _DEFAULT_MAX_EVENTS = 32
+    _DEFAULT_MAX_EVENTS = 16
     _DEFAULT_INTERVAL = 0.5
 
     # Arbitrary interval to empty the _memalloc event buffer

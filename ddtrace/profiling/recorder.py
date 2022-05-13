@@ -30,7 +30,7 @@ EventsType = typing.Dict[event.Event, typing.Sequence[event.Event]]
 class Recorder(object):
     """An object that records program activity."""
 
-    _DEFAULT_MAX_EVENTS = 32768
+    _DEFAULT_MAX_EVENTS = 16384
 
     default_max_events = attr.ib(default=_DEFAULT_MAX_EVENTS)
     """The maximum number of events for an event type if one is not specified."""

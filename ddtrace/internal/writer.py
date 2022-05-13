@@ -272,6 +272,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
             "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Datadog-Client-Computed-Top-Level": "yes",
         }
         if headers:
             self._headers.update(headers)
