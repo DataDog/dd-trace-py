@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: normalize header names in ASM

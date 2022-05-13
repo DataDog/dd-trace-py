@@ -239,7 +239,7 @@ below:
        .. _dd-profiling-capture-pct:
    * - ``DD_PROFILING_CAPTURE_PCT``
      - Float
-     - 2
+     - 1
      - The percentage of events that should be captured (e.g. memory
        allocation). Greater values reduce the program execution speed. Must be
        greater than 0 lesser or equal to 100.
