@@ -79,7 +79,9 @@ class CIRecorder(object):
         if span.parent_id is None:
             # DEV: shall we assert that the root span is a test span?
             # We could remove that check from TraceCiVisibilityFilter.
-            assert span.span_type == SpanTypes.TEST
+            if span.span_type != SpanTypes.TEST:
+                log.warning("Root span is not a test span. Skipping CI Visibility mode.")
+                return
 
             span.service = self._service
             span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
