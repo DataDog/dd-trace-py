@@ -154,7 +154,7 @@ def pytest_runtest_protocol(item, nextitem):
             try:
                 handles = codeowners.of(item.location[0])
                 if handles:
-                    span.set_tag(test.CODE_OWNERS, json.dumps(handles))
+                    span.set_tag(test.CODEOWNERS, json.dumps(handles))
             except KeyError:
                 log.debug("no matching codeowners for %s", item.location[0])
 
