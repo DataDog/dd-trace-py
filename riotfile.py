@@ -198,10 +198,6 @@ venv = Venv(
                 "sphinx": "~=4.3.2",
                 "sphinxcontrib-spelling": latest,
                 "PyEnchant": latest,
-                # Pin due to dulwich not publishing wheels and the env doesn't have
-                # the dependencies required to build the package.
-                # https://github.com/jelmer/dulwich/issues/963.
-                "dulwich": "<0.20.36",
             },
             command="scripts/build-docs",
         ),
