@@ -1,7 +1,7 @@
 import pytest
 
 from ddtrace.debugging.config import DEFAULT_PROBE_API_URL
-from ddtrace.debugging.config import _DebuggerConfig
+from ddtrace.debugging.config import DebuggerConfig
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.version import get_version
 from tests.utils import override_env
@@ -18,7 +18,7 @@ from tests.utils import override_env
 )
 def test_probe_api_url(dd_site, probe_api_url):
     with override_env(dict(DD_SITE=dd_site)):
-        _DebuggerConfig().probe_api_url == probe_api_url
+        DebuggerConfig().probe_api_url == probe_api_url
 
 
 def test_tags():
@@ -29,7 +29,7 @@ def test_tags():
         old_config = ddtrace.debugging.config.tracer_config
         ddtrace.debugging.config.tracer_config = Config()
 
-        tags = parse_tags_str(_DebuggerConfig().tags)
+        tags = parse_tags_str(DebuggerConfig().tags)
         assert tags == dict(
             a="b",
             c="d",
@@ -42,11 +42,11 @@ def test_tags():
 
 
 def test_snapshot_intake_url():
-    _DebuggerConfig().snapshot_intake_url == "http://localhost:8126"
+    DebuggerConfig().snapshot_intake_url == "http://localhost:8126"
 
 
 def test_agent_mode():
-    assert _DebuggerConfig()._agent is False
+    assert DebuggerConfig()._agent is False
 
     with override_env(dict(DD_DEBUGGER_AGENT_MODE="1")):
-        assert _DebuggerConfig()._agent is True
+        assert DebuggerConfig()._agent is True

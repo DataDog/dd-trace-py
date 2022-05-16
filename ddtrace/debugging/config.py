@@ -3,10 +3,10 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace import config as tracer_config
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.version import get_version
 
 
@@ -18,7 +18,6 @@ DD_SITE_MAP = {"datad0g.com": "https://dd.datad0g.com"}
 DEFAULT_DEBUGGER_PORT = 8126
 DEFAULT_PROBE_API_URL = "https://app.datadoghq.com"
 DEFAULT_SNAPSHOT_INTAKE_URL = "http://%s:%d" % (os.getenv("DD_AGENT_HOST", "localhost"), DEFAULT_DEBUGGER_PORT)
-DEFAULT_SERVICE_NAME = "unnamed-python-service"
 DEFAULT_MAX_PROBES = 100
 DEFAULT_METRICS = True
 DEFAULT_PROBE_STATUS_URL = DEFAULT_SNAPSHOT_INTAKE_URL
@@ -38,10 +37,10 @@ def _get_api_key_from_file():
         return None
 
 
-SECRETS = ["api_key"]
+SECRETS = frozenset(["api_key"])
 
 
-class _DebuggerConfig(object):
+class DebuggerConfig(object):
     """Debugger configuration."""
 
     api_key = None  # type: Optional[str]
@@ -88,10 +87,7 @@ class _DebuggerConfig(object):
         self._tags["version"] = tracer_config.version
         self._tags["debugger_version"] = get_version()
 
-        dd_tags = os.getenv("DD_TAGS")
-
-        if dd_tags is not None:
-            self._tags.update(parse_tags_str(dd_tags))
+        self._tags.update(tracer_config.tags)
 
         self.tags = ",".join([":".join((k, v)) for (k, v) in self._tags.items() if v is not None])
 
@@ -103,9 +99,9 @@ class _DebuggerConfig(object):
             },
         )
 
-        self.service_name = os.getenv("DD_SERVICE") or get_application_name() or DEFAULT_SERVICE_NAME
+        self.service_name = tracer_config.service or get_application_name() or DEFAULT_SERVICE_NAME
         self.metrics = asbool(os.getenv("DD_DEBUGGER_METRICS_ENABLED", DEFAULT_METRICS))
         self._agent = asbool(os.getenv("DD_DEBUGGER_AGENT_MODE", DEFAULT_AGENT_MODE))
 
 
-config = _DebuggerConfig()
+config = DebuggerConfig()
