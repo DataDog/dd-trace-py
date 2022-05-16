@@ -21,7 +21,7 @@ orbs:
 
 machine_executor: &machine_executor
   machine:
-    image: ubuntu-2004:202107-02
+    image: ubuntu-2004:current
   environment:
     - BOTO_CONFIG: /dev/null
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
@@ -105,6 +105,23 @@ commands:
       - restore_cache:
           key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
 
+  start_docker_services:
+    description: "Start Docker services"
+    parameters:
+      env:
+        type: string
+        default: ""
+      services:
+        type: string
+        default: ""
+    steps:
+      # Retry pulls in case they fail
+      - run: for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done
+      - run: << parameters.env >> docker-compose up -d << parameters.services >>
+      - run:
+          command: docker-compose logs -f
+          background: true
+
   run_test:
     description: "Run tests matching a pattern"
     parameters:
@@ -133,10 +150,9 @@ commands:
               << parameters.snapshot >>
           steps:
             - setup_riot
-            - run: SNAPSHOT_CI=1 docker-compose up -d testagent << parameters.docker_services >>
-            - run:
-                command: docker-compose logs -f
-                background: true
+            - start_docker_services:
+                env: SNAPSHOT_CI=1
+                services: testagent << parameters.docker_services >>
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
@@ -188,10 +204,9 @@ commands:
             - run:
                 name: "Waiting for << parameters.wait >>"
                 command: tox -e 'wait' << parameters.wait >>
-      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
+      - start_docker_services:
+          env: SNAPSHOT_CI=1
+          services: memcached redis testagent
       - run:
           name: "Run scripts/run-tox-scenario"
           environment:
@@ -404,10 +419,8 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
-      - run: docker-compose up -d ddagent5
-      - run:
-          command: docker-compose logs -f
-          background: true
+      - start_docker_services:
+          services: ddagent5
       - run:
           command: |
             mv .riot .ddriot
@@ -419,10 +432,8 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
-      - run: docker-compose up -d ddagent
-      - run:
-          command: docker-compose logs -f
-          background: true
+      - start_docker_services:
+          services: ddagent
       - run:
           command: |
             mv .riot .ddriot
@@ -434,10 +445,9 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
+      - start_docker_services:
+          env: SNAPSHOT_CI=1
+          services: testagent
       - run:
           environment:
             DD_TRACE_AGENT_URL: http://localhost:9126
@@ -849,14 +859,13 @@ jobs:
           pattern: 'aiobotocore'
 
   aiomysql:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
+    <<: *machine_executor
     steps:
       - run_test:
+          docker_services: 'mysql'
           wait: mysql
           pattern: 'aiomysql'
+          snapshot: true
 
   aiopg:
     <<: *contrib_job

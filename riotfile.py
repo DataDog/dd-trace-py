@@ -276,7 +276,13 @@ venv = Venv(
         Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
-            venvs=[Venv(pys=select_pys())],
+            venvs=[
+                Venv(pys="2.7"),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={"pytest-asyncio": latest},
+                ),
+            ],
             pkgs={"httpretty": "==0.9.7"},
         ),
         Venv(
