@@ -1,4 +1,5 @@
 import multiprocessing
+import os
 import sys
 import time
 
@@ -8,6 +9,7 @@ def f():
 
 
 if __name__ == "__main__":
+    print(os.getpid())
     multiprocessing.set_start_method(sys.argv[1])
 
     p = multiprocessing.Process(target=f)

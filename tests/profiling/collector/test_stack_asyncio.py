@@ -1,6 +1,7 @@
 import asyncio
 import collections
 import os
+import sys
 
 import pytest
 
@@ -58,15 +59,15 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
         if _asyncio_compat.PY37_AND_LATER:
             if event.task_name == "main":
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, 29, "hello")]
+                assert event.frames == [(__file__, 30, "hello")]
                 assert event.nframes == 1
             elif event.task_name == t1_name:
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, 23, "stuff")]
+                assert event.frames == [(__file__, 24, "stuff")]
                 assert event.nframes == 1
             elif event.task_name == t2_name:
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, 23, "stuff")]
+                assert event.frames == [(__file__, 24, "stuff")]
                 assert event.nframes == 1
 
         if event.thread_name == "MainThread" and (
@@ -90,4 +91,6 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
 
     assert wall_time_ns[t1_name] > 0
     assert wall_time_ns[t2_name] > 0
-    assert cpu_time_found
+    if sys.platform != "win32":
+        # Windows seems to get 0 CPU for this
+        assert cpu_time_found

@@ -17,7 +17,7 @@ vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
 orbs:
-  win: circleci/windows@2.2.0
+  win: circleci/windows@4.1
 
 machine_executor: &machine_executor
   machine:
@@ -411,6 +411,76 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
+
+  profile-windows-27:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.5.4
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py35-profile'
+
+  profile-windows-35:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.5.4
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py35-profile'
+
+  profile-windows-36:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.6.8
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py36-profile'
+
+  profile-windows-37:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.7.9
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py37-profile'
+
+  profile-windows-38:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.8.10
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py38-profile'
+
+  profile-windows-39:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.9.12
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py39-profile'
+
+  profile-windows-310:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.10.4
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py310-profile'
 
   profile:
     <<: *contrib_job
@@ -1042,81 +1112,88 @@ requires_base_venvs: &requires_base_venvs
 
 requires_tests: &requires_tests
   requires:
-    - aiobotocore
-    - aiohttp
-    - aiomysql
-    - aiopg
-    - aioredis
-    - asyncio
-    - asyncpg
-    - algoliasearch
-    - asgi
-    - benchmarks
-    - boto
-    - bottle
-    - cassandra
-    - celery
-    - cherrypy
-    - consul
-    - dbapi
-    - ddtracerun
-    - dogpile_cache
-    - django
-    - django_hosts
-    - djangorestframework
-    - elasticsearch
-    - falcon
-    - fastapi
-    - flask
-    - futures
-    - gevent
-    - grpc
-    - httplib
-    - httpx
-    - integration_agent5
-    - integration_agent
-    - integration_testagent
-    - vendor
+    # - aiobotocore
+    # - aiohttp
+    # - aiomysql
+    # - aiopg
+    # - aioredis
+    # - asyncio
+    # - asyncpg
+    # - algoliasearch
+    # - asgi
+    # - benchmarks
+    # - boto
+    # - bottle
+    # - cassandra
+    # - celery
+    # - cherrypy
+    # - consul
+    # - dbapi
+    # - ddtracerun
+    # - dogpile_cache
+    # - django
+    # - django_hosts
+    # - djangorestframework
+    # - elasticsearch
+    # - falcon
+    # - fastapi
+    # - flask
+    # - futures
+    # - gevent
+    # - grpc
+    # - httplib
+    # - httpx
+    # - integration_agent5
+    # - integration_agent
+    # - integration_testagent
+    # - vendor
     - profile
-    - jinja2
-    - kombu
-    - mako
-    - mariadb
-    - molten
-    - mongoengine
-    - mysqlconnector
-    - mysqlpython
-    - opentracer
-    - psycopg
-    - pylibmc
-    - pylons
-    - pymemcache
-    - pymongo
-    - pymysql
-    - pynamodb
-    - pyodbc
-    - pyramid
-    - pytest
-    - pytestbdd
-    - aredis
-    - yaaredis
-    - redis
-    - rediscluster
-    - requests
-    - rq
-    - sanic
-    - snowflake
-    - sqlalchemy
-    - sqlite3
-    - starlette
-    - test_logging
-    - tracer
-    - debugger
-    - appsec
-    - tornado
-    - urllib3
-    - vertica
-    - wsgi
+    # - jinja2
+    # - kombu
+    # - mako
+    # - mariadb
+    # - molten
+    # - mongoengine
+    # - mysqlconnector
+    # - mysqlpython
+    # - opentracer
+    # - psycopg
+    # - pylibmc
+    # - pylons
+    # - pymemcache
+    # - pymongo
+    # - pymysql
+    # - pynamodb
+    # - pyodbc
+    # - pyramid
+    # - pytest
+    # - pytestbdd
+    # - aredis
+    # - yaaredis
+    # - redis
+    # - rediscluster
+    # - requests
+    # - rq
+    # - sanic
+    # - snowflake
+    # - sqlalchemy
+    # - sqlite3
+    # - starlette
+    # - test_logging
+    # - tracer
+    # - debugger
+    # - appsec
+    # - tornado
+    # - urllib3
+    # - vertica
+    # - wsgi
+    - profile-windows-27
+    - profile-windows-35
+    - profile-windows-36
+    - profile-windows-37
+    - profile-windows-38
+    - profile-windows-39
+    - profile-windows-310
 
 workflows:
   version: 2
@@ -1132,84 +1209,90 @@ workflows:
       # Docs
       - build_docs: *requires_pre_check
 
-      # Integration test suites
-      - aiobotocore: *requires_base_venvs
-      - aiohttp: *requires_base_venvs
-      - aiomysql: *requires_base_venvs
-      - aiopg: *requires_base_venvs
-      - aioredis: *requires_base_venvs
-      - asyncio: *requires_base_venvs
-      - asyncpg: *requires_base_venvs
-      - algoliasearch: *requires_base_venvs
-      - asgi: *requires_base_venvs
-      - benchmarks: *requires_base_venvs
-      - boto: *requires_base_venvs
-      - bottle: *requires_base_venvs
-      - cassandra: *requires_base_venvs
-      - celery: *requires_base_venvs
-      - cherrypy: *requires_base_venvs
-      - consul: *requires_base_venvs
-      - dbapi: *requires_base_venvs
-      - ddtracerun: *requires_base_venvs
-      - django: *requires_base_venvs
-      - django_hosts: *requires_base_venvs
-      - djangorestframework: *requires_base_venvs
-      - dogpile_cache: *requires_base_venvs
-      - elasticsearch: *requires_base_venvs
-      - falcon: *requires_base_venvs
-      - fastapi: *requires_base_venvs
-      - flask: *requires_base_venvs
-      - futures: *requires_base_venvs
-      - gevent: *requires_base_venvs
-      - grpc: *requires_base_venvs
-      - httplib: *requires_base_venvs
-      - httpx: *requires_base_venvs
-      - integration_agent5: *requires_base_venvs
-      - integration_agent: *requires_base_venvs
-      - integration_testagent: *requires_base_venvs
-      - internal: *requires_base_venvs
-      - vendor: *requires_base_venvs
+      # # Integration test suites
+      # - aiobotocore: *requires_base_venvs
+      # - aiohttp: *requires_base_venvs
+      # - aiomysql: *requires_base_venvs
+      # - aiopg: *requires_base_venvs
+      # - aioredis: *requires_base_venvs
+      # - asyncio: *requires_base_venvs
+      # - asyncpg: *requires_base_venvs
+      # - algoliasearch: *requires_base_venvs
+      # - asgi: *requires_base_venvs
+      # - benchmarks: *requires_base_venvs
+      # - boto: *requires_base_venvs
+      # - bottle: *requires_base_venvs
+      # - cassandra: *requires_base_venvs
+      # - celery: *requires_base_venvs
+      # - cherrypy: *requires_base_venvs
+      # - consul: *requires_base_venvs
+      # - dbapi: *requires_base_venvs
+      # - ddtracerun: *requires_base_venvs
+      # - django: *requires_base_venvs
+      # - django_hosts: *requires_base_venvs
+      # - djangorestframework: *requires_base_venvs
+      # - dogpile_cache: *requires_base_venvs
+      # - elasticsearch: *requires_base_venvs
+      # - falcon: *requires_base_venvs
+      # - fastapi: *requires_base_venvs
+      # - flask: *requires_base_venvs
+      # - futures: *requires_base_venvs
+      # - gevent: *requires_base_venvs
+      # - grpc: *requires_base_venvs
+      # - httplib: *requires_base_venvs
+      # - httpx: *requires_base_venvs
+      # - integration_agent5: *requires_base_venvs
+      # - integration_agent: *requires_base_venvs
+      # - integration_testagent: *requires_base_venvs
+      # - internal: *requires_base_venvs
+      # - vendor: *requires_base_venvs
       - profile: *requires_base_venvs
-      - jinja2: *requires_base_venvs
-      - kombu: *requires_base_venvs
-      - mako: *requires_base_venvs
-      - mariadb: *requires_base_venvs
-      - molten: *requires_base_venvs
-      - mongoengine: *requires_base_venvs
-      - mysqlconnector: *requires_base_venvs
-      - mysqlpython: *requires_base_venvs
-      - opentracer: *requires_base_venvs
-      - psycopg: *requires_base_venvs
-      - pylibmc: *requires_base_venvs
-      - pylons: *requires_base_venvs
-      - pymemcache: *requires_base_venvs
-      - pymongo: *requires_base_venvs
-      - pymysql: *requires_base_venvs
-      - pynamodb: *requires_base_venvs
-      - pyodbc: *requires_base_venvs
-      - pyramid: *requires_base_venvs
-      - pytest: *requires_base_venvs
-      - pytestbdd: *requires_base_venvs
-      - aredis: *requires_base_venvs
-      - yaaredis: *requires_base_venvs
-      - redis: *requires_base_venvs
-      - rediscluster: *requires_base_venvs
-      - requests: *requires_base_venvs
-      - rq: *requires_base_venvs
-      - sanic: *requires_base_venvs
-      - snowflake: *requires_base_venvs
-      - starlette: *requires_base_venvs
-      - sqlalchemy: *requires_base_venvs
-      - sqlite3: *requires_base_venvs
-      - test_logging: *requires_base_venvs
-      - tornado: *requires_base_venvs
-      - tracer: *requires_base_venvs
-      - debugger: *requires_base_venvs
-      - appsec: *requires_base_venvs
-      - urllib3: *requires_base_venvs
-      - vertica: *requires_base_venvs
-      - wsgi: *requires_base_venvs
-
+      # - jinja2: *requires_base_venvs
+      # - kombu: *requires_base_venvs
+      # - mako: *requires_base_venvs
+      # - mariadb: *requires_base_venvs
+      # - molten: *requires_base_venvs
+      # - mongoengine: *requires_base_venvs
+      # - mysqlconnector: *requires_base_venvs
+      # - mysqlpython: *requires_base_venvs
+      # - opentracer: *requires_base_venvs
+      # - psycopg: *requires_base_venvs
+      # - pylibmc: *requires_base_venvs
+      # - pylons: *requires_base_venvs
+      # - pymemcache: *requires_base_venvs
+      # - pymongo: *requires_base_venvs
+      # - pymysql: *requires_base_venvs
+      # - pynamodb: *requires_base_venvs
+      # - pyodbc: *requires_base_venvs
+      # - pyramid: *requires_base_venvs
+      # - pytest: *requires_base_venvs
+      # - pytestbdd: *requires_base_venvs
+      # - aredis: *requires_base_venvs
+      # - yaaredis: *requires_base_venvs
+      # - redis: *requires_base_venvs
+      # - rediscluster: *requires_base_venvs
+      # - requests: *requires_base_venvs
+      # - rq: *requires_base_venvs
+      # - sanic: *requires_base_venvs
+      # - snowflake: *requires_base_venvs
+      # - starlette: *requires_base_venvs
+      # - sqlalchemy: *requires_base_venvs
+      # - sqlite3: *requires_base_venvs
+      # - test_logging: *requires_base_venvs
+      # - tornado: *requires_base_venvs
+      # - tracer: *requires_base_venvs
+      # - debugger: *requires_base_venvs
+      # - appsec: *requires_base_venvs
+      # - urllib3: *requires_base_venvs
+      # - vertica: *requires_base_venvs
+      # - wsgi: *requires_base_venvs
+      - profile-windows-27: *requires_pre_check
+      - profile-windows-35: *requires_pre_check
+      - profile-windows-36: *requires_pre_check
+      - profile-windows-37: *requires_pre_check
+      - profile-windows-38: *requires_pre_check
+      - profile-windows-39: *requires_pre_check
+      - profile-windows-310: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
 

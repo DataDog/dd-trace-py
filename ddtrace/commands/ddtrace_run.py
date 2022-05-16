@@ -101,8 +101,11 @@ def main():
         sys.exit(1)
 
     # Find the executable path
-    executable = spawn.find_executable(args.command[0])
-    if not executable:
+    if os.path.isfile(args.command[0]):
+        executable = args.command[0]
+    else:
+        executable = spawn.find_executable(args.command[0])
+    if executable is None:
         print("ddtrace-run: failed to find executable '%s'.\n" % args.command[0])
         parser.print_usage()
         sys.exit(1)

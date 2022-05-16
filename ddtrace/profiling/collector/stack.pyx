@@ -114,8 +114,10 @@ IF UNAME_SYSNAME == "Linux":
 
             return pthread_cpu_time
 ELSE:
+    from libc cimport stdint
+
     cdef class _ThreadTime(object):
-        cdef long _last_process_time
+        cdef stdint.int64_t _last_process_time
 
         def __init__(self):
             self._last_process_time = compat.process_time_ns()
@@ -439,7 +441,7 @@ class StackCollector(collector.PeriodicCollector):
     endpoint_collection_enabled = attr.ib(factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool))
     tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False, eq=False)
-    _last_wall_time = attr.ib(init=False, repr=False, eq=False)
+    _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
 
     @max_time_usage_pct.validator
