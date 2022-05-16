@@ -20,7 +20,7 @@ async def test_lock_acquire_events():
     event = r.events[collector_asyncio.AsyncioLockAcquireEvent][0]
     assert event.lock_name == "test_asyncio.py:15"
     assert event.thread_id == nogevent.thread_get_ident()
-    assert event.wait_time_ns > 0
+    assert event.wait_time_ns >= 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
@@ -41,7 +41,7 @@ async def test_asyncio_lock_release_events():
     event = r.events[collector_asyncio.AsyncioLockReleaseEvent][0]
     assert event.lock_name == "test_asyncio.py:35"
     assert event.thread_id == nogevent.thread_get_ident()
-    assert event.locked_for_ns > 0
+    assert event.locked_for_ns >= 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
