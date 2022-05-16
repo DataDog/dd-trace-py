@@ -1,15 +1,19 @@
 from copy import deepcopy
+import glob
+import importlib
 import os
+import sys
 from typing import List
 from typing import Optional
 from typing import Tuple
+
+from envier import En
 
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.logger import get_logger
-from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..pin import Pin
 from .http import HttpConfig
@@ -19,8 +23,8 @@ from .integration import IntegrationConfig
 log = get_logger(__name__)
 
 
-def _parse_propagation_styles(name, default):
-    # type: (str, str) -> set[str]
+def _parse_propagation_styles(envvar):
+    # type: (str) -> set[str]
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -47,16 +51,13 @@ def _parse_propagation_styles(name, default):
         DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
     """
     styles = set()
-    envvar = os.getenv(name, default=default)
     for style in envvar.split(","):
         style = style.strip().lower()
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:
             raise ValueError(
-                "Unknown style {!r} provided for {!r}, allowed values are {!r}".format(
-                    style, name, PROPAGATION_STYLE_ALL
-                )
+                "Unknown propagation style {!r} provided, allowed values are {!r}".format(style, PROPAGATION_STYLE_ALL)
             )
         styles.add(style)
     return styles
@@ -101,7 +102,18 @@ def get_error_ranges(error_range_str):
     return error_ranges  # type: ignore[return-value]
 
 
-class Config(object):
+def _validate_x_datadog_tags_max_len(value):
+    # type: (int) -> None
+    if not (0 <= value <= 512):
+        raise ValueError(
+            (
+                "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
+                "only non-negative values less than or equal to 512 allowed"
+            ).format(value)
+        )
+
+
+class Config(En):
     """Configuration object that exposes an API to set and retrieve
     global settings for each integration. All integrations must use
     this instance to register their defaults, so that they're public
@@ -147,74 +159,56 @@ class Config(object):
                     return True
             return False
 
-    def __init__(self):
-        # use a dict as underlying storing mechanism
-        self._config = {}
+    header_tags = En.v(dict, "dd.trace.header.tags", parser=parse_tags_str, default={})
 
-        header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
-        self.http = HttpConfig(header_tags=header_tags)
+    # Master switch for turning on and off trace search by default
+    # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
+    # legacy environment variable. It should be removed in the future
+    analytics_enabled = En.v(
+        bool, "dd.trace.analytics.enabled", default=False, deprecations=[("dd.analytics.enabled", None, None)]
+    )
 
-        # Master switch for turning on and off trace search by default
-        # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
-        # legacy environment variable. It should be removed in the future
-        legacy_config_value = os.getenv("DD_ANALYTICS_ENABLED", default=False)
+    http = En.d(HttpConfig, lambda c: HttpConfig(header_tags=c.header_tags))
+    tags = En.v(dict, "dd.tags", parser=parse_tags_str, default={})
 
-        self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
+    _env = En.v(Optional[str], "dd.env", default=None)
+    env = En.d(Optional[str], lambda c: c._env or c.tags.get("env"))
 
-        self.tags = parse_tags_str(os.getenv("DD_TAGS") or "")
+    _service = En.v(Optional[str], "dd.service", default=None)
+    service = En.d(Optional[str], lambda c: c._service or c.tags.pop("service", None))
 
-        self.env = os.getenv("DD_ENV") or self.tags.get("env")
-        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service"))
-        self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
-        self.http_server = self._HTTPServerConfig()
+    _version = En.v(Optional[str], "dd.version", default=None)
+    version = En.d(Optional[str], lambda c: c._version or c.tags.pop("version", None))
 
-        self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
+    http_server = En.d(_HTTPServerConfig, lambda c: c._HTTPServerConfig())
 
-        # The service tag corresponds to span.service and should not be
-        # included in the global tags.
-        if self.service and "service" in self.tags:
-            del self.tags["service"]
+    service_mapping = En.v(dict, "dd.service.mapping", parser=parse_tags_str, default={})
 
-        # The version tag should not be included on all spans.
-        if self.version and "version" in self.tags:
-            del self.tags["version"]
+    logs_injection = En.v(bool, "dd.logs_injection", default=False)
 
-        self.logs_injection = asbool(os.getenv("DD_LOGS_INJECTION", default=False))
+    report_hostname = En.v(bool, "dd.trace.report_hostname", default=False)
 
-        self.report_hostname = asbool(os.getenv("DD_TRACE_REPORT_HOSTNAME", default=False))
+    health_metrics_enabled = En.v(bool, "dd.trace.health_metrics.enabled", default=False)
 
-        self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
+    _propagation_style_extract = En.v(
+        set, "dd.trace.propagation_style.extract", parser=_parse_propagation_styles, default={PROPAGATION_STYLE_DATADOG}
+    )
+    _propagation_style_inject = En.v(
+        set, "dd.trace.propagation_style.inject", parser=_parse_propagation_styles, default={PROPAGATION_STYLE_DATADOG}
+    )
 
-        # Propagation styles
-        self._propagation_style_extract = _parse_propagation_styles(
-            "DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=PROPAGATION_STYLE_DATADOG
-        )
-        self._propagation_style_inject = _parse_propagation_styles(
-            "DD_TRACE_PROPAGATION_STYLE_INJECT", default=PROPAGATION_STYLE_DATADOG
-        )
+    _x_datadog_tags_max_length = En.v(
+        int, "DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", validator=_validate_x_datadog_tags_max_len, default=512
+    )
+    _x_datadog_tags_enabled = En.d(bool, lambda c: c._x_datadog_tags_max_length > 0)
 
-        # Datadog tracer tags propagation
-        x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
-        if x_datadog_tags_max_length < 0 or x_datadog_tags_max_length > 512:
-            raise ValueError(
-                (
-                    "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
-                    "only non-negative values less than or equal to 512 allowed"
-                ).format(x_datadog_tags_max_length)
-            )
-        self._x_datadog_tags_max_length = x_datadog_tags_max_length
-        self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
-
-        # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
-        self._trace_compute_stats = asbool(os.getenv("DD_TRACE_COMPUTE_STATS", False))
-        self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", False))
+    _raise = En.v(bool, "dd.testing.raise", default=False)
+    _trace_compute_stats = En.v(bool, "dd.trace.compute_stats", default=False)
 
     def __getattr__(self, name):
-        if name not in self._config:
-            self._config[name] = IntegrationConfig(self, name)
-
-        return self._config[name]
+        int_config = IntegrationConfig(self, name)
+        setattr(self, name, int_config)
+        return int_config
 
     def get_from(self, obj):
         """Retrieves the configuration for the given object.
@@ -254,9 +248,9 @@ class Config(object):
             # >>> config._add('requests', dict(split_by_domain=False))
             # >>> config.requests['split_by_domain']
             # True
-            self._config[integration] = IntegrationConfig(self, integration, _deepmerge(existing, settings))
+            setattr(self, integration, IntegrationConfig(self, integration, _deepmerge(existing, settings)))
         else:
-            self._config[integration] = IntegrationConfig(self, integration, settings)
+            setattr(self, integration, IntegrationConfig(self, integration, settings))
 
     def trace_headers(self, whitelist):
         """
@@ -297,5 +291,35 @@ class Config(object):
 
     def __repr__(self):
         cls = self.__class__
-        integrations = ", ".join(self._config.keys())
+        integrations = ", ".join(self.keys())
         return "{}.{}({})".format(cls.__module__, cls.__name__, integrations)
+
+
+# Include extra configuration to the global one by introspecting the content of
+# this submodule
+for f in glob.glob(os.path.join(os.path.abspath(os.path.dirname(__file__)), "*.py")):
+    if f.endswith("__init__.py") or f == os.path.abspath(__file__).replace(".pyc", ".py"):
+        # We don't want to re-import the `__init__` module, nor the current
+        # one (which might be loading as a pyc file).
+        continue
+
+    name, _ = os.path.splitext(os.path.basename(f))
+    module_name = "ddtrace.settings.%s" % name
+
+    module = importlib.import_module(module_name)
+
+    try:
+        (subconfig,) = (
+            _ for _ in module.__dict__.values() if isinstance(_, type) and issubclass(_, En) and _ is not En
+        )
+    except ValueError:
+        # The module doesn't have a top-level En subclass, or it has too many
+        # and therefore it is invalid
+        continue
+
+    # Add the subconfig to the global config under the namespace given by the
+    # module name
+    Config.include(subconfig, namespace=name)
+
+    # We can unload the module to free up resources
+    del sys.modules[module_name]
