@@ -230,6 +230,12 @@ below:
      - 64
      - The maximum number of frames to capture in stack execution tracing.
 
+       .. _dd-profiling-memory-enabled:
+   * - ``DD_PROFILING_MEMORY_ENABLED``
+     - Boolean
+     - True
+     - Whether to enable the memory profiler.
+
        .. _dd-profiling-heap-enabled:
    * - ``DD_PROFILING_HEAP_ENABLED``
      - Boolean

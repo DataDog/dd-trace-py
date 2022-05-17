@@ -9,6 +9,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
+from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.exporter import http
 
@@ -123,6 +124,29 @@ def test_tags_api():
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
+
+
+@pytest.mark.parametrize(
+    "value,should_be_enabled",
+    [
+        (None, True),  # default value
+        ("true", True),
+        ("0", False),
+    ],
+)
+def test_disable_memory(value, should_be_enabled, monkeypatch):
+    if value is not None:
+        monkeypatch.setenv("DD_PROFILING_MEMORY_ENABLED", value)
+    prof = profiler.Profiler()
+    for col in prof._profiler._collectors:
+        if isinstance(col, memalloc.MemoryCollector):
+            if should_be_enabled:
+                break
+            else:
+                pytest.fail("MemoryCollector found")
+    else:
+        if should_be_enabled:
+            pytest.fail("MemoryCollector not found")
 
 
 def test_env_agentless(monkeypatch):
