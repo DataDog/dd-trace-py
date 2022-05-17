@@ -1,4 +1,0 @@
----
-other:
-  - |
-    Refactors the Agent Writer to use the new HTTP Writer interface.
