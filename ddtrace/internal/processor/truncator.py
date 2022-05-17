@@ -69,8 +69,8 @@ class NormalizeSpanProcessor(SpanProcessor):
         pass
 
     def on_span_finish(self, span):
-        span.service = (span.service or DEFAULT_SERVICE_NAME)[:MAX_SERVICE_LENGTH]
-        span.name = (span.name or DEFAULT_SPAN_NAME)[:MAX_NAME_LENGTH]
+        span.service = truncate_to_length(span.service or DEFAULT_SERVICE_NAME, MAX_SERVICE_LENGTH)
+        span.name = truncate_to_length(span.name or DEFAULT_SPAN_NAME, MAX_NAME_LENGTH)
         if not span.resource:
             span.resource = span.name or DEFAULT_SPAN_NAME
         if span.span_type:
