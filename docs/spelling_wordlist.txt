@@ -41,6 +41,7 @@ CGroup
 cassandra
 cgroups
 cherrypy
+ciapp
 codepath
 committer
 compat

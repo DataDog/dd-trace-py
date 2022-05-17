@@ -42,6 +42,9 @@ TYPE = TEST_TYPE = "test.type"
 # Use when test implementation file is different from test suite name.
 FILE = TEST_FILE = "test.file"
 
+# Test Codeowners
+CODEOWNERS = TEST_CODEOWNERS = "test.codeowners"
+
 
 class Status(Enum):
     PASS = "pass"
