@@ -1,1 +1,4 @@
 * @DataDog/apm-python
+
+ddtrace/internal/codeowners.py @DataDog/apm-python @datadog/ci-app-tracers
+tests/contrib/pytest/ @DataDog/apm-python @datadog/ci-app-tracers
