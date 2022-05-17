@@ -56,7 +56,7 @@ def django_client(django_command, django_settings, django_env, django_port):
     """Runs a django app hosted with a daphne webserver in a subprocess and
     returns a client which can be used to query it.
 
-    Traces are flushed by invoking a tracer.shutdown() using a /shutdown-tracer route
+    Traces are flushed by shutting down the app using a /shutdown route
     at the end of the testcase.
     """
 
@@ -106,8 +106,10 @@ def django_client(django_command, django_settings, django_env, django_port):
                 "Server failed to start\n======DJANGO STDOUT=====%s\n\n======DJANGO STDERR=====%s\n" % (stdout, stderr)
             )
         yield client
-        resp = client.get_ignored("/shutdown-tracer")
-        assert resp.status_code == 200, resp.text
+        try:
+            client.get_ignored("/shutdown")
+        except Exception:
+            pass
         # At this point the traces have been sent to the test agent
         # but the test agent hasn't necessarily finished processing
         # the traces (race condition) so wait just a bit for that

@@ -67,6 +67,6 @@ urlpatterns = [
     handler(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
     handler(r"^404-view/$", views.not_found_view, name="404-view"),
     handler(r"^psycopg_query_default/$", views.psycopg_query_default),
-    handler(r"^shutdown-tracer/$", views.shutdown, name="shutdown-tracer"),
+    handler(r"^shutdown/$", views.shutdown, name="shutdown"),
     handler(r"^alter-resource/$", views.alter_resource),
 ]

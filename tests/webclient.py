@@ -23,7 +23,7 @@ class Client(object):
         return six.moves.urllib.parse.urljoin(self._base_url, path)
 
     def get(self, path, **kwargs):
-        return requests.get(self._url(path), timeout=10, **kwargs)
+        return requests.get(self._url(path), **kwargs)
 
     def get_ignored(self, path, **kwargs):
         """Do a normal get request but signal that the trace should be filtered out.
