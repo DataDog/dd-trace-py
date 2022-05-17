@@ -1,15 +1,7 @@
-from collections import defaultdict
 from doctest import DocTest
-from itertools import count
-from itertools import groupby
 import json
 import os
-import sys
 from typing import Dict
-from typing import Iterable
-from typing import List
-from typing import Tuple
-import warnings
 
 import pytest
 
@@ -101,42 +93,11 @@ def pytest_sessionstart(session):
             tracer_filters += [TraceCiVisibilityFilter()]
             pin.tracer.configure(settings={"FILTERS": tracer_filters})
 
-        if False and os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
-            if session.config.pluginmanager.hasplugin("_cov"):
-                plugin = session.config.pluginmanager.getplugin("_cov")
-                if plugin.options.cov_context:
-                    session.config.pluginmanager.unregister(name="_cov_contexts")
-                    warnings.warn(
-                        pytest.PytestWarning("_cov_contexts plugin is not compatible with ddtrace and will be disabled")
-                    )
-                    # raise RuntimeError(
-                    #     "DD_CIVISIBILITY_CODE_COVERAGE_ENABLED=true and --cov-context=test are incompatible. "
-                    #     "Remove --cov-context option to enable code coverage reporting in DataDog."
-                    # )
-                if plugin.cov_controller:
-                    cov = plugin.cov_controller.cov
-                    session.config.pluginmanager.register(CoveragePlugin(cov), "_datadog_cov_contexts")
-
 
 def pytest_sessionfinish(session, exitstatus):
     """Flush open tracer."""
     pin = Pin.get_from(session.config)
     if pin is not None:
-
-        # TODO enable code coverage submission
-        # if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
-        #     if session.config.pluginmanager.hasplugin("_cov"):
-        #         plugin = session.config.pluginmanager.getplugin("_cov")
-        #        if plugin.cov_controller:
-        #             cov = plugin.cov_controller.cov
-        #             for coverage in CIVisibilityReporter(cov).yield_per_context():
-        #                 requests.post(
-        #                     "https://ci.datadoghq.com/api/v1/ci/coverage",
-        #                     headers={"Content-Type": "application/json", "dd-api-key": os.environ["DD_API_KEY"]},
-        #                     data=json.dumps(coverage),
-        #                 )
-        #                 # proposed API: pin.tracer._ci.coverage.report(coverage)
-
         pin.tracer.shutdown()
 
 
@@ -200,39 +161,10 @@ def pytest_runtest_protocol(item, nextitem):
         _store_span(item, span)
 
         if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
-            import time
-            from coverage import Coverage
+            from ddtrace.internal.ci.coverage import cover
 
-            cov = Coverage(
-                data_file=None,
-                source=[str(item.config.rootdir)],
-                config_file=False,
-                context=str(span.trace_id),
-            )
-            cov.start()
-            # cov.switch_context(str(span.trace_id))
-            yield
-            cov.stop()
-            
-            import cProfile, pstats, io
-            from pstats import SortKey
-
-            start = time.time()
-            with open(".coverage-ci.json", "a") as f:
-                pr = cProfile.Profile()
-                pr.enable()
-                CIVisibilityReporter(cov).report(outfile=f, test_id=str(span.trace_id), root=str(item.config.rootdir))
-                pr.disable()
-                s = io.StringIO()
-                sortby = SortKey.CUMULATIVE
-                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-                ps.print_stats()
-                print(s.getvalue())
-                f.write("\n")
-                # for report in CIVisibilityReporter(cov).yield_per_context():
-                #     f.write(json.dumps(report))
-                #     f.write("\n")
-            print("Coverage report generated in %.2f seconds" % (time.time() - start))
+            with cover(span, root=str(item.config.rootdir)):
+                yield
         else:
             yield
 
@@ -289,211 +221,3 @@ def pytest_runtest_makereport(item, call):
             span.set_tag(test.RESULT, test.Status.XPASS.value)
         if call.excinfo:
             span.set_exc_info(call.excinfo.type, call.excinfo.value, call.excinfo.tb)
-
-    if False and os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
-        # NOTE enable in case we would like to submit coverage data as tags
-        if item.config.pluginmanager.hasplugin("_cov"):
-            plugin = item.config.pluginmanager.getplugin("_cov")
-            if plugin.cov_controller:
-                cov = plugin.cov_controller.cov
-                pytest.set_trace()
-                coverage = CIVisibilityReporter(cov).build(test_id=str(span.trace_id))
-                span.set_tag("test.coverage", json.dumps(coverage[:2]))
-
-
-def pytest_terminal_summary(terminalreporter, exitstatus, config):
-    """Add test coverage report to terminal summary."""
-    if False and os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
-        if config.pluginmanager.hasplugin("_cov"):
-            plugin = config.pluginmanager.getplugin("_cov")
-            if plugin.cov_controller:
-                cov = plugin.cov_controller.cov
-                with open(os.path.join(config.rootdir, ".coverage-ci.json"), "w") as f:
-                    for coverage in CIVisibilityReporter(cov).yield_per_context():
-                        line = json.dumps(coverage, indent=None)
-                        if config.option.verbose > 2:
-                            terminalreporter.write_line(line)
-                        f.write(line + "\n")
-                # alternative way to submit coverage data
-                with open(os.path.join(config.rootdir, ".coverage-ci-v2.json"), "w") as f:
-                    f.write(json.dumps(CIVisibilityReporter(cov).yield_per_context_v2(), indent=None))
-
-
-class CoveragePlugin:
-    def __init__(self, cov):
-        self.cov = cov
-
-    def pytest_runtest_setup(self, item):
-        self.switch_context(item, "setup")
-
-    def pytest_runtest_teardown(self, item):
-        self.switch_context(item, "teardown")
-
-    def pytest_runtest_call(self, item):
-        self.switch_context(item, "run")
-
-    def switch_context(self, item, when):
-        context = "{item.nodeid}|{when}".format(item=item, when=when)
-        span = _extract_span(item)
-        if span is not None:
-            context = str(span.trace_id)
-        # NOTE: alternatively we could keep a track of context to span ID mapping
-        self.cov.switch_context(context)
-        os.environ["COV_CORE_CONTEXT"] = context
-
-
-class CIVisibilityReporter:
-    """A reporter for writing CI Visibility JSON coverage results."""
-
-    report_type = "CI Visibility JSON report"
-
-    def __init__(self, coverage):
-        self.coverage = coverage
-        self.config = self.coverage.config
-
-    def segments(self, lines):
-        """Extract the relevant report data for a single file."""
-
-        def as_segments(it):
-            # type: (Iterable[int]) -> Tuple[int, int, int, int, int]
-            sequence = list(it)  # type: List[int]
-            return (sequence[0], 0, sequence[-1], 0, -1)
-
-        executed = sorted(lines)
-        return [as_segments(g) for _, g in groupby(executed, lambda n, c=count(): n - next(c))]
-
-    def yield_per_context(self, morfs=None):
-        """Yield the coverage report for each available context."""
-        # lazy import to avoid a hard dependency
-        from coverage.report import get_analysis_to_report
-
-        # test_id -> filename -> segments
-        tests = defaultdict(lambda: defaultdict(list))
-
-        for file_reporter, analysis in get_analysis_to_report(self.coverage, morfs):
-            if not analysis.executed:
-                continue
-
-            filename = file_reporter.relative_filename()
-            for line, contexts in analysis.data.contexts_by_lineno(analysis.filename).items():
-                line = int(line)
-                for context in contexts:
-                    tests[context][filename].append(line)
-
-        for test_id, stats in tests.items():
-            yield {
-                "type": "coverage",
-                "version": 1,
-                "content": {
-                    "test_id": test_id,
-                    "files": [
-                        {"filename": filename, "segments": self.segments(lines)} for filename, lines in stats.items()
-                    ],
-                },
-            }
-
-    def yield_per_context_v2(self, morfs=None):
-        """Yield the coverage report for each available context."""
-        # lazy import to avoid a hard dependency
-        from coverage.report import get_analysis_to_report
-
-        # filename -> line number -> test_ids
-
-        def segments(lines_with_context):
-            def as_segments(it):
-                sequence = list(it)
-                if len(sequence) == 1:
-                    return (str(sequence[0][0]), sequence[0][1])
-                return (str(sequence[0][0]) + "-" + str(sequence[-1][0]), sequence[0][1])
-
-            executed = sorted(lines_with_context)
-            return dict(as_segments(g) for _, g in groupby(executed, lambda n, c=count(): (n[0] - next(c), n[1])))
-
-        return {
-            f: r
-            for f, r in (
-                (
-                    file_reporter.relative_filename(),
-                    segments(
-                        (int(line), sorted(test_ids))
-                        for line, test_ids in analysis.data.contexts_by_lineno(analysis.filename).items()
-                        if test_ids and test_ids != [""]
-                    ),
-                )
-                for file_reporter, analysis in get_analysis_to_report(self.coverage, morfs)
-                if analysis.executed
-            )
-            if r
-        }
-
-    def _lines(self, context):
-        from coverage.numbits import numbits_to_nums
-        
-        data = self.coverage.get_data()
-
-        context_id = data._context_id(context)
-        data._start_using()
-        with data._connect() as con:
-            query = (
-                "select file.path, line_bits.numbits "
-                "from line_bits "
-                "join file on line_bits.file_id = file.id "
-                "where context_id = ?"
-            )
-            data = [context_id]
-            bitmaps = list(con.execute(query, data))
-            return {row[0]: numbits_to_nums(row[1]) for row in bitmaps if not row[0].startswith("..")}
-
-    def build(self, morfs=None, test_id=None, root=None):
-        """Generate a CI Visibility structure.
-
-        `morfs` is a list of modules or file names.
-        """
-        return [
-             {
-                 "filename": os.path.relpath(filename, root) if root is not None else filename,
-                 "segments": self.segments(lines),
-             }
-             for filename, lines in self._lines(test_id).items()
-        ]
-        # lazy import to avoid a hard dependency
-        from coverage.report import get_analysis_to_report
-
-        coverage_data = self.coverage.get_data()
-        coverage_data.set_query_contexts([test_id])
-        measured_files = []
-
-        for file_reporter, analysis in get_analysis_to_report(self.coverage, morfs):
-            if not analysis.executed:
-                continue
-            measured_files.append(
-                {
-                    "filename": os.path.relpath(file_reporter.relative_filename(), root)
-                    if root is not None
-                    else file_reporter.relative_filename(),
-                    "segments": self.segments(list(analysis.executed)),
-                }
-            )
-        
-        return measured_files
-
-    def report(self, morfs=None, outfile=None, test_id=None, root=None):
-        """Generate a CI Visibility report.
-
-        `morfs` is a list of modules or file names.
-        `outfile` is a file object to write the json to.
-        """
-        outfile = outfile or sys.stdout
-
-        json.dump(
-            {
-                "type": "coverage",
-                "version": 1,
-                "content": {
-                    "test_id": test_id,
-                    "files": self.build(morfs=morfs, test_id=test_id, root=root),
-                },
-            },
-            outfile,
-            indent=(4 if self.config.json_pretty_print else None),
-        )
