@@ -37,6 +37,22 @@ Configuration
     Default: ``False``
 
 
+.. py:data:: ddtrace.config.botocore['operations'][<operation>].error_statuses = "<error statuses>"
+
+    Definition of which HTTP status codes to consider for making a span as an error span.
+
+    By default response status codes of ``'500-599'`` are considered as errors for all endpoints.
+
+    Example marking 404, and 5xx as errors for ``s3.headobject`` API calls::
+
+        from ddtrace import config
+
+        config.botocore['operations']['s3.headobject'].error_statuses = '404,500-599'
+
+
+    See :ref:`HTTP - Custom Error Codes<http-custom-error>` documentation for more examples.
+
+
 Example::
 
     from ddtrace import config

@@ -52,10 +52,8 @@ _POSSIBLE_HTTP_HEADER_B3_FLAGS = _possible_header(_HTTP_HEADER_B3_FLAGS)
 def _extract_header_value(possible_header_names, headers, default=None):
     # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
     for header in possible_header_names:
-        try:
+        if header in headers:
             return headers[header]
-        except KeyError:
-            pass
 
     return default
 
