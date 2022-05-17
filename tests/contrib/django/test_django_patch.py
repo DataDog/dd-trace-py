@@ -21,6 +21,7 @@ class TestDjangoPatch(PatchTestCase.Base):
     def assert_not_module_patched(self, django):
         self.assert_not_wrapped(django.apps.registry.Apps.populate)
         import django.core.handlers.base
+
         self.assert_not_wrapped(django.core.handlers.base.BaseHandler.load_middleware)
         self.assert_not_wrapped(django.core.handlers.base.BaseHandler.get_response)
         self.assert_not_wrapped(django.template.base.Template.render)
