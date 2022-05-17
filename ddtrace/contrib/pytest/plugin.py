@@ -101,7 +101,7 @@ def pytest_sessionstart(session):
             tracer_filters += [TraceCiVisibilityFilter()]
             pin.tracer.configure(settings={"FILTERS": tracer_filters})
 
-        if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
+        if False and os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
             if session.config.pluginmanager.hasplugin("_cov"):
                 plugin = session.config.pluginmanager.getplugin("_cov")
                 if plugin.options.cov_context:
@@ -199,7 +199,42 @@ def pytest_runtest_protocol(item, nextitem):
             span.set_tags(tags)
         _store_span(item, span)
 
-        yield
+        if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
+            import time
+            from coverage import Coverage
+
+            cov = Coverage(
+                data_file=None,
+                source=[str(item.config.rootdir)],
+                config_file=False,
+                context=str(span.trace_id),
+            )
+            cov.start()
+            # cov.switch_context(str(span.trace_id))
+            yield
+            cov.stop()
+            
+            import cProfile, pstats, io
+            from pstats import SortKey
+
+            start = time.time()
+            with open(".coverage-ci.json", "a") as f:
+                pr = cProfile.Profile()
+                pr.enable()
+                CIVisibilityReporter(cov).report(outfile=f, test_id=str(span.trace_id), root=str(item.config.rootdir))
+                pr.disable()
+                s = io.StringIO()
+                sortby = SortKey.CUMULATIVE
+                ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+                ps.print_stats()
+                print(s.getvalue())
+                f.write("\n")
+                # for report in CIVisibilityReporter(cov).yield_per_context():
+                #     f.write(json.dumps(report))
+                #     f.write("\n")
+            print("Coverage report generated in %.2f seconds" % (time.time() - start))
+        else:
+            yield
 
 
 def _extract_reason(call):
@@ -268,7 +303,7 @@ def pytest_runtest_makereport(item, call):
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
     """Add test coverage report to terminal summary."""
-    if os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
+    if False and os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_ENABLED") == "true":
         if config.pluginmanager.hasplugin("_cov"):
             plugin = config.pluginmanager.getplugin("_cov")
             if plugin.cov_controller:
@@ -391,11 +426,36 @@ class CIVisibilityReporter:
             if r
         }
 
-    def build(self, morfs=None, test_id=None):
+    def _lines(self, context):
+        from coverage.numbits import numbits_to_nums
+        
+        data = self.coverage.get_data()
+
+        context_id = data._context_id(context)
+        data._start_using()
+        with data._connect() as con:
+            query = (
+                "select file.path, line_bits.numbits "
+                "from line_bits "
+                "join file on line_bits.file_id = file.id "
+                "where context_id = ?"
+            )
+            data = [context_id]
+            bitmaps = list(con.execute(query, data))
+            return {row[0]: numbits_to_nums(row[1]) for row in bitmaps if not row[0].startswith("..")}
+
+    def build(self, morfs=None, test_id=None, root=None):
         """Generate a CI Visibility structure.
 
         `morfs` is a list of modules or file names.
         """
+        return [
+             {
+                 "filename": os.path.relpath(filename, root) if root is not None else filename,
+                 "segments": self.segments(lines),
+             }
+             for filename, lines in self._lines(test_id).items()
+        ]
         # lazy import to avoid a hard dependency
         from coverage.report import get_analysis_to_report
 
@@ -408,13 +468,16 @@ class CIVisibilityReporter:
                 continue
             measured_files.append(
                 {
-                    "filename": file_reporter.relative_filename(),
+                    "filename": os.path.relpath(file_reporter.relative_filename(), root)
+                    if root is not None
+                    else file_reporter.relative_filename(),
                     "segments": self.segments(list(analysis.executed)),
                 }
             )
+        
         return measured_files
 
-    def report(self, morfs=None, outfile=None, test_id=None):
+    def report(self, morfs=None, outfile=None, test_id=None, root=None):
         """Generate a CI Visibility report.
 
         `morfs` is a list of modules or file names.
@@ -428,7 +491,7 @@ class CIVisibilityReporter:
                 "version": 1,
                 "content": {
                     "test_id": test_id,
-                    "files": self.build(morfs=morfs, test_id=test_id),
+                    "files": self.build(morfs=morfs, test_id=test_id, root=root),
                 },
             },
             outfile,
