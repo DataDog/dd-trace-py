@@ -28,6 +28,8 @@ class TestDjangoPatch(PatchTestCase.Base):
         if django.VERSION >= (2, 0, 0):
             self.assert_not_wrapped(django.urls.path)
             self.assert_not_wrapped(django.urls.re_path)
+        import django.views.generic
+
         self.assert_not_wrapped(django.views.generic.base.View.as_view)
 
     def assert_not_module_double_patched(self, django):
