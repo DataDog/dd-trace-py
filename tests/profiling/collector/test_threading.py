@@ -18,7 +18,7 @@ def test_repr():
     test_collector._test_repr(
         collector_threading.ThreadingLockCollector,
         "ThreadingLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=32768, max_events={}), capture_pct=2.0, nframes=64, "
+        "recorder=Recorder(default_max_events=16384, max_events={}), capture_pct=1.0, nframes=64, "
         "endpoint_collection_enabled=True, tracer=None)",
     )
 

@@ -1,3 +1,5 @@
+import os
+
 import psycopg2
 import pytest
 
@@ -31,16 +33,25 @@ def test_connect_traced():
         assert conn
 
 
-@pytest.mark.subprocess(env={"DD_PSYCOPG_TRACE_CONNECT": "true"})
 @pytest.mark.snapshot(token="tests.contrib.psycopg.test_psycopg_snapshot.test_connect_traced")
-def test_connect_traced_via_env():
+def test_connect_traced_via_env(run_python_code_in_subprocess):
     """When explicitly enabled, we trace psycopg2.connect method"""
-    import psycopg2
 
-    import ddtrace
-    from tests.contrib.config import POSTGRES_CONFIG
+    code = """
+import psycopg2
 
-    ddtrace.patch_all()
+import ddtrace
+from tests.contrib.config import POSTGRES_CONFIG
 
-    conn = psycopg2.connect(**POSTGRES_CONFIG)
-    assert conn
+ddtrace.patch_all()
+
+conn = psycopg2.connect(**POSTGRES_CONFIG)
+assert conn
+    """
+
+    env = os.environ.copy()
+    env["DD_PSYCOPG_TRACE_CONNECT"] = "true"
+    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+    assert out == b"", err
+    assert err == b""
