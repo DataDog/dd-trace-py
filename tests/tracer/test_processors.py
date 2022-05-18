@@ -327,9 +327,9 @@ def test_span_truncator():
     tags = span.get_tags()
     metrics = span.get_metrics()
 
-    assert span.resource == "x" * MAX_RESOURCE_NAME_LENGTH + "..."
-    assert tags["t" * MAX_META_KEY_LENGTH + "..."] == "v" * MAX_META_VALUE_LENGTH + "..."
-    assert metrics["m" * MAX_METRIC_KEY_LENGTH + "..."] == 1
+    assert span.resource == "x" * MAX_RESOURCE_NAME_LENGTH
+    assert tags["t" * MAX_META_KEY_LENGTH] == "v" * MAX_META_VALUE_LENGTH
+    assert metrics["m" * MAX_METRIC_KEY_LENGTH] == 1
 
 
 def test_span_normalizator():

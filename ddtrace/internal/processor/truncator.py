@@ -40,12 +40,12 @@ MAX_TYPE_LENGTH = 100
 """MAX_TYPE_LENGTH the maximum length a span type can have."""
 
 
-def truncate_to_length(value, max_length, suffix="..."):
-    """Truncate a string to a maximum length and append a suffix."""
+def truncate_to_length(value, max_length):
+    """Truncate a string to a maximum length."""
     if not value or len(value) <= max_length:
         return value
 
-    return value[:max_length] + suffix
+    return value[:max_length]
 
 
 class TruncateSpanProcessor(SpanProcessor):
@@ -69,10 +69,6 @@ class NormalizeSpanProcessor(SpanProcessor):
         pass
 
     def on_span_finish(self, span):
-        # TODO (jirikuncar): do we need to convert int64 to string?
-        # span.span_id
-        # span.trace_id
-        # span.parent_id
         span.service = (span.service or DEFAULT_SERVICE_NAME)[:MAX_SERVICE_LENGTH]
         span.name = (span.name or DEFAULT_SPAN_NAME)[:MAX_NAME_LENGTH]
         if not span.resource:
