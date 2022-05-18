@@ -112,6 +112,15 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag(test.TYPE, SpanTypes.TEST)
         span.set_tag(test.FRAMEWORK_VERSION, pytest.__version__)
 
+        codeowners = CIRecorder._instance._codeowners
+        if codeowners is not None and item.location and item.location[0]:
+            try:
+                handles = codeowners.of(item.location[0])
+                if handles:
+                    span.set_tag(test.CODEOWNERS, json.dumps(handles))
+            except KeyError:
+                log.debug("no matching codeowners for %s", item.location[0])
+
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
         # (where the actual test status is set), it means there was a pytest error
         span.set_tag(test.STATUS, test.Status.FAIL.value)

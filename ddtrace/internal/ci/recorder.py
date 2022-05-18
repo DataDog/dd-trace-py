@@ -47,6 +47,7 @@ class CIRecorder(object):
     config = attr.ib(default=None)
     _tags = attr.ib(type=dict, factory=ci.tags)
     _service = attr.ib(type=str, default=None)
+    _codeowners = attr.ib(default=None)
 
     enabled = False
     _instance = None  # type: ClassVar[Optional[CIRecorder]]
@@ -70,6 +71,16 @@ class CIRecorder(object):
             self._service = repository_name
         else:
             self._service = self._service or service
+
+        try:
+            from ddtrace.internal.codeowners import Codeowners
+
+            self._codeowners = Codeowners()
+        except ValueError:
+            # the CODEOWNERS file is not available
+            pass
+        except Exception:
+            log.warning("Failed to load CODEOWNERS", exc_info=True)
 
     def _set_test_defaults_on_span(
         self,
