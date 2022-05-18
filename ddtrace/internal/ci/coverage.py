@@ -29,6 +29,7 @@ def cover(span, root=None, **kwargs):
 
 
 def segments(lines):
+    # type: (Iterable[int]) -> Iterable[Tuple[int, int, int, int, int]]
     """Extract the relevant report data for a single file."""
 
     def as_segments(it):
@@ -36,8 +37,12 @@ def segments(lines):
         sequence = list(it)  # type: List[int]
         return (sequence[0], 0, sequence[-1], 0, -1)
 
+    def grouper(n, c=count()):
+        # type: (int, count[int]) -> int
+        return n - next(c)
+
     executed = sorted(lines)
-    return [as_segments(g) for _, g in groupby(executed, lambda n, c=count(): n - next(c))]
+    return [as_segments(g) for _, g in groupby(executed, grouper)]
 
 
 class CIVisibilityReporter:
