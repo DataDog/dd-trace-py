@@ -1,5 +1,6 @@
 """Configure tracer and generated spans."""
 
+import json
 from typing import Any
 from typing import ClassVar
 from typing import Optional
@@ -14,7 +15,7 @@ import attr
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.trace_utils import int_service
-from ddtrace.ext import SpanTypes
+from ddtrace.ext import SpanTypes, test
 from ddtrace.ext import ci
 from ddtrace.internal import compat
 from ddtrace.internal import forksafe
@@ -69,8 +70,8 @@ class CIRecorder(object):
         ):
             repository_name = _extract_repository_name(self._tags[ci.git.REPOSITORY_URL])
             self._service = repository_name
-        else:
-            self._service = self._service or service
+        elif self._service is None and service is not None:
+            self._service = service
 
         try:
             from ddtrace.internal.codeowners import Codeowners
@@ -164,3 +165,19 @@ class CIRecorder(object):
 
             cls._instance = recorder
             cls.enabled = True
+
+    @classmethod
+    def set_codeowners_of(cls, location, span=None):
+        if not cls.enabled or cls._instance is None or cls._instance._codeowners is None or not location:
+            return
+
+        span = span or cls._instance.tracer.current_span()
+        if span is None:
+            return
+
+        try:
+            handles = cls._instance._codeowners.of(location)
+            if handles:
+                span.set_tag(test.CODEOWNERS, json.dumps(handles))
+        except KeyError:
+            log.debug("no matching codeowners for %s", location)
