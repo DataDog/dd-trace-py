@@ -1089,6 +1089,7 @@ requires_tests: &requires_tests
     - pyodbc
     - pyramid
     - pytest
+    - pytestbdd
     - aredis
     - yaaredis
     - redis
@@ -1179,6 +1180,7 @@ workflows:
       - pyodbc: *requires_base_venvs
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
+      - pytestbdd: *requires_base_venvs
       - aredis: *requires_base_venvs
       - yaaredis: *requires_base_venvs
       - redis: *requires_base_venvs
