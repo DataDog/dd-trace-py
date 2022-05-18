@@ -698,6 +698,36 @@ class TestPytest(TracerTestCase):
 
         assert test_span.get_tag(test.FRAMEWORK_VERSION) == pytest.__version__
 
+    def test_pytest_will_report_codeowners(self):
+        file_names = []
+        py_team_a_file = self.testdir.makepyfile(
+            test_team_a="""
+        import pytest
+
+        def test_team_a():
+            assert 1 == 1
+        """
+        )
+        file_names.append(os.path.basename(py_team_a_file.strpath))
+        py_team_b_file = self.testdir.makepyfile(
+            test_team_b="""
+        import pytest
+
+        def test_team_b():
+            assert 1 == 1
+        """
+        )
+        file_names.append(os.path.basename(py_team_b_file.strpath))
+        codeowners = "* @default-team\n{0} @team-b @backup-b".format(os.path.basename(py_team_b_file.strpath))
+        self.testdir.makefile("", CODEOWNERS=codeowners)
+
+        self.inline_run("--ddtrace", *file_names)
+        spans = self.pop_spans()
+
+        assert len(spans) == 2
+        assert json.loads(spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], spans[0]
+        assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
+
 
 @pytest.mark.parametrize(
     "repository_url,repository_name",

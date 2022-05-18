@@ -100,7 +100,8 @@ try:
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
 
-    tracer.configure(**opts)
+    if not opts:
+        tracer.configure(**opts)
 
     if trace_enabled:
         update_patched_modules()

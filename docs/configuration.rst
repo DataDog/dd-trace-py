@@ -230,6 +230,12 @@ below:
      - 64
      - The maximum number of frames to capture in stack execution tracing.
 
+       .. _dd-profiling-memory-enabled:
+   * - ``DD_PROFILING_MEMORY_ENABLED``
+     - Boolean
+     - True
+     - Whether to enable the memory profiler.
+
        .. _dd-profiling-heap-enabled:
    * - ``DD_PROFILING_HEAP_ENABLED``
      - Boolean
@@ -239,7 +245,7 @@ below:
        .. _dd-profiling-capture-pct:
    * - ``DD_PROFILING_CAPTURE_PCT``
      - Float
-     - 2
+     - 1
      - The percentage of events that should be captured (e.g. memory
        allocation). Greater values reduce the program execution speed. Must be
        greater than 0 lesser or equal to 100.
