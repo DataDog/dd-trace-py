@@ -547,16 +547,10 @@ def test_ci_agentless_encoder_v1():
 
     max_item_size = 1 << 10
     encoder = AgentlessEncoderV1(max_item_size << 1, max_item_size)
-    encoder.metadata = metadata = {
-        "*": {
-            "runtime-id": "d1a7273c-fcd7-419d-a4ff-f1c0f5e22c32",
-            "language": "python",
-            "env": "test",
-        },
-    }
+
     trace = [
-        Span(name="v05-test", service="foo", resource="test_1", span_type="test"),
-        Span(name="v05-test", service="foo", resource="POST", span_type="http"),
+        Span(name="v01-agentless-test", service="foo", resource="test_1", span_type="test"),
+        Span(name="v01-agentless-http", service="foo", resource="POST", span_type="http"),
         Span(name=None, service="bar"),
     ]
     encoder.put(trace)
@@ -569,7 +563,7 @@ def test_ci_agentless_encoder_v1():
     assert "test" == encoded_traces["events"][0]["type"]
     assert "span" == encoded_traces["events"][1]["type"]
     assert "span" == encoded_traces["events"][2]["type"]
-    assert metadata == encoded_traces["metadata"]
+    assert encoder.metadata == encoded_traces["metadata"]
 
 
 def string_table_test(t, offset=0):
