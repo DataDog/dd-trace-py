@@ -4,6 +4,7 @@ import os
 import pytest
 
 from ddtrace.contrib.pytest.plugin import _extract_span as _extract_feature_span
+from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.pytest_bdd.constants import STEP_KIND
 from ddtrace.ext import test
 from ddtrace.pin import Pin
@@ -21,10 +22,15 @@ def _store_span(item, span):
 
 def pytest_sessionstart(session):
     if session.config.pluginmanager.hasplugin("pytest-bdd"):
-        session.config.pluginmanager.register(_PytestBddPlugin, "_datadog-pytest-bdd")
+        session.config.pluginmanager.register(_PytestBddPlugin(), "_datadog-pytest-bdd")
 
 
 class _PytestBddPlugin:
+    def __init__(self):
+        import pytest_bdd
+
+        self.framework_version = pytest_bdd.__version__
+
     @staticmethod
     @pytest.hookimpl(tryfirst=True)
     def pytest_bdd_before_scenario(request, feature, scenario):
@@ -37,9 +43,8 @@ class _PytestBddPlugin:
                 span.set_tag(test.SUITE, location)  # override test suite name with .feature location
                 # TODO: add code owner of the location after https://github.com/DataDog/dd-trace-py/pull/3635 is merged
 
-    @staticmethod
     @pytest.hookimpl(tryfirst=True)
-    def pytest_bdd_before_step(request, feature, scenario, step, step_func):
+    def pytest_bdd_before_step(self, request, feature, scenario, step, step_func):
         pin = Pin.get_from(request.config)
         if pin:
             feature_span = _extract_feature_span(request.node)
@@ -50,6 +55,8 @@ class _PytestBddPlugin:
                 child_of=feature_span,
                 activate=True,
             )
+            span.set_tag(test.FRAMEWORK, FRAMEWORK)
+            span.set_tag(test.FRAMEWORK_VERSION, self.framework_version)
 
             # store parsed step arguments
             parser = getattr(step_func, "parser", None)
