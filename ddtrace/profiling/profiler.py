@@ -120,6 +120,9 @@ class _ProfilerInstance(service.Service):
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_AGENTLESS", "False")), type=bool)
     asyncio_loop_policy = attr.ib(factory=DdtraceProfilerEventLoopPolicy, repr=False, eq=False)
+    _memory_collector_enabled = attr.ib(
+        factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
+    )
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
@@ -170,6 +173,7 @@ class _ProfilerInstance(service.Service):
         ]
 
     def __attrs_post_init__(self):
+        # type: (...) -> None
         # Allow to store up to 10 threads for 60 seconds at 50 Hz
         max_stack_events = 10 * 60 * 50
         r = self._recorder = recorder.Recorder(
@@ -187,11 +191,13 @@ class _ProfilerInstance(service.Service):
         )
 
         self._collectors = [
-            stack.StackCollector(r, tracer=self.tracer),
-            memalloc.MemoryCollector(r),
-            threading.ThreadingLockCollector(r, tracer=self.tracer),
-            asyncio.AsyncioLockCollector(r, tracer=self.tracer),
+            stack.StackCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
+            threading.ThreadingLockCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
+            asyncio.AsyncioLockCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
         ]
+
+        if self._memory_collector_enabled:
+            self._collectors.append(memalloc.MemoryCollector(r))
 
         exporters = self._build_default_exporters()
 

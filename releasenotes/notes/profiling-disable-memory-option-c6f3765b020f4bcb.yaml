@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    The memory profile collector can now entirely disabled with the
+    ``DD_PROFILING_MEMORY_ENABLED`` environment variable.
