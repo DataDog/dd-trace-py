@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 
 import pytest
 
@@ -93,5 +94,10 @@ class _PytestBddPlugin:
     def pytest_bdd_step_error(request, feature, scenario, step, step_func, step_func_args, exception):
         span = _extract_span(step_func)
         if span is not None:
-            span.set_exc_info(type(exception), exception, exception.__traceback__)
+            if hasattr(exception, "__traceback__"):
+                tb = exception.__traceback__
+            else:
+                # PY2 compatibility workaround
+                _, _, tb = sys.exc_info()
+            span.set_exc_info(type(exception), exception, tb)
             span.finish()
