@@ -10,6 +10,6 @@
 - [ ] No breaking [API](https://ddtrace.readthedocs.io/en/stable/versioning.html#interfaces) changes are introduced.
 - [ ] Tests provided or description of manual testing performed is included in the code or PR.
 - [ ] Release note has been added (if necessary) and is meaningful for users.
-- [ ] All relevant github issues are correctly linked.
+- [ ] All relevant GitHub issues are correctly linked.
 - [ ] Added to the correct milestone.
 - [ ] Be Kind.
