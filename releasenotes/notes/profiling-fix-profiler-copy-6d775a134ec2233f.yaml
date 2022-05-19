@@ -1,0 +1,9 @@
+---
+upgrade:
+  - |
+    The profiler ``asyncio_loop_policy`` attribute has been renamed to
+    ``asyncio_loop_policy_class`` to accept a user-defined class. This
+    guarantees the same asyncio loop policy class can be used process children.
+fixes:
+  - |
+    The profiler now copy all user-provided attributes on fork.
