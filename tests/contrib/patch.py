@@ -312,12 +312,6 @@ class PatchTestCase(object):
             self.__patch_func__()
             self.assert_module_patched(module)
 
-            # import fastapi
-            # from ddtrace import patch
-
-            # patch(fastapi=True)
-            # self.assert_module_patched(fastapi)
-
         @raise_if_no_attrs
         def test_patch_import(self):
             """
