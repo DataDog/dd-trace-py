@@ -46,7 +46,7 @@ class _PytestBddPlugin:
                 location = os.path.relpath(scenario.feature.filename, str(request.config.rootdir))
                 span.set_tag(test.NAME, scenario.name)
                 span.set_tag(test.SUITE, location)  # override test suite name with .feature location
-                
+
                 codeowners = pin._config.get("_codeowners")
                 if codeowners is not None:
                     try:
