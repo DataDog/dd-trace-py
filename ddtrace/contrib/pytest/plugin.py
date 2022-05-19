@@ -112,7 +112,7 @@ def pytest_runtest_protocol(item, nextitem):
         span.set_tag(test.TYPE, SpanTypes.TEST)
         span.set_tag(test.FRAMEWORK_VERSION, pytest.__version__)
 
-        if item.location and item.locations[0]:
+        if item.location and item.location[0]:
             CIRecorder.set_codeowners_of(item.location[0], span=span)
 
         # We preemptively set FAIL as a status, because if pytest_runtest_makereport is not called
