@@ -215,6 +215,10 @@ setup(
     name="ddtrace",
     description="Datadog APM client library",
     url="https://github.com/DataDog/dd-trace-py",
+    package_urls={
+        "Changelog": "https://ddtrace.readthedocs.io/en/stable/release_notes.html",
+        "Documentation": "https://ddtrace.readthedocs.io/en/stable/",
+    },
     author="Datadog, Inc.",
     author_email="dev@datadoghq.com",
     long_description=long_description,
