@@ -8,7 +8,11 @@ from ddtrace.contrib.pytest.plugin import _extract_span as _extract_feature_span
 from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.pytest_bdd.constants import STEP_KIND
 from ddtrace.ext import test
+from ddtrace.internal.logger import get_logger
 from ddtrace.pin import Pin
+
+
+log = get_logger(__name__)
 
 
 def _extract_span(item):
@@ -42,7 +46,15 @@ class _PytestBddPlugin:
                 location = os.path.relpath(scenario.feature.filename, str(request.config.rootdir))
                 span.set_tag(test.NAME, scenario.name)
                 span.set_tag(test.SUITE, location)  # override test suite name with .feature location
-                # TODO: add code owner of the location after https://github.com/DataDog/dd-trace-py/pull/3635 is merged
+                
+                codeowners = pin._config.get("_codeowners")
+                if codeowners is not None:
+                    try:
+                        handles = codeowners.of(location)
+                        if handles:
+                            span.set_tag(test.CODEOWNERS, json.dumps(handles))
+                    except KeyError:
+                        log.debug("no matching codeowners for %s", location)
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_bdd_before_step(self, request, feature, scenario, step, step_func):
@@ -80,7 +92,15 @@ class _PytestBddPlugin:
 
             location = os.path.relpath(step_func.__code__.co_filename, str(request.config.rootdir))
             span.set_tag(test.FILE, location)
-            # TODO: extract code owners for the step "location"
+            codeowners = pin._config.get("_codeowners")
+            if codeowners is not None:
+                try:
+                    handles = codeowners.of(location)
+                    if handles:
+                        span.set_tag(test.CODEOWNERS, json.dumps(handles))
+                except KeyError:
+                    log.debug("no matching codeowners for %s", location)
+
             _store_span(step_func, span)
 
     @staticmethod
