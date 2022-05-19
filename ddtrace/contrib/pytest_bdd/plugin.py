@@ -62,9 +62,9 @@ class _PytestBddPlugin:
         if pin:
             feature_span = _extract_feature_span(request.node)
             span = pin.tracer.start_span(
-                STEP_KIND,
+                step.type,
                 resource=step.name,
-                span_type=step.type,
+                span_type=STEP_KIND,
                 child_of=feature_span,
                 activate=True,
             )
