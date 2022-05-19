@@ -13,6 +13,7 @@ class TestStarlettePatch(PatchTestCase.Base):
         self.assert_wrapped(starlette.applications.Starlette.__init__)
 
     def assert_not_module_patched(self, starlette):
+        import starlette.applications
         self.assert_not_wrapped(starlette.applications.Starlette.__init__)
 
     def assert_not_module_double_patched(self, starlette):
