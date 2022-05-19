@@ -140,11 +140,11 @@ class TestPytest(TracerTestCase):
         assert spans[0].get_tag("test.name") == "Simple scenario"
         assert spans[0].span_type == "test"
         assert spans[1].resource == "I have a bar"
-        assert spans[1].span_type == "given"
+        assert spans[1].name == "given"
         assert spans[2].resource == "I eat it"
-        assert spans[2].span_type == "when"
+        assert spans[2].name == "when"
         assert spans[3].resource == "I don't have a bar"
-        assert spans[3].span_type == "then"
+        assert spans[3].name == "then"
 
     def test_pytest_bdd_scenario_with_failed_step(self):
         """Test that pytest-bdd traces scenario with a failed step."""
@@ -182,7 +182,7 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[-1].span_type == "then"
+        assert spans[-1].name == "then"
         assert spans[-1].get_tag("error.msg")
 
     def test_pytest_bdd_with_missing_step_implementation(self):
