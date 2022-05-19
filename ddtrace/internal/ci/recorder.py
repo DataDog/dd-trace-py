@@ -15,8 +15,9 @@ import attr
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.trace_utils import int_service
-from ddtrace.ext import SpanTypes, test
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
+from ddtrace.ext import test
 from ddtrace.internal import compat
 from ddtrace.internal import forksafe
 from ddtrace.internal.ci.filters import TraceCiVisibilityFilter
