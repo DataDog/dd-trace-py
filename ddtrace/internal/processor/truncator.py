@@ -58,10 +58,7 @@ class TruncateSpanProcessor(SpanProcessor):
             truncate_to_length(k, MAX_META_KEY_LENGTH): truncate_to_length(v, MAX_META_VALUE_LENGTH)
             for k, v in span._meta.items()
         }
-        span._metrics = {
-            truncate_to_length(k, MAX_METRIC_KEY_LENGTH): v
-            for k, v in span._metrics.items()
-        }
+        span._metrics = {truncate_to_length(k, MAX_METRIC_KEY_LENGTH): v for k, v in span._metrics.items()}
 
 
 class NormalizeSpanProcessor(SpanProcessor):
