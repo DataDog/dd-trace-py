@@ -6,7 +6,7 @@ from . import SpanProcessor
 
 
 # Values from:
-# https://github.com/DataDog/datadog-agent/blob/main/pkg/trace/traceutil/truncate.go#L22-L27
+# https://github.com/DataDog/datadog-agent/blob/ff91f174c6534be2b6f24baddc71eaec9224b0fc/pkg/trace/traceutil/truncate.go#L22-L27
 
 MAX_RESOURCE_NAME_LENGTH = 5000
 """MAX_RESOURCE_NAME_LENGTH the maximum length a span resource can have."""
@@ -21,7 +21,7 @@ MAX_METRIC_KEY_LENGTH = MAX_META_KEY_LENGTH
 """MAX_METRIC_KEY_LENGTH the maximum length of a metric name key."""
 
 # From agent normalizer:
-# https://github.com/DataDog/datadog-agent/blob/main/pkg/trace/traceutil/normalize.go
+# https://github.com/DataDog/datadog-agent/blob/ff91f174c6534be2b6f24baddc71eaec9224b0fc/pkg/trace/traceutil/normalize.go#L23-L28
 
 DEFAULT_SPAN_NAME = "unnamed_operation"
 """DEFAULT_SPAN_NAME is the default name we assign a span if it's missing and we have no reasonable fallback."""
@@ -55,12 +55,12 @@ class TruncateSpanProcessor(SpanProcessor):
     def on_span_finish(self, span):
         span.resource = truncate_to_length(span.resource, MAX_RESOURCE_NAME_LENGTH)
         span._meta = {
-            truncate_to_length(metaKey, MAX_META_KEY_LENGTH): truncate_to_length(metaValue, MAX_META_VALUE_LENGTH)
-            for metaKey, metaValue in span._meta.items()
+            truncate_to_length(k, MAX_META_KEY_LENGTH): truncate_to_length(v, MAX_META_VALUE_LENGTH)
+            for k, v in span._meta.items()
         }
         span._metrics = {
-            truncate_to_length(metricsKey, MAX_METRIC_KEY_LENGTH): metricsValue
-            for metricsKey, metricsValue in span._metrics.items()
+            truncate_to_length(k, MAX_METRIC_KEY_LENGTH): v
+            for k, v in span._metrics.items()
         }
 
 
@@ -72,6 +72,6 @@ class NormalizeSpanProcessor(SpanProcessor):
         span.service = truncate_to_length(span.service or DEFAULT_SERVICE_NAME, MAX_SERVICE_LENGTH)
         span.name = truncate_to_length(span.name or DEFAULT_SPAN_NAME, MAX_NAME_LENGTH)
         if not span.resource:
-            span.resource = span.name or DEFAULT_SPAN_NAME
+            span.resource = span.name
         if span.span_type:
             span.span_type = span.span_type[:MAX_TYPE_LENGTH]
