@@ -3,6 +3,7 @@ import mock
 import pkg_resources
 import pytest
 
+from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
@@ -135,6 +136,21 @@ def test_add_app_closing_event(mock_time, mock_send_request, telemetry_writer):
     assert httpretty.last_request().parsed_body == _get_request_body({}, "app-closing")
 
 
+def test_heartbeat_event(mock_time, mock_send_request, telemetry_writer):
+    """asserts that periodic() queues and sends an app-heartbeat telemetry request"""
+    # Call periodic before any events were queued
+    telemetry_writer.periodic()
+    # assert that one request was sent
+    assert len(httpretty.latest_requests()) == 1
+    # ensure an app heartbeat event was sent
+    headers = httpretty.last_request().headers
+    assert "DD-Telemetry-Request-Type" in headers
+    assert headers["DD-Telemetry-Request-Type"] == "app-heartbeat"
+    # ensure a valid request body was sent
+    assert len(httpretty.latest_requests()) == 1
+    assert httpretty.last_request().parsed_body == _get_request_body({}, "app-heartbeat")
+
+
 def test_add_integration(mock_time, mock_send_request, telemetry_writer):
     """asserts that add_integration() queues a valid telemetry request"""
     # queue integrations
@@ -222,6 +238,15 @@ def test_send_failing_request(mock_status, mock_send_request, telemetry_writer):
         )
     # ensure one failing request was sent
     assert len(httpretty.latest_requests()) == 1
+
+
+@pytest.mark.parametrize("mock_status", [404])
+def test_send_failing_request_404(mock_status, mock_send_request, telemetry_writer):
+    """asserts that a warning is logged and the writer is stopped when a 404 response is returned by the http client"""
+    telemetry_writer.enable()
+    assert telemetry_writer.status == ServiceStatus.RUNNING
+    telemetry_writer.periodic()
+    assert telemetry_writer.status == ServiceStatus.STOPPED
 
 
 def test_send_request_exception():

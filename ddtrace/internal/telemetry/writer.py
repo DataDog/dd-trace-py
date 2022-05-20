@@ -98,6 +98,8 @@ class TelemetryWriter(PeriodicService):
             self._app_integrations_changed_event(integrations)
 
         telemetry_requests = self._flush_events_queue()
+        if self._enabled and not telemetry_requests:
+            telemetry_requests = [self._create_telemetry_request({}, "app-heartbeat")]
 
         for telemetry_request in telemetry_requests:
             try:
@@ -109,6 +111,9 @@ class TelemetryWriter(PeriodicService):
                         self.ENDPOINT,
                         resp.status,
                     )
+                if resp.status == 404:
+                    self.disable()
+                    return
             except Exception:
                 log.warning(
                     "failed to send telemetry to the Datadog Agent at %s/%s.",
@@ -135,12 +140,11 @@ class TelemetryWriter(PeriodicService):
         :param str payload_type: The payload_type denotes the type of telmetery request.
             Payload types accepted by telemetry/proxy v1: app-started, app-closing, app-integrations-change
         """
-        with self._lock:
-            if not self._enabled:
-                return
+        if not self._enabled:
+            return
 
-            request = self._create_telemetry_request(payload, payload_type, self._sequence)
-            self._sequence += 1
+        request = self._create_telemetry_request(payload, payload_type)
+        with self._lock:
             self._events_queue.append(request)
 
     def add_integration(self, integration_name, auto_enabled):
@@ -202,9 +206,13 @@ class TelemetryWriter(PeriodicService):
             "DD-Telemetry-API-Version": "v1",
         }
 
-    def _create_telemetry_request(self, payload, payload_type, sequence_id):
-        # type: (Dict, str, int) -> Dict
+    def _create_telemetry_request(self, payload, payload_type):
+        # type: (Dict, str) -> Dict
         """Initializes the required fields for a generic Telemetry Intake Request"""
+        with self._lock:
+            sequence_id = self._sequence
+            self._sequence += 1
+
         return {
             "tracer_time": int(time.time()),
             "runtime_id": get_runtime_id(),
@@ -238,6 +246,7 @@ class TelemetryWriter(PeriodicService):
             atexit.unregister(self.stop)
 
         self.stop()
+        log.info("telemetry collection service was disabled")
 
     def enable(self):
         # type: () -> None
@@ -254,6 +263,6 @@ class TelemetryWriter(PeriodicService):
 
             forksafe.register(self._restart)
             atexit.register(self.stop)
-
+        log.info("telemetry collection service was enabled")
         # add_event _locks around adding to the events queue
         self.app_started_event()
