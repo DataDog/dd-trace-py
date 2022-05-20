@@ -529,3 +529,28 @@ def test_table_query_snapshot(snapshot_client):
         "name": "Test Name",
         "description": "This request adds a new entry to the test db",
     }
+
+
+def test_patch_starlette(client, tracer, test_spans):
+    from ddtrace.contrib.starlette.patch import patch as patch_starlette
+    from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
+
+    patch_starlette()
+
+    response = client.get("/file", headers={"X-Token": "DataDog"})
+    assert response.status_code == 200
+    assert response.text == "Datadog says hello!"
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "fastapi"
+    assert request_span.name == "fastapi.request"
+    assert request_span.resource == "GET /file"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/file"
+    assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "200"
+    unpatch_starlette()

@@ -5,12 +5,10 @@ import fastapi.routing
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
+from ddtrace.contrib.starlette.patch import traced_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-
-from ..starlette.patch import patch as starlette_patch
-from ..starlette.patch import unpatch as starlette_unpatch
 
 
 log = get_logger(__name__)
@@ -66,8 +64,8 @@ def patch():
     Pin().onto(fastapi)
     _w("fastapi.applications", "FastAPI.__init__", traced_init)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
-    # Patch starlette since Fastapi is based on it
-    starlette_patch()
+    _w("fastapi.routing", "APIRoute.handle", traced_handler)
+    _w("fastapi.routing", "Mount.handle", traced_handler)
 
 
 def unpatch():
@@ -78,5 +76,5 @@ def unpatch():
 
     _u(fastapi.applications.FastAPI, "__init__")
     _u(fastapi.routing, "serialize_response")
-    # Unpatch starlette since Fastapi is based on it
-    starlette_unpatch()
+    _u(fastapi.routing.APIRoute, "handle")
+    _u(fastapi.routing.Mount, "handle")
