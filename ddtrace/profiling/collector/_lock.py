@@ -77,6 +77,12 @@ class _ProfiledLock(wrapt.ObjectProxy):
         code = frame.f_code
         self._self_name = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
 
+    def __aenter__(self):
+        return self.__wrapped__.__aenter__()
+
+    def __aexit__(self, *args, **kwargs):
+        return self.__wrapped__.__aexit__(*args, **kwargs)
+
     def acquire(self, *args, **kwargs):
         if not self._self_capture_sampler.capture():
             return self.__wrapped__.acquire(*args, **kwargs)

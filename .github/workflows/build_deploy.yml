@@ -42,7 +42,7 @@ jobs:
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
         with:
           platforms: all
 
@@ -92,12 +92,12 @@ jobs:
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
         with:
           platforms: all
 
       - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@v2.4.0
+        uses: pypa/cibuildwheel@2.5.0
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones

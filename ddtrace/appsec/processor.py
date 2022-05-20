@@ -2,8 +2,10 @@ import errno
 import json
 import os
 import os.path
+from typing import List
 from typing import Set
 from typing import TYPE_CHECKING
+from typing import Union
 
 import attr
 
@@ -15,6 +17,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
+from ddtrace.internal.rate_limiter import RateLimiter
 
 
 if TYPE_CHECKING:
@@ -24,13 +27,28 @@ if TYPE_CHECKING:
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
+DEFAULT_TRACE_RATE_LIMIT = 100
+DEFAULT_WAF_TIMEOUT = 20  # ms
 
 log = get_logger(__name__)
 
 
-def _no_cookies(data):
-    # type: (Dict[str, str]) -> Dict[str, str]
-    return {key: value for key, value in data.items() if key.lower() not in ("cookie", "set-cookie")}
+def _transform_headers(data):
+    # type: (Dict[str, str]) -> Dict[str, Union[str, List[str]]]
+    normalized = {}  # type: Dict[str, Union[str, List[str]]]
+    for header, value in data.items():
+        header = header.lower()
+        if header in ("cookie", "set-cookie"):
+            continue
+        if header in normalized:  # if a header with the same lowercase name already exists, let's make it an array
+            existing = normalized[header]
+            if isinstance(existing, list):
+                existing.append(value)
+            else:
+                normalized[header] = [existing, value]
+        else:
+            normalized[header] = value
+    return normalized
 
 
 def get_rules():
@@ -75,10 +93,21 @@ _COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 
 def _set_headers(span, headers):
-    # type: (Span, Dict) -> None
+    # type: (Span, Dict[str, Union[str, List[str]]]) -> None
     for k in headers:
         if k.lower() in _COLLECTED_REQUEST_HEADERS:
-            span._set_str_tag(_normalize_tag_name("request", k), headers[k])
+            # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
+            span.set_tag(_normalize_tag_name("request", k), headers[k])
+
+
+def _get_rate_limiter():
+    # type: () -> RateLimiter
+    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT_TRACE_RATE_LIMIT)))
+
+
+def _get_waf_timeout():
+    # type: () -> int
+    return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT_WAF_TIMEOUT))
 
 
 @attr.s(eq=False)
@@ -87,6 +116,8 @@ class AppSecSpanProcessor(SpanProcessor):
     rules = attr.ib(type=str, factory=get_rules)
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
+    _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
+    _waf_timeout = attr.ib(type=int, factory=_get_waf_timeout)
 
     @property
     def enabled(self):
@@ -155,7 +186,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if self._is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES):
             request_headers = _context.get_item("http.request.headers", span=span)
             if request_headers is not None:
-                data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES] = _no_cookies(request_headers)
+                data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES] = _transform_headers(request_headers)
 
         if self._is_needed(_Addresses.SERVER_REQUEST_URI_RAW):
             uri = _context.get_item("http.request.uri", span=span)
@@ -185,11 +216,17 @@ class AppSecSpanProcessor(SpanProcessor):
         if self._is_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES):
             response_headers = _context.get_item("http.response.headers", span=span)
             if response_headers is not None:
-                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _no_cookies(response_headers)
+                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_headers(response_headers)
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        res = self._ddwaf.run(data)  # res is a serialized json
+        res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
         if res is not None:
+            # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
+            # events
+            allowed = self._rate_limiter.is_allowed(span.start_ns)
+            if not allowed:
+                # TODO: add metric collection to keep an eye (when it's name is clarified)
+                return
             if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES in data:
                 _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES])
             # Partial DDAS-011-00

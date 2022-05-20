@@ -62,6 +62,13 @@ async def test_basics(snapshot_context):
 
 
 @pytest.mark.asyncio
+async def test_unicode(snapshot_context):
+    with snapshot_context():
+        r = aredis.StrictRedis(port=REDIS_CONFIG["port"])
+        await r.get(u"😐")
+
+
+@pytest.mark.asyncio
 async def test_analytics_without_rate(snapshot_context):
     with override_config("aredis", dict(analytics_enabled=True)):
         with snapshot_context():
