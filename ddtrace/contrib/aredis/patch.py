@@ -4,7 +4,6 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from ...internal.utils.formats import stringify_cache_args
-from ...internal.utils.wrappers import unwrap
 from ...pin import Pin
 from ...utils.wrappers import unwrap
 from ..redis.util import _trace_redis_cmd
