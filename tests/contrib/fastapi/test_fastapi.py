@@ -8,6 +8,8 @@ import pytest
 import ddtrace
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
+from ddtrace.contrib.starlette.patch import patch as patch_starlette
+from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -508,6 +510,50 @@ def test_subapp(client, tracer, test_spans):
     assert request_span.get_tag("http.query.string") is None
 
 
+def test_subapp_w_starlette_patch(client, tracer, test_spans):
+    patch_starlette()
+    response = client.get("/sub-app/hello/name")
+    assert response.status_code == 200
+    assert response.json() == {"Greeting": "Hello"}
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 3
+    request_span = spans[0][0]
+    assert request_span.service == "fastapi"
+    assert request_span.name == "fastapi.request"
+    assert request_span.resource == "GET /sub-app/hello/{name}"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/sub-app/hello/name"
+    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("http.query.string") is None
+    unpatch_starlette()
+
+
+def test_w_patch_starlette(client, tracer, test_spans):
+
+    patch_starlette()
+
+    response = client.get("/file", headers={"X-Token": "DataDog"})
+    assert response.status_code == 200
+    assert response.text == "Datadog says hello!"
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.service == "fastapi"
+    assert request_span.name == "fastapi.request"
+    assert request_span.resource == "GET /file"
+    assert request_span.error == 0
+    assert request_span.get_tag("http.method") == "GET"
+    assert request_span.get_tag("http.url") == "http://testserver/file"
+    assert request_span.get_tag("http.query.string") is None
+    assert request_span.get_tag("http.status_code") == "200"
+    unpatch_starlette()
+
+
 @snapshot()
 def test_table_query_snapshot(snapshot_client):
     r_post = snapshot_client.post(
@@ -529,28 +575,3 @@ def test_table_query_snapshot(snapshot_client):
         "name": "Test Name",
         "description": "This request adds a new entry to the test db",
     }
-
-
-def test_patch_starlette(client, tracer, test_spans):
-    from ddtrace.contrib.starlette.patch import patch as patch_starlette
-    from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
-
-    patch_starlette()
-
-    response = client.get("/file", headers={"X-Token": "DataDog"})
-    assert response.status_code == 200
-    assert response.text == "Datadog says hello!"
-
-    spans = test_spans.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
-    assert request_span.service == "fastapi"
-    assert request_span.name == "fastapi.request"
-    assert request_span.resource == "GET /file"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/file"
-    assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "200"
-    unpatch_starlette()

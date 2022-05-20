@@ -5,6 +5,7 @@ from ddtrace import config
 from ddtrace import tracer
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -57,23 +58,29 @@ def unpatch():
 
 
 def traced_handler(wrapped, instance, args, kwargs):
-    def _wrap(scope, receive, send):
-        # Since handle can be called multiple times for one request, we take the path of each instance
-        # Then combine them at the end to get the correct resource name
-        if "__dd_paths__" in scope:
-            scope["__dd_paths__"].append(instance.path)
+    # Since handle can be called multiple times for one request, we take the path of each instance
+    # Then combine them at the end to get the correct resource name
+    scope = get_argument_value(args, kwargs, 0, "scope")
+    if "__dd_paths__" in scope:
+        scope["__dd_paths__"].append(instance.path)
 
-        else:
-            scope["__dd_paths__"] = [instance.path]
+    else:
+        scope["__dd_paths__"] = [instance.path]
 
-        span = tracer.current_root_span()
-        # Update root span resource
-        if span:
+    span = tracer.current_root_span()
+    # Update root span resource
+    if span:
+        # We want to make sure that the root span we grab is the one created from automatic instrumentation
+        # And not a custom root span
+        if span.name == "fastapi.request" or span.name == "starlette.request":
             path = "".join(scope["__dd_paths__"])
             if scope.get("method"):
                 span.resource = "{} {}".format(scope["method"], path)
             else:
                 span.resource = path
-        return wrapped(*args, **kwargs)
-
-    return _wrap(*args, **kwargs)
+        else:
+            log.debug(
+                """The Starlette or Fastapi request span is not the current root span,
+                therefore the resource name will not be modified."""
+            )
+    return wrapped(*args, **kwargs)
