@@ -120,16 +120,6 @@ class CIRecorder(object):
             except Exception:
                 log.warning("Failed to shutdown tracer", exc_info=True)
 
-            # Remove required tracer filters
-            # tracer_filters = recorder.tracer._filters
-            # if any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
-            #     tracer_filters = [
-            #         tracer_filter
-            #         for tracer_filter in tracer_filters
-            #         if not isinstance(tracer_filter, TraceCiVisibilityFilter)
-            #     ]
-            #     recorder.tracer.configure(settings={"FILTERS": tracer_filters})
-
             cls._instance = None
             cls.enabled = False
 
