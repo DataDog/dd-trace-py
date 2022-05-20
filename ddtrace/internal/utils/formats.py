@@ -11,11 +11,11 @@ from typing import Union
 
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
+from ...vendor.debtcollector import deprecate
 from ..compat import binary_type
 from ..compat import ensure_text
 from ..compat import stringify
 from ..compat import text_type
-from ...vendor.debtcollector import deprecate
 
 
 VALUE_PLACEHOLDER = "?"
