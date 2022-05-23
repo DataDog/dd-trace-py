@@ -2,7 +2,6 @@ import starlette
 from starlette.middleware import Middleware
 
 from ddtrace import config
-from ddtrace import tracer
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -67,26 +66,36 @@ def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource name
     scope = get_argument_value(args, kwargs, 0, "scope")
+
     if "__dd_paths__" in scope:
         scope["__dd_paths__"].append(instance.path)
 
     else:
         scope["__dd_paths__"] = [instance.path]
 
-    span = tracer.current_root_span()
-    # Update root span resource
-    if span:
-        # We want to make sure that the root span we grab is the one created from automatic instrumentation
-        # And not a custom root span
-        if span.name == "fastapi.request" or span.name == "starlette.request":
-            path = "".join(scope["__dd_paths__"])
-            if scope.get("method"):
-                span.resource = "{} {}".format(scope["method"], path)
-            else:
-                span.resource = path
+    if "datadog" not in scope:
+        return wrapped(*args, **kwargs)
+
+    # The scope["datadog"] object gets replaced with each new call to the handler
+    # Therefore we need to check if the current request span is the first one, and if it is, place it in __dd__
+    # So that it's not replaced and can be given the correct resource name
+    request_span = None
+    is_first_request_span = False
+
+    if "__dd__" in scope:
+        request_span = scope["__dd__"].get("__dd_first_request_span__")
+    else:
+        request_span = scope["datadog"].get("request_span")
+        is_first_request_span = True
+
+    if request_span:
+        path = "".join(scope["__dd_paths__"])
+        if scope.get("method"):
+            request_span.resource = "{} {}".format(scope["method"], path)
         else:
-            log.debug(
-                """starlette or Fastapi request span is not the current root span,
-               the resource name will not be modified"""
-            )
+            request_span.resource = path
+
+        if is_first_request_span:
+            scope["__dd__"] = {"__dd_first_request_span__": request_span}
+
     return wrapped(*args, **kwargs)
