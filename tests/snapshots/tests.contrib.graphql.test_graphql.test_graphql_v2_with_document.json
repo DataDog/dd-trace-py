@@ -8,7 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
-      "runtime-id": "63c95b04c06a4d3a93b5f49c7e46ea23"
+      "runtime-id": "87b1bf8789654c9cbe1a1a6efa081d92"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -16,15 +16,15 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 30245
+      "system.pid": 30486
     },
-    "duration": 1980000,
-    "start": 1653506372831613000
+    "duration": 1461000,
+    "start": 1653506568348700000
   },
      {
-       "name": "graphql.parse",
+       "name": "graphql.validate",
        "service": "graphql",
-       "resource": "graphql.parse",
+       "resource": "graphql.validate",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -32,13 +32,13 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 132000,
-       "start": 1653506372832122000
+       "duration": 647000,
+       "start": 1653506568349113000
      },
      {
-       "name": "graphql.validate",
+       "name": "graphql.execute",
        "service": "graphql",
-       "resource": "graphql.validate",
+       "resource": "{ hello }",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
@@ -46,34 +46,20 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 570000,
-       "start": 1653506372832325000
-     },
-     {
-       "name": "graphql.execute",
-       "service": "graphql",
-       "resource": "{ hello }",
-       "trace_id": 0,
-       "span_id": 4,
-       "parent_id": 1,
-       "type": "web",
-       "metrics": {
-         "_dd.measured": 1
-       },
-       "duration": 510000,
-       "start": 1653506372833052000
+       "duration": 291000,
+       "start": 1653506568349851000
      },
         {
           "name": "graphql.resolve",
           "service": "graphql",
           "resource": "hello",
           "trace_id": 0,
-          "span_id": 5,
-          "parent_id": 4,
+          "span_id": 4,
+          "parent_id": 3,
           "type": "web",
           "metrics": {
             "_dd.measured": 1
           },
-          "duration": 80000,
-          "start": 1653506372833262000
+          "duration": 63000,
+          "start": 1653506568349983000
         }]]
