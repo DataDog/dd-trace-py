@@ -396,20 +396,11 @@ def test_table_query(client, tracer, test_spans):
     assert sql_span.get_tag("sql.db") == "test.db"
 
 
-def test_mounted_subapp(client, tracer, test_spans):
-    r = client.get("/sub-app/hello/name")
-    assert r.status_code == 200
-    assert r.text == "Success"
-
-    request_span = next(test_spans.filter_spans(name="starlette.request"))
-    assert request_span.service == "starlette"
-    assert request_span.name == "starlette.request"
-    assert request_span.resource == "GET /sub-app/hello/{name}"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/sub-app/hello/name"
-    assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("http.query.string") is None
+@snapshot()
+def test_subapp_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app/hello/name")
+    assert response.status_code == 200
+    assert response.text == "Success"
 
 
 @snapshot()

@@ -510,27 +510,6 @@ def test_subapp(client, tracer, test_spans):
     assert request_span.get_tag("http.query.string") is None
 
 
-def test_subapp_w_starlette_patch(client, tracer, test_spans):
-    patch_starlette()
-    response = client.get("/sub-app/hello/name")
-    assert response.status_code == 200
-    assert response.json() == {"Greeting": "Hello"}
-
-    spans = test_spans.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 3
-    request_span = spans[0][0]
-    assert request_span.service == "fastapi"
-    assert request_span.name == "fastapi.request"
-    assert request_span.resource == "GET /sub-app/hello/{name}"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/sub-app/hello/name"
-    assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("http.query.string") is None
-    unpatch_starlette()
-
-
 def test_w_patch_starlette(client, tracer, test_spans):
 
     patch_starlette()
@@ -551,6 +530,14 @@ def test_w_patch_starlette(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/file"
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
+    unpatch_starlette()
+
+
+@snapshot()
+def test_subapp_w_starlette_patch_snapshot(snapshot_client):
+    patch_starlette()
+    response = snapshot_client.get("/sub-app/hello/name")
+    assert response.status_code == 200
     unpatch_starlette()
 
 

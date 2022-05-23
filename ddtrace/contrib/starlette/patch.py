@@ -7,6 +7,7 @@ from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
@@ -39,9 +40,11 @@ def patch():
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
 
-    # Wrap the handlers
-    _w("starlette.routing", "Mount.handle", traced_handler)
-    _w("starlette.routing", "Route.handle", traced_handler)
+    # We need to check that Fastapi instrumentation hasn't already patched these
+    if not isinstance(starlette.routing.Route.handle, ObjectProxy):
+        _w("starlette.routing", "Route.handle", traced_handler)
+    if not isinstance(starlette.routing.Mount.handle, ObjectProxy):
+        _w("starlette.routing", "Mount.handle", traced_handler)
 
 
 def unpatch():
@@ -52,9 +55,12 @@ def unpatch():
 
     _u(starlette.applications.Starlette, "__init__")
 
-    # Unwrap the handlers
-    _u(starlette.routing.Mount, "handle")
-    _u(starlette.routing.Route, "handle")
+    # We need to check that Fastapi instrumentation hasn't already unpatched these
+    if isinstance(starlette.routing.Route.handle, ObjectProxy):
+        _u(starlette.routing.Route, "handle")
+
+    if isinstance(starlette.routing.Mount.handle, ObjectProxy):
+        _u(starlette.routing.Mount, "handle")
 
 
 def traced_handler(wrapped, instance, args, kwargs):

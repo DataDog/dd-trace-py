@@ -8,6 +8,7 @@ from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.starlette.patch import traced_handler
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
@@ -64,8 +65,13 @@ def patch():
     Pin().onto(fastapi)
     _w("fastapi.applications", "FastAPI.__init__", traced_init)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
-    _w("fastapi.routing", "APIRoute.handle", traced_handler)
-    _w("fastapi.routing", "Mount.handle", traced_handler)
+
+    # We need to check that Starlette instrumentation hasn't already patched these
+    if not isinstance(fastapi.routing.APIRoute.handle, ObjectProxy):
+        _w("fastapi.routing", "APIRoute.handle", traced_handler)
+
+    if not isinstance(fastapi.routing.Mount.handle, ObjectProxy):
+        _w("starlette.routing", "Mount.handle", traced_handler)
 
 
 def unpatch():
@@ -76,5 +82,10 @@ def unpatch():
 
     _u(fastapi.applications.FastAPI, "__init__")
     _u(fastapi.routing, "serialize_response")
-    _u(fastapi.routing.APIRoute, "handle")
-    _u(fastapi.routing.Mount, "handle")
+
+    # We need to check that Starlette instrumentation hasn't already unpatched these
+    if isinstance(fastapi.routing.APIRoute.handle, ObjectProxy):
+        _u(fastapi.routing.APIRoute, "handle")
+
+    if isinstance(fastapi.routing.Mount.handle, ObjectProxy):
+        _u(fastapi.routing.Mount, "handle")
