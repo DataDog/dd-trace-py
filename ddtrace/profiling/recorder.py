@@ -77,6 +77,7 @@ class Recorder(object):
                 q.extend(events)
 
     def _get_deque_for_event_type(self, event_type):
+        print(f'MAX EVENTS: {self.max_events}, EVENT TYPE: {event_type}')
         return collections.deque(maxlen=self.max_events.get(event_type, self.default_max_events))
 
     def _reset_events(self):

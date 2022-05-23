@@ -210,7 +210,7 @@ bytecode = [
     "bytecode; python_version>='3.8'",
 ]
 
-
+extra_compile_args.append('-std=gnu99')
 setup(
     name="ddtrace",
     description="Datadog APM client library",
@@ -296,11 +296,13 @@ setup(
                 "ddtrace.internal._rand",
                 sources=["ddtrace/internal/_rand.pyx"],
                 language="c",
+                extra_compile_args=extra_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.internal._tagset",
                 sources=["ddtrace/internal/_tagset.pyx"],
                 language="c",
+                extra_compile_args=extra_compile_args,
             ),
             Extension(
                 "ddtrace.internal._encoding",
@@ -319,26 +321,31 @@ setup(
                 "ddtrace.profiling.collector._traceback",
                 sources=["ddtrace/profiling/collector/_traceback.pyx"],
                 language="c",
+                extra_compile_args=extra_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling._threading",
                 sources=["ddtrace/profiling/_threading.pyx"],
                 language="c",
+                extra_compile_args=extra_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._task",
                 sources=["ddtrace/profiling/collector/_task.pyx"],
                 language="c",
+                extra_compile_args=extra_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.exporter.pprof",
                 sources=["ddtrace/profiling/exporter/pprof.pyx"],
                 language="c",
+                extra_compile_args=extra_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling._build",
                 sources=["ddtrace/profiling/_build.pyx"],
                 language="c",
+                extra_compile_args=extra_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.appsec._ddwaf",
