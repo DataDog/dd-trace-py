@@ -12,7 +12,7 @@
       "error.msg": "Cannot query field \"invalid_schema\" on type \"RootQueryType\".",
       "error.stack": "",
       "error.type": "graphql.error.base.GraphQLError",
-      "runtime-id": "1076114a4e154d0487cab511b63d9ab0"
+      "runtime-id": "63c95b04c06a4d3a93b5f49c7e46ea23"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -20,10 +20,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 90795
+      "system.pid": 30245
     },
-    "duration": 1013000,
-    "start": 1653306828421710000
+    "duration": 966000,
+    "start": 1653506372863913000
   },
      {
        "name": "graphql.parse",
@@ -36,8 +36,8 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 145000,
-       "start": 1653306828421859000
+       "duration": 113000,
+       "start": 1653506372864035000
      },
      {
        "name": "graphql.validate",
@@ -47,9 +47,15 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "web",
+       "error": 1,
+       "meta": {
+         "error.msg": "Cannot query field \"invalid_schema\" on type \"RootQueryType\".",
+         "error.stack": "",
+         "error.type": "graphql.error.base.GraphQLError"
+       },
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 625000,
-       "start": 1653306828422062000
+       "duration": 642000,
+       "start": 1653506372864204000
      }]]
