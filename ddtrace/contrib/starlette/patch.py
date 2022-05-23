@@ -86,7 +86,7 @@ def traced_handler(wrapped, instance, args, kwargs):
                 span.resource = path
         else:
             log.debug(
-                """The Starlette or Fastapi request span is not the current root span,
-                therefore the resource name will not be modified."""
+                """starlette or Fastapi request span is not the current root span,
+               the resource name will not be modified"""
             )
     return wrapped(*args, **kwargs)
