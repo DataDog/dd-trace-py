@@ -13,8 +13,6 @@ from ddtrace.version import get_version
 log = get_logger(__name__)
 
 
-DD_SITE_MAP = {"datad0g.com": "https://dd.datad0g.com"}
-
 DEFAULT_DEBUGGER_PORT = 8126
 DEFAULT_PROBE_API_URL = "https://app.datadoghq.com"
 DEFAULT_SNAPSHOT_INTAKE_URL = "http://%s:%d" % (os.getenv("DD_AGENT_HOST", "localhost"), DEFAULT_DEBUGGER_PORT)
@@ -77,11 +75,7 @@ class DebuggerConfig(object):
         self.probe_status_url = self.snapshot_intake_url
         self._probe_status_endpoint = self._snapshot_intake_endpoint
 
-        dd_site = os.getenv("DD_SITE", None)
-        if dd_site:
-            self.probe_api_url = DD_SITE_MAP.get(dd_site) or ("https://app.%s" % dd_site)
-        else:
-            self.probe_api_url = os.getenv("DD_DEBUGGER_PROBE_API_URL", DEFAULT_PROBE_API_URL)
+        self.probe_api_url = os.getenv("DD_DEBUGGER_PROBE_API_URL", DEFAULT_PROBE_API_URL)
 
         self._tags["env"] = tracer_config.env
         self._tags["version"] = tracer_config.version

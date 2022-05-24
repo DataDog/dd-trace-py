@@ -1,7 +1,7 @@
 import pytest
 
-from ddtrace.debugging.config import DEFAULT_PROBE_API_URL
-from ddtrace.debugging.config import DebuggerConfig
+from ddtrace.debugging._config import DEFAULT_PROBE_API_URL
+from ddtrace.debugging._config import DebuggerConfig
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.version import get_version
 from tests.utils import override_env
@@ -10,7 +10,6 @@ from tests.utils import override_env
 @pytest.mark.parametrize(
     "dd_site, probe_api_url",
     [
-        ("datad0g.com", "https://dd.datad0g.com"),
         ("datadoghq.com", "https://app.datadoghq.com"),
         ("datadoghq.eu", "https://app.datadoghq.eu"),
         ("", DEFAULT_PROBE_API_URL),
@@ -23,11 +22,11 @@ def test_probe_api_url(dd_site, probe_api_url):
 
 def test_tags():
     with override_env(dict(DD_TAGS="a:b,c:d", DD_ENV="test-env", DD_VERSION="test-version")):
-        import ddtrace.debugging.config
+        import ddtrace.debugging._config
         from ddtrace.settings import Config
 
-        old_config = ddtrace.debugging.config.tracer_config
-        ddtrace.debugging.config.tracer_config = Config()
+        old_config = ddtrace.debugging._config.tracer_config
+        ddtrace.debugging._config.tracer_config = Config()
 
         tags = parse_tags_str(DebuggerConfig().tags)
         assert tags == dict(
@@ -38,7 +37,7 @@ def test_tags():
             debugger_version=get_version(),
         )
 
-        ddtrace.debugging.config.tracer_config = old_config
+        ddtrace.debugging._config.tracer_config = old_config
 
 
 def test_snapshot_intake_url():
