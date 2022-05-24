@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    profiling: fix an issue where ``stack_event.StackExceptionSampleEvent`` used a float instead of an int for its max events.
