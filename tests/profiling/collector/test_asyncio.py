@@ -64,6 +64,10 @@ async def test_lock_events_tracer(tracer):
             trace_id = t.trace_id
             span_id = t.span_id
         lock2.release()
+
+        lock_ctx = asyncio.Lock()
+        async with lock_ctx:
+            pass
     events = r.reset()
     # The tracer might use locks, so we need to look into every event to assert we got ours
     for event_type in (collector_asyncio.AsyncioLockAcquireEvent, collector_asyncio.AsyncioLockReleaseEvent):

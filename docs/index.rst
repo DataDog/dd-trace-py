@@ -95,7 +95,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`gevent`                                    | >= 1.1        | No             |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`grpc`                                      | >= 1.12.0     | Yes            |
+| :ref:`grpc`                                      | >= 1.12.0     | Yes [5]_       |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`httplib`                                   | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -176,6 +176,8 @@ contacting support.
 
 .. [4] Activating the legacy context provider is required in Python < 3.7. See
        :ref:`asyncio` for more details.
+
+.. [5] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
 
 Indices and tables
 ==================

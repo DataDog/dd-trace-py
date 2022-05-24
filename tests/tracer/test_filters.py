@@ -2,6 +2,8 @@ from unittest import TestCase
 
 import pytest
 
+import ddtrace
+from ddtrace.ext import ci
 from ddtrace.ext.http import URL
 from ddtrace.filters import FilterRequestsOnUrl
 from ddtrace.filters import TraceCiVisibilityFilter
@@ -17,6 +19,7 @@ class TraceCiVisibilityFilterTests(TestCase):
         # Root span in trace is a test
         trace = [root_test_span]
         self.assertEqual(trace_filter.process_trace(trace), trace)
+        assert root_test_span.get_tag(ci.LIBRARY_VERSION) == ddtrace.__version__
 
         root_span = Span(name="span1")
         root_span._local_root = root_span

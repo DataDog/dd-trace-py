@@ -4,7 +4,9 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 
+import ddtrace
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import ci
 from ddtrace.internal.processor.trace import TraceProcessor
 
 from .ext import http
@@ -80,4 +82,9 @@ class TraceCiVisibilityFilter(TraceFilter):
             return trace
 
         local_root = trace[0]._local_root
-        return trace if local_root and local_root.span_type == SpanTypes.TEST else None
+        if not local_root or local_root.span_type != SpanTypes.TEST:
+            return None
+
+        # DEV: it might not be necessary to add library_version when using agentless mode
+        local_root.set_tag(ci.LIBRARY_VERSION, ddtrace.__version__)
+        return trace
