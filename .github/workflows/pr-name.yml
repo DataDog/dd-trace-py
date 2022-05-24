@@ -28,7 +28,7 @@ jobs:
               extends: ['./commitlint.config.js'],
             };
 
-            const title = '${{ github.event.pull_request.title }}';
+            const title = context.payload.pull_request.title;
 
             core.info(`Linting: ${title}`);
 
