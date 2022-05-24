@@ -39,7 +39,7 @@ class UploadFailed(tenacity.RetryError, exporter.ExportError):
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
-    endpoint = attr.ib(type=str)
+    endpoint = attr.ib(type=str, factory=agent.get_trace_url)
     api_key = attr.ib(default=None, type=typing.Optional[str])
     # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
     # backend is not as fast as the tracer one.
@@ -92,6 +92,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     def _encode_multipart_formdata(
         fields,  # type: typing.Dict[str, bytes]
         tags,  # type: typing.Dict[str, bytes]
+        data,  # type: typing.Dict[bytes, bytes]
     ):
         # type: (...) -> typing.Tuple[bytes, bytes]
         boundary = binascii.hexlify(os.urandom(16))
@@ -113,13 +114,17 @@ class PprofHTTPExporter(pprof.PprofExporter):
                 b"%s:%s\r\n" % (boundary, tag.encode(), value)
                 for tag, value in tags.items()
             )
-            + b"--"
-            + boundary
-            + b"\r\n"
-            b'Content-Disposition: form-data; name="chunk-data"; filename="profile.pb.gz"\r\n'
-            + b"Content-Type: application/octet-stream\r\n\r\n"
-            + fields["chunk-data"]
-            + b"\r\n--%s--\r\n" % boundary
+            + b"".join(
+                (
+                    b'--%s\r\nContent-Disposition: form-data; name="data[%s]"; filename="%s"\r\n'
+                    % (boundary, field_name, field_name)
+                )
+                + b"Content-Type: application/octet-stream\r\n\r\n"
+                + field_data
+                + b"\r\n"
+                for field_name, field_data in data.items()
+            )
+            + b"--%s--" % boundary
         )
 
         content_type = b"multipart/form-data; boundary=%s" % boundary
@@ -167,17 +172,15 @@ class PprofHTTPExporter(pprof.PprofExporter):
         with gzip.GzipFile(fileobj=s, mode="wb") as gz:
             gz.write(profile.SerializeToString())
         fields = {
+            "version": b"3",
+            "family": b"python",
             "runtime-id": runtime.get_runtime_id().encode("ascii"),
-            "recording-start": (
+            "start": (
                 datetime.datetime.utcfromtimestamp(start_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"
             ).encode(),
-            "recording-end": (
+            "end": (
                 datetime.datetime.utcfromtimestamp(end_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"
             ).encode(),
-            "runtime": PYTHON_IMPLEMENTATION,
-            "format": b"pprof",
-            "type": b"cpu+alloc+exceptions",
-            "chunk-data": s.getvalue(),
         }
 
         service = self.service or os.path.basename(profile.string_table[profile.mapping[0].filename])
@@ -185,6 +188,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         content_type, body = self._encode_multipart_formdata(
             fields,
             tags=self._get_tags(service),
+            data={b"auto.pprof": s.getvalue()},
         )
         headers["Content-Type"] = content_type
 

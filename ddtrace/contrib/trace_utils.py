@@ -13,10 +13,12 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
+from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -179,6 +181,7 @@ def distributed_tracing_enabled(int_config, default=False):
 
 
 def int_service(pin, int_config, default=None):
+    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -186,47 +189,44 @@ def int_service(pin, int_config, default=None):
     For internal integrations we prioritize overrides, then global defaults and
     lastly the default provided by the integration.
     """
-    int_config = int_config or {}
-
     # Pin has top priority since it is user defined in code
-    if pin and pin.service:
+    if pin is not None and pin.service:
         return pin.service
 
     # Config is next since it is also configured via code
     # Note that both service and service_name are used by
     # integrations.
     if "service" in int_config and int_config.service is not None:
-        return int_config.service
+        return cast(str, int_config.service)
     if "service_name" in int_config and int_config.service_name is not None:
-        return int_config.service_name
+        return cast(str, int_config.service_name)
 
     global_service = int_config.global_config._get_service()
     if global_service:
-        return global_service
+        return cast(str, global_service)
 
     if "_default_service" in int_config and int_config._default_service is not None:
-        return int_config._default_service
+        return cast(str, int_config._default_service)
 
     return default
 
 
 def ext_service(pin, int_config, default=None):
+    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
     """
-    int_config = int_config or {}
-
-    if pin and pin.service:
+    if pin is not None and pin.service:
         return pin.service
 
     if "service" in int_config and int_config.service is not None:
-        return int_config.service
+        return cast(str, int_config.service)
     if "service_name" in int_config and int_config.service_name is not None:
-        return int_config.service_name
+        return cast(str, int_config.service_name)
 
     if "_default_service" in int_config and int_config._default_service is not None:
-        return int_config._default_service
+        return cast(str, int_config._default_service)
 
     # A default is required since it's an external service.
     return default
@@ -240,11 +240,31 @@ def set_http_meta(
     status_code=None,  # type: Optional[Union[int, str]]
     status_msg=None,  # type: Optional[str]
     query=None,  # type: Optional[str]
+    parsed_query=None,  # type: Optional[Mapping[str, str]]
     request_headers=None,  # type: Optional[Mapping[str, str]]
     response_headers=None,  # type: Optional[Mapping[str, str]]
     retries_remain=None,  # type: Optional[Union[int, str]]
+    raw_uri=None,  # type: Optional[str]
+    request_cookies=None,  # type: Optional[Dict[str, str]]
+    request_path_params=None,  # type: Optional[Dict[str, str]]
 ):
     # type: (...) -> None
+    """
+    Set HTTP metas on the span
+
+    :param method: the HTTP method
+    :param url: the HTTP URL
+    :param status_code: the HTTP status code
+    :param status_msg: the HTTP status message
+    :param query: the HTTP query part of the URI as a string
+    :param parsed_query: the HTTP query part of the URI as parsed by the framework and forwarded to the user code
+    :param request_headers: the HTTP request headers
+    :param response_headers: the HTTP response headers
+    :param raw_uri: the full raw HTTP URI (including ports and query)
+    :param request_cookies: the HTTP request cookies as a dict
+    :param request_path_params: the parameters of the HTTP URL as set by the framework: /posts/<id:int> would give us
+         { "id": <int_value> }
+    """
     if method is not None:
         span._set_str_tag(http.METHOD, method)
 
@@ -275,6 +295,27 @@ def set_http_meta(
 
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
+
+    if config._appsec:
+        status_code = str(status_code) if status_code is not None else None
+
+        _context.set_items(
+            {
+                k: v
+                for k, v in [
+                    ("http.request.uri", raw_uri),
+                    ("http.request.method", method),
+                    ("http.request.cookies", request_cookies),
+                    ("http.request.query", parsed_query),
+                    ("http.request.headers", request_headers),
+                    ("http.response.headers", response_headers),
+                    ("http.response.status", status_code),
+                    ("http.request.path_params", request_path_params),
+                ]
+                if v is not None
+            },
+            span=span,
+        )
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):

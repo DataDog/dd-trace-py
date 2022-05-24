@@ -7,9 +7,9 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.redis.patch import traced_execute_command
 from ddtrace.contrib.redis.patch import traced_pipeline
-from ddtrace.contrib.redis.util import format_command_args
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import redis as redisx
+from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
@@ -63,7 +63,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    cmds = [format_command_args(c.args) for c in instance.command_stack]
+    cmds = [stringify_cache_args(c.args) for c in instance.command_stack]
     resource = "\n".join(cmds)
     tracer = pin.tracer
     with tracer.trace(redisx.CMD, resource=resource, service=pin.service, span_type=SpanTypes.REDIS) as s:

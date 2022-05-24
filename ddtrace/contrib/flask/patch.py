@@ -325,7 +325,9 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             config.flask,
             method=request.method,
             url=request.base_url,
+            raw_uri=request.url,
             query=request.query_string,
+            parsed_query=request.args,
             request_headers=request.headers,
         )
 

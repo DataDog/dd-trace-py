@@ -80,7 +80,7 @@ venv = Venv(
         "coverage": latest,
         "pytest-cov": latest,
         "opentracing": latest,
-        "hypothesis": latest,
+        "hypothesis": "<6.45.1",
     },
     env={
         "DD_TESTING_RAISE": "1",
@@ -185,6 +185,11 @@ venv = Venv(
             pkgs={"riot": latest},
         ),
         Venv(
+            pys=["3"],
+            name="scripts",
+            command="python -m doctest {cmdargs} scripts/get-target-milestone.py",
+        ),
+        Venv(
             name="docs",
             pys=["3"],
             pkgs={
@@ -193,6 +198,10 @@ venv = Venv(
                 "sphinx": "~=4.3.2",
                 "sphinxcontrib-spelling": latest,
                 "PyEnchant": latest,
+                # Pin due to dulwich not publishing wheels and the env doesn't have
+                # the dependencies required to build the package.
+                # https://github.com/jelmer/dulwich/issues/963.
+                "dulwich": "<0.20.36",
             },
             command="scripts/build-docs",
         ),
@@ -271,7 +280,14 @@ venv = Venv(
         Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
-            venvs=[Venv(pys=select_pys())],
+            venvs=[
+                Venv(pys="2.7"),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={"pytest-asyncio": latest},
+                ),
+            ],
+            pkgs={"httpretty": "==0.9.7"},
         ),
         Venv(
             name="runtime",
@@ -1201,6 +1217,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="aiomysql",
+            pys=select_pys(min_version="3.7"),
+            command="pytest {cmdargs} tests/contrib/aiomysql",
+            pkgs={
+                "pytest-asyncio": latest,
+                "aiomysql": ["~=0.1.0", latest],
+            },
+        ),
+        Venv(
             name="pytest",
             command="pytest {cmdargs} tests/contrib/pytest",
             venvs=[
@@ -1279,6 +1304,42 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
+                        "grpcio": ["~=1.42.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="grpc_aio",
+            command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.6"),
+                    pkgs={
+                        "grpcio": ["~=1.32.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.8"),
+                    pkgs={
+                        "grpcio": ["~=1.32.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.9"),
+                    pkgs={
+                        # 3.9 wheels are not provided in 1.32
+                        "grpcio": ["~=1.33.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        # 3.10 wheels were started to be provided in 1.41
+                        # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
                         "grpcio": ["~=1.42.0", latest],
                     },
                 ),

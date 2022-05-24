@@ -201,10 +201,24 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
 else:
     ext_modules = []
 
+
+bytecode = [
+    "dead-bytecode; python_version<'3.0'",  # backport of bytecode for Python 2.7
+    "bytecode~=0.12.0; python_version=='3.5'",
+    "bytecode~=0.13.0; python_version=='3.6'",
+    "bytecode~=0.13.0; python_version=='3.7'",
+    "bytecode; python_version>='3.8'",
+]
+
+
 setup(
     name="ddtrace",
     description="Datadog APM client library",
     url="https://github.com/DataDog/dd-trace-py",
+    package_urls={
+        "Changelog": "https://ddtrace.readthedocs.io/en/stable/release_notes.html",
+        "Documentation": "https://ddtrace.readthedocs.io/en/stable/",
+    },
     author="Datadog, Inc.",
     author_email="dev@datadoghq.com",
     long_description=long_description,
@@ -231,7 +245,9 @@ setup(
         "tenacity>=5",
         "attrs>=19.2.0",
         "six>=1.12.0",
-    ],
+        "typing_extensions; python_version<'3.8'",
+    ]
+    + bytecode,
     extras_require={
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
