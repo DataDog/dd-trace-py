@@ -172,9 +172,14 @@ class _ProfilerInstance(service.Service):
     def __attrs_post_init__(self):
         r = self._recorder = recorder.Recorder(
             max_events={
+<<<<<<< HEAD
                 # Allow to store up to 10 threads for 60 seconds at 100 Hz
                 stack_event.StackSampleEvent: 10 * 60 * 100,
                 stack_event.StackExceptionSampleEvent: 10 * 60 * 100,
+=======
+                stack_event.StackSampleEvent: max_stack_events,
+                stack_event.StackExceptionSampleEvent: int(max_stack_events / 2),
+>>>>>>> 5631a52d (fix(profiling): ensure max_stack_events as an int (#3751))
                 # (default buffer size / interval) * export interval
                 memalloc.MemoryAllocSampleEvent: int(
                     (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60
