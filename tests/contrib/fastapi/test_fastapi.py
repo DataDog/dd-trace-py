@@ -511,9 +511,8 @@ def test_subapp(client, tracer, test_spans):
 
 
 def test_w_patch_starlette(client, tracer, test_spans):
+    patch_starlette()
     try:
-        patch_starlette()
-
         response = client.get("/file", headers={"X-Token": "DataDog"})
         assert response.status_code == 200
         assert response.text == "Datadog says hello!"
@@ -536,9 +535,8 @@ def test_w_patch_starlette(client, tracer, test_spans):
 
 @snapshot()
 def test_subapp_w_starlette_patch_snapshot(snapshot_client):
+    patch_starlette()
     try:
-        patch_starlette()
-
         response = snapshot_client.get("/sub-app/hello/name")
         assert response.status_code == 200
     finally:
