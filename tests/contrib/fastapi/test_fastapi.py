@@ -511,34 +511,38 @@ def test_subapp(client, tracer, test_spans):
 
 
 def test_w_patch_starlette(client, tracer, test_spans):
+    try:
+        patch_starlette()
 
-    patch_starlette()
+        response = client.get("/file", headers={"X-Token": "DataDog"})
+        assert response.status_code == 200
+        assert response.text == "Datadog says hello!"
 
-    response = client.get("/file", headers={"X-Token": "DataDog"})
-    assert response.status_code == 200
-    assert response.text == "Datadog says hello!"
-
-    spans = test_spans.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 1
-    request_span = spans[0][0]
-    assert request_span.service == "fastapi"
-    assert request_span.name == "fastapi.request"
-    assert request_span.resource == "GET /file"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/file"
-    assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "200"
-    unpatch_starlette()
+        spans = test_spans.pop_traces()
+        assert len(spans) == 1
+        assert len(spans[0]) == 1
+        request_span = spans[0][0]
+        assert request_span.service == "fastapi"
+        assert request_span.name == "fastapi.request"
+        assert request_span.resource == "GET /file"
+        assert request_span.error == 0
+        assert request_span.get_tag("http.method") == "GET"
+        assert request_span.get_tag("http.url") == "http://testserver/file"
+        assert request_span.get_tag("http.query.string") is None
+        assert request_span.get_tag("http.status_code") == "200"
+    finally:
+        unpatch_starlette()
 
 
 @snapshot()
 def test_subapp_w_starlette_patch_snapshot(snapshot_client):
-    patch_starlette()
-    response = snapshot_client.get("/sub-app/hello/name")
-    assert response.status_code == 200
-    unpatch_starlette()
+    try:
+        patch_starlette()
+
+        response = snapshot_client.get("/sub-app/hello/name")
+        assert response.status_code == 200
+    finally:
+        unpatch_starlette()
 
 
 @snapshot()
