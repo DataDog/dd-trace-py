@@ -90,7 +90,5 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_span.resource = "{} {}".format(scope["method"], path)
         else:
             request_span.resource = path
-        # Place the request span back into the scope in case we need to add to the resource name
-        scope["__dd__"] = {"__dd_first_request_span__": request_span}
 
     return wrapped(*args, **kwargs)
