@@ -2,6 +2,7 @@ import pytest
 
 from ddtrace.debugging._config import DEFAULT_PROBE_API_URL
 from ddtrace.debugging._config import DebuggerConfig
+from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.version import get_version
 from tests.utils import override_env
@@ -41,11 +42,4 @@ def test_tags():
 
 
 def test_snapshot_intake_url():
-    DebuggerConfig().snapshot_intake_url == "http://localhost:8126"
-
-
-def test_agent_mode():
-    assert DebuggerConfig()._agent is False
-
-    with override_env(dict(DD_DEBUGGER_AGENT_MODE="1")):
-        assert DebuggerConfig()._agent is True
+    DebuggerConfig().snapshot_intake_url == get_trace_url()
