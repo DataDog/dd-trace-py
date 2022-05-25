@@ -69,7 +69,6 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     if "resource_paths" not in scope["datadog"]:
         scope["datadog"]["resource_paths"] = [instance.path]
-
     else:
         scope["datadog"]["resource_paths"].append(instance.path)
 
