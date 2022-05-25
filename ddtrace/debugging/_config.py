@@ -58,7 +58,6 @@ class DebuggerConfig(object):
             "Debugger configuration: %r",
             {k: v for k, v in ((k, getattr(self, k)) for k in type(self).__dict__ if not k.startswith("__"))},
         )
-
         self.service_name = tracer_config.service or get_application_name() or DEFAULT_SERVICE_NAME
         self.metrics = asbool(os.getenv("DD_DEBUGGER_METRICS_ENABLED", DEFAULT_METRICS))
 
