@@ -5,7 +5,7 @@
 - [ ] [Corp site](https://github.com/DataDog/documentation/) documentation is updated (link to the PR).
 
 ## Reviewer Checklist
-- [ ] Title is accurate and conforms to [conventional commit](https://github.com/conventional-changelog/commitlint/tree/master/%40commitlint/config-conventional).
+- [ ] Title is accurate.
 - [ ] Description motivates each change.
 - [ ] No unnecessary changes were introduced in this PR.
 - [ ] PR cannot be broken up into smaller PRs.
