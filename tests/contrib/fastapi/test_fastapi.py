@@ -491,25 +491,6 @@ def test_service_can_be_overridden(client, tracer, test_spans):
     assert span.service == "test-override-service"
 
 
-def test_subapp(client, tracer, test_spans):
-    response = client.get("/sub-app/hello/name")
-    assert response.status_code == 200
-    assert response.json() == {"Greeting": "Hello"}
-
-    spans = test_spans.pop_traces()
-    assert len(spans) == 1
-    assert len(spans[0]) == 3
-    request_span = spans[0][0]
-    assert request_span.service == "fastapi"
-    assert request_span.name == "fastapi.request"
-    assert request_span.resource == "GET /sub-app/hello/{name}"
-    assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/sub-app/hello/name"
-    assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("http.query.string") is None
-
-
 def test_w_patch_starlette(client, tracer, test_spans):
     patch_starlette()
     try:
@@ -534,6 +515,13 @@ def test_w_patch_starlette(client, tracer, test_spans):
 
 
 @snapshot()
+def test_subapp_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app/hello/name")
+    assert response.status_code == 200
+
+
+# Test that patching starlette doesn't affect the spans generated
+@snapshot(token_override="tests.contrib.fastapi.test_fastapi.test_subapp_snapshot")
 def test_subapp_w_starlette_patch_snapshot(snapshot_client):
     patch_starlette()
     try:

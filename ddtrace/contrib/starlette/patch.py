@@ -80,9 +80,10 @@ def traced_handler(wrapped, instance, args, kwargs):
     # Therefore we need to check if the current request span is the first one, and if it is, place it in __dd__
     # So that it's not replaced and can be given the correct resource name
     if "__dd__" not in scope:
-        scope["__dd__"] = {"__dd_first_request_span__": scope["datadog"].get("request_span")}
-
-    request_span = scope["__dd__"].get("__dd_first_request_span__")
+        request_span = scope["datadog"].get("request_span")
+        scope["__dd__"] = {"__dd_first_request_span__": request_span}
+    else:
+        request_span = scope["__dd__"].get("__dd_first_request_span__")
 
     if request_span:
         path = "".join(scope["__dd_paths__"])
