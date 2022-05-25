@@ -119,7 +119,8 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
-        scope["datadog"] = {"request_span": span}
+        if "datadog" not in scope:
+            scope["datadog"] = {"request_span": span}
 
         if self.span_modifier:
             self.span_modifier(span, scope)
