@@ -75,7 +75,7 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     # Iterate through the request_spans and assign the correct resource name to each
     if scope["datadog"].get("request_spans"):
-        for index, span in enumerate(scope["datadog"].get("request_spans")):
+        for index, span in enumerate(scope["datadog"].get("request_spans", [])):
             # We want to set the full resource name on the first request span 
             # And one part less of the full resource name for each proceeding request span
             # e.g. full path is /subapp/hello/{name}, first request span gets that, second request span gets /hello/{name}
