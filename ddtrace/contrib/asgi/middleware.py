@@ -70,7 +70,7 @@ def _default_handle_exception_span(exc, span):
 def span_from_scope(scope):
     # type: (Mapping[str, Any]) -> Optional[Span]
     """Retrieve the top-level ASGI span from the scope."""
-    return scope.get("datadog", {}).get("request_span")
+    return scope["datadog"].get("request_spans")[0]
 
 
 class TraceMiddleware:
