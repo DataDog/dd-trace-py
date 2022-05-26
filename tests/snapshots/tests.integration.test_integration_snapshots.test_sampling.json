@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "_dd.p.dm": "-4",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
@@ -100,6 +101,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "_dd.p.dm": "-3",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
@@ -162,6 +164,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "_dd.p.dm": "-3",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
@@ -193,6 +196,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "_dd.p.dm": "-0",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {

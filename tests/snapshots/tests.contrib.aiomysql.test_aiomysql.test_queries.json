@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
+      "_dd.p.dm": "-0",
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
@@ -39,6 +40,7 @@
     "type": "sql",
     "error": 1,
     "meta": {
+      "_dd.p.dm": "-0",
       "db.name": "test",
       "db.user": "test",
       "error.msg": "(1146, \"Table 'test.some_non_existant_table' doesn't exist\")",

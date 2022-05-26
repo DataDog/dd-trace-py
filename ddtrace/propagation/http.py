@@ -22,6 +22,7 @@ from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.logger import get_logger
+from ..internal.sampling import validate_sampling_decision
 from ..span import _MetaDictType
 from ._utils import get_wsgi_header
 
@@ -221,6 +222,9 @@ class _DatadogMultiHeader:
                 sampling_priority = int(sampling_priority)  # type: ignore[assignment]
             else:
                 sampling_priority = sampling_priority
+
+            if meta:
+                meta = validate_sampling_decision(meta)
 
             return Context(
                 # DEV: Do not allow `0` for trace id or span id, use None instead

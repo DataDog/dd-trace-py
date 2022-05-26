@@ -210,6 +210,14 @@ below:
      - 512
      - The maximum length of ``x-datadog-tags`` header allowed in the Datadog propagation style. Must be a value between 0 to 512. If 0, propagation of ``x-datadog-tags`` is disabled.
 
+       .. _dd-trace-x-datadog-tags-propagate-service:
+   * - ``DD_TRACE_PROPAGATE_SERVICE``
+     - Boolean
+     - False
+     - Enable propagation of service in Datadog trace tags propagation. The
+       value used is the first 10 hexadecimal characters of the SHA256 hash of
+       the UTF8 encoded service name.
+
        .. _dd-profiling-enabled:
    * - ``DD_PROFILING_ENABLED``
      - Boolean

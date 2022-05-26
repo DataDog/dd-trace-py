@@ -343,3 +343,16 @@ def test_x_datadog_tags(env, expected, raises):
         with raises:
             _ = Config()
             assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
+
+
+@pytest.mark.parametrize(
+    "env,expected",
+    (
+        (dict(), True),
+        (dict(DD_TRACE_PROPAGATE_SERVICE="1"), True),
+        (dict(DD_TRACE_PROPAGATE_SERVICE="0"), False),
+    ),
+)
+def test_propagate_service(env, expected):
+    with override_env(env):
+        assert Config()._propagate_service is expected

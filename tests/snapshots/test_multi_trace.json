@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "_dd.p.dm": "-0",
       "runtime-id": "bcc8589f1d534d2abf2bd7eb4a8eba2d"
     },
     "metrics": {
@@ -38,6 +39,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "_dd.p.dm": "-0",
       "runtime-id": "bcc8589f1d534d2abf2bd7eb4a8eba2d"
     },
     "metrics": {

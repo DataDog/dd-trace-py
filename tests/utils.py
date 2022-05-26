@@ -90,6 +90,7 @@ def override_global_config(values):
         "_propagation_style_inject",
         "_x_datadog_tags_max_length",
         "_x_datadog_tags_enabled",
+        "_propagate_service",
         "env",
         "version",
         "service",
