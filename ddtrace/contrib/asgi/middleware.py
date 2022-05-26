@@ -120,7 +120,9 @@ class TraceMiddleware:
         )
 
         if "datadog" not in scope:
-            scope["datadog"] = {"request_span": span}
+            scope["datadog"] = {"request_spans": [span]}
+        else:
+            scope["datadog"]["request_spans"].append(span)
 
         if self.span_modifier:
             self.span_modifier(span, scope)

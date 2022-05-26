@@ -64,22 +64,27 @@ def unpatch():
 
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
-    # Then combine them at the end to get the correct resource name
+    # Then combine them at the end to get the correct resource names
     scope = get_argument_value(args, kwargs, 0, "scope")
 
+    # Add the path to the resource_paths list
     if "resource_paths" not in scope["datadog"]:
         scope["datadog"]["resource_paths"] = [instance.path]
 
     else:
         scope["datadog"]["resource_paths"].append(instance.path)
 
-    if scope["datadog"].get("request_span"):
-        request_span = scope["datadog"].get("request_span")
-        path = "".join(scope["datadog"].get("resource_paths"))
+    # Iterate through the request_spans and assign the correct resource name to each
+    if scope["datadog"].get("request_spans"):
+        for index, span in enumerate(scope["datadog"].get("request_spans")):
+            # We want to set the full resource name on the first request span 
+            # And one part less of the full resource name for each proceeding request span
+            # e.g. full path is /subapp/hello/{name}, first request span gets that, second request span gets /hello/{name}
+            path = "".join(scope["datadog"].get("resource_paths")[index:])
 
-        if scope.get("method"):
-            request_span.resource = "{} {}".format(scope["method"], path)
-        else:
-            request_span.resource = path
+            if scope.get("method"):
+                span.resource = "{} {}".format(scope["method"], path)
+            else:
+                span.resource = path
 
     return wrapped(*args, **kwargs)
