@@ -304,6 +304,14 @@ venv = Venv(
             },
         ),
         Venv(
+            name="debugger",
+            command="pytest {cmdargs} tests/debugging/",
+            pys=select_pys(),
+            pkgs={
+                "msgpack": latest,
+            },
+        ),
+        Venv(
             name="vendor",
             command="pytest {cmdargs} tests/vendor/",
             pys=select_pys(),
