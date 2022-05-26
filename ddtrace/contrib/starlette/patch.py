@@ -1,3 +1,5 @@
+from typing import List
+
 import starlette
 from starlette.middleware import Middleware
 
@@ -6,6 +8,7 @@ from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.span import Span
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -72,21 +75,27 @@ def traced_handler(wrapped, instance, args, kwargs):
         scope["datadog"]["resource_paths"] = [instance.path]
     else:
         scope["datadog"]["resource_paths"].append(instance.path)
-    import pdb
 
-    pdb.set_trace()
-    if len(scope["datadog"].get("request_spans")) == len(scope["datadog"]["resource_paths"]):
+    request_spans = scope["datadog"].get("request_spans", [])  # type: List[Span]
+    resource_paths = scope["datadog"].get("resource_paths", [])  # type: List[str]
+
+    if len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
-        for index, span in enumerate(scope["datadog"].get("request_spans", [])):
+        for index, span in enumerate(request_spans):
             # We want to set the full resource name on the first request span
             # And one part less of the full resource name for each proceeding request span
-            # e.g. full path is /subapp/hello/{name}, first request span gets that 
+            # e.g. full path is /subapp/hello/{name}, first request span gets that as resource name
             # Second request span gets /hello/{name}
-            path = "".join(scope["datadog"].get("resource_paths")[index:])
+            path = "".join(resource_paths[index:])
 
             if scope.get("method"):
                 span.resource = "{} {}".format(scope["method"], path)
             else:
                 span.resource = path
+    # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
+    elif request_spans and resource_paths:
+        request_spans[0].resource = "".join(resource_paths)
+    else:
+        log.debug("no path avaialble or no request span available, not able to update the request span resource name")
 
     return wrapped(*args, **kwargs)
