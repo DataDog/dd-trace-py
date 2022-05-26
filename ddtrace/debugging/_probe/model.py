@@ -1,7 +1,9 @@
 import abc
 from os.path import normcase
 from os.path import normpath
-from types import CodeType
+from typing import Any
+from typing import Callable
+from typing import Dict
 from typing import Optional
 
 import attr
@@ -48,7 +50,13 @@ class Probe(six.with_metaclass(abc.ABCMeta)):
 
 @attr.s
 class ConditionalProbe(Probe):
-    condition = attr.ib(type=Optional[CodeType], default=None)
+    """Conditional probe.
+
+    If the condition is ``None``, then this is equivalent to a non-conditional
+    probe.
+    """
+
+    condition = attr.ib(type=Optional[Callable[[Dict[str, Any]], Any]], default=None)
 
 
 @attr.s
