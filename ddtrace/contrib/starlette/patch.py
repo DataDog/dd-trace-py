@@ -72,13 +72,16 @@ def traced_handler(wrapped, instance, args, kwargs):
         scope["datadog"]["resource_paths"] = [instance.path]
     else:
         scope["datadog"]["resource_paths"].append(instance.path)
+    import pdb
 
-    # Iterate through the request_spans and assign the correct resource name to each
-    if scope["datadog"].get("request_spans"):
+    pdb.set_trace()
+    if len(scope["datadog"].get("request_spans")) == len(scope["datadog"]["resource_paths"]):
+        # Iterate through the request_spans and assign the correct resource name to each
         for index, span in enumerate(scope["datadog"].get("request_spans", [])):
-            # We want to set the full resource name on the first request span 
+            # We want to set the full resource name on the first request span
             # And one part less of the full resource name for each proceeding request span
-            # e.g. full path is /subapp/hello/{name}, first request span gets that, second request span gets /hello/{name}
+            # e.g. full path is /subapp/hello/{name}, first request span gets that 
+            # Second request span gets /hello/{name}
             path = "".join(scope["datadog"].get("resource_paths")[index:])
 
             if scope.get("method"):
