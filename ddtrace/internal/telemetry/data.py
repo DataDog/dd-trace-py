@@ -1,10 +1,12 @@
 import platform
 import sys
 from typing import Dict
+from typing import List
 from typing import Tuple
 
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 
@@ -56,6 +58,12 @@ def _get_application(key):
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version) if PY3 else "",
     }
+
+
+def get_dependencies():
+    # type: () -> List[Dict[str, str]]
+    """Creates a list of dictionaries to store the name and version of all installed packages"""
+    return [{"name": dist.name, "version": dist.version} for dist in get_distributions()]
 
 
 def get_application(service, version, env):

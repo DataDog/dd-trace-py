@@ -5,11 +5,13 @@ import mock
 import pytest
 
 from ddtrace.internal.compat import PY3
+from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
 from ddtrace.internal.telemetry.data import _get_container_id
 from ddtrace.internal.telemetry.data import _get_os_version
 from ddtrace.internal.telemetry.data import get_application
+from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
 from ddtrace.internal.telemetry.data import get_version
@@ -143,3 +145,16 @@ def test_get_container_id_when_container_does_not_exists():
     with mock.patch("ddtrace.internal.telemetry.data.get_container_info") as gci:
         gci.return_value = None
         assert _get_container_id() == ""
+
+
+def test_get_dependencies():
+    """asserts that get_dependencies and get_distributions return the same packages"""
+    pkgs_as_dicts = get_dependencies()
+    pkgs_as_distributions = get_distributions()
+
+    assert len(pkgs_as_dicts) == len(pkgs_as_distributions)
+    for i in range(len(pkgs_as_dicts)):
+        pkg_dict = pkgs_as_dicts[i]
+        pkg_dist = pkgs_as_distributions[i]
+        assert pkg_dict["name"] == pkg_dist.name
+        assert pkg_dict["version"] == pkg_dist.version
