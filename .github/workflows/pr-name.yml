@@ -4,15 +4,6 @@ on:
     types: ['opened', 'edited', 'reopened', 'synchronize']
 
 jobs:
-<<<<<<< HEAD
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v1
-    - name: Install Dependencies
-      run: npm install @commitlint/config-conventional
-    - uses: JulienKode/pull-request-name-linter-action@v0.5.0
-=======
   pr_name_lint:
     runs-on: ubuntu-latest
     steps:
@@ -61,4 +52,3 @@ jobs:
                   }
                 });
               });
->>>>>>> e2089c7b (chore(ci): update script for linting PR title (#3744))
