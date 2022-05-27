@@ -94,7 +94,11 @@ def traced_handler(wrapped, instance, args, kwargs):
                 span.resource = path
     # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
     elif request_spans and resource_paths:
-        request_spans[0].resource = "".join(resource_paths)
+        if scope.get("method"):
+            request_spans[0].resource = "{} {}".format(scope["method"], "".join(resource_paths))
+        else:
+            request_spans[0].resource = "".join(resource_paths)
+
     else:
         log.debug("no path avaialble or no request span available, not able to update the request span resource name")
 
