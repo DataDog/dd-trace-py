@@ -70,13 +70,16 @@ def _default_handle_exception_span(exc, span):
 def span_from_scope(scope):
     # type: (Mapping[str, Any]) -> Optional[Span]
     """Retrieve the top-level ASGI span from the scope."""
-    return scope.get("datadog", {}).get("request_span")
+    if "request_spans" in scope.get("datadog", {}):
+        try:
+            return scope.get("datadog", {}).get("request_spans")[0]
+        except ValueError:
+            return {}
 
 
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
-
     Args:
         app: The ASGI application.
         tracer: Custom tracer. Defaults to the global tracer.
@@ -119,7 +122,10 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
-        scope["datadog"] = {"request_span": span}
+        if "datadog" not in scope:
+            scope["datadog"] = {"request_spans": [span]}
+        else:
+            scope["datadog"]["request_spans"].append(span)
 
         if self.span_modifier:
             self.span_modifier(span, scope)
