@@ -100,6 +100,10 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_spans[0].resource = "".join(resource_paths)
 
     else:
-        log.debug("unable to update the request span resource name, request_spans:%r, resource_paths:%r", request_spans, resource_paths)
+        log.debug(
+            "unable to update the request span resource name, request_spans:%r, resource_paths:%r",
+            request_spans,
+            resource_paths,
+        )
 
     return wrapped(*args, **kwargs)
