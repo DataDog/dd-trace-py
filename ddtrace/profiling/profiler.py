@@ -179,7 +179,7 @@ class _ProfilerInstance(service.Service):
         r = self._recorder = recorder.Recorder(
             max_events={
                 stack_event.StackSampleEvent: max_stack_events,
-                stack_event.StackExceptionSampleEvent: max_stack_events / 2,
+                stack_event.StackExceptionSampleEvent: int(max_stack_events / 2),
                 # (default buffer size / interval) * export interval
                 memalloc.MemoryAllocSampleEvent: int(
                     (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60

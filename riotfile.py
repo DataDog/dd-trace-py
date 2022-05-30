@@ -134,7 +134,7 @@ venv = Venv(
             command="mypy {cmdargs}",
             create=True,
             pkgs={
-                "mypy": latest,
+                "mypy": "<0.960",
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -301,6 +301,14 @@ venv = Venv(
             pkgs={
                 "redis": latest,
                 "gevent": latest,
+            },
+        ),
+        Venv(
+            name="debugger",
+            command="pytest {cmdargs} tests/debugging/",
+            pys=select_pys(),
+            pkgs={
+                "msgpack": latest,
             },
         ),
         Venv(
