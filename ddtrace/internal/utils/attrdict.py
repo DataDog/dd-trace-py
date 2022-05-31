@@ -4,7 +4,7 @@ from typing import Callable
 from six.moves.collections_abc import Mapping
 
 
-class AttrDict(Mapping[str, Any]):
+class AttrDict(Mapping):
     """Dict-like object that allows for item attribute access
 
     Example::
