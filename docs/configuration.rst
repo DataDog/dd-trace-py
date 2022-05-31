@@ -80,7 +80,7 @@ below:
        .. _dd-trace-log-file-size-bytes:
    * - ``DD_TRACE_LOG_FILE_SIZE_BYTES``
      - Int
-     - 15 mb
+     - 15728640
      - Max size for a file when used with `DD_TRACE_LOG_FILE`.
 
        .. _dd-trace-integration-enabled:
