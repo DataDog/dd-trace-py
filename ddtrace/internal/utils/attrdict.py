@@ -1,8 +1,10 @@
 from typing import Any
 from typing import Callable
 
+from six.moves.collections_abc import Mapping
 
-class AttrDict(object):
+
+class AttrDict(Mapping[str, Any]):
     """Dict-like object that allows for item attribute access
 
     Example::
@@ -27,7 +29,7 @@ class AttrDict(object):
         # type: (str) -> Any
         return getattr(self.__dict__, name)
 
-    def __contains__(self, name):
+    def __contains__(self, name):  # type: ignore[override]
         # type: (str) -> bool
         return name in self.__dict__
 
@@ -38,6 +40,12 @@ class AttrDict(object):
     def __setitem__(self, name, value):
         # type: (str, Any) -> None
         self.__dict__[name] = value
+
+    def __iter__(self):
+        return iter(self.__dict__)
+
+    def __len__(self):
+        return len(self.__dict__)
 
 
 class DefaultAttrDict(AttrDict):
