@@ -69,7 +69,19 @@ below:
      - Boolean
      - False
      - Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if
-       one does not already exist. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_DEBUG``).
+       one does not already exist. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_DEBUG``). Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
+
+       .. _dd-trace-log-file:
+   * - ``DD_TRACE_LOG_FILE``
+     - String
+     - None
+     - Directs `ddtrace` logs to a specific file. Note: The default backup count is 1. For larger logs, use with `DD_TRACE_LOG_FILE_SIZE_BYTES`.
+
+       .. _dd-trace-log-file-size-bytes:
+   * - ``DD_TRACE_LOG_FILE_SIZE_BYTES``
+     - Int
+     - 15 mb
+     - Max size for a file when used with `DD_TRACE_LOG_FILE`.
 
        .. _dd-trace-integration-enabled:
    * - ``DD_TRACE_<INTEGRATION>_ENABLED``
