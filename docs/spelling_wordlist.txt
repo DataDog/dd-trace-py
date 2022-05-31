@@ -121,6 +121,7 @@ posix
 postgres
 prepended
 profiler
+protobuf
 psycopg
 py
 pylibmc
