@@ -156,6 +156,10 @@ commands:
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
+                  # Skip checking for pip version updates
+                  # https://pip.pypa.io/en/stable/cli/pip/#cmdoption-disable-pip-version-check
+                  #   Don’t periodically check PyPI to determine whether a new version of pip is available for download.
+                  PIP_DISABLE_PIP_VERSION_CHECK: 1
 
                 command: |
                   mv .riot .ddriot
