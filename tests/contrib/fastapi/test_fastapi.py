@@ -525,9 +525,9 @@ def test_subapp_other(snapshot_client):
     assert response.status_code == 200
 
 
-# Test that patching starlette doesn't affect the spans generated
 @snapshot(token_override="tests.contrib.fastapi.test_fastapi.test_subapp_snapshot")
 def test_subapp_w_starlette_patch_snapshot(snapshot_client):
+    # Test that patching starlette doesn't affect the spans generated
     patch_starlette()
     try:
         response = snapshot_client.get("/sub-app/hello/name")
