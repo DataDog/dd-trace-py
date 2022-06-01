@@ -134,7 +134,7 @@ venv = Venv(
             command="mypy {cmdargs}",
             create=True,
             pkgs={
-                "mypy": latest,
+                "mypy": "<0.960",
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -301,6 +301,14 @@ venv = Venv(
             pkgs={
                 "redis": latest,
                 "gevent": latest,
+            },
+        ),
+        Venv(
+            name="debugger",
+            command="pytest {cmdargs} tests/debugging/",
+            pys=select_pys(),
+            pkgs={
+                "msgpack": latest,
             },
         ),
         Venv(
@@ -1594,20 +1602,34 @@ venv = Venv(
         ),
         Venv(
             name="redis",
-            pys=select_pys(),
-            command="pytest {cmdargs} tests/contrib/redis",
-            pkgs={
-                "redis": [
-                    ">=2.10,<2.11",
-                    ">=3.0,<3.1",
-                    ">=3.1,<3.2",
-                    ">=3.2,<3.3",
-                    ">=3.3,<3.4",
-                    ">=3.4,<3.5",
-                    ">=3.5,<3.6",
-                    latest,
-                ]
-            },
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    command="pytest {cmdargs} --ignore-glob='*asyncio*' tests/contrib/redis",
+                    pkgs={
+                        "redis": [
+                            ">=2.10,<2.11",
+                            ">=3.0,<3.1",
+                            ">=3.1,<3.2",
+                            ">=3.2,<3.3",
+                            ">=3.3,<3.4",
+                            ">=3.4,<3.5",
+                            ">=3.5,<3.6",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    command="pytest {cmdargs} tests/contrib/redis",
+                    pkgs={
+                        "pytest-asyncio": latest,
+                        "redis": [
+                            ">=4.2,<4.3",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
         ),
         Venv(
             name="aredis",
