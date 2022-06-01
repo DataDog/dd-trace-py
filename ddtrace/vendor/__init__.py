@@ -13,7 +13,7 @@ wrapt
 
 Website: https://wrapt.readthedocs.io/en/latest/
 Source: https://github.com/GrahamDumpleton/wrapt/
-Version: 1.12.1
+Version: 1.14.1
 License: BSD 2-Clause "Simplified" License
 
 Notes:
@@ -94,4 +94,4 @@ from ..internal.logger import get_logger
 from .dogstatsd import base
 
 
-base.log = get_logger('ddtrace.vendor.dogstatsd')
+base.log = get_logger("ddtrace.vendor.dogstatsd")
