@@ -1,0 +1,69 @@
+# -*- encoding: utf-8 -*-
+import logging
+
+import attr
+
+from ddtrace.internal import compat
+from ddtrace.internal import periodic
+from ddtrace.internal.utils import attr as attr_utils
+from ddtrace.profiling import _traceback
+from ddtrace.profiling import exporter
+
+
+LOG = logging.getLogger(__name__)
+
+
+@attr.s
+class ServerlessScheduler(periodic.PeriodicService):
+    """Schedule export of recorded data for FaaS systems."""
+    """Collects profiles until a total of 60s of data, then flushes"""
+
+    recorder = attr.ib()
+    exporters = attr.ib()
+    before_flush = attr.ib(default=None, eq=False)
+    _interval = attr.ib(factory=attr_utils.from_env("DD_SERVERLESS_PROFILING_UPLOAD_INTERVAL", 1.0, float))
+    _configured_interval = attr.ib(init=False)
+    _last_export = attr.ib(init=False, default=None, eq=False)
+
+    def __attrs_post_init__(self):
+        # Copy the value to use it later since we're going to adjust the real interval
+        self._configured_interval = self.interval
+
+    def _start_service(self):  # type: ignore[override]
+        # type: (...) -> None
+        """Start the scheduler."""
+        LOG.debug("Starting scheduler")
+        super(ServerlessScheduler, self)._start_service()
+        self._last_export = compat.time_ns()
+        LOG.debug("Scheduler started")
+
+    def flush(self):
+        """Flush events from recorder to exporters."""
+        LOG.debug("Flushing events")
+        if self.before_flush is not None:
+            try:
+                self.before_flush()
+            except Exception:
+                LOG.error("Scheduler before_flush hook failed", exc_info=True)
+        if self.exporters:
+            events = self.recorder.reset()
+            start = self._last_export
+            self._last_export = compat.time_ns()
+            for exp in self.exporters:
+                try:
+                    exp.export(events, start, self._last_export)
+                except exporter.ExportError as e:
+                    LOG.error("Unable to export profile: %s. Ignoring.", _traceback.format_exception(e))
+                except Exception:
+                    LOG.exception(
+                        "Unexpected error while exporting events. "
+                        "Please report this bug to https://github.com/DataDog/dd-trace-py/issues"
+                    )
+
+    def periodic(self):
+        if self.recorder.events_delta() > 60.0:
+            start_time = compat.monotonic()
+            try:
+                self.flush()
+            finally:
+                self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
