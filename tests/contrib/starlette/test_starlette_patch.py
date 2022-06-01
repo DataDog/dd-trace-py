@@ -11,11 +11,17 @@ class TestStarlettePatch(PatchTestCase.Base):
 
     def assert_module_patched(self, starlette):
         self.assert_wrapped(starlette.applications.Starlette.__init__)
+        self.assert_wrapped(starlette.routing.Mount.handle)
+        self.assert_wrapped(starlette.routing.Route.handle)
 
     def assert_not_module_patched(self, starlette):
         import starlette.applications
 
         self.assert_not_wrapped(starlette.applications.Starlette.__init__)
+        self.assert_not_wrapped(starlette.routing.Mount.handle)
+        self.assert_not_wrapped(starlette.routing.Route.handle)
 
     def assert_not_module_double_patched(self, starlette):
         self.assert_not_double_wrapped(starlette.applications.Starlette.__init__)
+        self.assert_not_double_wrapped(starlette.routing.Mount.handle)
+        self.assert_not_double_wrapped(starlette.routing.Route.handle)
