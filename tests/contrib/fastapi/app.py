@@ -102,4 +102,12 @@ def get_app():
             fp.flush()
             return FileResponse(fp.name)
 
+    subapp = FastAPI()
+
+    @subapp.get("/hello/{name}")
+    def hello():
+        return {"Greeting": "Hello"}
+
+    app.mount("/sub-app", subapp)
+
     return app

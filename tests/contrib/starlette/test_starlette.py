@@ -343,7 +343,7 @@ def test_path_param_no_aggregate(client, tracer, test_spans):
     request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
-    assert request_span.resource == "GET /users/1"
+    assert request_span.resource == "GET /users/{userid:int}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1"
@@ -394,6 +394,13 @@ def test_table_query(client, tracer, test_spans):
     assert sql_span.resource == "SELECT * FROM NOTES"
     assert sql_span.error == 0
     assert sql_span.get_tag("sql.db") == "test.db"
+
+
+@snapshot()
+def test_subapp_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app/hello/name")
+    assert response.status_code == 200
+    assert response.text == "Success"
 
 
 @snapshot()
