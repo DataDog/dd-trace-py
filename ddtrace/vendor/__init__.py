@@ -94,4 +94,4 @@ from ..internal.logger import get_logger
 from .dogstatsd import base
 
 
-base.log = get_logger("ddtrace.vendor.dogstatsd")
+base.log = get_logger('ddtrace.vendor.dogstatsd')
