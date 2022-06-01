@@ -6,8 +6,8 @@ import ddtrace
 from ddtrace.ext import ci
 from ddtrace.ext.http import URL
 from ddtrace.filters import FilterRequestsOnUrl
-from ddtrace.filters import TraceCiVisibilityFilter
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.ci.filters import TraceCiVisibilityFilter
 from ddtrace.span import Span
 
 
