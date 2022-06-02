@@ -377,6 +377,7 @@ def test_debug_logs_can_go_to_file_backup_count(
     env["DD_TRACE_FILE_SIZE_BYTES"] = "10"
     code = """
 import logging
+import os
 import ddtrace
 
 ddtrace_logger = logging.getLogger('ddtrace')
@@ -385,6 +386,8 @@ assert len(ddtrace_logger.handlers) == 1
 assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 10
 assert ddtrace_logger.handlers[0].backupCount == 1
+if os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is not None:
+    ddtrace_logger.handlers[0].level == getattr(logging, os.environ.get("DD_TRACE_LOG_FILE_LEVEL"))
 
 ddtrace_logger = logging.getLogger('ddtrace')
 
@@ -409,6 +412,7 @@ for attempt in range(100):
 
     code = """
 import logging
+import os
 
 ddtrace_logger = logging.getLogger('ddtrace')
 assert ddtrace_logger.getEffectiveLevel() == logging.DEBUG
@@ -416,6 +420,9 @@ assert len(ddtrace_logger.handlers) == 1
 assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
 assert ddtrace_logger.handlers[0].maxBytes == 10
 assert ddtrace_logger.handlers[0].backupCount == 1
+
+if os.environ.get("DD_TRACE_LOG_FILE_LEVEL") is not None:
+    ddtrace_logger.handlers[0].level == getattr(logging, os.environ.get("DD_TRACE_LOG_FILE_LEVEL"))
 
 for attempt in range(100):
     ddtrace_logger.debug('ddtrace multiple debug log')
@@ -436,3 +443,41 @@ for attempt in range(100):
         content = file.read()
         assert len(content) > 0
         assert re.search(LOG_PATTERN, content) is not None
+
+def test_unknown_log_level_error( run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
+    """
+    When DD_TRACE_LOG_FILE_LEVEL is set to an unknown env var, the application raises an error and no logs are written.
+    """
+    env = os.environ.copy()
+    env["DD_TRACE_LOG_FILE_LEVEL"] = 'UNKNOWN'
+    log_file = tmpdir + "/testlog.log"
+    env["DD_TRACE_LOG_FILE"] = log_file
+    env["DD_TRACE_DEBUG"] = "true"
+    env["DD_TRACE_FILE_SIZE_BYTES"] = "10"
+    code = """
+import logging
+import ddtrace
+"""
+
+    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
+    assert status == 1, err
+    assert b"ValueError" in err
+    assert out == b""
+
+    testfiles = os.listdir(tmpdir)
+    log_files = [filename for filename in testfiles if "testlog.log" in filename]
+    assert log_files == []
+
+
+    code = """
+import logging
+"""
+
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 1, err
+    assert b"ValueError" in err
+    assert out == b""
+
+    testfiles = os.listdir(tmpdir)
+    log_files = [filename for filename in testfiles if "testlog.log" in filename]
+    assert log_files == []

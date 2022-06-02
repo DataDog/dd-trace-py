@@ -28,7 +28,14 @@ def configure_ddtrace_logger():
 
     """
     debug_enabled = asbool(os.environ.get("DD_TRACE_DEBUG", "false"))
+
     log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG")
+    file_log_level_value = logging.DEBUG
+    try:
+        file_log_level_value = getattr(logging, log_file_level.upper())
+    except AttributeError:
+        raise ValueError("Unknown log level. Logging level must be CRITICAL/ERROR/WARNING/INFO/DEBUG. Detected logging level was ", str(log_file_level))
+
     log_path = os.environ.get("DD_TRACE_LOG_FILE")
     max_file_bytes = int(os.environ.get("DD_TRACE_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
     num_backup = 1
@@ -40,12 +47,6 @@ def configure_ddtrace_logger():
     if debug_enabled is True:
         ddtrace_logger.setLevel(logging.DEBUG)
         ddtrace_logger.debug("Debug mode has been enabled for the ddtrace logger.")
-        file_log_level_value = logging.getLevelName("DEBUG")
-
-    if "Level" not in str(logging.getLevelName(log_file_level)):  # Result starts with 'Level' if no matches
-        file_log_level_value = logging.getLevelName(log_file_level)
-    else:
-        file_log_level_value = logging.getLevelName("DEBUG")
 
     if log_path is not None:
         log_path = os.path.abspath(log_path)

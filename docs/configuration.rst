@@ -86,7 +86,7 @@ below:
    * - ``DD_TRACE_LOG_FILE_SIZE_BYTES``
      - Int
      - 15728640
-     - Max size for a file when used with `DD_TRACE_LOG_FILE`.
+     - Max size for a file when used with `DD_TRACE_LOG_FILE`. When a log has exceeded this size, there will be one backup log file created. In total, the files will store ``2 * DD_TRACE_LOG_FILE_SIZE_BYTES`` worth of logs.
 
        .. _dd-trace-integration-enabled:
    * - ``DD_TRACE_<INTEGRATION>_ENABLED``
