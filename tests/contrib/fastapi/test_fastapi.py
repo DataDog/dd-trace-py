@@ -8,6 +8,8 @@ import pytest
 import ddtrace
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
+from ddtrace.contrib.starlette.patch import patch as patch_starlette
+from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -487,6 +489,46 @@ def test_service_can_be_overridden(client, tracer, test_spans):
 
     span = spans[0][0]
     assert span.service == "test-override-service"
+
+
+def test_w_patch_starlette(client, tracer, test_spans):
+    patch_starlette()
+    try:
+        response = client.get("/file", headers={"X-Token": "DataDog"})
+        assert response.status_code == 200
+        assert response.text == "Datadog says hello!"
+
+        spans = test_spans.pop_traces()
+        assert len(spans) == 1
+        assert len(spans[0]) == 1
+        request_span = spans[0][0]
+        assert request_span.service == "fastapi"
+        assert request_span.name == "fastapi.request"
+        assert request_span.resource == "GET /file"
+        assert request_span.error == 0
+        assert request_span.get_tag("http.method") == "GET"
+        assert request_span.get_tag("http.url") == "http://testserver/file"
+        assert request_span.get_tag("http.query.string") is None
+        assert request_span.get_tag("http.status_code") == "200"
+    finally:
+        unpatch_starlette()
+
+
+@snapshot()
+def test_subapp_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app/hello/name")
+    assert response.status_code == 200
+
+
+@snapshot(token_override="tests.contrib.fastapi.test_fastapi.test_subapp_snapshot")
+def test_subapp_w_starlette_patch_snapshot(snapshot_client):
+    # Test that patching starlette doesn't affect the spans generated
+    patch_starlette()
+    try:
+        response = snapshot_client.get("/sub-app/hello/name")
+        assert response.status_code == 200
+    finally:
+        unpatch_starlette()
 
 
 @snapshot()
