@@ -444,12 +444,13 @@ for attempt in range(100):
         assert len(content) > 0
         assert re.search(LOG_PATTERN, content) is not None
 
-def test_unknown_log_level_error( run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
+
+def test_unknown_log_level_error(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
     """
     When DD_TRACE_LOG_FILE_LEVEL is set to an unknown env var, the application raises an error and no logs are written.
     """
     env = os.environ.copy()
-    env["DD_TRACE_LOG_FILE_LEVEL"] = 'UNKNOWN'
+    env["DD_TRACE_LOG_FILE_LEVEL"] = "UNKNOWN"
     log_file = tmpdir + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
     env["DD_TRACE_DEBUG"] = "true"
@@ -467,7 +468,6 @@ import ddtrace
     testfiles = os.listdir(tmpdir)
     log_files = [filename for filename in testfiles if "testlog.log" in filename]
     assert log_files == []
-
 
     code = """
 import logging
