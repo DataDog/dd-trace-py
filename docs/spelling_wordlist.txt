@@ -115,6 +115,7 @@ namespace
 opentracer
 opentracing
 parameterized
+perf
 pid
 plugin
 posix
