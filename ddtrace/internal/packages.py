@@ -1,14 +1,14 @@
 import typing
 
 
-Distribution = typing.NamedTuple("Distribution", [("name", str), ("version", str)])
+Distribution = typing.NamedTuple("Distribution", [("name", str), ("version", str), ("path", str)])
 
 _DISTRIBUTIONS = None  # type: typing.Optional[typing.Set[Distribution]]
 
 
 def get_distributions():
     # type: () -> typing.Set[Distribution]
-    """returns the names, versions and path of all installed distributions"""
+    """returns the name and version of all distributions in a python path"""
     global _DISTRIBUTIONS
     if _DISTRIBUTIONS is not None:
         return _DISTRIBUTIONS
@@ -20,13 +20,15 @@ def get_distributions():
 
     pkgs = set()
     for dist in importlib_metadata.distributions():
-        # accessing dist.metadata reads all lines in the PKG-INFO and/or METADATA files
-        # We should avoid accessing dist.metadata more than once
+        # Get the root path of all files in a distribution
+        path = str(dist.locate_file(""))
+        # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
+        # Optimization: we should avoid accessing dist.metadata more than once
         metadata = dist.metadata
         name = metadata["name"]
         version = metadata["version"]
         if name and version:
-            pkgs.add(Distribution(name, version))
+            pkgs.add(Distribution(path=path, name=name, version=version))
 
     _DISTRIBUTIONS = pkgs
     return _DISTRIBUTIONS

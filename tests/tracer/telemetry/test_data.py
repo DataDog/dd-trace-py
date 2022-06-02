@@ -149,12 +149,6 @@ def test_get_container_id_when_container_does_not_exists():
 
 def test_get_dependencies():
     """asserts that get_dependencies and get_distributions return the same packages"""
-    pkgs_as_dicts = get_dependencies()
-    pkgs_as_distributions = list(get_distributions())
-
-    assert len(pkgs_as_dicts) == len(pkgs_as_distributions)
-    for i in range(len(pkgs_as_dicts)):
-        pkg_dict = pkgs_as_dicts[i]
-        pkg_dist = pkgs_as_distributions[i]
-        assert pkg_dict["name"] == pkg_dist.name
-        assert pkg_dict["version"] == pkg_dist.version
+    pkgs_as_dicts = {(dep["name"], dep["version"]) for dep in get_dependencies()}
+    pkgs_as_distributions = {(dist.name, dist.version) for dist in get_distributions()}
+    assert pkgs_as_dicts == pkgs_as_distributions
