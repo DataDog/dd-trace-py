@@ -329,6 +329,12 @@ pytest
 .. automodule:: ddtrace.contrib.pytest
 
 
+.. _pytest_bdd:
+
+pytest-bdd
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.pytest_bdd
+
 .. _psycopg2:
 
 psycopg
