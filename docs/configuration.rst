@@ -68,14 +68,19 @@ below:
    * - ``DD_TRACE_DEBUG``
      - Boolean
      - False
-     - Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if
-       one does not already exist. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_DEBUG``). Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
+     - Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if one does not already exist. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_DEBUG``). Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
+
+       .. _dd-trace-log-file-level:
+   * - ``DD_TRACE_LOG_FILE_LEVEL``
+     - String
+     - DEBUG
+     - Configures the ``RotatingFileHandler`` used by the `ddtrace` logger to write logs to a file based on the level specified. Defaults to `DEBUG`, but will accept the values found in the standard **logging** library, such as WARNING, ERROR, and INFO, if further customization is needed. Files are not written to unless ``DD_TRACE_LOG_FILE`` has been defined.
 
        .. _dd-trace-log-file:
    * - ``DD_TRACE_LOG_FILE``
      - String
      - None
-     - Directs `ddtrace` logs to a specific file. Note: The default backup count is 1. For larger logs, use with `DD_TRACE_LOG_FILE_SIZE_BYTES`.
+     - Directs `ddtrace` logs to a specific file. Note: The default backup count is 1. For larger logs, use with `DD_TRACE_LOG_FILE_SIZE_BYTES`. To fine tune the logging level, use with ``DD_TRACE_LOG_FILE_LEVEL``. 
 
        .. _dd-trace-log-file-size-bytes:
    * - ``DD_TRACE_LOG_FILE_SIZE_BYTES``
