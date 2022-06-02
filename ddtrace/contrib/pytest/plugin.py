@@ -9,6 +9,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
 from ddtrace.contrib.pytest.constants import KIND
+from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.internal.ci.recorder import CIRecorder
@@ -167,14 +168,14 @@ def pytest_runtest_makereport(item, call):
     has_skip_keyword = any(x in result.keywords for x in ["skip", "skipif", "skipped"])
 
     # If run with --runxfail flag, tests behave as if they were not marked with xfail,
-    # that's why no test.XFAIL_REASON or test.RESULT tags will be added.
+    # that's why no XFAIL_REASON or test.RESULT tags will be added.
     if result.skipped:
         if xfail and not has_skip_keyword:
             # XFail tests that fail are recorded skipped by pytest, should be passed instead
             span.set_tag(test.STATUS, test.Status.PASS.value)
             if not item.config.option.runxfail:
                 span.set_tag(test.RESULT, test.Status.XFAIL.value)
-                span.set_tag(test.XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+                span.set_tag(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
         else:
             span.set_tag(test.STATUS, test.Status.SKIP.value)
         reason = _extract_reason(call)
@@ -184,13 +185,13 @@ def pytest_runtest_makereport(item, call):
         span.set_tag(test.STATUS, test.Status.PASS.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=False) are recorded passed by pytest
-            span.set_tag(test.XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
+            span.set_tag(XFAIL_REASON, getattr(result, "wasxfail", "XFail"))
             span.set_tag(test.RESULT, test.Status.XPASS.value)
     else:
         span.set_tag(test.STATUS, test.Status.FAIL.value)
         if xfail and not has_skip_keyword and not item.config.option.runxfail:
             # XPass (strict=True) are recorded failed by pytest, longrepr contains reason
-            span.set_tag(test.XFAIL_REASON, getattr(result, "longrepr", "XFail"))
+            span.set_tag(XFAIL_REASON, getattr(result, "longrepr", "XFail"))
             span.set_tag(test.RESULT, test.Status.XPASS.value)
         if call.excinfo:
             span.set_exc_info(call.excinfo.type, call.excinfo.value, call.excinfo.tb)
