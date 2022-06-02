@@ -7,6 +7,7 @@ from ddtrace.internal.utils.formats import asbool
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 
+
 def configure_ddtrace_logger():
     # type: () -> None
     """Configures ddtrace log levels and file paths.
@@ -41,7 +42,7 @@ def configure_ddtrace_logger():
         ddtrace_logger.debug("Debug mode has been enabled for the ddtrace logger.")
         file_log_level_value = logging.getLevelName("DEBUG")
 
-    if 'Level' not in str(logging.getLevelName(log_file_level)): # Result starts with 'Level' if no matches
+    if "Level" not in str(logging.getLevelName(log_file_level)):  # Result starts with 'Level' if no matches
         file_log_level_value = logging.getLevelName(log_file_level)
     else:
         file_log_level_value = logging.getLevelName("DEBUG")

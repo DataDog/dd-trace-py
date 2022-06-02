@@ -141,6 +141,7 @@ assert child_logger.handlers == []
         assert len(first_line) > 0
         assert re.search(LOG_PATTERN, first_line) is not None
 
+
 @pytest.mark.parametrize("dd_trace_debug", ["true", "false", None])
 @pytest.mark.parametrize("dd_trace_log_file_level", ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", None])
 @pytest.mark.parametrize("dd_trace_log_file", ["example.log", None])
@@ -245,7 +246,7 @@ ddtrace_logger.debug('debug log')
 
 def test_warn_logs_can_go_to_file(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
     """
-    When DD_TRACE_DEBUG is false and DD_TRACE_LOG_FILE_LEVEL hasn't been configured, 
+    When DD_TRACE_DEBUG is false and DD_TRACE_LOG_FILE_LEVEL hasn't been configured,
         warn logs are emitted to the path defined in DD_TRACE_LOG_FILE.
     """
     env = os.environ.copy()
@@ -301,7 +302,9 @@ ddtrace_logger.warning('warning log')
 
 
 @pytest.mark.parametrize("dd_trace_log_file_level", ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", None])
-def test_debug_logs_streamhandler_default(dd_trace_log_file_level, run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess):
+def test_debug_logs_streamhandler_default(
+    dd_trace_log_file_level, run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess
+):
     """
     When DD_TRACE_DEBUG is true, debug logs are emitted to StreamHandler
         following a configured logging.basicConfig and its defined format.
@@ -310,7 +313,7 @@ def test_debug_logs_streamhandler_default(dd_trace_log_file_level, run_python_co
     """
     env = os.environ.copy()
     if dd_trace_log_file_level is not None:
-        env["DD_TRACE_LOG_FILE_LEVEL"] = dd_trace_log_file_level    
+        env["DD_TRACE_LOG_FILE_LEVEL"] = dd_trace_log_file_level
     env["DD_TRACE_DEBUG"] = "true"
     code = """
 import logging
@@ -431,5 +434,5 @@ for attempt in range(100):
 
     with open(log_file) as file:
         content = file.read()
-        assert len(content) > 0     
+        assert len(content) > 0
         assert re.search(LOG_PATTERN, content) is not None
