@@ -1238,7 +1238,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest {cmdargs} tests/contrib/pytest",
+            command="pytest {cmdargs} tests/contrib/pytest/",
             venvs=[
                 Venv(
                     pys=["2.7"],
@@ -1264,6 +1264,38 @@ venv = Venv(
                     pkgs={
                         "pytest": [
                             ">=6.0,<7.0",
+                            latest,
+                        ],
+                        "msgpack": latest,
+                        "more_itertools": "<8.11.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="pytest-bdd",
+            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
+            venvs=[
+                Venv(
+                    pys=["2.7"],
+                    # pytest-bdd==3.4 is last to support python 2.7
+                    pkgs={"pytest-bdd": ">=3.0,<3.5", "msgpack": latest},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pkgs={
+                        "pytest-bdd": [
+                            ">=4.0,<5.0",
+                        ],
+                        "msgpack": latest,
+                        "more_itertools": "<8.11.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "pytest-bdd": [
+                            ">=4.0,<5.0",
                             latest,
                         ],
                         "msgpack": latest,
@@ -1324,6 +1356,7 @@ venv = Venv(
             name="grpc_aio",
             command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
             pkgs={
+                "googleapis-common-protos": latest,
                 "pytest-asyncio": latest,
             },
             venvs=[

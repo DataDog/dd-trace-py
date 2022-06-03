@@ -15,22 +15,24 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
-from ddtrace.profiling.collector import threading
 
 
-def _protobuf_post_312():
-    # type: (...) -> bool
+def _protobuf_version():
+    # type: (...) -> typing.Tuple[int, int, int]
     """Check if protobuf version is post 3.12"""
     import google.protobuf
 
     from ddtrace.internal.utils.version import parse_version
 
-    v = parse_version(google.protobuf.__version__)
-    return v[0] >= 3 and v[1] >= 12
+    return parse_version(google.protobuf.__version__)
 
 
-if _protobuf_post_312():
+_pb_version = _protobuf_version()
+
+if _pb_version >= (3, 19, 0):
     from ddtrace.profiling.exporter import pprof_pb2
+elif _pb_version >= (3, 12, 0):
+    from ddtrace.profiling.exporter import pprof_pre319_pb2 as pprof_pb2  # type: ignore[no-redef]
 else:
     from ddtrace.profiling.exporter import pprof_pre312_pb2 as pprof_pb2  # type: ignore[no-redef]
 
@@ -150,7 +152,7 @@ class _PprofConverter(object):
         try:
             return self._functions[(filename, funcname)]
         except KeyError:
-            func = pprof_pb2.Function(  # type: ignore[attr-defined]
+            func = pprof_pb2.Function(
                 id=self._last_func_id.generate(),
                 name=self._str(funcname),
                 filename=self._str(filename),
@@ -167,10 +169,10 @@ class _PprofConverter(object):
         try:
             return self._locations[(filename, lineno, funcname)]
         except KeyError:
-            location = pprof_pb2.Location(  # type: ignore[attr-defined]
+            location = pprof_pb2.Location(
                 id=self._last_location_id.generate(),
                 line=[
-                    pprof_pb2.Line(  # type: ignore[attr-defined]
+                    pprof_pb2.Line(
                         function_id=self._to_Function(filename, funcname).id,
                         line=lineno,
                     ),
@@ -385,27 +387,27 @@ class _PprofConverter(object):
         program_name: str,
     ) -> pprof_ProfileType:
         pprof_sample_type = [
-            pprof_pb2.ValueType(type=self._str(type_), unit=self._str(unit)) for type_, unit in sample_types  # type: ignore[attr-defined]
+            pprof_pb2.ValueType(type=self._str(type_), unit=self._str(unit)) for type_, unit in sample_types
         ]
 
         sample = [
-            pprof_pb2.Sample(  # type: ignore[attr-defined]
+            pprof_pb2.Sample(
                 location_id=locations,
                 value=[values.get(sample_type_name, 0) for sample_type_name, unit in sample_types],
-                label=[pprof_pb2.Label(key=self._str(key), str=self._str(s)) for key, s in labels],  # type: ignore[attr-defined]
+                label=[pprof_pb2.Label(key=self._str(key), str=self._str(s)) for key, s in labels],
             )
             for (locations, labels), values in sorted(six.iteritems(self._location_values), key=_ITEMGETTER_ZERO)
         ]
 
-        period_type = pprof_pb2.ValueType(type=self._str("time"), unit=self._str("nanoseconds"))  # type: ignore[attr-defined]
+        period_type = pprof_pb2.ValueType(type=self._str("time"), unit=self._str("nanoseconds"))
 
         # WARNING: no code should use _str() here as once the _string_table is serialized below,
         # it won't be updated if you call _str later in the code here
-        return pprof_pb2.Profile(  # type: ignore[attr-defined]
+        return pprof_pb2.Profile(
             sample_type=pprof_sample_type,
             sample=sample,
             mapping=[
-                pprof_pb2.Mapping(  # type: ignore[attr-defined]
+                pprof_pb2.Mapping(
                     id=1,
                     filename=self._str(program_name),
                 ),
