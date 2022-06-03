@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    redis: asyncio client got a default Pin and get traced by default.

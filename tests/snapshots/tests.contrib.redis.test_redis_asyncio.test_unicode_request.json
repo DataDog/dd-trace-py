@@ -1,15 +1,15 @@
 [[
   {
     "name": "redis.command",
-    "service": "my-redis",
-    "resource": "GET cheese",
+    "service": "redis",
+    "resource": "GET \ud83d\ude10",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "redis",
     "meta": {
       "out.host": "127.0.0.1",
-      "redis.raw_command": "GET cheese",
+      "redis.raw_command": "GET \ud83d\ude10",
       "runtime-id": "e747caaf38324174ab96bfdf5d696fa1"
     },
     "metrics": {
@@ -23,6 +23,6 @@
       "redis.args_length": 2,
       "system.pid": 886
     },
-    "duration": 2125875,
-    "start": 1654263784693223751
+    "duration": 2062292,
+    "start": 1654263784334440709
   }]]
