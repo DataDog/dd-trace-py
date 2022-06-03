@@ -38,13 +38,13 @@ class DDLogRecord(object):
 def _get_current_span(tracer=None):
     """Helper to get the currently active span"""
 
+    if not tracer:
+        tracer = ddtrace.tracer
+
     # We might be calling this during library initialization, in which case `ddtrace.tracer` might
     # be the `tracer` module and not the global tracer instance.
     if not getattr(tracer, "enabled", False):
         return None
-
-    if not tracer:
-        tracer = ddtrace.tracer
 
     return tracer.current_span()
 

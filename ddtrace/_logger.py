@@ -30,7 +30,6 @@ def configure_ddtrace_logger():
     debug_enabled = asbool(os.environ.get("DD_TRACE_DEBUG", "false"))
 
     log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG")
-    file_log_level_value = logging.DEBUG
     try:
         file_log_level_value = getattr(logging, log_file_level.upper())
     except AttributeError:
