@@ -403,6 +403,7 @@ for attempt in range(100):
 
     testfiles = os.listdir(tmpdir)
     log_files = [filename for filename in testfiles if "testlog.log" in filename]
+    log_files.sort()
     assert log_files == ["testlog.log", "testlog.log.1"]
 
     with open(log_file) as file:
@@ -436,7 +437,7 @@ for attempt in range(100):
 
     testfiles = os.listdir(tmpdir)
     log_files = [filename for filename in testfiles if "testlog.log" in filename]
-
+    log_files.sort()
     assert log_files == ["testlog.log", "testlog.log.1"]
 
     with open(log_file) as file:
