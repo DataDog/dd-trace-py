@@ -1,0 +1,21 @@
+[[
+  {
+    "name": "web-request",
+    "service": "test",
+    "resource": "web-request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "runtime-id": "1534693dbcc043b6a7484ca6b8b96937"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 2450
+    },
+    "duration": 8544750,
+    "start": 1654633499453890930
+  }]]
