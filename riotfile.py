@@ -1321,6 +1321,7 @@ venv = Venv(
             name="grpc_aio",
             command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
             pkgs={
+                "googleapis-common-protos": latest,
                 "pytest-asyncio": latest,
             },
             venvs=[
