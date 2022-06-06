@@ -387,6 +387,36 @@ async def test_get_asgi_span(tracer, test_spans):
             response = await client.get("http://testserver/")
             assert response.status_code == 200
 
+    async def test_app_that_generates_multiple_request_spans(scope, receive, send):
+        message = await receive()
+        if message.get("type") == "http.request":
+            assert len(scope["datadog"]["request_spans"]) == 2
+            asgi_span = span_from_scope(scope)
+            assert asgi_span is not None
+            assert asgi_span.name == "asgi.request"
+            assert asgi_span == scope["datadog"]["request_spans"][0]
+            assert asgi_span.resource == "span 1 resource"
+            assert scope["datadog"]["request_spans"][1].resource == "span 2 resource"
+            await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+            await send({"type": "http.response.body", "body": b""})
+
+    def span1_modifier(span, scope):
+        span.resource = "span 1 resource"
+
+    def span2_modifier(span, scope):
+        span.resource = "span 2 resource"
+
+    # We double wrap this app so that it generates multiple request spans per hit
+    app = TraceMiddleware(
+        TraceMiddleware(test_app_that_generates_multiple_request_spans, tracer=tracer, span_modifier=span2_modifier),
+        tracer=tracer,
+        span_modifier=span1_modifier,
+    )
+
+    async with httpx.AsyncClient(app=app) as client:
+        response = await client.get("http://testserver/")
+        assert response.status_code == 200
+
     async def test_app(scope, receive, send):
         message = await receive()
         if message.get("type") == "http.request":
