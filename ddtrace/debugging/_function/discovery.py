@@ -182,7 +182,7 @@ def _collect_functions(module):
 class FunctionDiscovery(defaultdict):
     """Discover all function objects in a module.
 
-    The discovered functions can be retrieved by line number of by their
+    The discovered functions can be retrieved by line number or by their
     qualified name. In principle one wants to create a function discovery
     object per module and then cache the information. For this reason,
     instances of this class should be obtained with the ``from_module`` class

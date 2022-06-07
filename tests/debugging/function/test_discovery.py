@@ -46,6 +46,7 @@ def test_function_discovery(stuff_discovery):
         "Stuff.nestedstuff",
         "Stuff._Stuff__mangledstuff",
         "Stuff.__mangledstuff",
+        "Stuff.generatorstuff",
     ],
 )
 def test_function_by_name(stuff_discovery, alias):
