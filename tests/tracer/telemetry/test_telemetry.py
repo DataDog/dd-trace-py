@@ -1,3 +1,5 @@
+import os
+
 from ddtrace.internal import telemetry
 from ddtrace.internal.service import ServiceStatus
 
@@ -20,6 +22,16 @@ def test_disable():
     assert telemetry.telemetry_writer.status == ServiceStatus.STOPPED
 
 
-def test_resart():
-    telemetry.telemetry_writer._restart()
-    assert telemetry.telemetry_writer.status == ServiceStatus.RUNNING
+def test_fork():
+    telemetry.telemetry_writer.enable()
+
+    pid = os.fork()
+    if pid > 0:
+        assert telemetry.telemetry_writer.status == ServiceStatus.RUNNING
+    else:
+        assert telemetry.telemetry_writer._forked is True
+        assert telemetry.telemetry_writer._integrations_queue == []
+        assert telemetry.telemetry_writer._events_queue == []
+        assert telemetry.telemetry_writer.status == ServiceStatus.RUNNING
+        # Kill the process so it doesn't continue running the rest of the test suite
+        os._exit(0)

@@ -134,7 +134,7 @@ venv = Venv(
             command="mypy {cmdargs}",
             create=True,
             pkgs={
-                "mypy": latest,
+                "mypy": "<0.960",
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -198,6 +198,10 @@ venv = Venv(
                 "sphinx": "~=4.3.2",
                 "sphinxcontrib-spelling": latest,
                 "PyEnchant": latest,
+                # Pin due to dulwich not publishing wheels and the env doesn't have
+                # the dependencies required to build the package.
+                # https://github.com/jelmer/dulwich/issues/963.
+                "dulwich": "<0.20.36",
             },
             command="scripts/build-docs",
         ),
@@ -1231,7 +1235,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest {cmdargs} tests/contrib/pytest",
+            command="pytest {cmdargs} tests/contrib/pytest/",
             venvs=[
                 Venv(
                     pys=["2.7"],
@@ -1257,6 +1261,38 @@ venv = Venv(
                     pkgs={
                         "pytest": [
                             ">=6.0,<7.0",
+                            latest,
+                        ],
+                        "msgpack": latest,
+                        "more_itertools": "<8.11.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="pytest-bdd",
+            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
+            venvs=[
+                Venv(
+                    pys=["2.7"],
+                    # pytest-bdd==3.4 is last to support python 2.7
+                    pkgs={"pytest-bdd": ">=3.0,<3.5", "msgpack": latest},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pkgs={
+                        "pytest-bdd": [
+                            ">=4.0,<5.0",
+                        ],
+                        "msgpack": latest,
+                        "more_itertools": "<8.11.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "pytest-bdd": [
+                            ">=4.0,<5.0",
                             latest,
                         ],
                         "msgpack": latest,
@@ -1317,6 +1353,7 @@ venv = Venv(
             name="grpc_aio",
             command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
             pkgs={
+                "googleapis-common-protos": latest,
                 "pytest-asyncio": latest,
             },
             venvs=[
@@ -1598,20 +1635,34 @@ venv = Venv(
         ),
         Venv(
             name="redis",
-            pys=select_pys(),
-            command="pytest {cmdargs} tests/contrib/redis",
-            pkgs={
-                "redis": [
-                    ">=2.10,<2.11",
-                    ">=3.0,<3.1",
-                    ">=3.1,<3.2",
-                    ">=3.2,<3.3",
-                    ">=3.3,<3.4",
-                    ">=3.4,<3.5",
-                    ">=3.5,<3.6",
-                    latest,
-                ]
-            },
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    command="pytest {cmdargs} --ignore-glob='*asyncio*' tests/contrib/redis",
+                    pkgs={
+                        "redis": [
+                            ">=2.10,<2.11",
+                            ">=3.0,<3.1",
+                            ">=3.1,<3.2",
+                            ">=3.2,<3.3",
+                            ">=3.3,<3.4",
+                            ">=3.4,<3.5",
+                            ">=3.5,<3.6",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    command="pytest {cmdargs} tests/contrib/redis",
+                    pkgs={
+                        "pytest-asyncio": latest,
+                        "redis": [
+                            ">=4.2,<4.3",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
         ),
         Venv(
             name="aredis",

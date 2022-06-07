@@ -38,8 +38,12 @@ TRAITS = TEST_TRAITS = "test.traits"
 # Test Type
 TYPE = TEST_TYPE = "test.type"
 
-# XFail Reason
-XFAIL_REASON = TEST_XFAIL_REASON = "pytest.xfail.reason"
+# Test File
+# Use when test implementation file is different from test suite name.
+FILE = TEST_FILE = "test.file"
+
+# Test Codeowners
+CODEOWNERS = TEST_CODEOWNERS = "test.codeowners"
 
 
 class Status(Enum):

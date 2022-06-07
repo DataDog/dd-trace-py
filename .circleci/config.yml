@@ -258,7 +258,7 @@ executors:
   python39:
     docker:
       - image: *python39_image
-    resource_class: small
+    resource_class: large
   ddtrace_dev:
     docker:
       - image: *ddtrace_dev_image
@@ -357,8 +357,10 @@ jobs:
       - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
 
   build_base_venvs:
-    executor: ddtrace_dev
-    parallelism: 6
+    resource_class: large
+    docker:
+      - image: *ddtrace_dev_image
+    parallelism: 7
     steps:
       - checkout
       - setup_riot
@@ -412,6 +414,7 @@ jobs:
 
   profile:
     <<: *contrib_job
+    resource_class: large
     parallelism: 7
     steps:
       - run_tox_scenario:
@@ -741,7 +744,13 @@ jobs:
     executor: ddtrace_dev
     steps:
       - run_test:
-          pattern: 'pytest'
+          pattern: 'pytest$'
+
+  pytestbdd:
+    executor: ddtrace_dev
+    steps:
+      - run_test:
+          pattern: 'pytest-bdd'
 
   pymemcache:
     <<: *contrib_job
@@ -1088,6 +1097,7 @@ requires_tests: &requires_tests
     - pyodbc
     - pyramid
     - pytest
+    - pytestbdd
     - aredis
     - yaaredis
     - redis
@@ -1179,6 +1189,7 @@ workflows:
       - pyodbc: *requires_base_venvs
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
+      - pytestbdd: *requires_base_venvs
       - aredis: *requires_base_venvs
       - yaaredis: *requires_base_venvs
       - redis: *requires_base_venvs
