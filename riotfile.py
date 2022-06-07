@@ -299,7 +299,7 @@ venv = Venv(
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             pys=select_pys(),
             pkgs={
-                "redis": latest,
+                "redis": "<4.3",  # redis 4.3 drops support for Python 3.6
                 "gevent": latest,
             },
         ),
