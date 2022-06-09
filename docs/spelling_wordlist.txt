@@ -32,6 +32,7 @@ autodetected
 autopatching
 backend
 backends
+bdd
 bikeshedding
 booleans
 boto
@@ -114,6 +115,7 @@ namespace
 opentracer
 opentracing
 parameterized
+perf
 pid
 plugin
 posix
@@ -131,6 +133,7 @@ pynamodb
 pyodbc
 pyston
 pytest
+pytest-bdd
 quickstart
 redis
 rediscluster
