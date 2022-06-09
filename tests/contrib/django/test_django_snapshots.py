@@ -206,3 +206,23 @@ def test_asgi_500():
     with daphne_client("application") as client:
         resp = client.get("/error-500/")
         assert resp.status_code == 500
+<<<<<<< HEAD
+=======
+
+
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
+@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent"])
+def test_appsec_enabled():
+    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
+        resp = client.get("/")
+        assert resp.status_code == 200
+        assert resp.content == b"Hello, test app."
+
+
+@pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
+@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent"])
+def test_appsec_enabled_attack():
+    with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
+        resp = client.get("/.git")
+        assert resp.status_code == 404
+>>>>>>> 91020f41 (fix(tests/django/appsec): ignore user agent header tag (#3804))
