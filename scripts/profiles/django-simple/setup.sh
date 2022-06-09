@@ -3,7 +3,7 @@
 set -eu
 
 PREFIX=${1}
-AUSTIN_VERSION="3.0.0"
+AUSTIN_VERSION="3.3.0"
 
 export DJANGO_SETTINGS_MODULE="config.settings.production"
 export DJANGO_ALLOWED_HOSTS="127.0.0.1"
@@ -38,7 +38,7 @@ popd
 pushd ${PREFIX}
     if [[ "$OSTYPE" == "linux-gnu"* ]]
     then
-        curl -s https://github.com/p403n1x87/austin/releases/download/v${AUSTIN_VERSION}/austin-${AUSTIN_VERSION}-linux-amd64.tar.xz -L | tar xJv
+        curl -s https://github.com/p403n1x87/austin/releases/download/v${AUSTIN_VERSION}/austin-${AUSTIN_VERSION}-gnu-linux-amd64.tar.xz -L | tar xJv
         curl -s https://github.com/loadimpact/k6/releases/download/v0.26.2/k6-v0.26.2-linux64.tar.gz -L | tar xvz
     elif [[ "$OSTYPE" == "darwin"* ]]
     then
