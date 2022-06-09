@@ -199,6 +199,7 @@ ddtrace_logger.warning('ddtrace warning log')
     assert out == b""
 
     if dd_trace_log_file is not None:
+
         if dd_trace_debug == "true":
             assert "ddtrace.commands.ddtrace_run" in str(err)  # comes from ddtrace-run debug logging
         else:
@@ -212,9 +213,12 @@ ddtrace_logger.warning('ddtrace warning log')
         assert out == b""
 
     else:
-        assert b"ddtrace warning log" in err
-        if dd_trace_debug == "true":
-            assert "ddtrace.commands.ddtrace_run" in str(err)  # comes from ddtrace-run debug logging
+        if PY2:
+            assert 'No handlers could be found for logger "ddtrace' in err
+        else:
+            assert b"ddtrace warning log" in err
+            if dd_trace_debug == "true":
+                assert "ddtrace.commands.ddtrace_run" in str(err)  # comes from ddtrace-run debug logging
 
 
 def test_warn_logs_streamhandler_default(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess):
@@ -418,7 +422,12 @@ for attempt in range(100):
 
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err == b""
+
+    if PY2:
+        assert 'No handlers could be found for logger "ddtrace' in err
+    else:
+        assert err == b""
+
     assert out == b""
 
     testfiles = os.listdir(tmpdir.strpath)
@@ -452,7 +461,12 @@ for attempt in range(100):
 
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert "program executable" in str(err)  # comes from ddtrace-run debug logging
+
+    if PY2:
+        assert 'No handlers could be found for logger "ddtrace' in err
+    else:
+        assert "program executable" in str(err)  # comes from ddtrace-run debug logging
+
     assert out == b""
 
     testfiles = os.listdir(tmpdir.strpath)

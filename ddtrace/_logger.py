@@ -23,8 +23,10 @@ def configure_ddtrace_logger():
         - Logs are routed to a file when DD_TRACE_LOG_FILE is specified, using the log level in DD_TRACE_LOG_FILE_LEVEL.
         - Child loggers inherit from the parent ddtrace logger
 
-    Note: The ddtrace-run logs under commands/ddtrace-run do not follow DD_TRACE_LOG_FILE
-        if DD_TRACE_DEBUG is enabled.
+    Note(s):
+        1) The ddtrace-run logs under commands/ddtrace-run do not follow DD_TRACE_LOG_FILE if DD_TRACE_DEBUG is enabled.
+        2) Python 2: If the application is using DD_TRACE_DEBUG=true, logging will need to be configured,
+            ie: ``logging.basicConfig()``.
 
     """
     debug_enabled = asbool(os.environ.get("DD_TRACE_DEBUG", "false"))
