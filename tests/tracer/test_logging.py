@@ -3,6 +3,8 @@ import re
 
 import pytest
 
+from ddtrace.internal.compat import PY2
+
 
 LOG_PATTERN = r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \w{1,} \[\S{1,}\] \[\w{1,}.\w{2}:\d{1,}\] - .{1,}$"
 
@@ -47,14 +49,22 @@ ddtrace_logger.warning('ddtrace warning log')
     assert status == 0, err
 
     if dd_trace_log_file is not None:
-        assert err == b""
         assert out == b""
+
+        if PY2 and dd_trace_debug == "true":
+            assert 'No handlers could be found for logger "ddtrace' in err
+        else:
+            assert err == b""
+
         with open(tmpdir.strpath + dd_trace_log_file) as file:
             first_line = file.readline()
             assert len(first_line) > 0
             assert re.search(LOG_PATTERN, first_line) is not None
     else:
-        assert b"ddtrace warning log" in err
+        if PY2:
+            assert 'No handlers could be found for logger "ddtrace' in err
+        else:
+            assert b"ddtrace warning log" in err
         assert out == b""
 
 
@@ -96,14 +106,22 @@ ddtrace_logger.warning('ddtrace warning log')
     assert status == 0, err
 
     if dd_trace_log_file is not None:
-        assert err == b""
         assert out == b""
+
+        if PY2 and dd_trace_debug == "true":
+            assert 'No handlers could be found for logger "ddtrace' in err
+        else:
+            assert err == b""
+
         with open(tmpdir.strpath + dd_trace_log_file) as file:
             first_line = file.readline()
             assert len(first_line) > 0
             assert re.search(LOG_PATTERN, first_line) is not None
     else:
-        assert b"ddtrace warning log" in err
+        if PY2:
+            assert 'No handlers could be found for logger "ddtrace' in err
+        else:
+            assert b"ddtrace warning log" in err
         assert out == b""
 
 
@@ -134,7 +152,12 @@ assert child_logger.handlers == []
 
     out, err, status, pid = run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err == b""
+
+    if PY2:
+        assert 'No handlers could be found for logger "ddtrace' in err
+    else:
+        assert err == b""
+
     assert out == b""
     with open(log_file) as file:
         first_line = file.readline()
@@ -165,15 +188,12 @@ def test_unrelated_logger_in_debug_with_ddtrace_run(
 import logging
 custom_logger = logging.getLogger('custom')
 custom_logger.setLevel(logging.WARN)
-
 assert custom_logger.parent.name == 'root'
 assert custom_logger.level == logging.WARN
-
 ddtrace_logger = logging.getLogger('ddtrace')
 ddtrace_logger.critical('ddtrace critical log')
 ddtrace_logger.warning('ddtrace warning log')
 """
-
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
     assert out == b""
