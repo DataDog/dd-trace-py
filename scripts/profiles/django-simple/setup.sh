@@ -3,7 +3,7 @@
 set -eu
 
 PREFIX=${1}
-AUSTIN_VERSION="3.0.0"
+AUSTIN_VERSION="3.3.0"
 
 export DJANGO_SETTINGS_MODULE="config.settings.production"
 export DJANGO_ALLOWED_HOSTS="127.0.0.1"
