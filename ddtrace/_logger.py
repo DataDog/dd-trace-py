@@ -52,7 +52,7 @@ def configure_ddtrace_file_logger():
 
     if debug_enabled is True:
         ddtrace_logger.setLevel(logging.DEBUG)
-        ddtrace_logger.debug("Debug mode has been enabled for the ddtrace logger.")
+        ddtrace_logger.debug("debug mode has been enabled for the ddtrace logger")
 
     if log_path is not None:
         log_path = os.path.abspath(log_path)
