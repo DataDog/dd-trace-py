@@ -8,6 +8,28 @@ from ddtrace.internal.compat import PY2
 
 LOG_PATTERN = r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \w{1,} \[\S{1,}\] \[\w{1,}.\w{2}:\d{1,}\] - .{1,}$"
 
+def assert_logfiles(test_directory, test_log_file, total_file_count):
+    """
+    helper for asserting different log file counts.
+        test_directory: directory with the test files
+        test_log_file: file that is being asserted
+        total_file_count: total files in the directory, including backup logs.
+    """
+    testfiles = os.listdir(test_directory)
+    log_files = [filename for filename in testfiles if test_log_file in filename]
+    if total_file_count > 0:
+        log_files.sort()
+
+        backup_log_files = [test_log_file+"."+str(i) for i in range(1,total_file_count)]
+
+        assert log_files == [test_log_file] + backup_log_files
+
+        with open(test_directory + "/" + test_log_file) as file:
+            content = file.read()
+            assert len(content) > 0
+            assert re.search(LOG_PATTERN, content) is not None
+    else:
+        assert log_files == []
 
 @pytest.mark.parametrize("dd_trace_debug", ["true", "false", None])
 @pytest.mark.parametrize("dd_trace_log_file_level", ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", None])
@@ -27,7 +49,7 @@ def test_unrelated_logger_loaded_first_in_debug(
         env["DD_TRACE_LOG_FILE_LEVEL"] = dd_trace_log_file_level
 
     if dd_trace_log_file is not None:
-        env["DD_TRACE_LOG_FILE"] = tmpdir.strpath + dd_trace_log_file
+        env["DD_TRACE_LOG_FILE"] = tmpdir.strpath + '/' + dd_trace_log_file
     code = """
 import logging
 custom_logger = logging.getLogger('custom')
@@ -56,7 +78,7 @@ ddtrace_logger.warning('ddtrace warning log')
         else:
             assert err == b""
 
-        with open(tmpdir.strpath + dd_trace_log_file) as file:
+        with open(tmpdir.strpath + '/' + dd_trace_log_file) as file:
             first_line = file.readline()
             assert len(first_line) > 0
             assert re.search(LOG_PATTERN, first_line) is not None
@@ -86,7 +108,7 @@ def test_unrelated_logger_loaded_last_in_debug(
         env["DD_TRACE_LOG_FILE_LEVEL"] = dd_trace_log_file_level
 
     if dd_trace_log_file is not None:
-        env["DD_TRACE_LOG_FILE"] = tmpdir.strpath + dd_trace_log_file
+        env["DD_TRACE_LOG_FILE"] = tmpdir.strpath + '/' + dd_trace_log_file
     code = """
 import ddtrace
 import logging
@@ -113,7 +135,7 @@ ddtrace_logger.warning('ddtrace warning log')
         else:
             assert err == b""
 
-        with open(tmpdir.strpath + dd_trace_log_file) as file:
+        with open(tmpdir.strpath + '/' + dd_trace_log_file) as file:
             first_line = file.readline()
             assert len(first_line) > 0
             assert re.search(LOG_PATTERN, first_line) is not None
@@ -183,7 +205,7 @@ def test_unrelated_logger_in_debug_with_ddtrace_run(
         env["DD_TRACE_LOG_FILE_LEVEL"] = dd_trace_log_file_level
 
     if dd_trace_log_file is not None:
-        env["DD_TRACE_LOG_FILE"] = tmpdir.strpath + dd_trace_log_file
+        env["DD_TRACE_LOG_FILE"] = tmpdir.strpath + '/' + dd_trace_log_file
     code = """
 import logging
 custom_logger = logging.getLogger('custom')
@@ -205,7 +227,7 @@ ddtrace_logger.warning('ddtrace warning log')
         else:
             assert err == b""
 
-        with open(tmpdir.strpath + dd_trace_log_file) as file:
+        with open(tmpdir.strpath + '/' + dd_trace_log_file) as file:
             first_line = file.readline()
             assert len(first_line) > 0
             assert re.search(LOG_PATTERN, first_line) is not None
@@ -430,15 +452,7 @@ for attempt in range(100):
 
     assert out == b""
 
-    testfiles = os.listdir(tmpdir.strpath)
-    log_files = [filename for filename in testfiles if "testlog.log" in filename]
-    log_files.sort()
-    assert log_files == ["testlog.log", "testlog.log.1"]
-
-    with open(log_file) as file:
-        content = file.read()
-        assert len(content) > 0
-        assert re.search(LOG_PATTERN, content) is not None
+    assert_logfiles(tmpdir.strpath, "testlog.log", 2)
 
     code = """
 import logging
@@ -469,15 +483,7 @@ for attempt in range(100):
 
     assert out == b""
 
-    testfiles = os.listdir(tmpdir.strpath)
-    log_files = [filename for filename in testfiles if "testlog.log" in filename]
-    log_files.sort()
-    assert log_files == ["testlog.log", "testlog.log.1"]
-
-    with open(log_file) as file:
-        content = file.read()
-        assert len(content) > 0
-        assert re.search(LOG_PATTERN, content) is not None
+    assert_logfiles(tmpdir.strpath, "testlog.log", 2)
 
 
 def test_unknown_log_level_error(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
@@ -500,9 +506,7 @@ import ddtrace
     assert "ValueError" in str(err)
     assert out == b""
 
-    testfiles = os.listdir(tmpdir.strpath)
-    log_files = [filename for filename in testfiles if "testlog.log" in filename]
-    assert log_files == []
+    assert_logfiles(tmpdir.strpath, "testlog.log", 0)
 
     code = """
 import logging
@@ -513,6 +517,4 @@ import logging
     assert "ValueError" in str(err)
     assert out == b""
 
-    testfiles = os.listdir(tmpdir.strpath)
-    log_files = [filename for filename in testfiles if "testlog.log" in filename]
-    assert log_files == []
+    assert_logfiles(tmpdir.strpath, "testlog.log", 0)
