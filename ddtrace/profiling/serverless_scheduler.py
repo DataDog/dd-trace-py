@@ -16,7 +16,7 @@ class ServerlessScheduler(scheduler.Scheduler):
     _total_profiled_seconds = attr.ib(default=0)
 
     def periodic(self):
-        if self._total_profiled_seconds > self._interval:
+        if self._total_profiled_seconds >= self._interval:
             start_time = compat.monotonic()
             try:
                 self.flush()
