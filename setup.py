@@ -240,6 +240,11 @@ setup(
         "funcsigs>=1.0.0; python_version=='2.7'",
         "typing; python_version<'3.5'",
         "packaging>=17.1",
+<<<<<<< HEAD
+=======
+        "protobuf>=3; python_version>='3.7'",
+        "protobuf>=3,<4.0; python_version=='3.6'",
+>>>>>>> 9d76e3b2 (fix: fix install requires python_version constraint for protobuf (#3805))
         "protobuf>=3,<3.18; python_version<'3.6'",
         "protobuf>=3,<4; python_version>='3.6'",
         "tenacity>=5",
