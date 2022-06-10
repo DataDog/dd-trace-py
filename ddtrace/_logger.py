@@ -25,7 +25,7 @@ def configure_ddtrace_file_logger():
 
     Note(s):
         1) The ddtrace-run logs under commands/ddtrace_run do not follow DD_TRACE_LOG_FILE if DD_TRACE_DEBUG is enabled.
-            This is because ddtrace-run calls ``logging.basicConfig()`` when DD_TRACE_DEBUG is enabled, so 
+            This is because ddtrace-run calls ``logging.basicConfig()`` when DD_TRACE_DEBUG is enabled, so
             this configuration is not applied.
         2) Python 2: If the application is using DD_TRACE_DEBUG=true, logging will need to be configured,
             ie: ``logging.basicConfig()``.
