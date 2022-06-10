@@ -94,16 +94,3 @@ class Recorder(object):
             events = self.events
             self._reset_events()
         return events
-
-    def events_delta(self):
-        oldest, newest = None, None
-        for k, v in self.events.items():
-            if oldest:
-                oldest = v[0].timestamp if v[0].timestamp < oldest else oldest
-            else:
-                oldest = v[0].timestamp
-            if newest:
-                newest = v[-1].timestamp if v[0].timestamp < newest else newest
-            else:
-                newest = v[-1].timestamp
-        return newest - oldest
