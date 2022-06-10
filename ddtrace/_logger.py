@@ -38,7 +38,7 @@ def configure_ddtrace_file_logger():
         file_log_level_value = getattr(logging, log_file_level.upper())
     except AttributeError:
         raise ValueError(
-            "Unknown log level. Logging level must be CRITICAL/ERROR/WARNING/INFO/DEBUG. Detected logging level was ",
+            "Unknown log level. Logging level must be CRITICAL/ERROR/WARNING/INFO/DEBUG.",
             str(log_file_level),
         )
 
