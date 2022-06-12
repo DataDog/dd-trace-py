@@ -1,4 +1,7 @@
+from typing import Any
+from typing import Dict
 from typing import List
+from typing import Optional
 
 import starlette
 from starlette.middleware import Middleware
@@ -68,7 +71,16 @@ def unpatch():
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
-    scope = get_argument_value(args, kwargs, 0, "scope")
+    scope = get_argument_value(args, kwargs, 0, "scope")  # type: Optional[Dict[str, Any]]
+    if not scope:
+        return wrapped(*args, **kwargs)
+
+    # Our ASGI TraceMiddleware has not been called, skip since
+    # we won't have a request span to attach this information onto
+    # DEV: This can happen if patching happens after the app has been created
+    if "datadog" not in scope:
+        log.warning("datadog context not present in ASGI request scope, trace middleware may be missing")
+        return wrapped(*args, **kwargs)
 
     # Add the path to the resource_paths list
     if "resource_paths" not in scope["datadog"]:
