@@ -413,3 +413,40 @@ def test_table_query_snapshot(snapshot_client):
     r_get = snapshot_client.get("/notes")
     assert r_get.status_code == 200
     assert r_get.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
+
+
+@snapshot()
+def test_incorrect_patching(run_python_code_in_subprocess):
+    """
+    When Starlette is patched after the app is created
+        We create no traces
+        We do not crash the application
+        We log a warning
+    """
+    code = """
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
+from starlette.testclient import TestClient
+import sqlalchemy
+
+from ddtrace import patch_all
+from tests.contrib.starlette.app import get_app
+
+engine = sqlalchemy.create_engine("sqlite:///test.db")
+app = get_app(engine)
+
+# Calling patch_all late
+# DEV: The test client uses `requests` so we want to ignore them for this scenario
+patch_all(requests=False)
+
+with TestClient(app) as test_client:
+    r = test_client.get("/200")
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+    """
+
+    out, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
+    assert out == b"", err
+    assert err == b"datadog context not present in ASGI request scope, trace middleware may be missing\n"
