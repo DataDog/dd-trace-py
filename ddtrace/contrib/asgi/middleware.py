@@ -169,7 +169,13 @@ class TraceMiddleware:
                 span, self.integration_config, status_code=status_code, response_headers=response_headers
             )
 
-            return await send(message)
+            try:
+                return await send(message)
+            finally:
+                # Per asgi spec, "more_data" is used if there is still data to send
+                # Close the span if "http.response.body" has no more data left to send in the response.
+                if message.get("type") == "http.response.body" and not message.get("more_body", False):
+                    span.finish()
 
         try:
             return await self.app(scope, receive, wrapped_send)
@@ -183,4 +189,5 @@ class TraceMiddleware:
                 del scope["datadog"]["request_span"]
             except KeyError:
                 pass
+
             span.finish()
