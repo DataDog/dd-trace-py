@@ -94,6 +94,18 @@ def double_callable_app(scope):
     return partial(basic_app, scope)
 
 
+async def tasks_app(scope, receive, send):
+    """
+    An app that does something in the background after the response is sent back.
+    """
+    assert scope["type"] == "http"
+    message = await receive()
+    if message.get("type") == "http.request":
+        await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+        await send({"type": "http.response.body", "body": b"*"})
+        await asyncio.sleep(1)
+
+
 def _check_span_tags(scope, span):
     assert span.get_tag("http.method") == scope["method"]
     server = scope.get("server")
@@ -445,3 +457,26 @@ async def test_get_asgi_span(tracer, test_spans):
     async with httpx.AsyncClient(app=test_app_no_middleware) as client:
         response = await client.get("http://testserver/")
         assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_tasks_asgi(scope, tracer, test_spans):
+    """
+    Tests that if someonething happens in the background, the asgi span only captures the
+    time it took for a user to get a response, not the time it took for other tasks
+    in the background.
+    """
+    app = TraceMiddleware(tasks_app, tracer=tracer)
+    async with httpx.AsyncClient(app=app) as client:
+        response = await client.get("http://testserver/")
+        assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "asgi.request"
+    assert request_span.span_type == "web"
+    # typical duration without background task should be in less than 10 ms
+    # duration with background task will take approximately 1.1s
+    assert request_span.duration < 1
