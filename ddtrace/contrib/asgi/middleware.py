@@ -172,7 +172,7 @@ class TraceMiddleware:
             try:
                 return await send(message)
             finally:
-                # Per asgi spec, "more_data" is used if there is still data to send
+                # Per asgi spec, "more_body" is used if there is still data to send
                 # Close the span if "http.response.body" has no more data left to send in the response.
                 if message.get("type") == "http.response.body" and not message.get("more_body", False):
                     span.finish()
