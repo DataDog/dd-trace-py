@@ -16,7 +16,7 @@ jobs:
         # Include all history and tags
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         name: Install Python
         with:
           python-version: '3.8'
