@@ -1,3 +1,4 @@
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
@@ -320,6 +321,33 @@ def _after_request_tags(pin, span, request, response):
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method
+
+
+def _ddtrace_get_response_streaming(pin, span, request, response, iterable):
+    try:
+        for chunk in iterable:
+            yield chunk
+    except GeneratorExit:
+        # HTTP connection closed while sending data
+        _ddtrace_get_response_finish(pin, span, request, response)
+    except:  # noqa: B901,E722
+        _ddtrace_reraise_get_response_error(pin, span, request, response, sys.exc_info())
+    else:
+        _ddtrace_get_response_finish(pin, span, request, response)
+
+
+def _ddtrace_reraise_get_response_error(pin, span, request, response, exc_info):
+    # DEV: Always set these tags, this is where `span.resource` is set
+    _after_request_tags(pin, span, request, response)
+    span.set_exc_info(*exc_info)
+    span.finish()
+    six.reraise(*exc_info)
+
+
+def _ddtrace_get_response_finish(pin, span, request, response):
+    # DEV: Always set these tags, this is where `span.resource` is set
+    _after_request_tags(pin, span, request, response)
+    span.finish()
 
 
 class DjangoViewProxy(FunctionWrapper):

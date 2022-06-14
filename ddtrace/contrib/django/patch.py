@@ -327,22 +327,27 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
 
-    with pin.tracer.trace(
+    span = pin.tracer.trace(
         "django.request",
         resource=utils.REQUEST_DEFAULT_RESOURCE,
         service=trace_utils.int_service(pin, config.django),
         span_type=SpanTypes.WEB,
-    ) as span:
-        utils._before_request_tags(pin, span, request)
-        span._metrics[SPAN_MEASURED_KEY] = 1
+    )
+    utils._before_request_tags(pin, span, request)
+    span._metrics[SPAN_MEASURED_KEY] = 1
 
-        response = None
-        try:
-            response = func(*args, **kwargs)
-            return response
-        finally:
-            # DEV: Always set these tags, this is where `span.resource` is set
-            utils._after_request_tags(pin, span, request, response)
+    try:
+        response = func(*args, **kwargs)
+    except:  # noqa: B901,E722
+        utils._ddtrace_reraise_get_response_error(pin, span, request, None, sys.exc_info())
+    else:
+        if response.streaming:
+            response.streaming_content = utils._ddtrace_get_response_streaming(
+                pin, span, request, response, response.streaming_content
+            )
+        else:
+            utils._ddtrace_get_response_finish(pin, span, request, response)
+        return response
 
 
 @trace_utils.with_traced_module
