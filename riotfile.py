@@ -1179,6 +1179,9 @@ venv = Venv(
             # aiobotocore: aiobotocore>=1.0 not yet supported
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),

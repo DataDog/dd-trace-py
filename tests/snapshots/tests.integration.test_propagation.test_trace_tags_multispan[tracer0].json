@@ -1,0 +1,50 @@
+[[
+  {
+    "name": "p",
+    "service": null,
+    "resource": "p",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 5678,
+    "meta": {
+      "_dd.p.dm": "value",
+      "runtime-id": "c2758d86b9604e5cb87ec48c3f1ce03b"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "system.pid": 66646
+    },
+    "duration": 123000,
+    "start": 1654101727178668000
+  },
+     {
+       "name": "c1",
+       "service": null,
+       "resource": "c1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 8000,
+       "start": 1654101727178735000
+     },
+     {
+       "name": "c2",
+       "service": null,
+       "resource": "c2",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "duration": 15000,
+       "start": 1654101727178761000
+     },
+        {
+          "name": "gc",
+          "service": null,
+          "resource": "gc",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 3,
+          "duration": 25000,
+          "start": 1654101727178770000
+        }]]
