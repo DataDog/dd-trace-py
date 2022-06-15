@@ -139,44 +139,6 @@ ddtrace_logger.critical('ddtrace critical log')
 
     assert_file_logging(b"ddtrace critical log", out, err, dd_trace_debug, ddtrace_log_path)
 
-
-def test_child_logger_inherits_settings(run_python_code_in_subprocess, tmpdir):
-    """
-    Child loggers under the ddtrace name inherit settings as expected.
-    """
-    env = os.environ.copy()
-    env["DD_TRACE_DEBUG"] = "true"
-    log_file = tmpdir.strpath + "/testlog.log"
-    env["DD_TRACE_LOG_FILE"] = log_file
-    code = """
-import logging
-import ddtrace
-
-ddtrace_logger = logging.getLogger('ddtrace')
-assert ddtrace_logger.level == logging.DEBUG
-assert len(ddtrace_logger.handlers) == 1
-assert isinstance(ddtrace_logger.handlers[0], logging.handlers.RotatingFileHandler)
-assert ddtrace_logger.handlers[0].maxBytes == 15 << 20
-assert ddtrace_logger.handlers[0].backupCount == 1
-
-child_logger = logging.getLogger('ddtrace.child')
-assert child_logger.parent.name == 'ddtrace'
-assert child_logger.getEffectiveLevel() == logging.DEBUG
-assert child_logger.handlers == []
-"""
-
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
-    assert out == b""
-    assert status == 0, err
-
-    if PY2:
-        assert 'No handlers could be found for logger "ddtrace' in err
-    else:
-        assert err == b""
-
-    assert_file_contains_log(log_file)
-
-
 @pytest.mark.parametrize("dd_trace_debug", ["true", "false", None])
 @pytest.mark.parametrize("dd_trace_log_file_level", ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", None])
 @pytest.mark.parametrize("dd_trace_log_file", ["example.log", None])

@@ -33,18 +33,18 @@ def configure_ddtrace_logger():
     """
     ddtrace_logger = logging.getLogger("ddtrace")
 
-    configure_ddtrace_debug_logger(ddtrace_logger)
-    configure_ddtrace_file_logger(ddtrace_logger)
+    _configure_ddtrace_debug_logger(ddtrace_logger)
+    _configure_ddtrace_file_logger(ddtrace_logger)
 
 
-def configure_ddtrace_debug_logger(logger):
+def _configure_ddtrace_debug_logger(logger):
     debug_enabled = asbool(os.environ.get("DD_TRACE_DEBUG", "false"))
     if debug_enabled:
         logger.setLevel(logging.DEBUG)
         logger.debug("debug mode has been enabled for the ddtrace logger")
 
 
-def configure_ddtrace_file_logger(logger):
+def _configure_ddtrace_file_logger(logger):
 
     log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG")
     try:
