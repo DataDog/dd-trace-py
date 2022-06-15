@@ -139,6 +139,7 @@ ddtrace_logger.critical('ddtrace critical log')
 
     assert_file_logging(b"ddtrace critical log", out, err, dd_trace_debug, ddtrace_log_path)
 
+
 @pytest.mark.parametrize("dd_trace_debug", ["true", "false", None])
 @pytest.mark.parametrize("dd_trace_log_file_level", ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", None])
 @pytest.mark.parametrize("dd_trace_log_file", ["example.log", None])
