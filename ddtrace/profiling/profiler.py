@@ -186,8 +186,12 @@ class _ProfilerInstance(service.Service):
         )
 
         self._collectors = [
+<<<<<<< HEAD
             stack.StackCollector(r, tracer=self.tracer),
             memalloc.MemoryCollector(r),
+=======
+            stack.StackCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
+>>>>>>> 02af90f0 (chore(ci): update mypy to latest version (#3825))
             threading.ThreadingLockCollector(r, tracer=self.tracer),
             asyncio.AsyncioLockCollector(r, tracer=self.tracer),
         ]
