@@ -112,6 +112,8 @@ class RefMsgpackEncoderV03(RefMsgpackEncoder):
         d = RefMsgpackEncoderV03._span_to_dict(span)
         if not d["error"]:
             del d["error"]
+        if not d["parent_id"]:
+            del d["parent_id"]
         return d
 
 
