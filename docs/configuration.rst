@@ -213,7 +213,7 @@ below:
        .. _dd-trace-x-datadog-tags-propagate-service:
    * - ``DD_TRACE_PROPAGATE_SERVICE``
      - Boolean
-     - False
+     - True
      - Enable propagation of service in Datadog trace tags propagation. The
        value used is the first 10 hexadecimal characters of the SHA256 hash of
        the UTF8 encoded service name.

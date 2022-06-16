@@ -932,6 +932,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
         agent=None,
         rule=None,
         limit=None,
+        # DEV: the trace tag check is on the context which is shared between parent and child
         trace_tag="-%d" % SamplingMechanism.TRACE_SAMPLING_RULE,
     )
 
