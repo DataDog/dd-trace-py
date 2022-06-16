@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Update ``wrapt`` to ``1.14.1`` to fix issues with ``ImportFinder`` usage on Python 3.10.
