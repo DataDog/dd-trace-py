@@ -19,7 +19,7 @@ def configure_ddtrace_logger():
         inherit from the root logger in the logging module and no logs are written to a file.
 
     When DD_TRACE_DEBUG has been enabled:
-        - Propagate logs up so logs show up in the application logs if a file path wasn't provided
+        - Logs are propagated up so that they appear in the application logs if a file path wasn't provided
         - Logs are routed to a file when DD_TRACE_LOG_FILE is specified, using the log level in DD_TRACE_LOG_FILE_LEVEL.
         - Child loggers inherit from the parent ddtrace logger
 
@@ -45,14 +45,13 @@ def _configure_ddtrace_debug_logger(logger):
 
 
 def _configure_ddtrace_file_logger(logger):
-
-    log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG")
+    log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
     try:
-        file_log_level_value = getattr(logging, log_file_level.upper())
+        file_log_level_value = getattr(logging, log_file_level)
     except AttributeError:
         raise ValueError(
             "DD_TRACE_LOG_FILE_LEVEL is invalid. Log level must be CRITICAL/ERROR/WARNING/INFO/DEBUG.",
-            log_file_level.upper(),
+            log_file_level,
         )
 
     log_path = os.environ.get("DD_TRACE_LOG_FILE")

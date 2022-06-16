@@ -10,7 +10,7 @@ from ddtrace.internal.compat import PY2
 LOG_PATTERN = r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \w{1,} \[\S{1,}\] \[\w{1,}.\w{2}:\d{1,}\] - .{1,}$"
 
 
-def assert_logfiles(test_directory, test_log_file, total_file_count):
+def assert_log_files(test_directory, test_log_file, total_file_count):
     """
     helper for asserting different log file counts.
     test_directory: directory with the test files
@@ -378,7 +378,7 @@ for attempt in range(100):
 
     assert out == b""
 
-    assert_logfiles(tmpdir.strpath, "testlog.log", 2)
+    assert_log_files(tmpdir.strpath, "testlog.log", 2)
 
     code = """
 import logging
@@ -409,7 +409,7 @@ for attempt in range(100):
 
     assert out == b""
 
-    assert_logfiles(tmpdir.strpath, "testlog.log", 2)
+    assert_log_files(tmpdir.strpath, "testlog.log", 2)
 
 
 def test_unknown_log_level_error(run_python_code_in_subprocess, ddtrace_run_python_code_in_subprocess, tmpdir):
@@ -432,7 +432,7 @@ import ddtrace
     assert "ValueError" in str(err)
     assert out == b""
 
-    assert_logfiles(tmpdir.strpath, "testlog.log", 0)
+    assert_log_files(tmpdir.strpath, "testlog.log", 0)
 
     code = """
 import logging
@@ -443,4 +443,4 @@ import logging
     assert "ValueError" in str(err)
     assert out == b""
 
-    assert_logfiles(tmpdir.strpath, "testlog.log", 0)
+    assert_log_files(tmpdir.strpath, "testlog.log", 0)
