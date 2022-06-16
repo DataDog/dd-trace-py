@@ -37,7 +37,15 @@ class DDLogRecord(object):
 
 def _get_current_span(tracer=None):
     """Helper to get the currently active span"""
+
     if not tracer:
+
+        # With the addition of a custom ddtrace logger in _logger.py, logs that happen on startup
+        # don't have access to `ddtrace.tracer`. Checking that this exists prevents an error
+        # if log injection is enabled.
+        if not getattr(ddtrace, "tracer", False):
+            return None
+
         tracer = ddtrace.tracer
 
     # We might be calling this during library initialization, in which case `ddtrace.tracer` might
