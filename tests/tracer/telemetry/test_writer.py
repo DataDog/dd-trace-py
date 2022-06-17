@@ -38,6 +38,8 @@ def mock_time():
 @pytest.fixture
 def telemetry_writer():
     telemetry_writer = TelemetryWriter(AGENT_URL)
+    # Enable the TelemetryWriter without queuing an app-started event
+    # and setting up exit hooks
     telemetry_writer._enabled = True
     yield telemetry_writer
 
