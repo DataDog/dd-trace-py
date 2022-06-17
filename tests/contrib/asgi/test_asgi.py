@@ -94,15 +94,41 @@ def double_callable_app(scope):
     return partial(basic_app, scope)
 
 
-async def tasks_app(scope, receive, send):
+async def tasks_app_without_more_body(scope, receive, send):
     """
-    An app that does something in the background after the response is sent back.
+    An app that does something in the background after the response is sent without having more data to send.
+    "more_body" with a true value is used in the asgi spec to indicate that there is more data to send.
     """
     assert scope["type"] == "http"
     message = await receive()
     if message.get("type") == "http.request":
         await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
         await send({"type": "http.response.body", "body": b"*"})
+        await asyncio.sleep(1)
+
+
+async def tasks_app_with_more_body(scope, receive, send):
+    """
+    An app that does something in the background but has a more_body response that starts off as true,
+    but then turns to false.
+    "more_body" with a true value is used in the asgi spec to indicate that there is more data to send.
+    """
+    assert scope["type"] == "http"
+    message = await receive()
+    request_span = scope["datadog"]["request_spans"][0]
+    if message.get("type") == "http.request":
+
+        # assert that the request span hasn't finished at the start of a response
+        await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
+        assert request_span.duration is None
+
+        # assert that the request span hasn't finished while more_body is True
+        await send({"type": "http.response.body", "body": b"*", "more_body": True})
+        assert request_span.duration is None
+
+        # assert that the span has finished after more_body is False
+        await send({"type": "http.response.body", "body": b"*", "more_body": False})
+        assert request_span.duration is not None
         await asyncio.sleep(1)
 
 
@@ -460,13 +486,36 @@ async def test_get_asgi_span(tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_tasks_asgi(scope, tracer, test_spans):
+async def test_tasks_asgi_without_more_body(scope, tracer, test_spans):
     """
-    Tests that if someonething happens in the background, the asgi span only captures the
-    time it took for a user to get a response, not the time it took for other tasks
-    in the background.
+    When an application doesn't have more_body calls and does background tasks,
+    the asgi span only captures the time it took for a user to get a response, not the time
+    it took for other tasks in the background.
     """
-    app = TraceMiddleware(tasks_app, tracer=tracer)
+    app = TraceMiddleware(tasks_app_without_more_body, tracer=tracer)
+    async with httpx.AsyncClient(app=app) as client:
+        response = await client.get("http://testserver/")
+        assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
+    request_span = spans[0][0]
+    assert request_span.name == "asgi.request"
+    assert request_span.span_type == "web"
+    # typical duration without background task should be in less than 10 ms
+    # duration with background task will take approximately 1.1s
+    assert request_span.duration < 1
+
+
+@pytest.mark.asyncio
+async def test_tasks_asgi_with_more_body(scope, tracer, test_spans):
+    """
+    When an application does have more_body calls and does background tasks,
+    the asgi span only captures the time it took for a user to get a response, not the time
+    it took for other tasks in the background.
+    """
+    app = TraceMiddleware(tasks_app_with_more_body, tracer=tracer)
     async with httpx.AsyncClient(app=app) as client:
         response = await client.get("http://testserver/")
         assert response.status_code == 200
