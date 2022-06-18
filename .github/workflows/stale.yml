@@ -12,7 +12,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v4
+      - uses: actions/stale@v5
         with:
           # Mark issues and PRs as stale after 30 days of no updates
           days-before-stale: 30
