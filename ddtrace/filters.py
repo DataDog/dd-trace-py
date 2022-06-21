@@ -34,7 +34,7 @@ class FilterRequestsOnUrl(TraceFilter):
     representing the urls to be excluded from tracing. A trace will be excluded
     if its root span contains a ``http.url`` tag and if this tag matches any of
     the provided regular expression using the standard python regexp match
-    semantic (https://docs.python.org/2/library/re.html#re.match).
+    semantic (https://docs.python.org/3/library/re.html#re.match).
 
     :param list regexps: a list of regular expressions (or a single string) defining
                          the urls that should be filtered out.
