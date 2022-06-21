@@ -33,75 +33,112 @@ Confused about the terminology of APM? Take a look at the [APM Glossary][visuali
 
 See [the contributing docs](https://ddtrace.readthedocs.io/en/stable/contributing.html) first.
 
-### Pre-commit Hooks
+### Git hooks
 
-The tracer library uses formatting/linting tools including black, flake8, and mypy.
-While these are run in each CI pipeline for pull requests, they are automated to run
-when you call `git commit` as pre-commit hooks to catch any formatting errors before
-you commit. To initialize the pre-commit hook script to run in your development
-branch, run the following command:
+In CI, the [pre_check](pre_check) job ensures consistency in coding style and
+formatting as well as type checking.
+
+For local development, the repository includes these same checks as custom
+scripts that run as Git pre-commit hooks.
+
+To enable all pre-commit hooks in your cloned repository, run the following command:
 
     $ hooks/autohook.sh install
+    
+[pre_check]: https://github.com/DataDog/dd-trace-py/blob/5b97489e2b073fa773819904cdef26981a5a28df/.circleci/config.yml#L293-L315
 
-### Set up your environment
+### Development environment
 
-#### Set up docker
+#### Docker
 
-The test suite requires many backing services such as PostgreSQL, MySQL, Redis
-and more. We use `docker` and `docker-compose` to run the services in our CI
-and for development. To run the test matrix, please [install docker][docker] and
-[docker-compose][docker-compose] using the instructions provided by your platform. Then
-launch them through:
-
-    $ docker-compose up -d
+Install [Docker](docker) on your development environment for running tests
+locally.
 
 [docker]: https://www.docker.com/products/docker
-[docker-compose]: https://www.docker.com/products/docker-compose
 
-#### Set up Python
+#### Python
 
-1. Clone the repository locally: `git clone https://github.com/DataDog/dd-trace-py`
-2. The tests for this project run on various versions of Python. We recommend
-   using a Python version management tool, such as
-   [pyenv](https://github.com/pyenv/pyenv), to utilize multiple versions of
-   Python. Install Pyenv: https://github.com/pyenv/pyenv#installation
-3. Install the relevant versions of Python in Pyenv: `pyenv install 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
-4. Make those versions available globally: `pyenv global 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
+The library supports multiple Python runtime versions and platforms. See [supported runtimes](https://ddtrace.readthedocs.io/en/stable/versioning.html#supported-runtimes) for the full list. You have two options for preparing a local development environment. You can use pyenv to install Python runtimes on your local machine or you can use the `datadog/dd-trace-py` Docker image which includes all runtimes.
 
-### Testing
+##### Option #1: pyenv
 
-#### Running Tests in docker
+1. [Install pyenv](https://github.com/pyenv/pyenv#getting-pyenv)
+2. Install Python runtimes with pyenv
+3. [Optional] [Install pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv)
 
-Once your docker-compose environment is running, you can use the shell script to
-execute tests within a Docker image. You can start the container with a bash shell:
+To install all the tested Python runtimes:
 
-    $ scripts/ddtest
+    cd docker; pyenv local | xargs -L 1 pyenv install
+    
+We recommend using a virtual environment for local development. 
 
-You can now run tests as you would do in your local environment. We use
-[tox][tox] as well as [riot][riot], a new tool that we developed for addressing
-our specific needs with an ever growing matrix of tests. You can list the tests
-managed by each:
+If you followed the optional step to install the `pyenv-virtualenv` plugin, you can use it to manage your Python virtual environments:
+
+    pyenv virtualenv 3.9.11 ddtrace-py3.9
+    pyenv activate ddtrace-py3.9
+
+Before running tests, you will need to install the following test requirements:
+
+    pip install riot tox 
+
+We use [tox][tox] as well as [riot][riot], a new tool that we developed for
+addressing our specific needs with an ever growing matrix of tests. You can list
+the tests managed by each:
 
     $ tox -l
     $ riot list
 
-You can run multiple tests by using regular expressions:
+We include a helper script to run all tox environments matching a regular expression:
 
     $ scripts/run-tox-scenario '^futures_contrib-'
-    $ riot run psycopg
-
+    
 [tox]: https://github.com/tox-dev/tox/
 [riot]: https://github.com/DataDog/riot/
 
-#### Running Tests locally
+##### Option #2: datadog/dd-trace-py
 
-1. Install riot: `pip install riot`.
+Use provide a script to start the
+[datadog/dd-trace-py](https://hub.docker.com/r/datadog/dd-trace-py) image with
+volumes mapped correctly for local development:
+
+    scripts/ddtest
+    
+### Testing
+
+#### Docker services
+
+Many integration tests require services such as PostgreSQL, MySQL, Redis and more. The CI environment uses Docker to start required services before integration tests are run. The repository includes a [docker-compose.yml](https://github.com/DataDog/dd-trace-py/blob/1.x/docker-compose.yml) where all these services are specified and configured.
+
+Instead of starting all Docker services, choose the ones that are required for
+the test job relevant to your changes:
+
+1. Find the relevant job in the CircleCI [config.yml](ci_config).
+2. Find the optional `docker_services` parameter in the `run_test` command for the job.
+3. Use docker-compose to start these services.
+
+For example, the steps for the [psycopg](psycopg_ci_job) job is specified as follows:
+
+``` yaml
+    steps:
+      - run_test:
+          pattern: "psycopg"
+          snapshot: true
+          docker_services: "postgres"
+```
+
+[ci_config]: https://github.com/DataDog/dd-trace-py/blob/1.x/.circleci/config.yml
+[psycopg_ci_job]: https://github.com/DataDog/dd-trace-py/blob/5b97489e2b073fa773819904cdef26981a5a28df/.circleci/config.yml#L857-L864
+
+Before running the psycopg integration tests locally then you will need to start the `postgres` Docker service:
+
+    $ docker-compose up -d postgres
+
+#### Running tests
+
+##### riot
+
 2. Create the base virtual environments: `riot -v generate`.
 3. You can list the available test suites with `riot list`.
-4. Certain tests might require running service containers in order to emulate
-   the necessary testing environment. You can spin up individual containers with
-   `docker-compose up -d <SERVICE_NAME>`, where `<SERVICE_NAME>` should match a
-   service specified in the `docker-compose.yml` file.
 5. Run a test suite: `riot -v run <RUN_FLAGS> <TEST_SUITE_NAME>`.
    1. Optionally, use the `-s` and `-x` flags: `-s` prevents riot from
       reinstalling the dev package; `-x` forces an exit after the first failed
@@ -113,6 +150,8 @@ test suites to run. Use the following syntax to ensure only an individual suite
 runs: `^<TEST_SUITE_NAME>$` where `^` signifies the start of a string and `$`
 signifies the end of a string. For example, use `riot -v run -s -x ^redis$` to
 run only the redis suite.
+
+##### tox
 
 #### Use the APM Test Agent
 
