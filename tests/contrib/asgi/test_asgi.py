@@ -120,7 +120,7 @@ async def tasks_app_with_more_body(scope, receive, send):
 
         # assert that the request span hasn't finished at the start of a response
         await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
-        assert request_span.duration is None
+        assert not request_span.finished
 
         # assert that the request span hasn't finished while more_body is True
         await send({"type": "http.response.body", "body": b"*", "more_body": True})
