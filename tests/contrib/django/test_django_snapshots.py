@@ -210,7 +210,7 @@ def test_asgi_500():
 
 
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack"])
+@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent"])
 def test_appsec_enabled():
     with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
         resp = client.get("/")
@@ -219,7 +219,7 @@ def test_appsec_enabled():
 
 
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack"])
+@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent"])
 def test_appsec_enabled_attack():
     with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
         resp = client.get("/.git")
