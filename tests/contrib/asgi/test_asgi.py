@@ -128,7 +128,7 @@ async def tasks_app_with_more_body(scope, receive, send):
 
         # assert that the span has finished after more_body is False
         await send({"type": "http.response.body", "body": b"*", "more_body": False})
-        assert request_span.duration is not None
+        assert request_span.finished
         await asyncio.sleep(1)
 
 
