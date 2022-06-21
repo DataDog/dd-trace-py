@@ -186,7 +186,7 @@ class _ProfilerInstance(service.Service):
         )
 
         self._collectors = [
-            stack.StackCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
+            stack.StackCollector(r, tracer=self.tracer),
             memalloc.MemoryCollector(r),
             threading.ThreadingLockCollector(r, tracer=self.tracer),
             asyncio.AsyncioLockCollector(r, tracer=self.tracer),
