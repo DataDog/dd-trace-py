@@ -450,3 +450,17 @@ with TestClient(app) as test_client:
     assert status == 0, err
     assert out == b"", err
     assert err == b"datadog context not present in ASGI request scope, trace middleware may be missing\n"
+
+
+def test_background_task(client, tracer, test_spans):
+    """Tests if background tasks have been excluded from span duration"""
+    r = client.get("/backgroundtask")
+    assert r.status_code == 200
+    assert r.text == '{"result":"Background task added"}'
+
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /backgroundtask"
+    # typical duration without background task should be in less than 10ms
+    # duration with background task will take approximately 1.1s
+    assert request_span.duration < 1
