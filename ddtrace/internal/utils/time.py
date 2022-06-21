@@ -1,8 +1,16 @@
+from datetime import datetime
 from types import TracebackType
 from typing import Optional
 from typing import Type
 
 from ddtrace.internal import compat
+
+
+def parse_isoformat(date):
+    try:
+        return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError:
+        return datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
 
 
 class StopWatch(object):
