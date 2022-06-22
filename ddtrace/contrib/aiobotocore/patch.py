@@ -1,14 +1,8 @@
 import aiobotocore.client
 
 from ddtrace import config
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.vendor import wrapt
-
-
-try:
-    from aiobotocore.endpoint import ClientResponseContentProxy
-except ImportError:
-    # aiobotocore>=0.11.0
-    from aiobotocore._endpoint_helpers import ClientResponseContentProxy
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
@@ -21,6 +15,16 @@ from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ..trace_utils import unwrap
+
+
+aiobotocore_version_str = getattr(aiobotocore, "__version__", "0.0.0")
+AIOBOTOCORE_VERSION = parse_version(aiobotocore_version_str)
+
+if AIOBOTOCORE_VERSION <= (0, 10, 0):
+    # aiobotocore>=0.11.0
+    from aiobotocore.endpoint import ClientResponseContentProxy
+elif AIOBOTOCORE_VERSION >= (0, 11, 0) and AIOBOTOCORE_VERSION < (2, 3, 0):
+    from aiobotocore._endpoint_helpers import ClientResponseContentProxy
 
 
 ARGS_NAME = ("action", "params", "path", "verb")
