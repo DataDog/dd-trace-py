@@ -1183,6 +1183,19 @@ venv = Venv(
                 "pytest-asyncio": latest,
             },
             venvs=[
+                # aiobotocore 2.x and higher require Python 3.6 or higher
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "aiobotocore": ["~=2.3"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "aiobotocore": [">=1.0.0,<2.0.0", ">=2.0.0,<2.3.0"],
+                    },
+                ),
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
