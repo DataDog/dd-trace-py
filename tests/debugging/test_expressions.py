@@ -24,12 +24,17 @@ class CustomObject(object):
 @pytest.mark.parametrize(
     "ast, _locals, value",
     [
+        # Test references with operations
         ({"len": "#payload"}, {"payload": "hello"}, 5),
         ({"len": ".collectionField"}, {"self": CustomObject("expr")}, 10),
+        ({"len": ".bogusField"}, {"self": CustomObject("expr")}, AttributeError),
         ({"len": "^payload"}, {"payload": "hello"}, 5),
+        ({"len": "^payload"}, {}, KeyError),
+        # Test plain references
         (".name", {"self": CustomObject("test-me")}, "test-me"),
         ("#hits", {"hits": 42}, 42),
         ("^hits", {"hits": 42}, 42),
+        # Test argument predicates and operations
         ({"contains": ["#payload", "hello"]}, {"payload": "hello world"}, True),
         ({"eq": ["#hits", True]}, {"hits": True}, True),
         ({"substring": ["#payload", 4, 7]}, {"payload": "hello world"}, "hello world"[4:7]),
@@ -43,6 +48,7 @@ class CustomObject(object):
         ({"contains": ["#payload", "hello"]}, {"payload": SafeObjectProxy.safe(CustomObject("contains"))}, False),
         ({"contains": ["#payload", "name"]}, {"payload": SafeObjectProxy.safe(CustomObject("contains"))}, True),
         ({"matches": ["#payload", "[0-9]+"]}, {"payload": "42"}, True),
+        # Test literal values
         (42, {}, 42),
         (True, {}, True),
     ],
