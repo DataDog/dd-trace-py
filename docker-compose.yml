@@ -70,7 +70,7 @@ services:
         # container that executes mocked AWS services; this is a custom
         # build that runs all of them in a single container. It is built
         # using this fork: https://github.com/palazzem/moto/tree/palazzem/docker-service
-        image: motoserver/moto:2.2.19
+        image: datadog/docker-library:moto_1_0_1
         ports:
             - "127.0.0.1:5000:5000"
             - "127.0.0.1:5001:5001"

@@ -552,3 +552,20 @@ def test_table_query_snapshot(snapshot_client):
         "name": "Test Name",
         "description": "This request adds a new entry to the test db",
     }
+
+
+def test_background_task(client, tracer, test_spans):
+    """Tests if background tasks have been excluded from span duration"""
+    response = client.get("/asynctask")
+    assert response.status_code == 200
+    assert response.json() == "task added"
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
+
+    assert request_span.name == "fastapi.request"
+    assert request_span.resource == "GET /asynctask"
+    # typical duration without background task should be in less than 10 ms
+    # duration with background task will take approximately 1.1s
+    assert request_span.duration < 1
