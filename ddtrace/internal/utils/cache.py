@@ -1,9 +1,7 @@
 from threading import RLock
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 from typing import Type
 from typing import TypeVar
 
@@ -14,6 +12,38 @@ T = TypeVar("T")
 S = TypeVar("S")
 F = Callable[[T], S]
 M = Callable[[Any, T], S]
+
+
+class MFUCache(dict):
+    def __init__(self, maxsize=256):
+        # type: (int) -> None
+        self.maxsize = maxsize
+        self.lock = RLock()
+
+    def get(self, key, f):  # type: ignore[override]
+        # type: (T, F) -> S
+        if len(self) >= self.maxsize:
+            for _, h in zip(range(self.maxsize >> 1), sorted(self, key=lambda h: self[h][1])):
+                del self[h]
+
+        _ = super(MFUCache, self).get(key, miss)
+        if _ is not miss:
+            value, count = _
+            self[key] = (value, count + 1)
+            return value
+
+        with self.lock:
+            _ = super(MFUCache, self).get(key, miss)
+            if _ is not miss:
+                value, count = _
+                self[key] = (value, count + 1)
+                return value
+
+            value = f(key)
+
+            self[key] = (value, 1)
+
+            return value
 
 
 def cached(maxsize=256):
@@ -28,33 +58,11 @@ def cached(maxsize=256):
 
     def cached_wrapper(f):
         # type: (F) -> F
-        cache = {}  # type: Dict[Any, Tuple[Any, int]]
-        lock = RLock()
+        cache = MFUCache(maxsize)
 
         def cached_f(key):
             # type: (T) -> S
-            if len(cache) >= maxsize:
-                for _, h in zip(range(maxsize >> 1), sorted(cache, key=lambda h: cache[h][1])):
-                    del cache[h]
-
-            _ = cache.get(key, miss)
-            if _ is not miss:
-                value, count = _
-                cache[key] = (value, count + 1)
-                return value
-
-            with lock:
-                _ = cache.get(key, miss)
-                if _ is not miss:
-                    value, count = _
-                    cache[key] = (value, count + 1)
-                    return value
-
-                result = f(key)
-
-                cache[key] = (result, 1)
-
-                return result
+            return cache.get(key, f)
 
         cached_f.invalidate = cache.clear  # type: ignore[attr-defined]
 
