@@ -12,6 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.span import Span
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -69,6 +70,14 @@ def unpatch():
 
 
 def traced_handler(wrapped, instance, args, kwargs):
+    if config.starlette.get("aggregate_resources") != True or not config.fastapi.get("aggregate_resources") != True:
+        deprecate(
+            "ddtrace.contrib.starlette.patch",
+            message="`aggregate_resources` is deprecated and will be removed in tracer version 2.0.0",
+        )
+
+        return wrapped(*args, **kwargs)
+
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
     scope = get_argument_value(args, kwargs, 0, "scope")  # type: Optional[Dict[str, Any]]
