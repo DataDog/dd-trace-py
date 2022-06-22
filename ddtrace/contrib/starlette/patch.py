@@ -70,7 +70,7 @@ def unpatch():
 
 
 def traced_handler(wrapped, instance, args, kwargs):
-    if config.starlette.get("aggregate_resources") != True or not config.fastapi.get("aggregate_resources") != True:
+    if config.starlette.get("aggregate_resources") is False or config.fastapi.get("aggregate_resources") is False:
         deprecate(
             "ddtrace.contrib.starlette.patch",
             message="`aggregate_resources` is deprecated and will be removed in tracer version 2.0.0",
