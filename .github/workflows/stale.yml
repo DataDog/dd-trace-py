@@ -1,0 +1,23 @@
+name: 'Label stale issues and PRs'
+on:
+  schedule:
+    # 00:00:000 UTC
+    - cron: '0 0 * * *'
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v5
+        with:
+          # Mark issues and PRs as stale after 30 days of no updates
+          days-before-stale: 30
+          # Do not auto-close any issues or PRs
+          days-before-close: -1
+          # Ignore issues and PRs with the following labels
+          exempt-issue-labels: 'feature-request,proposal'
+          exempt-pr-labels: 'feature-request,proposal'

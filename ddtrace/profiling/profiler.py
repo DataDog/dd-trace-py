@@ -192,8 +192,8 @@ class _ProfilerInstance(service.Service):
 
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
-            threading.ThreadingLockCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
-            asyncio.AsyncioLockCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
+            threading.ThreadingLockCollector(r, tracer=self.tracer),
+            asyncio.AsyncioLockCollector(r, tracer=self.tracer),
         ]
 
         if self._memory_collector_enabled:

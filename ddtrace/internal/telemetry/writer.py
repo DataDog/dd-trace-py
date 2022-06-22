@@ -56,6 +56,10 @@ class TelemetryWriter(PeriodicService):
         # _sequence is a counter representing the number of requests sent by the writer
         self._sequence = 1  # type: int
 
+    @property
+    def url(self):
+        return "%s/%s" % (self._agent_url, self.ENDPOINT)
+
     def _send_request(self, request):
         # type: (Dict) -> httplib.HTTPResponse
         """Sends a telemetry request to the trace agent"""
@@ -265,8 +269,8 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.RUNNING:
             return
 
-        self.start()
         self._enabled = True
+        self.start()
 
         forksafe.register(self._fork_writer)
         atexit.register(self.stop)

@@ -134,7 +134,7 @@ venv = Venv(
             command="mypy {cmdargs}",
             create=True,
             pkgs={
-                "mypy": "<0.960",
+                "mypy": latest,
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -1179,6 +1179,9 @@ venv = Venv(
             # aiobotocore: aiobotocore>=1.0 not yet supported
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
@@ -1353,6 +1356,7 @@ venv = Venv(
             name="grpc_aio",
             command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
             pkgs={
+                "googleapis-common-protos": latest,
                 "pytest-asyncio": latest,
             },
             venvs=[
