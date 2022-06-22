@@ -130,11 +130,9 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            name="mypy",
-            command="mypy {cmdargs}",
             create=True,
             pkgs={
-                "mypy": latest,
+                "mypy[python2]": latest,
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -142,6 +140,16 @@ venv = Venv(
                 "types-setuptools": latest,
                 "types-six": latest,
             },
+            venvs=[
+                Venv(
+                    name="mypy",
+                    command="mypy {cmdargs}",
+                ),
+                Venv(
+                    name="mypy-py2",
+                    command="mypy --py2 {cmdargs}",
+                ),
+            ],
         ),
         Venv(
             pys=["3"],
