@@ -47,10 +47,7 @@ class IntegrationConfig(AttrDict):
             "DD_%s_SERVICE" % name.upper(),
             default=os.getenv(
                 "DD_%s_SERVICE_NAME" % name.upper(),
-                default=os.getenv(
-                    "DD_SERVICE",
-                    default=None,
-                ),
+                default=None,
             ),
         )
         self.setdefault("service", service)
