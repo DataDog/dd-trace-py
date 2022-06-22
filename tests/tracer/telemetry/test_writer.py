@@ -2,10 +2,10 @@ import os
 
 import httpretty
 import mock
-import pkg_resources
 import pytest
 
 from ddtrace.internal.telemetry.data import get_application
+from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
@@ -100,7 +100,7 @@ def test_app_started_event(mock_time, mock_send_request, telemetry_writer):
     assert headers["DD-Telemetry-Request-Type"] == "app-started"
     # validate request body
     payload = {
-        "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
+        "dependencies": get_dependencies(),
         "integrations": [
             {
                 "name": "integration-t",
