@@ -210,7 +210,7 @@ class _ProfilerInstance(service.Service):
         exporters = self._build_default_exporters()
 
         if exporters:
-            lambda_function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME").encode()
+            lambda_function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
             if lambda_function_name:
                 self._scheduler = serverless_scheduler.ServerlessScheduler(
                     recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
