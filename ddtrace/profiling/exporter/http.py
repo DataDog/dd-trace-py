@@ -84,9 +84,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
                 "profiler_version": ddtrace.__version__.encode("ascii"),
             }
         )
-        lambda_function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME").encode()
+        lambda_function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
         if lambda_function_name:
-            tags.update({"functionname": lambda_function_name})
+            tags.update({"functionname": lambda_function_name.encode()})
         if self.version:
             tags["version"] = self.version.encode("utf-8")
 
