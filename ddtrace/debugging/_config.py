@@ -19,6 +19,7 @@ DEFAULT_MAX_PROBES = 100
 DEFAULT_METRICS = True
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 DEFAULT_MAX_PAYLOAD_SIZE = 1 << 20  # 1 MB
+DEFAULT_CONFIG_TIMEOUT = 30  # s
 
 
 class DebuggerConfig(object):
@@ -31,6 +32,7 @@ class DebuggerConfig(object):
     metrics = DEFAULT_METRICS
     global_rate_limit = DEFAULT_GLOBAL_RATE_LIMIT
     max_payload_size = DEFAULT_MAX_PAYLOAD_SIZE
+    config_timeout = DEFAULT_CONFIG_TIMEOUT
     tags = None  # type: Optional[str]
     _tags = {}  # type: Dict[str, str]
     _tags_in_qs = True
@@ -58,6 +60,8 @@ class DebuggerConfig(object):
         self.service_name = tracer_config.service or get_application_name() or DEFAULT_SERVICE_NAME
         self.metrics = asbool(os.getenv("DD_DEBUGGER_METRICS_ENABLED", DEFAULT_METRICS))
         self.max_payload_size = int(os.getenv("DD_DEBUGGER_MAX_PAYLOAD_SIZE", DEFAULT_MAX_PAYLOAD_SIZE))
+
+        self.config_timeout = int(os.getenv("DD_DEBUGGER_CONFIG_TIMEOUT", DEFAULT_CONFIG_TIMEOUT))
 
         log.debug(
             "Debugger configuration: %r",

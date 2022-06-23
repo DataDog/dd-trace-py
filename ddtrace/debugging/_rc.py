@@ -14,6 +14,7 @@ import six
 from ddtrace import __version__
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import config
+from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import FunctionProbe
 from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import MetricProbe
@@ -22,30 +23,54 @@ from ddtrace.internal import compat
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.utils.cache import LFUCache
 from ddtrace.internal.utils.http import Connector
 from ddtrace.internal.utils.http import connector
-
-
-# from ddtrace.debugging._expressions import dd_compile
 
 
 log = get_logger(__name__)
 
 
-DEFAULT_TIMEOUT = 30.0  # seconds
+_EXPRESSION_CACHE = LFUCache()
 
 
-# TODO: Cache?
-# def _compile_expression(expr):
-#     # type: (Optional[str]) -> Optional[CodeType]
-#     if expr is None:
-#         return None
+def _invalid_condition(_):
+    """Forces probes with invalid conditions to never trigger.
 
-#     try:
-#         return dd_compile(expr)
-#     except Exception:
-#         log.error("Cannot compile expression [%s]", expr, exc_info=True)
-#         return None
+    Any signs of invalid conditions in logs is an indication of a problem with
+    the expression compiler.
+    """
+    return False
+
+
+INVALID_CONDITION = _invalid_condition
+
+
+def _compile_condition(when):
+    # type: (Optional[Dict[str, Any]]) -> Optional[Callable[[Dict[str, Any]], Any]]
+    global _EXPRESSION_CACHE, INVALID_CONDITION
+
+    if when is None:
+        return None
+
+    ast = when["json"]
+
+    def compile_or_invalid(expr):
+        # type: (str) -> Callable[[Dict[str, Any]], Any]
+        try:
+            return dd_compile(ast)
+        except Exception:
+            log.error("Cannot compile expression: %s", expr, exc_info=True)
+            return INVALID_CONDITION
+
+    expr = when["dsl"]
+
+    compiled = _EXPRESSION_CACHE.get(expr, compile_or_invalid)  # type: Callable[[Dict[str, Any]], Any]
+
+    if compiled is INVALID_CONDITION:
+        log.error("Cannot compile expression: %s", expr, exc_info=True)
+
+    return compiled
 
 
 def _match_env_and_version(probe):
@@ -78,7 +103,7 @@ def probe(_id, _type, attribs):
     if _type == "snapshotProbes":
         args = dict(
             probe_id=_id,
-            condition=None,  # _compile_expression(attribs.get("when")),
+            condition=_compile_condition(attribs.get("when")),
             active=attribs["active"],
             tags=dict(_.split(":", maxsplit=1) for _ in attribs.get("tags", [])),
         )
@@ -119,7 +144,7 @@ class DebuggingRC(object):
     def __attrs_post_init__(self):
         # type: () -> None
         self._config_endpoint = "/v0.7/config"
-        self._connect = connector(self._url, timeout=DEFAULT_TIMEOUT)
+        self._connect = connector(self._url, timeout=config.config_timeout)
         self._req_payload = json.dumps(
             {
                 "client": {
