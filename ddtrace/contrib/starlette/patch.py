@@ -12,11 +12,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.span import Span
-<<<<<<< HEAD
-=======
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.debtcollector import removals
->>>>>>> 69fca318 (fix(starlette/fastapi): add back `aggregate_resources` feature (#3852))
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
