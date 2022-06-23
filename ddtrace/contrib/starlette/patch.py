@@ -5,11 +5,13 @@ from typing import Optional
 
 import starlette
 from starlette.middleware import Middleware
+from starlette.routing import Match
 
 from ddtrace import config
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.span import Span
 from ddtrace.vendor.debtcollector import deprecate
@@ -29,6 +31,27 @@ config._add(
         aggregate_resources=True,
     ),
 )
+
+
+@removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
+def get_resource(scope):
+    path = None
+    routes = scope["app"].routes
+    for route in routes:
+        match, _ = route.matches(scope)
+        if match == Match.FULL:
+            path = route.path
+            break
+        elif match == Match.PARTIAL and path is None:
+            path = route.path
+    return path
+
+
+@removals.remove(removal_version="2.0.0", category=DDTraceDeprecationWarning)
+def span_modifier(span, scope):
+    resource = get_resource(scope)
+    if config.starlette["aggregate_resources"] and resource:
+        span.resource = "{} {}".format(scope["method"], resource)
 
 
 def traced_init(wrapped, instance, args, kwargs):
