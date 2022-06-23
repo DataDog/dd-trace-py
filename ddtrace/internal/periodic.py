@@ -242,3 +242,141 @@ class PeriodicService(service.Service):
     def periodic(self):
         # type: (...) -> None
         pass
+
+
+class AwakeablePeriodicThread(threading.Thread):
+    """Periodic thread that can be awakened on demand.
+
+    This class can be used to instantiate a worker thread that will run its
+    `run_periodic` function every `interval` seconds, or upon request.
+    """
+
+    def __init__(
+        self,
+        interval,  # type: float
+        target,  # type: typing.Callable[[], typing.Any]
+        name=None,  # type: typing.Optional[str]
+        on_shutdown=None,  # type: typing.Optional[typing.Callable[[], typing.Any]]
+    ):
+        # type: (...) -> None
+        """Create a periodic thread that can be awakened on demand.
+
+        :param interval: The interval in seconds to wait between execution of the periodic function.
+        :param target: The periodic function to execute every interval.
+        :param name: The name of the thread.
+        :param on_shutdown: The function to call when the thread shuts down.
+        """
+        super(AwakeablePeriodicThread, self).__init__(name=name)
+        self._target = target
+        self._on_shutdown = on_shutdown
+        self.interval = interval
+        self.quit = forksafe.Event()
+        self.request = forksafe.Event()
+        self.served = forksafe.Event()
+        self.daemon = True
+
+    def stop(self):
+        """Stop the thread."""
+        if self.is_alive():
+            self.quit.set()
+            self.awake()
+
+    def awake(self):
+        """Awake the thread."""
+        self.served.clear()
+        self.request.set()
+        self.served.wait()
+
+    def run(self):
+        """Run the target function periodically."""
+        while True:
+            # DEV: Some frameworks, like e.g. gevent, seem to resuscitate some
+            # of the threads that were running prior to the fork of the worker
+            # processes. These threads are normally created via the native API
+            # and are exposed to the child process as _DummyThreads. We check
+            # whether the current thread is no longer an instance of the
+            # original thread class to prevent it from running in the child
+            # process while the state copied over from the parent is being
+            # cleaned up. The restarting of the thread is responsibility to the
+            # registered forksafe hooks.
+            if not isinstance(threading.current_thread(), self.__class__):
+                break
+
+            if self.request.wait(self.interval):
+                self.request.clear()
+                self.served.set()
+
+            if self.quit.is_set():
+                break
+
+            self._target()
+
+        if self._on_shutdown is not None:
+            self._on_shutdown()
+
+
+@attr.s(eq=False)
+class AwakeablePeriodicService(service.Service):
+    """A service that runs periodically but that can also be awakened on demand."""
+
+    _interval = attr.ib(type=float)
+    _worker = attr.ib(default=None, init=False, repr=False)
+
+    @property
+    def interval(self):
+        # type: (...) -> float
+        return self._interval
+
+    @interval.setter
+    def interval(
+        self, value  # type: float
+    ):
+        # type: (...) -> None
+        self._interval = value
+        # Update the interval of the PeriodicThread based on ours
+        if self._worker:
+            self._worker.interval = value
+
+    def _start_service(
+        self,
+        *args,  # type: typing.Any
+        **kwargs  # type: typing.Any
+    ):
+        # type: (...) -> None
+        """Start the periodic service."""
+        self._worker = AwakeablePeriodicThread(
+            self.interval,
+            target=self.periodic,
+            name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
+            on_shutdown=self.on_shutdown,
+        )
+        self._worker.start()
+
+    def _stop_service(
+        self,
+        *args,  # type: typing.Any
+        **kwargs  # type: typing.Any
+    ):
+        # type: (...) -> None
+        """Stop the periodic collector."""
+        self._worker.stop()
+        super(AwakeablePeriodicService, self)._stop_service(*args, **kwargs)
+
+    def awake(self):
+        # type: (...) -> None
+        self._worker.awake()
+
+    def join(
+        self, timeout=None  # type: typing.Optional[float]
+    ):
+        # type: (...) -> None
+        if self._worker:
+            self._worker.join(timeout)
+
+    @staticmethod
+    def on_shutdown():
+        pass
+
+    def periodic(self):
+        # type: (...) -> None
+        pass
