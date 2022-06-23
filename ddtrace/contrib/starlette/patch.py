@@ -98,6 +98,7 @@ def traced_handler(wrapped, instance, args, kwargs):
         deprecate(
             "ddtrace.contrib.starlette.patch",
             message="`aggregate_resources` is deprecated and will be removed in tracer version 2.0.0",
+            category=DDTraceDeprecationWarning,
         )
 
         return wrapped(*args, **kwargs)
