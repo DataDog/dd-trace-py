@@ -511,25 +511,43 @@ class DDTraceReleaseNotesDirective(rst.Directive):
         """Return a list of refs for the given commit sha"""
         return [ref for ref in self._repo.refs.keys() if self._repo.refs[ref] == commit_sha]
 
-    def _get_report_max_version(self):
-        # type: () -> Optional[Version]
-        """Determine the max cutoff version to report for HEAD"""
-        for entry in self._repo.get_walker():
+    def _get_report_max_version(self, max_commits=50):
+        # type: (int) -> Optional[Version]
+        """Determine the max cutoff version to report for HEAD
+
+        :param max_commits: Max number of commits to traverse looking for the latest origin/tag ref
+        """
+        for entry, _ in zip(self._repo.get_walker(), range(max_commits)):
+            # If we have reached the max number of commits we want to look at without finding anything, return
+            # DEV: We should be able to find a proper ref within the first few, but if we do not then
+            #      it is better to return `None` and generate the notes for all versions, than to keep going backwards
+            #      looking for any ref that matches
+
             refs = self._get_commit_refs(entry.commit.id)
             if not refs:
                 continue
 
-            for ref in refs:
-                if not ref.startswith(b"refs/remotes/origin/"):
-                    continue
+            origins = [ref[20:].decode() for ref in refs if ref.startswith(b"refs/remotes/origin/")]  # type: list[str]
+            tags = [Version(ref[10:].decode()) for ref in refs if ref.startswith(b"refs/tags/v")]  # type: list[Version]
 
-                ref_str = ref[20:].decode()
-                if self._release_branch_pattern.match(ref_str):
-                    v = Version(ref_str)
-                    return Version("{}.{}".format(v.major, v.minor + 1))
-                elif self._dev_branch_pattern.match(ref_str):
-                    major, _, _ = ref_str.partition(".")
-                    return Version("{}.0.0".format(int(major) + 1))
+            versions = set()  # set[Version]
+
+            # For release branches we want to set the max to the next minor, e.g. 1.2 -> 1.3.0
+            # For dev branches we want to set the max to the next major, e.g. 1.x -> 2.0.0
+            for origin in origins:
+                if self._release_branch_pattern.match(origin):
+                    v = Version(origin)
+                    versions.add(Version("{}.{}".format(v.major, v.minor + 1)))
+                elif self._dev_branch_pattern.match(origin):
+                    major, _, _ = origin.partition(".")
+                    versions.add(Version("{}.0.0".format(int(major) + 1)))
+
+            # For all tags we want to set the max to the next minor, e.g. v1.2.0rc3 -> 1.3.0, v1.2.1 -> 1.3.0
+            for tag in tags:
+                versions.add(Version("{}.{}.0".format(tag.major, tag.minor + 1)))
+
+            if versions:
+                return max(versions)
         return None
 
     def run(self):
