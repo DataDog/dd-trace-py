@@ -1,6 +1,5 @@
 name: 'Run Datadog APM Transport Stress Tests'
 on:
-  push:
   workflow_dispatch:
   schedule:
     # Every hour
