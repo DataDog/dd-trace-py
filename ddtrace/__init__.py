@@ -5,6 +5,7 @@ from ._logger import configure_ddtrace_logger
 configure_ddtrace_logger()  # noqa: E402
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
+from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .pin import Pin  # noqa: E402
 from .settings import _config as config  # noqa: E402
 from .span import Span  # noqa: E402
@@ -25,4 +26,5 @@ __all__ = [
     "tracer",
     "Tracer",
     "config",
+    "DDTraceDeprecationWarning",
 ]
