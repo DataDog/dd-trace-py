@@ -11,7 +11,6 @@ jobs:
     env:
       AGENT_DOCKERFILE: realagent
       DD_API_KEY: ${{ secrets.DD_SHARED_TESTS_API_KEY }}
-      RUN_ID: ${{ github.sha }}
       TRACER: python
     steps:
       - uses: actions/checkout@v3
@@ -21,5 +20,9 @@ jobs:
         run: ./build.sh "${TRACER}" "${AGENT_DOCKERFILE}"
       - name: Test TCPIP
         run: ./run.sh tcpip
+        env:
+          RUN_ID: ${{ github.run_id }}
       - name: Test UDS
         run: ./run.sh uds
+        env:
+          RUN_ID: ${{ github.run_id }}
