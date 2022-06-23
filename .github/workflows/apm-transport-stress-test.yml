@@ -1,0 +1,25 @@
+name: 'Run Datadog APM Transport Stress Tests'
+on:
+  workflow_dispatch:
+  schedule:
+    # Every hour
+    - cron: '0 * * * *'
+
+jobs:
+  run_stress_tests:
+    runs-on: ubuntu-latest
+    env:
+      AGENT_DOCKERFILE: realagent
+      DD_API_KEY: ${{ secrets.DD_SHARED_TESTS_API_KEY }}
+      RUN_ID: ${{ github.sha }}
+      TRACER: python
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: DataDog/apm-transport-stress-tests
+      - name: Build
+        run: ./build.sh "${TRACER}" "${AGENT_DOCKERFILE}"
+      - name: Test TCPIP
+        run: ./run.sh tcpip
+      - name: Test UDS
+        run: ./run.sh uds
