@@ -18,8 +18,8 @@ from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
-from ddtrace.profiling import serverless_scheduler
 from ddtrace.profiling import scheduler
+from ddtrace.profiling import serverless_scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
@@ -213,11 +213,11 @@ class _ProfilerInstance(service.Service):
             lambda_function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME").encode()
             if lambda_function_name:
                 self._scheduler = serverless_scheduler.ServerlessScheduler(
-                recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
+                    recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
                 )
             else:
                 self._scheduler = scheduler.Scheduler(
-                recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
+                    recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
                 )
 
         self.set_asyncio_event_loop_policy()

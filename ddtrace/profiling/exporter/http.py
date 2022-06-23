@@ -86,9 +86,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         )
         lambda_function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME").encode()
         if lambda_function_name:
-            tags.update({
-                "functionname": lambda_function_name
-            })
+            tags.update({"functionname": lambda_function_name})
         if self.version:
             tags["version"] = self.version.encode("utf-8")
 

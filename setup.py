@@ -210,7 +210,7 @@ bytecode = [
     "bytecode; python_version>='3.8'",
 ]
 
-extra_compile_args.append('-std=gnu99')
+extra_compile_args.append("-std=gnu99")
 setup(
     name="ddtrace",
     description="Datadog APM client library",
