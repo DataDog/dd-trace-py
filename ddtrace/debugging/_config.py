@@ -19,6 +19,8 @@ DEFAULT_PROBE_API_URL = DEFAULT_SNAPSHOT_INTAKE_URL = get_trace_url()
 DEFAULT_MAX_PROBES = 100
 DEFAULT_METRICS = True
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
+DEFAULT_UPLOAD_TIMEOUT = 30  # seconds
+DEFAULT_UPLOAD_FLUSH_INTERVAL = 1.0  # seconds
 
 
 class DebuggerConfig(object):
@@ -30,6 +32,8 @@ class DebuggerConfig(object):
     max_probes = DEFAULT_MAX_PROBES
     metrics = DEFAULT_METRICS
     global_rate_limit = DEFAULT_GLOBAL_RATE_LIMIT
+    upload_timeout = DEFAULT_UPLOAD_TIMEOUT
+    upload_flush_interval = DEFAULT_UPLOAD_FLUSH_INTERVAL
     tags = None  # type: Optional[str]
     _tags = {}  # type: Dict[str, str]
     _tags_in_qs = True
@@ -45,6 +49,10 @@ class DebuggerConfig(object):
             self._snapshot_intake_endpoint = "/debugger" + self._snapshot_intake_endpoint
 
         self.probe_api_url = os.getenv("DD_DEBUGGER_PROBE_API_URL", DEFAULT_PROBE_API_URL)
+        self.upload_timeout = int(os.getenv("DD_DEBUGGER_UPLOAD_TIMEOUT", DEFAULT_UPLOAD_TIMEOUT))
+        self.upload_flush_interval = float(
+            os.getenv("DD_DEBUGGER_UPLOAD_FLUSH_INTERVAL", DEFAULT_UPLOAD_FLUSH_INTERVAL)
+        )
 
         self._tags["env"] = tracer_config.env
         self._tags["version"] = tracer_config.version
