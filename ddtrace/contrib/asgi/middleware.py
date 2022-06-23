@@ -138,7 +138,9 @@ class TraceMiddleware:
                 try:
                     host_header = value.decode("ascii")
                 except UnicodeDecodeError:
-                    pass
+                    log.warning(
+                        "failed to decode host header, url will contain the hostname of the sever", exc_info=True
+                    )
                 break
 
         method = scope.get("method")
