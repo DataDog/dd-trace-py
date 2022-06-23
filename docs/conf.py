@@ -517,13 +517,11 @@ class DDTraceReleaseNotesDirective(rst.Directive):
 
         :param max_commits: Max number of commits to traverse looking for the latest origin/tag ref
         """
-        for i, entry in enumerate(self._repo.get_walker()):
+        for entry, _ in zip(self._repo.get_walker(), range(max_commits)):
             # If we have reached the max number of commits we want to look at without finding anything, return
             # DEV: We should be able to find a proper ref within the first few, but if we do not then
             #      it is better to return `None` and generate the notes for all versions, than to keep going backwards
             #      looking for any ref that matches
-            if i >= max_commits:
-                return None
 
             refs = self._get_commit_refs(entry.commit.id)
             if not refs:
