@@ -43,6 +43,14 @@ def assert_sampling_decision_tags(
     sampling_priority=None,
     trace_tag=None,
 ):
+    """Check span attribute given an expected sampling decision
+
+    :param agent: expected agent rate ``_dd.agent_psr``
+    :param limit: expected rate limit ``_dd.limit_psr``
+    :param rule: expected sampler rule rate ``_dd.rule_psr``
+    :param sampling_priority: expected sampling priority ``_sampling_priority_v1``
+    :param trace_tag: expected sampling decision trace tag ``_dd.p.dm``. Format is ``{SERVICEHASH}-{SAMPLINGMECHANISM}``. Service hash is empty if no service is set on span.
+    """
     metric_agent = span.get_metric(SAMPLING_AGENT_DECISION)
     metric_limit = span.get_metric(SAMPLING_LIMIT_DECISION)
     metric_rule = span.get_metric(SAMPLING_RULE_DECISION)
@@ -179,7 +187,12 @@ class RateByServiceSamplerTest(unittest.TestCase):
                     assert 0 == sample.get_metric(
                         SAMPLING_PRIORITY_KEY
                     ), "when priority sampling is on, priority should be 0 when trace is to be dropped"
-                assert_sampling_decision_tags(sample, agent=sample_rate, trace_tag="-1")
+                assert_sampling_decision_tags(
+                    sample,
+                    agent=sample_rate,
+                    # sampling decision made by agent
+                    trace_tag="-1",
+                )
             # We must have at least 1 sample, check that it has its sample rate properly assigned
             assert samples[0].get_metric(SAMPLE_RATE_METRIC_KEY) is None
 
@@ -713,7 +726,13 @@ def test_datadog_sampler_sample_no_rules(mock_sample, dummy_tracer):
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been written"
     assert_sampling_decision_tags(
-        spans[0], agent=1.0, limit=None, rule=None, sampling_priority=AUTO_KEEP, trace_tag="-0"
+        spans[0],
+        agent=1.0,
+        limit=None,
+        rule=None,
+        sampling_priority=AUTO_KEEP,
+        # default sampling decision
+        trace_tag="-0",
     )
 
     # Default RateByServiceSampler() is applied
@@ -878,7 +897,14 @@ def test_datadog_sampler_tracer(dummy_tracer):
 
     spans = dummy_tracer.pop()
     assert len(spans) == 1, "Span should have been sampled and written"
-    assert_sampling_decision_tags(spans[0], rule=1.0, limit=None, sampling_priority=USER_KEEP, trace_tag="-3")
+    assert_sampling_decision_tags(
+        spans[0],
+        rule=1.0,
+        limit=None,
+        sampling_priority=USER_KEEP,
+        # sampling decision from user sampling rule
+        trace_tag="-3",
+    )
 
 
 def test_datadog_sampler_tracer_rate_limited(dummy_tracer):
@@ -925,7 +951,8 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
         rule=1.0,
         limit=None,
         sampling_priority=USER_KEEP,
-        trace_tag="-%d" % SamplingMechanism.TRACE_SAMPLING_RULE,
+        # sampling decision from user sampling rule
+        trace_tag="-3",
     )
     assert_sampling_decision_tags(
         spans[1],
@@ -933,7 +960,7 @@ def test_datadog_sampler_tracer_child(dummy_tracer):
         rule=None,
         limit=None,
         # DEV: the trace tag check is on the context which is shared between parent and child
-        trace_tag="-%d" % SamplingMechanism.TRACE_SAMPLING_RULE,
+        trace_tag="-3",
     )
 
 
@@ -953,7 +980,8 @@ def test_datadog_sampler_tracer_start_span(dummy_tracer):
         rule=1.0,
         limit=None,
         sampling_priority=USER_KEEP,
-        trace_tag="-%d" % SamplingMechanism.TRACE_SAMPLING_RULE,
+        # sampling decision from user sampling rule
+        trace_tag="-3",
     )
 
 
