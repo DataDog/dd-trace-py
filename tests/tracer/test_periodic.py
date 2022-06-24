@@ -165,4 +165,4 @@ def test_awakeable_periodic_service():
 
     awake_me.stop()
 
-    assert queue == list(range(n + 1))
+    assert queue == list(range(n + 2))
