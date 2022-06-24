@@ -14,7 +14,15 @@ F = Callable[[T], S]
 M = Callable[[Any, T], S]
 
 
-class MFUCache(dict):
+class LFUCache(dict):
+    """Simple LFU cache implementation.
+
+    This cache is designed for memoizing functions with a single hashable
+    argument. The eviction policy is LFU, i.e. the least frequently used values
+    are evicted when the cache is full. The amortized cost of shrinking the
+    cache when it grows beyond the requested size is O(log(size)).
+    """
+
     def __init__(self, maxsize=256):
         # type: (int) -> None
         self.maxsize = maxsize
@@ -22,18 +30,24 @@ class MFUCache(dict):
 
     def get(self, key, f):  # type: ignore[override]
         # type: (T, F) -> S
+        """Get a value from the cache.
+
+        If the value with the given key is not in the cache, the expensive
+        function ``f`` is called on the key to generate it. The return value is
+        then stored in the cache and returned to the caller.
+        """
         if len(self) >= self.maxsize:
             for _, h in zip(range(self.maxsize >> 1), sorted(self, key=lambda h: self[h][1])):
                 del self[h]
 
-        _ = super(MFUCache, self).get(key, miss)
+        _ = super(LFUCache, self).get(key, miss)
         if _ is not miss:
             value, count = _
             self[key] = (value, count + 1)
             return value
 
         with self.lock:
-            _ = super(MFUCache, self).get(key, miss)
+            _ = super(LFUCache, self).get(key, miss)
             if _ is not miss:
                 value, count = _
                 self[key] = (value, count + 1)
@@ -48,17 +62,11 @@ class MFUCache(dict):
 
 def cached(maxsize=256):
     # type: (int) -> Callable[[F], F]
-    """
-    Decorator for caching the result of functions with a single argument.
-
-    The strategy is MFU, meaning that only the most frequently used values are
-    retained. The amortized cost of shrinking the cache when it grows beyond
-    the requested size is O(log(size)).
-    """
+    """Decorator for memoizing functions of a single argument (LFU policy)."""
 
     def cached_wrapper(f):
         # type: (F) -> F
-        cache = MFUCache(maxsize)
+        cache = LFUCache(maxsize)
 
         def cached_f(key):
             # type: (T) -> S
@@ -86,6 +94,8 @@ class CachedMethodDescriptor(object):
 
 def cachedmethod(maxsize=256):
     # type: (int) -> Callable[[M], CachedMethodDescriptor]
+    """Decorator for memoizing methods of a single argument (LFU policy)."""
+
     def cached_wrapper(f):
         # type: (M) -> CachedMethodDescriptor
         return CachedMethodDescriptor(f, maxsize)
