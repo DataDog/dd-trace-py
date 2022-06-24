@@ -8,7 +8,7 @@ Full grammar:
 
     predicate               =>  <direct_predicate> | <arg_predicate> | <value_source>
     direct_predicate        =>  {"<direct_predicate_type>": <predicate>}
-    direct_predicate_type   =>  not | isEmpty | isUndefined | eval
+    direct_predicate_type   =>  not | isEmpty | isUndefined
     value_source            =>  <literal> | <value_reference> | <operation>
     literal                 =>  <number> | true | false | "string"
     number                  =>  0 | ([1-9][0-9]*\.[0-9]+)
@@ -72,7 +72,7 @@ def _make_lambda(ast):
 def _compile_direct_predicate(ast):
     # type: (DDASTType) -> Optional[List[Instr]]
     # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
-    # direct_predicate_type  =>  not | isEmpty | isUndefined | eval
+    # direct_predicate_type  =>  not | isEmpty | isUndefined
     if not isinstance(ast, dict):
         return None
 
@@ -86,6 +86,8 @@ def _compile_direct_predicate(ast):
         raise ValueError("Invalid argument: %r" % arg)
 
     value.append(Instr("UNARY_NOT"))
+
+    # TODO: isUndefined will be implemented later
 
     return value
 
