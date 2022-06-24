@@ -9,7 +9,8 @@ from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 try:
     from collections.abc import Iterator
 except ImportError:
-    from collections import Iterator
+    # DEV: mypy has a problem with this try/except; see https://github.com/python/mypy/issues/1153
+    from collections import Iterator  # type:ignore
 
 try:
     from typing import Protocol

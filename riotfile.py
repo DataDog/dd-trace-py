@@ -130,9 +130,11 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
+            name="mypy",
+            command="mypy {cmdargs}",
             create=True,
             pkgs={
-                "mypy[python2]": latest,
+                "mypy": latest,
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -140,16 +142,25 @@ venv = Venv(
                 "types-setuptools": latest,
                 "types-six": latest,
             },
-            venvs=[
-                Venv(
-                    name="mypy",
-                    command="mypy {cmdargs}",
-                ),
-                Venv(
-                    name="mypy-py2",
-                    command="mypy --py2 {cmdargs}",
-                ),
-            ],
+        ),
+        Venv(
+            pys=["3"],
+            name="mypy-py2",
+            command="mypy --py2 --config-file mypy_py2.ini {cmdargs}",
+            create=True,
+            pkgs={
+                "mypy[python2]": latest,
+                # tenacity 8.0.0 dropped Python 2.7 support
+                "tenacity": "~=7.0.0",
+                # packaging 21.0 dropped Python 2.7 support
+                "packaging": "<21.0",
+                "types-attrs": latest,
+                "types-docutils": latest,
+                "types-protobuf": latest,
+                "types-PyYAML": latest,
+                "types-setuptools": latest,
+                "types-six": latest,
+            },
         ),
         Venv(
             pys=["3"],
