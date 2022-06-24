@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    starlette: Add back removed ``aggregate_resources`` feature.
+  - |
+    fastapi: Add back removed ``aggregate_resources`` feature.
