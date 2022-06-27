@@ -320,3 +320,23 @@ def test_environment_header_tags():
     assert config._header_tag_name("User-agent") == "http.user_agent"
     # Case insensitive
     assert config._header_tag_name("User-Agent") == "http.user_agent"
+
+
+@pytest.mark.parametrize(
+    "env,expected",
+    (
+        (dict(), (512, True)),
+        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="0"), (0, False)),
+        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="513"), (ValueError, "Invalid value 513")),
+        (dict(DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH="-1"), (ValueError, "Invalid value -1")),
+    ),
+)
+def test_x_datadog_tags(env, expected):
+    with override_env(env):
+        if expected[0] == ValueError:
+            with pytest.raises(expected[0]) as exc:
+                _ = Config()
+            assert expected[1] in exc.value.args[0]
+        else:
+            _ = Config()
+            assert expected == (_._x_datadog_tags_max_length, _._x_datadog_tags_enabled)
