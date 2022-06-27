@@ -18,7 +18,9 @@ class ServerlessScheduler(scheduler.Scheduler):
 
     def periodic(self):
         now = compat.time_ns()
-        if now - self._last_export >= 60 * 1e9 and self._total_profiled_seconds >= 60:
+        # Guard against _last_export not being set
+        last_export = self._last_export or compat.time_ns()
+        if now - last_export >= 60 * 1e9 and self._total_profiled_seconds >= 60:
             self._total_profiled_seconds = 0
             start_time = compat.monotonic()
             try:
