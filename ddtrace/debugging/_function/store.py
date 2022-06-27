@@ -29,7 +29,7 @@ class FullyNamedWrapperFunction(FullyNamed, WrapperFunction):
 class FunctionStore(object):
     """Function object store.
 
-    This class provides a storage layer for patching operations, allowing to
+    This class provides a storage layer for patching operations, which allows us to
     store the original code object of functions being patched with either hook
     injections or wrapping.
 
