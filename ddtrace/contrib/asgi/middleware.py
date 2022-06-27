@@ -139,7 +139,7 @@ class TraceMiddleware:
                     host_header = value.decode("ascii")
                 except UnicodeDecodeError:
                     log.warning(
-                        "failed to decode host header, url will contain the hostname of the sever", exc_info=True
+                        "failed to decode host header, host from http headers will not be considered", exc_info=True
                     )
                 break
 
