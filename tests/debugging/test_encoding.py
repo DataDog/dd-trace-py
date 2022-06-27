@@ -14,6 +14,7 @@ from ddtrace.debugging._encoding import _get_args
 from ddtrace.debugging._encoding import _get_fields
 from ddtrace.debugging._encoding import _get_locals
 from ddtrace.debugging._encoding import _serialize
+from ddtrace.debugging._encoding import _serialize_exc_info
 from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.internal._encoding import BufferFull
@@ -144,6 +145,28 @@ def test_serialize_collection_max_size(value, serialized):
 
 def test_serialize_long_string():
     assert _serialize("x" * 11, max_str_len=10) == repr("x" * 9 + "...")
+
+
+def test_serialize_exc_info():
+    def a():
+        raise ValueError("bad")
+
+    def b():
+        a()
+
+    def c():
+        b()
+
+    serialized = None
+    try:
+        c()
+    except ValueError:
+        serialized = _serialize_exc_info(sys.exc_info())
+
+    assert serialized is not None
+    assert serialized["type"] == "ValueError"
+    assert [_["function"] for _ in serialized["stacktrace"][:3]] == ["a", "b", "c"]
+    assert serialized["message"] == "'bad'"
 
 
 def test_captured_context_default_level():
