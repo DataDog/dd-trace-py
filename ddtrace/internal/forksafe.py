@@ -7,6 +7,8 @@ import threading
 import typing
 import weakref
 
+from six import PY3
+
 from ddtrace.vendor import wrapt
 
 
@@ -57,6 +59,7 @@ def unregister(after_in_child):
 
 
 if hasattr(os, "register_at_fork"):
+    assert PY3
     os.register_at_fork(after_in_child=ddtrace_after_in_child)
 elif hasattr(os, "fork"):
     # DEV: This "should" be the correct way of implementing this, but it doesn't

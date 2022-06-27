@@ -2,6 +2,7 @@ from copy import deepcopy
 import os
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 
 from ddtrace.internal.utils.cache import cachedmethod
@@ -20,7 +21,7 @@ log = get_logger(__name__)
 
 
 def _parse_propagation_styles(name, default):
-    # type: (str, str) -> set[str]
+    # type: (str, str) -> Set[str]
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::

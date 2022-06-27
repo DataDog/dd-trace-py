@@ -10,7 +10,9 @@ try:
     from collections.abc import Iterator
 except ImportError:
     # DEV: mypy has a problem with this try/except; see https://github.com/python/mypy/issues/1153
-    from collections import Iterator  # type:ignore
+    # error: Module "collections" has no attribute "Iterator"  [attr-defined]
+    # error: Name "Iterator" already defined (possibly by an import)  [no-redef]
+    from collections import Iterator  # type: ignore[no-redef,attr-defined]
 
 try:
     from typing import Protocol

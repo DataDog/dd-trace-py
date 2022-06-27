@@ -21,7 +21,10 @@ from datetime import datetime
 import os.path
 import re
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from docutils import nodes
 from docutils import statemachine
@@ -296,7 +299,7 @@ latex_elements = {
     # Latex figure (float) alignment
     #
     # 'figure_align': 'htbp',
-}  # type: dict[str, str]
+}  # type: Dict[str, str]
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
@@ -420,7 +423,7 @@ class DDTraceReleaseNotesDirective(rst.Directive):
 
     @property
     def _release_branches(self):
-        # type: () -> list[tuple[Version, str]]
+        # type: () -> List[Tuple[Version, str]]
         r"""
         Helper to get a list of release branches for this repo.
 
@@ -431,7 +434,7 @@ class DDTraceReleaseNotesDirective(rst.Directive):
         The results are a list of parsed Versions from the branch name (to make sorting/
         comparing easier), along with the original ref name.
         """
-        versions = []  # type: list[tuple[Version, str]]
+        versions = []  # type: List[Tuple[Version, str]]
         for ref in self._repo.get_refs():
             # We get the ref as bytes from dulwich, convert to str
             ref = ref.decode()
@@ -470,7 +473,7 @@ class DDTraceReleaseNotesDirective(rst.Directive):
         # All release tags for this version should start like this
         version_prefix = "refs/tags/v{0}.{1}.".format(version.major, version.minor)
 
-        tag_versions = []  # type: list[tuple[Version, str]]
+        tag_versions = []  # type: List[Tuple[Version, str]]
         for ref in self._repo.get_refs():
             ref = ref.decode()
 
@@ -507,7 +510,7 @@ class DDTraceReleaseNotesDirective(rst.Directive):
         return None
 
     def _get_commit_refs(self, commit_sha):
-        # type: (bytes) -> list[bytes]
+        # type: (bytes) -> List[bytes]
         """Return a list of refs for the given commit sha"""
         return [ref for ref in self._repo.refs.keys() if self._repo.refs[ref] == commit_sha]
 
@@ -525,7 +528,9 @@ class DDTraceReleaseNotesDirective(rst.Directive):
 
                 ref_str = ref[20:].decode()
                 if self._release_branch_pattern.match(ref_str):
-                    v = Version(ref_str)
+                    # mypy-py2 error:
+                    #   Argument 1 to "Version" has incompatible type "unicode"; expected "str"  [arg-type]
+                    v = Version(ref_str)  # type: ignore[arg-type]
                     return Version("{}.{}".format(v.major, v.minor + 1))
                 elif self._dev_branch_pattern.match(ref_str):
                     major, _, _ = ref_str.partition(".")
@@ -574,7 +579,7 @@ class DDTraceReleaseNotesDirective(rst.Directive):
         # This is where we will aggregate the generated notes
 
         # Parse version specific reno options from the directive
-        version_options = {}  # type: dict[Version, dict[str, Any]]
+        version_options = {}  # type: Dict[Version, Dict[str, Any]]
         if self.has_content:
             options = yaml.load("\n".join(self.content), Loader=yaml.CLoader)
             if options:

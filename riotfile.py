@@ -154,12 +154,11 @@ venv = Venv(
                 "tenacity": "~=7.0.0",
                 # packaging 21.0 dropped Python 2.7 support
                 "packaging": "<21.0",
-                "types-attrs": latest,
-                "types-docutils": latest,
                 "types-protobuf": latest,
-                "types-PyYAML": latest,
-                "types-setuptools": latest,
-                "types-six": latest,
+                # https://github.com/python/typeshed/pull/6183/ dropped Python 2.7 support
+                "types-PyYAML": "<6.0.0",
+                "types-six": "<1.16.12",
+                "types-enum34": latest,
             },
         ),
         Venv(

@@ -162,7 +162,7 @@ class _ImportHookChainedLoader(Loader):
 
     def _load_module(self, fullname):
         # type: (str) -> ModuleType
-        module = self.loader.load_module(fullname)
+        module = self.loader.load_module(fullname)  # type: ignore[attr-defined]
         self.callback(module)
 
         return module
@@ -294,7 +294,7 @@ class ModuleWatchdog(dict):
         try:
             if PY2:
                 __import__(fullname)
-                return _ImportHookLoader(self.after_import)
+                return _ImportHookLoader(self.after_import)  # type: ignore[return-value]
 
             loader = getattr(find_spec(fullname), "loader", None)
             if loader and not isinstance(loader, _ImportHookChainedLoader):

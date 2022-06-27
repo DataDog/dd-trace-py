@@ -2,11 +2,12 @@ import os
 import re
 from typing import List
 from typing import Optional
+from typing import Pattern
 from typing import Tuple
 
 
 def path_to_regex(pattern):
-    # type: (str) -> re.Pattern
+    # type: (str) -> Pattern
     """
     source https://github.com/sbdchd/codeowners/blob/c95e13d384ac09cfa1c23be1a8601987f41968ea/codeowners/__init__.py
 
@@ -129,7 +130,7 @@ class Codeowners(object):
         path = path or self.location(cwd)
         if path is not None:
             self.path = path  # type: str
-        self.patterns = []  # type: List[Tuple[re.Pattern, List[str]]]
+        self.patterns = []  # type: List[Tuple[Pattern, List[str]]]
         self.parse()
 
     def location(self, cwd=None):

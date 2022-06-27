@@ -76,7 +76,7 @@ def wrap_bytecode(wrapper, wrapped):
     nargs = code.co_argcount
     argnames = code.co_varnames[:nargs]
     try:
-        kwonlyargs = code.co_kwonlyargcount
+        kwonlyargs = code.co_kwonlyargcount  # type: ignore[attr-defined]
     except AttributeError:
         kwonlyargs = 0
     kwonlyargnames = code.co_varnames[nargs : nargs + kwonlyargs]
@@ -356,13 +356,13 @@ def wrap(f, wrapper):
     code.flags = f.__code__.co_flags
     code.argcount = f.__code__.co_argcount
     try:
-        code.posonlyargcount = f.__code__.co_posonlyargcount
+        code.posonlyargcount = f.__code__.co_posonlyargcount  # type: ignore[attr-defined]
     except AttributeError:
         pass
 
     nargs = code.argcount
     try:
-        code.kwonlyargcount = f.__code__.co_kwonlyargcount
+        code.kwonlyargcount = f.__code__.co_kwonlyargcount  # type: ignore[attr-defined]
         nargs += code.kwonlyargcount
     except AttributeError:
         pass

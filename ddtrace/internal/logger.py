@@ -30,7 +30,8 @@ def get_logger(name):
     """
     # DEV: `logging.Logger.manager` refers to the single root `logging.Manager` instance
     #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1824-L1826  # noqa
-    manager = logging.Logger.manager
+    # mypy-py2 error: "Type[Logger]" has no attribute "manager"  [attr-defined]
+    manager = logging.Logger.manager  # type: ignore[attr-defined]
 
     # If the logger does not exist yet, create it
     # DEV: `Manager.loggerDict` is a dict mapping logger name to logger

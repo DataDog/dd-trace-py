@@ -73,7 +73,8 @@ def _git_subprocess_cmd(cmd, cwd=None):
     process = subprocess.Popen(git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
     stdout, stderr = process.communicate()
     if process.returncode == 0:
-        return compat.ensure_text(stdout).strip()
+        # mypy-py2 error: Incompatible return value type (got "unicode", expected "str")  [return-value]
+        return compat.ensure_text(stdout).strip()  # type: ignore[return-value]
     raise ValueError(stderr)
 
 

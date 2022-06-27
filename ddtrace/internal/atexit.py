@@ -8,11 +8,14 @@ import atexit
 import logging
 import typing
 
+from six import PY3
+
 
 log = logging.getLogger(__name__)
 
 
 if hasattr(atexit, "unregister"):
+    assert PY3
     register = atexit.register
     unregister = atexit.unregister
 else:

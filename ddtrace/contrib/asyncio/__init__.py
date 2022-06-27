@@ -40,6 +40,8 @@ threads:
       current active ``Context`` so that generated traces in the new task are
       attached to the main trace
 """
+from six import PY3
+
 from ...internal.utils.importlib import require_modules
 
 
@@ -47,18 +49,21 @@ required_modules = ["asyncio"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from ...internal.compat import CONTEXTVARS_IS_AVAILABLE
-        from ...provider import DefaultContextProvider
-        from .provider import AsyncioContextProvider
+        if PY3:
+            from ...internal.compat import CONTEXTVARS_IS_AVAILABLE
+            from ...provider import DefaultContextProvider
+            from .provider import AsyncioContextProvider
 
-        if CONTEXTVARS_IS_AVAILABLE:
-            context_provider = DefaultContextProvider()
+            if CONTEXTVARS_IS_AVAILABLE:
+                context_provider = DefaultContextProvider()
+            else:
+                context_provider = AsyncioContextProvider()
+
+            from .helpers import ensure_future  # noqa: F401
+            from .helpers import run_in_executor  # noqa: F401
+            from .helpers import set_call_context  # noqa: F401
+            from .patch import patch  # noqa: F401
+
+            __all__ = ["context_provider", "set_call_context", "ensure_future", "run_in_executor", "patch"]
         else:
-            context_provider = AsyncioContextProvider()
-
-        from .helpers import ensure_future
-        from .helpers import run_in_executor
-        from .helpers import set_call_context
-        from .patch import patch
-
-        __all__ = ["context_provider", "set_call_context", "ensure_future", "run_in_executor", "patch"]
+            __all__ = []

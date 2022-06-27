@@ -9,6 +9,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Pattern
 from typing import TYPE_CHECKING
 from typing import Tuple
 
@@ -23,7 +24,6 @@ from .constants import SAMPLING_RULE_DECISION
 from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .internal.compat import iteritems
-from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
 from .internal.utils.cache import cachedmethod
@@ -425,7 +425,7 @@ class SamplingRule(BaseSampler):
                 return False
 
         # The pattern is a regular expression and the prop is a string
-        if isinstance(pattern, pattern_type):
+        if isinstance(pattern, Pattern):
             try:
                 return bool(pattern.match(str(prop)))
             except (ValueError, TypeError):
