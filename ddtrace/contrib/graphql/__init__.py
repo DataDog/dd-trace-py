@@ -40,15 +40,8 @@ To configure the graphql integration on a per-instance basis use the
 
     Pin.override(graphql, service="mygraphql")
 """
-from ...internal.utils.importlib import require_modules
+from .patch import patch
+from .patch import unpatch
 
 
-required_modules = ["graphql"]
-
-with require_modules(required_modules) as missing_modules:
-    if not missing_modules:
-        from .patch import graphql_version
-        from .patch import patch
-        from .patch import unpatch
-
-        __all__ = ["patch", "unpatch", "graphql_version"]
+__all__ = ["patch", "unpatch"]
