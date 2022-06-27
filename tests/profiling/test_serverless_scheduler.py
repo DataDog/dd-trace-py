@@ -1,9 +1,10 @@
 # -*- encoding: utf-8 -*-
 
+from ddtrace.internal import compat
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import serverless_scheduler
-from ddtrace.internal import compat
+
 
 def test_periodic():
     r = recorder.Recorder()
