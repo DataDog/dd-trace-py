@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds serverless_scheduler, which flushes data after 60 calls to `periodic`, which occur every second.
