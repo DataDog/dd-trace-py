@@ -245,6 +245,7 @@ setup(
         "protobuf>=3,<3.18; python_version<'3.6'",
         "tenacity>=5",
         "attrs>=19.2.0",
+        "cattrs",
         "six>=1.12.0",
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
