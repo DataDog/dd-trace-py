@@ -21,6 +21,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import PROPAGATION_STYLE_W3
 from ..internal.logger import get_logger
 from ..span import _MetaDictType
 from ._utils import get_wsgi_header
@@ -40,6 +41,7 @@ _HTTP_HEADER_B3_SPAN_ID = "x-b3-spanid"
 _HTTP_HEADER_B3_SAMPLED = "x-b3-sampled"
 _HTTP_HEADER_B3_FLAGS = "x-b3-flags"
 _HTTP_HEADER_TAGS = "x-datadog-tags"
+_HTTP_HEADER_W3_TRACE_PARENT = "traceparent"
 
 
 def _possible_header(header):
@@ -59,6 +61,7 @@ _POSSIBLE_HTTP_HEADER_B3_TRACE_IDS = _possible_header(_HTTP_HEADER_B3_TRACE_ID)
 _POSSIBLE_HTTP_HEADER_B3_SPAN_IDS = _possible_header(_HTTP_HEADER_B3_SPAN_ID)
 _POSSIBLE_HTTP_HEADER_B3_SAMPLEDS = _possible_header(_HTTP_HEADER_B3_SAMPLED)
 _POSSIBLE_HTTP_HEADER_B3_FLAGS = _possible_header(_HTTP_HEADER_B3_FLAGS)
+_POSSIBLE_HTTP_HEADER_W3_HEADER = _possible_header(_HTTP_HEADER_W3_TRACE_PARENT)
 
 
 def _extract_header_value(possible_header_names, headers, default=None):
@@ -70,15 +73,15 @@ def _extract_header_value(possible_header_names, headers, default=None):
     return default
 
 
-def _b3_id_to_dd_id(b3_id):
+def _hexadecimal_id_to_dd_id(hexdec_id):
     # type: (str) -> int
-    """Helper to convert B3 trace/span hex ids into Datadog compatible ints
+    """Helper to convert trace/span hex ids into Datadog compatible ints
 
     If the id is > 64 bit then truncate the trailing 64 bit.
 
     "463ac35c9f6413ad48485a3953bb6124" -> "48485a3953bb6124" -> 5208512171318403364
     """
-    return int(b3_id[-16:], 16)
+    return int(hexdec_id[-16:], 16)
 
 
 def _dd_id_to_b3_id(dd_id):
@@ -335,9 +338,9 @@ class _B3MultiHeader:
             trace_id = None
             span_id = None
             if trace_id_val is not None:
-                trace_id = _b3_id_to_dd_id(trace_id_val) or None
+                trace_id = _hexadecimal_id_to_dd_id(trace_id_val) or None
             if span_id_val is not None:
-                span_id = _b3_id_to_dd_id(span_id_val) or None
+                span_id = _hexadecimal_id_to_dd_id(span_id_val) or None
 
             sampling_priority = None
             if sampled is not None:
@@ -453,9 +456,9 @@ class _B3SingleHeader:
             # DEV: We are allowed to have only x-b3-sampled/flags
             # DEV: Do not allow `0` for trace id or span id, use None instead
             if trace_id_val is not None:
-                trace_id = _b3_id_to_dd_id(trace_id_val) or None
+                trace_id = _hexadecimal_id_to_dd_id(trace_id_val) or None
             if span_id_val is not None:
-                span_id = _b3_id_to_dd_id(span_id_val) or None
+                span_id = _hexadecimal_id_to_dd_id(span_id_val) or None
 
             sampling_priority = None
             if sampled is not None:
@@ -477,6 +480,122 @@ class _B3SingleHeader:
                 single_header,
             )
         return None
+
+
+
+
+class _W3SingleHeader:
+    """Helper class to inject/extract a W3 trace header.
+
+    https://www.w3.org/TR/trace-context/#traceparent-header
+
+    Format::
+
+        traceparent={format_version}-{data}
+
+    The contents of ``data`` depend on the value of ``format_version``. At time of writing, only version ``00`` is
+    published.
+
+    Version 0 format::
+
+        00-{trace_id}-{parent_id}-{trace_flags}
+
+    Example::
+
+        traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+
+    Values:
+
+      - ``format_version`` field is 2 lower-hex characters.
+      - ``trace_id`` field is 32 lower-hex characters.
+      - ``parent_id`` field is 16 lower-hex characters. This is equivalent to span IDs.
+      - ``trace_flags`` field is 1 lower-hex character. This is a bit-field.
+        - The least-significant, right-most bit of ``trace_flags`` is the ``sampled`` flag and has ambiguous meaning.
+
+    Restrictions:
+
+      - ``ff`` is forbidden for ``format_version``
+      - All 0s are forbidden for ``trace_id`` and ``parent_id``
+      - If ``trace_id`` is invalid, the entire header must be ignored.
+      - If ``parent_id`` is invalid, the entire header must be ignored.
+      - Unused bits of ``trace_flags`` must be 0.
+
+    Implementation details:
+
+      - If ``trace_id`` > a 64-bit integer, the trailing 64bits will be dropped.
+      - Sampled priority is encoded as:
+        - ``sampling_priority < 1`` -> ``0`` (unset bit)
+        - ``sampling_priority >= 1`` -> ``1`` (set bit)
+      - Sampled priority is decoded as:
+        - ``0`` (unset bit) -> ``sampling_priority = 0``
+        - ``1`` (set bit) -> ``sampling_priority = 1``
+      - Per the W3 spec, if a version > highest-supported is given, the implementation should try to parse the content
+        by the highest-supported version format and use the values if they are valid. Unknown fields should be ignored.
+    """
+
+    @staticmethod
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
+        if span_context.trace_id is None or span_context.span_id is None:
+            log.debug("tried to inject invalid context %r", span_context)
+            return
+
+        sampled_flag = 0
+        if span_context.sampling_priority >= 1:
+            sampled_flag = 1
+
+        single_header = "00-{:032x}-{:016x}-{:02x}".format(span_context.trace_id, span_context.span_id, sampled_flag)
+        headers[_HTTP_HEADER_W3_TRACE_PARENT] = single_header
+
+    @staticmethod
+    def _extract(headers):
+        # type: (Dict[str, str]) -> Optional[Context]
+        single_header = _extract_header_value(_POSSIBLE_HTTP_HEADER_W3_HEADER, headers)
+        if not single_header:
+            return None
+
+        if len(single_header) < 55:
+            return None
+
+        parts = single_header.split("-")
+        if len(parts) < 4:
+            return None
+
+        try:
+            version_str = parts[0]
+            assert len(version_str) == 2
+            version = int(version_str, 16)
+            assert 0 <= version < 0xff
+        except (AssertionError, ValueError):
+            log.debug("received invalid w3 header, version: %r", version_str)
+            return None
+
+        try:
+            trace_id_str = parts[1]
+            span_id_str = parts[2]
+            trace_flags_str = parts[3]
+            assert len(trace_id_str) >= 32
+            assert len(span_id_str) >= 16
+            assert len(trace_flags_str) >= 2
+            trace_id = _hexadecimal_id_to_dd_id(trace_id_str)
+            span_id = _hexadecimal_id_to_dd_id(span_id_str)
+            trace_flags = _hexadecimal_id_to_dd_id(trace_flags_str)
+            # All 0s are invalid values
+            assert trace_id != 0
+            assert span_id != 0
+            sampled_flag = float(trace_flags & 0x1)
+            # Unused bits of the flags field must be 0
+            assert (trace_flags & 0xfe) == 0
+        except (AssertionError, ValueError):
+            log.debug(
+                "received invalid w3 traceparent header, trace-id: %r, span-id: %r, trace-flags: %r",
+                trace_id_str,
+                span_id_str,
+                trace_flags_str,
+            )
+            return None
+
+        return Context(trace_id=trace_id, span_id=span_id, sampling_priority=sampled_flag)
 
 
 class HTTPPropagator(object):
@@ -551,6 +670,10 @@ class HTTPPropagator(object):
                     return context
             if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_extract:
                 context = _B3SingleHeader._extract(normalized_headers)
+                if context is not None:
+                    return context
+            if PROPAGATION_STYLE_W3 in config._propagation_style_extract:
+                context = _W3SingleHeader._extract(normalized_headers)
                 if context is not None:
                     return context
         except Exception:

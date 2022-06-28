@@ -9,6 +9,7 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import PROPAGATION_STYLE_W3
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
@@ -21,6 +22,7 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SPAN_ID
 from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
+from ddtrace.propagation.http import _HTTP_HEADER_W3_TRACE_PARENT
 
 from ..utils import override_global_config
 
@@ -327,12 +329,16 @@ B3_SINGLE_HEADERS_VALID = {
 B3_SINGLE_HEADERS_INVALID = {
     _HTTP_HEADER_B3_SINGLE: "NON_HEX_VALUE-e457b5a2e4d86bd1-1",
 }
+W3_HEADER_VALID = {
+    _HTTP_HEADER_W3_TRACE_PARENT: "00-179b8a59c67444500e5be51f0039f3bb-c7d22007a30cbfd5-01",
+}
 
 
 ALL_HEADERS = {}
 ALL_HEADERS.update(DATADOG_HEADERS_VALID)
 ALL_HEADERS.update(B3_HEADERS_VALID)
 ALL_HEADERS.update(B3_SINGLE_HEADERS_VALID)
+ALL_HEADERS.update(W3_HEADER_VALID)
 
 EXTRACT_FIXTURES = [
     # Datadog headers
@@ -617,6 +623,88 @@ EXTRACT_FIXTURES = [
         B3_SINGLE_HEADERS_VALID,
         CONTEXT_EMPTY,
     ),
+    # W3 header
+    (
+        "invalid_w3_header_bad_version",
+        [PROPAGATION_STYLE_W3],
+        {_HTTP_HEADER_W3_TRACE_PARENT: "ff-11111111111111111111111111111111-1111111111111111-00"},
+        None,
+    ),
+    (
+        "invalid_w3_header_bad_trace_id_all_0s",
+        [PROPAGATION_STYLE_W3],
+        {_HTTP_HEADER_W3_TRACE_PARENT: "00-00000000000000000000000000000000-1111111111111111-00"},
+        None,
+    ),
+    (
+        "invalid_w3_header_bad_trace_id_not_hexdec",
+        [PROPAGATION_STYLE_W3],
+        {_HTTP_HEADER_W3_TRACE_PARENT: "00-abcdefghijklmnopqrstuvwxyz012345-1111111111111111-00"},
+        None,
+    ),
+    (
+        "invalid_w3_header_bad_trace_id_bad_length",
+        [PROPAGATION_STYLE_W3],
+        {_HTTP_HEADER_W3_TRACE_PARENT: "00-abc-1111111111111111-00"},
+        None,
+    ),
+    (
+        "invalid_w3_header_bad_parent_id_all_0s",
+        [PROPAGATION_STYLE_W3],
+        {_HTTP_HEADER_W3_TRACE_PARENT: "00-11111111111111111111111111111111-0000000000000000-00"},
+        None,
+    ),
+    (
+        "invalid_w3_header_bad_parent_id_not_hexadec",
+        [PROPAGATION_STYLE_W3],
+        {_HTTP_HEADER_W3_TRACE_PARENT: "00-11111111111111111111111111111111-abcdefghijklmnop-00"},
+        None,
+    ),
+    (
+        "invalid_w3_header_bad_parent_id_bad_length",
+        [PROPAGATION_STYLE_W3],
+        {_HTTP_HEADER_W3_TRACE_PARENT: "00-11111111111111111111111111111111-abc-00"},
+        None,
+    ),
+    (
+        "valid_w3_header_simple",
+        [PROPAGATION_STYLE_W3],
+        W3_HEADER_VALID,
+        {
+            "trace_id": 1034672460722205627,
+            "span_id": 14398606175829278677,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
+        "valid_w3_header_larger_version",
+        [PROPAGATION_STYLE_W3],
+        {_HTTP_HEADER_W3_TRACE_PARENT: "05-" + W3_HEADER_VALID[_HTTP_HEADER_W3_TRACE_PARENT][3:] + "-extradata"},
+        {
+            "trace_id": 1034672460722205627,
+            "span_id": 14398606175829278677,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
+        "valid_w3_header_all_styles",
+        PROPAGATION_STYLE_ALL,
+        W3_HEADER_VALID,
+        {
+            "trace_id": 1034672460722205627,
+            "span_id": 14398606175829278677,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
+        "valid_w3_header_default_style",
+        None,
+        W3_HEADER_VALID,
+        CONTEXT_EMPTY,
+    ),
     # All valid headers
     (
         "valid_all_headers_default_style",
@@ -727,6 +815,17 @@ EXTRACT_FIXTURES = [
         {
             "trace_id": 7277407061855694839,
             "span_id": 16453819474850114513,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
+        "valid_all_headers_w3_single_style",
+        [PROPAGATION_STYLE_W3],
+        ALL_HEADERS,
+        {
+            "trace_id": 1034672460722205627,
+            "span_id": 14398606175829278677,
             "sampling_priority": 1,
             "dd_origin": None,
         },
