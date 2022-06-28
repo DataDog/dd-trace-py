@@ -21,9 +21,50 @@ def test_wrap_unwrap():
     assert f(1, b=2, c=3) == [((1, 2, 3), {}), (1, 2, 3)]
 
     channel[:] = []
-    unwrap(f)
+    unwrap(f, wrapper)
     assert f(1, 2, 3) == (1, 2, 3)
     assert not channel
+
+
+def test_mutiple_wrap():
+    channel1, channel2 = [], []
+
+    def wrapper_maker(channel):
+        def wrapper(f, args, kwargs):
+            channel[:] = []
+            channel.append((args, kwargs))
+            retval = f(*args, **kwargs)
+            channel.append(retval)
+            return retval
+
+        return wrapper
+
+    wrapper1, wrapper2 = (wrapper_maker(_) for _ in (channel1, channel2))
+
+    def f(a, b, c=None):
+        return (a, b, c)
+
+    wrap(f, wrapper1)
+    wrap(f, wrapper2)
+
+    f(1, 2, 3)
+
+    assert channel1 == channel2 == [((1, 2, 3), {}), (1, 2, 3)]
+
+    channel1[:] = []
+    channel2[:] = []
+
+    unwrap(f, wrapper1)
+    f(1, 2, 3)
+
+    assert not channel1 and channel2 == [((1, 2, 3), {}), (1, 2, 3)]
+
+    channel2[:] = []
+
+    unwrap(f, wrapper2)
+    f(1, 2, 3)
+
+    assert not channel1 and not channel2
 
 
 def test_wrap_generator():
