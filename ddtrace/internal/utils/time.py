@@ -7,10 +7,14 @@ from ddtrace.internal import compat
 
 
 def parse_isoformat(date):
-    try:
-        return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ")
-    except ValueError:
-        return datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
+    if date.endswith("Z"):
+        try:
+            return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ")
+        except ValueError:
+            return datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
+    elif hasattr(datetime, "fromisoformat"):
+        return datetime.fromisoformat(date)
+    raise ValueError("unsupported isoformat")
 
 
 class StopWatch(object):

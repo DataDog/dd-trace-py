@@ -51,6 +51,7 @@ from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
 from .provider import DefaultContextProvider
+from .remoteconfig._worker import RemoteConfigWorker
 from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
 from .sampler import DatadogSampler
@@ -220,6 +221,10 @@ class Tracer(object):
             self._agent_url,
         )
 
+        self._rc = RemoteConfigWorker()
+        self._rc._client.register_product("FEATURES", self._reload_features)
+        self._rc.start()
+
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
@@ -227,6 +232,14 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
+
+    def _reload_features(self, metadata, features):
+        log.info(
+            "Reloading tracer features. %r", features
+        )
+        self.configure(
+            appsec_enabled=features.get("asm", {}).get("enabled", self._appsec_enabled)
+        )
 
     def _atexit(self):
         # type: () -> None
@@ -322,6 +335,7 @@ class Tracer(object):
         partial_flush_min_spans=None,  # type: Optional[int]
         api_version=None,  # type: Optional[str]
         compute_stats_enabled=None,  # type: Optional[bool]
+        appsec_enabled=None,  # type: Optional[bool]
     ):
         # type: (...) -> None
         """Configure a Tracer.
@@ -353,6 +367,9 @@ class Tracer(object):
 
         if partial_flush_min_spans is not None:
             self._partial_flush_min_spans = partial_flush_min_spans
+
+        if appsec_enabled is not None:
+            self._appsec_enabled = config._appsec_enabled = appsec_enabled
 
         # If priority sampling is not set or is True and no priority sampler is set yet
         if priority_sampling in (None, True) and not self._priority_sampler:
@@ -432,6 +449,7 @@ class Tracer(object):
                 sampler,
                 settings.get("FILTERS") if settings is not None else None,
                 compute_stats_enabled,
+                appsec_enabled,
             ]
         ):
             self._span_processors = _default_span_processors_factory(
@@ -486,6 +504,12 @@ class Tracer(object):
             self._compute_stats,
             self._agent_url,
         )
+
+        self._rc.stop()
+        self._rc = RemoteConfigWorker()
+        self._rc._client.register_product("FEATURES", self._reload_features)
+        self._rc.start()
+
         self._new_process = True
 
     def _start_span_after_shutdown(
