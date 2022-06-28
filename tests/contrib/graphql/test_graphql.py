@@ -1,20 +1,18 @@
-from ddtrace.contrib.graphql import patch
-
-
-patch()
 import graphql
-
-
-graphql_version_str = getattr(graphql, "__version__")
-from ddtrace.internal.utils.version import parse_version
-
-
-graphql_version = parse_version(graphql_version_str)
-
 import pytest
 
 from ddtrace import tracer
+from ddtrace.contrib.graphql import graphql_version
+from ddtrace.contrib.graphql import patch
+from ddtrace.contrib.graphql import unpatch
 from tests.utils import snapshot
+
+
+@pytest.fixture(autouse=True)
+def graphql_patching():
+    patch()
+    yield
+    unpatch()
 
 
 @pytest.fixture

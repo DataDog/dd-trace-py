@@ -57,9 +57,6 @@
           "span_id": 5,
           "parent_id": 3,
           "type": "web",
-          "metrics": {
-            "_dd.measured": 1
-          },
           "duration": 75000,
           "start": 1655913653775609000
         },
@@ -86,9 +83,6 @@
           "span_id": 6,
           "parent_id": 4,
           "type": "web",
-          "metrics": {
-            "_dd.measured": 1
-          },
           "duration": 72000,
           "start": 1655913653776694000
         }]]
