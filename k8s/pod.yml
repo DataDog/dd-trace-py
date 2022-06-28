@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sample-app
+  namespace: default
+spec:
+  initContainers:
+    - name: python-init
+      image: ddkverhoog/k8s-auto-init-py:latest
+      volumeMounts:
+        - name: autoinstrumentation
+          mountPath: /autoinstrumentation
+      # Sharing the volume doesn't seem to be sufficient to mount the files,
+      # they have to be copied.
+      command: ["cp", "-r", "/pypackages/.", "/autoinstrumentation"]
+  containers:
+    - name: app
+      image: ddkverhoog/django-hw:latest
+      env:
+        - name: PYTHONPATH
+          value: /autoinstrumentation/ddtrace/bootstrap:/autoinstrumentation
+        - name: DD_TRACE_DEBUG
+          value: "true"
+      ports:
+        - containerPort: 8000
+      volumeMounts:
+        - name: autoinstrumentation
+          mountPath: /autoinstrumentation
+    - name: agent
+      image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:latest
+      ports:
+        - containerPort: 8126
+  volumes:
+    - name: autoinstrumentation
+      emptyDir: {}
