@@ -1,15 +1,24 @@
+from functools import lru_cache
+
+
 class GlobMatcher:
+    """This is a backtracking implementation of the glob matching algorithm.
+    The glob pattern language supports `*` as a multiple character wildcard which includes matches on `""`
+    and `?` as a single character wildcard, but no escape sequences.
+    """
+
     __slots__ = "pattern"
 
     def __init__(self, pattern):
 
         self.pattern = pattern
 
+    @lru_cache(200)
     def match(self, subject):
         # type: (str) -> bool
         pattern = self.pattern
-        px = 0
-        sx = 0
+        px = 0  # [p]attern inde[x]
+        sx = 0  # [s]ubject inde[x]
         nextPx = 0
         nextSx = 0
 
@@ -21,13 +30,13 @@ class GlobMatcher:
                     sx += 1
                     continue
 
-                elif char == "?":
+                elif char == "?":  # single character wildcard
                     if sx < len(subject):
                         px += 1
                         sx += 1
                         continue
 
-                elif char == "*":
+                elif char == "*":  # zero-or-more-character wildcard
                     nextPx = px
                     nextSx = sx + 1
                     px += 1
