@@ -33,8 +33,6 @@ RUN \
       libenchant-dev \
       libffi-dev \
       liblzma-dev \
-      libmariadb-dev \
-      libmariadb-dev-compat \
       libmemcached-dev \
       libmemcached-dev \
       libncurses5-dev \
@@ -51,7 +49,12 @@ RUN \
       unixodbc-dev \
       wget \
       zlib1g-dev \
-  && apt-get install -y --no-install-recommends libmariadb3 \
+  # Install Mariadb
+  && wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup \
+  && chmod +x mariadb_repo_setup \
+  && ./mariadb_repo_setup \
+  && apt-get install -y --no-install-recommends libmariadb-dev libmariadb-dev-compat \
+  && rm mariadb_repo_setup \
   # Cleaning up apt cache space
   && rm -rf /var/lib/apt/lists/* \
   # Install pyenv

@@ -11,7 +11,7 @@
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
-      "runtime-id": "f547bbe17ce54cc79cb10a965abd9740",
+      "runtime-id": "778c778962a54eeea3ae401d2417ef86",
       "sql.executemany": "true"
     },
     "metrics": {
@@ -23,10 +23,10 @@
       "db.rowcount": 2,
       "out.port": 3306,
       "sql.rows": 2,
-      "system.pid": 6754
+      "system.pid": 9677
     },
-    "duration": 9144000,
-    "start": 1633040960213865000
+    "duration": 1468400,
+    "start": 1656521264429166700
   }],
 [
   {
@@ -41,7 +41,7 @@
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
-      "runtime-id": "f547bbe17ce54cc79cb10a965abd9740"
+      "runtime-id": "778c778962a54eeea3ae401d2417ef86"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -49,13 +49,13 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "db.rowcount": 0,
+      "db.rowcount": 2,
       "out.port": 3306,
-      "sql.rows": 0,
-      "system.pid": 6754
+      "sql.rows": 2,
+      "system.pid": 9677
     },
-    "duration": 1214000,
-    "start": 1633040960223609000
+    "duration": 698300,
+    "start": 1656521264432090500
   }],
 [
   {
@@ -70,7 +70,7 @@
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
-      "runtime-id": "f547bbe17ce54cc79cb10a965abd9740"
+      "runtime-id": "778c778962a54eeea3ae401d2417ef86"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -80,8 +80,8 @@
       "db.rowcount": 2,
       "out.port": 3306,
       "sql.rows": 2,
-      "system.pid": 6754
+      "system.pid": 9677
     },
-    "duration": 102000,
-    "start": 1633040960225024000
+    "duration": 94000,
+    "start": 1656521264433020400
   }]]
