@@ -224,3 +224,35 @@ def test_appsec_enabled_attack():
     with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
         resp = client.get("/.git")
         assert resp.status_code == 404
+
+
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
+@snapshot(
+    variants={
+        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
+        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
+        "3x": django.VERSION >= (3, 2, 0),
+    },
+)
+def test_templates_enabled():
+    """Default behavior to compare with disabled variant"""
+    with daphne_client("application") as client:
+        resp = client.get("/template-view/")
+        assert resp.status_code == 200
+        assert resp.content == b"some content\n"
+
+
+@pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
+@snapshot(
+    variants={
+        "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
+        "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
+        "3x": django.VERSION >= (3, 2, 0),
+    },
+)
+def test_templates_disabled():
+    """Template instrumentation disabled"""
+    with daphne_client("application", additional_env={"DD_DJANGO_INSTRUMENT_TEMPLATES": "false"}) as client:
+        resp = client.get("/template-view/")
+        assert resp.status_code == 200
+        assert resp.content == b"some content\n"
