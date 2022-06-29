@@ -69,9 +69,13 @@ class FunctionStore(object):
         # type: (FunctionType, List[HookInfoType]) -> None
         """Bulk-eject hooks from a function."""
         try:
-            self.eject_hooks(cast(FunctionType, cast(FullyNamedWrapperFunction, function).__dd_wrapped__), hooks)
+            wrapped = cast(FullyNamedWrapperFunction, function).__dd_wrapped__
         except AttributeError:
-            cast(FullyNamedWrapperFunction, eject_hooks(function, hooks))
+            # Not a wrapped function so we can actually eject from it
+            eject_hooks(function, hooks)
+        else:
+            # Try on the wrapped function.
+            self.eject_hooks(cast(FunctionType, wrapped), hooks)
 
     def inject_hook(self, function, hook, line, arg):
         # type: (FullyNamedWrapperFunction, HookType, int, Any) -> None
