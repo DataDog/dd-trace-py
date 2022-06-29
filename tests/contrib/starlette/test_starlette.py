@@ -343,7 +343,7 @@ def test_path_param_no_aggregate(client, tracer, test_spans):
     request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
-    assert request_span.resource == "GET /users/{userid:int}"
+    assert request_span.resource == "GET /users/1"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1"
@@ -404,6 +404,15 @@ def test_subapp_snapshot(snapshot_client):
 
 
 @snapshot()
+def test_subapp_no_aggregate_snapshot(snapshot_client):
+    config.starlette["aggregate_resources"] = False
+    response = snapshot_client.get("/sub-app/hello/name")
+    assert response.status_code == 200
+    assert response.text == "Success"
+    config.starlette["aggregate_resources"] = True
+
+
+@snapshot()
 def test_table_query_snapshot(snapshot_client):
     r_post = snapshot_client.post("/notes", json={"id": 1, "text": "test", "completed": 1})
 
@@ -450,3 +459,17 @@ with TestClient(app) as test_client:
     assert status == 0, err
     assert out == b"", err
     assert err == b"datadog context not present in ASGI request scope, trace middleware may be missing\n"
+
+
+def test_background_task(client, tracer, test_spans):
+    """Tests if background tasks have been excluded from span duration"""
+    r = client.get("/backgroundtask")
+    assert r.status_code == 200
+    assert r.text == '{"result":"Background task added"}'
+
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /backgroundtask"
+    # typical duration without background task should be in less than 10ms
+    # duration with background task will take approximately 1.1s
+    assert request_span.duration < 1
