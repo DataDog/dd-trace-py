@@ -204,7 +204,6 @@ class Config(object):
             )
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
-        self._propagate_service = asbool(os.getenv("DD_TRACE_PROPAGATE_SERVICE", default=True))
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))

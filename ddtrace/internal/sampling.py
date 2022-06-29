@@ -1,10 +1,7 @@
-from hashlib import sha256
 import re
 from typing import TYPE_CHECKING
 
-from ddtrace import config
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.cache import cached
 
 
 log = get_logger(__name__)
@@ -28,37 +25,19 @@ class SamplingMechanism(object):
     REMOTE_RATE_DATADOG = 7
 
 
-SERVICE_HASH_MAX_LENGTH = 10
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 
 # Use regex to validate trace tag value
 TRACE_TAG_RE = re.compile(r"^([0-9a-f]{10})-([0-8])$")
 
 
-@cached()
-def _hash_service(service):
-    # type: (Text) -> Optional[Text]
-    try:
-        return sha256(service.encode("utf-8")).hexdigest()[:SERVICE_HASH_MAX_LENGTH]
-    except Exception:
-        log.warning("failed to hash service", exc_info=True)
-
-    return None
-
-
 def _set_trace_tag(
     context,  # type: Context
-    service,  # type: Optional[Text]
     sampling_mechanism,  # type: int
 ):
     # type: (...) -> Optional[Text]
 
     value = "-%d" % sampling_mechanism
-
-    if service and config._propagate_service is True:
-        _ = _hash_service(service)
-        if _ is not None:
-            value = _ + value
 
     context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
 
@@ -93,7 +72,6 @@ def validate_sampling_decision(
 
 def update_sampling_decision(
     context,  # type: Context
-    service,  # type: Optional[Text]
     sampling_mechanism,  # type: int
     sampled,  # type: bool
 ):
@@ -101,6 +79,6 @@ def update_sampling_decision(
     # When sampler keeps trace, we need to set sampling decision trace tag.
     # If sampler rejects trace, we need to remove sampling decision trace tag to avoid unnecessary propagation.
     if sampled:
-        return _set_trace_tag(context, service, sampling_mechanism)
+        return _set_trace_tag(context, sampling_mechanism)
     else:
         return _unset_trace_tag(context)

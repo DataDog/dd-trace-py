@@ -49,7 +49,7 @@ def assert_sampling_decision_tags(
     :param limit: expected rate limit ``_dd.limit_psr``
     :param rule: expected sampler rule rate ``_dd.rule_psr``
     :param sampling_priority: expected sampling priority ``_sampling_priority_v1``
-    :param trace_tag: expected sampling decision trace tag ``_dd.p.dm``. Format is ``{SERVICEHASH}-{SAMPLINGMECHANISM}``. Service hash is empty if no service is set on span.
+    :param trace_tag: expected sampling decision trace tag ``_dd.p.dm``. Format is ``-{SAMPLINGMECHANISM}``.
     """
     metric_agent = span.get_metric(SAMPLING_AGENT_DECISION)
     metric_limit = span.get_metric(SAMPLING_LIMIT_DECISION)

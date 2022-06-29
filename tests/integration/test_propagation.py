@@ -43,7 +43,7 @@ def test_trace_tags_multispan(tracer):
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
         "x-datadog-sampling-priority": "1",
-        "x-datadog-tags": "_dd.p.dm=1581e27de8-1,_dd.p.test=value,any=tag",
+        "x-datadog-tags": "_dd.p.dm=-1,_dd.p.test=value,any=tag",
     }
     context = HTTPPropagator.extract(headers)
     # DEV: Trace consists of a simple p->c1 case where c1 is finished before p.
@@ -74,7 +74,7 @@ def test_sampling_decision_downstream(downstream_tracer):
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
         "x-datadog-sampling-priority": "1",
-        "x-datadog-tags": "_dd.p.dm=9df6b026a8-1",
+        "x-datadog-tags": "_dd.p.dm=-1",
     }
     context = HTTPPropagator.extract(headers)
     downstream_tracer.context_provider.activate(context)

@@ -161,7 +161,7 @@ class RateByServiceSampler(BasePrioritySampler):
             SamplingMechanism.DEFAULT if sampler == self._default_sampler else SamplingMechanism.AGENT_RATE
         )
 
-        update_sampling_decision(span.context, span.service, sampling_mechanism, sampled)
+        update_sampling_decision(span.context, sampling_mechanism, sampled)
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -326,7 +326,7 @@ class DatadogSampler(RateByServiceSampler):
         else:
             self._set_priority(span, USER_KEEP)
 
-        update_sampling_decision(span.context, span.service, SamplingMechanism.TRACE_SAMPLING_RULE, sampled)
+        update_sampling_decision(span.context, SamplingMechanism.TRACE_SAMPLING_RULE, sampled)
 
     def sample(self, span):
         # type: (Span) -> bool
