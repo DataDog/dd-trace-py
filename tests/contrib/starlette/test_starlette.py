@@ -396,6 +396,17 @@ def test_table_query(client, tracer, test_spans):
     assert sql_span.get_tag("sql.db") == "test.db"
 
 
+@pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])
+def test_host_header(client, tracer, test_spans, host):
+    r = client.get("/200", headers={"host": host})
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.get_tag("http.url") == "http://%s/200" % (host,)
+
+
 @snapshot()
 def test_subapp_snapshot(snapshot_client):
     response = snapshot_client.get("/sub-app/hello/name")
