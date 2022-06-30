@@ -21,16 +21,13 @@ class GlobMatcher:
         sx = 0  # [s]ubject inde[x]
         nextPx = 0
         nextSx = 0
+        # import pdb; pdb.set_trace()
 
         while px < len(pattern) or sx < len(subject):
             if px < len(pattern):
                 char = pattern[px]
-                if sx < len(subject) and subject[sx] == char:
-                    px += 1
-                    sx += 1
-                    continue
 
-                elif char == "?":  # single character wildcard
+                if char == "?":  # single character wildcard
                     if sx < len(subject):
                         px += 1
                         sx += 1
@@ -40,6 +37,11 @@ class GlobMatcher:
                     nextPx = px
                     nextSx = sx + 1
                     px += 1
+                    continue
+
+                elif sx < len(subject) and subject[sx] == char: #default normal charcter match
+                    px += 1
+                    sx += 1
                     continue
 
             if 0 < nextSx and nextSx <= len(subject):
