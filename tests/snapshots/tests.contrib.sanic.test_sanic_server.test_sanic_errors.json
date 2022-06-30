@@ -35,7 +35,7 @@
     "type": "web",
     "error": 1,
     "meta": {
-      "_dd.p.dm": "4eb6437014-0",
+      "_dd.p.dm": "-0",
       "error.msg": "division by zero",
       "error.stack": "Traceback (most recent call last):\n  File \"handle_request\", line 83, in handle_request\n    class Sanic(BaseSanic, metaclass=TouchUpMeta):\n  File \"/Users/brett.langdon/datadog/dd-trace-py/tests/contrib/sanic/run_server.py\", line 31, in internal_error\n    1 / 0\nZeroDivisionError: division by zero\n",
       "error.type": "builtins.ZeroDivisionError",

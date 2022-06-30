@@ -38,7 +38,7 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
-      "_dd.p.dm": "e08f4c9c36-0",
+      "_dd.p.dm": "-0",
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
