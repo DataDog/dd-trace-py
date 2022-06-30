@@ -81,6 +81,8 @@ class TraceMiddleware:
         tracer: Custom tracer. Defaults to the global tracer.
     """
 
+    default_ports = {"http": 80, "https": 443, "ws": 80, "wss": 443}
+
     def __init__(
         self,
         app,
@@ -130,13 +132,28 @@ class TraceMiddleware:
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
+        host_header = None
+        for key, value in scope["headers"]:
+            if key == b"host":
+                try:
+                    host_header = value.decode("ascii")
+                except UnicodeDecodeError:
+                    log.warning(
+                        "failed to decode host header, host from http headers will not be considered", exc_info=True
+                    )
+                break
+
         method = scope.get("method")
         server = scope.get("server")
-        if server and len(server) == 2:
+        scheme = scope.get("scheme", "http")
+        full_path = scope.get("root_path", "") + scope.get("path", "")
+        if host_header:
+            url = "{}://{}{}".format(scheme, host_header, full_path)
+        elif server and len(server) == 2:
             port = server[1]
-            server_host = server[0] + (":" + str(port) if port is not None and port != 80 else "")
-            full_path = scope.get("root_path", "") + scope.get("path", "")
-            url = scope.get("scheme", "http") + "://" + server_host + full_path
+            default_port = self.default_ports.get(scheme, None)
+            server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
+            url = "{}://{}{}".format(scheme, server_host, full_path)
         else:
             url = None
 
