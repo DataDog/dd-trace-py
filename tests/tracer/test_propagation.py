@@ -177,13 +177,13 @@ def test_extract(tracer):
 @pytest.mark.parametrize(
     "x_datadog_tags, expected_trace_tags",
     [
-        ("_dd.p.dm=193ed935a8-0", {"_dd.p.dm": "193ed935a8-0"}),
         ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
-        ("_dd.p.dm=193ED935A8-0", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=193ed935a8-", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=193ed935a8--1", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=193ed935a8-1.0", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=193ed935a8-9", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
+        ("_dd.p.dm=-0", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=-", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=--1", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=-1.0", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=-9", {"_dd.propagation_error": "decoding_error"}),
     ],
 )
 def test_extract_dm(x_datadog_tags, expected_trace_tags):
