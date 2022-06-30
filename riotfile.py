@@ -897,7 +897,7 @@ venv = Venv(
                     pys=select_pys(min_version="3"),
                     pkgs={
                         "flask": ["~=1.0.0", "~=1.1.0", latest],
-                        "flask-caching": ["~=1.10.0", "<2.0.0"],
+                        "flask-caching": ["~=1.10.0", latest],
                         # https://github.com/pallets/itsdangerous/issues/290
                         # DEV: Breaking change made in 2.0 release
                         "itsdangerous": "<2.0",
@@ -910,7 +910,7 @@ venv = Venv(
                     pys=select_pys(min_version="3"),
                     pkgs={
                         "flask": [latest],
-                        "flask-caching": ["~=1.10.0", "<2.0.0"],
+                        "flask-caching": ["~=1.10.0", latest],
                     },
                 ),
             ],
