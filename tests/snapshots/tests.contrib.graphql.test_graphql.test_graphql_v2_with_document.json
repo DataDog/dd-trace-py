@@ -1,9 +1,32 @@
 [[
   {
+    "name": "graphql.parse",
+    "service": "graphql",
+    "resource": "graphql.parse",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "runtime-id": "4f74917a84c6416f9e20a7837382ee8c"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 57092
+    },
+    "duration": 233000,
+    "start": 1655913653727398000
+  }],
+[
+  {
     "name": "graphql.query",
     "service": "graphql",
     "resource": "{ hello }",
-    "trace_id": 0,
+    "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
@@ -25,7 +48,7 @@
        "name": "graphql.validate",
        "service": "graphql",
        "resource": "graphql.validate",
-       "trace_id": 0,
+       "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
        "type": "web",
@@ -39,7 +62,7 @@
        "name": "graphql.execute",
        "service": "graphql",
        "resource": "{ hello }",
-       "trace_id": 0,
+       "trace_id": 1,
        "span_id": 3,
        "parent_id": 1,
        "type": "web",
@@ -53,13 +76,10 @@
           "name": "graphql.resolve",
           "service": "graphql",
           "resource": "hello",
-          "trace_id": 0,
+          "trace_id": 1,
           "span_id": 4,
           "parent_id": 3,
           "type": "web",
-          "metrics": {
-            "_dd.measured": 1
-          },
           "duration": 63000,
           "start": 1653506568349983000
         }]]

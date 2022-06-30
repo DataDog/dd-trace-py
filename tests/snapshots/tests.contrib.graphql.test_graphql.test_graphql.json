@@ -71,9 +71,6 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "web",
-          "metrics": {
-            "_dd.measured": 1
-          },
           "duration": 80000,
           "start": 1653506372833262000
         }]]

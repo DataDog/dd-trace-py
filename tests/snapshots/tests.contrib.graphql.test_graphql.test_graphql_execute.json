@@ -20,9 +20,9 @@
     "start": 1653506372942568000
   },
      {
-       "name": "graphql.execute",
+       "name": "graphql.parse",
        "service": "graphql",
-       "resource": "{ hello }",
+       "resource": "graphql.parse",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -31,23 +31,9 @@
          "_dd.measured": 1,
          "_dd.top_level": 1
        },
-       "duration": 302000,
-       "start": 1653506372942787000
+       "duration": 125000,
+       "start": 1655913653775109000
      },
-        {
-          "name": "graphql.resolve",
-          "service": "graphql",
-          "resource": "hello",
-          "trace_id": 0,
-          "span_id": 4,
-          "parent_id": 2,
-          "type": "web",
-          "metrics": {
-            "_dd.measured": 1
-          },
-          "duration": 64000,
-          "start": 1653506372942921000
-        },
      {
        "name": "graphql.execute",
        "service": "graphql",
@@ -60,8 +46,8 @@
          "_dd.measured": 1,
          "_dd.top_level": 1
        },
-       "duration": 224000,
-       "start": 1653506372943151000
+       "duration": 584000,
+       "start": 1655913653775316000
      },
         {
           "name": "graphql.resolve",
@@ -71,9 +57,32 @@
           "span_id": 5,
           "parent_id": 3,
           "type": "web",
-          "metrics": {
-            "_dd.measured": 1
-          },
-          "duration": 52000,
-          "start": 1653506372943246000
+          "duration": 75000,
+          "start": 1655913653775609000
+        },
+     {
+       "name": "graphql.execute",
+       "service": "graphql",
+       "resource": "{ hello }",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "web",
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1
+       },
+       "duration": 425000,
+       "start": 1655913653776476000
+     },
+        {
+          "name": "graphql.resolve",
+          "service": "graphql",
+          "resource": "hello",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 4,
+          "type": "web",
+          "duration": 72000,
+          "start": 1655913653776694000
         }]]
