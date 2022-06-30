@@ -9,7 +9,6 @@ from sanic.config import DEFAULT_CONFIG
 from sanic.exceptions import InvalidUsage
 from sanic.exceptions import ServerError
 from sanic.response import json
-from sanic.response import stream
 from sanic.response import text
 from sanic.server import HttpProtocol
 
@@ -26,6 +25,18 @@ from tests.utils import override_http_config
 # Helpers for handling response objects across sanic versions
 
 sanic_version = tuple(map(int, sanic_version.split(".")))
+
+
+try:
+    from sanic.response import ResponseStream
+
+    def stream(*args, **kwargs):
+        return ResponseStream(*args, **kwargs)
+
+
+except ImportError:
+    # stream was removed in sanic v22.6.0
+    from sanic.response import stream
 
 
 def _response_status(response):
