@@ -21,7 +21,6 @@ class GlobMatcher:
         sx = 0  # [s]ubject inde[x]
         nextPx = 0
         nextSx = 0
-        # import pdb; pdb.set_trace()
 
         while px < len(pattern) or sx < len(subject):
             if px < len(pattern):
