@@ -8,7 +8,7 @@
     "parent_id": 0,
     "type": "worker",
     "meta": {
-      "_dd.p.dm": "1d86a9a75e-0",
+      "_dd.p.dm": "-0",
       "job.func_name": "job_on_class",
       "job.id": "ee41ad50-92e6-41ec-9a10-1b76f5f078f2",
       "queue.name": "q",
@@ -33,7 +33,7 @@
        "parent_id": 1,
        "type": "worker",
        "meta": {
-         "_dd.p.dm": "1d86a9a75e-0",
+         "_dd.p.dm": "-0",
          "job.id": "ee41ad50-92e6-41ec-9a10-1b76f5f078f2",
          "job.origin": "q",
          "job.status": "finished",
