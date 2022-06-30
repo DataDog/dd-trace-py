@@ -82,6 +82,14 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 
+    # Explicitly define `__aenter__` and `__aexit__` since they do not get proxied properly
+    async def __aenter__(self):
+        # The base class just returns `self`, but we want the wrapped cursor so we return ourselves
+        return self
+
+    async def __aexit__(self, *args, **kwargs):
+        return await self.__wrapped__.__aexit__(*args, **kwargs)
+
 
 class AIOTracedConnection(wrapt.ObjectProxy):
     def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
@@ -93,15 +101,36 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
 
-    async def cursor(self, *args, **kwargs):
-        cursor = await self.__wrapped__.cursor(*args, **kwargs)
+    def cursor(self, *args, **kwargs):
+        ctx_manager = self.__wrapped__.cursor(*args, **kwargs)
         pin = Pin.get_from(self)
         if not pin:
-            return cursor
-        return self._self_cursor_cls(cursor, pin)
+            return ctx_manager
 
+        # The result of `cursor()` is an `aiomysql.utils._ContextManager`
+        #   which wraps a coroutine (a future) and adds async context manager
+        #   helper functions to it.
+        # https://github.com/aio-libs/aiomysql/blob/8a32f052a16dc3886af54b98f4d91d95862bfb8e/aiomysql/connection.py#L461
+        # https://github.com/aio-libs/aiomysql/blob/7fa5078da31bbc95f5e32a934a4b2b4207c67ede/aiomysql/utils.py#L30-L79
+        # We cannot swap out the result on the future/context manager so
+        #   instead we have to create a new coroutine that returns our
+        #   wrapped cursor
+        # We also cannot turn `def cursor` into `async def cursor` because
+        #   otherwise we will change the result to be a coroutine instead of
+        #   an `aiomysql.utils._ContextManager` which wraps a coroutine. This
+        #   will cause issues with `async with conn.cursor() as cur:` usage.
+        async def _wrap_cursor():
+            cursor = await ctx_manager
+            return self._self_cursor_cls(cursor, pin)
+
+        return type(ctx_manager)(_wrap_cursor())
+
+    # Explicitly define `__aenter__` and `__aexit__` since they do not get proxied properly
     async def __aenter__(self):
-        return self.__wrapped__.__aenter__()
+        return await self.__wrapped__.__aenter__()
+
+    async def __aexit__(self, *args, **kwargs):
+        return await self.__wrapped__.__aexit__(*args, **kwargs)
 
 
 def patch():
