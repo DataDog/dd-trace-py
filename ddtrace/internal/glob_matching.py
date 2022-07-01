@@ -39,7 +39,7 @@ class GlobMatcher:
                     px += 1
                     continue
 
-                elif sx < len(subject) and subject[sx] == char: #default normal charcter match
+                elif sx < len(subject) and subject[sx] == char:  # default normal character match
                     px += 1
                     sx += 1
                     continue
