@@ -578,3 +578,14 @@ def test_background_task(client, tracer, test_spans):
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+
+@pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])
+def test_host_header(client, tracer, test_spans, host):
+    """Tests if background tasks have been excluded from span duration"""
+    r = client.get("/asynctask", headers={"host": host})
+    assert r.status_code == 200
+
+    assert test_spans.spans
+    request_span = test_spans.spans[0]
+    assert request_span.get_tag("http.url") == "http://%s/asynctask" % (host,)
