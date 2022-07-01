@@ -1,4 +1,4 @@
-from functools import lru_cache
+from .utils.cache import cachedmethod
 
 
 class GlobMatcher:
@@ -13,7 +13,7 @@ class GlobMatcher:
 
         self.pattern = pattern
 
-    @lru_cache(200)
+    @cachedmethod()
     def match(self, subject):
         # type: (str) -> bool
         pattern = self.pattern
