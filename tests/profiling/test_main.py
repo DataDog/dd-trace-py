@@ -1,8 +1,10 @@
+# -*- encoding: utf-8 -*-
 import multiprocessing
 import os
 import sys
 
 import pytest
+import six
 
 from tests.utils import call_program
 
@@ -45,6 +47,7 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
     return filename, pid
 
 
+@pytest.mark.skipif(six.PY2, reason="This test deadlocks randomly on Python 2")
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
