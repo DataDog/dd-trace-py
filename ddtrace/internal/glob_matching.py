@@ -7,16 +7,16 @@ class GlobMatcher:
     and `?` as a single character wildcard, but no escape sequences.
     """
 
-    __slots__ = "pattern"
+    __slots__ = "_pattern"
 
     def __init__(self, pattern):
-
-        self.pattern = pattern
+        # type: (str) -> None
+        self._pattern = pattern
 
     @cachedmethod()
     def match(self, subject):
         # type: (str) -> bool
-        pattern = self.pattern
+        pattern = self._pattern
         px = 0  # [p]attern inde[x]
         sx = 0  # [s]ubject inde[x]
         nextPx = 0
