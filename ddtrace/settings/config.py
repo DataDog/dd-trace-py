@@ -200,7 +200,7 @@ class Config(object):
                 (
                     "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
                     "only non-negative values less than or equal to 512 allowed"
-                ).format(self._propagation_datadog_tags_max_length)
+                ).format(x_datadog_tags_max_length)
             )
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
