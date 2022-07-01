@@ -9,6 +9,7 @@
     "type": "worker",
     "error": 1,
     "meta": {
+      "_dd.p.dm": "-0",
       "error.msg": "error",
       "error.stack": "Traceback (most recent call last):\n  File \"/Users/brett.langdon/datadog/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 140, in traced_queue_enqueue_job\n    return func(*args, **kwargs)\n  File \"/Users/brett.langdon/datadog/dd-trace-py/.riot/venv_py3100_rq~190_click712/lib/python3.10/site-packages/rq/queue.py\", line 570, in enqueue_job\n    job = self.run_job(job)\n  File \"/Users/brett.langdon/datadog/dd-trace-py/.riot/venv_py3100_rq~190_click712/lib/python3.10/site-packages/rq/queue.py\", line 448, in run_job\n    job.perform()\n  File \"/root/project/ddtrace/contrib/trace_utils.py\", line 162, in wrapper\n  File \"/Users/brett.langdon/datadog/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 193, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/brett.langdon/datadog/dd-trace-py/.riot/venv_py3100_rq~190_click712/lib/python3.10/site-packages/rq/job.py\", line 749, in perform\n    self._result = self._execute()\n  File \"/Users/brett.langdon/datadog/dd-trace-py/.riot/venv_py3100_rq~190_click712/lib/python3.10/site-packages/rq/job.py\", line 772, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/Users/brett.langdon/datadog/dd-trace-py/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",
       "error.type": "tests.contrib.rq.jobs.MyException",

@@ -1,0 +1,20 @@
+[[
+  {
+    "name": "p",
+    "service": "downstream",
+    "resource": "p",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 5678,
+    "meta": {
+      "runtime-id": "d3cc0a07d5e745aebadf0c641fd542e6"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "system.pid": 50361
+    },
+    "duration": 29000,
+    "start": 1655132809265595000
+  }]]
