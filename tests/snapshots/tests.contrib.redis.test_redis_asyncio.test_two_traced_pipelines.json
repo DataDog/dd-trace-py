@@ -7,22 +7,17 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
-<<<<<<< HEAD
-      "runtime-id": "0c93831d9ac140e5ad4ab9dc71c5a6e9"
-=======
-      "_dd.p.dm": "-0",
-      "runtime-id": "132cff2cde77480cb018f34c204199b7"
->>>>>>> 091e10e4 (fix(redis): declare default pin (#3793))
+      "runtime-id": "b35e58b369f044638814e1a69c8180fa"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 2746650
+      "system.pid": 18155
     },
-    "duration": 1044624,
-    "start": 1656706648047000419
+    "duration": 1523000,
+    "start": 1656715851277909000
   },
      {
        "name": "redis.command",
@@ -43,8 +38,8 @@
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
-       "duration": 402853,
-       "start": 1656706648047171197
+       "duration": 732000,
+       "start": 1656715851278046000
      },
      {
        "name": "redis.command",
@@ -65,6 +60,6 @@
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
-       "duration": 394767,
-       "start": 1656706648047626718
+       "duration": 598000,
+       "start": 1656715851278822000
      }]]
