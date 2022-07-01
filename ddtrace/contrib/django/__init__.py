@@ -87,6 +87,14 @@ Configuration
 
    Default: ``True``
 
+.. py:data:: ddtrace.config.django['instrument_templates']
+
+   Whether or not to instrument template rendering.
+
+   Can also be enabled with the ``DD_DJANGO_INSTRUMENT_TEMPLATES`` environment variable.
+
+   Default: ``True``
+
 .. py:data:: ddtrace.config.django['instrument_databases']
 
    Whether or not to instrument databases.
