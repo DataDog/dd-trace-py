@@ -3,6 +3,7 @@ Datadog trace code for flask_cache
 """
 
 import logging
+import typing
 
 from ddtrace import config
 
@@ -12,6 +13,10 @@ from ...ext import SpanTypes
 from .utils import _extract_client
 from .utils import _extract_conn_tags
 from .utils import _resource_from_cache_prefix
+
+
+if typing.TYPE_CHECKING:
+    from ddtrace import Span
 
 
 log = logging.Logger(__name__)
@@ -55,7 +60,8 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
         _datadog_service = service
         _datadog_meta = meta
 
-        def __trace(self, cmd, write=False):
+        def __trace(self, cmd):
+            # type: (str, bool) -> Span
             """
             Start a tracing with default attributes and tags
             """
@@ -68,7 +74,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.flask_cache.get_analytics_sample_rate())
             # add connection meta if there is one
-            client = _extract_client(self.cache, write=write)
+            client = _extract_client(self.cache)
             if client is not None:
                 try:
                     s.set_tags(_extract_conn_tags(client))
@@ -91,7 +97,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             """
             Track ``set`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("SET", self.config)
                 if len(args) > 0:
                     span.set_tag(COMMAND_KEY, args[0])
@@ -101,7 +107,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             """
             Track ``add`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("ADD", self.config)
                 if len(args) > 0:
                     span.set_tag(COMMAND_KEY, args[0])
@@ -111,7 +117,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             """
             Track ``delete`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("DELETE", self.config)
                 if len(args) > 0:
                     span.set_tag(COMMAND_KEY, args[0])
@@ -121,7 +127,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             """
             Track ``delete_many`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("DELETE_MANY", self.config)
                 span.set_tag(COMMAND_KEY, list(args))
                 return super(TracedCache, self).delete_many(*args, **kwargs)
@@ -130,7 +136,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             """
             Track ``clear`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("CLEAR", self.config)
                 return super(TracedCache, self).clear(*args, **kwargs)
 
@@ -147,7 +153,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             """
             Track ``set_many`` operation
             """
-            with self.__trace("flask_cache.cmd", write=True) as span:
+            with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("SET_MANY", self.config)
                 if len(args) > 0:
                     span.set_tag(COMMAND_KEY, list(args[0].keys()))
