@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
+      "_dd.p.dm": "-0",
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
@@ -33,6 +34,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "_dd.p.dm": "-0",
       "runtime-id": "b0bde09048cb4673b20dde71719550fc"
     },
     "metrics": {
@@ -75,6 +77,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "_dd.p.dm": "-0",
       "runtime-id": "b0bde09048cb4673b20dde71719550fc"
     },
     "metrics": {
@@ -97,6 +100,7 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
+      "_dd.p.dm": "-0",
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
