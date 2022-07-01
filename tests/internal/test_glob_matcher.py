@@ -15,7 +15,7 @@ from ddtrace.internal.glob_matching import GlobMatcher
         ("t?st_str*", "test_string", True),
         ("?est_string", "test_string", True),
         ("test_strin?", "test_string", True),
-        ("te?st_string", "test_string", False),  # Test empty string for ?
+        ("test?_string", "test_string", False),  # Test empty string for ?
         ("test_s*ring", "test_string", True),  # Test empty string for *
         ("*", "test_string", True),
         ("a*", "a**", True),
