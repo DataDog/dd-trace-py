@@ -347,7 +347,8 @@ def wrap(f, wrapper):
         f.__closure__,
     )
     try:
-        cast(WrappedFunction, wrapped).__dd_wrapped__ = cast(FunctionType, cast(WrappedFunction, f).__dd_wrapped__)
+        wf = cast(WrappedFunction, f)
+        cast(WrappedFunction, wrapped).__dd_wrapped__ = cast(FunctionType, wf.__dd_wrapped__)
     except AttributeError:
         pass
 
@@ -396,22 +397,24 @@ def unwrap(wf, wrapper):
     # we find the layer that needs to be removed we also have to ensure that we
     # update the link at the deletion site if there is a non-empty tail.
     try:
-        wrapped = cast(FunctionType, wf.__dd_wrapped__)
+        inner = cast(FunctionType, wf.__dd_wrapped__)
 
         # Sanity check
-        assert wrapped.__name__ == "<wrapped>", "Wrapper has wrapped function"
+        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"
 
         if wrapper not in cast(FunctionType, wf).__code__.co_consts:
             # This is not the correct wrapping layer. Try with the next one.
-            return unwrap(cast(WrappedFunction, wrapped), wrapper)
+            inner_wf = cast(WrappedFunction, inner)
+            return unwrap(inner_wf, wrapper)
 
         # Remove the current wrapping layer by moving the next one over the
         # current one.
         f = cast(FunctionType, wf)
-        f.__code__ = wrapped.__code__
+        f.__code__ = inner.__code__
         try:
             # Update the link to the next layer.
-            wf.__dd_wrapped__ = cast(WrappedFunction, wrapped).__dd_wrapped__  # type: ignore[assignment]
+            inner_wf = cast(WrappedFunction, inner)
+            wf.__dd_wrapped__ = inner_wf.__dd_wrapped__  # type: ignore[assignment]
         except AttributeError:
             # No more wrapping layers. Restore the original function by removing
             # this extra attribute.
