@@ -28,7 +28,7 @@ class SamplingMechanism(object):
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 
 # Use regex to validate trace tag value
-TRACE_TAG_RE = re.compile(r"^-([0-8])$")
+TRACE_TAG_RE = re.compile(r"^-([0-9])$")
 
 
 def _set_trace_tag(
