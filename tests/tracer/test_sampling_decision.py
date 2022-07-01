@@ -13,13 +13,9 @@ def context():
 @pytest.mark.parametrize(
     "sampling_mechanism,sampled,expected",
     [
-        (True, None, SamplingMechanism.DEFAULT, True, "-0"),
-        (True, None, SamplingMechanism.AGENT_RATE, True, "-1"),
-        (True, None, SamplingMechanism.TRACE_SAMPLING_RULE, True, "-3"),
-        (True, None, SamplingMechanism.MANUAL, True, "-4"),
-        (SamplingMechanism.DEFAULT, True, "-0"),
         (SamplingMechanism.AGENT_RATE, True, "-1"),
         (SamplingMechanism.TRACE_SAMPLING_RULE, True, "-3"),
+        (SamplingMechanism.DEFAULT, True, "-0"),
         (SamplingMechanism.MANUAL, True, "-4"),
         (SamplingMechanism.DEFAULT, True, "-0"),
         (SamplingMechanism.DEFAULT, False, None),
