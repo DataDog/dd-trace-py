@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "worker",
     "meta": {
+      "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
       "job.id": "18ec3e53-42ee-4e71-8505-8a421e1b7c46",
       "queue.name": "q",
@@ -33,6 +34,7 @@
        "type": "worker",
        "error": 1,
        "meta": {
+         "_dd.p.dm": "-0",
          "job.id": "18ec3e53-42ee-4e71-8505-8a421e1b7c46",
          "job.origin": "q",
          "job.status": "failed",

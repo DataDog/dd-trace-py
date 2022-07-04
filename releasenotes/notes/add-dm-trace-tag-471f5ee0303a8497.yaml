@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    internal: Add sampling mechanism trace tag
