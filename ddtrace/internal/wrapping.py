@@ -24,7 +24,7 @@ from bytecode import Label
 from .compat import PYTHON_VERSION_INFO as PY
 
 
-class WrapperFunction(Protocol):
+class WrappedFunction(Protocol):
     """A wrapped function."""
 
     __dd_wrapped__ = None  # type: Optional[FunctionType]
@@ -330,7 +330,7 @@ def wrap_bytecode(wrapper, wrapped):
 
 
 def wrap(f, wrapper):
-    # type: (FunctionType, Wrapper) -> WrapperFunction
+    # type: (FunctionType, Wrapper) -> WrappedFunction
     """Wrap a function with a wrapper.
 
     The wrapper expects the function as first argument, followed by the tuple
@@ -346,6 +346,12 @@ def wrap(f, wrapper):
         f.__defaults__,
         f.__closure__,
     )
+    try:
+        wf = cast(WrappedFunction, f)
+        cast(WrappedFunction, wrapped).__dd_wrapped__ = cast(FunctionType, wf.__dd_wrapped__)
+    except AttributeError:
+        pass
+
     if PY3:
         wrapped.__kwdefaults__ = f.__kwdefaults__
 
@@ -370,25 +376,52 @@ def wrap(f, wrapper):
     code.argnames = f.__code__.co_varnames[:nargs]
 
     f.__code__ = code.to_code()
-    wf = cast(WrapperFunction, f)
+
+    # DEV: Multiple wrapping is implemented as a singly-linked list via the
+    # __dd_wrapped__ attribute.
+    wf = cast(WrappedFunction, f)
     wf.__dd_wrapped__ = wrapped
 
     return wf
 
 
-def unwrap(wrapper):
-    # type: (WrapperFunction) -> FunctionType
+def unwrap(wf, wrapper):
+    # type: (WrappedFunction, Wrapper) -> FunctionType
     """Unwrap a wrapped function.
 
-    This is the reverse of :func:`wrap`.
+    This is the reverse of :func:`wrap`. In case of multiple wrapping layers,
+    this will unwrap the one that uses ``wrapper``. If the function was not
+    wrapped with ``wrapper``, it will return the first argument.
     """
+    # DEV: Multiple wrapping layers are singly-linked via __dd_wrapped__. When
+    # we find the layer that needs to be removed we also have to ensure that we
+    # update the link at the deletion site if there is a non-empty tail.
     try:
-        wrapped = cast(FunctionType, wrapper.__dd_wrapped__)
-        assert wrapped, "Wrapper has wrapped function"
-        if wrapped.__name__ == "<wrapped>":
-            f = cast(FunctionType, wrapper)
-            f.__code__ = wrapped.__code__
-            del wrapper.__dd_wrapped__
-    except (IndexError, AttributeError):
-        return cast(FunctionType, wrapper)
-    return f
+        inner = cast(FunctionType, wf.__dd_wrapped__)
+
+        # Sanity check
+        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"
+
+        if wrapper not in cast(FunctionType, wf).__code__.co_consts:
+            # This is not the correct wrapping layer. Try with the next one.
+            inner_wf = cast(WrappedFunction, inner)
+            return unwrap(inner_wf, wrapper)
+
+        # Remove the current wrapping layer by moving the next one over the
+        # current one.
+        f = cast(FunctionType, wf)
+        f.__code__ = inner.__code__
+        try:
+            # Update the link to the next layer.
+            inner_wf = cast(WrappedFunction, inner)
+            wf.__dd_wrapped__ = inner_wf.__dd_wrapped__  # type: ignore[assignment]
+        except AttributeError:
+            # No more wrapping layers. Restore the original function by removing
+            # this extra attribute.
+            del wf.__dd_wrapped__
+
+        return f
+
+    except AttributeError:
+        # The function is not wrapped so we return it as is.
+        return cast(FunctionType, wf)

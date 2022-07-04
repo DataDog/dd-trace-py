@@ -54,6 +54,7 @@ config._add(
         trace_fetch_methods=asbool(os.getenv("DD_DJANGO_TRACE_FETCH_METHODS", default=False)),
         distributed_tracing_enabled=True,
         instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
+        instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
         instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
         instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
         analytics_enabled=None,  # None allows the value to be overridden by the global config
@@ -348,6 +349,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_template_render(django, pin, wrapped, instance, args, kwargs):
     """Instrument django.template.base.Template.render for tracing template rendering."""
+    # DEV: Check here in case this setting is configured after a template has been instrumented
+    if not config.django.instrument_templates:
+        return wrapped(*args, **kwargs)
+
     template_name = maybe_stringify(getattr(instance, "name", None))
     if template_name:
         resource = template_name
@@ -508,9 +513,10 @@ def _patch(django):
                 trace_utils.wrap(django, "core.asgi.get_asgi_application", traced_get_asgi_application(django))
 
     # DEV: this check will be replaced with import hooks in the future
-    if "django.template.base" not in sys.modules:
-        import django.template.base
-    trace_utils.wrap(django, "template.base.Template.render", traced_template_render(django))
+    if config.django.instrument_templates:
+        if "django.template.base" not in sys.modules:
+            import django.template.base
+        trace_utils.wrap(django, "template.base.Template.render", traced_template_render(django))
 
     # DEV: this check will be replaced with import hooks in the future
     if "django.conf.urls.static" not in sys.modules:
