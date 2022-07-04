@@ -13,8 +13,8 @@ from ddtrace.internal.injection import HookInfoType
 from ddtrace.internal.injection import HookType
 from ddtrace.internal.injection import eject_hooks
 from ddtrace.internal.injection import inject_hooks
+from ddtrace.internal.wrapping import WrappedFunction
 from ddtrace.internal.wrapping import Wrapper
-from ddtrace.internal.wrapping import WrapperFunction
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
@@ -22,16 +22,18 @@ from ddtrace.internal.wrapping import wrap
 WrapperType = Callable[[FunctionType, Any, Any, Any], Any]
 
 
-class FullyNamedWrapperFunction(FullyNamed, WrapperFunction):
+class FullyNamedWrappedFunction(FullyNamed, WrappedFunction):
     """A fully named wrapper function."""
 
 
 class FunctionStore(object):
     """Function object store.
 
-    This class provides a storage layer for patching operations, which allows us to
-    store the original code object of functions being patched with either hook
-    injections or wrapping.
+    This class provides a storage layer for patching operations, which allows us
+    to store the original code object of functions being patched with either
+    hook injections or wrapping. This also enforce a single wrapping layer.
+    Multiple wrapping is implemented as a list of wrappers handled by the single
+    wrapper function.
 
     If extra attributes are defined during the patching process, they will get
     removed when the functions are restored.
@@ -40,6 +42,7 @@ class FunctionStore(object):
     def __init__(self, extra_attrs=None):
         # type: (Optional[List[str]]) -> None
         self._code_map = {}  # type: Dict[FunctionType, CodeType]
+        self._wrapper_map = {}  # type: Dict[FunctionType, Wrapper]
         self._extra_attrs = ["__dd_wrapped__"]
         if extra_attrs:
             self._extra_attrs.extend(extra_attrs)
@@ -56,10 +59,10 @@ class FunctionStore(object):
             self._code_map[function] = function.__code__
 
     def inject_hooks(self, function, hooks):
-        # type: (FullyNamedWrapperFunction, List[Tuple[HookType, int, Any]]) -> None
+        # type: (FullyNamedWrappedFunction, List[Tuple[HookType, int, Any]]) -> None
         """Bulk-inject hooks into a function."""
         try:
-            self.inject_hooks(cast(FullyNamedWrapperFunction, function.__dd_wrapped__), hooks)
+            self.inject_hooks(cast(FullyNamedWrappedFunction, function.__dd_wrapped__), hooks)
         except AttributeError:
             f = cast(FunctionType, function)
             self._store(f)
@@ -69,7 +72,7 @@ class FunctionStore(object):
         # type: (FunctionType, List[HookInfoType]) -> None
         """Bulk-eject hooks from a function."""
         try:
-            wrapped = cast(FullyNamedWrapperFunction, function).__dd_wrapped__
+            wrapped = cast(FullyNamedWrappedFunction, function).__dd_wrapped__
         except AttributeError:
             # Not a wrapped function so we can actually eject from it
             eject_hooks(function, hooks)
@@ -78,7 +81,7 @@ class FunctionStore(object):
             self.eject_hooks(cast(FunctionType, wrapped), hooks)
 
     def inject_hook(self, function, hook, line, arg):
-        # type: (FullyNamedWrapperFunction, HookType, int, Any) -> None
+        # type: (FullyNamedWrappedFunction, HookType, int, Any) -> None
         """Inject a hook into a function."""
         return self.inject_hooks(function, [(hook, line, arg)])
 
@@ -91,12 +94,13 @@ class FunctionStore(object):
         # type: (FunctionType, Wrapper) -> None
         """Wrap a function with a hook."""
         self._store(function)
+        self._wrapper_map[function] = wrapper
         wrap(function, wrapper)
 
     def unwrap(self, function):
-        # type: (FullyNamedWrapperFunction) -> None
+        # type: (FullyNamedWrappedFunction) -> None
         """Unwrap a hook around a wrapped function."""
-        unwrap(function)
+        unwrap(function, self._wrapper_map.pop(cast(FunctionType, function)))
 
     def restore_all(self):
         # type: () -> None
