@@ -1,6 +1,7 @@
 import pytest
 
 from ddtrace import Tracer
+from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_global_config
 
@@ -41,7 +42,8 @@ def test_trace_tags_multispan(tracer):
     headers = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
-        "x-datadog-tags": "_dd.p.dm=value,any=tag",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-tags": "_dd.p.dm=-1,_dd.p.test=value,any=tag",
     }
     context = HTTPPropagator.extract(headers)
     # DEV: Trace consists of a simple p->c1 case where c1 is finished before p.
@@ -57,3 +59,25 @@ def test_trace_tags_multispan(tracer):
     tracer.flush()
     p.finish()
     gc.finish()
+
+
+@pytest.fixture
+def downstream_tracer():
+    tracer = Tracer()
+    yield tracer
+    tracer.shutdown()
+
+
+@pytest.mark.snapshot()
+def test_sampling_decision_downstream(downstream_tracer):
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-tags": "_dd.p.dm=-1",
+    }
+    context = HTTPPropagator.extract(headers)
+    downstream_tracer.context_provider.activate(context)
+
+    with downstream_tracer.trace("p", service="downstream") as span:
+        span.set_tag(MANUAL_DROP_KEY)

@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
+      "_dd.p.dm": "-0",
       "django.db.alias": "postgres",
       "django.db.vendor": "postgresql",
       "runtime-id": "b527629f069c46a0b05ad2664effeeed"

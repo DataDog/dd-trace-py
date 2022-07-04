@@ -371,6 +371,7 @@ class TestUrllib3(BaseUrllib3TestCase):
                 "x-datadog-trace-id": str(s.trace_id),
                 "x-datadog-parent-id": str(s.span_id),
                 "x-datadog-sampling-priority": "1",
+                "x-datadog-tags": "_dd.p.dm=-0",
             }
             m_make_request.assert_called_with(
                 mock.ANY, "GET", "/status/200", body=None, chunked=mock.ANY, headers=expected_headers, timeout=mock.ANY

@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "elasticsearch",
     "meta": {
+      "_dd.p.dm": "-0",
       "elasticsearch.method": "PUT",
       "elasticsearch.params": "ignore=400",
       "elasticsearch.url": "/ddtrace_index",
@@ -34,6 +35,7 @@
     "parent_id": 0,
     "type": "elasticsearch",
     "meta": {
+      "_dd.p.dm": "-0",
       "elasticsearch.method": "DELETE",
       "elasticsearch.params": "ignore=%5B400%2C+404%5D",
       "elasticsearch.url": "/ddtrace_index",
