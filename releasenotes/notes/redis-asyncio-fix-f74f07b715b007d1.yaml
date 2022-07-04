@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    redis: create default Pin on asyncio client. Not having a Pin was resulting in no traces being produced for the async redis client.
