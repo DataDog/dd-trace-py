@@ -25,6 +25,7 @@ app
 aredis
 args
 asgi
+async
 asyncio
 asyncpg
 attrs

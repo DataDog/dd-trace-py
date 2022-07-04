@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "worker",
     "meta": {
+      "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
       "job.id": "30ad46f1-a759-4335-b8b1-59a3f731dbeb",
       "queue.name": "sync-q",
