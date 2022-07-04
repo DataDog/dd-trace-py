@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.dm": "-0",
       "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
       "django.response.class": "django.http.response.HttpResponse",
       "django.user.is_authenticated": "False",

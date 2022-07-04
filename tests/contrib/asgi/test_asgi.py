@@ -529,3 +529,16 @@ async def test_tasks_asgi_with_more_body(scope, tracer, test_spans):
     # typical duration without background task should be in less than 10 ms
     # duration with background task will take approximately 1.1s
     assert request_span.duration < 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])
+async def test_host_header(scope, tracer, test_spans, host):
+    app = TraceMiddleware(basic_app, tracer=tracer)
+    async with httpx.AsyncClient(app=app) as client:
+        response = await client.get("http://testserver/", headers={"host": host})
+        assert response.status_code == 200
+
+        assert test_spans.spans
+        request_span = test_spans.spans[0]
+        assert request_span.get_tag("http.url") == "http://%s/" % (host,)

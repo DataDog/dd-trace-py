@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "redis",
     "meta": {
+      "_dd.p.dm": "-0",
       "out.host": "localhost",
       "redis.raw_command": "GET \ud83d\ude10",
       "runtime-id": "3d535b8859984dcaa51f75c6654f32d0"
