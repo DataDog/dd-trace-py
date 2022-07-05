@@ -116,14 +116,16 @@ class DDWSGIMiddleware(object):
             service=trace_utils.int_service(None, config.wsgi),
             span_type=SpanTypes.WEB,
         ) as span:
-            # This prevents GeneratorExit exceptions from being propagated to the top-level span.
-            # This can occur if a streaming response exits abruptly leading to a broken pipe.
-            # Note: The wsgi.response span will still have the error information included.
-            span._ignore_exception(generatorExit)
             with self.tracer.trace("wsgi.application"):
                 result = self.app(environ, intercept_start_response)
 
             with self.tracer.trace("wsgi.response") as resp_span:
+                # This prevents GeneratorExit exceptions from being propagated to the top-level span.
+                # This can occur if a streaming response exits abruptly leading to a broken pipe.
+                # Note: The wsgi.response span will still have the error information included.
+                span._ignore_exception(generatorExit)
+                resp_span._ignore_exception(generatorExit)
+
                 if hasattr(result, "__class__"):
                     resp_class = getattr(getattr(result, "__class__"), "__name__", None)
                     if resp_class:
