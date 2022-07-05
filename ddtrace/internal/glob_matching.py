@@ -41,7 +41,7 @@ class GlobMatcher(object):
                     sx += 1
                     continue
 
-            if 0 < nextSx and nextSx <= len(subject):
+            if 0 < nextSx <= len(subject):
                 px = nextPx
                 sx = nextSx
                 continue
