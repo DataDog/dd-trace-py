@@ -1,7 +1,7 @@
 [[
   {
     "name": "redis.command",
-    "service": "my-redis",
+    "service": "redis",
     "resource": "GET cheese",
     "trace_id": 0,
     "span_id": 1,
@@ -23,6 +23,6 @@
       "redis.args_length": 2,
       "system.pid": 18155
     },
-    "duration": 652000,
-    "start": 1656715851236650000
+    "duration": 1403000,
+    "start": 1656715851115323000
   }]]
