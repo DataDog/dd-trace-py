@@ -107,6 +107,7 @@ mongoengine
 multiline
 multiprocess
 multithreaded
+mypy
 mysql
 mysqlclient
 mysqldb
