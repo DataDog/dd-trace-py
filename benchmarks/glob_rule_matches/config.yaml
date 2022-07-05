@@ -12,8 +12,3 @@ average_match:
 low_match:
   num_iterations: 100
   num_strings: 25
-
-# This variation has performance issues due to the cache max size
-very_low_match:
-  num_iterations: 1000
-  num_strings: 250
