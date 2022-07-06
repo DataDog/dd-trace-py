@@ -97,7 +97,7 @@ We include a helper script to run all tox environments matching a regular expres
 
 ##### Option #2: datadog/dd-trace-py
 
-Use provide a script to start the
+Use the provided script to start the
 [datadog/dd-trace-py](https://hub.docker.com/r/datadog/dd-trace-py) image with
 volumes mapped correctly for local development:
 
