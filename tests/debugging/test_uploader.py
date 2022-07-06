@@ -5,10 +5,10 @@ import pytest
 
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import BufferFull
-from ddtrace.debugging._uploader import LogsIntakeUploader
+from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 
 
-class MockLogsIntakeUploader(LogsIntakeUploader):
+class MockLogsIntakeUploader(LogsIntakeUploaderV1):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("interval", 0.1)
         super(MockLogsIntakeUploader, self).__init__(*args, **kwargs)

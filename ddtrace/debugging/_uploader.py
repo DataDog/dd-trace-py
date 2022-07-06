@@ -13,14 +13,20 @@ log = get_logger(__name__)
 meter = metrics.get_meter("snapshot.uploader")
 
 
-class LogsIntakeUploader(AwakeablePeriodicService):
+class LogsIntakeUploaderV1(AwakeablePeriodicService):
+    """Logs intake uploader.
+
+    This class implements an interface with the debugger logs intake for both
+    the debugger and the events platform.
+    """
+
     ENDPOINT = config._snapshot_intake_endpoint
 
     RETRY_ATTEMPTS = 3
 
     def __init__(self, api_key, encoder, interval=1.0):
         # type: (str, BufferedEncoder, float) -> None
-        super(LogsIntakeUploader, self).__init__(interval or config.upload_flush_interval)
+        super(LogsIntakeUploaderV1, self).__init__(interval or config.upload_flush_interval)
         self._api_key = api_key
         self._encoder = encoder
         self._headers = {
@@ -84,6 +90,6 @@ class LogsIntakeUploader(AwakeablePeriodicService):
                 self._retry_upload(self._write, payload)
                 meter.distribution("batch.cardinality", count)
             except Exception:
-                log.debug("Cannot write to sink", exc_info=True)
+                log.debug("Cannot upload logs payload", exc_info=True)
 
     on_shutdown = periodic
