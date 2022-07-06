@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+from ddtrace.internal.glob_matching import GlobMatcher
 
 from .internal.rate_limiter import RateLimiter
 
@@ -20,7 +21,15 @@ MAX_SPAN_ID = 2 ** 64
 class SpanSamplingRule:
     """A span sampling rule to evaluate and potentially tag each span upon finish."""
 
-    __slots__ = ("service", "name", "sample_rate", "max_per_second", "sampling_id_threshold", "limiter")
+    __slots__ = (
+        "service_matcher",
+        "name_matcher",
+        "sample_rate",
+        "max_per_second",
+        "sampling_id_threshold",
+        "limiter",
+        "matcher",
+    )
 
     def __init__(
         self,
@@ -29,8 +38,6 @@ class SpanSamplingRule:
         sample_rate=1.0,  # type: Optional[float]
         max_per_second=None,  # type: Optional[int]
     ):
-        self.service = service
-        self.name = name
         self.set_sample_rate(sample_rate)
         self.max_per_second = max_per_second
         # If no max_per_second specified then there is no limit
@@ -38,6 +45,12 @@ class SpanSamplingRule:
             self.limiter = RateLimiter(-1)
         else:
             self.limiter = RateLimiter(max_per_second)
+
+        # we need to create matchers for the service and/or name pattern provided
+        if service:
+            self.service_matcher = GlobMatcher(service)
+        if name:
+            self.name_matcher = GlobMatcher(name)
 
     def sample(self, span):
         # type: (Span) -> bool
@@ -57,13 +70,19 @@ class SpanSamplingRule:
         return ((span.span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self.sampling_id_threshold
 
     def match(self, span):
-        """Determines if the span's service and name match the configured patterns"""
-        if span.service == self.service and span.name == self.name:
-            # Dev add rules to match glob rather than check direct
-            return True
+        """Determines if the span's service and name match the configured patterns
+        We check if a service and/or name pattern were given, and if so evaluate them against the span.
+        """
+        if hasattr(self, "service_matcher") and hasattr(self, "name_matcher"):
+            return self.service_matcher.match(span.service) and self.name_matcher.match(span.name)
+        elif hasattr(self, "service_matcher"):
+            return self.service_matcher.match(span.service)
+        elif hasattr(self, "name_matcher"):
+            return self.name_matcher.match(span.name)
+        else:
+            return False
 
-    def set_sample_rate(self, sample_rate):
-        # type: (float) -> None
+    def set_sample_rate(self, sample_rate=1.0):
         self.sample_rate = float(sample_rate)
         self.sampling_id_threshold = self.sample_rate * MAX_SPAN_ID
 
