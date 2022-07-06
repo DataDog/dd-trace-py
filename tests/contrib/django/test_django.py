@@ -1381,6 +1381,28 @@ def test_template(test_spans):
     assert span.get_tag("django.template.name") == "my-template"
 
 
+def test_template_no_instrumented(test_spans):
+    """
+    When rendering templates with instrument_templates option disabled
+
+    This test assert that changing the value at runtime/after patching
+    properly disables template spans.
+    """
+    # prepare a base template using the default engine
+    with override_config("django", dict(instrument_templates=False)):
+        template = django.template.Template("Hello {{name}}!")
+        ctx = django.template.Context({"name": "Django"})
+
+        assert template.render(ctx) == "Hello Django!"
+        spans = test_spans.get_spans()
+        assert len(spans) == 0
+
+        template.name = "my-template"
+        assert template.render(ctx) == "Hello Django!"
+        spans = test_spans.get_spans()
+        assert len(spans) == 0
+
+
 @pytest.mark.skipif(PY2, reason="pathlib is not part of the Python 2 stdlib")
 def test_template_name(test_spans):
     from pathlib import PosixPath
@@ -1562,6 +1584,7 @@ def test_django_use_handler_resource_format_env(client, test_spans):
         ("DD_DJANGO_INSTRUMENT_DATABASES", "instrument_databases"),
         ("DD_DJANGO_INSTRUMENT_CACHES", "instrument_caches"),
         ("DD_DJANGO_INSTRUMENT_MIDDLEWARE", "instrument_middleware"),
+        ("DD_DJANGO_INSTRUMENT_TEMPLATES", "instrument_templates"),
     ],
 )
 def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_code_in_subprocess):
@@ -1585,6 +1608,7 @@ def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_
         ("DD_DJANGO_INSTRUMENT_DATABASES", "instrument_databases"),
         ("DD_DJANGO_INSTRUMENT_CACHES", "instrument_caches"),
         ("DD_DJANGO_INSTRUMENT_MIDDLEWARE", "instrument_middleware"),
+        ("DD_DJANGO_INSTRUMENT_TEMPLATES", "instrument_templates"),
     ],
 )
 def test_disable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_code_in_subprocess):

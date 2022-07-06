@@ -150,10 +150,11 @@ class SnapshotCollector(object):
         )
         try:
             if snapshot.evaluate():
-                # DEV: Ideally we would want to lock the *data* while we are
-                # encoding, to avoid shared object from being modified in other
-                # threads. One option is to acquire and hold the GIL until we
-                # are done snapshotting, but this is not possible from Python.
+                # DEV: Ideally we would want to lock the frame.f_locals *data*
+                # while we are encoding, to avoid shared object from being
+                # modified in other threads. One option is to acquire and hold
+                # the GIL until we are done snapshotting, but this is not
+                # possible from Python.
                 self._enqueue(snapshot)
                 meter.increment("encoded", tags={"probe_id": probe.probe_id})
                 log.debug("Encoded %r", snapshot)

@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "worker",
     "meta": {
+      "_dd.p.dm": "-0",
       "job.func_name": "job_on_class",
       "job.id": "ee41ad50-92e6-41ec-9a10-1b76f5f078f2",
       "queue.name": "q",
@@ -32,6 +33,7 @@
        "parent_id": 1,
        "type": "worker",
        "meta": {
+         "_dd.p.dm": "-0",
          "job.id": "ee41ad50-92e6-41ec-9a10-1b76f5f078f2",
          "job.origin": "q",
          "job.status": "finished",
@@ -69,6 +71,7 @@
     "parent_id": 0,
     "type": "worker",
     "meta": {
+      "_dd.p.dm": "-0",
       "job.func_name": "__call__",
       "job.id": "e987ec6b-9670-4fc4-8478-ea8ddc830222",
       "queue.name": "q",
@@ -93,6 +96,7 @@
        "parent_id": 1,
        "type": "worker",
        "meta": {
+         "_dd.p.dm": "-0",
          "job.id": "e987ec6b-9670-4fc4-8478-ea8ddc830222",
          "job.origin": "q",
          "job.status": "finished",

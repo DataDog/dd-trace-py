@@ -29,7 +29,7 @@ NOT_SET = object()
 
 
 def test_inject(tracer):
-    meta = {"_dd.p.dm": "value", "_dd.p.other": "value", "something": "value"}
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
@@ -42,13 +42,13 @@ def test_inject(tracer):
         assert headers[HTTP_HEADER_ORIGIN] == span.context.dd_origin
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
-        assert tags == set(["_dd.p.dm=value", "_dd.p.other=value"])
+        assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
 
 
 def test_inject_tags_unicode(tracer):
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
-    meta = {u"_dd.p.dm": u"unicode"}
+    meta = {u"_dd.p.test": u"unicode"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
@@ -57,13 +57,13 @@ def test_inject_tags_unicode(tracer):
 
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
-        assert tags == set(["_dd.p.dm=unicode"])
+        assert tags == set(["_dd.p.test=unicode"])
 
 
 def test_inject_tags_bytes(tracer):
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
-    meta = {u"_dd.p.dm": b"bytes"}
+    meta = {u"_dd.p.test": b"bytes"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
@@ -72,12 +72,12 @@ def test_inject_tags_bytes(tracer):
 
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
-        assert tags == set(["_dd.p.dm=bytes"])
+        assert tags == set(["_dd.p.test=bytes"])
 
 
 def test_inject_tags_unicode_error(tracer):
     """Unicode characters are not allowed"""
-    meta = {u"_dd.p.dm": u"unicode value ☺️"}
+    meta = {u"_dd.p.test": u"unicode value ☺️"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
@@ -104,7 +104,7 @@ def test_inject_tags_large(tracer):
 
 def test_inject_tags_invalid(tracer):
     # DEV: "=" and "," are not allowed in keys or values
-    meta = {"_dd.p.dm": ",value="}
+    meta = {"_dd.p.test": ",value="}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
@@ -117,7 +117,7 @@ def test_inject_tags_invalid(tracer):
 
 def test_inject_tags_disabled(tracer):
     with override_global_config(dict(_x_datadog_tags_enabled=False)):
-        meta = {"_dd.p.dm": "value"}
+        meta = {"_dd.p.test": "value"}
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
         tracer.context_provider.activate(ctx)
         with tracer.trace("global_root_span") as span:
@@ -131,7 +131,7 @@ def test_inject_tags_disabled(tracer):
 def test_inject_tags_previous_error(tracer):
     """When we have previously gotten an error, do not try to propagate tags"""
     # This value is valid
-    meta = {"_dd.p.dm": "value", "_dd.propagation_error": "some fake test value"}
+    meta = {"_dd.p.test": "value", "_dd.propagation_error": "some fake test value"}
     ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
     tracer.context_provider.activate(ctx)
     with tracer.trace("global_root_span") as span:
@@ -147,7 +147,7 @@ def test_extract(tracer):
         "x-datadog-parent-id": "5678",
         "x-datadog-sampling-priority": "1",
         "x-datadog-origin": "synthetics",
-        "x-datadog-tags": "_dd.p.dm=value,any=tag",
+        "x-datadog-tags": "_dd.p.test=value,any=tag",
     }
 
     context = HTTPPropagator.extract(headers)
@@ -161,7 +161,7 @@ def test_extract(tracer):
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
-            "_dd.p.dm": "value",
+            "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
             assert child_span.trace_id == 1234
@@ -170,8 +170,36 @@ def test_extract(tracer):
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
-                "_dd.p.dm": "value",
+                "_dd.p.test": "value",
             }
+
+
+@pytest.mark.parametrize(
+    "x_datadog_tags, expected_trace_tags",
+    [
+        ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
+        ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
+        ("_dd.p.dm=-", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=--1", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=-1.0", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=-10", {"_dd.propagation_error": "decoding_error"}),
+    ],
+)
+def test_extract_dm(x_datadog_tags, expected_trace_tags):
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "synthetics",
+        "x-datadog-tags": x_datadog_tags,
+    }
+
+    context = HTTPPropagator.extract(headers)
+
+    expected = {"_dd.origin": "synthetics"}
+    expected.update(expected_trace_tags)
+
+    assert context._meta == expected
 
 
 def test_WSGI_extract(tracer):
@@ -181,7 +209,7 @@ def test_WSGI_extract(tracer):
         "HTTP_X_DATADOG_PARENT_ID": "5678",
         "HTTP_X_DATADOG_SAMPLING_PRIORITY": "1",
         "HTTP_X_DATADOG_ORIGIN": "synthetics",
-        "HTTP_X_DATADOG_TAGS": "_dd.p.dm=value,any=tag",
+        "HTTP_X_DATADOG_TAGS": "_dd.p.test=value,any=tag",
     }
 
     context = HTTPPropagator.extract(headers)
@@ -194,7 +222,7 @@ def test_WSGI_extract(tracer):
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
-            "_dd.p.dm": "value",
+            "_dd.p.test": "value",
         }
 
 
