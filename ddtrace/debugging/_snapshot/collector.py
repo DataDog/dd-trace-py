@@ -29,6 +29,12 @@ NO_RETURN_VALUE = object()
 
 
 class SnapshotContext(object):
+    """Snapshot context manager.
+
+    This is used to capture snapshot data for function invocation, whose return
+    value needs to be captured as well.
+    """
+
     def __init__(
         self,
         collector,  # type: SnapshotCollector
@@ -71,6 +77,10 @@ class SnapshotContext(object):
 
     def exit(self, retval, exc_info):
         # type: (Any, ExcInfoType) -> None
+        """Exit the snapshot context.
+
+        The arguments can be used to record a return value or an exception.
+        """
         if self.snapshot is None:
             return
 
@@ -106,8 +116,13 @@ class SnapshotContext(object):
 class SnapshotCollector(object):
     """Snapshot collector.
 
-    We push and do the bare minimum from the probe hook and delay the processing
-    as late as possible so to reduce interference with customer's logic.
+    This is used to collect and encode snapshot information as soon as
+    requested. The ``push`` method is intended to be called in point
+    instrumentation (e.g. line probes), where all the information is already
+    available and ready to be encoded. For function instrumentation (e.g.
+    function probes), we use the ``collect`` method to create a
+    ``SnapshotContext`` instance that can be used to capture additional data,
+    such as the return value of the wrapped function.
     """
 
     def __init__(self, encoder):
@@ -135,6 +150,10 @@ class SnapshotCollector(object):
         )
         try:
             if snapshot.evaluate():
+                # DEV: Ideally we would want to lock the *data* while we are
+                # encoding, to avoid shared object from being modified in other
+                # threads. One option is to acquire and hold the GIL until we
+                # are done snapshotting, but this is not possible from Python.
                 self._enqueue(snapshot)
                 meter.increment("encoded", tags={"probe_id": probe.probe_id})
                 log.debug("Encoded %r", snapshot)
@@ -146,4 +165,5 @@ class SnapshotCollector(object):
 
     def collect(self, probe, frame, thread, args, context=None):
         # type: (ConditionalProbe, FrameType, Thread, List[Tuple[str, Any]], Optional[Context]) -> SnapshotContext
+        """Collect via a snapshot context."""
         return SnapshotContext(self, probe, frame, thread, args, context)
