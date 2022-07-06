@@ -722,14 +722,11 @@ jobs:
           pattern: '^mysqldb_contrib-.*-mysqlclient'
 
   pymysql:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - *mysql_server
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          wait: mysql
-          pattern: '^pymysql_contrib-'
+      - run_test:
+        pattern: 'pymysql$'
+        docker_services: "mysql"
 
   pylibmc:
     <<: *contrib_job
