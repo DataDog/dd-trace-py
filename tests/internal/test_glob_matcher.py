@@ -24,8 +24,8 @@ from ddtrace.internal.glob_matching import GlobMatcher
         ("*stuff", "lots of stuff", True),
         ("*stuff", "stuff to think about", False),
         ("test_\\string", "test_\\string", True),  # We should ignore regex
-        ("tes/[a-d]/tring", "tes/[a-d]/tring", True),
-        ("tes/na{2}/tring", "tes/na{2}/tring", True),
+        ("test/[a-d]/string", "test/[a-d]/string", True),
+        ("test/na{2}/string", "test/na{2}/string", True),
         ("*a*a*a*a*a*a", "aaaaaaaaaaaaaaaaaaaaaaaaaax", False),
         ("*a*a*a*a*a*a", "aaaaaaaarrrrrrraaaraaarararaarararaarararaaa", True),
     ],
