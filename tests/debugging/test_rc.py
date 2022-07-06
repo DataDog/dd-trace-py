@@ -8,7 +8,6 @@ from ddtrace.debugging._config import DebuggerConfig
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._rc import DebuggingRC
 from tests.utils import override_env
-from tests.utils import wait_for
 
 
 def test_rc_get_probes_with_mock_agent():
@@ -165,7 +164,7 @@ def test_rc_get_probes_with_mock_agent():
 
         rc = DebuggingRC("uwsgi")
 
-        probes = wait_for(rc.get_probes, timeout=5, interval=0.5, cond=lambda _: _ is not None)
+        probes = rc.get_probes()
         assert probes and all(isinstance(probe, Probe) for probe in probes)
 
 
@@ -181,8 +180,6 @@ def test_rc_payload_size_limit_with_mock_agent(mock_log):
         )
 
         DebuggingRC("uwsgi").get_probes()
-
-        wait_for(lambda: mock_log.error.mock_calls, timeout=1, interval=0.1)
 
         mock_log.error.assert_called_once_with(
             "Configuration payload size is too large (max: %d)", config.max_payload_size

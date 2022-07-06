@@ -4,7 +4,6 @@ import inspect
 import os
 import subprocess
 import sys
-import time
 from typing import List
 
 import attr
@@ -990,35 +989,3 @@ def call_program(*args, **kwargs):
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, **kwargs)
     stdout, stderr = subp.communicate()
     return stdout, stderr, subp.wait(), subp.pid
-
-
-class Timeout(Exception):
-    pass
-
-
-def wait_for(f, *args, **kwargs):
-    """Wait for a function to meet a given condition.
-
-    Calls the function ``f`` with the given arguments until either the wait
-    times out or the condition is met. In the former case, a ``TimeoutError``
-    is raised. Otherwise the result of the function call is returned.
-
-    The timeout can be specified with the ``timeout`` keyword argument.
-    Optionally, an interval between retries can be specified with the
-    ``interval`` keyword argument. By default, the condition is met if the
-    return value of the function is truthy. This can be overridden with a custom
-    condition by specifying a ``condition`` keyword argument. This is a function
-    that takes the return value of the function as its only argument and returns
-    a boolean.
-    """
-    timeout = kwargs.pop("timeout", 5)
-    interval = kwargs.pop("interval", 0.5)
-    cond = kwargs.pop("cond", lambda _: bool(_))
-
-    end = time.time() + timeout
-    while time.time() < end:
-        result = f(*args, **kwargs)
-        if cond(result):
-            return result
-        time.sleep(interval)
-    raise Timeout()
