@@ -9,6 +9,7 @@
     "type": "web",
     "error": 1,
     "meta": {
+      "_dd.p.dm": "-0",
       "error.msg": "division by zero",
       "error.stack": "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/_cprequest.py\", line 634, in respond\n    self._do_respond(path_info)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/_cprequest.py\", line 693, in _do_respond\n    response.body = self.handler()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/lib/encoding.py\", line 221, in __call__\n    self.body = self.oldhandler(*args, **kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/_cpdispatch.py\", line 60, in __call__\n    return self.callable(*self.args, **self.kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/tests/contrib/cherrypy/web.py\", line 64, in fatal\n    1 / 0\nZeroDivisionError: division by zero\n",
       "error.type": "<class 'ZeroDivisionError'>",
