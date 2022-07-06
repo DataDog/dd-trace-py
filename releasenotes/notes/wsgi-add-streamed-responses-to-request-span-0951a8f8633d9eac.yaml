@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    wsgi: add span modifiers for request, application, and response spans.
