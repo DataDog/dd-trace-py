@@ -6,7 +6,7 @@ import mock
 
 from ddtrace.debugging._config import DebuggerConfig
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._rc import DebuggingRC
+from ddtrace.debugging._remoteconfig import DebuggingRCV07
 from tests.utils import override_env
 
 
@@ -162,13 +162,13 @@ def test_rc_get_probes_with_mock_agent():
             ),
         )
 
-        rc = DebuggingRC("uwsgi")
+        rc = DebuggingRCV07("uwsgi")
 
         probes = rc.get_probes()
         assert probes and all(isinstance(probe, Probe) for probe in probes)
 
 
-@mock.patch("ddtrace.debugging._rc.log")
+@mock.patch("ddtrace.debugging._remoteconfig.log")
 def test_rc_payload_size_limit_with_mock_agent(mock_log):
     with httpretty.enabled(), override_env(dict(DD_AGENT_PORT="9126")):
         config = DebuggerConfig()
@@ -179,7 +179,7 @@ def test_rc_payload_size_limit_with_mock_agent(mock_log):
             body=json.dumps({"data": "a" * config.max_payload_size}),
         )
 
-        DebuggingRC("uwsgi").get_probes()
+        DebuggingRCV07("uwsgi").get_probes()
 
         mock_log.error.assert_called_once_with(
             "Configuration payload size is too large (max: %d)", config.max_payload_size

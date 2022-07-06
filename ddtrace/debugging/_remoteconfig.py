@@ -134,7 +134,7 @@ def probe(_id, _type, attribs):
 
 
 @attr.s
-class DebuggingRC(object):
+class DebuggingRCV07(object):
     service_name = attr.ib(type=str)
     _config_endpoint = attr.ib(type=str, init=False)
     _url = attr.ib(type=str, factory=get_trace_url)
