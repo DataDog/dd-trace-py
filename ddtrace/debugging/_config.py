@@ -19,6 +19,7 @@ DEFAULT_PROBE_API_URL = DEFAULT_SNAPSHOT_INTAKE_URL = get_trace_url()
 DEFAULT_MAX_PROBES = 100
 DEFAULT_METRICS = True
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
+DEFAULT_DIAGNOSTIC_INTERVAL = 3600  # 1 hour
 
 
 class DebuggerConfig(object):
@@ -30,6 +31,7 @@ class DebuggerConfig(object):
     max_probes = DEFAULT_MAX_PROBES
     metrics = DEFAULT_METRICS
     global_rate_limit = DEFAULT_GLOBAL_RATE_LIMIT
+    diagnostic_interval = DEFAULT_DIAGNOSTIC_INTERVAL
     tags = None  # type: Optional[str]
     _tags = {}  # type: Dict[str, str]
     _tags_in_qs = True
@@ -53,6 +55,8 @@ class DebuggerConfig(object):
         self._tags.update(tracer_config.tags)
 
         self.tags = ",".join([":".join((k, v)) for (k, v) in self._tags.items() if v is not None])
+
+        self.diagnostic_interval = int(os.getenv("DD_DEBUGGER_DIAGNOSTIC_INTERVAL", DEFAULT_DIAGNOSTIC_INTERVAL))
 
         log.debug(
             "Debugger configuration: %r",
