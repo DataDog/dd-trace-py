@@ -1166,6 +1166,13 @@ venv = Venv(
                             "~=0.8",
                             "~=0.9",
                             "~=0.7",
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "pymysql": [
                             "~=1.0.2",
                             latest,
                         ],
