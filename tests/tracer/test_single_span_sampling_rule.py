@@ -1,13 +1,13 @@
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
-from ddtrace.single_span_sampling_rule import SAMPLING_MECHANISM
-from ddtrace.single_span_sampling_rule import SpanSamplingRule
+from ddtrace.internal.sampling import SamplingMechanism
+from ddtrace.internal.sampling import SpanSamplingRule
 
 from ..utils import DummyTracer
 
 
-def assert_sampling_decision_tags(span, sample_rate=1.0, mechanism=SAMPLING_MECHANISM, limit=None):
+def assert_sampling_decision_tags(span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None):
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
