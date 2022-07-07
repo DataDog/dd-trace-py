@@ -20,6 +20,7 @@ DEFAULT_METRICS = True
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 DEFAULT_MAX_PAYLOAD_SIZE = 1 << 20  # 1 MB
 DEFAULT_CONFIG_TIMEOUT = 30  # s
+DEFAULT_DIAGNOSTIC_INTERVAL = 3600  # 1 hour
 
 
 class DebuggerConfig(object):
@@ -33,6 +34,7 @@ class DebuggerConfig(object):
     global_rate_limit = DEFAULT_GLOBAL_RATE_LIMIT
     max_payload_size = DEFAULT_MAX_PAYLOAD_SIZE
     config_timeout = DEFAULT_CONFIG_TIMEOUT
+    diagnostic_interval = DEFAULT_DIAGNOSTIC_INTERVAL
     tags = None  # type: Optional[str]
     _tags = {}  # type: Dict[str, str]
     _tags_in_qs = True
@@ -62,6 +64,7 @@ class DebuggerConfig(object):
         self.max_payload_size = int(os.getenv("DD_DEBUGGER_MAX_PAYLOAD_SIZE", DEFAULT_MAX_PAYLOAD_SIZE))
 
         self.config_timeout = int(os.getenv("DD_DEBUGGER_CONFIG_TIMEOUT", DEFAULT_CONFIG_TIMEOUT))
+        self.diagnostic_interval = int(os.getenv("DD_DEBUGGER_DIAGNOSTIC_INTERVAL", DEFAULT_DIAGNOSTIC_INTERVAL))
 
         log.debug(
             "Debugger configuration: %r",
