@@ -3,6 +3,7 @@ import six
 from webtest import TestApp
 
 from ddtrace import config
+from ddtrace.contrib.wsgi import _utils
 from ddtrace.contrib.wsgi import wsgi
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
@@ -57,6 +58,27 @@ def application(environ, start_response):
         ]
         start_response("200 OK", headers)
         return [body]
+
+
+class TestWsgiMiddleware(_utils.DDWSGIMiddlewareBase):
+    request_span = "test_wsgi.request"
+    application_span = "test_wsgi.application"
+    response_span = "test_wsgi.response"
+
+    def request_span_modifier(self, req_span, environ):
+        req_span.set_tag("request_tag", "req test tag set")
+        req_span.set_metric("request_metric", 1)
+        req_span.resource = "request resource was modified"
+
+    def application_span_modifier(self, app_span, environ, result):
+        app_span.set_tag("app_tag", "app test tag set")
+        app_span.set_metric("app_metric", 2)
+        app_span.resource = "app resource was modified"
+
+    def response_span_modifier(self, resp_span, response):
+        resp_span.set_tag("response_tag", "resp test tag set")
+        resp_span.set_metric("response_metric", 3)
+        resp_span.resource = "response resource was modified"
 
 
 def test_middleware(tracer, test_spans):
@@ -218,5 +240,23 @@ def test_200():
 @snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
 def test_500():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
+    with pytest.raises(Exception):
+        app.get("/error")
+
+
+@snapshot()
+@pytest.mark.parametrize("use_global_tracer", [True])
+def test_wsgi_base_middleware(use_global_tracer, tracer):
+    app = TestApp(TestWsgiMiddleware(application, tracer, config.wsgi, None))
+    resp = app.get("/")
+    assert resp.status == "200 OK"
+    assert resp.status_int == 200
+
+
+@snapshot(ignores=["meta.error.stack", "meta.error.type"])
+@pytest.mark.parametrize("use_global_tracer", [True])
+def test_wsgi_base_middleware_500(use_global_tracer, tracer):
+    # Note - span modifiers are not called
+    app = TestApp(TestWsgiMiddleware(application, tracer, config.wsgi, None))
     with pytest.raises(Exception):
         app.get("/error")
