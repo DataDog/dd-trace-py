@@ -27,23 +27,19 @@ def test_runtime_metrics_api_idempotency():
     RuntimeMetrics.disable()
 
 
-def test_manually_start_runtime_metrics(run_python_code_in_subprocess):
+@pytest.mark.subprocess
+def test_manually_start_runtime_metrics():
     """
     When importing and manually starting runtime metrics
         Runtime metrics worker starts and there are no errors
     """
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-from ddtrace.runtime import RuntimeMetrics
+    from ddtrace.runtime import RuntimeMetrics
 
-RuntimeMetrics.enable()
-assert RuntimeMetrics._enabled
+    RuntimeMetrics.enable()
+    assert RuntimeMetrics._enabled
 
-RuntimeMetrics.disable()
-assert not RuntimeMetrics._enabled
-""",
-    )
-    assert status == 0
+    RuntimeMetrics.disable()
+    assert not RuntimeMetrics._enabled
 
 
 def test_start_runtime_metrics_via_env_var(monkeypatch, ddtrace_run_python_code_in_subprocess):

@@ -1,10 +1,17 @@
+import ast
 import contextlib
+from itertools import product
 import os
 from os.path import split
 from os.path import splitext
 import sys
+from tempfile import NamedTemporaryFile
+import time
 
+from _pytest.runner import CallInfo
+from _pytest.runner import TestReport
 import pytest
+from six import PY2
 
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -173,6 +180,7 @@ def run_function_from_file(item, params=None):
         args.append("-m")
 
     # Override environment variables for the subprocess
+
     env = os.environ.copy()
     env.update(marker.kwargs.get("env", {}))
     if params is not None:
