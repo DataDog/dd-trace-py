@@ -20,6 +20,8 @@ DEFAULT_METRICS = True
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 DEFAULT_MAX_PAYLOAD_SIZE = 1 << 20  # 1 MB
 DEFAULT_CONFIG_TIMEOUT = 30  # s
+DEFAULT_UPLOAD_TIMEOUT = 30  # seconds
+DEFAULT_UPLOAD_FLUSH_INTERVAL = 1.0  # seconds
 DEFAULT_DIAGNOSTIC_INTERVAL = 3600  # 1 hour
 
 
@@ -34,6 +36,8 @@ class DebuggerConfig(object):
     global_rate_limit = DEFAULT_GLOBAL_RATE_LIMIT
     max_payload_size = DEFAULT_MAX_PAYLOAD_SIZE
     config_timeout = DEFAULT_CONFIG_TIMEOUT
+    upload_timeout = DEFAULT_UPLOAD_TIMEOUT
+    upload_flush_interval = DEFAULT_UPLOAD_FLUSH_INTERVAL
     diagnostic_interval = DEFAULT_DIAGNOSTIC_INTERVAL
     tags = None  # type: Optional[str]
     _tags = {}  # type: Dict[str, str]
@@ -50,6 +54,10 @@ class DebuggerConfig(object):
             self._snapshot_intake_endpoint = "/debugger" + self._snapshot_intake_endpoint
 
         self.probe_url = os.getenv("DD_DEBUGGER_PROBE_URL", get_trace_url())
+        self.upload_timeout = int(os.getenv("DD_DEBUGGER_UPLOAD_TIMEOUT", DEFAULT_UPLOAD_TIMEOUT))
+        self.upload_flush_interval = float(
+            os.getenv("DD_DEBUGGER_UPLOAD_FLUSH_INTERVAL", DEFAULT_UPLOAD_FLUSH_INTERVAL)
+        )
 
         self._tags["env"] = tracer_config.env
         self._tags["version"] = tracer_config.version
