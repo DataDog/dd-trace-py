@@ -96,8 +96,6 @@ def snapshot_context(request):
             yield snapshot
 
     return _snapshot
-<<<<<<< HEAD
-=======
 
 
 # DEV: The dump_code_to_file function is adapted from the compile function in
@@ -256,4 +254,3 @@ def pytest_runtest_protocol(item):
             ihook.pytest_runtest_logfinish(nodeid=nodeid, location=item.location)
 
         return True
->>>>>>> 6dbaa306 (test: add run module support to subprocess marker (#3569))
