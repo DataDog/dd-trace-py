@@ -33,6 +33,28 @@ DEFAULT_WAF_TIMEOUT = 20  # ms
 log = get_logger(__name__)
 
 
+def _transform_response_headers(data):
+    # type: (List[Tuple[str, str]]) -> Dict[str, Union[str, List[str]]]
+    normalized = {}  # type: Dict[str, Union[str, List[str]]]
+    for header, value in data:
+        header = header.lower()
+        if header in ("cookie", "set-cookie"):
+            continue
+        if header in normalized:  # if a header with the same lowercase name already exists, let's make it an array
+            existing = normalized[header]
+            if isinstance(existing, list):
+                existing.append(value)
+            else:
+                normalized[header] = [existing, value]
+        else:
+            normalized[header] = value
+
+    # Add default content-language to response headers
+    if 'content-language' not in normalized:
+        normalized['content-language'] = ''
+
+    return normalized
+
 def _transform_headers(data):
     # type: (Dict[str, str]) -> Dict[str, Union[str, List[str]]]
     normalized = {}  # type: Dict[str, Union[str, List[str]]]
@@ -99,6 +121,12 @@ def _set_headers(span, headers):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
             span.set_tag(_normalize_tag_name("request", k), headers[k])
 
+def _set_response_headers(span, headers):
+    # type: (Span, Dict[str, Union[str, List[str]]]) -> None
+    for k in headers:
+        if k.lower() in _COLLECTED_REQUEST_HEADERS:
+            # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
+            span.set_tag(_normalize_tag_name("response", k), headers[k])
 
 def _get_rate_limiter():
     # type: () -> RateLimiter
@@ -157,6 +185,8 @@ class AppSecSpanProcessor(SpanProcessor):
             self._mark_needed(address)
         # we always need the request headers
         self._mark_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES)
+        # we always need the response headers
+        self._mark_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES)
 
     def on_span_start(self, span):
         # type: (Span) -> None
@@ -216,7 +246,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if self._is_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES):
             response_headers = _context.get_item("http.response.headers", span=span)
             if response_headers is not None:
-                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_headers(response_headers)
+                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_response_headers(response_headers)
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
@@ -229,6 +259,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 return
             if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES in data:
                 _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES])
+
+            if _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES in data:
+                _set_response_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES])
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span._set_str_tag("appsec.event", "true")
