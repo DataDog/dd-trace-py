@@ -5,14 +5,13 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.glob_matching import GlobMatcher
+from ddtrace.internal.sampling import SamplingMechanism
 
-from .internal.rate_limiter import RateLimiter
+from .rate_limiter import RateLimiter
 
 
 if TYPE_CHECKING:
-    from .span import Span
-
-SAMPLING_MECHANISM = 8
+    from ..span import Span
 
 KNUTH_FACTOR = 1111111111111111111
 MAX_SPAN_ID = 2 ** 64
@@ -87,7 +86,7 @@ class SpanSamplingRule:
         self.sampling_id_threshold = self.sample_rate * MAX_SPAN_ID
 
     def apply_span_sampling_tags(self, span):
-        span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SAMPLING_MECHANISM)
+        span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
         span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self.sample_rate)
         if self.max_per_second:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self.max_per_second)

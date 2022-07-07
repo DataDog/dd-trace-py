@@ -23,6 +23,7 @@ class SamplingMechanism(object):
     APPSEC = 5
     REMOTE_RATE_USER = 6
     REMOTE_RATE_DATADOG = 7
+    SPAN_SAMPLING_RULE = 8
 
 
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
