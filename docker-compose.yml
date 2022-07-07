@@ -27,7 +27,7 @@ services:
         ports:
             - "127.0.0.1:5432:5432"
     mariadb:
-        image: mariadb
+        image: mariadb:10.7
         environment:
             - MYSQL_ROOT_PASSWORD=example
             - MYSQL_DATABASE=test
