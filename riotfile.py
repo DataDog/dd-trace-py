@@ -1157,17 +1157,33 @@ venv = Venv(
         Venv(
             name="pymysql",
             command="pytest {cmdargs} tests/contrib/pymysql",
-            pys=select_pys(),
-            pkgs={
-                "pymysql": [
-                    "~=0.7",
-                    "~=0.8",
-                    "~=0.9",
-                    "~=1.0",
-                    latest,
-                ],
-            },
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "pymysql": [
+                        "~=0.7",
+                        "~=0.8",
+                        "~=0.9",
+                        "~=1.0",
+                        latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    # 1.x dropped support for 2.7 and 3.5
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "pymysql": [
+                            "~=1.0.2",
+                            latest,
+                        ],
+                    },
+                ),
+
+            ],
         ),
+
         Venv(
             name="pyramid",
             venvs=[
