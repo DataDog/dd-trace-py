@@ -50,10 +50,11 @@ def _transform_response_headers(data):
             normalized[header] = value
 
     # Add default content-language to response headers
-    if 'content-language' not in normalized:
-        normalized['content-language'] = ''
+    if "content-language" not in normalized:
+        normalized["content-language"] = ""
 
     return normalized
+
 
 def _transform_headers(data):
     # type: (Dict[str, str]) -> Dict[str, Union[str, List[str]]]
@@ -121,12 +122,14 @@ def _set_headers(span, headers):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
             span.set_tag(_normalize_tag_name("request", k), headers[k])
 
+
 def _set_response_headers(span, headers):
     # type: (Span, Dict[str, Union[str, List[str]]]) -> None
     for k in headers:
         if k.lower() in _COLLECTED_REQUEST_HEADERS:
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
             span.set_tag(_normalize_tag_name("response", k), headers[k])
+
 
 def _get_rate_limiter():
     # type: () -> RateLimiter
