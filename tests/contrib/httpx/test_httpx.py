@@ -171,24 +171,10 @@ def test_configure_service_name_env():
             async with httpx.AsyncClient() as client:
                 await client.get(url)
 
-<<<<<<< HEAD
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
-    """
-    env = os.environ.copy()
-    env["DD_HTTPX_SERVICE_NAME"] = "env-overridden-service-name"
-    env["DD_SERVICE"] = "global-service-name"
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
-    assert status == 0, err
-    assert err == b""
-=======
     if sys.version_info >= (3, 7, 0):
         asyncio.run(test())
     else:
         asyncio.get_event_loop().run_until_complete(test())
->>>>>>> c437ad25 (test: add marker for running tests in subprocess (#3383))
 
 
 @pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name"))

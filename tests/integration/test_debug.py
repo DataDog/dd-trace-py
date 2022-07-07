@@ -469,6 +469,5 @@ def test_partial_flush_log():
 def test_partial_flush_log_subprocess():
     from ddtrace import tracer
 
-    print(tracer._partial_flush_enabled)
     assert tracer._partial_flush_enabled is True
     assert tracer._partial_flush_min_spans == 2
