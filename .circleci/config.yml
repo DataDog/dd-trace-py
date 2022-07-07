@@ -725,8 +725,8 @@ jobs:
     <<: *machine_executor
     steps:
       - run_test:
-        pattern: 'pymysql$'
-        docker_services: "mysql"
+          pattern: 'pymysql$'
+          docker_services: "mysql"
 
   pylibmc:
     <<: *contrib_job
