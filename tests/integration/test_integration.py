@@ -652,36 +652,28 @@ print(len(root.handlers))
         assert out == six.b("0\n")
 
 
-def test_writer_env_configuration(run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env["DD_TRACE_WRITER_BUFFER_SIZE_BYTES"] = "1000"
-    env["DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES"] = "5000"
-    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "5.0"
-
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-import ddtrace
-
-assert ddtrace.tracer.writer._encoder.max_size == 1000
-assert ddtrace.tracer.writer._encoder.max_item_size == 1000
-assert ddtrace.tracer.writer._interval == 5.0
-""",
-        env=env,
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WRITER_BUFFER_SIZE_BYTES="1000",
+        DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES="5000",
+        DD_TRACE_WRITER_INTERVAL_SECONDS="5.0",
     )
-    assert status == 0, (out, err)
+)
+def test_writer_env_configuration():
+    import ddtrace
+
+    assert ddtrace.tracer._writer._encoder.max_size == 1000
+    assert ddtrace.tracer._writer._encoder.max_item_size == 1000
+    assert ddtrace.tracer._writer._interval == 5.0
 
 
-def test_writer_env_configuration_defaults(run_python_code_in_subprocess):
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-import ddtrace
+@pytest.mark.subprocess
+def test_writer_env_configuration_defaults():
+    import ddtrace
 
-assert ddtrace.tracer.writer._encoder.max_size == 8 << 20
-assert ddtrace.tracer.writer._encoder.max_item_size == 8 << 20
-assert ddtrace.tracer.writer._interval == 1.0
-""",
-    )
-    assert status == 0, (out, err)
+    assert ddtrace.tracer._writer._encoder.max_size == 8 << 20
+    assert ddtrace.tracer._writer._encoder.max_item_size == 8 << 20
+    assert ddtrace.tracer._writer._interval == 1.0
 
 
 def test_writer_env_configuration_ddtrace_run(ddtrace_run_python_code_in_subprocess):
