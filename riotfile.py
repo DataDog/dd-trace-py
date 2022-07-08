@@ -1359,20 +1359,20 @@ venv = Venv(
         Venv(
             name="cassandra",
             venvs=[
-                # Python 3.9 requires a more recent release.
+                # cassandra-driver does not officially support 3.10
+                # TODO: fix sporadically failing tests in cassandra-driver v3.25.0 and py3.10
                 Venv(
-                    pys=select_pys(min_version="3.9"),
+                    pys=["3.9"],
                     pkgs={"cassandra-driver": latest},
                 ),
                 # releases 3.7 and 3.8 are broken on Python >= 3.7
                 # (see https://github.com/r4fek/django-cassandra-engine/issues/104)
-                Venv(
-                    pys=["3.7", "3.8"],
-                    pkgs={"cassandra-driver": ["~=3.6.0", "~=3.15.0", latest]},
-                ),
+                Venv(pys=["3.7", "3.8"], pkgs={"cassandra-driver": ["~=3.6.0", "~=3.15.0", "~=3.24.0", latest]}),
                 Venv(
                     pys=select_pys(max_version="3.6"),
-                    pkgs={"cassandra-driver": [("~=3.%d.0" % m) for m in range(6, 9)] + ["~=3.15.0", latest]},
+                    pkgs={
+                        "cassandra-driver": [("~=3.%d.0" % m) for m in range(6, 9)] + ["~=3.15.0", "~=3.24.0", latest]
+                    },
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/cassandra",
