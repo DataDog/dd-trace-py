@@ -114,14 +114,14 @@ class TelemetryWriter(PeriodicService):
             try:
                 resp = self._send_request(telemetry_request)
                 if resp.status >= 300:
-                    log.warning(
+                    log.debug(
                         "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
                         self._agent_url,
                         self.ENDPOINT,
                         resp.status,
                     )
             except Exception:
-                log.warning(
+                log.debug(
                     "failed to send telemetry to the Datadog Agent at %s/%s.",
                     self._agent_url,
                     self.ENDPOINT,

@@ -213,23 +213,15 @@ def test_periodic(mock_send_request, telemetry_writer):
     # queue two integrations
     telemetry_writer.add_integration("integration-1", True)
     telemetry_writer.add_integration("integration-2", False)
-
-    with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-        # send all events to the agent proxy
-        telemetry_writer.periodic()
-        # assert no warning logs were generated while sending telemetry requests
-        log.warning.assert_not_called()
+    telemetry_writer.periodic()
     # ensure one app-started and one app-integrations-change event was sent
     assert len(httpretty.latest_requests()) == 2
 
     # queue 2 more integrations
     telemetry_writer.add_integration("integration-3", True)
     telemetry_writer.add_integration("integration-4", False)
-    with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-        # send both integrations to the agent proxy
-        telemetry_writer.periodic()
-        # assert no warning logs were generated while sending telemetry requests
-        log.warning.assert_not_called()
+    # send both integrations to the agent proxy
+    telemetry_writer.periodic()
     # ensure one more app-integrations-change events was sent
     # 2 requests were sent in the previous flush
     assert len(httpretty.latest_requests()) == 3
@@ -242,7 +234,7 @@ def test_send_failing_request(mock_status, mock_send_request, telemetry_writer):
         # sends failing app-closing event
         telemetry_writer.on_shutdown()
         # asserts unsuccessful status code was logged
-        log.warning.assert_called_with(
+        log.debug.assert_called_with(
             "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
             telemetry_writer._agent_url,
             telemetry_writer.ENDPOINT,
@@ -263,7 +255,7 @@ def test_send_request_exception():
         # sends failing app-closing event
         telemetry_writer.on_shutdown()
         # assert an exception was logged
-        log.warning.assert_called_with(
+        log.debug.assert_called_with(
             "failed to send telemetry to the Datadog Agent at %s/%s.",
             "http://hostthatdoesntexist:1234",
             telemetry_writer.ENDPOINT,
