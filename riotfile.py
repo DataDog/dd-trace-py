@@ -1270,6 +1270,51 @@ venv = Venv(
             ],
         ),
         Venv(
+<<<<<<< HEAD
+=======
+            name="pytest-bdd",
+            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
+            pkgs={"msgpack": latest},
+            venvs=[
+                Venv(
+                    pys=["2.7"],
+                    # pytest-bdd==3.4 is last to support python 2.7
+                    pkgs={"pytest-bdd": ">=3.0,<3.5"},
+                ),
+                Venv(
+                    pkgs={
+                        "more_itertools": "<8.11.0",
+                    },
+                    venvs=[
+                        Venv(
+                            pys=["3.6"],
+                            pkgs={"pytest-bdd": [">=4.0,<5.0"]},
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.9"),
+                            pkgs={
+                                "pytest-bdd": [
+                                    ">=4.0,<5.0",
+                                    ">=6.0,<7.0",
+                                ]
+                            },
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={
+                                "pytest-bdd": [
+                                    ">=4.0,<5.0",
+                                    ">=6.0,<7.0",
+                                    latest,
+                                ]
+                            },
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
+>>>>>>> 21d80ae1 (fix(pytest-bdd): support for version 6 (#3927))
             name="grpc",
             command="python -m pytest {cmdargs} tests/contrib/grpc",
             pkgs={
