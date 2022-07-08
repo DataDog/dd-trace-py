@@ -84,9 +84,9 @@ class DDWSGIMiddleware(DDWSGIMiddlewareBase):
                             Defaults to using the request method and url in the resource.
     """
 
-    request_span = "wsgi.request"
-    application_span = "wsgi.application"
-    response_span = "wsgi.response"
+    request_span_name = "wsgi.request"
+    application_span_name = "wsgi.application"
+    response_span_name = "wsgi.response"
 
     def __init__(self, application, tracer=None, span_modifier=default_wsgi_span_modifier):
         # type: (Iterable, Tracer, Callable) -> None

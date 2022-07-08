@@ -60,10 +60,10 @@ def application(environ, start_response):
         return [body]
 
 
-class TestWsgiMiddleware(_utils.DDWSGIMiddlewareBase):
-    request_span = "test_wsgi.request"
-    application_span = "test_wsgi.application"
-    response_span = "test_wsgi.response"
+class WsgiCustomMiddleware(_utils.DDWSGIMiddlewareBase):
+    request_span_name = "test_wsgi.request"
+    application_span_name = "test_wsgi.application"
+    response_span_name = "test_wsgi.response"
 
     def request_span_modifier(self, req_span, environ):
         req_span.set_tag("request_tag", "req test tag set")
@@ -247,7 +247,7 @@ def test_500():
 @snapshot()
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware(use_global_tracer, tracer):
-    app = TestApp(TestWsgiMiddleware(application, tracer, config.wsgi, None))
+    app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
     resp = app.get("/")
     assert resp.status == "200 OK"
     assert resp.status_int == 200
@@ -257,6 +257,6 @@ def test_wsgi_base_middleware(use_global_tracer, tracer):
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware_500(use_global_tracer, tracer):
     # Note - span modifiers are not called
-    app = TestApp(TestWsgiMiddleware(application, tracer, config.wsgi, None))
+    app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
     with pytest.raises(Exception):
         app.get("/error")

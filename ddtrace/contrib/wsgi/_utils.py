@@ -54,17 +54,17 @@ class DDWSGIMiddlewareBase:
         self.pin = pin
 
     @property
-    def request_span(self):
+    def request_span_name(self):
         # type: () -> str
         raise NotImplementedError
 
     @property
-    def application_span(self):
+    def application_span_name(self):
         # type: () -> str
         raise NotImplementedError
 
     @property
-    def response_span(self):
+    def response_span_name(self):
         # type: () -> str
         raise NotImplementedError
 
@@ -73,7 +73,7 @@ class DDWSGIMiddlewareBase:
         trace_utils.activate_distributed_headers(self.tracer, int_config=self.config, request_headers=environ)
 
         with self.tracer.trace(
-            self.request_span,
+            self.request_span_name,
             service=trace_utils.int_service(self.pin, self.config),
             span_type=SpanTypes.WEB,
         ) as req_span:
@@ -84,12 +84,12 @@ class DDWSGIMiddlewareBase:
 
             self.request_span_modifier(req_span, environ)
 
-            with self.tracer.trace(self.application_span) as app_span:
+            with self.tracer.trace(self.application_span_name) as app_span:
                 intercept_start_response = functools.partial(self.traced_start_response, start_response, req_span)
                 result = self.app(environ, intercept_start_response)
                 self.application_span_modifier(app_span, environ, result)
 
-            with self.tracer.trace(self.response_span) as resp_span:
+            with self.tracer.trace(self.response_span_name) as resp_span:
                 self.response_span_modifier(resp_span, result)
                 for chunk in result:
                     yield chunk
