@@ -17,11 +17,14 @@ DEFAULT_PROBE_POLLER_INTERVAL = 5
 DEFAULT_PROBE_STATUS_UPDATE_INTERVAL = 45 * 60  # 45 minutes
 
 
-class ProbePollerEvent(Enum):
+class ProbePollerEvent(object):
     NEW_PROBES = 0
     DELETED_PROBES = 1
     MODIFIED_PROBES = 2
     STATUS_UPDATE = 3
+
+
+ProbePollerEventType = int
 
 
 class ProbePoller(PeriodicService):
@@ -34,7 +37,7 @@ class ProbePoller(PeriodicService):
     """
 
     def __init__(self, remoteconfig, callback, interval=None):
-        # type: (DebuggingRCV07, Callable[[ProbePollerEvent, Any], None], Optional[float]) -> None
+        # type: (DebuggingRCV07, Callable[[ProbePollerEventType, Any], None], Optional[float]) -> None
         super(ProbePoller, self).__init__(interval if interval is not None else DEFAULT_PROBE_POLLER_INTERVAL)
 
         self._rc = remoteconfig
