@@ -34,10 +34,13 @@ DEFAULT_WAF_TIMEOUT = 20  # ms
 log = get_logger(__name__)
 
 
-def _transform_response_headers(data):
-    # type: (List[Tuple[str, str]]) -> Dict[str, Union[str, List[str]]]
+def _transform_headers(data):
+    # type: (Union[Dict[str, str], List[Tuple[str, str]]]) -> Dict[str, Union[str, List[str]]]
     normalized = {}  # type: Dict[str, Union[str, List[str]]]
-    for header, value in data:
+
+    headers = data if isinstance(data, list) else data.items()
+
+    for header, value in headers:
         header = header.lower()
         if header in ("cookie", "set-cookie"):
             continue
@@ -54,24 +57,6 @@ def _transform_response_headers(data):
     if "content-language" not in normalized:
         normalized["content-language"] = ""
 
-    return normalized
-
-
-def _transform_headers(data):
-    # type: (Dict[str, str]) -> Dict[str, Union[str, List[str]]]
-    normalized = {}  # type: Dict[str, Union[str, List[str]]]
-    for header, value in data.items():
-        header = header.lower()
-        if header in ("cookie", "set-cookie"):
-            continue
-        if header in normalized:  # if a header with the same lowercase name already exists, let's make it an array
-            existing = normalized[header]
-            if isinstance(existing, list):
-                existing.append(value)
-            else:
-                normalized[header] = [existing, value]
-        else:
-            normalized[header] = value
     return normalized
 
 
@@ -116,20 +101,12 @@ _COLLECTED_REQUEST_HEADERS = {
 _COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 
-def _set_headers(span, headers):
-    # type: (Span, Dict[str, Union[str, List[str]]]) -> None
+def _set_headers(span, headers, kind="request"):
+    # type: (Span, Dict[str, Union[str, List[str]]], str) -> None
     for k in headers:
         if k.lower() in _COLLECTED_REQUEST_HEADERS:
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            span.set_tag(_normalize_tag_name("request", k), headers[k])
-
-
-def _set_response_headers(span, headers):
-    # type: (Span, Dict[str, Union[str, List[str]]]) -> None
-    for k in headers:
-        if k.lower() in _COLLECTED_REQUEST_HEADERS:
-            # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            span.set_tag(_normalize_tag_name("response", k), headers[k])
+            span.set_tag(_normalize_tag_name(kind, k), headers[k])
 
 
 def _get_rate_limiter():
@@ -250,7 +227,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if self._is_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES):
             response_headers = _context.get_item("http.response.headers", span=span)
             if response_headers is not None:
-                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_response_headers(response_headers)
+                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_headers(response_headers)
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
@@ -262,10 +239,10 @@ class AppSecSpanProcessor(SpanProcessor):
                 # TODO: add metric collection to keep an eye (when it's name is clarified)
                 return
             if _Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES in data:
-                _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES])
+                _set_headers(span, data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES], kind="request")
 
             if _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES in data:
-                _set_response_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES])
+                _set_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES], kind="response")
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span._set_str_tag("appsec.event", "true")
