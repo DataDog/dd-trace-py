@@ -48,6 +48,7 @@ def test_transform_headers():
     assert transformed["bar"] == "baz"
     assert set(transformed["foo"]) == {"bar1", "bar2", "bar3"}
 
+
 def test_transform_response_headers():
     transformed = _transform_headers(
         {
