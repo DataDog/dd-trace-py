@@ -156,19 +156,19 @@ def endpoint_test_unknown_server():
 
 def test_wrong_api_key(endpoint_test_server):
     # This is mostly testing our test server, not the exporter
-    exp = http.PprofHTTPExporter(_ENDPOINT, "this is not the right API key", max_retry_delay=2)
+    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT, api_key="this is not the right API key", max_retry_delay=2)
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == "Server returned 400, check your API key"
 
 
 def test_export(endpoint_test_server):
-    exp = http.PprofHTTPExporter(_ENDPOINT, _API_KEY)
+    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT, api_key=_API_KEY)
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
 def test_export_server_down():
-    exp = http.PprofHTTPExporter("http://localhost:2", _API_KEY, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(endpoint="http://localhost:2", api_key=_API_KEY, max_retry_delay=2)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
@@ -177,7 +177,7 @@ def test_export_server_down():
 
 
 def test_export_timeout(endpoint_test_timeout_server):
-    exp = http.PprofHTTPExporter(_TIMEOUT_ENDPOINT, _API_KEY, timeout=1, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(endpoint=_TIMEOUT_ENDPOINT, api_key=_API_KEY, timeout=1, max_retry_delay=2)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
@@ -186,7 +186,7 @@ def test_export_timeout(endpoint_test_timeout_server):
 
 
 def test_export_reset(endpoint_test_reset_server):
-    exp = http.PprofHTTPExporter(_RESET_ENDPOINT, _API_KEY, timeout=1, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(endpoint=_RESET_ENDPOINT, api_key=_API_KEY, timeout=1, max_retry_delay=2)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
@@ -198,7 +198,7 @@ def test_export_reset(endpoint_test_reset_server):
 
 
 def test_export_404_agent(endpoint_test_unknown_server):
-    exp = http.PprofHTTPExporter(_UNKNOWN_ENDPOINT)
+    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT)
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == (
@@ -207,7 +207,7 @@ def test_export_404_agent(endpoint_test_unknown_server):
 
 
 def test_export_404_agentless(endpoint_test_unknown_server):
-    exp = http.PprofHTTPExporter(_UNKNOWN_ENDPOINT, api_key="123", timeout=1)
+    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT, api_key="123", timeout=1)
     with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     assert str(t.value) == "HTTP Error 404"
@@ -216,14 +216,16 @@ def test_export_404_agentless(endpoint_test_unknown_server):
 def test_export_tracer_base_path(endpoint_test_server):
     # Base path is prepended to the endpoint path because
     # it does not start with a slash.
-    exp = http.PprofHTTPExporter(_ENDPOINT + "/profiling/", _API_KEY, endpoint_path="v1/input")
+    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT + "/profiling/", api_key=_API_KEY, endpoint_path="v1/input")
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
 def test_export_tracer_base_path_agent_less(endpoint_test_server):
     # Base path is ignored by the profiling HTTP exporter
     # because the endpoint path starts with a slash.
-    exp = http.PprofHTTPExporter(_ENDPOINT + "/profiling/", _API_KEY, endpoint_path="/profiling/v1/input")
+    exp = http.PprofHTTPExporter(
+        endpoint=_ENDPOINT + "/profiling/", api_key=_API_KEY, endpoint_path="/profiling/v1/input"
+    )
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 

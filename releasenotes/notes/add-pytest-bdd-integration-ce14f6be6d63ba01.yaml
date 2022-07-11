@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds pytest-bdd integration to show more details in CI Visibility product.

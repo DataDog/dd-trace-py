@@ -119,7 +119,7 @@ class _ProfilerInstance(service.Service):
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_AGENTLESS", "False")), type=bool)
-    asyncio_loop_policy = attr.ib(factory=DdtraceProfilerEventLoopPolicy, repr=False, eq=False)
+    asyncio_loop_policy_class = attr.ib(default=DdtraceProfilerEventLoopPolicy)
     _memory_collector_enabled = attr.ib(
         factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
     )
@@ -135,7 +135,7 @@ class _ProfilerInstance(service.Service):
         _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
         if _OUTPUT_PPROF:
             return [
-                file.PprofFileExporter(_OUTPUT_PPROF),
+                file.PprofFileExporter(prefix=_OUTPUT_PPROF),
             ]
 
         if self.url is not None:
@@ -179,7 +179,7 @@ class _ProfilerInstance(service.Service):
         r = self._recorder = recorder.Recorder(
             max_events={
                 stack_event.StackSampleEvent: max_stack_events,
-                stack_event.StackExceptionSampleEvent: max_stack_events / 2,
+                stack_event.StackExceptionSampleEvent: int(max_stack_events / 2),
                 # (default buffer size / interval) * export interval
                 memalloc.MemoryAllocSampleEvent: int(
                     (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60
@@ -192,8 +192,8 @@ class _ProfilerInstance(service.Service):
 
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
-            threading.ThreadingLockCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
-            asyncio.AsyncioLockCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
+            threading.ThreadingLockCollector(r, tracer=self.tracer),
+            asyncio.AsyncioLockCollector(r, tracer=self.tracer),
         ]
 
         if self._memory_collector_enabled:
@@ -209,8 +209,8 @@ class _ProfilerInstance(service.Service):
         self.set_asyncio_event_loop_policy()
 
     def set_asyncio_event_loop_policy(self):
-        if self.asyncio_loop_policy is not None:
-            _asyncio.set_event_loop_policy(self.asyncio_loop_policy)
+        if self.asyncio_loop_policy_class is not None:
+            _asyncio.set_event_loop_policy(self.asyncio_loop_policy_class())
 
     def _collectors_snapshot(self):
         for c in self._collectors:
@@ -222,9 +222,15 @@ class _ProfilerInstance(service.Service):
             except Exception:
                 LOG.error("Error while snapshoting collector %r", c, exc_info=True)
 
+    _COPY_IGNORE_ATTRIBUTES = {"status"}
+
     def copy(self):
         return self.__class__(
-            service=self.service, env=self.env, version=self.version, tracer=self.tracer, tags=self.tags
+            **{
+                a.name: getattr(self, a.name)
+                for a in attr.fields(self.__class__)
+                if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
+            }
         )
 
     def _start_service(self):  # type: ignore[override]

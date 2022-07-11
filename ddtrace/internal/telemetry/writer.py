@@ -18,6 +18,7 @@ from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.time import StopWatch
 from .data import get_application
+from .data import get_dependencies
 from .data import get_host_info
 
 
@@ -50,9 +51,14 @@ class TelemetryWriter(PeriodicService):
         self._events_queue = []  # type: List[Dict]
         self._integrations_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
+        self._forked = False  # type: bool
 
         # _sequence is a counter representing the number of requests sent by the writer
         self._sequence = 1  # type: int
+
+    @property
+    def url(self):
+        return "%s/%s" % (self._agent_url, self.ENDPOINT)
 
     def _send_request(self, request):
         # type: (Dict) -> httplib.HTTPResponse
@@ -77,7 +83,7 @@ class TelemetryWriter(PeriodicService):
                 conn.close()
 
     def _flush_integrations_queue(self):
-        # type () -> List[Dict]
+        # type: () -> List[Dict]
         """Returns a list of all integrations queued by add_integration"""
         with self._lock:
             integrations = self._integrations_queue
@@ -85,12 +91,18 @@ class TelemetryWriter(PeriodicService):
         return integrations
 
     def _flush_events_queue(self):
-        # type () -> List[Dict]
+        # type: () -> List[Dict]
         """Returns a list of all integrations queued by classmethods"""
         with self._lock:
             requests = self._events_queue
             self._events_queue = []
         return requests
+
+    def _reset_queues(self):
+        # type: () -> None
+        with self._lock:
+            self._integrations_queue = []
+            self._events_queue = []
 
     def periodic(self):
         integrations = self._flush_integrations_queue()
@@ -105,7 +117,7 @@ class TelemetryWriter(PeriodicService):
             try:
                 resp = self._send_request(telemetry_request)
                 if resp.status >= 300:
-                    log.warning(
+                    log.debug(
                         "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
                         self._agent_url,
                         self.ENDPOINT,
@@ -115,12 +127,17 @@ class TelemetryWriter(PeriodicService):
                     self.disable()
                     return
             except Exception:
-                log.warning(
+                log.debug(
                     "failed to send telemetry to the Datadog Agent at %s/%s.",
                     self._agent_url,
                     self.ENDPOINT,
                     exc_info=True,
                 )
+
+    def _start_service(self, *args, **kwargs):
+        # type: (...) -> None
+        self.app_started_event()
+        return super(TelemetryWriter, self)._start_service(*args, **kwargs)
 
     def on_shutdown(self):
         self._app_closing_event()
@@ -128,7 +145,7 @@ class TelemetryWriter(PeriodicService):
 
     def _stop_service(self, *args, **kwargs):
         # type: (...) -> None
-        super(TelemetryWriter, self)._stop_service()
+        super(TelemetryWriter, self)._stop_service(*args, **kwargs)
         self.join()
 
     def add_event(self, payload, payload_type):
@@ -172,12 +189,11 @@ class TelemetryWriter(PeriodicService):
     def app_started_event(self):
         # type: () -> None
         """Sent when TelemetryWriter is enabled or forks"""
-        # pkg_resources import is inlined for performance reasons
-        # This import is an expensive operation
-        import pkg_resources
-
+        if self._forked:
+            # app-started events should only be sent by the main process
+            return
         payload = {
-            "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
+            "dependencies": get_dependencies(),
             "integrations": self._flush_integrations_queue(),
             "configurations": [],
         }
@@ -186,6 +202,9 @@ class TelemetryWriter(PeriodicService):
     def _app_closing_event(self):
         # type: () -> None
         """Adds a Telemetry request which notifies the agent that an application instance has terminated"""
+        if self._forked:
+            # app-closing event should only be sent by the main process
+            return
         payload = {}  # type: Dict
         self.add_event(payload, "app-closing")
 
@@ -224,11 +243,13 @@ class TelemetryWriter(PeriodicService):
             "request_type": payload_type,
         }
 
-    def _restart(self):
+    def _fork_writer(self):
         # type: () -> None
-        if self.status == ServiceStatus.RUNNING:
-            self.disable()
-        self.enable()
+        self._forked = True
+        # Avoid sending duplicate events.
+        # Queued events should be sent in the main process.
+        self._reset_queues()
+        self.start()
 
     def disable(self):
         # type: () -> None
@@ -237,13 +258,13 @@ class TelemetryWriter(PeriodicService):
         Once disabled, telemetry collection can be re-enabled by calling ``enable`` again.
         """
         with self._lock:
-            self._integrations_queue = []
             self._enabled = False
-            if self.status == ServiceStatus.STOPPED:
-                return
+        self._reset_queues()
+        if self.status == ServiceStatus.STOPPED:
+            return
 
-            forksafe.unregister(self._restart)
-            atexit.unregister(self.stop)
+        forksafe.unregister(self._fork_writer)
+        atexit.unregister(self.stop)
 
         self.stop()
         log.info("telemetry collection service was disabled")
@@ -254,15 +275,11 @@ class TelemetryWriter(PeriodicService):
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        with self._lock:
-            if self.status == ServiceStatus.RUNNING:
-                return
+        if self.status == ServiceStatus.RUNNING:
+            return
 
-            self.start()
-            self._enabled = True
+        self._enabled = True
+        self.start()
 
-            forksafe.register(self._restart)
-            atexit.register(self.stop)
-        log.info("telemetry collection service was enabled")
-        # add_event _locks around adding to the events queue
-        self.app_started_event()
+        forksafe.register(self._fork_writer)
+        atexit.register(self.stop)

@@ -22,7 +22,7 @@ jobs:
       run:
         working-directory: bottle
     steps:
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       - uses: actions/checkout@v3
@@ -69,7 +69,7 @@ jobs:
           repository: django/django
           ref: stable/3.1.x
           path: django
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.8"
       - name: Install pylibmc libmemcached package
@@ -113,7 +113,7 @@ jobs:
           # Unreleased CI fix: https://github.com/graphql-python/graphene/pull/1412
           ref: 03277a55123fd2f8a8465c5fa671f7fb0d004c26
           path: graphene
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.9"
       - name: Install graphene
@@ -138,7 +138,7 @@ jobs:
       run:
         working-directory: fastapi
     steps:
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       - uses: actions/checkout@v3
@@ -149,7 +149,7 @@ jobs:
           repository: tiangolo/fastapi
           ref: 0.75.0
           path: fastapi
-      - uses: actions/cache@v3.0.2
+      - uses: actions/cache@v3.0.4
         id: cache
         with:
           path: ${{ env.pythonLocation }}
@@ -185,7 +185,7 @@ jobs:
           repository: pallets/flask
           ref: 1.1.4
           path: flask
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Install tox
@@ -217,7 +217,7 @@ jobs:
           repository: encode/httpx
           ref: 0.22.0
           path: httpx
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       - name: Install dependencies
@@ -251,7 +251,7 @@ jobs:
           repository: sqlalchemy/mako
           ref: rel_1_1_4
           path: mako
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.8'
       - name: Install tox
@@ -276,7 +276,7 @@ jobs:
       run:
         working-directory: starlette
     steps:
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       - uses: actions/checkout@v3
@@ -305,7 +305,7 @@ jobs:
       run:
         working-directory: requests
     steps:
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       - uses: actions/checkout@v3
@@ -335,7 +335,7 @@ jobs:
       run:
         working-directory: asyncpg
     steps:
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       - uses: actions/checkout@v3

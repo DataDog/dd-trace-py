@@ -1,13 +1,17 @@
+import asyncio
 from tempfile import NamedTemporaryFile
 import time
 
 import databases
 import sqlalchemy
 from starlette.applications import Starlette
+from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
+from starlette.responses import JSONResponse
 from starlette.responses import PlainTextResponse
 from starlette.responses import Response
 from starlette.responses import StreamingResponse
+from starlette.routing import Mount
 from starlette.routing import Route
 
 
@@ -105,6 +109,14 @@ def get_app(engine):
         response = "Success"
         return PlainTextResponse(response)
 
+    async def custom_task():
+        await asyncio.sleep(1)
+
+    async def background_task(request):
+        """An example endpoint that just adds to background tasks"""
+        jsonmsg = {"result": "Background task added"}
+        return JSONResponse(jsonmsg, background=BackgroundTask(custom_task))
+
     routes = [
         Route("/", endpoint=homepage, name="homepage", methods=["GET"]),
         Route("/200", endpoint=success, name="200", methods=["GET"]),
@@ -117,6 +129,9 @@ def get_app(engine):
         Route("/users/{userid:int}/{attribute:str}", endpoint=success, name="multi_path_params", methods=["GET"]),
         Route("/notes", endpoint=list_notes, methods=["GET"]),
         Route("/notes", endpoint=add_note, methods=["POST"]),
+        Mount("/sub-app", Starlette(routes=[Route("/hello/{name}", endpoint=success, name="200", methods=["GET"])])),
+        Route("/backgroundtask", endpoint=background_task, name="200", methods=["GET"]),
     ]
+
     app = Starlette(routes=routes, on_startup=[database.connect], on_shutdown=[database.disconnect])
     return app

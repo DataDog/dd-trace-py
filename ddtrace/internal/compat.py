@@ -8,10 +8,13 @@ from types import BuiltinFunctionType
 from types import BuiltinMethodType
 from types import FunctionType
 from types import MethodType
+from types import TracebackType
 from typing import Any
 from typing import AnyStr
 from typing import Optional
 from typing import Text
+from typing import Tuple
+from typing import Type
 from typing import Union
 
 import six
@@ -280,7 +283,8 @@ try:
 except ImportError:
     from typing import List
     from typing import Set
-    from typing import Tuple
     from typing import Union
 
     Collection = Union[List, Set, Tuple]  # type: ignore[misc,assignment]
+
+ExcInfoType = Union[Tuple[Type[BaseException], BaseException, Optional[TracebackType]], Tuple[None, None, None]]

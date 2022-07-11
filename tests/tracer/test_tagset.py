@@ -5,7 +5,7 @@ import pytest
 
 from ddtrace.internal._tagset import TagsetDecodeError
 from ddtrace.internal._tagset import TagsetEncodeError
-from ddtrace.internal._tagset import TagsetMaxSizeError
+from ddtrace.internal._tagset import TagsetMaxSizeEncodeError
 from ddtrace.internal._tagset import decode_tagset_string
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.compat import ensure_str
@@ -157,7 +157,7 @@ def test_encode_tagset_values_max_size():
             ("somereallylongkey", "somereallyreallylongvalue"),
         ]
     )
-    with pytest.raises(TagsetMaxSizeError) as ex_info:
+    with pytest.raises(TagsetMaxSizeEncodeError) as ex_info:
         encode_tagset_values(values, max_size=10)
 
     ex = ex_info.value

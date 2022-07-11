@@ -569,8 +569,9 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
         has_span_type = <bint> (span.span_type is not None)
         has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
         has_metrics = <bint> (len(span._metrics) > 0)
+        has_parent_id = <bint> (span.parent_id is not None)
 
-        L = 8 + has_span_type + has_meta + has_metrics + has_error
+        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id
 
         ret = msgpack_pack_map(&self.pk, L)
 
@@ -580,10 +581,11 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             ret = pack_number(&self.pk, span.trace_id)
             if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"parent_id", 9)
-            if ret != 0: return ret
-            ret = pack_number(&self.pk, span.parent_id)
-            if ret != 0: return ret
+            if has_parent_id:
+                ret = pack_bytes(&self.pk, <char *> b"parent_id", 9)
+                if ret != 0: return ret
+                ret = pack_number(&self.pk, span.parent_id)
+                if ret != 0: return ret
 
             ret = pack_bytes(&self.pk, <char *> b"span_id", 7)
             if ret != 0: return ret

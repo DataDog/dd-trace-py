@@ -6,8 +6,11 @@ import httpx
 import pytest
 
 import ddtrace
+from ddtrace import config
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
+from ddtrace.contrib.starlette.patch import patch as patch_starlette
+from ddtrace.contrib.starlette.patch import unpatch as unpatch_starlette
 from ddtrace.propagation import http as http_propagation
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
@@ -489,6 +492,54 @@ def test_service_can_be_overridden(client, tracer, test_spans):
     assert span.service == "test-override-service"
 
 
+def test_w_patch_starlette(client, tracer, test_spans):
+    patch_starlette()
+    try:
+        response = client.get("/file", headers={"X-Token": "DataDog"})
+        assert response.status_code == 200
+        assert response.text == "Datadog says hello!"
+
+        spans = test_spans.pop_traces()
+        assert len(spans) == 1
+        assert len(spans[0]) == 1
+        request_span = spans[0][0]
+        assert request_span.service == "fastapi"
+        assert request_span.name == "fastapi.request"
+        assert request_span.resource == "GET /file"
+        assert request_span.error == 0
+        assert request_span.get_tag("http.method") == "GET"
+        assert request_span.get_tag("http.url") == "http://testserver/file"
+        assert request_span.get_tag("http.query.string") is None
+        assert request_span.get_tag("http.status_code") == "200"
+    finally:
+        unpatch_starlette()
+
+
+@snapshot()
+def test_subapp_snapshot(snapshot_client):
+    response = snapshot_client.get("/sub-app/hello/name")
+    assert response.status_code == 200
+
+
+@snapshot()
+def test_subapp_no_aggregate_snapshot(snapshot_client):
+    config.fastapi["aggregate_resources"] = False
+    response = snapshot_client.get("/sub-app/hello/name")
+    assert response.status_code == 200
+    config.fastapi["aggregate_resources"] = True
+
+
+@snapshot(token_override="tests.contrib.fastapi.test_fastapi.test_subapp_snapshot")
+def test_subapp_w_starlette_patch_snapshot(snapshot_client):
+    # Test that patching starlette doesn't affect the spans generated
+    patch_starlette()
+    try:
+        response = snapshot_client.get("/sub-app/hello/name")
+        assert response.status_code == 200
+    finally:
+        unpatch_starlette()
+
+
 @snapshot()
 def test_table_query_snapshot(snapshot_client):
     r_post = snapshot_client.post(
@@ -510,3 +561,31 @@ def test_table_query_snapshot(snapshot_client):
         "name": "Test Name",
         "description": "This request adds a new entry to the test db",
     }
+
+
+def test_background_task(client, tracer, test_spans):
+    """Tests if background tasks have been excluded from span duration"""
+    response = client.get("/asynctask")
+    assert response.status_code == 200
+    assert response.json() == "task added"
+    spans = test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 2
+    request_span, serialize_span = spans[0]
+
+    assert request_span.name == "fastapi.request"
+    assert request_span.resource == "GET /asynctask"
+    # typical duration without background task should be in less than 10 ms
+    # duration with background task will take approximately 1.1s
+    assert request_span.duration < 1
+
+
+@pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])
+def test_host_header(client, tracer, test_spans, host):
+    """Tests if background tasks have been excluded from span duration"""
+    r = client.get("/asynctask", headers={"host": host})
+    assert r.status_code == 200
+
+    assert test_spans.spans
+    request_span = test_spans.spans[0]
+    assert request_span.get_tag("http.url") == "http://%s/asynctask" % (host,)

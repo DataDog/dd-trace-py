@@ -1,7 +1,9 @@
+import asyncio
 from tempfile import NamedTemporaryFile
 import time
 from typing import Optional
 
+from fastapi import BackgroundTasks
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Header
@@ -101,5 +103,21 @@ def get_app():
             fp.write(b"Datadog says hello!")
             fp.flush()
             return FileResponse(fp.name)
+
+    async def custom_task():
+        await asyncio.sleep(1)
+
+    @app.get("/asynctask")
+    async def asynctask(bg_tasks: BackgroundTasks):
+        bg_tasks.add_task(custom_task)
+        return "task added"
+
+    subapp = FastAPI()
+
+    @subapp.get("/hello/{name}")
+    def hello():
+        return {"Greeting": "Hello"}
+
+    app.mount("/sub-app", subapp)
 
     return app

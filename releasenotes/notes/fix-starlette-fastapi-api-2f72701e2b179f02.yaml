@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    starlette: Add back removed ``ddtrace.contrib.starlette.get_resource`` and ``ddtrace.contrib.starlette.span_modifier``.
+  - |
+    fastapi: Add back removed ``ddtrace.contrib.fastapi.span_modifier``.

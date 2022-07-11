@@ -25,6 +25,7 @@ app
 aredis
 args
 asgi
+async
 asyncio
 asyncpg
 attrs
@@ -32,6 +33,7 @@ autodetected
 autopatching
 backend
 backends
+bdd
 bikeshedding
 booleans
 boto
@@ -40,6 +42,7 @@ CGroup
 cassandra
 cgroups
 cherrypy
+ciapp
 codepath
 committer
 compat
@@ -106,6 +109,7 @@ mongoengine
 multiline
 multiprocess
 multithreaded
+mypy
 mysql
 mysqlclient
 mysqldb
@@ -113,12 +117,14 @@ namespace
 opentracer
 opentracing
 parameterized
+perf
 pid
 plugin
 posix
 postgres
 prepended
 profiler
+protobuf
 psycopg
 py
 pylibmc
@@ -129,6 +135,7 @@ pynamodb
 pyodbc
 pyston
 pytest
+pytest-bdd
 quickstart
 redis
 rediscluster

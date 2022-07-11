@@ -12,7 +12,7 @@ from .. import recorder
 class PprofFileExporter(pprof.PprofExporter):
     """PProf file exporter."""
 
-    prefix = attr.ib(type=str)
+    prefix = attr.ib(default="profile", type=str)
     _increment = attr.ib(default=1, init=False, repr=False, type=int)
 
     def export(

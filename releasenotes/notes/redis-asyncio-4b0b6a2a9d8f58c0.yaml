@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add asyncio support of redis ≥ 4.2.0

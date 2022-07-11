@@ -70,17 +70,18 @@ def _default_handle_exception_span(exc, span):
 def span_from_scope(scope):
     # type: (Mapping[str, Any]) -> Optional[Span]
     """Retrieve the top-level ASGI span from the scope."""
-    return scope.get("datadog", {}).get("request_span")
+    return scope.get("datadog", {}).get("request_spans", [None])[0]
 
 
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
-
     Args:
         app: The ASGI application.
         tracer: Custom tracer. Defaults to the global tracer.
     """
+
+    default_ports = {"http": 80, "https": 443, "ws": 80, "wss": 443}
 
     def __init__(
         self,
@@ -119,7 +120,10 @@ class TraceMiddleware:
             span_type=SpanTypes.WEB,
         )
 
-        scope["datadog"] = {"request_span": span}
+        if "datadog" not in scope:
+            scope["datadog"] = {"request_spans": [span]}
+        else:
+            scope["datadog"]["request_spans"].append(span)
 
         if self.span_modifier:
             self.span_modifier(span, scope)
@@ -128,13 +132,28 @@ class TraceMiddleware:
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
+        host_header = None
+        for key, value in scope["headers"]:
+            if key == b"host":
+                try:
+                    host_header = value.decode("ascii")
+                except UnicodeDecodeError:
+                    log.warning(
+                        "failed to decode host header, host from http headers will not be considered", exc_info=True
+                    )
+                break
+
         method = scope.get("method")
         server = scope.get("server")
-        if server and len(server) == 2:
+        scheme = scope.get("scheme", "http")
+        full_path = scope.get("root_path", "") + scope.get("path", "")
+        if host_header:
+            url = "{}://{}{}".format(scheme, host_header, full_path)
+        elif server and len(server) == 2:
             port = server[1]
-            server_host = server[0] + (":" + str(port) if port is not None and port != 80 else "")
-            full_path = scope.get("root_path", "") + scope.get("path", "")
-            url = scope.get("scheme", "http") + "://" + server_host + full_path
+            default_port = self.default_ports.get(scheme, None)
+            server_host = server[0] + (":" + str(port) if port is not None and port != default_port else "")
+            url = "{}://{}{}".format(scheme, server_host, full_path)
         else:
             url = None
 
@@ -167,7 +186,13 @@ class TraceMiddleware:
                 span, self.integration_config, status_code=status_code, response_headers=response_headers
             )
 
-            return await send(message)
+            try:
+                return await send(message)
+            finally:
+                # Per asgi spec, "more_body" is used if there is still data to send
+                # Close the span if "http.response.body" has no more data left to send in the response.
+                if message.get("type") == "http.response.body" and not message.get("more_body", False):
+                    span.finish()
 
         try:
             return await self.app(scope, receive, wrapped_send)
@@ -181,4 +206,5 @@ class TraceMiddleware:
                 del scope["datadog"]["request_span"]
             except KeyError:
                 pass
+
             span.finish()

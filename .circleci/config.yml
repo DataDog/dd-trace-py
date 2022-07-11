@@ -398,6 +398,13 @@ jobs:
       - run_test:
           pattern: "tracer"
 
+  debugger:
+    <<: *contrib_job
+    parallelism: 7
+    steps:
+      - run_test:
+          pattern: "debugger"
+
   opentracer:
     <<: *contrib_job
     parallelism: 7
@@ -407,6 +414,7 @@ jobs:
 
   profile:
     <<: *contrib_job
+    resource_class: large
     parallelism: 7
     steps:
       - run_tox_scenario:
@@ -736,7 +744,13 @@ jobs:
     executor: ddtrace_dev
     steps:
       - run_test:
-          pattern: 'pytest'
+          pattern: 'pytest$'
+
+  pytestbdd:
+    executor: ddtrace_dev
+    steps:
+      - run_test:
+          pattern: 'pytest-bdd'
 
   pymemcache:
     <<: *contrib_job
@@ -1083,6 +1097,7 @@ requires_tests: &requires_tests
     - pyodbc
     - pyramid
     - pytest
+    - pytestbdd
     - aredis
     - yaaredis
     - redis
@@ -1096,6 +1111,7 @@ requires_tests: &requires_tests
     - starlette
     - test_logging
     - tracer
+    - debugger
     - appsec
     - tornado
     - urllib3
@@ -1173,6 +1189,7 @@ workflows:
       - pyodbc: *requires_base_venvs
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
+      - pytestbdd: *requires_base_venvs
       - aredis: *requires_base_venvs
       - yaaredis: *requires_base_venvs
       - redis: *requires_base_venvs
@@ -1187,6 +1204,7 @@ workflows:
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
+      - debugger: *requires_base_venvs
       - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
