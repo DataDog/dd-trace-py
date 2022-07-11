@@ -75,6 +75,7 @@ fastapi
 formatter
 gRPC
 gevent
+graphql
 greenlet
 greenlets
 grpc
