@@ -1,6 +1,10 @@
 import abc
+from os.path import abspath
+from os.path import isfile
 from os.path import normcase
 from os.path import normpath
+from os.path import sep
+from os.path import splitdrive
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -10,14 +14,34 @@ import attr
 import six
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import _resolve
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
+from ddtrace.internal.utils.cache import cached
 
 
 log = get_logger(__name__)
 
 
-def _normalize_path(path):
-    return normpath(normcase(path))
+@cached()
+def _resolve_source_file(path):
+    # type: (str) -> Optional[str]
+    """Resolve the source path for the given path.
+
+    This recursively strips parent directories until it finds a file that
+    exists according to sys.path.
+    """
+    npath = abspath(normpath(normcase(path)))
+    if isfile(npath):
+        return npath
+
+    _, relpath = splitdrive(npath)
+    while relpath:
+        resolved_path = _resolve(relpath)
+        if resolved_path is not None:
+            return abspath(resolved_path)
+        _, _, relpath = relpath.partition(sep)
+
+    return None
 
 
 @attr.s(hash=True)
@@ -61,7 +85,7 @@ class ConditionalProbe(Probe):
 
 @attr.s
 class LineProbe(ConditionalProbe):
-    source_file = attr.ib(type=Optional[str], default=None, converter=_normalize_path)  # type: ignore[misc]
+    source_file = attr.ib(type=Optional[str], default=None, converter=_resolve_source_file)  # type: ignore[misc]
     line = attr.ib(type=Optional[int], default=None)
 
 
