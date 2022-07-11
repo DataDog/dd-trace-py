@@ -120,6 +120,8 @@ class Config(En):
     available and can be updated by users.
     """
 
+    __prefix__ = "dd"
+
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
@@ -159,51 +161,51 @@ class Config(En):
                     return True
             return False
 
-    header_tags = En.v(dict, "dd.trace.header.tags", parser=parse_tags_str, default={})
+    header_tags = En.v(dict, "trace.header.tags", parser=parse_tags_str, default={})
 
     # Master switch for turning on and off trace search by default
     # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
     # legacy environment variable. It should be removed in the future
     analytics_enabled = En.v(
-        bool, "dd.trace.analytics.enabled", default=False, deprecations=[("dd.analytics.enabled", None, None)]
+        bool, "trace.analytics.enabled", default=False, deprecations=[("analytics.enabled", None, None)]
     )
 
     http = En.d(HttpConfig, lambda c: HttpConfig(header_tags=c.header_tags))
-    tags = En.v(dict, "dd.tags", parser=parse_tags_str, default={})
+    tags = En.v(dict, "tags", parser=parse_tags_str, default={})
 
-    _env = En.v(Optional[str], "dd.env", default=None)
+    _env = En.v(Optional[str], "env", default=None)
     env = En.d(Optional[str], lambda c: c._env or c.tags.get("env"))
 
-    _service = En.v(Optional[str], "dd.service", default=None)
+    _service = En.v(Optional[str], "service", default=None)
     service = En.d(Optional[str], lambda c: c._service or c.tags.pop("service", None))
 
-    _version = En.v(Optional[str], "dd.version", default=None)
+    _version = En.v(Optional[str], "version", default=None)
     version = En.d(Optional[str], lambda c: c._version or c.tags.pop("version", None))
 
     http_server = En.d(_HTTPServerConfig, lambda c: c._HTTPServerConfig())
 
-    service_mapping = En.v(dict, "dd.service.mapping", parser=parse_tags_str, default={})
+    service_mapping = En.v(dict, "service.mapping", parser=parse_tags_str, default={})
 
-    logs_injection = En.v(bool, "dd.logs_injection", default=False)
+    logs_injection = En.v(bool, "logs_injection", default=False)
 
-    report_hostname = En.v(bool, "dd.trace.report_hostname", default=False)
+    report_hostname = En.v(bool, "trace.report_hostname", default=False)
 
-    health_metrics_enabled = En.v(bool, "dd.trace.health_metrics.enabled", default=False)
+    health_metrics_enabled = En.v(bool, "trace.health_metrics.enabled", default=False)
 
     _propagation_style_extract = En.v(
-        set, "dd.trace.propagation_style.extract", parser=_parse_propagation_styles, default={PROPAGATION_STYLE_DATADOG}
+        set, "trace.propagation_style.extract", parser=_parse_propagation_styles, default={PROPAGATION_STYLE_DATADOG}
     )
     _propagation_style_inject = En.v(
-        set, "dd.trace.propagation_style.inject", parser=_parse_propagation_styles, default={PROPAGATION_STYLE_DATADOG}
+        set, "trace.propagation_style.inject", parser=_parse_propagation_styles, default={PROPAGATION_STYLE_DATADOG}
     )
 
     _x_datadog_tags_max_length = En.v(
-        int, "DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", validator=_validate_x_datadog_tags_max_len, default=512
+        int, "trace.x_datadog_tags.max_length", validator=_validate_x_datadog_tags_max_len, default=512
     )
     _x_datadog_tags_enabled = En.d(bool, lambda c: c._x_datadog_tags_max_length > 0)
 
-    _raise = En.v(bool, "dd.testing.raise", default=False)
-    _trace_compute_stats = En.v(bool, "dd.trace.compute_stats", default=False)
+    _raise = En.v(bool, "testing.raise", default=False)
+    _trace_compute_stats = En.v(bool, "trace.compute_stats", default=False)
 
     def __getattr__(self, name):
         int_config = IntegrationConfig(self, name)
