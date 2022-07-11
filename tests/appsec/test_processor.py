@@ -40,9 +40,27 @@ def test_transform_headers():
             "fOO": "bar3",
             "BAR": "baz",
             "COOKIE": "secret",
-        }
+        },
+        kind="request"
     )
     assert set(transformed.keys()) == {"hello", "bar", "foo"}
+    assert transformed["hello"] == "world"
+    assert transformed["bar"] == "baz"
+    assert set(transformed["foo"]) == {"bar1", "bar2", "bar3"}
+
+def test_transform_response_headers():
+    transformed = _transform_headers(
+        {
+            "hello": "world",
+            "Foo": "bar1",
+            "foo": "bar2",
+            "fOO": "bar3",
+            "BAR": "baz",
+            "COOKIE": "secret",
+        },
+        kind="response"
+    )
+    assert set(transformed.keys()) == {"hello", "bar", "foo", "content-language"}
     assert transformed["hello"] == "world"
     assert transformed["bar"] == "baz"
     assert set(transformed["foo"]) == {"bar1", "bar2", "bar3"}
