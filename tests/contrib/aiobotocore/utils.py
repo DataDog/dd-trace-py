@@ -1,4 +1,4 @@
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 
 import aiobotocore.session
 
@@ -15,8 +15,8 @@ LOCALSTACK_ENDPOINT_URL = {
 }
 
 
-@contextmanager
-def aiobotocore_client(service, tracer):
+@asynccontextmanager
+async def aiobotocore_client(service, tracer):
     """Helper function that creates a new aiobotocore client so that
     it is closed at the end of the context manager.
     """
@@ -30,8 +30,18 @@ def aiobotocore_client(service, tracer):
         aws_secret_access_key="aws",
         aws_session_token="aws",
     )
-    Pin.override(client, tracer=tracer)
-    try:
-        yield client
-    finally:
-        client.close()
+
+    # In aiobotocore 1.x, ClientCreatorContext was added: https://github.com/aio-libs/aiobotocore/pull/659
+    if hasattr(aiobotocore.session, "ClientCreatorContext") and isinstance(
+        client, aiobotocore.session.ClientCreatorContext
+    ):
+        async with client as client:
+            Pin.override(client, tracer=tracer)
+            yield client
+
+    else:
+        Pin.override(client, tracer=tracer)
+        try:
+            yield client
+        finally:
+            await client.close()
