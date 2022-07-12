@@ -4,6 +4,7 @@ import pytest
 
 from ddtrace.debugging._config import config
 from ddtrace.debugging._probe.model import LineProbe
+from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.poller import ProbePoller
 from ddtrace.debugging._probe.poller import ProbePollerEvent
 from ddtrace.debugging._remoteconfig import _filter_by_env_and_version
@@ -89,7 +90,7 @@ def test_poller_events():
     events = set()
 
     def cb(e, ps):
-        events.add((e, frozenset([p.probe_id for p in ps])))
+        events.add((e, frozenset([p.probe_id if isinstance(p, Probe) else p for p in ps])))
 
     api = MockDebuggerRC()
     api.add_probes(

@@ -24,6 +24,13 @@ class ProbePollerEvent(object):
 ProbePollerEventType = int
 
 
+def probe_modified(reference, probe):
+    # type: (Probe, Probe) -> bool
+    # DEV: Probes are immutable modulo the active state. Hence we expect
+    # probes with the same ID to differ up to this property for now.
+    return probe.active != reference.active
+
+
 class ProbePoller(PeriodicService):
     """Poll RCM for new probe configurations.
 
@@ -65,10 +72,10 @@ class ProbePoller(PeriodicService):
 
         new_probes = [current_probes[_] for _ in current_probes if _ not in self._probes]
         deleted_probes = [self._probes[_] for _ in self._probes if _ not in current_probes]
-        # DEV: Probes are immutable modulo the active state. Hence we expect
-        # probes with the same ID to differ up to this property.
         modified_probes = [
-            current_probes[_] for _ in current_probes if _ in self._probes and current_probes[_] != self._probes[_]
+            current_probes[_]
+            for _ in current_probes
+            if _ in self._probes and probe_modified(current_probes[_], self._probes[_])
         ]
 
         if deleted_probes:
