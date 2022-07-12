@@ -3,6 +3,7 @@ import binascii
 import datetime
 import gzip
 import itertools
+import json
 import os
 import platform
 import typing
@@ -38,6 +39,9 @@ class UploadFailed(tenacity.RetryError, exporter.ExportError):
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
+
+    # repeat this to please mypy
+    enable_code_provenance = attr.ib(default=True, type=bool)
 
     endpoint = attr.ib(type=str, factory=agent.get_trace_url)
     api_key = attr.ib(default=None, type=typing.Optional[str])
@@ -150,7 +154,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         start_time_ns,  # type: int
         end_time_ns,  # type: int
     ):
-        # type: (...) -> pprof.pprof_ProfileType
+        # type: (...) -> typing.Tuple[pprof.pprof_ProfileType, typing.List[pprof.Package]]
         """Export events to an HTTP endpoint.
 
         :param events: The event dictionary from a `ddtrace.profiling.recorder.Recorder`.
@@ -167,9 +171,9 @@ class PprofHTTPExporter(pprof.PprofExporter):
         if self._container_info and self._container_info.container_id:
             headers["Datadog-Container-Id"] = self._container_info.container_id
 
-        profile = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
-        s = six.BytesIO()
-        with gzip.GzipFile(fileobj=s, mode="wb") as gz:
+        profile, libs = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
+        pprof = six.BytesIO()
+        with gzip.GzipFile(fileobj=pprof, mode="wb") as gz:
             gz.write(profile.SerializeToString())
         fields = {
             "version": b"3",
@@ -185,17 +189,31 @@ class PprofHTTPExporter(pprof.PprofExporter):
 
         service = self.service or os.path.basename(profile.string_table[profile.mapping[0].filename])
 
+        data = {b"auto.pprof": pprof.getvalue()}
+
+        if self.enable_code_provenance:
+            code_provenance = six.BytesIO()
+            with gzip.GzipFile(fileobj=code_provenance, mode="wb") as gz:
+                gz.write(
+                    json.dumps(
+                        {
+                            "v1": libs,
+                        }
+                    ).encode("utf-8")
+                )
+            data[b"code-provenance.json"] = code_provenance.getvalue()
+
         content_type, body = self._encode_multipart_formdata(
             fields,
             tags=self._get_tags(service),
-            data={b"auto.pprof": s.getvalue()},
+            data=data,
         )
         headers["Content-Type"] = content_type
 
         client = agent.get_connection(self.endpoint, self.timeout)
         self._upload(client, self.endpoint_path, body, headers)
 
-        return profile
+        return profile, libs
 
     def _upload(self, client, path, body, headers):
         self._retry_upload(self._upload_once, client, path, body, headers)
