@@ -13,10 +13,10 @@ def assert_sampling_decision_tags(span, sample_rate=1.0, mechanism=SamplingMecha
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
 
-def traced_function(rule):
+def traced_function(rule, name="test_name", service="test_service"):
     tracer = DummyTracer()
-    with tracer.trace("test_name") as span:
-        span.service = "test_service"
+    with tracer.trace(name) as span:
+        span.service = service
         rule.sample(span)
     return span
 
@@ -89,6 +89,34 @@ def test_single_span_rule_no_match_wildcards():
     span = traced_function(rule)
 
     assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_unsupported_pattern_bracket_expansion():
+    rule = SpanSamplingRule(service="test_servic[a-z]+", name="test_name")
+    span = traced_function(rule)
+
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_unsupported_pattern_escape_character():
+    rule = SpanSamplingRule(service="test_servic[?]", name="test_name")
+    span = traced_function(rule)
+
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_unsupported_pattern_bracket_expansion_literal_evaluation():
+    rule = SpanSamplingRule(service="test_servic[a-z]+", name="test_name")
+    span = traced_function(rule, service="test_servic[a-z]+")
+
+    assert_sampling_decision_tags(span)
+
+
+def test_single_span_rule_unsupported_pattern_escape_character_literal_evaluation():
+    rule = SpanSamplingRule(service="test_servic[?]", name="test_name")
+    span = traced_function(rule, service="test_servic[?]")
+
+    assert_sampling_decision_tags(span)
 
 
 def test_multiple_span_rule_match():

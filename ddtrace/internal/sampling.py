@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
     from ..span import Span
 
+# Big prime number to make hashing better distributed
 KNUTH_FACTOR = 1111111111111111111
 MAX_SPAN_ID = 2 ** 64
 
