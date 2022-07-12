@@ -267,10 +267,16 @@ def _serialize_exc_info(exc_info):
     _type, value, tb = exc_info
     if _type is None or value is None:
         return None
+
+    top_tb = tb
+    if top_tb is not None:
+        while top_tb.tb_next is not None:
+            top_tb = top_tb.tb_next
+
     return {
         "type": _type.__name__,
         "message": ", ".join([_serialize(v) for v in value.args]),
-        "stacktrace": _unwind_stack(tb.tb_frame) if tb is not None else None,
+        "stacktrace": _unwind_stack(top_tb.tb_frame) if top_tb is not None else None,
     }
 
 
