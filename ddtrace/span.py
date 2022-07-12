@@ -7,8 +7,13 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import TYPE_CHECKING
 from typing import Text
 from typing import Union
+
+
+if TYPE_CHECKING:
+    from ddtrace import Tracer
 
 import six
 
@@ -75,6 +80,7 @@ class Span(object):
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
+        "_tracer",
         "__weakref__",
     ]
 
@@ -150,6 +156,7 @@ class Span(object):
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
         self._store = None  # type: Optional[Dict[str, Any]]
+        self._tracer = None  # type: Optional[Tracer]
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -488,6 +495,7 @@ class Span(object):
         return self._context
 
     def __enter__(self):
+        self._tracer._tracing_event.set()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -497,6 +505,8 @@ class Span(object):
             self.finish()
         except Exception:
             log.exception("error closing trace")
+        finally:
+            self._tracer._tracing_event.clear()
 
     def __repr__(self):
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (

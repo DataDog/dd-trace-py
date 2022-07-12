@@ -135,3 +135,36 @@ def RLock():
 def Event():
     # type: (...) -> ResetObject[threading.Event]
     return ResetObject(threading.Event)
+
+
+class REvent(object):
+    def __init__(self):
+        self._event = Event()
+        self._count = 0
+        self._count_lock = Lock()
+
+    def __enter__(self):
+        self.set()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.clear()
+
+    def set(self):
+        with self._count_lock:
+            self._count += 1
+            self._event.set()
+
+    def clear(self):
+        with self._count_lock:
+            if self._count == 0:
+                return
+            self._count -= 1
+            if self._count == 0:
+                self._event.clear()
+
+    def wait(self, timeout=None):
+        return self._event.wait(timeout)
+
+    def is_set(self):
+        return self._event.is_set()

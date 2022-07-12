@@ -903,6 +903,7 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
             )
         finally:
             # Force a flush so all traces are submitted.
+            tracer.wait()
             tracer._writer.flush_queue()
             if async_mode:
                 del tracer._writer._headers["X-Datadog-Test-Session-Token"]

@@ -228,6 +228,14 @@ class Tracer(object):
 
         self._new_process = False
 
+        self._tracing_event = forksafe.REvent()
+
+    def wait(self, timeout=None):
+        return self._tracing_event.wait(timeout)
+
+    def is_tracing(self):
+        return self._tracing_event.is_set()
+
     def _atexit(self):
         # type: () -> None
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
@@ -610,6 +618,7 @@ class Tracer(object):
                 span_type=span_type,
                 on_finish=[self._on_span_finish],
             )
+            span._tracer = self
 
             # Extra attributes when from a local parent
             if parent:
@@ -629,6 +638,7 @@ class Tracer(object):
                 span_type=span_type,
                 on_finish=[self._on_span_finish],
             )
+            span._tracer = self
             span._local_root = span
             if config.report_hostname:
                 span._set_str_tag(HOSTNAME_KEY, hostname.get_hostname())
