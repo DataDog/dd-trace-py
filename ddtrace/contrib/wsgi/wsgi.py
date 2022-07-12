@@ -121,7 +121,6 @@ class DDWSGIMiddleware(object):
             # Note: The wsgi.response span will still have the error information included.
             span._ignore_exception(generatorExit)
 
-            # set wsgi.request resource and tags
             url = construct_url(environ)
             method = environ.get("REQUEST_METHOD")
             query_string = environ.get("QUERY_STRING")
