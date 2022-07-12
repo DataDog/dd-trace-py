@@ -13,6 +13,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
+from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
@@ -123,6 +124,10 @@ class _ProfilerInstance(service.Service):
     _memory_collector_enabled = attr.ib(
         factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
     )
+    enable_code_provenance = attr.ib(
+        factory=attr_utils.from_env("DD_PROFILING_ENABLE_CODE_PROVENANCE", False, formats.asbool),
+        type=bool,
+    )
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
@@ -169,6 +174,7 @@ class _ProfilerInstance(service.Service):
                 api_key=self.api_key,
                 endpoint=endpoint,
                 endpoint_path=endpoint_path,
+                enable_code_provenance=self.enable_code_provenance,
             ),
         ]
 
