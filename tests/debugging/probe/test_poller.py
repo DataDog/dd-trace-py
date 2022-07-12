@@ -2,6 +2,7 @@ from time import sleep
 
 import pytest
 
+from ddtrace.debugging._config import config
 from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.poller import ProbePoller
 from ddtrace.debugging._probe.poller import ProbePollerEvent
@@ -86,13 +87,9 @@ def test_poller_env_version(env, version, expected):
 
 def test_poller_events():
     events = set()
-    status_update_events = set()
 
     def cb(e, ps):
-        if e is ProbePollerEvent.STATUS_UPDATE:
-            status_update_events.add(ps)
-        else:
-            events.add((e, frozenset([p.probe_id for p in ps])))
+        events.add((e, frozenset([p.probe_id for p in ps])))
 
     api = MockDebuggerRC()
     api.add_probes(
@@ -123,36 +120,43 @@ def test_poller_events():
             ),
         ]
     )
-    poller = ProbePoller(api, cb, interval=0.1)
-    poller.start()
-    sleep(0.2)
-    api.remove_probes("probe1", "probe2")
-    api.add_probes(
-        [
-            # Modified
-            LineProbe(
-                probe_id="probe2",
-                source_file="tests/debugger/submod/stuff.py",
-                line=36,
-                condition=None,
-                active=False,
-            ),
-            # New
-            LineProbe(
-                probe_id="probe5",
-                source_file="tests/debugger/submod/stuff.py",
-                line=36,
-                condition=None,
-                active=False,
-            ),
-        ]
-    )
-    sleep(0.2)
-    poller.stop()
 
-    assert events == {
-        (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
-        (ProbePollerEvent.DELETED_PROBES, frozenset(["probe1"])),
-        (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe2"])),
-        (ProbePollerEvent.NEW_PROBES, frozenset(["probe5"])),
-    }
+    old_interval = config.diagnostic_interval
+    config.diagnostic_interval = 0.5
+    try:
+        poller = ProbePoller(api, cb, interval=0.1)
+        poller.start()
+        sleep(0.2)
+        api.remove_probes("probe1", "probe2")
+        api.add_probes(
+            [
+                # Modified
+                LineProbe(
+                    probe_id="probe2",
+                    source_file="tests/debugger/submod/stuff.py",
+                    line=36,
+                    condition=None,
+                    active=False,
+                ),
+                # New
+                LineProbe(
+                    probe_id="probe5",
+                    source_file="tests/debugger/submod/stuff.py",
+                    line=36,
+                    condition=None,
+                    active=False,
+                ),
+            ]
+        )
+        sleep(0.4)
+        poller.stop()
+
+        assert events == {
+            (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
+            (ProbePollerEvent.DELETED_PROBES, frozenset(["probe1"])),
+            (ProbePollerEvent.MODIFIED_PROBES, frozenset(["probe2"])),
+            (ProbePollerEvent.NEW_PROBES, frozenset(["probe5"])),
+            (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe4", "probe2", "probe3", "probe5"])),
+        }
+    finally:
+        config.diagnostic_interval = old_interval
