@@ -16,12 +16,12 @@ def test_registry_contains():
 
 def test_registry_pending():
     # Start with registering 10 probes
-    probes = [LineProbe(probe_id=i, source_file="foo", line=i) for i in range(10)]
+    probes = [LineProbe(probe_id=i, source_file=__file__, line=i) for i in range(10)]
 
     registry = ProbeRegistry(DummyProbeStatusLogger("test", "test"))
     registry.register(*probes)
 
-    assert registry.get_pending("foo") == probes
+    assert registry.get_pending(__file__) == probes
 
     installed_probes, pending_probes = probes[:5], probes[5:]
 
@@ -29,7 +29,7 @@ def test_registry_pending():
     for probe in installed_probes:
         registry.set_installed(probe)
 
-    assert registry.get_pending("foo") == pending_probes
+    assert registry.get_pending(__file__) == pending_probes
     assert all(p in registry for p in probes)
 
     unreg_probes, pending_probes = pending_probes[:3], pending_probes[3:]
@@ -37,7 +37,7 @@ def test_registry_pending():
     # Some pending probes are now unregistered
     registry.unregister(*unreg_probes)
 
-    assert registry.get_pending("foo") == pending_probes
+    assert registry.get_pending(__file__) == pending_probes
     assert all(p not in registry for p in unreg_probes)
 
 
@@ -45,7 +45,7 @@ def test_registry_location_error():
     status_logger = DummyProbeStatusLogger("test", "test")
     registry = ProbeRegistry(status_logger)
 
-    probe = LineProbe(probe_id=42, source_file="foo", line=1)
+    probe = LineProbe(probe_id=42, source_file=__file__, line=1)
 
     # Ensure the probe has no location information
     probe.source_file = None
@@ -53,7 +53,7 @@ def test_registry_location_error():
     registry.register(probe)
 
     # Check that the probe is not pending
-    assert not registry.get_pending("foo")
+    assert not registry.get_pending(__file__)
 
     # Check that we emitted the correct diagnostic error message
     assert status_logger.queue == [
