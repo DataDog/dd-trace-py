@@ -61,7 +61,7 @@ def test_transform_response_headers():
         },
         kind="response",
     )
-    assert set(transformed.keys()) == {"hello", "bar", "foo", "content-language"}
+    assert set(transformed.keys()) == {"hello", "bar", "foo"}
     assert transformed["hello"] == "world"
     assert transformed["bar"] == "baz"
     assert set(transformed["foo"]) == {"bar1", "bar2", "bar3"}
