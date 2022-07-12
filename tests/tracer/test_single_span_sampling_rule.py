@@ -127,7 +127,7 @@ def test_multiple_span_rule_match():
         assert_sampling_decision_tags(span)
 
 
-def test_rate_limiter_0():
+def test_max_per_sec_0():
     rule = SpanSamplingRule(service="test_service", name="test_name", max_per_second=0)
     for i in range(10):
         span = traced_function(rule)
@@ -136,14 +136,16 @@ def test_rate_limiter_0():
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
 
 
-def test_single_span_rule_match_max_per_sec():
+def test_match_max_per_sec():
     rule = SpanSamplingRule(service="test_service", name="test_name", max_per_second=2)
     # Make spans till we hit the limit, then make a span while the limit is hit and make sure tags were not added.
     while True:
         span = traced_function(rule)
-        if not rule.limiter.is_allowed(span.start_ns):
+        if rule.limiter._is_allowed(span.start_ns):
+            assert_sampling_decision_tags(span, limit=2)
+        else:
             break
 
-    span = traced_function(rule)
+    rate_limited_span = traced_function(rule)
 
-    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+    assert_sampling_decision_tags(rate_limited_span, sample_rate=None, mechanism=None, limit=None)
