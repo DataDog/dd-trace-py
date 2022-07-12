@@ -28,6 +28,33 @@ def test_single_span_rule_default_no_match():
     assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
 
 
+def test_single_span_rule_no_match_service():
+    rule = SpanSamplingRule(service="wrong_service_name", name="test_name")
+    span = traced_function(rule)
+
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_no_match_name():
+    rule = SpanSamplingRule(service="test_service", name="wrong_operation_name")
+    span = traced_function(rule)
+
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_no_match_only_service():
+    rule = SpanSamplingRule(service="wrong_service_name")
+    span = traced_function(rule)
+
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_no_match_only_name():
+    rule = SpanSamplingRule(name="wrong_operation_name")
+    span = traced_function(rule)
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
 def test_single_span_rule_match():
     rule = SpanSamplingRule(service="test_service", name="test_name")
     span = traced_function(rule)
@@ -35,11 +62,33 @@ def test_single_span_rule_match():
     assert_sampling_decision_tags(span)
 
 
-def test_single_span_rule_match_max_per_sec():
-    rule = SpanSamplingRule(service="test_service", name="test_name", max_per_second=133)
+def test_single_span_rule_match_only_service():
+    rule = SpanSamplingRule(service="test_service")
     span = traced_function(rule)
 
-    assert_sampling_decision_tags(span, limit=133)
+    assert_sampling_decision_tags(span)
+
+
+def test_single_span_rule_match_only_name():
+    rule = SpanSamplingRule(name="test_name")
+    span = traced_function(rule)
+
+    assert_sampling_decision_tags(span)
+
+
+# More extensive testing of the matching is done in test_glob_matcher.py
+def test_single_span_rule_match_wildcards():
+    rule = SpanSamplingRule(service="test_*", name="test?????")
+    span = traced_function(rule)
+
+    assert_sampling_decision_tags(span)
+
+
+def test_single_span_rule_no_match_wildcards():
+    rule = SpanSamplingRule(service="*test_", name="test_nam??")
+    span = traced_function(rule)
+
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
 
 
 def test_multiple_span_rule_match():
@@ -57,3 +106,16 @@ def test_rate_limiter_0():
         # None of the single span sampling tags should be added to the span
         # if it's dropped by the single span rate limiter
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_match_max_per_sec():
+    rule = SpanSamplingRule(service="test_service", name="test_name", max_per_second=2)
+    # Make spans till we hit the limit, then make a span while the limit is hit and make sure tags were not added.
+    while True:
+        span = traced_function(rule)
+        if not rule.limiter.is_allowed(span.start_ns):
+            break
+
+    span = traced_function(rule)
+
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
