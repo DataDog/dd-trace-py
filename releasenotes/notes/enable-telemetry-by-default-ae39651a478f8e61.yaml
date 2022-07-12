@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Enable telemetry collection when using ddtrace-run.
