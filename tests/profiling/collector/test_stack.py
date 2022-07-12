@@ -10,6 +10,7 @@ import uuid
 import pytest
 import six
 
+import ddtrace
 from ddtrace.internal import compat
 from ddtrace.internal import nogevent
 from ddtrace.profiling import _threading
@@ -332,30 +333,39 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 326, "test_exception_collection")]
+    assert e.frames == [(__file__, 327, "test_exception_collection")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
 
 @pytest.mark.skipif(not stack.FEATURES["stack-exceptions"], reason="Stack exceptions not supported")
-def test_exception_collection_trace(tracer):
+def test_exception_collection_trace(
+    tracer,  # type: ddtrace.Tracer
+):
+    # type: (...) -> None
     r = recorder.Recorder()
     c = stack.StackCollector(r, tracer=tracer)
     with c:
         with tracer.trace("test123") as span:
-            try:
-                raise ValueError("hello")
-            except Exception:
-                nogevent.sleep(1)
+            for _ in range(100):
+                try:
+                    raise ValueError("hello")
+                except Exception:
+                    nogevent.sleep(1)
 
-    exception_events = r.events[stack_event.StackExceptionSampleEvent]
-    assert len(exception_events) >= 1
+                # Check we caught an event or retry
+                exception_events = r.reset()[stack_event.StackExceptionSampleEvent]
+                if len(exception_events) >= 1:
+                    break
+            else:
+                pytest.fail("No exception event found")
+
     e = exception_events[0]
     assert e.timestamp > 0
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 349, "test_exception_collection_trace")]
+    assert e.frames == [(__file__, 354, "test_exception_collection_trace")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
