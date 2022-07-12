@@ -9,6 +9,7 @@ from typing import Tuple
 
 from envier import En
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
@@ -122,6 +123,8 @@ class Config(En):
 
     __prefix__ = "dd"
 
+    _int_config_lock = forksafe.Lock()
+
     class _HTTPServerConfig(object):
         _error_statuses = "500-599"  # type: str
         _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
@@ -208,9 +211,16 @@ class Config(En):
     _trace_compute_stats = En.v(bool, "trace.compute_stats", default=False)
 
     def __getattr__(self, name):
-        int_config = IntegrationConfig(self, name)
-        setattr(self, name, int_config)
-        return int_config
+        with self._int_config_lock:
+            # Some other thread might have created it while we were waiting to
+            # acquire the lock, so we check again.
+            int_config = getattr(self, name, None)
+            if int_config is not None:
+                return int_config
+
+            int_config = IntegrationConfig(self, name)
+            setattr(self, name, int_config)
+            return int_config
 
     def get_from(self, obj):
         """Retrieves the configuration for the given object.
