@@ -149,7 +149,6 @@ def test_headers_collection(tracer):
     assert span.get_tag("http.request.headers.x-forwarded-for") == "127.0.0.1"
     assert span.get_tag("http.response.headers.content-length") == "500"
     assert span.get_tag("http.response.headers.foo") is None
-    assert span.get_tag("http.response.headers.content-language") == ""
 
 
 @snapshot(include_tracer=True)

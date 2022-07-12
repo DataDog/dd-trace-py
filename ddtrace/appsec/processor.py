@@ -53,10 +53,6 @@ def _transform_headers(data, kind="request"):
         else:
             normalized[header] = value
 
-    # Add default content-language to response headers
-    if kind == "response" and "content-language" not in normalized:
-        normalized["content-language"] = ""
-
     return normalized
 
 
