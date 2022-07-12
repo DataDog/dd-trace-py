@@ -214,7 +214,7 @@ class Config(En):
         with self._int_config_lock:
             # Some other thread might have created it while we were waiting to
             # acquire the lock, so we check again.
-            int_config = getattr(self, name, None)
+            int_config = self.__dict__.get(name, None)
             if int_config is not None:
                 return int_config
 
