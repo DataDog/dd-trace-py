@@ -3,7 +3,6 @@ import six
 from webtest import TestApp
 
 from ddtrace import config
-from ddtrace.contrib.wsgi import _utils
 from ddtrace.contrib.wsgi import wsgi
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
@@ -60,22 +59,22 @@ def application(environ, start_response):
         return [body]
 
 
-class WsgiCustomMiddleware(_utils.DDWSGIMiddlewareBase):
-    request_span_name = "test_wsgi.request"
-    application_span_name = "test_wsgi.application"
-    response_span_name = "test_wsgi.response"
+class WsgiCustomMiddleware(wsgi._DDWSGIMiddlewareBase):
+    _request_span_name = "test_wsgi.request"
+    _application_span_name = "test_wsgi.application"
+    _response_span_name = "test_wsgi.response"
 
-    def request_span_modifier(self, req_span, environ):
+    def _request_span_modifier(self, req_span, environ):
         req_span.set_tag("request_tag", "req test tag set")
         req_span.set_metric("request_metric", 1)
         req_span.resource = "request resource was modified"
 
-    def application_span_modifier(self, app_span, environ, result):
+    def _application_span_modifier(self, app_span, environ, result):
         app_span.set_tag("app_tag", "app test tag set")
         app_span.set_metric("app_metric", 2)
         app_span.resource = "app resource was modified"
 
-    def response_span_modifier(self, resp_span, response):
+    def _response_span_modifier(self, resp_span, response):
         resp_span.set_tag("response_tag", "resp test tag set")
         resp_span.set_metric("response_metric", 3)
         resp_span.resource = "response resource was modified"
@@ -219,6 +218,24 @@ def test_chunked_response(tracer, test_spans):
     assert span.name == "wsgi.request"
 
 
+def test_chunked_response_custom_middleware(tracer, test_spans):
+    app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
+    resp = app.get("/chunked")
+    assert resp.status == "200 OK"
+    assert resp.status_int == 200
+    assert resp.text.startswith("0123456789")
+    assert resp.text.endswith("999")
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+
+    spans = traces[0]
+    assert len(spans) == 3
+    assert spans[0].name == "test_wsgi.request"
+    assert spans[1].name == "test_wsgi.application"
+    assert spans[2].name == "test_wsgi.response"
+
+
 @snapshot()
 def test_chunked():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
@@ -244,7 +261,7 @@ def test_500():
         app.get("/error")
 
 
-@snapshot()
+@pytest.mark.snapshot(token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware")
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware(use_global_tracer, tracer):
     app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
@@ -253,7 +270,9 @@ def test_wsgi_base_middleware(use_global_tracer, tracer):
     assert resp.status_int == 200
 
 
-@snapshot(ignores=["meta.error.stack", "meta.error.type"])
+@pytest.mark.snapshot(
+    token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware_500", ignores=["meta.error.stack", "meta.error.type"]
+)
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware_500(use_global_tracer, tracer):
     # Note - span modifiers are not called
