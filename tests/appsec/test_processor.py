@@ -104,26 +104,119 @@ def test_header_attack(tracer):
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
 
-def test_headers_collection(tracer):
+@pytest.mark.parametrize(
+    "payload,tag,expected_result",
+    [
+        (
+            {
+                "request_path_params": "",
+                "status_code": "404",
+                "request_headers": {
+                    "hello": "world",
+                    "accept": "something",
+                    "x-Forwarded-for": "127.0.0.1",
+                },
+            },
+            "http.request.headers.hello",
+            None,
+        ),
+        (
+            {
+                "status_code": "404",
+                "request_headers": {
+                    "hello": "world",
+                    "accept": "something",
+                    "x-Forwarded-for": "127.0.0.1",
+                },
+            },
+            "http.request.headers.accept",
+            "something",
+        ),
+        (
+            {
+                "status_code": "200",
+                "request_headers": {
+                    "hello": "world",
+                    "accept": "something",
+                    "x-Forwarded-for": "127.0.0.1",
+                },
+            },
+            "http.request.headers.x-forwarded-for",
+            "127.0.0.1",
+        ),
+        (
+            {
+                "status_code": "200",
+                "response_headers": (
+                    ("hello", "world"),
+                    ("content-type", "something"),
+                    ("accept-language", "127.0.0.1"),
+                ),
+            },
+            "http.response.headers.hello",
+            None,
+        ),
+        # TODO: uncomment when collect response headers will be merged
+        # ({
+        #      "status_code": "200",
+        #      "request_headers": {
+        #          "hello": "world",
+        #          "accept": "something",
+        #          "x-Forwarded-for": "127.0.0.1",
+        #      },
+        #      "response_headers": (
+        #              ("hello", "world"),
+        #              ("content-type", "something"),
+        #              ("accept-language", "127.0.0.1"),
+        #      ),
+        #  }, "http.response.headers.content-type", "something"),
+    ],
+)
+def test_headers_collection(payload, tag, expected_result, tracer):
     _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        payload["span"] = span
+        payload["integration_config"] = Config()
+        payload["raw_uri"] = "http://example.com/.git"
+        payload["status_code"] = "404"
+        set_http_meta(**payload)
 
-        set_http_meta(
-            span,
-            Config(),
-            raw_uri="http://example.com/.git",
-            status_code="404",
-            request_headers={
-                "hello": "world",
-                "accept": "something",
-                "x-Forwarded-for": "127.0.0.1",
+    assert span.get_tag(tag) == expected_result
+
+
+@pytest.mark.parametrize(
+    "payload,tag,expected_result",
+    [
+        (
+            {
+                "status_code": "200",
+                "request_cookies": {"cookie1": "im the cookie1"},
             },
-        )
+            "http.request.cookies.cookie1",
+            None,
+        ),
+        (
+            {
+                "status_code": "200",
+                "request_cookies": {"cookie1": "im the cookie1"},
+            },
+            "http.request.cookies",
+            None,
+        ),
+    ],
+)
+def test_cookies_collection(payload, tag, expected_result, tracer):
+    _enable_appsec(tracer)
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        payload["span"] = span
+        payload["integration_config"] = Config()
+        payload["raw_uri"] = "http://example.com/.git"
+        payload["status_code"] = "404"
+        set_http_meta(**payload)
 
-    assert span.get_tag("http.request.headers.hello") is None
-    assert span.get_tag("http.request.headers.accept") == "something"
-    assert span.get_tag("http.request.headers.x-forwarded-for") == "127.0.0.1"
+    # Because is sensitive data, server.request.cookies should be None
+    assert span.get_tag(tag) == expected_result
 
 
 @snapshot(include_tracer=True)

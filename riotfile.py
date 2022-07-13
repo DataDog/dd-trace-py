@@ -141,6 +141,10 @@ venv = Venv(
                 "types-PyYAML": latest,
                 "types-setuptools": latest,
                 "types-six": latest,
+                "types-requests": latest,
+                "types-boto": latest,
+                "types-redis": latest,
+                "types-PyMySQL": latest,
             },
         ),
         Venv(
@@ -164,6 +168,11 @@ venv = Venv(
                 Venv(
                     name="slotscheck",
                     command="python -m slotscheck -v {cmdargs}",
+                    pkgs={
+                        "flask": ["~=0.12.0"],
+                        "jinja2": "~=3.0.1",
+                        "itsdangerous": "<2.0",
+                    },
                 ),
             ],
         ),
