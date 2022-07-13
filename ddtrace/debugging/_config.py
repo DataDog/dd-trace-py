@@ -22,6 +22,7 @@ DEFAULT_MAX_PAYLOAD_SIZE = 1 << 20  # 1 MB
 DEFAULT_CONFIG_TIMEOUT = 30  # s
 DEFAULT_UPLOAD_TIMEOUT = 30  # seconds
 DEFAULT_UPLOAD_FLUSH_INTERVAL = 1.0  # seconds
+DEFAULT_PROBE_POLL_INTERVAL = 1.0  # seconds
 DEFAULT_DIAGNOSTIC_INTERVAL = 3600  # 1 hour
 
 
@@ -38,6 +39,7 @@ class DebuggerConfig(object):
     config_timeout = DEFAULT_CONFIG_TIMEOUT
     upload_timeout = DEFAULT_UPLOAD_TIMEOUT
     upload_flush_interval = DEFAULT_UPLOAD_FLUSH_INTERVAL
+    poll_interval = DEFAULT_PROBE_POLL_INTERVAL
     diagnostic_interval = DEFAULT_DIAGNOSTIC_INTERVAL
     tags = None  # type: Optional[str]
     _tags = {}  # type: Dict[str, str]
@@ -72,6 +74,7 @@ class DebuggerConfig(object):
         self.max_payload_size = int(os.getenv("DD_DEBUGGER_MAX_PAYLOAD_SIZE", DEFAULT_MAX_PAYLOAD_SIZE))
 
         self.config_timeout = int(os.getenv("DD_DEBUGGER_CONFIG_TIMEOUT", DEFAULT_CONFIG_TIMEOUT))
+        self.poll_interval = int(os.getenv("DD_DEBUGGER_POLL_INTERVAL", DEFAULT_PROBE_POLL_INTERVAL))
         self.diagnostic_interval = int(os.getenv("DD_DEBUGGER_DIAGNOSTIC_INTERVAL", DEFAULT_DIAGNOSTIC_INTERVAL))
 
         log.debug(
