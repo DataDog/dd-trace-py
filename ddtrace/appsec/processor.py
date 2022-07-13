@@ -34,25 +34,18 @@ DEFAULT_WAF_TIMEOUT = 20  # ms
 log = get_logger(__name__)
 
 
-def _transform_headers(data, kind="request"):
-    # type: (Union[Dict[str, str], List[Tuple[str, str]]], str) -> Dict[str, Union[str, List[str]]]
-    normalized = {}  # type: Dict[str, Union[str, List[str]]]
-
+def _transform_headers(data):
+    # type: (Union[Dict[str, str], List[Tuple[str, str]]]) -> Mapping[str, List[str]]
+    normalized = {}  # type: Mapping[str, List[str]]
     headers = data if isinstance(data, list) else data.items()
-
     for header, value in headers:
         header = header.lower()
         if header in ("cookie", "set-cookie"):
             continue
-        if header in normalized:  # if a header with the same lowercase name already exists, let's make it an array
-            existing = normalized[header]
-            if isinstance(existing, list):
-                existing.append(value)
-            else:
-                normalized[header] = [existing, value]
-        else:
-            normalized[header] = value
-
+        if header in normalized:
+            normalized[header].append(value)
+        else:  # if a header with the same lowercase name doesn't exist, let's add it in an array
+            normalized[header] = [value]
     return normalized
 
 
@@ -193,7 +186,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if self._is_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES):
             request_headers = _context.get_item("http.request.headers", span=span)
             if request_headers is not None:
-                data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES] = _transform_headers(request_headers, kind="request")
+                data[_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES] = _transform_headers(request_headers)
 
         if self._is_needed(_Addresses.SERVER_REQUEST_URI_RAW):
             uri = _context.get_item("http.request.uri", span=span)
@@ -223,9 +216,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if self._is_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES):
             response_headers = _context.get_item("http.response.headers", span=span)
             if response_headers is not None:
-                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_headers(
-                    response_headers, kind="response"
-                )
+                data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_headers(response_headers)
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
