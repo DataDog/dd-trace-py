@@ -3,7 +3,6 @@ import json
 import os
 import os.path
 from typing import List
-from typing import Mapping
 from typing import Set
 from typing import TYPE_CHECKING
 from typing import Tuple
@@ -36,8 +35,8 @@ log = get_logger(__name__)
 
 
 def _transform_headers(data):
-    # type: (Union[Dict[str, str], List[Tuple[str, str]]]) -> Mapping[str, List[str]]
-    normalized = {}  # type: Mapping[str, List[str]]
+    # type: (Union[Dict[str, str], List[Tuple[str, str]]]) -> Dict[str, List[str]]
+    normalized = {}  # type: Dict[str, List[str]]
     headers = data if isinstance(data, list) else data.items()
     for header, value in headers:
         header = header.lower()
