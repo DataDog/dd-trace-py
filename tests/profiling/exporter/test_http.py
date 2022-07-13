@@ -71,6 +71,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
             "version": lambda x: x[0] == b"3",
             "tags[]": self._check_tags,
             "data[auto.pprof]": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
+            "data[code-provenance.json]": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
         }.items():
             if not check(items[key]):
                 self.send_error(400, "Wrong value for %s: %r" % (key, items[key]))

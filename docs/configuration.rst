@@ -259,6 +259,12 @@ below:
      - 64
      - The maximum number of frames to capture in stack execution tracing.
 
+       .. _dd-profiling-code-provenance:
+   * - ``DD_PROFILING_ENABLE_CODE_PROVENANCE``
+     - Boolean
+     - False
+     - Whether to enable code provenance.
+
        .. _dd-profiling-memory-enabled:
    * - ``DD_PROFILING_MEMORY_ENABLED``
      - Boolean
