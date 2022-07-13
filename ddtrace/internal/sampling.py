@@ -2,6 +2,7 @@ import re
 from typing import TYPE_CHECKING
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.processor import SpanProcessor
 
 
 log = get_logger(__name__)
@@ -10,6 +11,7 @@ if TYPE_CHECKING:
     from typing import Dict
     from typing import Optional
     from typing import Text
+    from typing import List
 
     from ddtrace.context import Context
 
@@ -82,3 +84,25 @@ def update_sampling_decision(
         return _set_trace_tag(context, sampling_mechanism)
     else:
         return _unset_trace_tag(context)
+
+class SingleSpanSamplingProcessor(SpanProcessor):
+    """SpanProcessor for sampling single spans"""
+    def __init__(self, rules):
+        # type: (List[SpanSamplingRule]) -> None
+        self.rules = rules
+
+    def on_span_start(self, span):
+        # type: (Span) -> None
+        pass
+
+    def on_span_finish(self, span):
+        # type: (Span) -> None
+        for rule in self.rules:
+            rule.sample(span)
+    
+    def shutdown(self, timeout):
+        # type: (Optional[float]) -> None
+        # do I need to call periodic() and stop() like how the stats processor does?
+        pass
+        # self.periodic()
+        # self.stop(timeout)
