@@ -21,10 +21,9 @@ def traced_function(rule, name="test_name", service="test_service"):
     return span
 
 
-def test_single_span_rule_default_no_match():
-    rule = SpanSamplingRule()
+def test_single_span_rule_no_match_empty_strings():
+    rule = SpanSamplingRule(service="", name="")
     span = traced_function(rule)
-
     assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
 
 

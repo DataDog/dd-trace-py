@@ -126,9 +126,14 @@ class SpanSamplingRule:
             self.limiter = RateLimiter(max_per_second)
 
         # we need to create matchers for the service and/or name pattern provided
-        if service:
+        if service is None:
+            self.service_matcher = GlobMatcher("*")
+        else:
             self.service_matcher = GlobMatcher(service)
-        if name:
+
+        if name is None:
+            self.name_matcher = GlobMatcher("*")
+        else:
             self.name_matcher = GlobMatcher(name)
 
     def sample(self, span):
@@ -149,17 +154,8 @@ class SpanSamplingRule:
         return ((span.span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self.sampling_id_threshold
 
     def match(self, span):
-        """Determines if the span's service and name match the configured patterns
-        We check if a service and/or name pattern were given, and if so evaluate them against the span.
-        """
-        if hasattr(self, "service_matcher") and hasattr(self, "name_matcher"):
-            return self.service_matcher.match(span.service) and self.name_matcher.match(span.name)
-        elif hasattr(self, "service_matcher"):
-            return self.service_matcher.match(span.service)
-        elif hasattr(self, "name_matcher"):
-            return self.name_matcher.match(span.name)
-        else:
-            return False
+        """Determines if the span's service and name match the configured patterns"""
+        return self.service_matcher.match(span.service) and self.name_matcher.match(span.name)
 
     def set_sample_rate(self, sample_rate=1.0):
         self.sample_rate = float(sample_rate)
