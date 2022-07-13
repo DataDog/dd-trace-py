@@ -120,6 +120,17 @@ class DDWSGIMiddleware(object):
             # This can occur if a streaming response exits abruptly leading to a broken pipe.
             # Note: The wsgi.response span will still have the error information included.
             span._ignore_exception(generatorExit)
+
+            url = construct_url(environ)
+            method = environ.get("REQUEST_METHOD")
+            query_string = environ.get("QUERY_STRING")
+            request_headers = get_request_headers(environ)
+            trace_utils.set_http_meta(
+                span, config.wsgi, method=method, url=url, query=query_string, request_headers=request_headers
+            )
+            if self.span_modifier:
+                self.span_modifier(span, environ)
+
             with self.tracer.trace("wsgi.application"):
                 result = self.app(environ, intercept_start_response)
 
@@ -131,17 +142,6 @@ class DDWSGIMiddleware(object):
 
                 for chunk in result:
                     yield chunk
-
-            url = construct_url(environ)
-            method = environ.get("REQUEST_METHOD")
-            query_string = environ.get("QUERY_STRING")
-            request_headers = get_request_headers(environ)
-            trace_utils.set_http_meta(
-                span, config.wsgi, method=method, url=url, query=query_string, request_headers=request_headers
-            )
-
-            if self.span_modifier:
-                self.span_modifier(span, environ)
 
             if hasattr(result, "close"):
                 try:

@@ -248,6 +248,7 @@ setup(
         "six>=1.12.0",
         "typing_extensions; python_version<'3.8'",
         "importlib_metadata; python_version<'3.8'",
+        "pathlib2; python_version<'3.5'",
     ]
     + bytecode,
     extras_require={

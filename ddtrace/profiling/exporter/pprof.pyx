@@ -1,6 +1,8 @@
 import collections
 import itertools
 import operator
+import platform
+import sysconfig
 import typing
 
 import attr
@@ -15,6 +17,70 @@ from ddtrace.profiling import recorder
 from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
+from ddtrace.profiling.exporter import _packages
+
+
+if hasattr(typing, "TypedDict"):
+    Package = typing.TypedDict(
+        "Package",
+        {
+            "name": str,
+            "version": str,
+            "kind": typing.Literal["standard library", "library"],
+            "paths": typing.List[str],
+        },
+    )
+else:
+    Package = dict  # type: ignore
+
+
+stdlib_path = sysconfig.get_path("stdlib")
+platstdlib_path = sysconfig.get_path("platstdlib")
+purelib_path = sysconfig.get_path("purelib")
+platlib_path = sysconfig.get_path("platlib")
+
+
+STDLIB = []  # type: typing.List[Package]
+
+
+if stdlib_path is not None:
+    STDLIB.append(
+        Package(
+            {
+                "name": "stdlib",
+                "kind": "standard library",
+                "version": platform.python_version(),
+                "paths": [stdlib_path],
+            }
+        )
+    )
+
+if purelib_path is not None:
+    # No library should end up here, include it just in case
+    STDLIB.append(
+        Package(
+            {
+                "name": "<unknown>",
+                "kind": "library",
+                "version": "<unknown>",
+                "paths": [purelib_path]
+                + ([] if platlib_path is None or purelib_path == platlib_path else [platlib_path]),
+            }
+        )
+    )
+
+
+if platstdlib_path is not None and platstdlib_path != stdlib_path:
+    STDLIB.append(
+        Package(
+            {
+                "name": "platstdlib",
+                "kind": "standard library",
+                "version": platform.python_version(),
+                "paths": [platstdlib_path],
+            }
+        )
+    )
 
 
 def _protobuf_version():
@@ -378,6 +444,33 @@ class _PprofConverter(object):
 
         self._location_values[location_key]["exception-samples"] = len(events)
 
+    def _build_libraries(self) -> typing.List[Package]:
+        return [
+            Package(
+                {
+                    "name": lib.name,
+                    "kind": "library",
+                    "version": lib.version,
+                    "paths": sorted(lib_and_filename[1] for lib_and_filename in libs_and_filenames),
+                }
+            )
+            for lib, libs_and_filenames in itertools.groupby(
+                sorted(
+                    set(
+                        filter(
+                            lambda p: p[0] is not None,
+                            (
+                                (_packages.filename_to_package(filename), filename)
+                                for filename, lineno, funcname in self._locations
+                            ),
+                        )
+                    ),
+                    key=_ITEMGETTER_ZERO,
+                ),
+                key=_ITEMGETTER_ZERO,
+            )
+        ] + STDLIB
+
     def _build_profile(
         self,
         start_time_ns: int,
@@ -481,6 +574,8 @@ StackExceptionEventGroupKey = typing.NamedTuple(
 class PprofExporter(exporter.Exporter):
     """Export recorder events to pprof format."""
 
+    enable_code_provenance = attr.ib(default=True, type=bool)
+
     def _stack_event_group_key(self, event: event.StackBasedEvent) -> StackEventGroupKey:
         return StackEventGroupKey(
             _none_to_str(event.thread_id),
@@ -565,7 +660,9 @@ class PprofExporter(exporter.Exporter):
             (trace_resource,) = event.trace_resource_container
         return ensure_str(trace_resource, errors="backslashreplace")
 
-    def export(self, events: recorder.EventsType, start_time_ns: int, end_time_ns: int) -> pprof_ProfileType:
+    def export(
+        self, events: recorder.EventsType, start_time_ns: int, end_time_ns: int
+    ) -> typing.Tuple[pprof_ProfileType, typing.List[Package]]:
         """Convert events to pprof format.
 
         :param events: The event dictionary from a `ddtrace.profiling.recorder.Recorder`.
@@ -741,10 +838,18 @@ class PprofExporter(exporter.Exporter):
             ("heap-space", "bytes"),
         )
 
-        return converter._build_profile(
+        profile = converter._build_profile(
             start_time_ns=start_time_ns,
             duration_ns=duration_ns,
             period=period,
             sample_types=sample_types,
             program_name=program_name,
         )
+
+        # Build profile first to get location filled out
+        if self.enable_code_provenance:
+            libs = converter._build_libraries()
+        else:
+            libs = []
+
+        return profile, libs
