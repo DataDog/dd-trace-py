@@ -3,6 +3,7 @@ import json
 import os
 import os.path
 from typing import List
+from typing import Mapping
 from typing import Set
 from typing import TYPE_CHECKING
 from typing import Tuple
