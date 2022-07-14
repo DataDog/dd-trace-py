@@ -101,13 +101,13 @@ class SpanSamplingRule:
     """A span sampling rule to evaluate and potentially tag each span upon finish."""
 
     __slots__ = (
-        "service_matcher",
-        "name_matcher",
-        "sample_rate",
-        "max_per_second",
-        "sampling_id_threshold",
-        "limiter",
-        "matcher",
+        "_service_matcher",
+        "_name_matcher",
+        "_sample_rate",
+        "_max_per_second",
+        "_sampling_id_threshold",
+        "_limiter",
+        "_matcher",
     )
 
     def __init__(
@@ -118,51 +118,51 @@ class SpanSamplingRule:
         max_per_second=None,  # type: Optional[int]
     ):
         self.set_sample_rate(sample_rate)
-        self.max_per_second = max_per_second
+        self._max_per_second = max_per_second
         # If no max_per_second specified then there is no limit
         if max_per_second is None:
-            self.limiter = RateLimiter(-1)
+            self._limiter = RateLimiter(-1)
         else:
-            self.limiter = RateLimiter(max_per_second)
+            self._limiter = RateLimiter(max_per_second)
 
         # we need to create matchers for the service and/or name pattern provided
         if service is None:
-            self.service_matcher = GlobMatcher("*")
+            self._service_matcher = GlobMatcher("*")
         else:
-            self.service_matcher = GlobMatcher(service)
+            self._service_matcher = GlobMatcher(service)
 
         if name is None:
-            self.name_matcher = GlobMatcher("*")
+            self._name_matcher = GlobMatcher("*")
         else:
-            self.name_matcher = GlobMatcher(name)
+            self._name_matcher = GlobMatcher(name)
 
     def sample(self, span):
         # type: (Span) -> bool
         if self.match(span) and self._sample(span):
-            if self.limiter.is_allowed(span.start_ns):
+            if self._limiter.is_allowed(span.start_ns):
                 self.apply_span_sampling_tags(span)
                 return True
         return False
 
     def _sample(self, span):
         # type: (Span) -> bool
-        if self.sample_rate == 1:
+        if self._sample_rate == 1:
             return True
-        elif self.sample_rate == 0:
+        elif self._sample_rate == 0:
             return False
 
         return ((span.span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self.sampling_id_threshold
 
     def match(self, span):
         """Determines if the span's service and name match the configured patterns"""
-        return self.service_matcher.match(span.service) and self.name_matcher.match(span.name)
+        return self._service_matcher.match(span.service) and self._name_matcher.match(span.name)
 
     def set_sample_rate(self, sample_rate=1.0):
-        self.sample_rate = float(sample_rate)
-        self.sampling_id_threshold = self.sample_rate * MAX_SPAN_ID
+        self._sample_rate = float(sample_rate)
+        self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
 
     def apply_span_sampling_tags(self, span):
         span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
-        span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self.sample_rate)
-        if self.max_per_second:
-            span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self.max_per_second)
+        span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
+        if self._max_per_second:
+            span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
