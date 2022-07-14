@@ -151,7 +151,7 @@ class SpanSamplingRule:
         elif self._sample_rate == 0:
             return False
 
-        return ((span.span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self.sampling_id_threshold
+        return ((span.span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self._sampling_id_threshold
 
     def match(self, span):
         """Determines if the span's service and name match the configured patterns"""
