@@ -1,4 +1,5 @@
 import functools
+import os
 import sys
 from typing import TYPE_CHECKING
 
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
     from ddtrace.settings import Config
 
 from ddtrace.internal.compat import PY2
+from ddtrace.internal.utils.formats import asbool
 
 
 if PY2:
@@ -103,9 +105,12 @@ class _DDWSGIMiddlewareBase(object):
             req_span._ignore_exception(generatorExit)
 
             self._request_span_modifier(req_span, environ)
+            intercept_start_response = functools.partial(self._traced_start_response, start_response, req_span)
+
+            if not self._instrument_response():
+                return self.app(environ, intercept_start_response)
 
             with self.tracer.trace(self._application_span_name) as app_span:
-                intercept_start_response = functools.partial(self._traced_start_response, start_response, req_span)
                 result = self.app(environ, intercept_start_response)
                 self._application_span_modifier(app_span, environ, result)
 
@@ -145,6 +150,10 @@ class _DDWSGIMiddlewareBase(object):
         # type: (Span, Dict) -> None
         """Implement to modify span attributes on the request_span"""
         pass
+
+    def _instrument_response(self):
+        # type: () -> bool
+        return asbool(os.getenv("DD_TRACE_WSGI_RESPONSE_ENABLED", "true"))
 
 
 def construct_url(environ):

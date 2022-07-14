@@ -18,6 +18,7 @@ else:
     generatorExit = builtins.GeneratorExit
 
 from tests.utils import override_config
+from tests.utils import override_env
 from tests.utils import override_http_config
 from tests.utils import snapshot
 
@@ -124,6 +125,31 @@ def test_distributed_tracing(tracer, test_spans):
         assert root.name == "wsgi.request"
         assert root.trace_id != 4321
         assert root.parent_id != 1234
+
+
+def test_middleware_with_streaming_default(tracer, test_spans):
+    app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
+    app.get("/")
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    spans = traces[0]
+    assert len(spans) == 3
+    assert spans[0].name == "test_wsgi.request"
+    assert spans[1].name == "test_wsgi.application"
+    assert spans[2].name == "test_wsgi.response"
+
+
+def test_middleware_with_streaming_disabled(tracer, test_spans):
+    with override_env(dict(DD_TRACE_WSGI_RESPONSE_ENABLED="false")):
+        app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
+        app.get("/")
+
+        traces = test_spans.pop_traces()
+        assert len(traces) == 1
+        spans = traces[0]
+        assert len(spans) == 1
+        assert spans[0].name == "test_wsgi.request"
 
 
 def test_query_string_tracing(tracer, test_spans):
