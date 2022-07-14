@@ -18,10 +18,18 @@
       "django.response.class": "django.http.response.HttpResponseNotFound",
       "django.user.is_authenticated": "False",
       "http.method": "GET",
-      "http.request.headers.accept": ["*/*"],
-      "http.request.headers.accept-encoding": ["gzip, deflate"],
-      "http.request.headers.host": ["localhost:8000"],
-      "http.request.headers.user-agent": ["python-requests/2.27.1"],
+      "http.request.headers.accept": [
+          "*/*"
+      ],
+      "http.request.headers.accept-encoding": [
+          "gzip, deflate"
+      ],
+      "http.request.headers.host": [
+          "localhost:8000"
+      ],
+      "http.request.headers.user-agent": [
+          "python-requests/2.27.1"
+      ],
       "http.status_code": "404",
       "http.url": "http://localhost:8000/.git",
       "http.version": "1.1",
