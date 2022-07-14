@@ -130,8 +130,8 @@ services:
         volumes:
           - ddagent:/tmp/ddagent
           - ./:/root/project
-          - ./.ddtox:/root/project/.tox
-          - ./.ddriot:/root/project/.riot
+          - tox:/root/project/.tox
+          - riot:/root/project/.riot
 
     localstack:
         image: localstack/localstack:0.14.1
@@ -161,3 +161,5 @@ services:
 
 volumes:
     ddagent:
+    riot:
+    tox:
