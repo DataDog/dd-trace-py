@@ -129,7 +129,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            pys=["3"],
+            pys=["3.9"],
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
