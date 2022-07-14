@@ -140,7 +140,7 @@ def test_match_max_per_sec():
     # Make spans till we hit the limit, then make a span while the limit is hit and make sure tags were not added.
     while True:
         span = traced_function(rule)
-        if rule.limiter._is_allowed(span.start_ns):
+        if rule._limiter._is_allowed(span.start_ns):
             assert_sampling_decision_tags(span, limit=2)
         else:
             break
