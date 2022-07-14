@@ -1,0 +1,45 @@
+[[
+  {
+    "name": "test_wsgi.request",
+    "service": "wsgi",
+    "resource": "request resource was modified",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "error.msg": "Oops!",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/munir.abdinur/Documents/ApmPython/dd-trace-py/ddtrace/contrib/wsgi/_utils.py\", line 88, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/Users/munir.abdinur/Documents/ApmPython/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 47, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n",
+      "error.type": "builtins.Exception",
+      "request_tag": "req test tag set",
+      "runtime-id": "6b25ee0796244c62a3687f28288b8e00"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "request_metric": 1,
+      "system.pid": 81171
+    },
+    "duration": 423000,
+    "start": 1657661056800602000
+  },
+     {
+       "name": "test_wsgi.application",
+       "service": "wsgi",
+       "resource": "test_wsgi.application",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "error": 1,
+       "meta": {
+         "error.msg": "Oops!",
+         "error.stack": "Traceback (most recent call last):\n  File \"/Users/munir.abdinur/Documents/ApmPython/dd-trace-py/ddtrace/contrib/wsgi/_utils.py\", line 88, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/Users/munir.abdinur/Documents/ApmPython/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 47, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n",
+         "error.type": "builtins.Exception"
+       },
+       "duration": 180000,
+       "start": 1657661056800731000
+     }]]
