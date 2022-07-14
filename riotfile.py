@@ -1160,7 +1160,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pymysql",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="2.7", max_version="3.3"),
+                    pys="2.7",
                     pkgs={
                         "pymysql": [
                             "~=0.7",
