@@ -1052,3 +1052,27 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         span = traces[0][0]
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+
+    def test_request_streaming(self):
+        def traced_func(i):
+            with self.tracer.trace("hello_%d" % (i,)):
+                return "Hello From Flask!"
+
+        @self.app.route("/streamed_hello")
+        def hello():
+            generator = (traced_func(i) for i in range(3))
+            return self.app.response_class(generator)
+
+        streamed_resp = self.client.get("/streamed_hello", buffered=True)
+        assert streamed_resp.data == b"Hello From Flask!Hello From Flask!Hello From Flask!"
+        assert streamed_resp.status_code == 200
+
+        traces = self.pop_traces()
+        assert traces[0][0].name == "flask.request"
+        assert traces[0][1].name == "flask.application"
+        assert traces[0][-4].name == "flask.response"
+
+        # Ensure streamed response are included in the trace
+        assert traces[0][-3].name == "hello_0"
+        assert traces[0][-2].name == "hello_1"
+        assert traces[0][-1].name == "hello_2"
