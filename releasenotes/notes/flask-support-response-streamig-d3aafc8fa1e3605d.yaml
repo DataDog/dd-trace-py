@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    flask: Update the duration of a flask request to include streamed response. Previously `flask.request` spans would finish before the first byte was sent to the client.
