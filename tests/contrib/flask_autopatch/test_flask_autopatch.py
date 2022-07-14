@@ -51,11 +51,12 @@ class FlaskAutopatchTestCase(TracerTestCase):
         self.assertEqual(res.data, b"Hello Flask")
 
         spans = self.pop_spans()
-        self.assertEqual(len(spans), 8)
+        self.assertEqual(len(spans), 10)
 
         self.assertListEqual(
             [
                 "flask.request",
+                "flask.application",
                 "flask.try_trigger_before_first_request_functions",
                 "flask.preprocess_request",
                 "flask.dispatch_request",
@@ -63,6 +64,7 @@ class FlaskAutopatchTestCase(TracerTestCase):
                 "flask.process_response",
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
+                "flask.response",
             ],
             [s.name for s in spans],
         )
@@ -92,7 +94,7 @@ class FlaskAutopatchTestCase(TracerTestCase):
         assert_span_http_status_code(req_span, 200)
 
         # Handler span
-        handler_span = spans[4]
+        handler_span = spans[5]
         self.assertEqual(handler_span.service, "test-flask")
         self.assertEqual(handler_span.name, "tests.contrib.flask_autopatch.test_flask_autopatch.index")
         self.assertEqual(handler_span.resource, "/")

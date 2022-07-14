@@ -13,6 +13,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         self.tracer.configure(api_version="v0.4")
         resp = self.client.get("/.git?q=1")
         assert resp.status_code == 404
+        # Read response data from the test client to close flask.request and flask.response spans
+        assert resp.data is not None
         spans = self.pop_spans()
         root_span = spans[0]
 
