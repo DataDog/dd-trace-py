@@ -86,9 +86,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _application_span_name = "flask.application"
     _response_span_name = "flask.response"
 
-    # DEV: We tried using `Flask.finalize_request`, which seemed to work, but gave us hell during tests
-    # DEV: The downside to using `start_response` is we do not have a `Flask.Response` object here,
-    #   only `status_code`, and `headers` to work with
     def _traced_start_response(self, start_response, span, status_code, headers, exc_info=None):
         code, _, _ = status_code.partition(" ")
         # If values are accessible, set the resource as `<method> <path>` and add other request tags
@@ -108,7 +105,56 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         return start_response(status_code, headers)
 
     def _request_span_modifier(self, span, environ):
-        pass
+        # Create a werkzeug request from the `environ` to make interacting with it easier
+        # DEV: This executes before a request context is created
+        request = _RequestType(environ)
+
+        # Default resource is method and path:
+        #   GET /
+        #   POST /save
+        # We will override this below in `traced_dispatch_request` when we have a `
+        # RequestContext` and possibly a url rule
+        span.resource = u" ".join((request.method, request.path))
+
+        span.set_tag(SPAN_MEASURED_KEY)
+        # set analytics sample rate with global config enabled
+        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+
+        span._set_str_tag(FLASK_VERSION, flask_version_str)
+
+        req_body = None
+        if config._appsec_enabled and request.method in _BODY_METHODS:
+            content_type = request.content_type
+            try:
+                if content_type == "application/json":
+                    if _HAS_JSON_MIXIN and hasattr(request, "json"):
+                        req_body = request.json
+                    else:
+                        req_body = json.loads(request.data.decode("UTF-8"))
+                elif hasattr(request, "values"):
+                    req_body = request.values.to_dict()
+                elif hasattr(request, "args"):
+                    req_body = request.args.to_dict()
+                elif hasattr(request, "form"):
+                    req_body = request.form.to_dict()
+            except (AttributeError, RuntimeError, TypeError, BadRequest):
+                log.warning("Failed to parse werkzeug request body", exc_info=True)
+
+        trace_utils.set_http_meta(
+            span,
+            config.flask,
+            method=request.method,
+            url=request.base_url,
+            raw_uri=request.url,
+            query=request.query_string,
+            parsed_query=request.args,
+            request_headers=request.headers,
+            request_cookies=request.cookies,
+            request_body=req_body,
+        )
+
 
 
 def patch():
@@ -321,69 +367,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     # DEV: This is safe before this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
-
-    # Create a werkzeug request from the `environ` to make interacting with it easier
-    # DEV: This executes before a request context is created
-    request = _RequestType(environ)
-
-    # Configure distributed tracing
-    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.flask, request_headers=request.headers)
-
-    # Default resource is method and path:
-    #   GET /
-    #   POST /save
-    # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
-    resource = u" ".join((request.method, request.path))
-    with pin.tracer.trace(
-        "flask.request",
-        service=trace_utils.int_service(pin, config.flask),
-        resource=resource,
-        span_type=SpanTypes.WEB,
-    ) as span:
-        span.set_tag(SPAN_MEASURED_KEY)
-        # set analytics sample rate with global config enabled
-        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
-        if sample_rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
-
-        span._set_str_tag(FLASK_VERSION, flask_version_str)
-
-        #start_response = _wrap_start_response(start_response, span, request)
-
-        req_body = None
-        if config._appsec_enabled and request.method in _BODY_METHODS:
-            content_type = request.content_type
-            try:
-                if content_type == "application/json":
-                    if _HAS_JSON_MIXIN and hasattr(request, "json"):
-                        req_body = request.json
-                    else:
-                        req_body = json.loads(request.data.decode("UTF-8"))
-                elif hasattr(request, "values"):
-                    req_body = request.values.to_dict()
-                elif hasattr(request, "args"):
-                    req_body = request.args.to_dict()
-                elif hasattr(request, "form"):
-                    req_body = request.form.to_dict()
-            except (AttributeError, RuntimeError, TypeError, BadRequest):
-                log.warning("Failed to parse werkzeug request body", exc_info=True)
-
-        # DEV: We set response status code in `_wrap_start_response`
-        # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
-        trace_utils.set_http_meta(
-            span,
-            config.flask,
-            method=request.method,
-            url=request.base_url,
-            raw_uri=request.url,
-            query=request.query_string,
-            parsed_query=request.args,
-            request_headers=request.headers,
-            request_cookies=request.cookies,
-            request_body=req_body,
-        )
-
-        return wrapped(environ, start_response)
+    return wrapped(environ, start_response)
 
 
 def traced_blueprint_register(wrapped, instance, args, kwargs):
