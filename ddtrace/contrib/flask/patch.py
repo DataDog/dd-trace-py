@@ -64,61 +64,38 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _application_span_name = "flask.application"
     _response_span_name = "flask.response"
 
-    # Wrap the `start_response` handler to extract response code
-    # DEV: We tried using `Flask.finalize_request`, which seemed to work, but gave us hell during tests
-    # DEV: The downside to using `start_response` is we do not have a `Flask.Response` object here,
-    #   only `status_code`, and `headers` to work with
-    #   On the bright side, this works in all versions of Flask (or any WSGI app actually)
-    def _traced_start_response(self, start_response, span, status_code, headers, exc_info=None):
-        code, _, _ = status_code.partition(" ")
-        # If values are accessible, set the resource as `<method> <path>` and add other request tags
-        _set_request_tags(span)
+    def _traced_start_response(self, start_response, request_span, status, headers, exc_info=None):
+        code, _, _ = status.partition(" ")
 
-        # Override root span resource name to be `<method> 404` for 404 requests
-        # DEV: We do this because we want to make it easier to see all unknown requests together
-        #      Also, we do this to reduce the cardinality on unknown urls
-        # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
-        #      we still want `GET /product/<int:product_id>` grouped together,
-        #      even if it is a 404
-        if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
-            span.resource = u" ".join((flask.request.method, code))
-
-        trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=headers)
-
-        return start_response(status_code, headers)
-
-    def _request_span_modifier(self, span, environ):
-        # Create a werkzeug request from the `environ` to make interacting with it easier
-        # DEV: This executes before a request context is created
-        request = werkzeug.Request(environ)
-
-        # Default resource is method and path:
-        #   GET /
-        #   POST /save
-        # We will override this below in `traced_dispatch_request` when we have a `
-        # RequestContext` and possibly a url rule
-        span.resource = u" ".join((request.method, request.path))
-
-        span.set_tag(SPAN_MEASURED_KEY)
-        # set analytics sample rate with global config enabled
-        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
-        if sample_rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
-
-        span._set_str_tag(FLASK_VERSION, flask_version_str)
-
-        # DEV: We set response status code in `_wrap_start_response`
+        # DEV: We set response status code in `traced_start_response`
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
+        request = flask.request
         trace_utils.set_http_meta(
-            span,
+            request_span,
             config.flask,
+            status_code=code,
             method=request.method,
             url=request.base_url,
             raw_uri=request.url,
             query=request.query_string,
             parsed_query=request.args,
             request_headers=request.headers,
+            response_headers=headers,
         )
+
+        # _request_span_modifier is called before
+        _set_request_tags(request, request_span, code)
+
+        return start_response(status, headers)
+
+    def _request_span_modifier(self, req_span, environ):
+        req_span.set_tag(SPAN_MEASURED_KEY)
+        # set analytics sample rate with global config enabled
+        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
+        if sample_rate is not None:
+            req_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+
+        req_span._set_str_tag(FLASK_VERSION, flask_version_str)
 
 
 def patch():
@@ -466,10 +443,6 @@ def request_tracer(name):
         if not pin.enabled or not span:
             return wrapped(*args, **kwargs)
 
-        # This call may be unnecessary since we try to add the tags earlier
-        # We just haven't been able to confirm this yet
-        _set_request_tags(span)
-
         with pin.tracer.trace(
             ".".join(("flask", name)), service=trace_utils.int_service(pin, config.flask, pin)
         ) as request_span:
@@ -503,23 +476,21 @@ def traced_jsonify(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
 
-def _set_request_tags(span):
-    try:
-        request = flask._request_ctx_stack.top.request
+def _set_request_tags(request, span, status_code):
+    # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
+    if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
+        span.resource = u" ".join((request.method, request.endpoint))
+        span._set_str_tag(FLASK_ENDPOINT, request.endpoint)
 
-        # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
-        if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-            span.resource = u" ".join((request.method, request.endpoint))
-            span._set_str_tag(FLASK_ENDPOINT, request.endpoint)
+    if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
+        span.resource = u" ".join((request.method, request.url_rule.rule))
+        span._set_str_tag(FLASK_URL_RULE, request.url_rule.rule)
 
-        if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = u" ".join((request.method, request.url_rule.rule))
-            span._set_str_tag(FLASK_URL_RULE, request.url_rule.rule)
+    if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
+        for k, v in request.view_args.items():
+            # DEV: Do not use `_set_str_tag` here since view args can be string/int/float/path/uuid/etc
+            #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
+            span.set_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
 
-        if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
-            for k, v in request.view_args.items():
-                # DEV: Do not use `_set_str_tag` here since view args can be string/int/float/path/uuid/etc
-                #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
-                span.set_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
-    except Exception:
-        log.debug('failed to set tags for "flask.request" span', exc_info=True)
+    if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
+        span.resource = u" ".join((request.method, status_code))
