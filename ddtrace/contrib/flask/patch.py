@@ -367,7 +367,8 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     # DEV: This is safe before this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
-    return wrapped(environ, start_response)
+    middleware = _FlaskWSGIMiddleware(wrapped, pin.tracer, config.flask, pin)
+    return middleware(environ, start_response)
 
 
 def traced_blueprint_register(wrapped, instance, args, kwargs):
