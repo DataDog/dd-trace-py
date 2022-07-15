@@ -723,9 +723,11 @@ jobs:
 
   pymysql:
     <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - *mysql_server
     steps:
       - run_test:
-          docker_services: 'mysql'
           wait: mysql
           pattern: 'pymysql'
 
