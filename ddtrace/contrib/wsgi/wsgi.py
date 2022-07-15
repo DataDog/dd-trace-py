@@ -1,5 +1,4 @@
 import functools
-import os
 import sys
 from typing import TYPE_CHECKING
 
@@ -17,7 +16,6 @@ if TYPE_CHECKING:
     from ddtrace.settings import Config
 
 from ddtrace.internal.compat import PY2
-from ddtrace.internal.utils.formats import asbool
 
 
 if PY2:
@@ -153,7 +151,8 @@ class _DDWSGIMiddlewareBase(object):
 
     def _instrument_response(self):
         # type: () -> bool
-        return asbool(os.getenv("DD_TRACE_WSGI_RESPONSE_ENABLED", "true"))
+        """Default implementation, override this method to disable response streaming"""
+        return True
 
 
 def construct_url(environ):

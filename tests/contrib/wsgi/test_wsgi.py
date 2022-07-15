@@ -1,3 +1,5 @@
+import os
+
 import pytest
 import six
 from webtest import TestApp
@@ -6,6 +8,7 @@ from ddtrace import config
 from ddtrace.contrib.wsgi import wsgi
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
+from ddtrace.internal.utils.formats import asbool
 
 
 if PY2:
@@ -81,6 +84,15 @@ class WsgiCustomMiddleware(wsgi._DDWSGIMiddlewareBase):
         resp_span.resource = "response resource was modified"
 
 
+class WSGIMiddlewareNoResponse(wsgi._DDWSGIMiddlewareBase):
+    _request_span_name = "test_wsgi.request"
+    _application_span_name = "test_wsgi.application"
+    _response_span_name = "test_wsgi.response"
+
+    def _instrument_response(self) -> bool:
+        return asbool(os.getenv("DD_TRACE_WSGI_RESPONSE_ENABLED", "true"))
+
+
 def test_middleware(tracer, test_spans):
     app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
     resp = app.get("/")
@@ -127,22 +139,9 @@ def test_distributed_tracing(tracer, test_spans):
         assert root.parent_id != 1234
 
 
-def test_middleware_with_streaming_default(tracer, test_spans):
-    app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
-    app.get("/")
-
-    traces = test_spans.pop_traces()
-    assert len(traces) == 1
-    spans = traces[0]
-    assert len(spans) == 3
-    assert spans[0].name == "test_wsgi.request"
-    assert spans[1].name == "test_wsgi.application"
-    assert spans[2].name == "test_wsgi.response"
-
-
 def test_middleware_with_streaming_disabled(tracer, test_spans):
     with override_env(dict(DD_TRACE_WSGI_RESPONSE_ENABLED="false")):
-        app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
+        app = TestApp(WSGIMiddlewareNoResponse(application, tracer, config.wsgi, None))
         app.get("/")
 
         traces = test_spans.pop_traces()

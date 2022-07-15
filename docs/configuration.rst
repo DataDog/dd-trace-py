@@ -310,9 +310,4 @@ below:
      - True
      - Whether to enable the endpoint data collection in profiles.
 
-   * - ``DD_TRACE_WSGI_RESPONSE_ENABLED``
-     - Boolean
-     - True
-     - Enables response streaming in the ddtrace wsgi middleware.
-
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/

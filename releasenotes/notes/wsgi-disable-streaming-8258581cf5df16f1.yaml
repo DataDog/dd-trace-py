@@ -1,4 +1,0 @@
----
-features:
-  - |
-    wsgi: disable streaming responses using ``DD_TRACE_WSGI_RESPONSE_ENABLED`` configuration.
