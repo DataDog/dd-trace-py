@@ -20,6 +20,7 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_SAMPLED
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SPAN_ID
 from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
+from ddtrace.propagation.http import _HTTP_HEADER_TAGS
 
 from ..utils import override_global_config
 
@@ -27,12 +28,260 @@ from ..utils import override_global_config
 NOT_SET = object()
 
 
+def test_inject(tracer):
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        assert int(headers[HTTP_HEADER_TRACE_ID]) == span.trace_id
+        assert int(headers[HTTP_HEADER_PARENT_ID]) == span.span_id
+        assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == span.context.sampling_priority
+        assert headers[HTTP_HEADER_ORIGIN] == span.context.dd_origin
+        # The ordering is non-deterministic, so compare as a list of tags
+        tags = set(headers[_HTTP_HEADER_TAGS].split(","))
+        assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
+
+
+def test_inject_tags_unicode(tracer):
+    """We properly encode when the meta key as long as it is just ascii characters"""
+    # Context._meta allows str and bytes for keys
+    meta = {u"_dd.p.test": u"unicode"}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        # The ordering is non-deterministic, so compare as a list of tags
+        tags = set(headers[_HTTP_HEADER_TAGS].split(","))
+        assert tags == set(["_dd.p.test=unicode"])
+
+
+def test_inject_tags_bytes(tracer):
+    """We properly encode when the meta key as long as it is just ascii characters"""
+    # Context._meta allows str and bytes for keys
+    meta = {u"_dd.p.test": b"bytes"}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        # The ordering is non-deterministic, so compare as a list of tags
+        tags = set(headers[_HTTP_HEADER_TAGS].split(","))
+        assert tags == set(["_dd.p.test=bytes"])
+
+
+def test_inject_tags_unicode_error(tracer):
+    """Unicode characters are not allowed"""
+    meta = {u"_dd.p.test": u"unicode value ☺️"}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        assert _HTTP_HEADER_TAGS not in headers
+        assert ctx._meta["_dd.propagation_error"] == "encoding_error"
+
+
+def test_inject_tags_large(tracer):
+    """When we have a single large tag that won't fit"""
+    # DEV: Limit is 512 for x-datadog-tags
+    meta = {"_dd.p.dm": ("x" * 512)[len("_dd.p.dm") - 1 :]}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        assert _HTTP_HEADER_TAGS not in headers
+        assert ctx._meta["_dd.propagation_error"] == "inject_max_size"
+
+
+def test_inject_tags_invalid(tracer):
+    # DEV: "=" and "," are not allowed in keys or values
+    meta = {"_dd.p.test": ",value="}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        assert _HTTP_HEADER_TAGS not in headers
+        assert ctx._meta["_dd.propagation_error"] == "encoding_error"
+
+
+def test_inject_tags_disabled(tracer):
+    with override_global_config(dict(_x_datadog_tags_enabled=False)):
+        meta = {"_dd.p.test": "value"}
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
+
+            assert ctx._meta["_dd.propagation_error"] == "disabled"
+            assert _HTTP_HEADER_TAGS not in headers
+
+
+def test_inject_tags_previous_error(tracer):
+    """When we have previously gotten an error, do not try to propagate tags"""
+    # This value is valid
+    meta = {"_dd.p.test": "value", "_dd.propagation_error": "some fake test value"}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("global_root_span") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+
+        assert _HTTP_HEADER_TAGS not in headers
+
+
+def test_extract(tracer):
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "synthetics",
+        "x-datadog-tags": "_dd.p.test=value,any=tag",
+    }
+
+    context = HTTPPropagator.extract(headers)
+
+    tracer.context_provider.activate(context)
+
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == 1234
+        assert span.parent_id == 5678
+        assert span.context.sampling_priority == 1
+        assert span.context.dd_origin == "synthetics"
+        assert span.context._meta == {
+            "_dd.origin": "synthetics",
+            "_dd.p.test": "value",
+        }
+        with tracer.trace("child_span") as child_span:
+            assert child_span.trace_id == 1234
+            assert child_span.parent_id != 5678
+            assert child_span.context.sampling_priority == 1
+            assert child_span.context.dd_origin == "synthetics"
+            assert child_span.context._meta == {
+                "_dd.origin": "synthetics",
+                "_dd.p.test": "value",
+            }
+
+
+@pytest.mark.parametrize(
+    "x_datadog_tags, expected_trace_tags",
+    [
+        ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
+        ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
+        ("_dd.p.dm=-", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=--1", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=-1.0", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=-10", {"_dd.propagation_error": "decoding_error"}),
+    ],
+)
+def test_extract_dm(x_datadog_tags, expected_trace_tags):
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "synthetics",
+        "x-datadog-tags": x_datadog_tags,
+    }
+
+    context = HTTPPropagator.extract(headers)
+
+    expected = {"_dd.origin": "synthetics"}
+    expected.update(expected_trace_tags)
+
+    assert context._meta == expected
+
+
+def test_WSGI_extract(tracer):
+    """Ensure we support the WSGI formatted headers as well."""
+    headers = {
+        "HTTP_X_DATADOG_TRACE_ID": "1234",
+        "HTTP_X_DATADOG_PARENT_ID": "5678",
+        "HTTP_X_DATADOG_SAMPLING_PRIORITY": "1",
+        "HTTP_X_DATADOG_ORIGIN": "synthetics",
+        "HTTP_X_DATADOG_TAGS": "_dd.p.test=value,any=tag",
+    }
+
+    context = HTTPPropagator.extract(headers)
+    tracer.context_provider.activate(context)
+
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == 1234
+        assert span.parent_id == 5678
+        assert span.context.sampling_priority == 1
+        assert span.context.dd_origin == "synthetics"
+        assert span.context._meta == {
+            "_dd.origin": "synthetics",
+            "_dd.p.test": "value",
+        }
+
+
+def test_extract_invalid_tags(tracer):
+    # Malformed tags do not fail to extract the rest of the context
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "synthetics",
+        "x-datadog-tags": "malformed=,=tags,",
+    }
+
+    context = HTTPPropagator.extract(headers)
+    tracer.context_provider.activate(context)
+
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == 1234
+        assert span.parent_id == 5678
+        assert span.context.sampling_priority == 1
+        assert span.context.dd_origin == "synthetics"
+        assert span.context._meta == {
+            "_dd.origin": "synthetics",
+            "_dd.propagation_error": "decoding_error",
+        }
+
+
+def test_extract_tags_large(tracer):
+    """When we have a tagset larger than the extract limit"""
+    # DEV: Limit is 512
+    headers = {
+        "x-datadog-trace-id": "1234",
+        "x-datadog-parent-id": "5678",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "synthetics",
+        "x-datadog-tags": "key=" + ("x" * (512 - len("key=") + 1)),
+    }
+    context = HTTPPropagator.extract(headers)
+    tracer.context_provider.activate(context)
+
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == 1234
+        assert span.parent_id == 5678
+        assert span.context.sampling_priority == 1
+        assert span.context.dd_origin == "synthetics"
+        assert span.context._meta == {
+            "_dd.origin": "synthetics",
+            "_dd.propagation_error": "extract_max_size",
+        }
+
+
 @pytest.mark.parametrize("trace_id", ["one", None, "123.4", "", NOT_SET])
 # DEV: 10 is valid for parent id but is ignored if trace id is ever invalid
 @pytest.mark.parametrize("parent_span_id", ["one", None, "123.4", "10", "", NOT_SET])
 @pytest.mark.parametrize("sampling_priority", ["one", None, "123.4", "", NOT_SET])
 @pytest.mark.parametrize("dd_origin", [None, NOT_SET])
-def test_extract_bad_values(trace_id, parent_span_id, sampling_priority, dd_origin):
+# DEV: We have exhaustive tests in test_tagset for this parsing
+@pytest.mark.parametrize("dd_tags", [None, "", "key=", "key=value,unknown=", NOT_SET])
+def test_extract_bad_values(trace_id, parent_span_id, sampling_priority, dd_origin, dd_tags):
     headers = dict()
     wsgi_headers = dict()
 
@@ -48,6 +297,9 @@ def test_extract_bad_values(trace_id, parent_span_id, sampling_priority, dd_orig
     if dd_origin is not NOT_SET:
         headers[HTTP_HEADER_ORIGIN] = dd_origin
         wsgi_headers[get_wsgi_header(HTTP_HEADER_ORIGIN)] = dd_origin
+    if dd_tags is not NOT_SET:
+        headers[_HTTP_HEADER_TAGS] = dd_tags
+        wsgi_headers[get_wsgi_header(_HTTP_HEADER_TAGS)] = dd_tags
 
     # x-datadog-*headers
     context = HTTPPropagator.extract(headers)
@@ -66,9 +318,8 @@ def test_extract_bad_values(trace_id, parent_span_id, sampling_priority, dd_orig
     assert context._meta == {}
 
 
-class TestPropagationUtils(object):
-    def test_get_wsgi_header(self):
-        assert get_wsgi_header("x-datadog-trace-id") == "HTTP_X_DATADOG_TRACE_ID"
+def test_get_wsgi_header(tracer):
+    assert get_wsgi_header("x-datadog-trace-id") == "HTTP_X_DATADOG_TRACE_ID"
 
 
 CONTEXT_EMPTY = {

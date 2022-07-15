@@ -129,12 +129,12 @@ venv = Venv(
             ],
         ),
         Venv(
-            pys=["3"],
+            pys=["3.9"],
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
             pkgs={
-                "mypy": "<0.960",
+                "mypy": latest,
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -309,6 +309,7 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "msgpack": latest,
+                "httpretty": "==0.9.7",
             },
         ),
         Venv(
@@ -1179,6 +1180,9 @@ venv = Venv(
             # aiobotocore: aiobotocore>=1.0 not yet supported
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
+            pkgs={
+                "pytest-asyncio": latest,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
@@ -1272,32 +1276,42 @@ venv = Venv(
         Venv(
             name="pytest-bdd",
             command="pytest {cmdargs} tests/contrib/pytest_bdd/",
+            pkgs={"msgpack": latest},
             venvs=[
                 Venv(
                     pys=["2.7"],
                     # pytest-bdd==3.4 is last to support python 2.7
-                    pkgs={"pytest-bdd": ">=3.0,<3.5", "msgpack": latest},
+                    pkgs={"pytest-bdd": ">=3.0,<3.5"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.9"),
                     pkgs={
-                        "pytest-bdd": [
-                            ">=4.0,<5.0",
-                        ],
-                        "msgpack": latest,
                         "more_itertools": "<8.11.0",
                     },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.10"),
-                    pkgs={
-                        "pytest-bdd": [
-                            ">=4.0,<5.0",
-                            latest,
-                        ],
-                        "msgpack": latest,
-                        "more_itertools": "<8.11.0",
-                    },
+                    venvs=[
+                        Venv(
+                            pys=["3.6"],
+                            pkgs={"pytest-bdd": [">=4.0,<5.0"]},
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.9"),
+                            pkgs={
+                                "pytest-bdd": [
+                                    ">=4.0,<5.0",
+                                    ">=6.0,<7.0",
+                                ]
+                            },
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={
+                                "pytest-bdd": [
+                                    ">=4.0,<5.0",
+                                    ">=6.0,<7.0",
+                                    latest,
+                                ]
+                            },
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -1458,20 +1472,20 @@ venv = Venv(
         Venv(
             name="cassandra",
             venvs=[
-                # Python 3.9 requires a more recent release.
+                # cassandra-driver does not officially support 3.10
+                # TODO: fix sporadically failing tests in cassandra-driver v3.25.0 and py3.10
                 Venv(
-                    pys=select_pys(min_version="3.9"),
+                    pys=["3.9"],
                     pkgs={"cassandra-driver": latest},
                 ),
                 # releases 3.7 and 3.8 are broken on Python >= 3.7
                 # (see https://github.com/r4fek/django-cassandra-engine/issues/104)
-                Venv(
-                    pys=["3.7", "3.8"],
-                    pkgs={"cassandra-driver": ["~=3.6.0", "~=3.15.0", latest]},
-                ),
+                Venv(pys=["3.7", "3.8"], pkgs={"cassandra-driver": ["~=3.6.0", "~=3.15.0", "~=3.24.0", latest]}),
                 Venv(
                     pys=select_pys(max_version="3.6"),
-                    pkgs={"cassandra-driver": [("~=3.%d.0" % m) for m in range(6, 9)] + ["~=3.15.0", latest]},
+                    pkgs={
+                        "cassandra-driver": [("~=3.%d.0" % m) for m in range(6, 9)] + ["~=3.15.0", "~=3.24.0", latest]
+                    },
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/cassandra",

@@ -64,12 +64,35 @@ below:
      - Enable sending of spans to the Agent. Note that instrumentation will still be installed and spans will be
        generated. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_ENABLED``).
 
+       .. _dd-instrumentation-telemetry-enabled:
+   * - ``DD_INSTRUMENTATION_TELEMETRY_ENABLED``
+     - Boolean
+     - True
+     - Enables sending telemetry events to the agent.
+
        .. _dd-trace-debug:
    * - ``DD_TRACE_DEBUG``
      - Boolean
      - False
-     - Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if
-       one does not already exist. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_DEBUG``).
+     - Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if one does not already exist. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_DEBUG``). Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
+
+       .. _dd-trace-log-file-level:
+   * - ``DD_TRACE_LOG_FILE_LEVEL``
+     - String
+     - DEBUG
+     - Configures the ``RotatingFileHandler`` used by the `ddtrace` logger to write logs to a file based on the level specified. Defaults to `DEBUG`, but will accept the values found in the standard **logging** library, such as WARNING, ERROR, and INFO, if further customization is needed. Files are not written to unless ``DD_TRACE_LOG_FILE`` has been defined.
+
+       .. _dd-trace-log-file:
+   * - ``DD_TRACE_LOG_FILE``
+     - String
+     - None
+     - Directs `ddtrace` logs to a specific file. Note: The default backup count is 1. For larger logs, use with `DD_TRACE_LOG_FILE_SIZE_BYTES`. To fine tune the logging level, use with ``DD_TRACE_LOG_FILE_LEVEL``. 
+
+       .. _dd-trace-log-file-size-bytes:
+   * - ``DD_TRACE_LOG_FILE_SIZE_BYTES``
+     - Int
+     - 15728640
+     - Max size for a file when used with `DD_TRACE_LOG_FILE`. When a log has exceeded this size, there will be one backup log file created. In total, the files will store ``2 * DD_TRACE_LOG_FILE_SIZE_BYTES`` worth of logs.
 
        .. _dd-trace-integration-enabled:
    * - ``DD_TRACE_<INTEGRATION>_ENABLED``
@@ -204,6 +227,12 @@ below:
        Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3"`` to inject both ``x-datadog-*`` and ``x-b3-*``
        headers into outbound requests.
 
+       .. _dd-trace-x-datadog-tags-max-length:
+   * - ``DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH``
+     - Integer
+     - 512
+     - The maximum length of ``x-datadog-tags`` header allowed in the Datadog propagation style. Must be a value between 0 to 512. If 0, propagation of ``x-datadog-tags`` is disabled.
+
        .. _dd-profiling-enabled:
    * - ``DD_PROFILING_ENABLED``
      - Boolean
@@ -229,6 +258,12 @@ below:
      - Integer
      - 64
      - The maximum number of frames to capture in stack execution tracing.
+
+       .. _dd-profiling-code-provenance:
+   * - ``DD_PROFILING_ENABLE_CODE_PROVENANCE``
+     - Boolean
+     - False
+     - Whether to enable code provenance.
 
        .. _dd-profiling-memory-enabled:
    * - ``DD_PROFILING_MEMORY_ENABLED``

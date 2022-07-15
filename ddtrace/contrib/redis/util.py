@@ -12,6 +12,9 @@ from ...ext import redis as redisx
 from ...internal.utils.formats import stringify_cache_args
 
 
+format_command_args = stringify_cache_args
+
+
 def _extract_conn_tags(conn_kwargs):
     """Transform redis conn info into dogtrace metas"""
     try:

@@ -1,6 +1,8 @@
 from typing import Dict
 from typing import FrozenSet
 from typing import Optional
+from typing import Text
+from typing import cast
 
 from ddtrace import config
 
@@ -8,11 +10,20 @@ from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
 from ..constants import USER_KEEP
 from ..context import Context
+from ..internal._tagset import TagsetDecodeError
+from ..internal._tagset import TagsetEncodeError
+from ..internal._tagset import TagsetMaxSizeDecodeError
+from ..internal._tagset import TagsetMaxSizeEncodeError
+from ..internal._tagset import decode_tagset_string
+from ..internal._tagset import encode_tagset_values
+from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.logger import get_logger
+from ..internal.sampling import validate_sampling_decision
+from ..span import _MetaDictType
 from ._utils import get_wsgi_header
 
 
@@ -29,6 +40,7 @@ _HTTP_HEADER_B3_TRACE_ID = "x-b3-traceid"
 _HTTP_HEADER_B3_SPAN_ID = "x-b3-spanid"
 _HTTP_HEADER_B3_SAMPLED = "x-b3-sampled"
 _HTTP_HEADER_B3_FLAGS = "x-b3-flags"
+_HTTP_HEADER_TAGS = "x-datadog-tags"
 
 
 def _possible_header(header):
@@ -42,6 +54,7 @@ POSSIBLE_HTTP_HEADER_TRACE_IDS = _possible_header(HTTP_HEADER_TRACE_ID)
 POSSIBLE_HTTP_HEADER_PARENT_IDS = _possible_header(HTTP_HEADER_PARENT_ID)
 POSSIBLE_HTTP_HEADER_SAMPLING_PRIORITIES = _possible_header(HTTP_HEADER_SAMPLING_PRIORITY)
 POSSIBLE_HTTP_HEADER_ORIGIN = _possible_header(HTTP_HEADER_ORIGIN)
+_POSSIBLE_HTTP_HEADER_TAGS = frozenset([_HTTP_HEADER_TAGS, get_wsgi_header(_HTTP_HEADER_TAGS).lower()])
 _POSSIBLE_HTTP_HEADER_B3_SINGLE_HEADER = _possible_header(_HTTP_HEADER_B3_SINGLE)
 _POSSIBLE_HTTP_HEADER_B3_TRACE_IDS = _possible_header(_HTTP_HEADER_B3_TRACE_ID)
 _POSSIBLE_HTTP_HEADER_B3_SPAN_IDS = _possible_header(_HTTP_HEADER_B3_SPAN_ID)
@@ -87,7 +100,22 @@ class _DatadogMultiHeader:
       - ``x-datadog-sampling-priority`` integer representing the sampling decision.
         ``<= 0`` (Reject) or ``> 1`` (Keep)
       - ``x-datadog-origin`` optional name of origin Datadog product which initiated the request
+      - ``x-datadog-tags`` optional tracer tags
+
+    Restrictions:
+
+      - Trace tag key-value pairs in ``x-datadog-tags`` are extracted from incoming requests.
+      - Only trace tags with keys prefixed with ``_dd.p.`` are propagated.
+      - The trace tag keys must be printable ASCII characters excluding space, comma, and equals.
+      - The trace tag values must be printable ASCII characters excluding comma. Leading and
+        trailing spaces are trimmed.
     """
+
+    _X_DATADOG_TAGS_EXTRACT_REJECT = frozenset(["_dd.p.upstream_services"])
+
+    @staticmethod
+    def _is_valid_datadog_trace_tag_key(key):
+        return key.startswith("_dd.p.")
 
     @staticmethod
     def _inject(span_context, headers):
@@ -105,6 +133,36 @@ class _DatadogMultiHeader:
         # Propagate origin only if defined
         if span_context.dd_origin is not None:
             headers[HTTP_HEADER_ORIGIN] = ensure_text(span_context.dd_origin)
+
+        if not config._x_datadog_tags_enabled:
+            span_context._meta["_dd.propagation_error"] = "disabled"
+            return
+
+        # Do not try to encode tags if we have already tried and received an error
+        if "_dd.propagation_error" in span_context._meta:
+            return
+
+        # Only propagate trace tags which means ignoring the _dd.origin
+        tags_to_encode = {
+            # DEV: Context._meta is a _MetaDictType but we need Dict[str, str]
+            ensure_str(k): ensure_str(v)
+            for k, v in span_context._meta.items()
+            if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
+        }  # type: Dict[Text, Text]
+
+        if tags_to_encode:
+            try:
+                headers[_HTTP_HEADER_TAGS] = encode_tagset_values(
+                    tags_to_encode, max_size=config._x_datadog_tags_max_length
+                )
+            except TagsetMaxSizeEncodeError:
+                # We hit the max size allowed, add a tag to the context to indicate this happened
+                span_context._meta["_dd.propagation_error"] = "inject_max_size"
+                log.warning("failed to encode x-datadog-tags", exc_info=True)
+            except TagsetEncodeError:
+                # We hit an encoding error, add a tag to the context to indicate this happened
+                span_context._meta["_dd.propagation_error"] = "encoding_error"
+                log.warning("failed to encode x-datadog-tags", exc_info=True)
 
     @staticmethod
     def _extract(headers):
@@ -130,6 +188,34 @@ class _DatadogMultiHeader:
             headers,
         )
 
+        meta = None
+        tags_value = _extract_header_value(
+            _POSSIBLE_HTTP_HEADER_TAGS,
+            headers,
+            default="",
+        )
+        if tags_value:
+            # Do not fail if the tags are malformed
+            try:
+                meta = {
+                    k: v
+                    for (k, v) in decode_tagset_string(tags_value).items()
+                    if (
+                        k not in _DatadogMultiHeader._X_DATADOG_TAGS_EXTRACT_REJECT
+                        and _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
+                    )
+                }
+            except TagsetMaxSizeDecodeError:
+                meta = {
+                    "_dd.propagation_error": "extract_max_size",
+                }
+                log.warning("failed to decode x-datadog-tags", exc_info=True)
+            except TagsetDecodeError:
+                meta = {
+                    "_dd.propagation_error": "decoding_error",
+                }
+                log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
+
         # Try to parse values into their expected types
         try:
             if sampling_priority is not None:
@@ -137,20 +223,31 @@ class _DatadogMultiHeader:
             else:
                 sampling_priority = sampling_priority
 
+            if meta:
+                meta = validate_sampling_decision(meta)
+
             return Context(
                 # DEV: Do not allow `0` for trace id or span id, use None instead
                 trace_id=int(trace_id) or None,
                 span_id=int(parent_span_id) or None,  # type: ignore[arg-type]
                 sampling_priority=sampling_priority,  # type: ignore[arg-type]
                 dd_origin=origin,
+                # DEV: This cast is needed because of the type requirements of
+                # span tags and trace tags which are currently implemented using
+                # the same type internally (_MetaDictType).
+                meta=cast(_MetaDictType, meta),
             )
         except (TypeError, ValueError):
             log.debug(
-                "received invalid x-datadog-* headers, " "trace-id: %r, parent-id: %r, priority: %r, origin: %r",
+                (
+                    "received invalid x-datadog-* headers, "
+                    "trace-id: %r, parent-id: %r, priority: %r, origin: %r, tags:%r"
+                ),
                 trace_id,
                 parent_span_id,
                 sampling_priority,
                 origin,
+                tags_value,
             )
         return None
 

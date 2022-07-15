@@ -1,5 +1,6 @@
 import os
 import threading
+from time import sleep
 
 import pytest
 
@@ -139,3 +140,29 @@ def test_is_alive_before_start():
 
     t = periodic.PeriodicRealThreadClass()(1, x)
     assert not t.is_alive()
+
+
+def test_awakeable_periodic_service():
+    queue = []
+
+    class AwakeMe(periodic.AwakeablePeriodicService):
+        def periodic(self):
+            queue.append(len(queue))
+
+    interval = 1
+
+    awake_me = AwakeMe(interval)
+
+    awake_me.start()
+
+    # Manually awake the service
+    n = 10
+    for _ in range(10):
+        awake_me.awake()
+
+    # Sleep long enough to also trigger the periodic function with the timeout
+    sleep(1.1 * interval)
+
+    awake_me.stop()
+
+    assert queue == list(range(n + 2))

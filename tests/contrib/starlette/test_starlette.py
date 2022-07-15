@@ -343,7 +343,7 @@ def test_path_param_no_aggregate(client, tracer, test_spans):
     request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
-    assert request_span.resource == "GET /users/{userid:int}"
+    assert request_span.resource == "GET /users/1"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/1"
@@ -396,11 +396,31 @@ def test_table_query(client, tracer, test_spans):
     assert sql_span.get_tag("sql.db") == "test.db"
 
 
+@pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])
+def test_host_header(client, tracer, test_spans, host):
+    r = client.get("/200", headers={"host": host})
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.get_tag("http.url") == "http://%s/200" % (host,)
+
+
 @snapshot()
 def test_subapp_snapshot(snapshot_client):
     response = snapshot_client.get("/sub-app/hello/name")
     assert response.status_code == 200
     assert response.text == "Success"
+
+
+@snapshot()
+def test_subapp_no_aggregate_snapshot(snapshot_client):
+    config.starlette["aggregate_resources"] = False
+    response = snapshot_client.get("/sub-app/hello/name")
+    assert response.status_code == 200
+    assert response.text == "Success"
+    config.starlette["aggregate_resources"] = True
 
 
 @snapshot()
@@ -413,3 +433,54 @@ def test_table_query_snapshot(snapshot_client):
     r_get = snapshot_client.get("/notes")
     assert r_get.status_code == 200
     assert r_get.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
+
+
+@snapshot()
+def test_incorrect_patching(run_python_code_in_subprocess):
+    """
+    When Starlette is patched after the app is created
+        We create no traces
+        We do not crash the application
+        We log a warning
+    """
+    code = """
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
+from starlette.testclient import TestClient
+import sqlalchemy
+
+from ddtrace import patch_all
+from tests.contrib.starlette.app import get_app
+
+engine = sqlalchemy.create_engine("sqlite:///test.db")
+app = get_app(engine)
+
+# Calling patch_all late
+# DEV: The test client uses `requests` so we want to ignore them for this scenario
+patch_all(requests=False)
+
+with TestClient(app) as test_client:
+    r = test_client.get("/200")
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+    """
+
+    out, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
+    assert out == b"", err
+    assert err == b"datadog context not present in ASGI request scope, trace middleware may be missing\n"
+
+
+def test_background_task(client, tracer, test_spans):
+    """Tests if background tasks have been excluded from span duration"""
+    r = client.get("/backgroundtask")
+    assert r.status_code == 200
+    assert r.text == '{"result":"Background task added"}'
+
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.name == "starlette.request"
+    assert request_span.resource == "GET /backgroundtask"
+    # typical duration without background task should be in less than 10ms
+    # duration with background task will take approximately 1.1s
+    assert request_span.duration < 1

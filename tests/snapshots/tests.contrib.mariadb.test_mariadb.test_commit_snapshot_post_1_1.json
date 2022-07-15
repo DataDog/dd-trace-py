@@ -1,0 +1,26 @@
+[[
+  {
+    "name": "mariadb.connection.commit",
+    "service": "mariadb",
+    "resource": "mariadb.connection.commit",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "test",
+      "db.user": "test",
+      "out.host": "127.0.0.1",
+      "runtime-id": "778c778962a54eeea3ae401d2417ef86"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 3306,
+      "system.pid": 9677
+    },
+    "duration": 420500,
+    "start": 1656521264458364000
+  }]]

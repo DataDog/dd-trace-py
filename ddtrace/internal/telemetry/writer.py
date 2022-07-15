@@ -18,6 +18,7 @@ from ..runtime import get_runtime_id
 from ..service import ServiceStatus
 from ..utils.time import StopWatch
 from .data import get_application
+from .data import get_dependencies
 from .data import get_host_info
 
 
@@ -54,6 +55,10 @@ class TelemetryWriter(PeriodicService):
 
         # _sequence is a counter representing the number of requests sent by the writer
         self._sequence = 1  # type: int
+
+    @property
+    def url(self):
+        return "%s/%s" % (self._agent_url, self.ENDPOINT)
 
     def _send_request(self, request):
         # type: (Dict) -> httplib.HTTPResponse
@@ -110,14 +115,14 @@ class TelemetryWriter(PeriodicService):
             try:
                 resp = self._send_request(telemetry_request)
                 if resp.status >= 300:
-                    log.warning(
+                    log.debug(
                         "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
                         self._agent_url,
                         self.ENDPOINT,
                         resp.status,
                     )
             except Exception:
-                log.warning(
+                log.debug(
                     "failed to send telemetry to the Datadog Agent at %s/%s.",
                     self._agent_url,
                     self.ENDPOINT,
@@ -183,12 +188,8 @@ class TelemetryWriter(PeriodicService):
         if self._forked:
             # app-started events should only be sent by the main process
             return
-        # pkg_resources import is inlined for performance reasons
-        # This import is an expensive operation
-        import pkg_resources
-
         payload = {
-            "dependencies": [{"name": pkg.project_name, "version": pkg.version} for pkg in pkg_resources.working_set],
+            "dependencies": get_dependencies(),
             "integrations": self._flush_integrations_queue(),
             "configurations": [],
         }
@@ -268,8 +269,8 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.RUNNING:
             return
 
-        self.start()
         self._enabled = True
+        self.start()
 
         forksafe.register(self._fork_writer)
         atexit.register(self.stop)

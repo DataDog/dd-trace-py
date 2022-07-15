@@ -1,4 +1,5 @@
 import redis
+from six import PY3
 
 from ddtrace import config
 from ddtrace.vendor import wrapt
@@ -36,7 +37,8 @@ def patch():
         _w("redis", "Redis.pipeline", traced_pipeline)
         _w("redis.client", "Pipeline.execute", traced_execute_pipeline)
         _w("redis.client", "Pipeline.immediate_execute_command", traced_execute_command)
-        if redis.VERSION >= (4, 2, 0):
+        # Avoid mypy invalid syntax errors when parsing Python 2 files
+        if PY3 and redis.VERSION >= (4, 2, 0):
             from .asyncio_patch import traced_async_execute_command
             from .asyncio_patch import traced_async_execute_pipeline
 
@@ -44,6 +46,7 @@ def patch():
             _w("redis.asyncio.client", "Redis.pipeline", traced_pipeline)
             _w("redis.asyncio.client", "Pipeline.execute", traced_async_execute_pipeline)
             _w("redis.asyncio.client", "Pipeline.immediate_execute_command", traced_async_execute_command)
+            Pin(service=None).onto(redis.asyncio.Redis)
     Pin(service=None).onto(redis.StrictRedis)
 
 
