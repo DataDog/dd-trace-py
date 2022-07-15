@@ -88,7 +88,37 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         return start_response(status_code, headers)
 
     def _request_span_modifier(self, span, environ):
-        pass
+        # Create a werkzeug request from the `environ` to make interacting with it easier
+        # DEV: This executes before a request context is created
+        request = werkzeug.Request(environ)
+
+        # Default resource is method and path:
+        #   GET /
+        #   POST /save
+        # We will override this below in `traced_dispatch_request` when we have a `
+        # RequestContext` and possibly a url rule
+        span.resource = u" ".join((request.method, request.path))
+
+        span.set_tag(SPAN_MEASURED_KEY)
+        # set analytics sample rate with global config enabled
+        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+
+        span._set_str_tag(FLASK_VERSION, flask_version_str)
+
+        # DEV: We set response status code in `_wrap_start_response`
+        # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
+        trace_utils.set_http_meta(
+            span,
+            config.flask,
+            method=request.method,
+            url=request.base_url,
+            raw_uri=request.url,
+            query=request.query_string,
+            parsed_query=request.args,
+            request_headers=request.headers,
+        )
 
 
 def patch():
@@ -296,47 +326,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     # DEV: This is safe before this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
-
-    # Create a werkzeug request from the `environ` to make interacting with it easier
-    # DEV: This executes before a request context is created
-    request = werkzeug.Request(environ)
-
-    # Configure distributed tracing
-    trace_utils.activate_distributed_headers(pin.tracer, int_config=config.flask, request_headers=request.headers)
-
-    # Default resource is method and path:
-    #   GET /
-    #   POST /save
-    # We will override this below in `traced_dispatch_request` when we have a `RequestContext` and possibly a url rule
-    resource = u" ".join((request.method, request.path))
-    with pin.tracer.trace(
-        "flask.request",
-        service=trace_utils.int_service(pin, config.flask),
-        resource=resource,
-        span_type=SpanTypes.WEB,
-    ) as span:
-        span.set_tag(SPAN_MEASURED_KEY)
-        # set analytics sample rate with global config enabled
-        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
-        if sample_rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
-
-        span._set_str_tag(FLASK_VERSION, flask_version_str)
-
-        # DEV: We set response status code in `_wrap_start_response`
-        # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
-        trace_utils.set_http_meta(
-            span,
-            config.flask,
-            method=request.method,
-            url=request.base_url,
-            raw_uri=request.url,
-            query=request.query_string,
-            parsed_query=request.args,
-            request_headers=request.headers,
-        )
-
-        return wrapped(environ, start_response)
+    return wrapped(environ, start_response)
 
 
 def traced_blueprint_register(wrapped, instance, args, kwargs):
