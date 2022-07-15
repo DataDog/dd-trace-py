@@ -20,6 +20,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
+from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...ext import SpanTypes
 from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
@@ -78,6 +79,18 @@ else:
 #      (0, 8, 5) <= (0, 9)
 flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
+
+
+class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
+    _request_span_name = "flask.request"
+    _application_span_name = "flask.application"
+    _response_span_name = "flask.response"
+
+    def _traced_start_response(self, start_response, span, status_code, headers, exc_info=None):
+        pass
+
+    def _request_span_modifier(self, span, environ):
+        pass
 
 
 def patch():
