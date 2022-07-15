@@ -49,19 +49,21 @@ def set_argument_value(
     kw,  # type: str
     value,  # type: Any
 ):
-    # type: (...) -> Tuple[Tuple, Dict]
+    # type: (...) -> Tuple[Tuple[Any, ...], Dict[str, Any]]
     """
-    This function parses the value of a target function argument that may have been
-    passed in as a positional argument or a keyword argument. Then updates the value.
+    Returns a new args, kwargs with the given value updated
     :param args: Positional arguments
     :param kwargs: Keyword arguments
-    :param pos: The positional index of the argument if passed in as a positional arg
-    :param kw: The name of the keyword if passed in as a keyword argument
-    :param value: new argument
-    :return: The value of the target argument
+    :param pos: The positional index of the argument
+    :param kw: The name of the keyword
+    :param value: The new value of the target argument
+    :return: Updated args and kwargs
     """
-    try:
+    if len(args) > pos:
         args = args[:pos] + (value,) + args[pos + 1 :]
-    except IndexError:
+    elif kw in kwargs:
         kwargs[kw] = value
+    else:
+        raise ArgumentError("%s (at position %d) is invalid" % (kw, pos))
+
     return args, kwargs
