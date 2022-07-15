@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
 
 
 log = get_logger(__name__)
@@ -97,8 +98,10 @@ class SingleSpanSamplingProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        for rule in self.rules:
-            rule.sample(span)
+        # only sample if the span isn't already going to be sampled by trace sampler
+        if span.get_metric(SAMPLING_PRIORITY_KEY) <= 0:
+            for rule in self.rules:
+                rule.sample(span)
     
     def shutdown(self, timeout):
         # type: (Optional[float]) -> None

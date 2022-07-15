@@ -2,6 +2,7 @@ from typing import Any
 
 import attr
 import mock
+from ddtrace.internal.sampling import SingleSpanSamplingProcessor
 import pytest
 
 from ddtrace import Span
@@ -342,3 +343,39 @@ def test_span_normalizator():
     assert span.name == DEFAULT_SPAN_NAME
     assert span.resource == DEFAULT_SPAN_NAME
     assert span.span_type == "x" * MAX_TYPE_LENGTH
+
+def test_single_span_sampling_processor():
+    """Test that single span sampling tags are applied to spans that should get sampled"""
+
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name")
+    rule_2 = SpanSamplingRule(service="test_service2", name="test_name2")
+    processor = SingleSpanSamplingProcessor([rule_1, rule_2])
+    tracer = Tracer()
+    tracer.configure(writer=DummyWriter())
+    tracer._span_processors.append()
+
+    span = traced_function(tracer)
+
+
+
+    assert parent.get_metric("_dd.top_level") == 1
+    assert "_dd.top_level" not in child.get_metrics()
+
+def traced_function(rule, tracer, name="test_name", service="test_service", trace_sampling=False):
+    with tracer.trace(name) as span:
+        if trace_sampling:
+            span.set_metric(SAMPLING_PRIORITY_KEY, 1)
+        else:
+            span.set_metric(SAMPLING_PRIORITY_KEY, 0)
+        span.service = service
+    return span
+
+def assert_sampling_decision_tags(span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None, trace_sampling=False):
+    assert span.get_metric(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
+    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
+    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
+
+    if trace_sampling:
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) >= 0
+
+

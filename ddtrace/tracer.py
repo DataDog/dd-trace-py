@@ -50,6 +50,7 @@ from .internal.utils.formats import asbool
 from .internal.writer import AgentWriter
 from .internal.writer import LogWriter
 from .internal.writer import TraceWriter
+from .internal.sampling import SingleSpanSamplingProcessor
 from .provider import DefaultContextProvider
 from .sampler import BasePrioritySampler
 from .sampler import BaseSampler
@@ -106,6 +107,7 @@ def _default_span_processors_factory(
     trace_processors += trace_filters
 
     span_processors = []  # type: List[SpanProcessor]
+    span_processors += [SingleSpanSamplingProcessor()]
 
     if appsec_enabled:
         try:
