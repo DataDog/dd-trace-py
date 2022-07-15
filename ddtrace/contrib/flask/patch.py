@@ -64,8 +64,28 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _application_span_name = "flask.application"
     _response_span_name = "flask.response"
 
+    # Wrap the `start_response` handler to extract response code
+    # DEV: We tried using `Flask.finalize_request`, which seemed to work, but gave us hell during tests
+    # DEV: The downside to using `start_response` is we do not have a `Flask.Response` object here,
+    #   only `status_code`, and `headers` to work with
+    #   On the bright side, this works in all versions of Flask (or any WSGI app actually)
     def _traced_start_response(self, start_response, span, status_code, headers, exc_info=None):
-        pass
+        code, _, _ = status_code.partition(" ")
+        # If values are accessible, set the resource as `<method> <path>` and add other request tags
+        _set_request_tags(span)
+
+        # Override root span resource name to be `<method> 404` for 404 requests
+        # DEV: We do this because we want to make it easier to see all unknown requests together
+        #      Also, we do this to reduce the cardinality on unknown urls
+        # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
+        #      we still want `GET /product/<int:product_id>` grouped together,
+        #      even if it is a 404
+        if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
+            span.resource = u" ".join((flask.request.method, code))
+
+        trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=headers)
+
+        return start_response(status_code, headers)
 
     def _request_span_modifier(self, span, environ):
         pass
@@ -266,32 +286,6 @@ def unpatch():
         _u(obj, prop)
 
 
-# Wrap the `start_response` handler to extract response code
-# DEV: We tried using `Flask.finalize_request`, which seemed to work, but gave us hell during tests
-# DEV: The downside to using `start_response` is we do not have a `Flask.Response` object here,
-#   only `status_code`, and `headers` to work with
-#   On the bright side, this works in all versions of Flask (or any WSGI app actually)
-def _wrap_start_response(func, span, request):
-    def traced_start_response(status_code, headers):
-        code, _, _ = status_code.partition(" ")
-        # If values are accessible, set the resource as `<method> <path>` and add other request tags
-        _set_request_tags(span)
-
-        # Override root span resource name to be `<method> 404` for 404 requests
-        # DEV: We do this because we want to make it easier to see all unknown requests together
-        #      Also, we do this to reduce the cardinality on unknown urls
-        # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
-        #      we still want `GET /product/<int:product_id>` grouped together,
-        #      even if it is a 404
-        if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
-            span.resource = u" ".join((request.method, code))
-
-        trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=headers)
-        return func(status_code, headers)
-
-    return traced_start_response
-
-
 @with_instance_pin
 def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
     """
@@ -328,8 +322,6 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
         span._set_str_tag(FLASK_VERSION, flask_version_str)
-
-        start_response = _wrap_start_response(start_response, span, request)
 
         # DEV: We set response status code in `_wrap_start_response`
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
