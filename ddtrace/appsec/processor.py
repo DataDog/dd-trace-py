@@ -94,7 +94,7 @@ _COLLECTED_REQUEST_HEADERS = {
 _COLLECTED_HEADER_PREFIX = "http.request.headers."
 
 
-def _set_headers(span, headers, kind="request"):
+def _set_headers(span, headers, kind):
     # type: (Span, Dict[str, Union[str, List[str]]], str) -> None
     for k in headers:
         if k.lower() in _COLLECTED_REQUEST_HEADERS:
