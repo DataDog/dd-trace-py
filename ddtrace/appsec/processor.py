@@ -35,17 +35,21 @@ log = get_logger(__name__)
 
 
 def _transform_headers(data):
-    # type: (Union[Dict[str, str], List[Tuple[str, str]]]) -> Dict[str, List[str]]
-    normalized = {}  # type: Dict[str, List[str]]
+    # type: (Union[Dict[str, str], List[Tuple[str, str]]]) -> Dict[str, Union[str, List[str]]]
+    normalized = {}  # type: Dict[str, Union[str, List[str]]]
     headers = data if isinstance(data, list) else data.items()
     for header, value in headers:
         header = header.lower()
         if header in ("cookie", "set-cookie"):
             continue
-        if header in normalized:
-            normalized[header].append(value)
-        else:  # if a header with the same lowercase name doesn't exist, let's add it in an array
-            normalized[header] = [value]
+        if header in normalized:  # if a header with the same lowercase name already exists, let's make it an array
+            existing = normalized[header]
+            if isinstance(existing, list):
+                existing.append(value)
+            else:
+                normalized[header] = [existing, value]
+        else:
+            normalized[header] = value
     return normalized
 
 
