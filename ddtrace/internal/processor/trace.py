@@ -11,6 +11,7 @@ import six
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
+from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
@@ -226,3 +227,31 @@ class SpanAggregator(SpanProcessor):
         except ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
+
+
+@attr.s
+class SingleSpanSamplingProcessor(SpanProcessor):
+    """SpanProcessor for sampling single spans"""
+
+    rules = attr.ib(type=(List[SpanSamplingRule]))
+
+    def on_span_start(self, span):
+        # type: (Span) -> None
+        pass
+
+    def on_span_finish(self, span):
+        # type: (Span) -> None
+        # only sample if the span isn't already going to be sampled by trace sampler
+        if span._context.sampling_priority <= 0:
+            for rule in self.rules:
+                rule.sample(span)
+                # If we matched a rule, then don't try to apply any further rules
+                if rule.match(span):
+                    break
+
+    def shutdown(self, timeout):
+        # type: (Optional[float]) -> None
+        # do I need to call periodic() and stop() like how the stats processor does?
+        pass
+        # self.periodic()
+        # self.stop(timeout)
