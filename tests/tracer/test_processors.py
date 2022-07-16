@@ -437,9 +437,9 @@ def traced_function(tracer, name="test_name", service="test_service", trace_samp
     with tracer.trace(name) as span:
         # If the trace sampler samples the trace, then we shouldn't add the span sampling tags
         if trace_sampling:
-            span._context.sampling_priority = 1
+            span.context.sampling_priority = 1
         else:
-            span._context.sampling_priority = 0
+            span.context.sampling_priority = 0
 
         span.service = service
     return span

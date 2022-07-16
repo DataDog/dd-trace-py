@@ -242,7 +242,7 @@ class SingleSpanSamplingProcessor(SpanProcessor):
     def on_span_finish(self, span):
         # type: (Span) -> None
         # only sample if the span isn't already going to be sampled by trace sampler
-        if span._context.sampling_priority <= 0:
+        if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             for rule in self.rules:
                 rule.sample(span)
                 # If we matched a rule, then don't try to apply any further rules
@@ -251,7 +251,4 @@ class SingleSpanSamplingProcessor(SpanProcessor):
 
     def shutdown(self, timeout):
         # type: (Optional[float]) -> None
-        # do I need to call periodic() and stop() like how the stats processor does?
         pass
-        # self.periodic()
-        # self.stop(timeout)
