@@ -141,10 +141,6 @@ venv = Venv(
                 "types-PyYAML": latest,
                 "types-setuptools": latest,
                 "types-six": latest,
-                "types-requests": latest,
-                "types-boto": latest,
-                "types-redis": latest,
-                "types-PyMySQL": latest,
             },
         ),
         Venv(
