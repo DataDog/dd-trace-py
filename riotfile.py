@@ -129,7 +129,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            pys=["3"],
+            pys=["3.9"],
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
@@ -1154,6 +1154,32 @@ venv = Venv(
                     pkgs={
                         "mariadb": [
                             "~=1.0.0",
+                            "~=1.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="pymysql",
+            command="pytest {cmdargs} tests/contrib/pymysql",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "pymysql": [
+                            "~=0.7",
+                            "~=0.8",
+                            "~=0.9",
+                        ],
+                    },
+                ),
+                Venv(
+                    # 1.x dropped support for 2.7 and 3.5
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "pymysql": [
                             "~=1.0",
                             latest,
                         ],
