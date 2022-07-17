@@ -40,7 +40,7 @@ def test_transform_headers():
             "fOO": "bar3",
             "BAR": "baz",
             "COOKIE": "secret",
-        }
+        },
     )
     assert set(transformed.keys()) == {"hello", "bar", "foo"}
     assert transformed["hello"] == "world"
@@ -119,11 +119,17 @@ def test_headers_collection(tracer):
                 "accept": "something",
                 "x-Forwarded-for": "127.0.0.1",
             },
+            response_headers={
+                "foo": "bar",
+                "Content-Length": "500",
+            },
         )
 
     assert span.get_tag("http.request.headers.hello") is None
     assert span.get_tag("http.request.headers.accept") == "something"
     assert span.get_tag("http.request.headers.x-forwarded-for") == "127.0.0.1"
+    assert span.get_tag("http.response.headers.content-length") == "500"
+    assert span.get_tag("http.response.headers.foo") is None
 
 
 @snapshot(include_tracer=True)
