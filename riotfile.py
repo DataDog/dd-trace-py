@@ -164,11 +164,6 @@ venv = Venv(
                 Venv(
                     name="slotscheck",
                     command="python -m slotscheck -v {cmdargs}",
-                    pkgs={
-                        "flask": ["~=0.12.0"],
-                        "jinja2": "~=3.0.1",
-                        "itsdangerous": "<2.0",
-                    },
                 ),
             ],
         ),
