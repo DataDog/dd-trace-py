@@ -45,7 +45,6 @@ class Profiler(object):
 
     def __init__(self, *args, **kwargs):
         self._profiler = _ProfilerInstance(*args, **kwargs)
-        self.lambda_function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME", type=Optional[str])
 
     def start(self, stop_on_exit=True, profile_children=True):
         """Start the profiler.
@@ -134,6 +133,7 @@ class _ProfilerInstance(service.Service):
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
     _scheduler = attr.ib(init=False, default=None)
+    _lambda_function_name = attr.ib(factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"),  type=Optional[str])
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -167,8 +167,8 @@ class _ProfilerInstance(service.Service):
             # to the agent base path.
             endpoint_path = "profiling/v1/input"
 
-        if self.lambda_function_name:
-            self.tags.update({"functionname": self.lambda_function_name.encode()})
+        if self._lambda_function_name:
+            self.tags.update({"functionname": self._lambda_function_name.encode()})
 
         return [
             http.PprofHTTPExporter(
@@ -214,8 +214,7 @@ class _ProfilerInstance(service.Service):
         exporters = self._build_default_exporters()
 
         if exporters:
-            lambda_function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
-            if lambda_function_name:
+            if self._lambda_function_name:
                 self._scheduler = serverless_scheduler.ServerlessScheduler(
                     recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
                 )
