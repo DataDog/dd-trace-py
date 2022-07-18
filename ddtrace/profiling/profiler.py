@@ -45,6 +45,7 @@ class Profiler(object):
 
     def __init__(self, *args, **kwargs):
         self._profiler = _ProfilerInstance(*args, **kwargs)
+        self.lambda_function_name = os.environ.get("AWS_LAMBDA_FUNCTION_NAME", type=Optional[str])
 
     def start(self, stop_on_exit=True, profile_children=True):
         """Start the profiler.
@@ -165,6 +166,9 @@ class _ProfilerInstance(service.Service):
             # path is relative because it is appended
             # to the agent base path.
             endpoint_path = "profiling/v1/input"
+
+        if self.lambda_function_name:
+            self.tags.update({"functionname": self.lambda_function_name.encode()})
 
         return [
             http.PprofHTTPExporter(

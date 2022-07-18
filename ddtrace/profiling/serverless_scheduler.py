@@ -13,7 +13,7 @@ LOG = logging.getLogger(__name__)
 
 @attr.s
 class ServerlessScheduler(scheduler.Scheduler):
-    _interval = attr.ib(factory=attr_utils.from_env("DD_SERVERLESS_PROFILING_UPLOAD_INTERVAL", 1, int))
+    _interval = attr.ib(1)
     _total_profiled_seconds = attr.ib(default=0)
 
     def periodic(self):
@@ -28,4 +28,4 @@ class ServerlessScheduler(scheduler.Scheduler):
             finally:
                 self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
         else:
-            self._total_profiled_seconds += 1
+            self._total_profiled_seconds += self._interval
