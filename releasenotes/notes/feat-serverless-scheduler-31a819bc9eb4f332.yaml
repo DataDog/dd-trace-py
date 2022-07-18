@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Adds serverless_scheduler, which flushes data after 60 calls to `periodic`, which occur every second.
+    Adds support for Lambda profiling, which can be enabled by starting the profiler outside of the handler (on cold start).
