@@ -133,7 +133,7 @@ class _ProfilerInstance(service.Service):
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
     _scheduler = attr.ib(init=False, default=None)
-    _lambda_function_name = attr.ib(factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"),  type=Optional[str])
+    _lambda_function_name = attr.ib(factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str])
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
