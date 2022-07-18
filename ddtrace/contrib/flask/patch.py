@@ -329,6 +329,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             query=request.query_string,
             parsed_query=request.args,
             request_headers=request.headers,
+            request_cookies=request.cookies,
         )
 
         return wrapped(environ, start_response)

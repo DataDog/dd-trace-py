@@ -30,6 +30,42 @@
       "transformers": [
         "lowercase"
       ]
+    },
+    {
+      "id": "crs-942-100",
+      "name": "SQL Injection Attack Detected via libinjection",
+      "tags": {
+        "type": "sql_injection",
+        "crs_id": "942100",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "grpc.server.request.message"
+              },
+              {
+                "address": "server.request.cookies"
+              }
+            ]
+          },
+          "operator": "is_sqli"
+        }
+      ],
+      "transformers": [
+        "removeNulls"
+      ]
     }
   ]
 }
