@@ -36,10 +36,10 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         root_span = spans[0]
 
         flask_args = root_span.get_tag("flask.view_args.item")
-        path_params = _context.get_item("http.request.path_params", span=root_span)
-
-        assert path_params == {"item": "attack"}
         assert flask_args == "attack"
+
+        path_params = _context.get_item("http.request.path_params", span=root_span)
+        assert path_params == {"item": "attack"}
 
     def test_flask_path_params_attack(self):
         @self.app.route("/params/<item>")
