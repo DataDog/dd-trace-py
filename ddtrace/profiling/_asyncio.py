@@ -16,8 +16,10 @@ except ImportError:
         # type: (...) -> None
         pass
 
+    asyncio_available = False
 
 else:
+    asyncio_available = True
     DefaultEventLoopPolicy = asyncio.DefaultEventLoopPolicy  # type: ignore[misc]
 
     get_event_loop_policy = asyncio.get_event_loop_policy  # type: ignore[assignment]
