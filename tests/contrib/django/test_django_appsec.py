@@ -62,3 +62,14 @@ def test_django_request_cookies_attack(client, test_spans, tracer):
         query = dict(_context.get_item("http.request.cookies", span=root_span))
         assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
         assert query == {"attack": "1' or '1' = '1'"}
+
+
+def test_django_path_params(client, test_spans, tracer):
+    tracer._appsec_enabled = True
+    # Hack: need to pass an argument to configure so that the processors are recreated
+    tracer.configure(api_version="v0.4")
+    client.get("/path-params/2022/july/")
+    root_span = test_spans.spans[0]
+    path_params = _context.get_item("http.request.path_params", span=root_span)
+
+    assert path_params == {"year": 2022, "month": "july"}
