@@ -739,8 +739,7 @@ venv = Venv(
         ),
         Venv(
             name="flask",
-            # TODO: Re-enable coverage for Flask tests
-            command="pytest --no-cov {cmdargs} tests/contrib/flask",
+            command="pytest {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest},
             venvs=[
                 # Flask == 0.12.0
@@ -760,8 +759,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(max_version="3.9"),
-                    # TODO: Re-enable coverage for Flask tests
-                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
@@ -799,8 +797,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(),
-                    # TODO: Re-enable coverage for Flask tests
-                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
@@ -834,8 +831,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    # TODO: Re-enable coverage for Flask tests
-                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
@@ -852,8 +848,7 @@ venv = Venv(
         ),
         Venv(
             name="flask_cache",
-            # TODO: Re-enable coverage for Flask tests
-            command="pytest --no-cov {cmdargs} tests/contrib/flask_cache",
+            command="pytest {cmdargs} tests/contrib/flask_cache",
             pkgs={
                 "python-memcached": latest,
                 "redis": "~=2.0",
