@@ -526,5 +526,6 @@ def _set_request_tags(span):
                 # DEV: Do not use `_set_str_tag` here since view args can be string/int/float/path/uuid/etc
                 #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
                 span.set_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
+            trace_utils.set_http_meta(span, config.flask, request_path_params=request.view_args)
     except Exception:
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
