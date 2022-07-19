@@ -114,7 +114,9 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         result = await original_func(*args, **kwargs)
 
         body = result.get("Body")
-        if isinstance(body, ClientResponseContentProxy):
+
+        # ClientResponseContentProxy removed in aiobotocore 2.3.x: https://github.com/aio-libs/aiobotocore/pull/934/
+        if hasattr(body, "ClientResponseContentProxy") and isinstance(body, ClientResponseContentProxy):
             result["Body"] = WrappedClientResponseContentProxy(body, pin, span)
 
         response_meta = result["ResponseMetadata"]
