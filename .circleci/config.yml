@@ -727,9 +727,9 @@ jobs:
       - image: *ddtrace_dev_image
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: mysql
-          pattern: '^pymysql_contrib-'
+          pattern: 'pymysql'
 
   pylibmc:
     <<: *contrib_job
