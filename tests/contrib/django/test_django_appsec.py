@@ -72,4 +72,6 @@ def test_django_path_params(client, test_spans, tracer):
     root_span = test_spans.spans[0]
     path_params = _context.get_item("http.request.path_params", span=root_span)
 
-    assert path_params == {"year": 2022, "month": "july"}
+    assert path_params["month"] == "july"
+    # django>=1.8,<1.9 returns string instead int
+    assert int(path_params["year"]) == 2022
