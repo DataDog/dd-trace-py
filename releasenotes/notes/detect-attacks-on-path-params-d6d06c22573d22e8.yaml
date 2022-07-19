@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    AppSec: Detect attacks on path params
+    ASM: Detect attacks on path parameters
