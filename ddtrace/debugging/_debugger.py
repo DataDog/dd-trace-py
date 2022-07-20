@@ -139,6 +139,13 @@ class Debugger(Service):
     _instance = None  # type: Optional[Debugger]
     _probe_meter = _probe_metrics.get_meter("probe")
 
+    __rc__ = DebuggingRCV07
+    __poller__ = ProbePoller
+    __uploader__ = LogsIntakeUploaderV1
+    __collector__ = SnapshotCollector
+    __watchdog__ = DebuggerModuleWatchdog
+    __logger__ = ProbeStatusLogger
+
     @classmethod
     def enable(cls, run_module=False):
         # type: (bool) -> None
@@ -149,7 +156,7 @@ class Debugger(Service):
 
         log.debug("Enabling %s", cls.__name__)
 
-        DebuggerModuleWatchdog.install()
+        cls.__watchdog__.install()
 
         if config.metrics:
             metrics.enable()
@@ -179,7 +186,7 @@ class Debugger(Service):
         cls._instance.stop()
         cls._instance = None
 
-        DebuggerModuleWatchdog.uninstall()
+        cls.__watchdog__.uninstall()
         if config.metrics:
             metrics.disable()
 
@@ -199,10 +206,10 @@ class Debugger(Service):
             },
             on_full=self.on_encoder_buffer_full,
         )
-        self._probe_registry = ProbeRegistry(ProbeStatusLogger(service_name, self._encoder))
-        self._uploader = LogsIntakeUploaderV1(self._encoder)
-        self._collector = SnapshotCollector(self._encoder)
-        self._probe_poller = ProbePoller(DebuggingRCV07(service_name), self._on_poller_event)
+        self._probe_registry = ProbeRegistry(self.__logger__(service_name, self._encoder))
+        self._uploader = self.__uploader__(self._encoder)
+        self._collector = self.__collector__(self._encoder)
+        self._probe_poller = self.__poller__(self.__rc__(service_name), self._on_poller_event)
         self._services = [self._uploader, self._probe_poller]
 
         self._function_store = FunctionStore(extra_attrs=["__dd_wrappers__"])
@@ -389,7 +396,7 @@ class Debugger(Service):
 
         for source in {probe.source_file for probe in probes if probe.source_file is not None}:
             try:
-                DebuggerModuleWatchdog.register_origin_hook(source, self._probe_injection_hook)
+                self.__watchdog__.register_origin_hook(source, self._probe_injection_hook)
             except Exception:
                 exc_info = sys.exc_info()
                 for probe in probes:
@@ -418,7 +425,7 @@ class Debugger(Service):
             probes_for_source[probe.source_file].append(probe)
 
         for resolved_source, probes in probes_for_source.items():
-            module = DebuggerModuleWatchdog.get_by_origin(resolved_source)
+            module = self.__watchdog__.get_by_origin(resolved_source)
             if module is not None:
                 # The module is still loaded, so we can try to eject the hooks
                 probes_for_function = defaultdict(list)  # type: Dict[FullyNamedWrappedFunction, List[LineProbe]]
@@ -444,7 +451,7 @@ class Debugger(Service):
 
             if not self._probe_registry.has_probes(resolved_source):
                 try:
-                    DebuggerModuleWatchdog.unregister_origin_hook(resolved_source, self._probe_injection_hook)
+                    self.__watchdog__.unregister_origin_hook(resolved_source, self._probe_injection_hook)
                     log.debug("Unregistered injection hook on source '%s'", resolved_source)
                 except ValueError:
                     log.error("Cannot unregister injection hook for %r", probe, exc_info=True)
@@ -489,13 +496,18 @@ class Debugger(Service):
             self._probe_registry.register(probe)
             try:
                 assert probe.module is not None
-                DebuggerModuleWatchdog.register_module_hook(probe.module, self._probe_wrapping_hook)
+                self.__watchdog__.register_module_hook(probe.module, self._probe_wrapping_hook)
             except Exception:
                 self._probe_registry.set_exc_info(probe, sys.exc_info())
                 log.error("Cannot register probe wrapping hook on module '%s'", probe.module, exc_info=True)
 
     def _unwrap_functions(self, probes):
         # type: (List[FunctionProbe]) -> None
+
+        # Keep track of all the modules involved to see if there are any import
+        # hooks that we can clean up at the end.
+        touched_modules = set()  # type: Set[str]
+
         for probe in probes:
             registered_probes = self._probe_registry.unregister(probe)
             if not registered_probes:
@@ -508,6 +520,7 @@ class Debugger(Service):
             module = sys.modules.get(probe.module, None)
             if module is not None:
                 # The module is still loaded, so we can try to unwrap the function
+                touched_modules.add(probe.module)
                 assert probe.func_qname is not None
                 function = FunctionDiscovery.from_module(module).by_name(probe.func_qname)
                 if hasattr(function, "__dd_wrappers__"):
@@ -521,12 +534,14 @@ class Debugger(Service):
                 else:
                     log.error("Attempted to unwrap %r, but no wrapper found", registered_probe)
 
-            try:
-                assert probe.module is not None
-                DebuggerModuleWatchdog.unregister_module_hook(probe.module, self._probe_wrapping_hook)
-                log.debug("Unregistered wrapping hook on module '%s' for probe %r", probe.module, probe)
-            except ValueError:
-                log.error("Cannot unregister wrapping hook for %r", probe, exc_info=True)
+        # Clean up import hooks.
+        for module_name in touched_modules:
+            if not self._probe_registry.has_probes(module_name):
+                try:
+                    self.__watchdog__.unregister_module_hook(module_name, self._probe_wrapping_hook)
+                    log.debug("Unregistered wrapping import hook on module %s", module_name)
+                except ValueError:
+                    log.error("Cannot unregister wrapping import hook for module %r", module_name, exc_info=True)
 
     def _on_poller_event(self, event, probes):
         # type: (ProbePollerEventType, List[Probe]) -> None

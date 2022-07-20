@@ -15,7 +15,6 @@ from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.registry import _get_probe_location
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
-from tests.debugging.mocking import install
 from tests.submod.stuff import Stuff
 from tests.submod.stuff import modulestuff as imported_modulestuff
 
@@ -31,7 +30,7 @@ def good_probe():
 
 
 def simple_debugger_test(probe, func):
-    with install(LogsIntakeUploaderV1=1, DebuggingRCV07=1, ProbeStatusLogger=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         probe_id = probe.probe_id
 
         d.rc.add_probes([probe])
@@ -115,7 +114,7 @@ def test_debugger_line_probe_on_imported_module_function():
 def test_debugger_probe_new_delete(probe, trigger):
     global Stuff
 
-    with install(LogsIntakeUploaderV1=1, DebuggingRCV07=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         probe_id = probe.probe_id
         d.rc.add_probes([probe])
         sleep(0.5)
@@ -182,7 +181,7 @@ def test_debugger_probe_new_delete(probe, trigger):
 def test_debugger_probe_active_inactive(probe, trigger):
     global Stuff
 
-    with install(LogsIntakeUploaderV1=1, DebuggingRCV07=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         probe_id = probe.probe_id
 
         d.rc.add_probes([probe])
@@ -274,7 +273,7 @@ def test_debugger_function_probe_on_function_with_exception():
 
 
 def test_debugger_invalid_condition():
-    with install(LogsIntakeUploaderV1=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         d.add_probes(
             LineProbe(
                 probe_id="foo",
@@ -314,7 +313,7 @@ def test_debugger_conditional_line_probe_on_instance_method():
 
 
 def test_debugger_invalid_line():
-    with install(LogsIntakeUploaderV1=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         d.add_probes(
             LineProbe(
                 probe_id="invalidline",
@@ -335,7 +334,7 @@ def test_debugger_invalid_line():
 
 @mock.patch("ddtrace.debugging._debugger.log")
 def test_debugger_invalid_source_file(log):
-    with install(LogsIntakeUploaderV1=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         d.add_probes(
             LineProbe(
                 probe_id="invalidsource",
@@ -372,7 +371,7 @@ def test_debugger_decorated_method():
 
 @mock.patch("ddtrace.debugging._debugger.log")
 def test_debugger_max_probes(mock_log):
-    with install(DebuggingRCV07=1), debugger(poll_interval=0.1, max_probes=1) as d:
+    with debugger(poll_interval=0.1, max_probes=1) as d:
         d.add_probes(
             good_probe(),
         )
@@ -390,7 +389,7 @@ def test_debugger_max_probes(mock_log):
 
 
 def test_debugger_tracer_correlation():
-    with install(LogsIntakeUploaderV1=1, DebuggingRCV07=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         d.rc.add_probes(
             [
                 LineProbe(
@@ -439,7 +438,7 @@ def test_debugger_captured_exception():
 
 
 def test_debugger_multiple_threads():
-    with install(LogsIntakeUploaderV1=1, DebuggingRCV07=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         d.add_probes(
             good_probe(),
             LineProbe(probe_id="thread-test", source_file="tests/submod/stuff.py", line=40),
@@ -482,7 +481,7 @@ def mock_metrics():
 
 
 def test_debugger_metric_probe(mock_metrics):
-    with install(DebuggingRCV07=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         d.add_probes(
             MetricProbe(
                 probe_id="metric-probe-test",
@@ -512,7 +511,7 @@ def test_debugger_multiple_function_probes_on_same_function():
         for i in range(3)
     ]
 
-    with install(LogsIntakeUploaderV1=1, DebuggingRCV07=1, ProbeStatusLogger=True), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         d.rc.add_probes(probes)
         sleep(0.5)
 
@@ -568,7 +567,7 @@ def test_debugger_function_probe_on_wrapped_function(stuff):
 
     wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
 
-    with install(LogsIntakeUploaderV1=1, DebuggingRCV07=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         d.rc.add_probes(probes)
         sleep(0.5)
 
@@ -589,7 +588,7 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
     f = stuff.Stuff.instancestuff
     code = f.__code__
 
-    with install(LogsIntakeUploaderV1=1, DebuggingRCV07=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         d.rc.add_probes(probes)
         sleep(0.5)
 
@@ -614,7 +613,7 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
 def test_debugger_line_probe_on_wrapped_function(stuff):
     wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
 
-    with install(LogsIntakeUploaderV1=1, DebuggingRCV07=1), debugger(poll_interval=0.1) as d:
+    with debugger(poll_interval=0.1) as d:
         d.rc.add_probes(
             [
                 LineProbe(
@@ -634,9 +633,7 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
 
 
 def test_probe_status_logging():
-    with install(LogsIntakeUploaderV1=1, DebuggingRCV07=1, ProbeStatusLogger=True), debugger(
-        diagnostic_interval=0.5, poll_interval=0.1
-    ) as d:
+    with debugger(diagnostic_interval=0.5, poll_interval=0.1) as d:
         d.rc.add_probes(
             [
                 LineProbe(
