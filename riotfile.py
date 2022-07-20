@@ -306,11 +306,17 @@ venv = Venv(
         Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
-            pys=select_pys(),
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
             },
+            venvs=[
+                Venv(pys="2.7"),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={"pytest-asyncio": latest},
+                ),
+            ],
         ),
         Venv(
             name="vendor",
