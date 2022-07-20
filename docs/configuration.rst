@@ -186,6 +186,14 @@ below:
        **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service"}]'``
        **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
 
+   * - ``DD_SPAN_SAMPLING_RULES
+``
+     - JSON array
+     -
+     - A JSON array of objects. Each object must have a “name” or “service” field while "sample_rate" and "max_per_sec" are both optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive). The "max_per_sec" field is the number of spans allowed per second for the particular rule.
+       **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","name":"operation-name","max_per_sec":20}]'``
+       **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
+
        .. _dd-trace-header-tags:
    * - ``DD_TRACE_HEADER_TAGS``
      - String
