@@ -199,8 +199,9 @@ class _ProfilerInstance(service.Service):
         self._collectors = [
             stack.StackCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
             threading.ThreadingLockCollector(r, tracer=self.tracer),
-            asyncio.AsyncioLockCollector(r, tracer=self.tracer),
         ]
+        if _asyncio.asyncio_available:
+            self._collectors.append(asyncio.AsyncioLockCollector(r, tracer=self.tracer))
 
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector(r))
