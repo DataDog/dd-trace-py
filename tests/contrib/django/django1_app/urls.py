@@ -22,6 +22,7 @@ urlpatterns = [
     url(r"^template-view/$", views.template_view, name="template-view"),
     url(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
     url(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
+    url(r"^path-params/(?P<year>[0-9]{4})/(?P<month>\w+)/$", views.path_params_view, name="path-params-view"),
     # This must precede composed tests.
     url(r"some-static-view/", TemplateView.as_view(template_name="my-template.html")),
     url(r"^composed-template-view/$", views.ComposedTemplateView.as_view(), name="composed-template-view"),
