@@ -66,7 +66,7 @@ While this is default behavior for integrations, users can add a trace filter to
         local_root = trace[0]
 
         for span in trace[1:]:
-            if span.error == 1: # or any other conditional for finding the relevant child span
+            if span.error == 1:  # or any other conditional for finding the relevant child span
                 local_root.set_tags({
                     "error.msg": span.get_tag("error.msg"),
                     "error.type": span.get_tag("error.type"),
