@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import re
 from typing import Any
 from typing import Callable
 from typing import ContextManager
@@ -36,6 +37,15 @@ def strip_query_string(url):
     if not f:
         return h
     return h + fs + f
+
+
+def redact_url(url, query_string_obfuscation_pattern):
+    # type: (str, re.Pattern) -> str
+    hqs, fs, f = url.partition("#")
+    h, qss, qs = hqs.partition("?")
+
+    redacted_query = re.sub(query_string_obfuscation_pattern, "<redacted>", compat.to_unicode(qs))
+    return h + qss + redacted_query + fs + f
 
 
 def connector(url, **kwargs):

@@ -2,6 +2,7 @@
 This module contains utility functions for writing ddtrace integrations.
 """
 from collections import deque
+import os
 import re
 from typing import Any
 from typing import Callable
@@ -22,6 +23,7 @@ from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
+from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
@@ -47,6 +49,24 @@ RESPONSE = "response"
 # With the exception of '.' in header names which are replaced with '_' to avoid
 # starting a "new object" on the UI.
 NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
+
+DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT = (
+    r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|"
+    r"private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:"
+    r'entication|orization)?)(?:(?:\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\s|%20)*(?::|%3A)(?:\s|%20)*(?:"|%22)(?:%2[^2]|'
+    r'%[^2]|[^"%])+(?:"|%22))|bearer(?:\s|%20)+[a-z0-9\._\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey'
+    r"[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+"
+    r"PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|ssh-rsa(?:\s|%20)*(?:"
+    r"[a-z0-9\/\.+]|%2F|%5C|%2B){100,}"
+)
+
+
+def _get_obfuscation_qs_pattern():
+    # type: () -> re.Pattern
+    dd_trace_obfuscation_query_string_pattern = os.getenv(
+        "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT
+    )
+    return re.compile(dd_trace_obfuscation_query_string_pattern)
 
 
 @cached()
@@ -269,7 +289,10 @@ def set_http_meta(
         span._set_str_tag(http.METHOD, method)
 
     if url is not None:
-        span._set_str_tag(http.URL, url if integration_config.trace_query_string else strip_query_string(url))
+        if integration_config.trace_query_string:
+            span._set_str_tag(http.URL, redact_url(url, _get_obfuscation_qs_pattern()))
+        else:
+            span._set_str_tag(http.URL, strip_query_string(url))
 
     if status_code is not None:
         try:
