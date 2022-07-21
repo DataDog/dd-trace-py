@@ -430,7 +430,7 @@ def test_single_span_sampling_processor_do_not_tag_if_tracer_samples():
 
     span = traced_function(tracer, trace_sampling=True)
 
-    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None, trace_sampling=True)
 
 
 def traced_function(tracer, name="test_name", service="test_service", trace_sampling=False):
