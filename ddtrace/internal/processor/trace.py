@@ -253,4 +253,5 @@ class SingleSpanSamplingProcessor(SpanProcessor):
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             for rule in self.rules:
                 if rule.match(span):
+                    rule.sample(span)
                     break
