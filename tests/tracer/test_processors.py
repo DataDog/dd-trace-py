@@ -14,7 +14,6 @@ from ddtrace.internal.processor.trace import SingleSpanSamplingProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import SpanProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
-from ddtrace.internal.processor.trace import TraceTopLevelSpanProcessor
 from ddtrace.internal.processor.truncator import DEFAULT_SERVICE_NAME
 from ddtrace.internal.processor.truncator import DEFAULT_SPAN_NAME
 from ddtrace.internal.processor.truncator import MAX_META_KEY_LENGTH
@@ -259,8 +258,8 @@ def test_trace_top_level_span_processor_partial_flushing():
             pass
 
     # child spans 1 and 2 were partial flushed WITHOUT the parent span in the trace chunk
-    assert child1.get_metric("_dd.top_level") == 0
-    assert child2.get_metric("_dd.top_level") == 0
+    assert child1.get_metric("_dd.top_level") is None
+    assert child2.get_metric("_dd.top_level") is None
 
     # child span 3 was partial flushed WITH the parent span in the trace chunk
     assert "_dd.top_level" not in child3.get_metrics()
@@ -307,20 +306,8 @@ def test_trace_top_level_span_processor_orphan_span():
     with tracer.start_span("orphan span", child_of=parent) as orphan_span:
         pass
 
-    # top_level in orphan_span should be explicitly set to zero/false
-    assert orphan_span.get_metric("_dd.top_level") == 0
-
-
-def test_trace_top_level_span_processor_trace_return_val():
-    """TraceProcessor returns spans"""
-    trace_processors = TraceTopLevelSpanProcessor()
-    # Trace contains no spans
-    trace = []
-    assert trace_processors.process_trace(trace) == trace
-
-    trace = [Span("span1"), Span("span2"), Span("span3")]
-    # Test return value contains all spans in the argument
-    assert trace_processors.process_trace(trace[:]) == trace
+    # top_level in orphan_span should not be set as implicitly it is false
+    assert orphan_span.get_metric("_dd.top_level") is None
 
 
 def test_span_truncator():
