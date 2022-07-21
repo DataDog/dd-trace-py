@@ -253,10 +253,4 @@ class SingleSpanSamplingProcessor(SpanProcessor):
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             for rule in self.rules:
                 if rule.match(span):
-                    rule.sample(span)
-                    # If we matched a rule, then don't try to apply any further rules
-                    break               
-
-    def shutdown(self, timeout):
-        # type: (Optional[float]) -> None
-        pass
+                    break
