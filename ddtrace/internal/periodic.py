@@ -96,13 +96,6 @@ class AwakeablePeriodicThread(PeriodicThread):
         self.served = forksafe.Event()
         self.awake_lock = forksafe.Lock()
 
-    def stop(self):
-        """Stop the thread."""
-        super(AwakeablePeriodicThread, self).stop()
-
-        if self.is_alive():
-            self.awake()
-
     def awake(self):
         """Awake the thread."""
         with self.awake_lock:
