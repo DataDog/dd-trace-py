@@ -60,6 +60,7 @@ While this is default behavior for integrations, users can add a trace filter to
 
   class ErrorFilter(TraceFilter):
     def process_trace(self, trace):
+        # Find first child span with an error and copy its error details to root span
         if not trace:
             return trace
 
