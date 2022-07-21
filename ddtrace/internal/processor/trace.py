@@ -232,7 +232,7 @@ class SingleSpanSamplingProcessor(SpanProcessor):
     If stats computation is not enabled, then the single spans will be sent along with normal trace payloads.
     """
 
-    rules = attr.ib(type=(List[SpanSamplingRule]))
+    rules = attr.ib(type=List[SpanSamplingRule])
 
     def on_span_start(self, span):
         # type: (Span) -> None
