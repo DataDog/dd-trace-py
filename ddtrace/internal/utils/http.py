@@ -44,7 +44,7 @@ def redact_url(url, query_string_obfuscation_pattern):
     hqs, fs, f = url.partition("#")
     h, qss, qs = hqs.partition("?")
 
-    redacted_query = re.sub(query_string_obfuscation_pattern, "<redacted>", compat.to_unicode(qs))
+    redacted_query = query_string_obfuscation_pattern.sub("<redacted>", compat.to_unicode(qs))
     return h + qss + redacted_query + fs + f
 
 
