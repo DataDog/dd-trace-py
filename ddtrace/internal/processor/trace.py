@@ -80,7 +80,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
 
 @attr.s
-class TraceTopLevelSpanProcessor(TraceProcessor):
+class TopLevelSpanProcessor(SpanProcessor):
     """Processor marks spans as top level
 
     A span is top level when it is the entrypoint method for a request to a service.
@@ -92,25 +92,14 @@ class TraceTopLevelSpanProcessor(TraceProcessor):
 
     """
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
-        """Mark a span in a trace as top level if:
-         1. Span is a local root
-         2. Span has a different service name than its parent
+    def on_span_start(self, _):
+        # type: (Span) -> None
+        pass
 
-        Explicitly set top level to 0 if:
-         Span has a truthy parent_id (not zero or None)
-         AND parent span in not in the trace chunk
-        """
-
-        span_ids = {span.span_id for span in trace}
-        for span in trace:
-            if _is_top_level(span):
-                span.set_metric("_dd.top_level", 1)
-            elif span.parent_id and span.parent_id not in span_ids:
-                span.set_metric("_dd.top_level", 0)
-
-        return trace
+    def on_span_finish(self, span):
+        # DEV: Update span after finished to avoid race condition
+        if _is_top_level(span):
+            span.set_metric("_dd.top_level", 1)
 
 
 @attr.s

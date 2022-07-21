@@ -62,6 +62,7 @@ exclude = [
 exclude-modules = '''
 (
   ^ddtrace.(contrib|vendor)
+  | ^tests.(contrib|vendor)
   # avoid sitecustomize modules as they start services
   | ddtrace.bootstrap.sitecustomize
   | ddtrace.profiling.bootstrap.sitecustomize
