@@ -232,10 +232,12 @@ class SpanAggregator(SpanProcessor):
 @attr.s
 class SingleSpanSamplingProcessor(SpanProcessor):
     """SpanProcessor for sampling single spans:
+    
     - Users can specify span rules with service, name, sample rate, and rate limit.
     - Those rules are used to assess all spans that are not sampled by trace sampling.
-    If the rules assess that a span should be kept, we add specific tags to it.
+      If the rules assess that a span should be kept, we add specific tags to it.
     - The single spans that will be kept are sent in separate payloads if stats computation is enabled.
+    
     If stats computation is not enabled, then the single spans will be sent along with normal trace payloads.
     """
 
