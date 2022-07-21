@@ -97,6 +97,7 @@ def override_global_config(values):
         "_raise",
         "_trace_compute_stats",
         "_appsec_enabled",
+        "_obfuscation_query_string_pattern",
     ]
 
     # Grab the current values of all keys
