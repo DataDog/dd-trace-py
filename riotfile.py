@@ -746,7 +746,7 @@ venv = Venv(
         Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
-            pkgs={"blinker": latest},
+            pkgs={"blinker": latest, "requests": latest, "uwsgi": latest},
             venvs=[
                 # Flask == 0.12.0
                 Venv(
