@@ -223,9 +223,11 @@ class SpanSamplingProcessor(SpanProcessor):
     """SpanProcessor for sampling single spans:
 
     * Span sampling must be applied after trace sampling priority has been set.
-    * Span sampling rules are specified with a sample rate or rate limit as well as glob patterns for matching spans on service and name.
+    * Span sampling rules are specified with a sample rate or rate limit as well as glob patterns
+      for matching spans on service and name.
     * If the span sampling decision is to keep the span, then span sampling metrics are added to the span.
-    * If a dropped trace includes a span that had been kept by a span sampling rule, then the span is sent to the Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
+    * If a dropped trace includes a span that had been kept by a span sampling rule, then the span is sent to the
+      Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
     """
 
     rules = attr.ib(type=List[SpanSamplingRule])

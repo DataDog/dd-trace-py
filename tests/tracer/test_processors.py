@@ -10,9 +10,9 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
-from ddtrace.internal.processor.trace import SingleSpanSamplingProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import SpanProcessor
+from ddtrace.internal.processor.trace import SpanSamplingProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
 from ddtrace.internal.processor.truncator import DEFAULT_SERVICE_NAME
 from ddtrace.internal.processor.truncator import DEFAULT_SPAN_NAME
@@ -343,7 +343,7 @@ def test_single_span_sampling_processor():
 
     rule_1 = SpanSamplingRule(service="test_service", name="test_name")
     rules = [rule_1]
-    processor = SingleSpanSamplingProcessor(rules)
+    processor = SpanSamplingProcessor(rules)
     tracer = Tracer()
     tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
@@ -359,7 +359,7 @@ def test_single_span_sampling_processor_match_second_rule():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name")
     rule_2 = SpanSamplingRule(service="test_service2", name="test_name2")
     rules = [rule_1, rule_2]
-    processor = SingleSpanSamplingProcessor(rules)
+    processor = SpanSamplingProcessor(rules)
     tracer = Tracer()
     tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
@@ -377,7 +377,7 @@ def test_single_span_sampling_processor_rule_order_drop():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0)
     rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0)
     rules = [rule_1, rule_2]
-    processor = SingleSpanSamplingProcessor(rules)
+    processor = SpanSamplingProcessor(rules)
     tracer = Tracer()
     tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
@@ -395,7 +395,7 @@ def test_single_span_sampling_processor_rule_order_keep():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0)
     rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0)
     rules = [rule_1, rule_2]
-    processor = SingleSpanSamplingProcessor(rules)
+    processor = SpanSamplingProcessor(rules)
     tracer = Tracer()
     tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
@@ -410,7 +410,7 @@ def test_single_span_sampling_processor_do_not_tag_if_tracer_samples():
 
     rule_1 = SpanSamplingRule(service="test_service", name="test_name")
     rules = [rule_1]
-    processor = SingleSpanSamplingProcessor(rules)
+    processor = SpanSamplingProcessor(rules)
     tracer = Tracer()
     tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
