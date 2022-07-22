@@ -224,7 +224,7 @@ class SingleSpanSamplingProcessor(SpanProcessor):
 
     * Span sampling must be applied after trace sampling priority has been set.
     * Span sampling rules are specified with a sample rate or rate limit as well as glob patterns for matching spans on service and name.
-      If the rules assess that a span should be kept, we add specific tags to it.
+    * If the span sampling decision is to keep the span, then span sampling metrics are added to the span.
     - The single spans that will be kept are sent in separate payloads if stats computation is enabled.
 
     If stats computation is not enabled, then the single spans will be sent along with normal trace payloads.
