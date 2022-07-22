@@ -397,6 +397,7 @@ jobs:
     steps:
       - run_test:
           pattern: "tracer"
+          snapshot: true
 
   telemetry:
     <<: *machine_executor
