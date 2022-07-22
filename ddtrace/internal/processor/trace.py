@@ -219,7 +219,7 @@ class SpanAggregator(SpanProcessor):
 
 
 @attr.s
-class SingleSpanSamplingProcessor(SpanProcessor):
+class SpanSamplingProcessor(SpanProcessor):
     """SpanProcessor for sampling single spans:
 
     * Span sampling must be applied after trace sampling priority has been set.
