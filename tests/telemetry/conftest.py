@@ -56,7 +56,7 @@ class TelemetryTestSession(object):
         status, body = self._request("GET", "/test/session/requests?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to fetch session requests: %s" % self.token)
-        requests = json.loads(body)
+        requests = json.loads(body.decode("utf-8")))
         for req in requests:
             req["body"] = json.loads(base64.b64decode(req["body"]))
 
@@ -70,7 +70,7 @@ class TelemetryTestSession(object):
         status, body = self._request("GET", "/test/session/apmtelemetry?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to fetch session events: %s" % self.token)
-        return sorted(json.loads(body), key=lambda e: e["seq_id"], reverse=True)
+        return sorted(json.loads(body.decode("utf-8")), key=lambda e: e["seq_id"], reverse=True)
 
 
 def _request_token(request):
