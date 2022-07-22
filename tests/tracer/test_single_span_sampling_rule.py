@@ -17,7 +17,8 @@ def traced_function(rule, name="test_name", service="test_service"):
     tracer = DummyTracer()
     with tracer.trace(name) as span:
         span.service = service
-        rule.sample(span)
+        if rule.match(span):
+            rule.sample(span)
     return span
 
 
