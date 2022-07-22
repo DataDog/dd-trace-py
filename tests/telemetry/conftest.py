@@ -6,7 +6,6 @@ from typing import Generator
 from typing import Tuple
 
 import attr
-import mock
 import pytest
 
 from ddtrace.internal.compat import httplib
