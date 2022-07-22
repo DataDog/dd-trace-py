@@ -247,6 +247,7 @@ def set_http_meta(
     raw_uri=None,  # type: Optional[str]
     request_cookies=None,  # type: Optional[Dict[str, str]]
     request_path_params=None,  # type: Optional[Dict[str, str]]
+    request_body=None, # type: Optional[Dict[str, List[str]]]
 ):
     # type: (...) -> None
     """
@@ -311,7 +312,8 @@ def set_http_meta(
                     ("http.response.headers", response_headers),
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
-                ]
+                    ("http.request.body", request_body),
+            ]
                 if v is not None
             },
             span=span,
