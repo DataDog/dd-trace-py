@@ -639,6 +639,75 @@ def test_redacted_url_in_http_meta(span, int_config):
     assert span.get_tag(http.URL) == REDACTED_QS_URL
 
 
+def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
+    BASE_URL = "http://example.com/search"
+    SENSITIVE_QS = "token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
+    REDACTED_QS = "<redacted>&q=query#frag?ment"
+    REDACTED_URL = BASE_URL + "?" + REDACTED_QS
+
+    int_config.trace_query_string = False
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=BASE_URL,
+        query=SENSITIVE_QS,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == BASE_URL
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=BASE_URL,
+        query=SENSITIVE_QS,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == REDACTED_URL
+
+
+@mock.patch("ddtrace.internal.utils.http.redact_query_string")
+def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_redact_query_string, span, int_config):
+    URL = "http://example.com/search#frag?ment"
+    EMPTY_QS = ""
+    NONE_QS = None
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
+
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        query=EMPTY_QS,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
+
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        query=NONE_QS,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
+
+
 # This generates a list of (key, value) tuples, with values given by nested
 # dictionaries
 @given(

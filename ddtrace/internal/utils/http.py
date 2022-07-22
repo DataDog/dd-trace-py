@@ -39,13 +39,17 @@ def strip_query_string(url):
     return h + fs + f
 
 
+def redact_query_string(query_string, query_string_obfuscation_pattern):
+    return query_string_obfuscation_pattern.sub("<redacted>", compat.to_unicode(query_string))
+
+
 def redact_url(url, query_string_obfuscation_pattern):
     # type: (str, re.Pattern) -> str
     hqs, fs, f = url.partition("#")
     h, qss, qs = hqs.partition("?")
-
-    redacted_query = re.sub(query_string_obfuscation_pattern, "<redacted>", compat.to_unicode(qs))
-    return h + qss + redacted_query + fs + f
+    if qs:
+        return h + qss + redact_query_string(qs, query_string_obfuscation_pattern) + fs + f
+    return url
 
 
 def connector(url, **kwargs):

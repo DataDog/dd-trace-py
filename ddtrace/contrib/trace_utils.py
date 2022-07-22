@@ -22,6 +22,7 @@ from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
+from ddtrace.internal.utils.http import redact_query_string
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
@@ -271,7 +272,12 @@ def set_http_meta(
 
     if url is not None:
         if integration_config.trace_query_string:
-            span._set_str_tag(http.URL, redact_url(url, config._obfuscation_query_string_pattern))
+            if query:
+                span._set_str_tag(
+                    http.URL, url + "?" + redact_query_string(query, config._obfuscation_query_string_pattern)
+                )
+            else:
+                span._set_str_tag(http.URL, redact_url(url, config._obfuscation_query_string_pattern))
         else:
             span._set_str_tag(http.URL, strip_query_string(url))
 
