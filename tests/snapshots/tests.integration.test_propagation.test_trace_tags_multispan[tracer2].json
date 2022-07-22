@@ -34,7 +34,6 @@
        },
        "metrics": {
          "_dd.py.partial_flush": 2,
-         "_dd.top_level": 0,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1
        },
@@ -48,9 +47,6 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "metrics": {
-         "_dd.top_level": 0
-       },
        "duration": 18000,
        "start": 1655133503445018000
      },
@@ -61,9 +57,6 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 3,
-          "metrics": {
-            "_dd.top_level": 0
-          },
           "duration": 4898000,
           "start": 1655133503445029000
         }]]
