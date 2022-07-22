@@ -243,6 +243,6 @@ class SingleSpanSamplingProcessor(SpanProcessor):
         # only sample if the span isn't already going to be sampled by trace sampler
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             for rule in self.rules:
-                rule.sample(span)
                 if rule.match(span):
+                    rule.sample(span)
                     break
