@@ -58,7 +58,8 @@ class TelemetryTestSession(object):
             pytest.fail("Failed to fetch session requests: %s" % self.token)
         requests = json.loads(body.decode("utf-8"))
         for req in requests:
-            req["body"] = json.loads(base64.b64decode(req["body"]))
+            body_str = base64.b64decode(req["body"]).decode("utf-8")
+            req["body"] = json.loads(body_str)
 
         return sorted(requests, key=lambda r: r["body"]["seq_id"], reverse=True)
 
