@@ -9,8 +9,10 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
+from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import http
 
 
@@ -363,3 +365,16 @@ def test_failed_start_collector(caplog, monkeypatch):
     assert caplog.record_tuples == [
         (("ddtrace.profiling.profiler", logging.ERROR, "Failed to start collector %r, disabling." % err_collector))
     ]
+
+
+def test_default_collectors():
+    p = profiler.Profiler()
+    assert any(isinstance(c, stack.StackCollector) for c in p._profiler._collectors)
+    assert any(isinstance(c, threading.ThreadingLockCollector) for c in p._profiler._collectors)
+    try:
+        import asyncio as _  # noqa: F401
+    except ImportError:
+        pass
+    else:
+        assert any(isinstance(c, asyncio.AsyncioLockCollector) for c in p._profiler._collectors)
+    p.stop(flush=False)
