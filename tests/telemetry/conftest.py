@@ -56,7 +56,7 @@ class TelemetryTestSession(object):
         status, body = self._request("GET", "/test/session/requests?test_session_token=%s" % self.token)
         if status != 200:
             pytest.fail("Failed to fetch session requests: %s" % self.token)
-        requests = json.loads(body.decode("utf-8")))
+        requests = json.loads(body.decode("utf-8"))
         for req in requests:
             req["body"] = json.loads(base64.b64decode(req["body"]))
 
