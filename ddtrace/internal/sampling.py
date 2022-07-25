@@ -167,7 +167,6 @@ class SpanSamplingRule:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
-def is_single_span_sampled(
-    span,  # type: Span
-):
-    return span.get_metric("_dd.span_sampling.mechanism") == SamplingMechanism.SPAN_SAMPLING_RULE
+def is_single_span_sampled(span):
+    # type: (Span) -> bool
+    return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
