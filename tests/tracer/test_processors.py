@@ -350,7 +350,7 @@ def test_single_span_sampling_processor():
 
     span = traced_function(tracer)
 
-    assert_sampling_decision_tags(span)
+    assert_span_sampling_decision_tags(span)
 
 
 def test_single_span_sampling_processor_match_second_rule():
@@ -366,7 +366,7 @@ def test_single_span_sampling_processor_match_second_rule():
 
     span = traced_function(tracer, name="test_name2", service="test_service2")
 
-    assert_sampling_decision_tags(span)
+    assert_span_sampling_decision_tags(span)
 
 
 def test_single_span_sampling_processor_rule_order_drop():
@@ -384,7 +384,7 @@ def test_single_span_sampling_processor_rule_order_drop():
 
     span = traced_function(tracer)
 
-    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+    assert_span_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
 
 
 def test_single_span_sampling_processor_rule_order_keep():
@@ -402,7 +402,7 @@ def test_single_span_sampling_processor_rule_order_keep():
 
     span = traced_function(tracer)
 
-    assert_sampling_decision_tags(span)
+    assert_span_sampling_decision_tags(span)
 
 
 def test_single_span_sampling_processor_do_not_tag_if_tracer_samples():
@@ -417,7 +417,7 @@ def test_single_span_sampling_processor_do_not_tag_if_tracer_samples():
 
     span = traced_function(tracer, trace_sampling=True)
 
-    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None, trace_sampling=True)
+    assert_span_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None, trace_sampling=True)
 
 
 def traced_function(tracer, name="test_name", service="test_service", trace_sampling=False):
@@ -432,7 +432,7 @@ def traced_function(tracer, name="test_name", service="test_service", trace_samp
     return span
 
 
-def assert_sampling_decision_tags(
+def assert_span_sampling_decision_tags(
     span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None, trace_sampling=False
 ):
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
