@@ -449,7 +449,6 @@ def test_single_span_sampling_processor_w_tracer_sampling(
 def test_single_span_sampling_processor_no_rules():
     """Test that single span sampling rules aren't applied if a span is already going to be sampled by trace sampler"""
     tracer = DummyTracer()
-    tracer.configure(writer=DummyWriter())
 
     span = traced_function(tracer, trace_sampling_priority=1)
 
