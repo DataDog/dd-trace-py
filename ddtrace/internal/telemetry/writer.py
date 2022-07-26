@@ -8,7 +8,6 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...settings import _config as config
 from ..agent import get_connection
-from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..compat import httplib
 from ..encoding import JSONEncoderV2
@@ -45,7 +44,7 @@ class TelemetryWriter(PeriodicService):
         # _enabled is None at startup, and is only set to true or false
         # after the config has been processed
         self._enabled = None  # type: Optional[bool]
-        self._agent_url = agent_url or get_trace_url()
+        self._agent_url = agent_url or config.trace_agent_url
 
         self._encoder = JSONEncoderV2()
         self._events_queue = []  # type: List[Dict]

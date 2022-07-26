@@ -61,8 +61,8 @@ from .span import Span
 
 log = get_logger(__name__)
 
-debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
-call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
+debug_mode = config.debug_enabled
+call_basic_config = config.call_basic_config
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
     "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
@@ -184,13 +184,13 @@ class Tracer(object):
         # traces
         self._pid = getpid()
 
-        self.enabled = asbool(os.getenv("DD_TRACE_ENABLED", default=True))
+        self.enabled = config.trace_enabled
         self.context_provider = DefaultContextProvider()
         self._sampler = DatadogSampler()  # type: BaseSampler
         self._priority_sampler = RateByServiceSampler()  # type: Optional[BasePrioritySampler]
-        self._dogstatsd_url = agent.get_stats_url() if dogstatsd_url is None else dogstatsd_url
+        self._dogstatsd_url = config.agent.stats_url if dogstatsd_url is None else dogstatsd_url
         self._compute_stats = config._trace_compute_stats
-        self._agent_url = agent.get_trace_url() if url is None else url  # type: str
+        self._agent_url = config.trace_agent_url if url is None else url  # type: str
         agent.verify_url(self._agent_url)
 
         if self._use_log_writer() and url is None:
@@ -450,7 +450,7 @@ class Tracer(object):
         if wrap_executor is not None:
             self._wrap_executor = wrap_executor
 
-        if debug_mode or asbool(environ.get("DD_TRACE_STARTUP_LOGS", False)):
+        if debug_mode or config.trace_startup_logs:
             try:
                 info = debug.collect(self)
             except Exception as e:
@@ -962,11 +962,7 @@ class Tracer(object):
         The LogWriter required by default in AWS Lambdas when the Datadog Agent extension
         is not available in the Lambda.
         """
-        if (
-            environ.get("DD_AGENT_HOST")
-            or environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
-            or environ.get("DD_TRACE_AGENT_URL")
-        ):
+        if environ.get("DD_AGENT_HOST") or environ.get("DATADOG_TRACE_AGENT_HOSTNAME") or config._trace_agent_url:
             # If one of these variables are set, we definitely have an agent
             return False
         elif _in_aws_lambda() and _has_aws_lambda_agent_extension():

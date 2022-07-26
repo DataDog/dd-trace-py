@@ -18,7 +18,6 @@ import tenacity
 import ddtrace
 from ddtrace.vendor.dogstatsd import DogStatsd
 
-from . import agent
 from . import compat
 from . import periodic
 from . import service
@@ -54,29 +53,13 @@ LOG_ERR_INTERVAL = 60
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
 
-DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
-DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
-DEFAULT_PROCESSING_INTERVAL = 1.0
+
 DEFAULT_REUSE_CONNECTIONS = False
-
-
-def get_writer_buffer_size():
-    # type: () -> int
-    return int(os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE))
-
-
-def get_writer_max_payload_size():
-    # type: () -> int
-    return int(os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE))
-
-
-def get_writer_interval_seconds():
-    # type: () -> float
-    return float(os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL))
 
 
 def get_writer_reuse_connections():
     # type: () -> bool
+    # TODO: This is not documented?
     return asbool(os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS))
 
 
@@ -241,12 +224,12 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         agent_url,  # type: str
         sampler=None,  # type: Optional[BaseSampler]
         priority_sampler=None,  # type: Optional[BasePrioritySampler]
-        processing_interval=get_writer_interval_seconds(),  # type: float
+        processing_interval=ddtrace.config.trace_writer_interval,
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size=None,  # type: Optional[int]
         max_payload_size=None,  # type: Optional[int]
-        timeout=agent.get_trace_agent_timeout(),  # type: float
+        timeout=ddtrace.config.trace_agent_timeout,  # type: float
         dogstatsd=None,  # type: Optional[DogStatsd]
         report_metrics=False,  # type: bool
         sync_mode=False,  # type: bool
@@ -263,8 +246,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
         super(AgentWriter, self).__init__(interval=processing_interval)
         self.agent_url = agent_url
-        self._buffer_size = buffer_size or get_writer_buffer_size()
-        self._max_payload_size = max_payload_size or get_writer_max_payload_size()
+        self._buffer_size = buffer_size or ddtrace.config.trace_writer_buffer_size
+        self._max_payload_size = max_payload_size or ddtrace.config.trace_writer_max_payload_size
         self._sampler = sampler
         self._priority_sampler = priority_sampler
         self._headers = {
@@ -278,7 +261,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             self._headers.update(headers)
         self._timeout = timeout
         self._api_version = (
-            api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
+            api_version or ddtrace.config.trace_api_version or ("v0.4" if priority_sampler is not None else "v0.3")
         )
         try:
             Encoder = MSGPACK_ENCODERS[self._api_version]

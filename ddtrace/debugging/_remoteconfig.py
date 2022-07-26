@@ -20,7 +20,6 @@ from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import MetricProbe
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.internal import compat
-from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.utils.cache import LFUCache
@@ -137,7 +136,7 @@ def probe(_id, _type, attribs):
 class DebuggingRCV07(object):
     service_name = attr.ib(type=str)
     _config_endpoint = attr.ib(type=str, init=False)
-    _url = attr.ib(type=str, factory=get_trace_url)
+    _url = attr.ib(type=str, default=tracer_config.trace_agent_url)
     _connect = attr.ib(type=Connector, init=False)
     _req_payload = attr.ib(type=str, init=False)
 

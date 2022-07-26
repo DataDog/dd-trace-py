@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace import config
 from ddtrace.internal import agent
 
 
@@ -108,33 +109,33 @@ def test_stats_url(monkeypatch, mocker):
 
     # with nothing set by user, and the default UDS available, we choose UDS
     mock_exists.return_value = True
-    assert agent.get_stats_url() == "unix:///var/run/datadog/dsd.socket"
+    assert config.agent.stats_url == "unix:///var/run/datadog/dsd.socket"
     mock_exists.assert_called_once_with("/var/run/datadog/dsd.socket")
     mock_exists.reset_mock()
 
     # with nothing set by user, and the default UDS unavailable, we choose default UDP address
     mock_exists.return_value = False
-    assert agent.get_stats_url() == "udp://localhost:8125"
+    assert config.agent.stats_url == "udp://localhost:8125"
     mock_exists.assert_called_once_with("/var/run/datadog/dsd.socket")
     mock_exists.reset_mock()
 
     # with port set by user, and default UDS unavailable, we choose user settings
     with monkeypatch.context() as m:
         m.setenv("DD_DOGSTATSD_PORT", "1235")
-        assert agent.get_stats_url() == "udp://localhost:1235"
+        assert config.agent.stats_url == "udp://localhost:1235"
         mock_exists.assert_not_called()
 
     # with host set by user, and default UDS unavailable, we choose user settings
     with monkeypatch.context() as m:
         m.setenv("DD_AGENT_HOST", "mars")
-        assert agent.get_stats_url() == "udp://mars:8125"
+        assert config.agent.stats_url == "udp://mars:8125"
         mock_exists.assert_not_called()
 
     # with host and port set by user, and default UDS unavailable, we choose user settings
     with monkeypatch.context() as m:
         m.setenv("DD_DOGSTATSD_PORT", "1235")
         m.setenv("DD_AGENT_HOST", "mars")
-        assert agent.get_stats_url() == "udp://mars:1235"
+        assert config.agent.stats_url == "udp://mars:1235"
         mock_exists.assert_not_called()
 
     # with port set by user, and default UDS available, we choose user settings
@@ -142,20 +143,20 @@ def test_stats_url(monkeypatch, mocker):
 
     with monkeypatch.context() as m:
         m.setenv("DD_DOGSTATSD_PORT", "1235")
-        assert agent.get_stats_url() == "udp://localhost:1235"
+        assert config.agent.stats_url == "udp://localhost:1235"
         mock_exists.assert_not_called()
 
     # with host set by user, and default UDS available, we choose user settings
     with monkeypatch.context() as m:
         m.setenv("DD_AGENT_HOST", "mars")
-        assert agent.get_stats_url() == "udp://mars:8125"
+        assert config.agent.stats_url == "udp://mars:8125"
         mock_exists.assert_not_called()
 
     # with host and port set by user, and default UDS available, we choose user settings
     with monkeypatch.context() as m:
         m.setenv("DD_DOGSTATSD_PORT", "1235")
         m.setenv("DD_AGENT_HOST", "mars")
-        assert agent.get_stats_url() == "udp://mars:1235"
+        assert config.agent.stats_url == "udp://mars:1235"
         mock_exists.assert_not_called()
 
     # with port, host, and url set by user, and default UDS available, we choose url
@@ -163,7 +164,7 @@ def test_stats_url(monkeypatch, mocker):
         m.setenv("DD_DOGSTATSD_PORT", "1235")
         m.setenv("DD_AGENT_HOST", "mars")
         m.setenv("DD_DOGSTATSD_URL", "udp://saturn:1111")
-        assert agent.get_stats_url() == "udp://saturn:1111"
+        assert config.agent.stats_url == "udp://saturn:1111"
         mock_exists.assert_not_called()
 
     # with port, host, and url set by user, and default UDS unavailable, we choose url
@@ -173,7 +174,7 @@ def test_stats_url(monkeypatch, mocker):
         m.setenv("DD_DOGSTATSD_PORT", "1235")
         m.setenv("DD_AGENT_HOST", "mars")
         m.setenv("DD_DOGSTATSD_URL", "udp://saturn:1111")
-        assert agent.get_stats_url() == "udp://saturn:1111"
+        assert config.agent.stats_url == "udp://saturn:1111"
         mock_exists.assert_not_called()
 
 

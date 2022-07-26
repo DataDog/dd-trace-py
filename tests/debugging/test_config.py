@@ -2,8 +2,8 @@ from contextlib import contextmanager
 
 import pytest
 
+from ddtrace import config
 from ddtrace.debugging._config import DebuggerConfig
-from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.version import get_version
@@ -15,7 +15,7 @@ from tests.utils import override_env
     [
         ("datadoghq.com", "https://app.datadoghq.com"),
         ("datadoghq.eu", "https://app.datadoghq.eu"),
-        ("", get_trace_url()),
+        ("", config.trace_agent_url),
     ],
 )
 def test_probe_api_url(dd_site, probe_api_url):
@@ -51,7 +51,7 @@ def test_tags():
 
 
 def test_snapshot_intake_url():
-    DebuggerConfig().snapshot_intake_url == get_trace_url()
+    DebuggerConfig().snapshot_intake_url == config.trace_agent_url
 
 
 def test_service_name():

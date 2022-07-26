@@ -202,6 +202,7 @@ venv = Venv(
                 # the dependencies required to build the package.
                 # https://github.com/jelmer/dulwich/issues/963.
                 "dulwich": "<0.20.36",
+                "envier": latest,
             },
             command="scripts/build-docs",
         ),

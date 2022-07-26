@@ -92,7 +92,7 @@ def main():
     if args.profiling:
         os.environ["DD_PROFILING_ENABLED"] = "true"
 
-    debug_mode = args.debug or asbool(os.getenv("DD_TRACE_DEBUG", default=False))
+    debug_mode = args.debug or ddtrace.config.debug_enabled
 
     if debug_mode:
         logging.basicConfig(level=logging.DEBUG)

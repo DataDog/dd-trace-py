@@ -41,8 +41,7 @@ if config.logs_injection:
 # upon initializing it the first time.
 # See https://github.com/python/cpython/blob/112e4afd582515fcdcc0cde5012a4866e5cfda12/Lib/logging/__init__.py#L1550
 # Debug mode from the tracer will do a basicConfig so only need to do this otherwise
-call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
-if not debug_mode and call_basic_config:
+if not debug_mode and config.call_basic_config:
     deprecate(
         "ddtrace.tracer.logging.basicConfig",
         message="`logging.basicConfig()` should be called in a user's application."
@@ -66,11 +65,10 @@ EXTRA_PATCHED_MODULES = {
 
 
 def update_patched_modules():
-    modules_to_patch = os.getenv("DD_PATCH_MODULES")
-    if not modules_to_patch:
+    modules = config.patch_modules
+    if not modules:
         return
 
-    modules = parse_tags_str(modules_to_patch)
     for module, should_patch in modules.items():
         EXTRA_PATCHED_MODULES[module] = asbool(should_patch)
 
@@ -90,8 +88,8 @@ try:
 
     opts = {}  # type: Dict[str, Any]
 
-    dd_trace_enabled = os.getenv("DD_TRACE_ENABLED", default=True)
-    if asbool(dd_trace_enabled):
+    dd_trace_enabled = config.trace_enabled
+    if dd_trace_enabled:
         trace_enabled = True
     else:
         trace_enabled = False
@@ -119,7 +117,7 @@ try:
 
     # instrumentation telemetry writer should be enabled/started after the global tracer and configs
     # are initialized
-    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
+    if config.telemetry_enabled:
         telemetry_writer.enable()
 
     # Check for and import any sitecustomize that would have normally been used

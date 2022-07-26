@@ -1,7 +1,7 @@
 from typing import Dict
 from typing import Optional
 
-from ddtrace.internal import agent
+from ddtrace import config
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 
 
@@ -30,7 +30,7 @@ class Metrics(object):
         self.namespace = namespace
         self.enabled = False
 
-        self._client = get_dogstatsd_client(dogstats_url or agent.get_stats_url(), namespace=namespace)
+        self._client = get_dogstatsd_client(dogstats_url or config.agent.stats_url, namespace=namespace)
 
     class Meter(object):
         def __init__(self, metrics, name):

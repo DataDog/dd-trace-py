@@ -15,6 +15,8 @@ from typing import Union
 
 import six
 
+from ddtrace import config
+
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
@@ -242,7 +244,7 @@ class DatadogSampler(RateByServiceSampler):
         super(DatadogSampler, self).__init__()
 
         if default_sample_rate is None:
-            sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+            sample_rate = config.trace_sample_rate
 
             if sample_rate is not None:
                 default_sample_rate = float(sample_rate)
@@ -253,11 +255,7 @@ class DatadogSampler(RateByServiceSampler):
         # Ensure rules is a list
         self.rules = []  # type: List[SamplingRule]
         if rules is None:
-            env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
-            if env_sampling_rules:
-                rules = self._parse_rules_from_env_variable(env_sampling_rules)
-            else:
-                rules = []
+            rules = config.trace_sampling_rules
 
         # Validate that the rules is a list of SampleRules
         for rule in rules:

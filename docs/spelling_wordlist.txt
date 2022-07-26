@@ -183,3 +183,4 @@ yaaredis
 Kinesis
 AppSec
 libddwaf
+localhost
