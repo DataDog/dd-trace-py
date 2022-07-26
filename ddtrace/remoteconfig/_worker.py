@@ -1,15 +1,16 @@
-import os
 import logging
+import os
 
+from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
 from ddtrace.internal.utils.time import StopWatch
-
 from ddtrace.remoteconfig._client import Client
+
 
 log = logging.getLogger(__name__)
 
 
-DEFAULT_REMOTECONFIG_POLL_SECONDS = 30
+DEFAULT_REMOTECONFIG_POLL_SECONDS = 2.0  # seconds
 
 
 def get_poll_interval_seconds():
@@ -35,15 +36,27 @@ class RemoteConfigWorker(periodic.PeriodicService):
         log.log(log_level, "request config in %.5fs to %s", t, self._client.agent_url)
 
 
-if __name__ == "__main__":
-    import time
+class RemoteConfig(object):
+    _worker = None
+    _worker_lock = forksafe.Lock()
 
-    def debug(metadata, config):
-        print("hello {!r}".format(metadata))
+    @classmethod
+    def enable(cls):
+        # type: () -> None
+        with cls._worker_lock:
+            if cls._worker is None:
+                cls._worker = RemoteConfigWorker()
+                cls._worker.start()
 
-    logging.basicConfig(level=logging.DEBUG)
-    c = RemoteConfigWorker(poll_interval=5)
-    c._client.register_product("ASM_DD", debug)
-    c._client.register_product("FEATURES", debug)
-    c.start()
-    time.sleep(360)
+    @classmethod
+    def register(cls, product, handler):
+        if cls._worker is not None:
+            cls._worker._client.register_product(product, handler)
+
+    @classmethod
+    def disable(cls):
+        # type: () -> None
+        with cls._worker_lock:
+            if cls._worker is not None:
+                cls._worker.stop()
+                cls._worker = None

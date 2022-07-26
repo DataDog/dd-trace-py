@@ -1,12 +1,10 @@
+import contextlib
+from glob import glob
+import itertools
 import json
 import os.path
-import itertools
 
-import contextlib
 import httpretty
-
-from glob import glob
-
 import pytest
 
 from ddtrace.remoteconfig._client import Client
@@ -37,8 +35,8 @@ def mocked_remote_config_agent():
     @contextlib.contextmanager
     def inner(scenario):
 
-        requests = sorted(glob(os.path.join(ROOT_DIR, "payloads/{}-req-[0-9].json".format(scenario))))
-        responses = sorted(glob(os.path.join(ROOT_DIR, "payloads/{}-res-[0-9].json".format(scenario))))
+        requests = sorted(glob(os.path.join(ROOT_DIR, "payloads/{}-req-0.json".format(scenario))))
+        responses = sorted(glob(os.path.join(ROOT_DIR, "payloads/{}-res-0.json".format(scenario))))
 
         assert len(requests), "scenario was not found"
         assert len(requests) == len(responses), "must have the same number of requests than responses"
@@ -65,7 +63,9 @@ def mocked_remote_config_agent():
 
         url = "http://localhost:8888/"
         httpretty.register_uri(
-            httpretty.POST, url + "v0.7/config", body=cb,
+            httpretty.POST,
+            url + "v0.7/config",
+            body=cb,
         )
         try:
             yield url, len(requests), assert_request

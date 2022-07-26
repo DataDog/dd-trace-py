@@ -2,11 +2,15 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
+import atexit
 import logging
 import os
 import sys
 from typing import Any
 from typing import Dict
+
+from ddtrace.debugging._debugger import Debugger
+from ddtrace.internal import forksafe
 
 
 # Perform gevent patching as early as possible in the application before
@@ -24,6 +28,7 @@ from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.remoteconfig._worker import RemoteConfig
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode
 from ddtrace.vendor.debtcollector import deprecate
@@ -76,6 +81,16 @@ def update_patched_modules():
 
 
 try:
+
+    def restart_remoteconfig():
+        RemoteConfig.disable()
+        RemoteConfig.enable()
+
+    log.debug("Starting remote config")
+    RemoteConfig.enable()
+    forksafe.register(restart_remoteconfig)
+    atexit.register(RemoteConfig.disable)
+
     from ddtrace import tracer
 
     priority_sampling = os.getenv("DD_PRIORITY_SAMPLING")
@@ -119,8 +134,12 @@ try:
 
     # instrumentation telemetry writer should be enabled/started after the global tracer and configs
     # are initialized
-    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
-        telemetry_writer.enable()
+    # if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
+    #     telemetry_writer.enable()
+
+    # TODO: Fix this
+    log.debug("Starting the debugger")
+    Debugger.enable()
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.

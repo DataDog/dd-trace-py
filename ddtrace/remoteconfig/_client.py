@@ -1,21 +1,34 @@
-import re
-import hashlib
 import base64
-import logging
-import uuid
-import json
-
 from datetime import datetime
+import hashlib
+import json
+import logging
+import re
+from typing import Any
+from typing import List
+from typing import Mapping
+from typing import Set
+from typing import TYPE_CHECKING
+import uuid
 
-from typing import TYPE_CHECKING, Any, List, Mapping, Set
+import attr
+import cattr
 
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.utils.time import parse_isoformat
 
-import attr
-import cattr
+
+if TYPE_CHECKING:
+    from typing import Callable
+    from typing import MutableMapping
+    from typing import Optional
+    from typing import Sequence
+    from typing import Tuple
+
+    ProductCallback = Callable[["ConfigMetadata", Optional[Mapping[str, Any]]], None]
+
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +37,7 @@ TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
 
 class RemoteConfigError(Exception):
     """
-    An error occured during the configuration update procedure.
+    An error occurred during the configuration update procedure.
     The error is reported to the agent.
     """
 
@@ -88,9 +101,10 @@ class TargetDesc(object):
 @attr.s
 class Targets(object):
     _type = attr.ib(type=str, validator=attr.validators.in_(("targets",)))
-    targets = attr.ib(type=Mapping[str, TargetDesc])
-    expires = attr.ib(type=datetime, converter=parse_isoformat)
     custom = attr.ib(type=Mapping[str, Any])
+    expires = attr.ib(type=datetime, converter=parse_isoformat)
+    spec_version = attr.ib(type=str, validator=attr.validators.in_(("1.0",)))
+    targets = attr.ib(type=Mapping[str, TargetDesc])
     version = attr.ib(type=int)
 
 
@@ -108,17 +122,10 @@ class TargetFile(object):
 
 @attr.s
 class AgentPayload(object):
-
     roots = attr.ib(type=List[SignedRoot], default=None)
     targets = attr.ib(type=SignedTargets, default=None)
     target_files = attr.ib(type=List[TargetFile], default=[])
     client_configs = attr.ib(type=Set[str], default={})
-
-
-if TYPE_CHECKING:
-    from typing import Callable, Optional, MutableMapping, Tuple, Sequence
-
-    ProductCallback = Callable[[ConfigMetadata, Optional[Mapping[str, Any]]], None]
 
 
 class Client(object):
@@ -128,7 +135,9 @@ class Client(object):
     """
 
     def __init__(
-        self, runtime_id=runtime.get_runtime_id(), agent_url=agent.get_trace_url(),
+        self,
+        runtime_id=runtime.get_runtime_id(),
+        agent_url=agent.get_trace_url(),
     ):
         # type: (str, str, float) -> None
         self.agent_url = agent_url
@@ -142,7 +151,7 @@ class Client(object):
             tracer_version=ddtrace.__version__,
             service=ddtrace.config.service,
             env=ddtrace.config.env,
-            version=ddtrace.config.version,
+            app_version=ddtrace.config.version,
         )
 
         self.converter = cattr.Converter()
@@ -275,14 +284,21 @@ class Client(object):
     def _process_response(self, data):
         # type: (Mapping[str, Any]) -> None
         try:
+            log.debug("response payload: %r", data)
             payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
         except Exception:
-            log.debug("invalid agent payload received", exc_info=True)
+            log.debug("invalid agent payload received: %r", data, exc_info=True)
             raise RemoteConfigError("invalid agent payload received")
 
         # 1. Deserialize targets
         last_targets_version, backend_state, targets = self._process_targets(payload)
-        if last_targets_version is None or targets is None:
+
+        if last_targets_version is None:
+            return
+
+        self._last_targets_version = last_targets_version
+
+        if targets is None:
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
@@ -328,7 +344,6 @@ class Client(object):
             else:
                 applied_configs[target] = config
 
-        self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs
         self._backend_state = backend_state
 
@@ -336,7 +351,8 @@ class Client(object):
         # type: () -> None
         try:
             state = self._build_state()
-            payload = json.dumps(self._build_payload(state))
+            payload = json.dumps(self._build_payload(state), indent=2)
+            log.debug("request payload: %r", payload)
             self._process_response(self._send_request(payload))
         except RemoteConfigError as e:
             self._last_error = str(e)

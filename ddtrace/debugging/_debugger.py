@@ -51,6 +51,7 @@ from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping import Wrapper
+from ddtrace.remoteconfig._worker import RemoteConfig
 
 
 if TYPE_CHECKING:
@@ -169,6 +170,12 @@ class Debugger(Service):
         atexit.register(cls.disable)
 
         log.debug("%s enabled", cls.__name__)
+
+        RemoteConfig.register("LIVE_DEBUGGING", cls._handle_remoteconfig)
+
+    @classmethod
+    def _handle_remoteconfig(cls, metadata, remoteconfig):
+        print(metadata, remoteconfig)
 
     @classmethod
     def disable(cls):
