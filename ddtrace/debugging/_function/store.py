@@ -5,7 +5,7 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
+from typing import Set
 from typing import cast
 
 from ddtrace.debugging._function.discovery import FullyNamed
@@ -59,36 +59,42 @@ class FunctionStore(object):
             self._code_map[function] = function.__code__
 
     def inject_hooks(self, function, hooks):
-        # type: (FullyNamedWrappedFunction, List[Tuple[HookType, int, Any]]) -> None
-        """Bulk-inject hooks into a function."""
+        # type: (FullyNamedWrappedFunction, List[HookInfoType]) -> Set[str]
+        """Bulk-inject hooks into a function.
+
+        Returns the set of probe IDs for those probes that failed to inject.
+        """
         try:
-            self.inject_hooks(cast(FullyNamedWrappedFunction, function.__dd_wrapped__), hooks)
+            return self.inject_hooks(cast(FullyNamedWrappedFunction, function.__dd_wrapped__), hooks)
         except AttributeError:
             f = cast(FunctionType, function)
             self._store(f)
-            inject_hooks(f, hooks)
+            return {p.probe_id for _, _, p in inject_hooks(f, hooks)}
 
     def eject_hooks(self, function, hooks):
-        # type: (FunctionType, List[HookInfoType]) -> None
-        """Bulk-eject hooks from a function."""
+        # type: (FunctionType, List[HookInfoType]) -> Set[str]
+        """Bulk-eject hooks from a function.
+
+        Returns the set of probe IDs for those probes that failed to eject.
+        """
         try:
             wrapped = cast(FullyNamedWrappedFunction, function).__dd_wrapped__
         except AttributeError:
             # Not a wrapped function so we can actually eject from it
-            eject_hooks(function, hooks)
+            return {p.probe_id for _, _, p in eject_hooks(function, hooks)}
         else:
             # Try on the wrapped function.
-            self.eject_hooks(cast(FunctionType, wrapped), hooks)
+            return self.eject_hooks(cast(FunctionType, wrapped), hooks)
 
     def inject_hook(self, function, hook, line, arg):
-        # type: (FullyNamedWrappedFunction, HookType, int, Any) -> None
+        # type: (FullyNamedWrappedFunction, HookType, int, Any) -> bool
         """Inject a hook into a function."""
-        return self.inject_hooks(function, [(hook, line, arg)])
+        return not not self.inject_hooks(function, [(hook, line, arg)])
 
     def eject_hook(self, function, hook, line, arg):
-        # type: (FunctionType, HookType, int, Any) -> None
+        # type: (FunctionType, HookType, int, Any) -> bool
         """Eject a hook from a function."""
-        return self.eject_hooks(function, [(hook, line, arg)])
+        return not not self.eject_hooks(function, [(hook, line, arg)])
 
     def wrap(self, function, wrapper):
         # type: (FunctionType, Wrapper) -> None
