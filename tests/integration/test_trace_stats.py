@@ -37,7 +37,8 @@ def stats_tracer(sample_rate):
         tracer.shutdown()
 
 
-def test_compute_stats_default_and_configure(run_python_code_in_subprocess):
+@pytest.mark.parametrize("envvar", ["DD_TRACE_STATS_COMPUTATION_ENABLED", "DD_TRACE_COMPUTE_STATS"])
+def test_compute_stats_default_and_configure(run_python_code_in_subprocess, envvar):
     """Ensure stats computation can be enabled."""
 
     # Test enabling via `configure`
@@ -50,7 +51,7 @@ def test_compute_stats_default_and_configure(run_python_code_in_subprocess):
 
     # Test enabling via environment variable
     env = os.environ.copy()
-    env.update({"DD_TRACE_COMPUTE_STATS": "true"})
+    env.update({envvar: "true"})
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import tracer
