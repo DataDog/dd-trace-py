@@ -110,7 +110,7 @@ def test_200_query_string(client, tracer, test_spans):
     assert request_span.resource == "GET /"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/"
+    assert request_span.get_tag("http.url") == "http://testserver/?foo=bar"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "foo=bar"
 

@@ -208,7 +208,7 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
     assert request_span.name == "sanic.request"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert re.search("/hello$", request_span.get_tag("http.url"))
+    assert re.search("/hello?foo=bar$", request_span.get_tag("http.url"))
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.resource == "GET /hello"
 
