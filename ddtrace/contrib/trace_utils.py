@@ -280,6 +280,8 @@ def set_http_meta(
                         http.URL,
                         bytes_url + b"?" + redact_query_string(bytes_query, config._obfuscation_query_string_pattern),
                     )
+                else:
+                    span._set_str_tag(http.URL, redact_url(bytes_url, config._obfuscation_query_string_pattern))
             else:
                 span._set_str_tag(http.URL, redact_url(bytes_url, config._obfuscation_query_string_pattern))
         else:
