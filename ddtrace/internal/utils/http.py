@@ -40,11 +40,15 @@ def strip_query_string(url):
 
 
 def redact_query_string(query_string, query_string_obfuscation_pattern):
-    return query_string_obfuscation_pattern.sub("<redacted>", compat.to_unicode(query_string))
+    if query_string is bytes:
+        bytes_query_string = query_string
+    else:
+        bytes_query_string = bytes(query_string)
+    return query_string_obfuscation_pattern.sub(b"<redacted>", bytes_query_string)
 
 
 def redact_url(url, query_string_obfuscation_pattern):
-    # type: (str, re.Pattern) -> str
+    # type: (str, re.Pattern) -> Union[str, bytes]
     hqs, fs, f = url.partition("#")
     h, qss, qs = hqs.partition("?")
     if qs:

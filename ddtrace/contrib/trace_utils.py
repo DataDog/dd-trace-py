@@ -272,7 +272,7 @@ def set_http_meta(
 
     if url is not None:
         if integration_config.trace_query_string:
-            if query:
+            if query and ("?" + query not in url):
                 span._set_str_tag(
                     http.URL, url + "?" + redact_query_string(query, config._obfuscation_query_string_pattern)
                 )
