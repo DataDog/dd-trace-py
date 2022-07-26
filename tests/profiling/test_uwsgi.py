@@ -14,7 +14,8 @@ from . import utils
 
 
 # uwsgi does not support Python 3.10 yet
-if sys.version_info[:2] >= (3, 10):
+# uwsgi is not available on Windows
+if sys.version_info[:2] >= (3, 10) or sys.platform == "win32":
     pytestmark = pytest.mark.skip
 
 
