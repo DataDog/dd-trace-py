@@ -1,0 +1,360 @@
+name: Debugger Exploration Testing
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+  bottle-testsuite-0_12_19:
+    name: Bottle (master)
+    runs-on: ubuntu-latest
+    env:
+      DD_TESTING_RAISE: true
+    defaults:
+      run:
+        working-directory: bottle
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: bottlepy/bottle
+          ref: master
+          path: bottle
+      - name: Install Dependencies
+        run: sudo apt-get install -y libev-dev
+      - name: Test dependencies (Server back-ends and template engines)
+      # Taken from install script inside of .github/workflows of test suite (https://github.com/bottlepy/bottle/blob/master/.github/workflows/run_tests.yml)
+        run: |
+          pip install -U pip pytest
+          pip install mako jinja2
+          for name in waitress "cherrypy<9" cheroot paste tornado twisted diesel meinheld\
+            gunicorn eventlet flup bjoern gevent aiohttp-wsgi uvloop; do
+            pip install $name || echo "Failed to install $name with $(python -V 2>&1)" 1>&2
+          done
+      - name: Inject ddtrace
+        run: pip install ../ddtrace
+        # Allows tests to continue through deprecation warnings for jinja2 and mako
+      - name: Run tests
+        # Disable TestServerAdapter_gunicorn.test_simple because it checks for
+        # log output and it contains the profiler failing to upload
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ pytest test --continue-on-collection-errors -v -k 'not TestServerAdapter_gunicorn'
+
+  django-testsuite-3_1-coverage:
+    name: Django 3.1 (coverage only)
+    runs-on: ubuntu-latest
+    env:
+      DD_TESTING_RAISE: true
+      DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
+      DD_DEBUGGER_EXPL_PROFILER_ENABLED: 0
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
+    defaults:
+      run:
+        working-directory: django
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: django/django
+          ref: stable/3.1.x
+          path: django
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+      - name: Install pylibmc libmemcached package
+        # Django-specific: pylibmc in Ubuntu requires libmemcached package
+        run: sudo apt install libmemcached-dev zlib1g
+      - name: Install dependencies
+        # Django-specific: separate dependencies for tests
+        run: pip install -r tests/requirements/py3.txt
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Install django
+        run: pip install -e .
+      - name: Run tests
+        # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
+        run: tests/runtests.py
+
+  django-testsuite-3_1-profiling:
+    name: Django 3.1 (profiling only)
+    runs-on: ubuntu-latest
+    env:
+      DD_TESTING_RAISE: true
+      DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
+      DD_DEBUGGER_EXPL_COVERAGE_ENABLED: 0
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
+    defaults:
+      run:
+        working-directory: django
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: django/django
+          ref: stable/3.1.x
+          path: django
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+      - name: Install pylibmc libmemcached package
+        # Django-specific: pylibmc in Ubuntu requires libmemcached package
+        run: sudo apt install libmemcached-dev zlib1g
+      - name: Install dependencies
+        # Django-specific: separate dependencies for tests
+        run: pip install -r tests/requirements/py3.txt
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Install django
+        run: pip install -e .
+      - name: Disable unsupported tests
+        run: |
+          sed -i'' 's/if not filename.startswith(os.path.dirname(django.__file__))/if False/' django/conf/__init__.py
+          sed -i'' 's/test_paginating_unordered_queryset_raises_warning/paginating_unordered_queryset_raises_warning/' tests/pagination/tests.py
+          sed -i'' 's/test_access_warning/access_warning/' tests/auth_tests/test_password_reset_timeout_days.py
+          sed -i'' 's/test_get_or_set_version/get_or_set_version/' tests/cache/tests.py
+          sed -i'' 's/test_avoid_infinite_loop_on_too_many_subqueries/avoid_infinite_loop_on_too_many_subqueries/' tests/queries/tests.py
+          sed -i'' 's/test_multivalue_dict_key_error/multivalue_dict_key_error/' tests/view_tests/tests/test_debug.py  # Sensitive data leak
+          sed -i'' 's/test_db_table/db_table/' tests/schema/tests.py
+
+      - name: Run tests
+        # django.tests.requests module interferes with requests library patching in the tracer -> disable requests patch
+        run: tests/runtests.py
+
+  fastapi-testsuite-0_63:
+    name: FastAPI 0.63
+    runs-on: ubuntu-latest
+    env:
+      DD_TESTING_RAISE: true
+    defaults:
+      run:
+        working-directory: fastapi
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: tiangolo/fastapi
+          ref: 0.63.0
+          path: fastapi
+      #This step installs Flit, a way to put Python packages and modules on PyPI (More info at https://flit.readthedocs.io/en/latest/)
+      - name: Install Flit
+        run: pip install flit
+      #Installs all dependencies needed for FastAPI
+      - name: Install Dependencies
+        run: flit install --symlink
+      #Reverts SQLalchemy to v1.3.24. Newest version breaks tests due to RowProxy module being deprecated in latest v1.4.11 More info: (https://docs.sqlalchemy.org/en/14/changelog/migration_14.html#rowproxy-is-no-longer-a-proxy-is-now-called-row-and-behaves-like-an-enhanced-named-tuple)
+      - name: Downgrade SQLalchemy
+        run: pip install --force-reinstall SQLAlchemy==1.3.24
+      - name: Inject ddtrace
+        run: pip install ../ddtrace
+      - name: MarkupSafe fix
+        run: pip install --upgrade MarkupSafe==2.0.1
+      - name: Test
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ pytest tests
+
+  flask-testsuite-1_1_4:
+    name: Flask 1.1.4
+    runs-on: ubuntu-latest
+    env:
+      TOX_TESTENV_PASSENV: DD_TESTING_RAISE
+      DD_TESTING_RAISE: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: flask
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: pallets/flask
+          ref: 1.1.4
+          path: flask
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+      - name: Install tox
+        run: pip install tox
+      - name: Create tox env
+        run: tox -e py38 --notest
+      - name: Run tests
+        run: |
+          source .tox/py38/bin/activate
+          pip install ../ddtrace
+          pip install -e .
+          pip install --upgrade MarkupSafe==2.0.1
+          pytest -p no:warnings -vvk 'not test_exception_propagation and not test_memory_consumption'
+
+  httpx-testsuite-0_18_1:
+    name: HTTPx 0.18.1
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: httpx
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: encode/httpx
+          ref: 0.18.1
+          path: httpx
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest-asyncio==0.17.2
+      - name: Inject ddtrace
+        run: pip install ../ddtrace
+      - name: Run tests
+        env:
+          PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+        run: pytest -svvk 'not test_deleting_unclosed_async_client_causes_warning'
+
+  mako-testsuite-1_1_4:
+    name: Mako 1.1.4
+    runs-on: ubuntu-latest
+    env:
+      TOX_TESTENV_PASSENV: DD_TESTING_RAISE
+      DD_TESTING_RAISE: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: mako
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: sqlalchemy/mako
+          ref: rel_1_1_4
+          path: mako
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+      - name: Install tox
+        run: pip install tox
+      - name: Create tox env
+        run: tox -e py --notest
+      - name: Run tests
+        run: |
+          source .tox/py/bin/activate
+          pip install ../ddtrace
+          pip install -e .
+          pytest -p no:warnings
+
+  starlette-testsuite-0_17_1:
+    name: Starlette 0.17.1
+    runs-on: "ubuntu-latest"
+    env:
+      DD_TESTING_RAISE: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: starlette
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: encode/starlette
+          ref: 0.17.1
+          path: starlette
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Install dependencies
+        run: scripts/install
+      #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
+      #test_staticfiles_with_invalid_dir_permissions_returns_401 fails with and without ddtrace enabled
+      - name: Run tests
+        run: pytest -W ignore tests -k 'not test_request_headers and not test_subdomain_route and not test_websocket_headers and not test_staticfiles_with_invalid_dir_permissions_returns_401'
+
+  requests-testsuite-2_26_0:
+    name: requests 2.26.0
+    runs-on: "ubuntu-latest"
+    env:
+      DD_TESTING_RAISE: true
+    defaults:
+      run:
+        working-directory: requests
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: psf/requests
+          ref: v2.26.0
+          path: requests
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Install dependencies
+        run: "make init"
+      - name: MarkupSafe fix
+        run: pip install --upgrade MarkupSafe==2.0.1
+      - name: Run tests
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ pytest -p no:warnings tests
+
+  pylons-testsuite-1_0_3:
+    name: Pylons 1.0.3
+    runs-on: "ubuntu-latest"
+    env:
+      DD_TESTING_RAISE: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: pylons
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '2.7'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: pylons/pylons
+          ref: master
+          path: pylons
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Install test dependencies
+        run: pip install -e .[test]
+      - name: MarkupSafe fix
+        run: pip install --upgrade MarkupSafe==0.18 pip setuptools --force
+      - name: Disable failing tests
+        run: |
+          sed -i'' "s/test_detect_lang/detect_lang/g" tests/test_units/test_basic_app.py
+          sed -i'' "s/test_langs/langs/g" tests/test_units/test_basic_app.py
+      - name: Run tests
+        run: nosetests
