@@ -221,7 +221,7 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
         assert request_span.service == "sanic"
 
     if integration_http_config.get("trace_query_string"):
-        assert re.search("/hello?foo=bar$", request_span.get_tag("http.url"))
+        assert re.search(r"/hello\?foo\=bar$", request_span.get_tag("http.url"))
         assert request_span.get_tag("http.query.string") == "foo=bar"
     else:
         assert re.search("/hello$", request_span.get_tag("http.url"))
