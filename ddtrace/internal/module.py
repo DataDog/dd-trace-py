@@ -359,7 +359,7 @@ class ModuleWatchdog(dict):
 
     @classmethod
     def unregister_origin_hook(cls, origin, hook):
-        # type: (str, Any) -> None
+        # type: (str, ModuleHookType) -> None
         """Unregister the hook registered with the given module origin and
         argument.
         """
@@ -467,7 +467,7 @@ class ModuleWatchdog(dict):
                 else:
                     sys.modules = getattr(current, "_modules")
                 cls._instance = None
-                log.debug("ModuleWatchdog uninstalled")
+                log.debug("%s uninstalled", cls)
                 return
             parent = current
             current = current._modules

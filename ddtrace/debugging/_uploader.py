@@ -1,3 +1,5 @@
+from typing import Optional
+
 import tenacity
 
 from ddtrace.debugging._config import config
@@ -24,15 +26,13 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
 
     RETRY_ATTEMPTS = 3
 
-    def __init__(self, api_key, encoder, interval=1.0):
-        # type: (str, BufferedEncoder, float) -> None
+    def __init__(self, encoder, interval=None):
+        # type: (BufferedEncoder, Optional[float]) -> None
         super(LogsIntakeUploaderV1, self).__init__(interval or config.upload_flush_interval)
-        self._api_key = api_key
         self._encoder = encoder
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
-            "DD-API-KEY": api_key,
         }
         if config._tags_in_qs and config.tags:
             self.ENDPOINT += "?ddtags=" + config.tags
