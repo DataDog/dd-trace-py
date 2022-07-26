@@ -43,7 +43,7 @@ def redact_query_string(query_string, query_string_obfuscation_pattern):
     if query_string is bytes:
         bytes_query_string = query_string
     else:
-        bytes_query_string = bytes(query_string)
+        bytes_query_string = bytes(query_string, encoding="utf-8")
     return query_string_obfuscation_pattern.sub(b"<redacted>", bytes_query_string)
 
 
