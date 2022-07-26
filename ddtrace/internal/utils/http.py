@@ -52,7 +52,11 @@ def redact_url(url, query_string_obfuscation_pattern):
     hqs, fs, f = url.partition("#")
     h, qss, qs = hqs.partition("?")
     if qs:
-        return h + qss + redact_query_string(qs, query_string_obfuscation_pattern) + fs + f
+        return (
+            bytes(h + qss, encoding="utf-8")
+            + redact_query_string(qs, query_string_obfuscation_pattern)
+            + bytes(fs + f, encoding="utf-8")
+        )
     return url
 
 
