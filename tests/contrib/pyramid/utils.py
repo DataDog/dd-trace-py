@@ -69,10 +69,11 @@ class PyramidTestCase(PyramidBase):
         assert s.span_type == "web"
         assert s.get_tag("http.method") == "GET"
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.URL) == "http://localhost/" + fqs
         if config.pyramid.trace_query_string:
+            assert s.get_tag(http.URL) == "http://localhost/" + fqs
             assert s.get_tag(http.QUERY_STRING) == query_string
         else:
+            assert s.get_tag(http.URL) == "http://localhost/"
             assert http.QUERY_STRING not in s.get_tags()
         assert s.get_tag("pyramid.route.name") == "index"
 

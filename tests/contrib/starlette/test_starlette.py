@@ -128,7 +128,7 @@ def test_200_multi_query_string(client, tracer, test_spans):
     assert request_span.resource == "GET /"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/"
+    assert request_span.get_tag("http.url") == "http://testserver/?foo=bar&x=y"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "foo=bar&x=y"
 
@@ -223,14 +223,14 @@ async def test_multiple_requests(app, tracer, test_spans):
     assert r1_span.name == "starlette.request"
     assert r1_span.resource == "GET /"
     assert r1_span.get_tag("http.method") == "GET"
-    assert r1_span.get_tag("http.url") == "http://testserver/"
+    assert r1_span.get_tag("http.url") == "http://testserver/?sleep=true"
     assert r1_span.get_tag("http.query.string") == "sleep=true"
 
     assert r2_span.service == "starlette"
     assert r2_span.name == "starlette.request"
     assert r2_span.resource == "GET /"
     assert r2_span.get_tag("http.method") == "GET"
-    assert r2_span.get_tag("http.url") == "http://testserver/"
+    assert r2_span.get_tag("http.url") == "http://testserver/?sleep=true"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
 
 

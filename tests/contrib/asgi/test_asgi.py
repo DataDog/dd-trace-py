@@ -373,7 +373,7 @@ async def test_multiple_requests(tracer, test_spans):
     assert r2_span.name == "asgi.request"
     assert r2_span.span_type == "web"
     assert r2_span.get_tag("http.method") == "GET"
-    assert r2_span.get_tag("http.url") == "http://testserver/"
+    assert r2_span.get_tag("http.url") == "http://testserver/?sleep=true"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
 
 

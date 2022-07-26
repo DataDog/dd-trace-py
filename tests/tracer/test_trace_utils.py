@@ -369,7 +369,7 @@ def test_set_http_meta(
         assert http.METHOD not in span.get_tags()
 
     if url is not None:
-        if int_config.trace_query_string:
+        if query and int_config.trace_query_string:
             assert span.get_tag(http.URL) == stringify(url + "?" + query)
         else:
             assert span.get_tag(http.URL) == stringify(url)

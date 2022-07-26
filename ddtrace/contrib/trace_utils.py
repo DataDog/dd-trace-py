@@ -275,7 +275,7 @@ def set_http_meta(
         if integration_config.trace_query_string:
             if query:
                 bytes_query = query if isinstance(query, bytes) else query.encode("utf-8")
-                if b"?" + bytes_query not in bytes_url:
+                if b"?" not in bytes_url:
                     span._set_str_tag(
                         http.URL,
                         bytes_url + b"?" + redact_query_string(bytes_query, config._obfuscation_query_string_pattern),
