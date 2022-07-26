@@ -313,6 +313,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="remoteconfig",
+            command="pytest {cmdargs} tests/remoteconfig/",
+            pkgs={
+                "msgpack": latest,
+                "httpretty": "==0.9.7",
+            },
+            pys=select_pys(),
+        ),
+        Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
             pkgs={
