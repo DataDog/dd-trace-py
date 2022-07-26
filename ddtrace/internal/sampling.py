@@ -138,7 +138,7 @@ class SpanSamplingRule:
 
     def sample(self, span):
         # type: (Span) -> bool
-        if self.match(span) and self._sample(span):
+        if self._sample(span):
             if self._limiter.is_allowed(span.start_ns):
                 self.apply_span_sampling_tags(span)
                 return True
