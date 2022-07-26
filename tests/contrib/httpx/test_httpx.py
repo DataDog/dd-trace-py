@@ -274,8 +274,12 @@ async def test_request_headers(snapshot_context):
     """
     url = get_url("/response-headers?Some-Response-Header=Response-Value")
 
+    # Ceveat(avara1986): Docker imagen "httpbin" set as user-agent "python-httpx/0.23.0".
+    # your local container or the CI container, could have different version. We set
+    # the user agent to use the same version.
     headers = {
         "Some-Request-Header": "Request-Value",
+        "User-Agent": "python-httpx/x.xx.x",
     }
 
     try:
