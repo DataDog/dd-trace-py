@@ -3,6 +3,7 @@ import collections
 import email.parser
 import platform
 import socket
+import sys
 import threading
 import time
 
@@ -17,6 +18,13 @@ from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
 
 from . import test_pprof
+
+
+# Skip this test on Windows:
+# they add little value and the HTTP server shutdown seems unreliable and crashes
+# TODO: rewrite those test with another HTTP server that works on win32?
+if sys.platform == "win32":
+    pytestmark = pytest.mark.skip
 
 
 _API_KEY = "my-api-key"
@@ -174,7 +182,7 @@ def test_export_server_down():
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
     e = t.value.last_attempt.exception()
     assert isinstance(e, (IOError, OSError))
-    assert str(t.value).startswith("[Errno ")
+    assert str(t.value).startswith("[Errno ") or str(t.value).startswith("[WinError ")
 
 
 def test_export_timeout(endpoint_test_timeout_server):
