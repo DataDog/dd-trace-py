@@ -517,6 +517,26 @@ def test_span_ignored_exception_multi():
     assert s.get_tag(ERROR_STACK) is None
 
 
+def test_span_ignored_parent(tracer):
+    try:
+        with tracer.trace("parent") as parent:
+            with tracer.trace("child") as child:
+                child._ignore_exception(ValueError)
+                raise ValueError()
+    except ValueError:
+        pass
+
+    assert child.error == 0
+    assert child.get_tag(ERROR_MSG) is None
+    assert child.get_tag(ERROR_TYPE) is None
+    assert child.get_tag(ERROR_STACK) is None
+
+    assert parent.error == 0
+    assert parent.get_tag(ERROR_MSG) is None
+    assert parent.get_tag(ERROR_TYPE) is None
+    assert parent.get_tag(ERROR_STACK) is None
+
+
 def test_span_ignored_exception_subclass():
     s = Span(None)
     s._ignore_exception(Exception)
