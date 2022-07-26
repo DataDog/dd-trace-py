@@ -82,6 +82,10 @@ class ProbeRegistry(dict):
         """Register a probe."""
         with self._lock:
             for probe in probes:
+                if probe in self:
+                    # Already registered.
+                    continue
+
                 self[probe.probe_id] = ProbeRegistryEntry(probe)
 
                 location = _get_probe_location(probe)
@@ -149,6 +153,13 @@ class ProbeRegistry(dict):
             pass
         if not pending_probes:
             del self._pending[location]
+
+    def has_probes(self, location):
+        # type: (str) -> bool
+        for entry in self.values():
+            if _get_probe_location(entry.probe) == location:
+                return True
+        return False
 
     def unregister(self, *probes):
         # type: (Probe) -> List[Probe]
