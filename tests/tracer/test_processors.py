@@ -365,7 +365,6 @@ def test_single_span_sampling_processor_match_second_rule():
     rules = [rule_1, rule_2]
     processor = SpanSamplingProcessor(rules)
     tracer = DummyTracer()
-    tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
 
     span = traced_function(tracer, name="test_name2", service="test_service2")
