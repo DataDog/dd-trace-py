@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    span: prevent ignored exceptions from being propagated to the parent span

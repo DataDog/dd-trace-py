@@ -497,6 +497,13 @@ class Span(object):
             self.finish()
         except Exception:
             log.exception("error closing trace")
+        finally:
+            # prevent ignored exceptions from being propagated to the parent span
+            return (
+                exc_type
+                and self._ignored_exceptions
+                and any([issubclass(exc_type, e) for e in self._ignored_exceptions])
+            )
 
     def __repr__(self):
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (
