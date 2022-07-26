@@ -8,6 +8,7 @@ from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
+from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
@@ -444,17 +445,46 @@ def test_single_span_sampling_processor_w_tracer_sampling(
     )
 
 
+def test_single_span_sampling_processor_w_tracer_sampling_after_processing():
+    """Test that single span sampling tags and tracer sampling context are applied to spans
+    if the trace sampling is changed after the span is processed.
+    """
+
+    rule_1 = SpanSamplingRule(name="child")
+    rules = [rule_1]
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
+    tracer._span_processors.append(processor)
+
+    root = tracer.trace("root")
+
+    # When trace sampling marks it as a drop
+    root.context.sampling_priority = AUTO_REJECT
+    assert root.context.sampling_priority <= 0
+
+    # Child is checked against the span sampling rules, and then is kept
+    child = tracer.trace("child")
+    child.finish()
+
+    # The trace is updated to be a keep, but we already span sampled child
+    root.set_tag(MANUAL_KEEP_KEY)
+    root.finish()
+    # We now expect the span to have both span sampling and tracer context that will sample
+    assert_span_sampling_decision_tags(child)
+    assert child.context.sampling_priority == USER_KEEP
+
+
 def test_single_span_sampling_processor_no_rules():
     """Test that single span sampling rules aren't applied if a span is already going to be sampled by trace sampler"""
     tracer = DummyTracer()
 
-    span = traced_function(tracer, trace_sampling_priority=1)
+    span = traced_function(tracer, trace_sampling_priority=AUTO_KEEP)
 
     assert_span_sampling_decision_tags(
         span,
         sample_rate=None,
         mechanism=None,
-        trace_sampling_priority=1,
+        trace_sampling_priority=AUTO_KEEP,
     )
 
 
