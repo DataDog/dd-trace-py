@@ -416,30 +416,14 @@ def test_single_span_sampling_processor_rule_order_keep():
         (0, None, None, USER_KEEP),  # Span sample rate is 0, but the user is going to keep it
         (0, None, None, AUTO_REJECT),  # The tracer will try to drop the span, the span sampling rule will not keep it
         (0, None, None, USER_REJECT),  # The user will try to drop the span, the span sampling rule will not keep it
-        (
-            1,
-            1,
-            SamplingMechanism.SPAN_SAMPLING_RULE,
-            AUTO_REJECT,
-        ),  # The tracer will try to drop the span, but span sampling will keep it
-        (
-            1,
-            1,
-            SamplingMechanism.SPAN_SAMPLING_RULE,
-            USER_REJECT,
-        ),  # The user will try to drop the span, but span sampling will keep it
-        (
-            1,
-            None,
-            None,
-            AUTO_KEEP,
-        ),  # Span sample rate is 1, but the tracer is going to keep it so span sampling tags will not be applied
-        (
-            1,
-            None,
-            None,
-            USER_KEEP,
-        ),  # Span sample rate is 1, but the user is going to keep it so span sampling tags will not be applied
+        # The tracer will try to drop the span, but span sampling will keep it
+        (1, 1, SamplingMechanism.SPAN_SAMPLING_RULE, AUTO_REJECT), 
+        # The user will try to drop the span, but span sampling will keep it
+        (1, 1, SamplingMechanism.SPAN_SAMPLING_RULE, USER_REJECT),
+        # Span sample rate is 1, but the tracer is going to keep it so span sampling tags will not be applied
+        (1, None, None, AUTO_KEEP),
+        # Span sample rate is 1, but the user is going to keep it so span sampling tags will not be applied
+        (1, None, None, USER_KEEP),
     ],
 )
 def test_single_span_sampling_processor_w_tracer_sampling(
