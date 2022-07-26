@@ -102,7 +102,9 @@ def _store_headers(headers, span, integration_config, request_or_response):
 
     for header_name, header_value in headers.items():
         tag_name = integration_config._header_tag_name(header_name)
-        if tag_name is None:
+        if header_name.lower() == "user-agent":
+            span.set_tag(http.USER_AGENT, header_value)
+        elif tag_name is None:
             continue
         # An empty tag defaults to a http.<request or response>.headers.<header name> tag
         span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
