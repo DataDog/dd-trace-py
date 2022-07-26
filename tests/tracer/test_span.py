@@ -471,7 +471,7 @@ def test_span_nonstring_set_str_tag_warning(span_log):
 def test_span_ignored_exceptions():
     s = Span(None)
     s._ignore_exception(ValueError)
-    
+
     with s:
         raise ValueError()
 
@@ -483,9 +483,8 @@ def test_span_ignored_exceptions():
     s = Span(None)
     s._ignore_exception(ValueError)
 
-    with pytest.raises(ValueError):
-        with s:
-            raise ValueError()
+    with s:
+        raise ValueError()
 
     with pytest.raises(RuntimeError):
         with s:
@@ -502,13 +501,11 @@ def test_span_ignored_exception_multi():
     s._ignore_exception(ValueError)
     s._ignore_exception(RuntimeError)
 
-    with pytest.raises(ValueError):
-        with s:
-            raise ValueError()
+    with s:
+        raise ValueError()
 
-    with pytest.raises(RuntimeError):
-        with s:
-            raise RuntimeError()
+    with s:
+        raise RuntimeError()
 
     assert s.error == 0
     assert s.get_tag(ERROR_MSG) is None
@@ -540,13 +537,11 @@ def test_span_ignored_exception_subclass():
     s = Span(None)
     s._ignore_exception(Exception)
 
-    with pytest.raises(ValueError):
-        with s:
-            raise ValueError()
+    with s:
+        raise ValueError()
 
-    with pytest.raises(RuntimeError):
-        with s:
-            raise RuntimeError()
+    with s:
+        raise RuntimeError()
 
     assert s.error == 0
     assert s.get_tag(ERROR_MSG) is None
