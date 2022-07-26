@@ -433,7 +433,6 @@ def test_single_span_sampling_processor_w_tracer_sampling(
     rules = [rule_1]
     processor = SpanSamplingProcessor(rules)
     tracer = DummyTracer()
-    tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
 
     span = traced_function(tracer, trace_sampling_priority=trace_sampling_priority)
