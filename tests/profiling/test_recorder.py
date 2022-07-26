@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import os
+import sys
 
 import pytest
 
@@ -54,6 +55,7 @@ def test_limit():
     assert r.events[stack_event.StackSampleEvent].maxlen == 24
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 def test_fork():
     stdout, stderr, exitcode, pid = call_program("python", os.path.join(os.path.dirname(__file__), "recorder_fork.py"))
     assert exitcode == 0, (stdout, stderr)

@@ -65,7 +65,7 @@ class JsonBuffer(object):
             raise BufferFull(self.size, size)
 
         if self.size > 2:
-            size += 1
+            self.size += 1
             self._buffer += b","
         self._buffer += item
         self.size += size
