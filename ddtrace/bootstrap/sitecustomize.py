@@ -119,7 +119,7 @@ try:
 
     # instrumentation telemetry writer should be enabled/started after the global tracer and configs
     # are initialized
-    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
+    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
         telemetry_writer.enable()
 
     # Check for and import any sitecustomize that would have normally been used
