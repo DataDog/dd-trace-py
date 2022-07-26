@@ -382,7 +382,6 @@ def test_single_span_sampling_processor_rule_order_drop():
     rules = [rule_1, rule_2]
     processor = SpanSamplingProcessor(rules)
     tracer = DummyTracer()
-    tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
 
     span = traced_function(tracer)
