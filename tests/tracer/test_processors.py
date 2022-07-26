@@ -29,6 +29,7 @@ from ddtrace.internal.processor.truncator import NormalizeSpanProcessor
 from ddtrace.internal.processor.truncator import TruncateSpanProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
+from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 
 
@@ -348,7 +349,7 @@ def test_single_span_sampling_processor():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name")
     rules = [rule_1]
     processor = SpanSamplingProcessor(rules)
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
 
@@ -364,7 +365,7 @@ def test_single_span_sampling_processor_match_second_rule():
     rule_2 = SpanSamplingRule(service="test_service2", name="test_name2")
     rules = [rule_1, rule_2]
     processor = SpanSamplingProcessor(rules)
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
 
@@ -382,7 +383,7 @@ def test_single_span_sampling_processor_rule_order_drop():
     rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0)
     rules = [rule_1, rule_2]
     processor = SpanSamplingProcessor(rules)
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
 
@@ -400,7 +401,7 @@ def test_single_span_sampling_processor_rule_order_keep():
     rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0)
     rules = [rule_1, rule_2]
     processor = SpanSamplingProcessor(rules)
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
 
@@ -417,7 +418,7 @@ def test_single_span_sampling_processor_rule_order_keep():
         (0, None, None, AUTO_REJECT),  # The tracer will try to drop the span, the span sampling rule will not keep it
         (0, None, None, USER_REJECT),  # The user will try to drop the span, the span sampling rule will not keep it
         # The tracer will try to drop the span, but span sampling will keep it
-        (1, 1, SamplingMechanism.SPAN_SAMPLING_RULE, AUTO_REJECT), 
+        (1, 1, SamplingMechanism.SPAN_SAMPLING_RULE, AUTO_REJECT),
         # The user will try to drop the span, but span sampling will keep it
         (1, 1, SamplingMechanism.SPAN_SAMPLING_RULE, USER_REJECT),
         # Span sample rate is 1, but the tracer is going to keep it so span sampling tags will not be applied
@@ -434,7 +435,7 @@ def test_single_span_sampling_processor_w_tracer_sampling(
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=span_sample_rate_rule)
     rules = [rule_1]
     processor = SpanSamplingProcessor(rules)
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=DummyWriter())
     tracer._span_processors.append(processor)
 
@@ -450,7 +451,7 @@ def test_single_span_sampling_processor_w_tracer_sampling(
 
 def test_single_span_sampling_processor_no_rules():
     """Test that single span sampling rules aren't applied if a span is already going to be sampled by trace sampler"""
-    tracer = Tracer()
+    tracer = DummyTracer()
     tracer.configure(writer=DummyWriter())
 
     span = traced_function(tracer, trace_sampling_priority=1)
