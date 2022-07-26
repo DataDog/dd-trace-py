@@ -1,6 +1,7 @@
-from contextlib import asynccontextmanager
-
 import aiobotocore.session
+from async_generator import async_generator
+from async_generator import asynccontextmanager
+from async_generator import yield_
 
 from ddtrace import Pin
 
@@ -16,6 +17,7 @@ LOCALSTACK_ENDPOINT_URL = {
 
 
 @asynccontextmanager
+@async_generator
 async def aiobotocore_client(service, tracer):
     """Helper function that creates a new aiobotocore client so that
     it is closed at the end of the context manager.
@@ -37,11 +39,11 @@ async def aiobotocore_client(service, tracer):
     ):
         async with client as client:
             Pin.override(client, tracer=tracer)
-            yield client
+            await yield_(client)
 
     else:
         Pin.override(client, tracer=tracer)
         try:
-            yield client
+            await yield_(client)
         finally:
             await client.close()
