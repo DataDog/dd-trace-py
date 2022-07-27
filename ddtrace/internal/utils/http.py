@@ -51,7 +51,7 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     parts = compat.parse.urlparse(url)
     redacted_query = None
 
-    if query_string is not None:
+    if query_string:
         redacted_query = redact_query_string(query_string, query_string_obfuscation_pattern)
     elif parts.query:
         redacted_query = redact_query_string(parts.query, query_string_obfuscation_pattern)
