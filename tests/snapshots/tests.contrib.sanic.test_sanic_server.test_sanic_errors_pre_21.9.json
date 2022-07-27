@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.dm": "-0",
       "http.method": "GET",
       "http.status_code": "404",
       "http.url": "http://0.0.0.0:8000/not_found",
@@ -34,6 +35,7 @@
     "type": "web",
     "error": 1,
     "meta": {
+      "_dd.p.dm": "-0",
       "http.method": "GET",
       "http.status_code": "500",
       "http.url": "http://0.0.0.0:8000/internal_error",

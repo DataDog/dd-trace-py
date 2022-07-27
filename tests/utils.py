@@ -90,6 +90,7 @@ def override_global_config(values):
         "_propagation_style_inject",
         "_x_datadog_tags_max_length",
         "_x_datadog_tags_enabled",
+        "_propagate_service",
         "env",
         "version",
         "service",
@@ -985,6 +986,7 @@ class AnyFloat(object):
 
 
 def call_program(*args, **kwargs):
-    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=True, **kwargs)
+    close_fds = sys.platform != "win32"
+    subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     stdout, stderr = subp.communicate()
     return stdout, stderr, subp.wait(), subp.pid

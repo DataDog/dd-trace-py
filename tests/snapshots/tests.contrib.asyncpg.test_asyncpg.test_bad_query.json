@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
+      "_dd.p.dm": "-0",
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
@@ -35,6 +36,7 @@
     "type": "sql",
     "error": 1,
     "meta": {
+      "_dd.p.dm": "-0",
       "db.name": "postgres",
       "db.user": "postgres",
       "error.msg": "syntax error at or near \"malformed\"",

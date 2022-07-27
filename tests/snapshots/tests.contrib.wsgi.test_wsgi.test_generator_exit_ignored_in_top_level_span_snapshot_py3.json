@@ -2,14 +2,17 @@
   {
     "name": "wsgi.request",
     "service": "wsgi",
-    "resource": "wsgi.request",
+    "resource": "GET /generatorError",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
+      "http.url": "http://localhost:80/generatorError",
       "runtime-id": "95c79fa6df0d4378985caf03beebf928"
     },
     "metrics": {

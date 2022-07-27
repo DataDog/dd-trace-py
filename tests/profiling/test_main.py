@@ -1,8 +1,10 @@
+# -*- encoding: utf-8 -*-
 import multiprocessing
 import os
 import sys
 
 import pytest
+import six
 
 from tests.utils import call_program
 
@@ -13,11 +15,14 @@ def test_call_script(monkeypatch):
     # Set a very short timeout to exit fast
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    stdout, stderr, exitcode, pid = call_program(
-        "ddtrace-run", os.path.join(os.path.dirname(__file__), "simple_program.py")
+    stdout, stderr, exitcode, _ = call_program(
+        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py")
     )
-    assert exitcode == 42
-    hello, interval, stacks = stdout.decode().strip().split("\n")
+    if sys.platform == "win32":
+        assert exitcode == 0, (stdout, stderr)
+    else:
+        assert exitcode == 42, (stdout, stderr)
+    hello, interval, stacks, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
     assert hello == "hello world"
     assert float(interval) >= 0.01
     assert int(stacks) >= 1
@@ -26,8 +31,10 @@ def test_call_script(monkeypatch):
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_call_script_gevent(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
-    _, _, exitcode, pid = call_program("python", os.path.join(os.path.dirname(__file__), "simple_program_gevent.py"))
-    assert exitcode == 0
+    stdout, stderr, exitcode, pid = call_program(
+        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_gevent.py")
+    )
+    assert exitcode == 0, (stdout, stderr)
 
 
 def test_call_script_pprof_output(tmp_path, monkeypatch):
@@ -39,12 +46,20 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "1")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    _, _, exitcode, pid = call_program("ddtrace-run", os.path.join(os.path.dirname(__file__), "simple_program.py"))
-    assert exitcode == 42
+    stdout, stderr, exitcode, _ = call_program(
+        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program.py")
+    )
+    if sys.platform == "win32":
+        assert exitcode == 0, (stdout, stderr)
+    else:
+        assert exitcode == 42, (stdout, stderr)
+    hello, interval, stacks, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
     utils.check_pprof_file(filename + "." + str(pid) + ".1")
     return filename, pid
 
 
+@pytest.mark.skipif(six.PY2, reason="This test deadlocks randomly on Python 2")
+@pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 def test_fork(tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
@@ -59,6 +74,7 @@ def test_fork(tmp_path, monkeypatch):
     utils.check_pprof_file(filename + "." + str(child_pid) + ".1")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
 def test_fork_gevent(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_API_TIMEOUT", "0.1")
@@ -82,14 +98,15 @@ def test_multiprocessing(method, tmp_path, monkeypatch):
     filename = str(tmp_path / "pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+    monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "1")
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "0.1")
-    stdout, stderr, exitcode, pid = call_program(
+    stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
-        "python",
+        sys.executable,
         os.path.join(os.path.dirname(__file__), "_test_multiprocessing.py"),
         method,
     )
     assert exitcode == 0, (stdout, stderr)
-    child_pid = stdout.decode().strip()
+    pid, child_pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
     utils.check_pprof_file(filename + "." + str(pid) + ".1")
     utils.check_pprof_file(filename + "." + str(child_pid) + ".1")

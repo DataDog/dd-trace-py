@@ -178,3 +178,7 @@ class ComposedView(TemplateView, CustomDispatchView):
 
 def not_found_view(request):
     raise Http404("DNE")
+
+
+def path_params_view(request, year, month):
+    return HttpResponse(status=200)

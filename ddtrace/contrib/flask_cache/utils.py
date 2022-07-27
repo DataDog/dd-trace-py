@@ -17,14 +17,19 @@ def _resource_from_cache_prefix(resource, cache):
     return name.lower()
 
 
-def _extract_client(cache, write=False):
+def _extract_client(cache):
     """
     Get the client from the cache instance according to the current operation
     """
     client = getattr(cache, "_client", None)
     if client is None:
         # flask-caching has _read_clients & _write_client for the redis backend
-        client = getattr(cache, "_write_client" if write else "_read_clients", None)
+        # These use the same connection so just try to get a reference to one of them.
+        # flask-caching < 2.0.0 uses _read_clients so look for that one too.
+        for attr in ("_write_client", "_read_client", "_read_clients"):
+            client = getattr(cache, attr, None)
+            if client is not None:
+                break
     return client
 
 

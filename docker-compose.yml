@@ -4,6 +4,7 @@ version: "3"
 services:
     elasticsearch:
         image: elasticsearch:2.4-alpine
+        platform: linux/amd64
         ports:
             - "127.0.0.1:9200:9200"
     cassandra:
@@ -26,7 +27,7 @@ services:
         ports:
             - "127.0.0.1:5432:5432"
     mariadb:
-        image: mariadb
+        image: mariadb:10.7
         environment:
             - MYSQL_ROOT_PASSWORD=example
             - MYSQL_DATABASE=test
@@ -36,6 +37,7 @@ services:
             - "127.0.0.1:3306:3306"
     mysql:
         image: mysql:5.7
+        platform: linux/amd64
         environment:
             - MYSQL_ROOT_PASSWORD=admin
             - MYSQL_PASSWORD=test

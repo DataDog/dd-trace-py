@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add environment variables to write ``ddtrace`` logs to a file with ``DD_TRACE_LOG_FILE``, ``DD_TRACE_LOG_FILE_LEVEL``, and ``DD_TRACE_FILE_SIZE_BYTES``

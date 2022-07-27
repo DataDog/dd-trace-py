@@ -35,7 +35,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         name: Install Python
         with:
           python-version: '3.8'
@@ -85,7 +85,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         name: Install Python
         with:
           python-version: '3.8'
@@ -97,7 +97,7 @@ jobs:
           platforms: all
 
       - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@2.6.0
+        uses: pypa/cibuildwheel@v2.8.1
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
@@ -121,7 +121,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         name: Install Python
         with:
           python-version: '3.7'

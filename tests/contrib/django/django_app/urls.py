@@ -65,6 +65,7 @@ urlpatterns = [
     handler(r"^template-view/$", views.template_view, name="template-view"),
     handler(r"^template-simple-view/$", views.template_simple_view, name="template-simple-view"),
     handler(r"^template-list-view/$", views.template_list_view, name="template-list-view"),
+    path("path-params/<int:year>/<str:month>/", views.path_params_view, name="path-params-view"),
     re_path(r"re-path.*/", repath_view),
     path("path/", path_view),
     path("include/", include("tests.contrib.django.django_app.extra_urls")),

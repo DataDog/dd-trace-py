@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    asgi, starlette, fastapi: Exclude background tasks duration from web request spans.

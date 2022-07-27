@@ -200,14 +200,16 @@ class Config(object):
                 (
                     "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
                     "only non-negative values less than or equal to 512 allowed"
-                ).format(self._propagation_datadog_tags_max_length)
+                ).format(x_datadog_tags_max_length)
             )
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
-        self._trace_compute_stats = asbool(os.getenv("DD_TRACE_COMPUTE_STATS", False))
+        self._trace_compute_stats = asbool(
+            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
+        )
         self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", False))
 
     def __getattr__(self, name):
