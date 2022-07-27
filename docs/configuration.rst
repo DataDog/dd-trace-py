@@ -64,6 +64,12 @@ below:
      - Enable sending of spans to the Agent. Note that instrumentation will still be installed and spans will be
        generated. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_ENABLED``).
 
+       .. _dd-instrumentation-telemetry-enabled:
+   * - ``DD_INSTRUMENTATION_TELEMETRY_ENABLED``
+     - Boolean
+     - True
+     - Enables sending telemetry events to the agent.
+
        .. _dd-trace-debug:
    * - ``DD_TRACE_DEBUG``
      - Boolean
