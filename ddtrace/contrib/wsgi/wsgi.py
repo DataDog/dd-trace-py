@@ -14,18 +14,6 @@ if TYPE_CHECKING:
     from ddtrace import Tracer
     from ddtrace.settings import Config
 
-from ddtrace.internal.compat import PY2
-
-
-if PY2:
-    import exceptions
-
-    generatorExit = exceptions.GeneratorExit
-else:
-    import builtins
-
-    generatorExit = builtins.GeneratorExit
-
 
 from six.moves.urllib.parse import quote
 
@@ -95,11 +83,6 @@ class _DDWSGIMiddlewareBase(object):
             service=trace_utils.int_service(self._pin, self._config),
             span_type=SpanTypes.WEB,
         ) as req_span:
-            # This prevents GeneratorExit exceptions from being propagated to the top-level span.
-            # This can occur if a streaming response exits abruptly leading to a broken pipe.
-            # Note: The wsgi.response span will still have the error information included.
-            req_span._ignore_exception(generatorExit)
-
             self._request_span_modifier(req_span, environ)
 
             with self.tracer.trace(self._application_span_name) as app_span:
@@ -109,8 +92,14 @@ class _DDWSGIMiddlewareBase(object):
 
             with self.tracer.trace(self._response_span_name) as resp_span:
                 self._response_span_modifier(resp_span, result)
-                for chunk in result:
-                    yield chunk
+                try:
+                    for chunk in result:
+                        yield chunk
+                except GeneratorExit:
+                    # This prevents GeneratorExit exceptions from being propagated to the top-level span.
+                    # This can occur if a streaming response exits abruptly leading to a broken pipe.
+                    # Note: The wsgi.response span will still have the error information included.
+                    log.debug("GeneratorExit: wsgi response exited abruptly")
 
             if hasattr(result, "close"):
                 result.close()
