@@ -1,5 +1,4 @@
 import functools
-import sys
 from typing import TYPE_CHECKING
 
 
@@ -28,7 +27,6 @@ else:
     generatorExit = builtins.GeneratorExit
 
 
-import six
 from six.moves.urllib.parse import quote
 
 import ddtrace
@@ -115,14 +113,7 @@ class _DDWSGIMiddlewareBase(object):
                     yield chunk
 
             if hasattr(result, "close"):
-                # TODO: Remove unnecessary exception handling.
-                # This should be handled by the req_span context manager.
-                try:
-                    result.close()
-                except Exception:
-                    typ, val, tb = sys.exc_info()
-                    req_span.set_exc_info(typ, val, tb)
-                    six.reraise(typ, val, tb=tb)
+                result.close()
 
     def _traced_start_response(self, start_response, request_span, status, environ, exc_info=None):
         # type: (Callable, Span, str, Dict, Any) -> None
