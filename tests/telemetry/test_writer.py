@@ -5,7 +5,6 @@ import pytest
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
-from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.settings import _config as config
 
@@ -162,28 +161,6 @@ def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
     assert len(test_agent_session.get_requests()) == 0
 
 
-def test_periodic(telemetry_writer, test_agent_session):
-    """tests that periodic() sends queued app-started and integration events to the agent"""
-    # add 1 event to the queue
-    telemetry_writer.app_started_event()
-    # queue two integrations
-    telemetry_writer.add_integration("integration-1", True)
-    telemetry_writer.add_integration("integration-2", False)
-    telemetry_writer.periodic()
-
-    # ensure one app-started and one app-integrations-change event was sent
-    assert len(test_agent_session.get_requests()) == 2
-
-    # queue 2 more integrations
-    telemetry_writer.add_integration("integration-3", True)
-    telemetry_writer.add_integration("integration-4", False)
-    # send both integrations to the agent proxy
-    telemetry_writer.periodic()
-    # ensure one more app-integrations-change events was sent
-    # 2 requests were sent in the previous flush
-    assert len(test_agent_session.get_requests()) == 3
-
-
 @pytest.mark.parametrize("mock_status", [300, 400, 401, 403, 500])
 def test_send_failing_request(mock_status, mock_send_request, telemetry_writer):
     """asserts that a warning is logged when an unsuccessful response is returned by the http client"""
@@ -199,25 +176,6 @@ def test_send_failing_request(mock_status, mock_send_request, telemetry_writer):
         )
     # ensure one failing request was sent
     assert len(httpretty.latest_requests()) == 1
-
-
-def test_send_request_exception():
-    """asserts that an error is logged when an exception is raised by the http client"""
-    # create a telemetry writer with an invalid agent url.
-    # this will raise an Exception on _send_request
-    telemetry_writer = TelemetryWriter("http://hostthatdoesntexist:1234")
-    telemetry_writer._enabled = True
-
-    with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
-        # sends failing app-closing event
-        telemetry_writer.on_shutdown()
-        # assert an exception was logged
-        log.debug.assert_called_with(
-            "failed to send telemetry to the Datadog Agent at %s/%s.",
-            "http://hostthatdoesntexist:1234",
-            telemetry_writer.ENDPOINT,
-            exc_info=True,
-        )
 
 
 def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session):

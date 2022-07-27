@@ -392,12 +392,11 @@ jobs:
           pattern: "internal"
 
   tracer:
-    <<: *machine_executor
+    <<: *contrib_job
     parallelism: 7
     steps:
       - run_test:
           pattern: "tracer"
-          snapshot: true
 
   telemetry:
     <<: *machine_executor
