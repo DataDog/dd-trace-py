@@ -68,7 +68,7 @@ def test_lock_acquire_events():
     event = r.events[collector_threading.ThreadingLockAcquireEvent][0]
     assert event.lock_name == "test_threading.py:64"
     assert event.thread_id == nogevent.thread_get_ident()
-    assert event.wait_time_ns > 0
+    assert event.wait_time_ns >= 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
@@ -183,7 +183,7 @@ def test_lock_release_events():
     event = r.events[collector_threading.ThreadingLockReleaseEvent][0]
     assert event.lock_name == "test_threading.py:178"
     assert event.thread_id == nogevent.thread_get_ident()
-    assert event.locked_for_ns >= 0.1
+    assert event.locked_for_ns >= 0
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
@@ -228,7 +228,7 @@ def test_lock_gevent_tasks():
     for event in r.events[collector_threading.ThreadingLockReleaseEvent]:
         if event.lock_name == "test_threading.py:199":
             assert event.thread_id == nogevent.main_thread_id
-            assert event.locked_for_ns >= 0.1
+            assert event.locked_for_ns >= 0
             assert event.task_id == t.ident
             assert event.task_name == "foobar"
             # It's called through pytest so I'm sure it's gonna be that long, right?

@@ -63,3 +63,21 @@ def test_fork():
         assert telemetry.telemetry_writer.status == ServiceStatus.RUNNING
         # Kill the process so it doesn't continue running the rest of the test suite
         os._exit(0)
+
+
+def test_logs_after_fork(ddtrace_run_python_code_in_subprocess):
+    # Regression test: telemetry writer should not log an error when a process forks
+    _, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import ddtrace
+import logging
+import os
+
+logging.basicConfig() # required for python 2.7
+ddtrace.internal.telemetry.telemetry_writer.enable()
+os.fork()
+""",
+    )
+
+    assert status == 0, err
+    assert err == b""
