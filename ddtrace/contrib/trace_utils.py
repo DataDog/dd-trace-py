@@ -291,8 +291,9 @@ def set_http_meta(
         """We should store both http.<request_or_response>.headers.<header_name> and http.<key>. The last one
         is the DD standardized tag for user-agent"""
         _store_request_headers(dict(request_headers), span, integration_config)
-        if request_headers.get("user-agent", False):
-            span.set_tag(http.USER_AGENT, request_headers["user-agent"])
+        user_agent = request_headers.get("user-agent")
+        if user_agent:
+            span.set_tag(http.USER_AGENT, user_agent)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
