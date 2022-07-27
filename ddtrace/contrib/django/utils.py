@@ -34,6 +34,7 @@ _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 _quantize_text = Union[Text, bytes]
 _quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
+_appsec_enabled = config._appsec_enabled
 
 
 def resource_from_cache_prefix(resource, cache):
@@ -306,11 +307,12 @@ def _after_request_tags(pin, span, request, response):
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
 
-            content_type = request.content_type
-            rest_framework = hasattr(request, "data")
-
             req_body = None
-            if request.method in _BODY_METHODS:
+
+            if _appsec_enabled and request.method in _BODY_METHODS:
+                content_type = request.content_type
+                rest_framework = hasattr(request, "data")
+
                 if content_type == "application/x-www-form-urlencoded":
                     req_body = request.data.dict() if rest_framework else request.POST.dict()
                 elif content_type == "application/json":
@@ -320,7 +322,8 @@ def _after_request_tags(pin, span, request, response):
                         else json.loads(request.body.decode("UTF-8"))
                     )
                 else:  # text/plain, xml, others: take them as strings
-                    req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
+                    req_body = request.data.decode("UTF-8") if rest_framework \
+                        else request.body.decode("UTF-8")
 
             trace_utils.set_http_meta(
                 span,
