@@ -126,14 +126,10 @@ class SpanSamplingRule:
             self._limiter = RateLimiter(max_per_second)
 
         # we need to create matchers for the service and/or name pattern provided
-        if service is None:
-            self._service_matcher = GlobMatcher("*")
-        else:
+        if service is not None:
             self._service_matcher = GlobMatcher(service)
 
-        if name is None:
-            self._name_matcher = GlobMatcher("*")
-        else:
+        if name is not None:
             self._name_matcher = GlobMatcher(name)
 
     def sample(self, span):
@@ -155,7 +151,22 @@ class SpanSamplingRule:
 
     def match(self, span):
         """Determines if the span's service and name match the configured patterns"""
-        return self._service_matcher.match(span.service) and self._name_matcher.match(span.name)
+        # Default to True, as the rule may not have a name or service rule
+        # For whichever rules it does have, it will attempt to match on them
+        service_match = True
+        name_match = True
+
+        if hasattr(self, "_service_matcher"):
+            if span.service is None:
+                return False
+            else:
+                service_match = self._service_matcher.match(span.service)
+        if hasattr(self, "_name_matcher"):
+            if span.name is None:
+                return False
+            else:
+                name_match = self._name_matcher.match(span.name)
+        return service_match and name_match
 
     def set_sample_rate(self, sample_rate=1.0):
         self._sample_rate = float(sample_rate)

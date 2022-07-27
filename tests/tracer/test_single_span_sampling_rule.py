@@ -49,6 +49,20 @@ def test_single_span_rule_no_match_only_service():
     assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
 
 
+def test_single_span_rule_only_span_service():
+    rule = SpanSamplingRule(service="test_service", name="test_name")
+    span = traced_function(rule, service=None)
+
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_single_span_rule_only_span_name():
+    rule = SpanSamplingRule(service="test_name")
+    span = traced_function(rule, name=None)
+
+    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+
+
 def test_single_span_rule_no_match_only_name():
     rule = SpanSamplingRule(name="wrong_operation_name")
     span = traced_function(rule)
