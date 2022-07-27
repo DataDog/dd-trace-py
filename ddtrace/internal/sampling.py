@@ -151,6 +151,12 @@ class SpanSamplingRule:
 
     def match(self, span):
         """Determines if the span's service and name match the configured patterns"""
+        name = span.name
+        service = span.service
+        # If a span lacks a name and service, we can't match on it
+        if service is None and name is None:
+            return False
+
         # Default to True, as the rule may not have a name or service rule
         # For whichever rules it does have, it will attempt to match on them
         service_match = True
