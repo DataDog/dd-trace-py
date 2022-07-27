@@ -1,4 +1,3 @@
-import mock
 import pytest
 import six
 from webtest import TestApp
@@ -177,10 +176,9 @@ def test_service_name_can_be_overriden(tracer, test_spans):
 
 
 def test_generator_exit_ignored(tracer, test_spans):
-    with mock.patch("ddtrace.contrib.wsgi.wsgi.log") as mock_log:
+    with pytest.raises(GeneratorExit):
         app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
         app.get("/generatorError")
-        mock_log.debug.assert_called_once_with("GeneratorExit: wsgi response exited abruptly")
 
     spans = test_spans.pop()
     assert spans[2].name == "wsgi.response"
@@ -191,8 +189,9 @@ def test_generator_exit_ignored(tracer, test_spans):
 
 @snapshot()
 def test_generator_exit_ignored_snapshot():
-    app = TestApp(wsgi.DDWSGIMiddleware(application))
-    app.get("/generatorError")
+    with pytest.raises(GeneratorExit):
+        app = TestApp(wsgi.DDWSGIMiddleware(application))
+        app.get("/generatorError")
 
 
 def test_chunked_response(tracer, test_spans):
