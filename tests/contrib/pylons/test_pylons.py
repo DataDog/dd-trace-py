@@ -1,3 +1,4 @@
+import json
 import os
 
 from paste import fixture
@@ -14,10 +15,13 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 from ddtrace.ext import http
+from ddtrace.internal import _context
+from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
+from tests.utils import override_env
 
 
 class PylonsTestCase(TracerTestCase):
@@ -477,3 +481,33 @@ class PylonsTestCase(TracerTestCase):
         if pylons.__version__ > (0, 9, 6):
             assert spans[0].get_tag("http.response.headers.content-length") == "2"
         assert spans[0].get_tag("http.response.headers.custom-header") == "value"
+
+    def test_pylon_path_params(self):
+        self.tracer._appsec_enabled = True
+
+        self.tracer.configure(api_version="v0.4")
+        self.app.get("/path-params/2022/july/")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+        path_params = _context.get_item("http.request.path_params", span=root_span)
+
+        assert path_params["month"] == "july"
+        assert path_params["year"] == "2022"
+
+    def test_pylon_path_params_cookies_attack(self):
+        with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            self.tracer._appsec_enabled = True
+
+            self.tracer.configure(api_version="v0.4")
+            self.app.get("/path-params/2022/cybercop/")
+
+            spans = self.pop_spans()
+            root_span = spans[0]
+
+            appsec_json = root_span.get_tag("_dd.appsec.json")
+            assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
+
+            query = dict(_context.get_item("http.request.path_params", span=root_span))
+            assert query["month"] == "cybercop"
+            assert query["year"] == "2022"
