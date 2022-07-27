@@ -303,10 +303,11 @@ class ModuleWatchdog(dict):
                 return _ImportHookLoader(self.after_import)
 
             loader = getattr(find_spec(fullname), "loader", None)
-            if loader and not isinstance(loader, _ImportHookChainedLoader):
-                return _ImportHookChainedLoader(loader)
+            if loader is not None:
+                if not isinstance(loader, _ImportHookChainedLoader):
+                    loader = _ImportHookChainedLoader(loader)
 
-            loader.add_callback(type(self), self.after_import)
+                loader.add_callback(type(self), self.after_import)
 
         finally:
             self._finding.remove(fullname)
@@ -327,10 +328,11 @@ class ModuleWatchdog(dict):
 
             loader = getattr(spec, "loader", None)
 
-            if loader and not isinstance(loader, _ImportHookChainedLoader):
-                spec.loader = _ImportHookChainedLoader(loader)
+            if loader is not None:
+                if not isinstance(loader, _ImportHookChainedLoader):
+                    spec.loader = _ImportHookChainedLoader(loader)
 
-            spec.loader.add_callback(type(self), self.after_import)
+                cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
 
             return spec
 
