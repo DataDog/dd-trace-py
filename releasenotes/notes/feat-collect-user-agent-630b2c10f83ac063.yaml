@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Collect user agent in normalized span tag `http.useragent`.
+    Collect user agent in normalized span tag ``http.useragent``.
