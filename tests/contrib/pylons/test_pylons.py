@@ -478,8 +478,14 @@ class PylonsTestCase(TracerTestCase):
             assert spans[0].get_tag("http.response.headers.content-length") == "2"
         assert spans[0].get_tag("http.response.headers.custom-header") == "value"
 
-    def test_request_method(self):
+    def test_request_method_get(self):
         res = self.app.get(url_for(controller="root", action="index"))
         assert res.status == 200
         spans = self.pop_spans()
-        assert spans[0].get_tag("http.request.method") == "GET"
+        assert spans[0].get_tag("http.method") == "GET"
+
+    def test_request_method_post(self):
+        res = self.app.post(url_for(controller="root", action="index"))
+        assert res.status == 200
+        spans = self.pop_spans()
+        assert spans[0].get_tag("http.method") == "POST"
