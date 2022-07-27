@@ -482,7 +482,7 @@ class PylonsTestCase(TracerTestCase):
             assert spans[0].get_tag("http.response.headers.content-length") == "2"
         assert spans[0].get_tag("http.response.headers.custom-header") == "value"
 
-    def test_flask_cookie_sql_injection(self):
+    def test_pylons_cookie_sql_injection(self):
         with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self.tracer._appsec_enabled = True
             # Hack: need to pass an argument to configure so that the processors are recreated
