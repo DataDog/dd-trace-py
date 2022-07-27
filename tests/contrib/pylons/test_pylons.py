@@ -461,12 +461,14 @@ class PylonsTestCase(TracerTestCase):
     def test_request_headers(self):
         headers = {
             "my-header": "value",
+            "user-agent": "Agent/10.10",
         }
         config.pylons.http.trace_headers(["my-header"])
         res = self.app.get(url_for(controller="root", action="index"), headers=headers)
         assert res.status == 200
         spans = self.pop_spans()
         assert spans[0].get_tag("http.request.headers.my-header") == "value"
+        assert spans[0].get_tag(http.USER_AGENT) == "Agent/10.10"
 
     def test_response_headers(self):
         config.pylons.http.trace_headers(["content-length", "custom-header"])
