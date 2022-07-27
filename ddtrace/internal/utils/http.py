@@ -44,12 +44,19 @@ def redact_query_string(query_string, query_string_obfuscation_pattern):
     return query_string_obfuscation_pattern.sub(b"<redacted>", query_string)
 
 
-def redact_url(url, query_string_obfuscation_pattern):
-    # type: (bytes, re.Pattern) -> bytes
-    hqs, fs, f = url.partition(b"#")
-    h, qss, qs = hqs.partition(b"?")
-    if qs:
-        return h + qss + redact_query_string(qs, query_string_obfuscation_pattern) + fs + f
+def redact_url(url, query_string_obfuscation_pattern, query_string=b""):
+    # type: (bytes, re.Pattern, bytes) -> bytes
+    parts = compat.parse.urlparse(url)
+    redacted_query = None
+
+    if query_string:
+        redacted_query = redact_query_string(query_string, query_string_obfuscation_pattern)
+    elif parts.query:
+        redacted_query = redact_query_string(parts.query, query_string_obfuscation_pattern)
+
+    if redacted_query is not None:
+        redacted_parts = parts[:4] + (redacted_query,) + parts[5:]
+        return compat.parse.urlunparse(redacted_parts)
 
     return url
 
