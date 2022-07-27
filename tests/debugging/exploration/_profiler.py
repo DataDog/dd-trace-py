@@ -18,7 +18,7 @@ ENABLED = asbool(os.getenv("DD_DEBUGGER_EXPL_PROFILER_ENABLED", True))
 class FunctionCollector(ModuleCollector):
     def on_collect(self, discovery):
         module = discovery._module
-        status("Collecting functions from %s" % module.__name__)
+        status("[profiler] Collecting functions from %s" % module.__name__)
         for fname, f in discovery._fullname_index.items():
             _tracked_funcs[fname] = 0
             DeterministicProfiler.add_probe(

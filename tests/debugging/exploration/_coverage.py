@@ -22,7 +22,7 @@ DELETE_LINE_PROBE = asbool(os.getenv("DD_DEBUGGER_EXPL_DELETE_LINE_PROBE", False
 class LineCollector(ModuleCollector):
     def on_collect(self, discovery):
         o = origin(discovery._module)
-        status("Collecting lines from %s" % o)
+        status("[coverage] collecting lines from %s" % o)
         _tracked_modules[o] = (discovery._module, {_ for _ in discovery.keys()})
         LineCoverage.add_probes(
             [

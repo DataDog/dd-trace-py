@@ -205,5 +205,5 @@ class ExplorationDebugger(Debugger):
 
 
 def status(msg):
-    # print(("{:%d}" % COLS).format(msg), end="\r")
+    print(("{:%d}" % COLS).format(msg), end="\n")
     pass
