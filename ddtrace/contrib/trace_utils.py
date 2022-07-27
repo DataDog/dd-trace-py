@@ -270,15 +270,8 @@ def set_http_meta(
         span._set_str_tag(http.METHOD, method)
 
     if url is not None:
-        bytes_url = url if isinstance(url, bytes) else url.encode("utf-8")
         if integration_config.trace_query_string:
-            if query:
-                bytes_query = query if isinstance(query, bytes) else query.encode("utf-8")
-                span._set_str_tag(
-                    http.URL, redact_url(bytes_url, config._obfuscation_query_string_pattern, bytes_query)
-                )
-            else:
-                span._set_str_tag(http.URL, redact_url(bytes_url, config._obfuscation_query_string_pattern))
+            span._set_str_tag(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
         else:
             span._set_str_tag(http.URL, strip_query_string(url))
 
