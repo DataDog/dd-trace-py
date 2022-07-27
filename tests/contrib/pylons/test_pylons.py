@@ -477,3 +477,9 @@ class PylonsTestCase(TracerTestCase):
         if pylons.__version__ > (0, 9, 6):
             assert spans[0].get_tag("http.response.headers.content-length") == "2"
         assert spans[0].get_tag("http.response.headers.custom-header") == "value"
+
+    def test_request_method(self):
+        res = self.app.get(url_for(controller="root", action="index"))
+        assert res.status == 200
+        spans = self.pop_spans()
+        assert spans[0].get_tag("http.request.method") == "GET"
