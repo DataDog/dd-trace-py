@@ -50,8 +50,9 @@ class PylonsTraceMiddleware(object):
         path_params = {}
         if len(pylon_path_params) > 0:
             path_params = pylon_path_params[1].copy()
-            del path_params["action"]
-            del path_params["controller"]
+            if path_params:
+                del path_params["action"]
+                del path_params["controller"]
         return path_params
 
     def __call__(self, environ, start_response):

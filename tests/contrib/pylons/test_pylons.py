@@ -495,12 +495,12 @@ class PylonsTestCase(TracerTestCase):
         assert path_params["month"] == "july"
         assert path_params["year"] == "2022"
 
-    def test_pylon_path_params_cookies_attack(self):
+    def test_pylon_path_params_attack(self):
         with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             self.tracer._appsec_enabled = True
 
             self.tracer.configure(api_version="v0.4")
-            self.app.get("/path-params/2022/cybercop/")
+            self.app.get("/path-params/2022/w00tw00t.at.isc.sans.dfind/")
 
             spans = self.pop_spans()
             root_span = spans[0]
@@ -509,5 +509,5 @@ class PylonsTestCase(TracerTestCase):
             assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
 
             query = dict(_context.get_item("http.request.path_params", span=root_span))
-            assert query["month"] == "cybercop"
+            assert query["month"] == "w00tw00t.at.isc.sans.dfind"
             assert query["year"] == "2022"
