@@ -200,11 +200,11 @@ class PylonsTestCase(TracerTestCase):
         if config.pylons.trace_query_string:
             assert span.get_tag(http.QUERY_STRING) == query_string
             if config._appsec:
-                assert span.get_tag("http.request.uri") == "http://localhost:80/?" + query_string
+                assert _context.get_item("http.request.uri", span=span) == "http://localhost:80/?" + query_string
         else:
             assert http.QUERY_STRING not in span.get_tags()
             if config._appsec:
-                assert span.get_tag("http.request.uri") == "http://localhost:80/"
+                assert _context.get_item("http.request.uri", span=span) == "http://localhost:80/"
         assert span.error == 0
 
     def test_query_string(self):
