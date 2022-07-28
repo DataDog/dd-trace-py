@@ -1,5 +1,4 @@
 import functools
-import sys
 from typing import TYPE_CHECKING
 
 
@@ -15,20 +14,7 @@ if TYPE_CHECKING:
     from ddtrace import Tracer
     from ddtrace.settings import Config
 
-from ddtrace.internal.compat import PY2
 
-
-if PY2:
-    import exceptions
-
-    generatorExit = exceptions.GeneratorExit
-else:
-    import builtins
-
-    generatorExit = builtins.GeneratorExit
-
-
-import six
 from six.moves.urllib.parse import quote
 
 import ddtrace
@@ -97,11 +83,8 @@ class _DDWSGIMiddlewareBase(object):
             service=trace_utils.int_service(self._pin, self._config),
             span_type=SpanTypes.WEB,
         ) as req_span:
-            # This prevents GeneratorExit exceptions from being propagated to the top-level span.
-            # This can occur if a streaming response exits abruptly leading to a broken pipe.
-            # Note: The wsgi.response span will still have the error information included.
-            req_span._ignore_exception(generatorExit)
-
+            # This prevents GeneratorExit exceptions from being set on the request span.
+            req_span._ignore_exception(GeneratorExit)
             self._request_span_modifier(req_span, environ)
 
             with self.tracer.trace(self._application_span_name) as app_span:
@@ -110,19 +93,15 @@ class _DDWSGIMiddlewareBase(object):
                 self._application_span_modifier(app_span, environ, result)
 
             with self.tracer.trace(self._response_span_name) as resp_span:
+                # This prevents GeneratorExit exceptions from being set on the response span.
+                # This can occur if a streaming response exits abruptly leading to a broken pipe.
+                resp_span._ignore_exception(GeneratorExit)
                 self._response_span_modifier(resp_span, result)
                 for chunk in result:
                     yield chunk
 
             if hasattr(result, "close"):
-                # TODO: Remove unnecessary exception handling.
-                # This should be handled by the req_span context manager.
-                try:
-                    result.close()
-                except Exception:
-                    typ, val, tb = sys.exc_info()
-                    req_span.set_exc_info(typ, val, tb)
-                    six.reraise(typ, val, tb=tb)
+                result.close()
 
     def _traced_start_response(self, start_response, request_span, status, environ, exc_info=None):
         # type: (Callable, Span, str, Dict, Any) -> None
