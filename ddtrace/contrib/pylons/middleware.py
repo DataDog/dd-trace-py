@@ -62,7 +62,7 @@ class PylonsTraceMiddleware(object):
                 ddconfig.pylons,
                 method=request.method,
                 request_headers=request.headers,
-                request_cookies=dict(request.cookies)
+                request_cookies=dict(request.cookies),
             )
 
             if not span.sampled:

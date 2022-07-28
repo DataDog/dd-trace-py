@@ -513,13 +513,20 @@ class PylonsTestCase(TracerTestCase):
         span = _context.get_item("http.request.cookies", span=root_span)
         assert span["testingcookie_key"] == "testingcookie_value"
 
-    def test_request_method_get(self):
+    def test_request_method_get_200(self):
         res = self.app.get(url_for(controller="root", action="index"))
         assert res.status == 200
         spans = self.pop_spans()
         assert spans[0].get_tag("http.method") == "GET"
 
-    def test_request_method_post(self):
+    def test_request_method_get_404(self):
+        with pytest.raises(Exception):
+            res = self.app.get(url_for(controller="root", action="index") + "nonexistent-path")
+            assert res.status == 404
+        spans = self.pop_spans()
+        assert spans[0].get_tag("http.method") == "GET"
+
+    def test_request_method_post_200(self):
         res = self.app.post(url_for(controller="root", action="index"))
         assert res.status == 200
         spans = self.pop_spans()
