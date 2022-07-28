@@ -20,6 +20,7 @@ DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
 
+
 def get_url(path):
     # type: (str) -> str
     return "http://{}:{}{}".format(HOST, PORT, path)
@@ -380,6 +381,7 @@ def test_distributed_tracing_disabled_env():
             assert "X-Datadog-Trace-Id" not in data["headers"]
             assert "X-Datadog-Parent-Id" not in data["headers"]
             assert "X-Datadog-Sampling-Priority" not in data["headers"]
+
         DEFAULT_HEADERS = {
             "User-Agent": "python-httpx/x.xx.x",
         }
