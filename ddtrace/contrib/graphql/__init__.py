@@ -32,8 +32,8 @@ Global Configuration
 
    Default: ``False``
 
-   Enabling instrumentation for resolver will produce a ``graphql.resolve`` span for every graphql field.
-   For complex graphql queries this could produce large traces that are hard to visualize.
+   Enabling instrumentation for resolvers will produce a ``graphql.resolve`` span for every graphql field.
+   For complex graphql queries this could produce large traces.
 
 
 To configure the graphql integration using the

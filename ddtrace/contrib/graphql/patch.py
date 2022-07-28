@@ -104,7 +104,7 @@ def _traced_parse(func, args, kwargs):
         return func(*args, **kwargs)
 
     # If graphql.parse() is called outside graphql.graphql(), graphql.parse will
-    # be a top level span. Thereforce we must explicitly set the service name.
+    # be a top level span. Therefore we must explicitly set the service name.
     with pin.tracer.trace(
         name="graphql.parse",
         service=trace_utils.int_service(pin, config.graphql),
@@ -118,8 +118,8 @@ def _traced_validate(func, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    # If graphql.parse() is called outside graphql.graphql(), graphql.parse will
-    # be a top level span. Thereforce we must explicitly set the service name.
+    # If graphql.validate() is called outside graphql.graphql(), graphql.validate will
+    # be a top level span. Therefore we must explicitly set the service name.
     with pin.tracer.trace(
         name="graphql.validate",
         service=trace_utils.int_service(pin, config.graphql),
