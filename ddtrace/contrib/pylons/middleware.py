@@ -113,12 +113,20 @@ class PylonsTraceMiddleware(object):
                     environ.get("SERVER_PORT"),
                     environ.get("PATH_INFO"),
                 )
+
+                query_string = environ.get("QUERY_STRING")
+
+                raw_uri = url
+                if raw_uri and query_string:
+                    raw_uri += "?" + query_string
+
                 trace_utils.set_http_meta(
                     span,
                     ddconfig.pylons,
                     method=environ.get("REQUEST_METHOD"),
                     url=url,
-                    query=environ.get("QUERY_STRING"),
+                    raw_uri=raw_uri,
+                    query=query_string,
                 )
                 if controller:
                     span._set_str_tag("pylons.route.controller", controller)
