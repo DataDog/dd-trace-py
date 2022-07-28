@@ -533,3 +533,9 @@ class PylonsTestCase(TracerTestCase):
         assert res.status == 200
         spans = self.pop_spans()
         assert spans[0].get_tag("http.method") == "POST"
+
+    def test_pylons_useragent(self):
+        self.app.get(url_for(controller="root", action="index"), headers={"HTTP_USER_AGENT": "test/1.2.3"})
+        spans = self.pop_spans()
+        root_span = spans[0]
+        assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
