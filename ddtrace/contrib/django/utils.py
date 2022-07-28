@@ -34,7 +34,6 @@ _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 _quantize_text = Union[Text, bytes]
 _quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
-_appsec_enabled = config._appsec_enabled
 
 
 def resource_from_cache_prefix(resource, cache):
@@ -309,7 +308,7 @@ def _after_request_tags(pin, span, request, response):
 
             req_body = None
 
-            if _appsec_enabled and request.method in _BODY_METHODS:
+            if config._appsec_enabled and request.method in _BODY_METHODS:
                 content_type = request.content_type
                 rest_framework = hasattr(request, "data")
 
