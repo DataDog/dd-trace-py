@@ -9,6 +9,9 @@ from typing import Optional
 import attr
 import six
 
+from ddtrace import config
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -243,4 +246,9 @@ class SpanSamplingProcessor(SpanProcessor):
             for rule in self.rules:
                 if rule.match(span):
                     rule.sample(span)
+                    # If stats computation is enabled, we won't send all spans to the agent.
+                    # In order to ensure that the agent does not update priority sampling rates
+                    # due to single spans sampling, we set all of these spans to manual keep.
+                    if config._trace_compute_stats:
+                        span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
                     break

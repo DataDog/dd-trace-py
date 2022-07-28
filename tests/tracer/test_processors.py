@@ -32,6 +32,7 @@ from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
+from tests.utils import override_global_config
 
 
 def test_no_impl():
@@ -486,6 +487,20 @@ def test_single_span_sampling_processor_no_rules():
         mechanism=None,
         trace_sampling_priority=AUTO_KEEP,
     )
+
+
+def test_single_span_sampling_processor_w_stats_computation():
+    """Test that span processor changes _sampling_priority_v1 to 2 when stats computation is enabled"""
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name")
+    rules = [rule_1]
+    processor = SpanSamplingProcessor(rules)
+    with override_global_config(dict(_trace_compute_stats=True)):
+        tracer = DummyTracer()
+        tracer._span_processors.append(processor)
+
+        span = traced_function(tracer)
+
+    assert_span_sampling_decision_tags(span, trace_sampling_priority=USER_KEEP)
 
 
 def traced_function(tracer, name="test_name", service="test_service", trace_sampling_priority=0):
