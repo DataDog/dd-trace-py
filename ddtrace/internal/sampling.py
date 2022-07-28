@@ -163,7 +163,7 @@ class SpanSamplingRule:
             if service is None:
                 return False
             else:
-                service_match = self._service_matcher.match(span.service)
+                service_match = self._service_matcher.match(service)
         if self._name_matcher:
             if span.name is None:
                 return False
