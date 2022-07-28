@@ -16,6 +16,7 @@ DEFAULT_HEADERS = {
     "User-Agent": "python-httpx/x.xx.x",
 }
 
+
 @pytest.fixture
 def flask_port():
     # type: () -> str

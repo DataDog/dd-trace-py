@@ -443,9 +443,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
         request_headers={"HTTP_REQUEST_HEADER": "value", "user-agent": "dd-agent/1.0.0"},
         response_headers={"HTTP_RESPONSE_HEADER": "value"},
     )
-    assert list(span.get_tags().keys()) == [
-        "runtime-id",
-    ]
+    assert list(span.get_tags().keys()) == ["runtime-id", http.USER_AGENT]
     mock_store_headers.assert_not_called()
 
 
