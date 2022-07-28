@@ -352,6 +352,12 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         #     app = DDWSGIMiddleware(app)  # Extra layer on top for WSGI
         current_context = tracer.current_trace_context()
         if current_context and current_context.trace_id == context.trace_id:
+            log.debug(
+                "will not activate extracted context (trace_id={}, span_id={}), context with that trace id already active".format(
+                    context.trace_id,
+                    context.span_id,
+                )
+            )
             return None
 
         # We have parsed a trace id from headers, and we do not already
