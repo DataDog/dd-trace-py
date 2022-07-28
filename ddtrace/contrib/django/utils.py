@@ -317,13 +317,12 @@ def _after_request_tags(pin, span, request, response):
                     req_body = request.data.dict() if rest_framework else request.POST.dict()
                 elif content_type == "application/json":
                     req_body = (
-                        json.loads(request.body.decode("UTF-8"))
+                        json.loads(request.data.decode("UTF-8"))
                         if rest_framework
                         else json.loads(request.body.decode("UTF-8"))
                     )
                 else:  # text/plain, xml, others: take them as strings
-                    req_body = request.data.decode("UTF-8") if rest_framework \
-                        else request.body.decode("UTF-8")
+                    req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
 
             trace_utils.set_http_meta(
                 span,
