@@ -134,7 +134,7 @@ venv = Venv(
             command="mypy {cmdargs}",
             create=True,
             pkgs={
-                "mypy": latest,
+                "mypy": "<0.971",
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
