@@ -1,5 +1,6 @@
 import json
 
+from ddtrace import config as ddconfig
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -66,7 +67,7 @@ def test_django_request_cookies_attack(client, test_spans, tracer):
 
 
 def test_django_request_body_urlencoded(client, test_spans, tracer):
-    tracer._appsec_enabled = True
+    ddconfig._appsec_enabled = True
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
@@ -79,7 +80,7 @@ def test_django_request_body_urlencoded(client, test_spans, tracer):
 
 
 def test_django_request_body_urlencoded_appsec_disabled_then_no_body(client, test_spans, tracer):
-    tracer._appsec_enabled = False
+    ddconfig._appsec_enabled = False
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
@@ -90,7 +91,7 @@ def test_django_request_body_urlencoded_appsec_disabled_then_no_body(client, tes
 
 def test_django_request_body_urlencoded_attack(client, test_spans, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        tracer._appsec_enabled = True
+        ddconfig._appsec_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         payload = urlencode({"attack": "1' or '1' = '1'"})
@@ -103,7 +104,7 @@ def test_django_request_body_urlencoded_attack(client, test_spans, tracer):
 
 
 def test_django_request_body_json(client, test_spans, tracer):
-    tracer._appsec_enabled = True
+    ddconfig._appsec_enabled = True
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     payload = json.dumps({"mytestingbody_key": "mytestingbody_value"})
@@ -117,7 +118,7 @@ def test_django_request_body_json(client, test_spans, tracer):
 
 def test_django_request_body_json_attack(client, test_spans, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        tracer._appsec_enabled = True
+        ddconfig._appsec_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         payload = json.dumps({"attack": "1' or '1' = '1'"})
@@ -130,7 +131,7 @@ def test_django_request_body_json_attack(client, test_spans, tracer):
 
 
 def test_django_request_body_plain(client, test_spans, tracer):
-    tracer._appsec_enabled = True
+    ddconfig._appsec_enabled = True
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     payload = "foo=bar"
@@ -144,7 +145,7 @@ def test_django_request_body_plain(client, test_spans, tracer):
 
 def test_django_request_body_plain_attack(client, test_spans, tracer):
     with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-        tracer._appsec_enabled = True
+        ddconfig._appsec_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         payload = "1' or '1' = '1'"
@@ -157,7 +158,7 @@ def test_django_request_body_plain_attack(client, test_spans, tracer):
 
 
 def test_django_path_params(client, test_spans, tracer):
-    tracer._appsec_enabled = True
+    ddconfig._appsec_enabled = True
     # Hack: need to pass an argument to configure so that the processors are recreated
     tracer.configure(api_version="v0.4")
     client.get("/path-params/2022/july/")
