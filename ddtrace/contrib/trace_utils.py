@@ -331,6 +331,13 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
     if override or (int_config and distributed_tracing_enabled(int_config)):
         context = HTTPPropagator.extract(request_headers)
 
+        # Toggle for the old behavior
+        # As long as we extracted a valid context, activate it
+        if not config.propagation_skip_multiple_extract:
+            if context and context.trace_id:
+                tracer.context_provider.activate(context)
+            return None
+
         # Only need to activate the new context if something was propagated
         if not context.trace_id:
             return None

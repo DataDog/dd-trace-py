@@ -605,6 +605,27 @@ def test_activate_distributed_headers_existing_context(int_config):
     assert tracer.context_provider.active() == ctx
 
 
+def test_activate_distributed_headers_existing_context_disabled(int_config):
+    with override_global_config({"propagation_skip_multiple_extract": False}):
+        tracer = Tracer()
+        int_config.myint["distributed_tracing_enabled"] = True
+
+        headers = {
+            HTTP_HEADER_PARENT_ID: "12345",
+            HTTP_HEADER_TRACE_ID: "678910",
+        }
+
+        ctx = Context(trace_id=678910, span_id=823923)  # Note: Span id is different
+        tracer.context_provider.activate(ctx)
+
+        trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=headers)
+        current_ctx = tracer.context_provider.active()
+        assert current_ctx is not None
+        assert current_ctx != ctx
+        assert current_ctx.trace_id == 678910
+        assert current_ctx.span_id == 12345
+
+
 def test_activate_distributed_headers_existing_context_different_trace_id(int_config):
     tracer = Tracer()
     int_config.myint["distributed_tracing_enabled"] = True

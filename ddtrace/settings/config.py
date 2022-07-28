@@ -193,6 +193,15 @@ class Config(object):
             "DD_TRACE_PROPAGATION_STYLE_INJECT", default=PROPAGATION_STYLE_DATADOG
         )
 
+        # Toggle for PR #4005
+        # Used in:
+        #   ddtrace.contrib.trace_utils.activate_distributed_headers
+        #
+        #   When enabled we will skip activating extracted context
+        #   if there is a current active context with the same
+        #   trace id.
+        self.propagation_skip_multiple_extract = True
+
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
         if x_datadog_tags_max_length < 0 or x_datadog_tags_max_length > 512:

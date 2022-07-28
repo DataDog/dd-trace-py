@@ -7,6 +7,7 @@ from ddtrace.contrib.wsgi import wsgi
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
 from tests.utils import override_config
+from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
 
@@ -284,3 +285,23 @@ def test_distributed_tracing_nested():
     assert config.wsgi.distributed_tracing is True
     assert resp.status == "200 OK"
     assert resp.status_int == 200
+
+
+@snapshot()
+def test_distributed_tracing_nested_disabled():
+    with override_global_config(
+        {
+            "propagation_skip_multiple_extract": False,
+        }
+    ):
+        app = TestApp(
+            wsgi.DDWSGIMiddleware(
+                wsgi.DDWSGIMiddleware(application),
+            )
+        )
+
+        resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
+
+        assert config.wsgi.distributed_tracing is True
+        assert resp.status == "200 OK"
+        assert resp.status_int == 200
