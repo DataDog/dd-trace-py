@@ -353,10 +353,9 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         current_context = tracer.current_trace_context()
         if current_context and current_context.trace_id == context.trace_id:
             log.debug(
-                "will not activate extracted context (trace_id={}, span_id={}), context with that trace id already active".format(
-                    context.trace_id,
-                    context.span_id,
-                )
+                "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501
+                context.trace_id,
+                context.span_id,
             )
             return None
 
