@@ -24,6 +24,10 @@ class HttpConfig(object):
         self._header_tags = {normalize_header_name(k): v for k, v in header_tags.items()} if header_tags else {}
         self.trace_query_string = None
 
+    def _reset(self):
+        self._header_tags = {}
+        self._header_tag_name.invalidate()
+
     @cachedmethod()
     def _header_tag_name(self, header_name):
         # type: (str) -> Optional[str]

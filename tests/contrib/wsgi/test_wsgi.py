@@ -143,25 +143,31 @@ def test_query_string_tracing(tracer, test_spans):
 
 def test_http_request_header_tracing(tracer, test_spans):
     config.wsgi.http.trace_headers(["my-header"])
-    app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
-    resp = app.get("/", headers={"my-header": "test_value"})
+    try:
+        app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+        resp = app.get("/", headers={"my-header": "test_value"})
 
-    assert resp.status == "200 OK"
-    assert resp.status_int == 200
-    spans = test_spans.pop()
-    assert spans[0].get_tag("http.request.headers.my-header") == "test_value"
+        assert resp.status == "200 OK"
+        assert resp.status_int == 200
+        spans = test_spans.pop()
+        assert spans[0].get_tag("http.request.headers.my-header") == "test_value"
+    finally:
+        config.wsgi.http._reset()
 
 
 def test_http_response_header_tracing(tracer, test_spans):
     config.wsgi.http.trace_headers(["my-response-header"])
-    app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
-    resp = app.get("/", headers={"my-header": "test_value"})
+    try:
+        app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+        resp = app.get("/", headers={"my-header": "test_value"})
 
-    assert resp.status == "200 OK"
-    assert resp.status_int == 200
+        assert resp.status == "200 OK"
+        assert resp.status_int == 200
 
-    spans = test_spans.pop()
-    assert spans[0].get_tag("http.response.headers.my-response-header") == "test_response_value"
+        spans = test_spans.pop()
+        assert spans[0].get_tag("http.response.headers.my-response-header") == "test_response_value"
+    finally:
+        config.wsgi.http._reset()
 
 
 def test_service_name_can_be_overriden(tracer, test_spans):
