@@ -8,6 +8,7 @@ from typing import Callable
 from typing import Dict
 from typing import Generator
 from typing import Iterator
+from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -247,7 +248,7 @@ def set_http_meta(
     raw_uri=None,  # type: Optional[str]
     request_cookies=None,  # type: Optional[Dict[str, str]]
     request_path_params=None,  # type: Optional[Dict[str, str]]
-    request_body=None, # type: Optional[Dict[str, List[str]]]
+    request_body=None,  # type: Optional[Dict[str, List[str]]]
 ):
     # type: (...) -> None
     """
@@ -313,7 +314,7 @@ def set_http_meta(
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
                     ("http.request.body", request_body),
-            ]
+                ]
                 if v is not None
             },
             span=span,
