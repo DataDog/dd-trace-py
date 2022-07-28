@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    ASM: Detect attacks on Pylons path parameters
+    ASM: detect attacks on Pylons path parameters.
