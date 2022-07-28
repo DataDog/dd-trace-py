@@ -168,7 +168,7 @@ class SpanSamplingRule:
             if name is None:
                 return False
             else:
-                name_match = self._name_matcher.match(span.name)
+                name_match = self._name_matcher.match(name)
         return service_match and name_match
 
     def set_sample_rate(self, sample_rate=1.0):
