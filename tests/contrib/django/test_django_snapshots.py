@@ -99,7 +99,7 @@ def test_middleware_trace_partial_based_view(client):
 
 @pytest.mark.django_db
 @snapshot(
-    ignores=["http.useragent"],
+    ignores=["meta.http.useragent"],
     variants={
         "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
@@ -165,7 +165,7 @@ def test_psycopg_query_default(client, psycopg2_patched):
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
-    ignores=["http.useragent"],
+    ignores=["meta.http.useragent"],
     token_override="tests.contrib.django.test_django_snapshots.test_asgi_200",
 )
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
@@ -177,7 +177,7 @@ def test_asgi_200(django_asgi):
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot(ignores=["http.useragent"])
+@snapshot(ignores=["meta.http.useragent"])
 def test_asgi_200_simple_app():
     # The path simple-asgi-app/ routes to an ASGI Application that is not traced
     # This test should generate an empty snapshot
@@ -230,7 +230,7 @@ def test_appsec_enabled_attack():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
-    ignores=["http.useragent"],
+    ignores=["meta.http.useragent"],
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
@@ -247,7 +247,7 @@ def test_templates_enabled():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
-    ignores=["http.useragent"],
+    ignores=["meta.http.useragent"],
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
