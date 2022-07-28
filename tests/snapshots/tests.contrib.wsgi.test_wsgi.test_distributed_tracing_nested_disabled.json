@@ -9,7 +9,6 @@
     "type": "web",
     "meta": {
       "http.method": "GET",
-      "http.response.headers.my-response-header": "test_response_value",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
