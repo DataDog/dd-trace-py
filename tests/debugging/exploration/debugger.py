@@ -1,5 +1,8 @@
 import os
+from typing import Any
+from typing import Dict
 from typing import List
+from typing import Tuple
 
 from ddtrace.debugging._config import config
 from ddtrace.debugging._debugger import Debugger
@@ -11,6 +14,7 @@ from ddtrace.debugging._probe.poller import ProbePollerEvent
 from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._snapshot.collector import SnapshotContext
 from ddtrace.debugging._snapshot.model import Snapshot
+from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.formats import asbool
 
@@ -87,20 +91,28 @@ class NoopProbeStatusLogger(object):
         pass
 
 
-class ExplorationSnapshotContext(SnapshotContext):
-    def __init__(self, *args, **kwargs):
-        if ENCODE:
-            super(ExplorationSnapshotContext, self).__init__(*args, **kwargs)
+class NoopSnapshotJsonEncoder(SnapshotJsonEncoder):
+    def encode(self, snapshot):
+        # type: (Snapshot) -> bytes
+        return b""
 
-    def exit(self, retval, exc_info):
-        if ENCODE:
-            return super(ExplorationSnapshotContext, self).exit(retval, exc_info)
+    @classmethod
+    def capture_context(
+        cls,
+        arguments,  # type: List[Tuple[str, Any]]
+        _locals,  # type: List[Tuple[str, Any]]
+        throwable,  # type: ExcInfoType
+        level=1,  # type: int
+    ):
+        # type: (...) -> Dict[str, Any]
+        return {}
 
 
 class ExplorationSnapshotCollector(SnapshotCollector):
     def __init__(self, *args, **kwargs):
         super(ExplorationSnapshotCollector, self).__init__(*args, **kwargs)
-        self._encoder = SnapshotJsonEncoder("exploration")
+        encoder_class = SnapshotJsonEncoder if ENCODE else NoopSnapshotJsonEncoder
+        self._encoder = encoder_class("exploration")
         self._encoder._encoders = {Snapshot: self._encoder}
         self._snapshots = []
         self._probes = []
@@ -119,7 +131,7 @@ class ExplorationSnapshotCollector(SnapshotCollector):
             self.on_snapshot(snapshot)
 
     def collect(self, probe, frame, thread, args, context=None):
-        return ExplorationSnapshotContext(self, probe, frame, thread, args, context)
+        return SnapshotContext(self, probe, frame, thread, args, context)
 
     @property
     def snapshots(self):
