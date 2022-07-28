@@ -99,6 +99,7 @@ def test_middleware_trace_partial_based_view(client):
 
 @pytest.mark.django_db
 @snapshot(
+    ignores=["http.useragent"],
     variants={
         "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
@@ -164,6 +165,7 @@ def test_psycopg_query_default(client, psycopg2_patched):
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
         "3x": django.VERSION >= (3, 2, 0),
     },
+    ignores=["http.useragent"],
     token_override="tests.contrib.django.test_django_snapshots.test_asgi_200",
 )
 @pytest.mark.parametrize("django_asgi", ["application", "channels_application"])
@@ -175,7 +177,7 @@ def test_asgi_200(django_asgi):
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot()
+@snapshot(ignores=["http.useragent"])
 def test_asgi_200_simple_app():
     # The path simple-asgi-app/ routes to an ASGI Application that is not traced
     # This test should generate an empty snapshot
@@ -196,7 +198,7 @@ def test_asgi_200_traced_simple_app():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
-    ignores=["meta.error.stack"],
+    ignores=["meta.error.stack", "http.useragent"],
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
@@ -210,7 +212,7 @@ def test_asgi_500():
 
 
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent"])
+@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent", "http.useragent"])
 def test_appsec_enabled():
     with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
         resp = client.get("/")
@@ -219,7 +221,7 @@ def test_appsec_enabled():
 
 
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent"])
+@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent", "http.useragent"])
 def test_appsec_enabled_attack():
     with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
         resp = client.get("/.git")
@@ -228,6 +230,7 @@ def test_appsec_enabled_attack():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
+    ignores=["http.useragent"],
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
@@ -244,6 +247,7 @@ def test_templates_enabled():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
+    ignores=["http.useragent"],
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
