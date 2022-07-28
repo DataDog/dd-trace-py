@@ -334,7 +334,7 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         # Toggle for the old behavior
         # As long as we extracted a valid context, activate it
         if not config.propagation_skip_multiple_extract:
-            if context and context.trace_id:
+            if context.trace_id:
                 tracer.context_provider.activate(context)
             return None
 
