@@ -69,7 +69,9 @@ class PylonsTraceMiddleware(object):
             # set analytics sample rate with global config enabled
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, ddconfig.pylons.get_analytics_sample_rate(use_global_config=True))
 
-            trace_utils.set_http_meta(span, ddconfig.pylons, request_headers=request.headers)
+            trace_utils.set_http_meta(
+                span, ddconfig.pylons, request_headers=request.headers, request_cookies=dict(request.cookies)
+            )
 
             if not span.sampled:
                 return self.app(environ, start_response)
