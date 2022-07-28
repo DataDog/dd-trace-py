@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from hypothesis import given
 from hypothesis.strategies import booleans
 from hypothesis.strategies import dictionaries
@@ -437,13 +438,51 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     trace_utils.set_http_meta(
         span,
         int_config.myint,
-        request_headers={"HTTP_REQUEST_HEADER": "value"},
+        request_headers={"HTTP_REQUEST_HEADER": "value", "user-agent": "dd-agent/1.0.0"},
         response_headers={"HTTP_RESPONSE_HEADER": "value"},
     )
     assert list(span.get_tags().keys()) == [
         "runtime-id",
     ]
     mock_store_headers.assert_not_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "user_agent_value, expected_keys ,expected",
+    [
+        ("dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("ㄲㄴㄷㄸ", ["runtime-id"], None),
+        (u"ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], u"ㄲㄴㄷㄸ"),
+        (
+            None,
+            [
+                "runtime-id",
+            ],
+            None,
+        ),
+        (101234, ["runtime-id"], None),
+        (True, ["runtime-id", http.USER_AGENT], "True"),
+        (False, ["runtime-id"], None),
+        ([], ["runtime-id"], None),
+        ({}, ["runtime-id"], None),
+        (["test1", "test2"], ["runtime-id", http.USER_AGENT], "['test1', 'test2']"),
+        ({"test1": "key1", "test2": "key2"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1', 'test2': 'key2'}"),
+    ],
+)
+def test_set_http_meta_headers_useragent(
+    mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
+):
+    int_config.myint.http._header_tags = {"enabled": True}
+    assert int_config.myint.is_header_tracing_configured is True
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={"user-agent": user_agent_value},
+    )
+    assert list(span.get_tags().keys()) == expected_keys
+    assert span.get_tag(http.USER_AGENT) == expected
+    mock_store_headers.assert_called()
 
 
 @mock.patch("ddtrace.contrib.trace_utils.log")
