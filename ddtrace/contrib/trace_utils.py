@@ -248,7 +248,7 @@ def set_http_meta(
     raw_uri=None,  # type: Optional[str]
     request_cookies=None,  # type: Optional[Dict[str, str]]
     request_path_params=None,  # type: Optional[Dict[str, str]]
-    request_body=None,  # type: Optional[Dict[str, List[str]]]
+    request_body=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
 ):
     # type: (...) -> None
     """
