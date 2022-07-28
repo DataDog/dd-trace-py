@@ -221,7 +221,7 @@ class PylonsTestCase(TracerTestCase):
         with self.override_http_config("pylons", dict(trace_query_string=True)):
             return self.test_success_200("foo=bar&foo=baz&x=y")
 
-    def test_request_uri(self):
+    def test_appsec_http_raw_uri(self):
         with self.override_global_config(dict(appsec_enabled=True)):
             self.test_query_string()
             self.test_multi_query_string()

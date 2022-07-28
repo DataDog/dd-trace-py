@@ -117,7 +117,7 @@ class PylonsTraceMiddleware(object):
                 query_string = environ.get("QUERY_STRING")
 
                 raw_uri = url
-                if raw_uri and query_string:
+                if raw_uri and query_string and ddconfig.pylons.trace_query_string:
                     raw_uri += "?" + query_string
 
                 trace_utils.set_http_meta(
