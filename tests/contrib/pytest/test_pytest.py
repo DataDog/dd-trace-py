@@ -160,7 +160,7 @@ class TestPytest(TracerTestCase):
                 pytest.param({"a": A("test_name", "value"), "b": [1, 2, 3]}, marks=pytest.mark.skip),
                 pytest.param(MagicMock(value=MagicMock()), marks=pytest.mark.skip),
                 pytest.param(circular_reference, marks=pytest.mark.skip),
-                pytest.param({("x", "y"): 12345}, marks=pytest.mark.skip),
+                pytest.param({("x", "y"): 12345}, marks=pytest.mark.skip)
             ]
             )
             class Test1(object):
@@ -176,12 +176,12 @@ class TestPytest(TracerTestCase):
         # Since object will have arbitrary addresses, only need to ensure that
         # the params string contains most of the string representation of the object.
         expected_params_contains = [
-            "test_parameterize_case_complex_objects.A",
-            "test_parameterize_case_complex_objects.A",
-            "<function item_param at 0x",
-            "'a': <test_parameterize_case_complex_objects.A",
+            "<test_parameterize_case_complex_objects.A object>",
+            "<test_parameterize_case_complex_objects.A object>",
+            "<function item_param>",
+            "'a': <test_parameterize_case_complex_objects.A object>",
             "<MagicMock id=",
-            "test_parameterize_case_complex_objects.A",
+            "<test_parameterize_case_complex_objects.A object>",
             "{('x', 'y'): 12345}",
         ]
         assert len(spans) == 7
