@@ -224,8 +224,14 @@ class Config(object):
             os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
         )
         self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", False))
-        self._obfuscation_query_string_pattern = re.compile(
-            os.getenv("DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT)
+
+        dd_trace_obfuscation_query_string_pattern = os.getenv(
+            "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT
+        )
+        self._obfuscation_query_string_pattern = (
+            None
+            if dd_trace_obfuscation_query_string_pattern == ""
+            else re.compile(dd_trace_obfuscation_query_string_pattern)
         )
 
     def __getattr__(self, name):

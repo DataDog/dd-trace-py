@@ -41,7 +41,10 @@ def strip_query_string(url):
 
 
 def redact_query_string(query_string, query_string_obfuscation_pattern):
-    # type: (str, re.Pattern) -> bytes
+    # type: (str, Optional[re.Pattern]) -> bytes
+    if query_string_obfuscation_pattern is None:
+        return query_string.encode("utf-8")
+
     bytes_query = query_string if isinstance(query_string, bytes) else query_string.encode("utf-8")
     return query_string_obfuscation_pattern.sub(b"<redacted>", bytes_query)
 
@@ -75,13 +78,13 @@ def urlunsplit(components):
     if netloc or (scheme and url[:2] != b"//"):
         if url and url[:1] != b"/":
             url = b"/" + url
-        url = b"//" + (netloc or b"") + url
+        url = b"//%s%s" % ((netloc or b""), url)
     if scheme:
-        url = scheme + b":" + url
+        url = b"%s:%s" % (scheme, url)
     if query:
-        url = url + b"?" + query
+        url = b"%s?%s" % (url, query)
     if fragment:
-        url = url + b"#" + fragment
+        url = b"%s#%s" % (url, fragment)
     return url
 
 
