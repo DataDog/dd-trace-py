@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    jinja2: fixes handling of template names which are not strings.
+    jinja2: fix handling of template names which are not strings.
