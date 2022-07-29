@@ -80,7 +80,7 @@ below:
    * - ``DD_TRACE_LOG_FILE``
      - String
      - None
-     - Directs `ddtrace` logs to a specific file. Note: The default backup count is 1. For larger logs, use with `DD_TRACE_LOG_FILE_SIZE_BYTES`. To fine tune the logging level, use with ``DD_TRACE_LOG_FILE_LEVEL``. 
+     - Directs `ddtrace` logs to a specific file. Note: The default backup count is 1. For larger logs, use with ``DD_TRACE_LOG_FILE_SIZE_BYTES``. To fine tune the logging level, use with ``DD_TRACE_LOG_FILE_LEVEL``.
 
        .. _dd-trace-log-file-size-bytes:
    * - ``DD_TRACE_LOG_FILE_SIZE_BYTES``
