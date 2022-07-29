@@ -5,6 +5,8 @@ from typing import List
 from typing import Text
 from typing import Union
 
+from django.http import RawPostDataException
+from django.http import UnreadablePostError
 from django.utils.functional import SimpleLazyObject
 import six
 
@@ -315,16 +317,20 @@ def _after_request_tags(pin, span, request, response):
 
                 rest_framework = hasattr(request, "data")
 
-                if content_type == "application/x-www-form-urlencoded":
-                    req_body = request.data.dict() if rest_framework else request.POST.dict()
-                elif content_type == "application/json":
-                    req_body = (
-                        json.loads(request.data.decode("UTF-8"))
-                        if rest_framework
-                        else json.loads(request.body.decode("UTF-8"))
-                    )
-                else:  # text/plain, xml, others: take them as strings
-                    req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
+                try:
+                    if content_type == "application/x-www-form-urlencoded":
+                        req_body = request.data.dict() if rest_framework else request.POST.dict()
+                    elif content_type == "application/json":
+                        req_body = (
+                            json.loads(request.data.decode("UTF-8"))
+                            if rest_framework
+                            else json.loads(request.body.decode("UTF-8"))
+                        )
+                    else:  # text/plain, xml, others: take them as strings
+                        req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
+                except (AttributeError, RawPostDataException, UnreadablePostError, OSError):
+                    log.warning("Failed to parse request body", exc_info=True)
+                    # req_body is None
 
             trace_utils.set_http_meta(
                 span,
