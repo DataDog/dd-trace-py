@@ -9,8 +9,12 @@ from typing import Optional
 import attr
 import six
 
+from ddtrace import config
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
+from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
@@ -215,3 +219,36 @@ class SpanAggregator(SpanProcessor):
         except ServiceStatusError:
             # It's possible the writer never got started in the first place :(
             pass
+
+
+@attr.s
+class SpanSamplingProcessor(SpanProcessor):
+    """SpanProcessor for sampling single spans:
+
+    * Span sampling must be applied after trace sampling priority has been set.
+    * Span sampling rules are specified with a sample rate or rate limit as well as glob patterns
+      for matching spans on service and name.
+    * If the span sampling decision is to keep the span, then span sampling metrics are added to the span.
+    * If a dropped trace includes a span that had been kept by a span sampling rule, then the span is sent to the
+      Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
+    """
+
+    rules = attr.ib(type=List[SpanSamplingRule])
+
+    def on_span_start(self, span):
+        # type: (Span) -> None
+        pass
+
+    def on_span_finish(self, span):
+        # type: (Span) -> None
+        # only sample if the span isn't already going to be sampled by trace sampler
+        if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
+            for rule in self.rules:
+                if rule.match(span):
+                    rule.sample(span)
+                    # If stats computation is enabled, we won't send all spans to the agent.
+                    # In order to ensure that the agent does not update priority sampling rates
+                    # due to single spans sampling, we set all of these spans to manual keep.
+                    if config._trace_compute_stats:
+                        span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
+                    break
