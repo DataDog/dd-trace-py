@@ -41,8 +41,8 @@ from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
-from .internal.processor.trace import SingleSpanSamplingProcessor
 from .internal.processor.trace import SpanAggregator
+from .internal.processor.trace import SpanSamplingProcessor
 from .internal.processor.trace import TopLevelSpanProcessor
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
@@ -140,7 +140,7 @@ def _default_span_processors_factory(
         )
 
     if single_span_sampling_rules:
-        span_processors.append(SingleSpanSamplingProcessor(single_span_sampling_rules))
+        span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
 
     span_processors.append(
         SpanAggregator(
