@@ -92,17 +92,6 @@ def test_django_request_body_urlencoded_appsec_disabled_then_no_body(client, tes
         assert not _context.get_item("http.request.body", span=root_span)
 
 
-def test_django_request_body_urlencoded_appsec_disabled_then_no_body(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=False)):
-        tracer._appsec_enabled = False
-        # Hack: need to pass an argument to configure so that the processors are recreated
-        tracer.configure(api_version="v0.4")
-        payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
-        client.post("/", payload, content_type="application/x-www-form-urlencoded")
-        root_span = test_spans.spans[0]
-        assert not _context.get_item("http.request.body", span=root_span)
-
-
 def test_django_request_body_urlencoded_attack(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         tracer._appsec_enabled = True
