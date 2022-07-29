@@ -188,7 +188,7 @@ def test_asgi_200_simple_app():
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
-@snapshot()
+@snapshot(ignores=["meta.http.useragent"])
 def test_asgi_200_traced_simple_app():
     with daphne_client("channels_application") as client:
         resp = client.get("/traced-simple-asgi-app/")
