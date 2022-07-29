@@ -398,6 +398,14 @@ jobs:
       - run_test:
           pattern: "tracer"
 
+  telemetry:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "telemtry"
+          snapshot: true
+          store_coverage: false
+
   debugger:
     <<: *contrib_job
     parallelism: 7
@@ -1184,6 +1192,7 @@ requires_tests: &requires_tests
     - starlette
     - test_logging
     - tracer
+    - telemetry
     - debugger
     - appsec
     - tornado
@@ -1284,6 +1293,7 @@ workflows:
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
+      - telemetry: *requires_base_venvs
       - debugger: *requires_base_venvs
       - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs
