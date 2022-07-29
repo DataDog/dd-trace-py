@@ -309,7 +309,10 @@ def _after_request_tags(pin, span, request, response):
             req_body = None
 
             if config._appsec_enabled and request.method in _BODY_METHODS:
-                content_type = request.content_type
+                content_type = (
+                    request.content_type if hasattr(request, "content_type") else request.META["CONTENT_TYPE"]
+                )
+
                 rest_framework = hasattr(request, "data")
 
                 if content_type == "application/x-www-form-urlencoded":
