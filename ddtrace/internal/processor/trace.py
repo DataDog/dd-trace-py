@@ -9,6 +9,9 @@ from typing import Optional
 import attr
 import six
 
+from ddtrace import config
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -219,17 +222,19 @@ class SpanAggregator(SpanProcessor):
 
 
 @attr.s
-class SingleSpanSamplingProcessor(SpanProcessor):
+class SpanSamplingProcessor(SpanProcessor):
     """SpanProcessor for sampling single spans:
-    - Users can specify span rules with service, name, sample rate, and rate limit.
-    - Those rules are used to assess all spans that are not sampled by trace sampling.
-    If the rules assess that a span should be kept, we add specific tags to it.
-    - The single spans that will be kept are sent in separate payloads if stats computation is enabled.
-    If stats computation is not enabled, then the single spans will be sent along with normal trace payloads.
+
+    * Span sampling must be applied after trace sampling priority has been set.
+    * Span sampling rules are specified with a sample rate or rate limit as well as glob patterns
+      for matching spans on service and name.
+    * If the span sampling decision is to keep the span, then span sampling metrics are added to the span.
+    * If a dropped trace includes a span that had been kept by a span sampling rule, then the span is sent to the
+      Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
     """
 
-    rules = attr.ib(type=(List[SpanSamplingRule]))
-
+    rules = attr.ib(type=List[SpanSamplingRule])
+    
     def on_span_start(self, span):
         # type: (Span) -> None
         pass
@@ -239,11 +244,11 @@ class SingleSpanSamplingProcessor(SpanProcessor):
         # only sample if the span isn't already going to be sampled by trace sampler
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             for rule in self.rules:
-                rule.sample(span)
-                # If we matched a rule, then don't try to apply any further rules
                 if rule.match(span):
+                    rule.sample(span)
+                    # If stats computation is enabled, we won't send all spans to the agent.
+                    # In order to ensure that the agent does not update priority sampling rates
+                    # due to single spans sampling, we set all of these spans to manual keep.
+                    if config._trace_compute_stats:
+                        span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
                     break
-
-    def shutdown(self, timeout):
-        # type: (Optional[float]) -> None
-        pass

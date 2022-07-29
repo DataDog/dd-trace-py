@@ -6,13 +6,18 @@ import pytest
 
 from ddtrace import Span
 from ddtrace import Tracer
+from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import AUTO_REJECT
+from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
-from ddtrace.internal.processor.trace import SingleSpanSamplingProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import SpanProcessor
+from ddtrace.internal.processor.trace import SpanSamplingProcessor
 from ddtrace.internal.processor.trace import TraceProcessor
 from ddtrace.internal.processor.truncator import DEFAULT_SERVICE_NAME
 from ddtrace.internal.processor.truncator import DEFAULT_SPAN_NAME
@@ -26,6 +31,7 @@ from ddtrace.internal.processor.truncator import TruncateSpanProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from tests.utils import DummyWriter
+from tests.utils import override_global_config
 
 
 def test_no_impl():
@@ -343,14 +349,13 @@ def test_single_span_sampling_processor():
 
     rule_1 = SpanSamplingRule(service="test_service", name="test_name")
     rules = [rule_1]
-    processor = SingleSpanSamplingProcessor(rules)
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
     tracer._span_processors.append(processor)
 
     span = traced_function(tracer)
 
-    assert_sampling_decision_tags(span)
+    assert_span_sampling_decision_tags(span)
 
 
 def test_single_span_sampling_processor_match_second_rule():
@@ -359,14 +364,13 @@ def test_single_span_sampling_processor_match_second_rule():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name")
     rule_2 = SpanSamplingRule(service="test_service2", name="test_name2")
     rules = [rule_1, rule_2]
-    processor = SingleSpanSamplingProcessor(rules)
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
     tracer._span_processors.append(processor)
 
     span = traced_function(tracer, name="test_name2", service="test_service2")
 
-    assert_sampling_decision_tags(span)
+    assert_span_sampling_decision_tags(span)
 
 
 def test_single_span_sampling_processor_rule_order_drop():
@@ -377,14 +381,13 @@ def test_single_span_sampling_processor_rule_order_drop():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0)
     rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0)
     rules = [rule_1, rule_2]
-    processor = SingleSpanSamplingProcessor(rules)
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
     tracer._span_processors.append(processor)
 
     span = traced_function(tracer)
 
-    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+    assert_span_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
 
 
 def test_single_span_sampling_processor_rule_order_keep():
@@ -395,49 +398,125 @@ def test_single_span_sampling_processor_rule_order_keep():
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0)
     rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0)
     rules = [rule_1, rule_2]
-    processor = SingleSpanSamplingProcessor(rules)
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
     tracer._span_processors.append(processor)
 
     span = traced_function(tracer)
 
-    assert_sampling_decision_tags(span)
+    assert_span_sampling_decision_tags(span)
 
 
-def test_single_span_sampling_processor_do_not_tag_if_tracer_samples():
-    """Test that single span sampling rules aren't applied if a span is already going to be sampled by trace sampler"""
+@pytest.mark.parametrize(
+    "span_sample_rate_rule, expected_span_sample_rate_tag, mechanism, trace_sampling_priority",
+    [
+        (0, None, None, AUTO_KEEP),  # Span sample rate is 0, but the tracer is going to keep it
+        (0, None, None, USER_KEEP),  # Span sample rate is 0, but the user is going to keep it
+        (0, None, None, AUTO_REJECT),  # The tracer will try to drop the span, the span sampling rule will not keep it
+        (0, None, None, USER_REJECT),  # The user will try to drop the span, the span sampling rule will not keep it
+        # The tracer will try to drop the span, but span sampling will keep it
+        (1, 1, SamplingMechanism.SPAN_SAMPLING_RULE, AUTO_REJECT),
+        # The user will try to drop the span, but span sampling will keep it
+        (1, 1, SamplingMechanism.SPAN_SAMPLING_RULE, USER_REJECT),
+        # Span sample rate is 1, but the tracer is going to keep it so span sampling tags will not be applied
+        (1, None, None, AUTO_KEEP),
+        # Span sample rate is 1, but the user is going to keep it so span sampling tags will not be applied
+        (1, None, None, USER_KEEP),
+    ],
+)
+def test_single_span_sampling_processor_w_tracer_sampling(
+    span_sample_rate_rule, expected_span_sample_rate_tag, mechanism, trace_sampling_priority
+):
+    """Test how the single span sampler interacts with the trace sampler"""
 
-    rule_1 = SpanSamplingRule(service="test_service", name="test_name")
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=span_sample_rate_rule)
     rules = [rule_1]
-    processor = SingleSpanSamplingProcessor(rules)
-    tracer = Tracer()
-    tracer.configure(writer=DummyWriter())
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
     tracer._span_processors.append(processor)
 
-    span = traced_function(tracer, trace_sampling=True)
+    span = traced_function(tracer, trace_sampling_priority=trace_sampling_priority)
 
-    assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
+    assert_span_sampling_decision_tags(
+        span,
+        sample_rate=expected_span_sample_rate_tag,
+        mechanism=mechanism,
+        trace_sampling_priority=trace_sampling_priority,
+    )
 
 
-def traced_function(tracer, name="test_name", service="test_service", trace_sampling=False):
+def test_single_span_sampling_processor_w_tracer_sampling_after_processing():
+    """Test that single span sampling tags and tracer sampling context are applied to spans
+    if the trace sampling is changed after the span is processed.
+    """
+
+    rule_1 = SpanSamplingRule(name="child")
+    rules = [rule_1]
+    processor = SpanSamplingProcessor(rules)
+    tracer = DummyTracer()
+    tracer._span_processors.append(processor)
+
+    root = tracer.trace("root")
+
+    # When trace sampling marks it as a drop
+    root.context.sampling_priority = AUTO_REJECT
+    assert root.context.sampling_priority <= 0
+
+    # Child is checked against the span sampling rules, and then is kept
+    child = tracer.trace("child")
+    child.finish()
+
+    # The trace is updated to be a keep, but we already span sampled child
+    root.set_tag(MANUAL_KEEP_KEY)
+    root.finish()
+    # We now expect the span to have both span sampling and tracer context that will sample
+    assert_span_sampling_decision_tags(child)
+    assert child.context.sampling_priority == USER_KEEP
+
+
+def test_single_span_sampling_processor_no_rules():
+    """Test that single span sampling rules aren't applied if a span is already going to be sampled by trace sampler"""
+    tracer = DummyTracer()
+
+    span = traced_function(tracer, trace_sampling_priority=AUTO_KEEP)
+
+    assert_span_sampling_decision_tags(
+        span,
+        sample_rate=None,
+        mechanism=None,
+        trace_sampling_priority=AUTO_KEEP,
+    )
+
+
+def test_single_span_sampling_processor_w_stats_computation():
+    """Test that span processor changes _sampling_priority_v1 to 2 when stats computation is enabled"""
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name")
+    rules = [rule_1]
+    processor = SpanSamplingProcessor(rules)
+    with override_global_config(dict(_trace_compute_stats=True)):
+        tracer = DummyTracer()
+        tracer._span_processors.append(processor)
+
+        span = traced_function(tracer)
+
+    assert_span_sampling_decision_tags(span, trace_sampling_priority=USER_KEEP)
+
+
+def traced_function(tracer, name="test_name", service="test_service", trace_sampling_priority=0):
     with tracer.trace(name) as span:
         # If the trace sampler samples the trace, then we shouldn't add the span sampling tags
-        if trace_sampling:
-            span.context.sampling_priority = 1
-        else:
-            span.context.sampling_priority = 0
+        span.context.sampling_priority = trace_sampling_priority
 
         span.service = service
     return span
 
 
-def assert_sampling_decision_tags(
-    span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None, trace_sampling=False
+def assert_span_sampling_decision_tags(
+    span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None, trace_sampling_priority=None
 ):
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
-    if trace_sampling:
-        assert span.get_metric(SAMPLING_PRIORITY_KEY) >= 0
+    if trace_sampling_priority:
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) == trace_sampling_priority
