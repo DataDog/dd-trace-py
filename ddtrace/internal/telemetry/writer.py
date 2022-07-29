@@ -241,7 +241,6 @@ class TelemetryWriter(PeriodicService):
         # Avoid sending duplicate events.
         # Queued events should be sent in the main process.
         self._reset_queues()
-        self.start()
 
     def disable(self):
         # type: () -> None

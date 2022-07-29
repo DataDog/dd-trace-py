@@ -171,6 +171,7 @@ unpatch
 unpatched
 unregister
 unvendored
+uri
 url
 urls
 username

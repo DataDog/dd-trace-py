@@ -6,17 +6,6 @@ from ddtrace import config
 from ddtrace.contrib.wsgi import wsgi
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
-
-
-if PY2:
-    import exceptions
-
-    generatorExit = exceptions.GeneratorExit
-else:
-    import builtins
-
-    generatorExit = builtins.GeneratorExit
-
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -38,7 +27,7 @@ def chunked_response_generator_error(start_response):
         if i < 999:
             yield b"%d" % i
         else:
-            raise generatorExit()
+            raise GeneratorExit()
 
 
 def application(environ, start_response):
@@ -153,25 +142,31 @@ def test_query_string_tracing(tracer, test_spans):
 
 def test_http_request_header_tracing(tracer, test_spans):
     config.wsgi.http.trace_headers(["my-header"])
-    app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
-    resp = app.get("/", headers={"my-header": "test_value"})
+    try:
+        app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+        resp = app.get("/", headers={"my-header": "test_value"})
 
-    assert resp.status == "200 OK"
-    assert resp.status_int == 200
-    spans = test_spans.pop()
-    assert spans[0].get_tag("http.request.headers.my-header") == "test_value"
+        assert resp.status == "200 OK"
+        assert resp.status_int == 200
+        spans = test_spans.pop()
+        assert spans[0].get_tag("http.request.headers.my-header") == "test_value"
+    finally:
+        config.wsgi.http._reset()
 
 
 def test_http_response_header_tracing(tracer, test_spans):
     config.wsgi.http.trace_headers(["my-response-header"])
-    app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
-    resp = app.get("/", headers={"my-header": "test_value"})
+    try:
+        app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
+        resp = app.get("/", headers={"my-header": "test_value"})
 
-    assert resp.status == "200 OK"
-    assert resp.status_int == 200
+        assert resp.status == "200 OK"
+        assert resp.status_int == 200
 
-    spans = test_spans.pop()
-    assert spans[0].get_tag("http.response.headers.my-response-header") == "test_response_value"
+        spans = test_spans.pop()
+        assert spans[0].get_tag("http.response.headers.my-response-header") == "test_response_value"
+    finally:
+        config.wsgi.http._reset()
 
 
 def test_service_name_can_be_overriden(tracer, test_spans):
@@ -186,20 +181,21 @@ def test_service_name_can_be_overriden(tracer, test_spans):
         assert span.service == "test-override-service"
 
 
-def test_generator_exit_ignored_in_top_level_span(tracer, test_spans):
-    with pytest.raises(generatorExit):
+def test_generator_exit_ignored(tracer, test_spans):
+    with pytest.raises(GeneratorExit):
         app = TestApp(wsgi.DDWSGIMiddleware(application, tracer=tracer))
         app.get("/generatorError")
 
     spans = test_spans.pop()
-    assert spans[2].error == 1
-    assert "GeneratorExit" in spans[2].get_tag("error.type")
+    assert spans[2].name == "wsgi.response"
+    assert spans[2].error == 0
+    assert spans[0].name == "wsgi.request"
     assert spans[0].error == 0
 
 
-@snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
-def test_generator_exit_ignored_in_top_level_span_snapshot():
-    with pytest.raises(generatorExit):
+@snapshot()
+def test_generator_exit_ignored_snapshot():
+    with pytest.raises(GeneratorExit):
         app = TestApp(wsgi.DDWSGIMiddleware(application))
         app.get("/generatorError")
 
