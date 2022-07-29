@@ -141,6 +141,7 @@ quickstart
 redis
 rediscluster
 renderers
+resolvers
 repo
 respawn
 rq
