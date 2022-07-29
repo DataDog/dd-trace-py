@@ -198,7 +198,7 @@ def test_asgi_200_traced_simple_app():
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
 @snapshot(
-    ignores=["meta.error.stack", "http.useragent"],
+    ignores=["meta.error.stack", "meta.http.useragent"],
     variants={
         "30": (3, 0, 0) <= django.VERSION < (3, 1, 0),
         "31": (3, 1, 0) <= django.VERSION < (3, 2, 0),
@@ -212,7 +212,7 @@ def test_asgi_500():
 
 
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent", "http.useragent"])
+@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent", "meta.http.useragent"])
 def test_appsec_enabled():
     with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
         resp = client.get("/")
@@ -221,7 +221,7 @@ def test_appsec_enabled():
 
 
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
-@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent", "http.useragent"])
+@snapshot(ignores=["meta.error.stack", "meta.http.request.headers.user-agent", "meta.http.useragent"])
 def test_appsec_enabled_attack():
     with daphne_client("application", additional_env={"DD_APPSEC_ENABLED": "true"}) as client:
         resp = client.get("/.git")
