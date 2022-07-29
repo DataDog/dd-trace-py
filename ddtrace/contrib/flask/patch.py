@@ -1,5 +1,17 @@
+import json
+
 import flask
 import werkzeug
+from werkzeug.exceptions import BadRequest
+
+
+# Not all versions of flask/werkzeug have this mixin
+try:
+    from werkzeug.wrappers.json import JSONMixin
+
+    _HAS_JSON_MIXIN = True
+except ImportError:
+    _HAS_JSON_MIXIN = False
 
 from ddtrace import Pin
 from ddtrace import config
@@ -27,6 +39,7 @@ FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
 FLASK_URL_RULE = "flask.url_rule"
 FLASK_VERSION = "flask.version"
+_BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 # Configure default configuration
 config._add(
@@ -41,6 +54,15 @@ config._add(
     ),
 )
 
+
+if _HAS_JSON_MIXIN:
+
+    class RequestWithJson(werkzeug.Request, JSONMixin):
+        pass
+
+    _RequestType = RequestWithJson
+else:
+    _RequestType = werkzeug.Request
 
 # Extract flask version into a tuple e.g. (0, 12, 1) or (1, 0, 2)
 # DEV: This makes it so we can do `if flask_version >= (0, 12, 0):`
@@ -292,7 +314,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
     # Create a werkzeug request from the `environ` to make interacting with it easier
     # DEV: This executes before a request context is created
-    request = werkzeug.Request(environ)
+    request = _RequestType(environ)
 
     # Configure distributed tracing
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.flask, request_headers=request.headers)
@@ -318,6 +340,24 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
         start_response = _wrap_start_response(start_response, span, request)
 
+        req_body = None
+        if config._appsec_enabled and request.method in _BODY_METHODS:
+            content_type = request.content_type
+            try:
+                if content_type == "application/json":
+                    if _HAS_JSON_MIXIN and hasattr(request, "json"):
+                        req_body = request.json
+                    else:
+                        req_body = json.loads(request.data.decode("UTF-8"))
+                elif hasattr(request, "values"):
+                    req_body = request.values.to_dict()
+                elif hasattr(request, "args"):
+                    req_body = request.args.to_dict()
+                elif hasattr(request, "form"):
+                    req_body = request.form.to_dict()
+            except (AttributeError, RuntimeError, TypeError, BadRequest):
+                log.warning("Failed to parse werkzeug request body", exc_info=True)
+
         # DEV: We set response status code in `_wrap_start_response`
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
         trace_utils.set_http_meta(
@@ -330,6 +370,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             parsed_query=request.args,
             request_headers=request.headers,
             request_cookies=request.cookies,
+            request_body=req_body,
         )
 
         return wrapped(environ, start_response)
