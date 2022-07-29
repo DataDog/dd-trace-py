@@ -30,6 +30,7 @@ from ddtrace.internal.processor.truncator import NormalizeSpanProcessor
 from ddtrace.internal.processor.truncator import TruncateSpanProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
+from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
