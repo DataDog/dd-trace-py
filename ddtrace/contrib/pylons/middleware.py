@@ -7,6 +7,7 @@ from pylons import config
 from webob import Request
 
 from ddtrace import config as ddconfig
+from ddtrace.internal.compat import iteritems
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -49,10 +50,7 @@ class PylonsTraceMiddleware(object):
     def _parse_path_params(self, pylon_path_params):  # type: (Tuple[Any, Dict[str, Any]]) -> Dict[str, Any]
         path_params = {}
         if len(pylon_path_params) > 0:
-            path_params = pylon_path_params[1].copy()
-            if path_params:
-                del path_params["action"]
-                del path_params["controller"]
+            path_params = {k: v for k, v in iteritems(pylon_path_params[1].copy()) if k not in ["action", "controller"]}
         return path_params
 
     def __call__(self, environ, start_response):
