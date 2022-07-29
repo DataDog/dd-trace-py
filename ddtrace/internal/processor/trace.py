@@ -234,7 +234,7 @@ class SpanSamplingProcessor(SpanProcessor):
     """
 
     rules = attr.ib(type=List[SpanSamplingRule])
-    
+
     def on_span_start(self, span):
         # type: (Span) -> None
         pass
