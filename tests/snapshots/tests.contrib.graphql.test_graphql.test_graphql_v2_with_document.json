@@ -25,7 +25,7 @@
   {
     "name": "graphql.query",
     "service": "graphql",
-    "resource": "{ hello }",
+    "resource": "query HELLO { hello }",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
@@ -59,11 +59,16 @@
      {
        "name": "graphql.execute",
        "service": "graphql",
-       "resource": "{ hello }",
+       "resource": "query HELLO { hello }",
        "trace_id": 1,
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
+       "meta": {
+        "graphql.operation.name": "HELLO",
+        "graphql.operation.type": "query",
+        "graphql.source": "query HELLO { hello }"
+       },
        "duration": 224000,
        "start": 1658848788618242000
      }]]
