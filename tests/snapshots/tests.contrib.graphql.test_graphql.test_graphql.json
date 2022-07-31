@@ -30,6 +30,9 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
+       "meta": {
+        "graphql.source": "query HELLO { hello }"
+       },
        "duration": 147000,
        "start": 1658848788444365000
      },
@@ -41,6 +44,9 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
+       "meta": {
+        "graphql.source": "query HELLO { hello }"
+       },
        "duration": 674000,
        "start": 1658848788444620000
      },

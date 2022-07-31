@@ -28,6 +28,9 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
+       "meta": {
+        "graphql.source": "query HELLO { hello }"
+       },
        "metrics": {
          "_dd.top_level": 1
        },
