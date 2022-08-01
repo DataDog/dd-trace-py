@@ -4,6 +4,9 @@ import re
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from typing_extensions import NotRequired
+from typing_extensions import TypedDict
+
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
@@ -193,36 +196,30 @@ class SpanSamplingRule:
 
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
-    json_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
-    if json_rules is None:
+    json_rules_raw = os.getenv("DD_SPAN_SAMPLING_RULES")
+    if json_rules_raw is None:
         return []
     else:
-        return _parse_rules(json_rules)
-
-
-def _parse_rules(rules):
-    sampling_rules = []
-    if rules is None:
-        json_rules = []
+        sampling_rules = []
         try:
-            json_rules = json.loads(rules)
+            json_rules = json.loads(json_rules_raw)  # type: List[SpanSamplingRules]
             if not isinstance(json_rules, list):
                 raise TypeError("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
         except JSONDecodeError:
-            raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES={}".format(rules))
+            raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % json_rules_raw)
         for rule in json_rules:
-            if rule is not dict:
-                raise TypeError("rule specified via DD_SPAN_SAMPLING_RULES is not a dictionary:{}".format(rule))
+            if not isinstance(rule, dict):
+                raise TypeError("rule specified via DD_SPAN_SAMPLING_RULES is not a dictionary:%r" % rule)
             sample_rate = float(rule.get("sample_rate", 1.0))
             service = rule.get("service")
             name = rule.get("name")
-            max_per_second = rule.get("max_per_second")
+            max_per_second = int(rule.get("max_per_second")) if rule.get("max_per_second") else None
             if service is None and name is None:
-                raise SingleSpanSamplingError(
-                    "Neither service or name specified for single span sampling rule:{}".format(rule)
-                )
-            if (service and _unsupported_pattern(service)) or (name and _unsupported_pattern(name)):
-                raise UnsupportedGlobPatternError
+                raise ValueError("Neither service or name specified for single span sampling rule:%r" % rule)
+            if service:
+                _check_unsupported_pattern(service)
+            if name:
+                _check_unsupported_pattern(name)
 
             try:
                 sampling_rule = SpanSamplingRule(
@@ -231,23 +228,19 @@ def _parse_rules(rules):
             except Exception as e:
                 raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
             sampling_rules.append(sampling_rule)
-    return sampling_rules
+        return sampling_rules
 
 
-def _unsupported_pattern(string):
+def _check_unsupported_pattern(string):
     # We don't support pattern bracket expansion or escape character
     unsupported_chars = ["[", "]", "\\"]
     for char in string:
         if char in unsupported_chars:
-            return True
-    return False
+            raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-class SingleSpanSamplingError(Exception):
-    """Raised when neither a name or service are specified for a single span sampling rule"""
-
-
-class UnsupportedGlobPatternError(Exception):
-    """Raised when either a name or service pattern uses glob matching that we do not support.
-    Only special characters "?" and "*" are supported.
-    """
+class SpanSamplingRules(TypedDict):
+    name: NotRequired[Optional[str]]
+    service: NotRequired[Optional[str]]
+    sample_rate: NotRequired[Optional[float]]
+    max_per_second: NotRequired[Optional[int]]

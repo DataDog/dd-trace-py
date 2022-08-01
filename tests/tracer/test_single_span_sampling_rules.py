@@ -6,8 +6,6 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.sampling import SamplingMechanism
-from ddtrace.internal.sampling import SingleSpanSamplingError
-from ddtrace.internal.sampling import UnsupportedGlobPatternError
 from ddtrace.internal.sampling import get_span_sampling_rules
 from tests.utils import DummyWriter
 
@@ -63,17 +61,17 @@ def test_sampling_rule_init_via_env():
 
     # Testing error thrown when neither name nor service is set
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"sample_rate":1.0}]')):
-        with pytest.raises(SingleSpanSamplingError):
+        with pytest.raises(ValueError):
             sampling_rules = get_span_sampling_rules()
 
     # Testing exception thrown when service pattern contains unsupported char
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"h[!a]i"}]')):
-        with pytest.raises(UnsupportedGlobPatternError):
+        with pytest.raises(ValueError):
             sampling_rules = get_span_sampling_rules()
 
     # Testing exception thrown when name pattern contains unsupported char
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"name":"h[!a]i"}]')):
-        with pytest.raises(UnsupportedGlobPatternError):
+        with pytest.raises(ValueError):
             sampling_rules = get_span_sampling_rules()
 
 
