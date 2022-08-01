@@ -144,8 +144,8 @@ class SpanSamplingRule:
         return ((span.span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self._sampling_id_threshold
 
     def match(self, span):
-        """Determines if the span's service and name match the configured patterns"""
         # type: (Span) -> bool
+        """Determines if the span's service and name match the configured patterns"""
         name = span.name
         service = span.service
         # If a span lacks a name and service, we can't match on it
@@ -169,12 +169,15 @@ class SpanSamplingRule:
                 name_match = self._name_matcher.match(name)
         return service_match and name_match
 
-    def set_sample_rate(self, sample_rate=1.0):
-        self._sample_rate = float(sample_rate)
+    def set_sample_rate(self, sample_rate):
+        # type: (float) -> None
+        self._sample_rate = sample_rate
         self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
 
     def apply_span_sampling_tags(self, span):
+        # type: (Span) -> None
         span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
         span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
-        if self._max_per_second:
+        # Only set this tag if it's not the default -1
+        if self._max_per_second != -1:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
