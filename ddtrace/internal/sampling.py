@@ -112,18 +112,15 @@ class SpanSamplingRule:
 
     def __init__(
         self,
+        sample_rate,  # type: float
+        max_per_second,  # type: int
         service=None,  # type: Optional[str]
         name=None,  # type: Optional[str]
-        sample_rate=1.0,  # type: Optional[float]
-        max_per_second=None,  # type: Optional[int]
     ):
         self.set_sample_rate(sample_rate)
         self._max_per_second = max_per_second
         # If no max_per_second specified then there is no limit
-        if max_per_second is None:
-            self._limiter = RateLimiter(-1)
-        else:
-            self._limiter = RateLimiter(max_per_second)
+        self._limiter = RateLimiter(max_per_second)
 
         # we need to create matchers for the service and/or name pattern provided
         self._service_matcher = GlobMatcher(service) if service is not None else None
@@ -148,6 +145,7 @@ class SpanSamplingRule:
 
     def match(self, span):
         """Determines if the span's service and name match the configured patterns"""
+        # type: (Span) -> bool
         name = span.name
         service = span.service
         # If a span lacks a name and service, we can't match on it
