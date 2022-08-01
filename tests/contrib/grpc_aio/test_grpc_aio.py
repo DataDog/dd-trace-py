@@ -252,7 +252,7 @@ async def test_invalid_target(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHello"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) == "failed to connect to all addresses"
+    assert "failed to connect to all addresses" in client_span.get_tag(ERROR_MSG)
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.UNAVAILABLE"
     assert client_span.get_tag(ERROR_STACK) is None
 
