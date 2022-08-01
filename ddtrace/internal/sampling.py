@@ -228,7 +228,7 @@ def _parse_rules(rules):
                 sampling_rule = SpanSamplingRule(
                     sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
                 )
-            except ValueError as e:
+            except Exception as e:
                 raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
             sampling_rules.append(sampling_rule)
     return sampling_rules
