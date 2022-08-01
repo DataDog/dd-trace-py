@@ -75,6 +75,7 @@ fastapi
 formatter
 gRPC
 gevent
+graphql
 greenlet
 greenlets
 grpc
@@ -140,6 +141,7 @@ quickstart
 redis
 rediscluster
 renderers
+resolvers
 repo
 respawn
 rq

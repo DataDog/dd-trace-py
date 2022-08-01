@@ -3,6 +3,7 @@ class SpanTypes(object):
     CASSANDRA = "cassandra"
     ELASTICSEARCH = "elasticsearch"
     GRPC = "grpc"
+    GRAPHQL = "graphql"
     HTTP = "http"
     MONGODB = "mongodb"
     REDIS = "redis"
