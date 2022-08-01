@@ -213,7 +213,7 @@ def get_span_sampling_rules():
             sample_rate = float(rule.get("sample_rate", 1.0))
             service = rule.get("service")
             name = rule.get("name")
-            max_per_second = int(rule.get("max_per_second")) if rule.get("max_per_second") else None
+            max_per_second = int(rule.get("max_per_second", -1))
             if service is None and name is None:
                 raise ValueError("Neither service or name specified for single span sampling rule:%r" % rule)
             if service:
@@ -232,6 +232,7 @@ def get_span_sampling_rules():
 
 
 def _check_unsupported_pattern(string):
+    # type: (str) -> None
     # We don't support pattern bracket expansion or escape character
     unsupported_chars = ["[", "]", "\\"]
     for char in string:
