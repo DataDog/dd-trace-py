@@ -18,7 +18,7 @@ from typing import Union
 from ddtrace import config
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.sampling import SpanSamplingRule
-from ddtrace.internal.sampling import SpanSamplingRules
+from ddtrace.internal.sampling import make_span_sampling_rules
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -213,9 +213,7 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
-        self._single_span_sampling_rules = (
-            SpanSamplingRules().get_single_span_sampling_rules()
-        )  # type: List[SpanSamplingRule]
+        self._single_span_sampling_rules = make_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))

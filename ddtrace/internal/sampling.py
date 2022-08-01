@@ -191,58 +191,50 @@ class SpanSamplingRule:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
-class SpanSamplingRules:
-    """To generate a list of SpanSamplingRule objects and pass them to the SpanProcessor"""
+def make_span_sampling_rules():
+    # type: () -> List[SpanSamplingRule]
+    json_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
+    if not json_rules:
+        return []
+    else:
+        return _parse_rules(json_rules)
 
-    def __init__(self):
-        self._rules = self._make_rules()
 
-    def get_single_span_sampling_rules(self):
-        # type: () -> List[SpanSamplingRule]
-        return self._rules
+def _parse_rules(rules):
+    sampling_rules = []
+    if rules is not None:
+        json_rules = []
+        try:
+            json_rules = json.loads(rules)
+        except JSONDecodeError:
+            raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES={}".format(rules))
+        for rule in json_rules:
+            sample_rate = rule.get("sample_rate", 1.0)
+            service = rule.get("service")
+            name = rule.get("name")
+            max_per_second = rule.get("max_per_second")
+            if service is None and name is None:
+                raise SingleSpanSamplingError("Neither service or name specified for single span sampling rule")
+            if (service and _unsupported_pattern(service)) or (name and _unsupported_pattern(name)):
+                raise UnsupportedGlobPatternError
 
-    def _make_rules(self):
-        # type: () -> List[SpanSamplingRule]
-        json_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
-        if not json_rules:
-            return []
-        else:
-            return self._parse_rules(json_rules)
-
-    def _parse_rules(self, rules):
-        sampling_rules = []
-        if rules is not None:
-            json_rules = []
             try:
-                json_rules = json.loads(rules)
-            except JSONDecodeError:
-                raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES={}".format(rules))
-            for rule in json_rules:
-                sample_rate = rule.get("sample_rate", 1.0)
-                service = rule.get("service")
-                name = rule.get("name")
-                max_per_second = rule.get("max_per_second")
-                if service is None and name is None:
-                    raise SingleSpanSamplingError("Neither service or name specified for single span sampling rule")
-                if (service and self._unsupported_pattern(service)) or (name and self._unsupported_pattern(name)):
-                    raise UnsupportedGlobPatternError
+                sampling_rule = SpanSamplingRule(
+                    sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
+                )
+            except ValueError as e:
+                raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
+            sampling_rules.append(sampling_rule)
+    return sampling_rules
 
-                try:
-                    sampling_rule = SpanSamplingRule(
-                        sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
-                    )
-                except ValueError as e:
-                    raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
-                sampling_rules.append(sampling_rule)
-        return sampling_rules
 
-    def _unsupported_pattern(self, string):
-        # We don't support pattern bracket expansion or escape character
-        unsupported_chars = ["[", "]", "\\"]
-        for char in string:
-            if char in unsupported_chars:
-                return True
-        return False
+def _unsupported_pattern(string):
+    # We don't support pattern bracket expansion or escape character
+    unsupported_chars = ["[", "]", "\\"]
+    for char in string:
+        if char in unsupported_chars:
+            return True
+    return False
 
 
 class SingleSpanSamplingError(Exception):
