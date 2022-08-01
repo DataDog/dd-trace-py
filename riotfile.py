@@ -6,7 +6,16 @@ from riot import Venv
 from riot import latest
 
 
-SUPPORTED_PYTHON_VERSIONS = [(2, 7), (3, 5), (3, 6), (3, 7), (3, 8), (3, 9), (3, 10), (3, 11)]  # type: List[Tuple[int, int]]
+SUPPORTED_PYTHON_VERSIONS = [
+    (2, 7),
+    (3, 5),
+    (3, 6),
+    (3, 7),
+    (3, 8),
+    (3, 9),
+    (3, 10),
+    (3, 11),
+]  # type: List[Tuple[int, int]]
 
 
 def version_to_str(version):
