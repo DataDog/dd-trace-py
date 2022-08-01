@@ -206,7 +206,7 @@ def _parse_rules(rules):
         json_rules = []
         try:
             json_rules = json.loads(rules)
-            if json_rules is not list:
+            if not isinstance(json_rules, list):
                 raise TypeError("DD_SPAN_SAMPLING_RULES is not list", json_rules)
         except JSONDecodeError:
             raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES={}".format(rules))
