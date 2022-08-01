@@ -191,10 +191,10 @@ class SpanSamplingRule:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
-def make_span_sampling_rules():
+def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
     json_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
-    if not json_rules:
+    if json_rules is None:
         return []
     else:
         return _parse_rules(json_rules)
@@ -202,7 +202,7 @@ def make_span_sampling_rules():
 
 def _parse_rules(rules):
     sampling_rules = []
-    if rules is not None:
+    if rules is None:
         json_rules = []
         try:
             json_rules = json.loads(rules)

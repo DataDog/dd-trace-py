@@ -8,7 +8,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SingleSpanSamplingError
 from ddtrace.internal.sampling import UnsupportedGlobPatternError
-from ddtrace.internal.sampling import make_span_sampling_rules
+from ddtrace.internal.sampling import get_span_sampling_rules
 from tests.utils import DummyWriter
 
 from ..utils import override_env
@@ -19,7 +19,7 @@ def test_sampling_rule_init_via_env():
     with override_env(
         dict(DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"xyz","name":"abc","max_per_second":100}]')
     ):
-        sampling_rules = make_span_sampling_rules()
+        sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._sample_rate == 0.5
         assert sampling_rules[0]._service_matcher.pattern == "xyz"
         assert sampling_rules[0]._name_matcher.pattern == "abc"
@@ -33,7 +33,7 @@ def test_sampling_rule_init_via_env():
             {"sample_rate":0.5,"service":"my-service","name":"my-name", "max_per_second":20}]'
         )
     ):
-        sampling_rules = make_span_sampling_rules()
+        sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._sample_rate == 1.0
         assert sampling_rules[0]._service_matcher.pattern == "xy?"
         assert sampling_rules[0]._name_matcher.pattern == "a*c"
@@ -47,7 +47,7 @@ def test_sampling_rule_init_via_env():
 
     # Testing for only service being set
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"xyz"}]')):
-        sampling_rules = make_span_sampling_rules()
+        sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._sample_rate == 1.0
         assert sampling_rules[0]._service_matcher.pattern == "xyz"
         assert sampling_rules[0]._max_per_second is None
@@ -55,7 +55,7 @@ def test_sampling_rule_init_via_env():
 
     # Testing for only name being set
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"name":"xyz"}]')):
-        sampling_rules = make_span_sampling_rules()
+        sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._sample_rate == 1.0
         assert sampling_rules[0]._name_matcher.pattern == "xyz"
         assert sampling_rules[0]._max_per_second is None
@@ -64,23 +64,23 @@ def test_sampling_rule_init_via_env():
     # Testing error thrown when neither name nor service is set
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"sample_rate":1.0}]')):
         with pytest.raises(SingleSpanSamplingError):
-            sampling_rules = make_span_sampling_rules()
+            sampling_rules = get_span_sampling_rules()
 
     # Testing exception thrown when service pattern contains unsupported char
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"h[!a]i"}]')):
         with pytest.raises(UnsupportedGlobPatternError):
-            sampling_rules = make_span_sampling_rules()
+            sampling_rules = get_span_sampling_rules()
 
     # Testing exception thrown when name pattern contains unsupported char
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"name":"h[!a]i"}]')):
         with pytest.raises(UnsupportedGlobPatternError):
-            sampling_rules = make_span_sampling_rules()
+            sampling_rules = get_span_sampling_rules()
 
 
 def test_rules_sample_span():
     """Test that single span sampling tags are applied to spans that should get sampled when envars set"""
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"test_service","name":"test_name"}]')):
-        sampling_rules = make_span_sampling_rules()
+        sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._service_matcher.pattern == "test_service"
         assert sampling_rules[0]._name_matcher.pattern == "test_name"
         tracer = Tracer()
@@ -94,7 +94,7 @@ def test_rules_sample_span():
 def test_rules_do_not_sample_wrong_span():
     """Test that single span sampling tags are not applied to spans that do not match rules"""
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"test_ser","name":"test_na"}]')):
-        sampling_rules = make_span_sampling_rules()
+        sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._service_matcher.pattern == "test_ser"
         assert sampling_rules[0]._name_matcher.pattern == "test_na"
         tracer = Tracer()
@@ -108,7 +108,7 @@ def test_rules_do_not_sample_wrong_span():
 def test_single_span_rules_do_not_tag_if_tracer_samples():
     """Test that single span sampling rules aren't applied if a span is already going to be sampled by trace sampler"""
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"test_service","name":"test_name"}]')):
-        sampling_rules = make_span_sampling_rules()
+        sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._service_matcher.pattern == "test_service"
         assert sampling_rules[0]._name_matcher.pattern == "test_name"
         tracer = Tracer()
