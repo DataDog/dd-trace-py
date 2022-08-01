@@ -206,15 +206,21 @@ def _parse_rules(rules):
         json_rules = []
         try:
             json_rules = json.loads(rules)
+            if json_rules is not list:
+                raise TypeError("DD_SPAN_SAMPLING_RULES is not list", json_rules)
         except JSONDecodeError:
             raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES={}".format(rules))
         for rule in json_rules:
+            if rule is not dict:
+                raise TypeError("rule specified via DD_SPAN_SAMPLING_RULES is not a dictionary:{}".format(rule))
             sample_rate = rule.get("sample_rate", 1.0)
             service = rule.get("service")
             name = rule.get("name")
             max_per_second = rule.get("max_per_second")
             if service is None and name is None:
-                raise SingleSpanSamplingError("Neither service or name specified for single span sampling rule")
+                raise SingleSpanSamplingError(
+                    "Neither service or name specified for single span sampling rule:{}".format(rule)
+                )
             if (service and _unsupported_pattern(service)) or (name and _unsupported_pattern(name)):
                 raise UnsupportedGlobPatternError
 
