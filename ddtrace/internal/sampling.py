@@ -213,7 +213,7 @@ def _parse_rules(rules):
         for rule in json_rules:
             if rule is not dict:
                 raise TypeError("rule specified via DD_SPAN_SAMPLING_RULES is not a dictionary:{}".format(rule))
-            sample_rate = rule.get("sample_rate", 1.0)
+            sample_rate = float(rule.get("sample_rate", 1.0))
             service = rule.get("service")
             name = rule.get("name")
             max_per_second = rule.get("max_per_second")
