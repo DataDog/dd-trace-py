@@ -62,6 +62,19 @@ cdef inline const char * string_to_buff(str s):
         return <const char *> s
 
 
+cdef inline str dd_origin_to_str(object o):
+    # type: (Union[unicode, str]) -> str
+    # DEV: In Python 2 we might get `unicode`, Cython
+    #      will give us a TypeError if we try to use
+    #      it in place of a `str`, so do an explicit
+    #      encode to be sure.
+    IF PY_MAJOR_VERSION < 3:
+        if isinstance(o, unicode):
+            return (<unicode>o).encode("UTF-8")
+    return str(o)
+
+
+
 # This is a borrowed reference but should be fine as we don't expect ORIGIN_KEY
 # to get GC'd.
 cdef const char * _ORIGIN_KEY = string_to_buff(ORIGIN_KEY)
@@ -445,7 +458,8 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         if ret != 0: raise RuntimeError("Couldn't pack trace")
 
         if L > 0 and trace[0].context is not None and trace[0].context.dd_origin is not None:
-            dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
+            # DEV: `context.dd_origin` might be `unicode` (Py2) or `str` (Py3)
+            dd_origin = self.get_dd_origin_ref(dd_origin_to_str(trace[0].context.dd_origin))
 
         for span in trace:
             ret = self.pack_span(span, dd_origin)
