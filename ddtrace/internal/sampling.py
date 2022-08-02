@@ -234,7 +234,7 @@ def get_span_sampling_rules():
 def _check_unsupported_pattern(string):
     # type: (str) -> None
     # We don't support pattern bracket expansion or escape character
-    unsupported_chars = ["[", "]", "\\"]
+    unsupported_chars = {"[", "]", "\\"}
     for char in string:
         if char in unsupported_chars:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
