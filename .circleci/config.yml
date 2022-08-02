@@ -402,7 +402,7 @@ jobs:
     <<: *machine_executor
     steps:
       - run_test:
-          pattern: "telemtry"
+          pattern: "telemetry"
           snapshot: true
           store_coverage: false
 
