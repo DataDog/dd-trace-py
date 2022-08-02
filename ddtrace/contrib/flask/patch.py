@@ -102,13 +102,19 @@ def patch():
         "handle_exception",
         "handle_http_exception",
         "handle_user_exception",
-        "try_trigger_before_first_request_functions",
         "do_teardown_request",
         "do_teardown_appcontext",
         "send_static_file",
     ]
     for name in flask_app_traces:
         _w("flask", "Flask.{}".format(name), simple_tracer("flask.{}".format(name)))
+
+    if flask_version < (2, 2, 0):
+        _w(
+            "flask",
+            "Flask.try_trigger_before_first_request_functions",
+            simple_tracer("flask.try_trigger_before_first_request_functions"),
+        )
 
     # flask static file helpers
     _w("flask", "send_file", simple_tracer("flask.send_file"))
