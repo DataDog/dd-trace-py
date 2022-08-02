@@ -5,26 +5,19 @@ import attr
 
 from ddtrace.internal import compat
 from ddtrace.profiling import scheduler
-
+from ddtrace.internal.utils import attr as attr_utils
 
 LOG = logging.getLogger(__name__)
 
 
 @attr.s
 class ServerlessScheduler(scheduler.Scheduler):
-    _interval = attr.ib(1)
-    _total_profiled_seconds = attr.ib(default=0)
+    _interval = attr.ib(factory=attr_utils.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60.0, float))
+    _init_time = compat.time_ns()
 
     def periodic(self):
         now = compat.time_ns()
         # Guard against _last_export not being set
-        last_export = self._last_export or compat.time_ns()
-        if now - last_export >= 60 * 1e9 and self._total_profiled_seconds >= 60:
-            self._total_profiled_seconds = 0
-            start_time = compat.monotonic()
-            try:
-                self.flush()
-            finally:
-                self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
-        else:
-            self._total_profiled_seconds += self._interval
+        last_export = self._last_export or self._init_time
+        if now - last_export >= int(self._interval) * 1e9:
+            super(ServerlessScheduler, self).periodic()
