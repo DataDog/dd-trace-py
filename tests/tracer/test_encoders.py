@@ -404,14 +404,11 @@ def test_span_types(encoding, span, tags):
         (MsgpackEncoderV05, 9),
     ],
 )
-@pytest.mark.parametrize(
-    "origin,expected_origin", [(CI_APP_TEST_ORIGIN, b"ciapp-test"), (u"unicode-origin", b"unicode-origin")]
-)
-def test_encoder_propagates_dd_origin(Encoder, item, origin, expected_origin):
+def test_encoder_propagates_dd_origin(Encoder, item):
     tracer = DummyTracer()
     encoder = Encoder(1 << 20, 1 << 20)
     with tracer.trace("Root") as root:
-        root.context.dd_origin = origin
+        root.context.dd_origin = CI_APP_TEST_ORIGIN
         for _ in range(999):
             with tracer.trace("child"):
                 pass
@@ -424,7 +421,7 @@ def test_encoder_propagates_dd_origin(Encoder, item, origin, expected_origin):
     assert decoded_trace[0]
 
     # Ensure encoded trace contains dd_origin tag in all spans
-    assert all((_[item][_ORIGIN_KEY] == expected_origin for _ in decoded_trace[0]))
+    assert all((_[item][_ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
 
 
 @allencodings
