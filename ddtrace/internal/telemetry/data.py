@@ -10,6 +10,7 @@ from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 
+from ...settings import _config as config
 from ...version import get_version
 from ..hostname import get_hostname
 
@@ -57,6 +58,7 @@ def _get_application(key):
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version) if PY3 else "",
+        "products": _get_products(),
     }
 
 
@@ -68,10 +70,20 @@ def get_dependencies():
 
 
 def get_application(service, version, env):
+    # type: (str, str, str) -> Dict
     """Creates a dictionary to store application data using ddtrace configurations and the System-Specific module"""
     # We cache the application dict to reduce overhead since service, version, or env configurations
     # can change during runtime
     return _get_application((service, version, env))
+
+
+def _get_products():
+    # type: () -> Dict
+    products = {}
+    if config._appsec_enabled:
+        products["appsec"] = {"version": get_version()}
+
+    return products
 
 
 _host_info = None
