@@ -4,6 +4,7 @@ import re
 from typing import Optional
 from typing import TYPE_CHECKING
 
+from six import PY3
 from typing_extensions import NotRequired
 from typing_extensions import TypedDict
 
@@ -192,7 +193,22 @@ class SpanSamplingRule:
 
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
-    json_rules_raw = os.getenv("DD_SPAN_SAMPLING_RULES")
+    env_json_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
+    file_json_rules = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
+    if env_json_rules and file_json_rules:
+        log.warning(
+            (
+                "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. "
+                "Defaulting to DD_SPAN_SAMPLING_RULES value."
+            )
+        )
+        json_rules_raw = env_json_rules
+    elif env_json_rules:
+        json_rules_raw = env_json_rules
+    elif file_json_rules:
+        with open(file_json_rules) as f:
+            json_rules_raw = json.load(f)
+
     if json_rules_raw is None:
         return []
     else:
@@ -238,15 +254,17 @@ def _check_unsupported_pattern(string):
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-SpanSamplingRules = TypedDict(
-    "SpanSamplingRules",
-    {
-        "name": NotRequired[str],
-        "service": NotRequired[str],
-        "sample_rate": NotRequired[float],
-        "max_per_second": NotRequired[int],
-    },
-)
+if PY3:
+    SpanSamplingRules = TypedDict(
+        "SpanSamplingRules",
+        {
+            "name": NotRequired[str],
+            "service": NotRequired[str],
+            "sample_rate": NotRequired[float],
+            "max_per_second": NotRequired[int],
+        },
+    )
+
 
 def is_single_span_sampled(span):
     # type: (Span) -> bool
