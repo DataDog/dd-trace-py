@@ -6,6 +6,7 @@ from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import serverless_scheduler
 
+
 @mock.patch("ddtrace.profiling.scheduler.Scheduler.periodic")
 def test_periodic(mock_periodic):
     r = recorder.Recorder()

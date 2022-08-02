@@ -133,7 +133,9 @@ class _ProfilerInstance(service.Service):
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
     _scheduler = attr.ib(init=False, default=None)
-    _lambda_function_name = attr.ib(init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str])
+    _lambda_function_name = attr.ib(
+        init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
+    )
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -218,9 +220,7 @@ class _ProfilerInstance(service.Service):
                 scheduler_class = serverless_scheduler.ServerlessScheduler
             else:
                 scheduler_class = scheduler.Scheduler
-            self._scheduler = scheduler_class(
-                    recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
-                )
+            self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
 
         self.set_asyncio_event_loop_policy()
 
