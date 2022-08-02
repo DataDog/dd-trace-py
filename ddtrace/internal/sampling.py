@@ -242,9 +242,9 @@ def _check_unsupported_pattern(string):
 SpanSamplingRules = TypedDict(
     "SpanSamplingRules",
     {
-        "name": NotRequired[Optional[str]],
-        "service": NotRequired[Optional[str]],
-        "sample_rate": NotRequired[Optional[float]],
-        "max_per_second": NotRequired[Optional[int]],
+        "name": NotRequired[str],
+        "service": NotRequired[str],
+        "sample_rate": NotRequired[float],
+        "max_per_second": NotRequired[int],
     },
 )
