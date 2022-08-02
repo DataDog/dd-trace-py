@@ -100,7 +100,9 @@ def test_middleware_trace_partial_based_view(client):
 @pytest.mark.django_db
 def test_safe_string_encoding(client, snapshot_context):
     """test_safe_string_encoding.
-    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
+    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces. Until the
+    first request is executed, the SQlite DB isn't create and Django executes the migrations and the snapshot
+    raises: Received unmatched spans: 'sqlite.query'
     """
     client.get("/safe-template/")
     with snapshot_context(
