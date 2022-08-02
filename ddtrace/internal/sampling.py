@@ -5,8 +5,11 @@ from typing import Optional
 from typing import TYPE_CHECKING
 
 from six import PY3
-from typing_extensions import NotRequired
-from typing_extensions import TypedDict
+
+
+if PY3:
+    from typing_extensions import NotRequired
+    from typing_extensions import TypedDict
 
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
