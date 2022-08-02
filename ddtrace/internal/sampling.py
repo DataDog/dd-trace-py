@@ -239,8 +239,12 @@ def _check_unsupported_pattern(string):
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-class SpanSamplingRules(TypedDict):
-    name: NotRequired[str]
-    service: NotRequired[str]
-    sample_rate: NotRequired[float]
-    max_per_second: NotRequired[int]
+SpanSamplingRules = TypedDict(
+    "SpanSamplingRules",
+    {
+        "name": NotRequired[Optional[str]],
+        "service": NotRequired[Optional[str]],
+        "sample_rate": NotRequired[Optional[float]],
+        "max_per_second": NotRequired[Optional[int]],
+    },
+)
