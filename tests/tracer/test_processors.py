@@ -348,7 +348,7 @@ def test_span_normalizator():
 def test_single_span_sampling_processor():
     """Test that single span sampling tags are applied to spans that should get sampled"""
 
-    rule_1 = SpanSamplingRule(service="test_service", name="test_name")
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
     processor = SpanSamplingProcessor(rules)
     tracer = DummyTracer()
@@ -362,8 +362,8 @@ def test_single_span_sampling_processor():
 def test_single_span_sampling_processor_match_second_rule():
     """Test that single span sampling rule is applied if the first rule does not match, but a later one does"""
 
-    rule_1 = SpanSamplingRule(service="test_service", name="test_name")
-    rule_2 = SpanSamplingRule(service="test_service2", name="test_name2")
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
+    rule_2 = SpanSamplingRule(service="test_service2", name="test_name2", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1, rule_2]
     processor = SpanSamplingProcessor(rules)
     tracer = DummyTracer()
@@ -379,8 +379,8 @@ def test_single_span_sampling_processor_rule_order_drop():
     will only be applied if earlier rules have not been
     """
 
-    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0)
-    rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0)
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0, max_per_second=-1)
+    rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1, rule_2]
     processor = SpanSamplingProcessor(rules)
     tracer = DummyTracer()
@@ -396,8 +396,8 @@ def test_single_span_sampling_processor_rule_order_keep():
     and will not be applied if an earlier rule has been
     """
 
-    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0)
-    rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0)
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
+    rule_2 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=0, max_per_second=-1)
     rules = [rule_1, rule_2]
     processor = SpanSamplingProcessor(rules)
     tracer = DummyTracer()
@@ -430,7 +430,9 @@ def test_single_span_sampling_processor_w_tracer_sampling(
 ):
     """Test how the single span sampler interacts with the trace sampler"""
 
-    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=span_sample_rate_rule)
+    rule_1 = SpanSamplingRule(
+        service="test_service", name="test_name", sample_rate=span_sample_rate_rule, max_per_second=-1
+    )
     rules = [rule_1]
     processor = SpanSamplingProcessor(rules)
     tracer = DummyTracer()
@@ -451,7 +453,7 @@ def test_single_span_sampling_processor_w_tracer_sampling_after_processing():
     if the trace sampling is changed after the span is processed.
     """
 
-    rule_1 = SpanSamplingRule(name="child")
+    rule_1 = SpanSamplingRule(name="child", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
     processor = SpanSamplingProcessor(rules)
     tracer = DummyTracer()
@@ -485,13 +487,14 @@ def test_single_span_sampling_processor_no_rules():
         span,
         sample_rate=None,
         mechanism=None,
+        limit=None,
         trace_sampling_priority=AUTO_KEEP,
     )
 
 
 def test_single_span_sampling_processor_w_stats_computation():
     """Test that span processor changes _sampling_priority_v1 to 2 when stats computation is enabled"""
-    rule_1 = SpanSamplingRule(service="test_service", name="test_name")
+    rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
     processor = SpanSamplingProcessor(rules)
     with override_global_config(dict(_trace_compute_stats=True)):

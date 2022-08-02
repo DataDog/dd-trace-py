@@ -1,0 +1,15 @@
+[[
+  {
+    "name": "child",
+    "service": "test",
+    "resource": "child",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 145126210405670540,
+    "metrics": {
+      "_dd.span_sampling.mechanism": 8,
+      "_dd.tracer_kr": 1.0
+    },
+    "duration": 6000,
+    "start": 1657658221599720300
+  }]]
