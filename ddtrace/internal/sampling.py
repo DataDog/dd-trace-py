@@ -119,7 +119,6 @@ class SpanSamplingRule:
     ):
         self.set_sample_rate(sample_rate)
         self._max_per_second = max_per_second
-        # If no max_per_second specified then there is no limit
         self._limiter = RateLimiter(max_per_second)
 
         # we need to create matchers for the service and/or name pattern provided
