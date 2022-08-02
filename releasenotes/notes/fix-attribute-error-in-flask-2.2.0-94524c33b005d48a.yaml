@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    flask: remove patching for ``Flask.try_trigger_before_first_request_functions``. This method was removed in flask==2.2.0.
+    flask: add support for ``flask>=2.2``
