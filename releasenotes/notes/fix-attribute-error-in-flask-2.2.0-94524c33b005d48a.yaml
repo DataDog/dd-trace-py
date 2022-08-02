@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Flask: version 2.2.0 removes `try_trigger_before_first_request_functions`

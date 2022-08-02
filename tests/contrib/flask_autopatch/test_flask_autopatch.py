@@ -9,6 +9,9 @@ from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 
 
+REMOVED_SPANS_2_2_0 = 1 if flask.__version__ == "2.2.0" else 0
+
+
 class FlaskAutopatchTestCase(TracerTestCase):
     def setUp(self):
         super(FlaskAutopatchTestCase, self).setUp()
@@ -51,19 +54,31 @@ class FlaskAutopatchTestCase(TracerTestCase):
         self.assertEqual(res.data, b"Hello Flask")
 
         spans = self.pop_spans()
-        self.assertEqual(len(spans), 8)
+        self.assertEqual(len(spans), 8 - REMOVED_SPANS_2_2_0)
 
-        self.assertListEqual(
-            [
+        expected_spans = [
+            "flask.request",
+            "flask.try_trigger_before_first_request_functions",
+            "flask.preprocess_request",
+            "flask.dispatch_request",
+            "tests.contrib.flask_autopatch.test_flask_autopatch.index",
+            "flask.process_response",
+            "flask.do_teardown_request",
+            "flask.do_teardown_appcontext",
+        ]
+        if flask.__version__ == "2.2.0":
+            expected_spans = [
                 "flask.request",
-                "flask.try_trigger_before_first_request_functions",
                 "flask.preprocess_request",
                 "flask.dispatch_request",
                 "tests.contrib.flask_autopatch.test_flask_autopatch.index",
                 "flask.process_response",
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
-            ],
+            ]
+
+        self.assertListEqual(
+            expected_spans,
             [s.name for s in spans],
         )
 
@@ -94,6 +109,13 @@ class FlaskAutopatchTestCase(TracerTestCase):
         # Handler span
         handler_span = spans[4]
         self.assertEqual(handler_span.service, "test-flask")
-        self.assertEqual(handler_span.name, "tests.contrib.flask_autopatch.test_flask_autopatch.index")
-        self.assertEqual(handler_span.resource, "/")
+
+        expected_span_name = (
+            "flask.process_response"
+            if flask.__version__ == "2.2.0"
+            else "tests.contrib.flask_autopatch.test_flask_autopatch.index"
+        )
+        self.assertEqual(handler_span.name, expected_span_name)
+        expected_span_resource = "/" if flask.__version__ != "2.2.0" else "flask.process_response"
+        self.assertEqual(handler_span.resource, expected_span_resource)
         self.assertEqual(req_span.error, 0)
