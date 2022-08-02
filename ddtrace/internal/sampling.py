@@ -1,13 +1,14 @@
 import json
 import os
 import re
+import sys
 from typing import Optional
 from typing import TYPE_CHECKING
 
 from six import PY3
 
 
-if PY3:
+if sys.version >= 3.7:
     from typing_extensions import NotRequired
     from typing_extensions import TypedDict
 
@@ -259,6 +260,18 @@ def _check_unsupported_pattern(string):
     for char in string:
         if char in unsupported_chars:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
+
+
+if sys.version >= 3.7:
+    SpanSamplingRules = TypedDict(
+        "SpanSamplingRules",
+        {
+            "name": NotRequired[str],
+            "service": NotRequired[str],
+            "sample_rate": NotRequired[float],
+            "max_per_second": NotRequired[int],
+        },
+    )
 
 
 def is_single_span_sampled(span):
