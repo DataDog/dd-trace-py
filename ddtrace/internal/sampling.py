@@ -124,18 +124,16 @@ class SpanSamplingRule:
 
     def __init__(
         self,
+        sample_rate,  # type: float
+        max_per_second,  # type: int
         service=None,  # type: Optional[str]
         name=None,  # type: Optional[str]
-        sample_rate=1.0,  # type: Optional[float]
-        max_per_second=None,  # type: Optional[int]
     ):
-        self.set_sample_rate(sample_rate)
+        self._sample_rate = sample_rate
+        self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
+
         self._max_per_second = max_per_second
-        # If no max_per_second specified then there is no limit
-        if max_per_second is None:
-            self._limiter = RateLimiter(-1)
-        else:
-            self._limiter = RateLimiter(max_per_second)
+        self._limiter = RateLimiter(max_per_second)
 
         # we need to create matchers for the service and/or name pattern provided
         self._service_matcher = GlobMatcher(service) if service is not None else None
@@ -159,6 +157,7 @@ class SpanSamplingRule:
         return ((span.span_id * KNUTH_FACTOR) % MAX_SPAN_ID) <= self._sampling_id_threshold
 
     def match(self, span):
+        # type: (Span) -> bool
         """Determines if the span's service and name match the configured patterns"""
         name = span.name
         service = span.service
@@ -183,14 +182,12 @@ class SpanSamplingRule:
                 name_match = self._name_matcher.match(name)
         return service_match and name_match
 
-    def set_sample_rate(self, sample_rate=1.0):
-        self._sample_rate = float(sample_rate)
-        self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
-
     def apply_span_sampling_tags(self, span):
+        # type: (Span) -> None
         span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
         span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
-        if self._max_per_second:
+        # Only set this tag if it's not the default -1
+        if self._max_per_second != -1:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
