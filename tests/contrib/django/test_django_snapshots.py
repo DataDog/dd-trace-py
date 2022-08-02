@@ -99,6 +99,7 @@ def test_middleware_trace_partial_based_view(client):
 
 @pytest.mark.django_db
 @snapshot(
+    ignores=["sqlite.query"],
     variants={
         "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
