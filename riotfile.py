@@ -1215,9 +1215,7 @@ venv = Venv(
         Venv(
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
-            pkgs={
-                "pytest-asyncio": latest,
-            },
+            pkgs={"pytest-asyncio": latest, "async_generator": ["~=1.10"]},
             venvs=[
                 # async_generator 1.10 used because @asynccontextmanager was only available in Python 3.6+
                 # aiobotocore 1.x and higher require Python 3.6 or higher
@@ -1225,21 +1223,18 @@ venv = Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "aiobotocore": ["~=2.0.0", "~=2.1.0", "~=2.2.0", "~=2.3.0"],
-                        "async_generator": ["~=1.10"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "aiobotocore": ["~=1.0.0", "~=1.2.0", "~=1.3.0", "~=1.4.2"],
-                        "async_generator": ["~=1.10"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
                         "aiobotocore": ["~=0.2", "~=0.3", "~=0.4"],
-                        "async_generator": ["~=1.10"],
                     },
                 ),
                 # aiobotocore 0.2 and 0.4 do not work because they use async as a reserved keyword
@@ -1247,14 +1242,12 @@ venv = Venv(
                     pys=select_pys(min_version="3.5", max_version="3.8"),
                     pkgs={
                         "aiobotocore": ["~=0.5", "~=0.7", "~=0.8", "~=0.9"],
-                        "async_generator": ["~=1.10"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
                     pkgs={
                         "aiobotocore": ["~=0.10", "~=0.11"],
-                        "async_generator": ["~=1.10"],
                     },
                 ),
                 # aiobotocore dropped Python 3.5 support in 0.12
@@ -1262,7 +1255,6 @@ venv = Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "aiobotocore": ["~=0.12"],
-                        "async_generator": ["~=1.10"],
                     },
                 ),
             ],
