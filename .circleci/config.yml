@@ -746,6 +746,13 @@ jobs:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
+  graphql:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "graphql"
+          snapshot: true
+
   grpc:
     <<: *machine_executor
     parallelism: 7
@@ -1151,6 +1158,7 @@ requires_tests: &requires_tests
     - flask
     - futures
     - gevent
+    - graphql
     - grpc
     - httplib
     - httpx
@@ -1250,6 +1258,7 @@ workflows:
       - flask: *requires_base_venvs
       - futures: *requires_base_venvs
       - gevent: *requires_base_venvs
+      - graphql: *requires_base_venvs
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
