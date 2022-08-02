@@ -117,7 +117,9 @@ class SpanSamplingRule:
         service=None,  # type: Optional[str]
         name=None,  # type: Optional[str]
     ):
-        self.set_sample_rate(sample_rate)
+        self._sample_rate = sample_rate
+        self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
+
         self._max_per_second = max_per_second
         self._limiter = RateLimiter(max_per_second)
 
@@ -167,11 +169,6 @@ class SpanSamplingRule:
             else:
                 name_match = self._name_matcher.match(name)
         return service_match and name_match
-
-    def set_sample_rate(self, sample_rate):
-        # type: (float) -> None
-        self._sample_rate = sample_rate
-        self._sampling_id_threshold = self._sample_rate * MAX_SPAN_ID
 
     def apply_span_sampling_tags(self, span):
         # type: (Span) -> None
