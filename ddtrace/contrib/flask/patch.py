@@ -106,15 +106,11 @@ def patch():
         "do_teardown_appcontext",
         "send_static_file",
     ]
+    if flask_version < (2, 2, 0):
+        flask_app_traces.append("try_trigger_before_first_request_functions")
+
     for name in flask_app_traces:
         _w("flask", "Flask.{}".format(name), simple_tracer("flask.{}".format(name)))
-
-    if flask_version < (2, 2, 0):
-        _w(
-            "flask",
-            "Flask.try_trigger_before_first_request_functions",
-            simple_tracer("flask.try_trigger_before_first_request_functions"),
-        )
 
     # flask static file helpers
     _w("flask", "send_file", simple_tracer("flask.send_file"))
