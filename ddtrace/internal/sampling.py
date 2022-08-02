@@ -18,8 +18,7 @@ if TYPE_CHECKING:
     from typing import Text
 
     from ddtrace.context import Context
-
-    from ..span import Span
+    from ddtrace.span import Span
 
 # Big prime number to make hashing better distributed
 KNUTH_FACTOR = 1111111111111111111
@@ -177,3 +176,8 @@ class SpanSamplingRule:
         # Only set this tag if it's not the default -1
         if self._max_per_second != -1:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
+
+
+def is_single_span_sampled(span):
+    # type: (Span) -> bool
+    return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
