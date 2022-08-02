@@ -99,13 +99,13 @@ def test_middleware_trace_partial_based_view(client):
 
 @pytest.mark.django_db
 @snapshot(
-    ignores=["sqlite.query"],
+    ignores=["sqlite.query", "postgres.query"],
     variants={
         "18x": django.VERSION < (1, 9),
         "111x": (1, 9) <= django.VERSION < (1, 12),
         "21x": (1, 12) < django.VERSION < (2, 2),
         "": django.VERSION >= (2, 2),
-    }
+    },
 )
 def test_safe_string_encoding(client):
     assert client.get("/safe-template/").status_code == 200
