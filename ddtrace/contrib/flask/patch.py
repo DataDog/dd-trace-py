@@ -103,11 +103,13 @@ def patch():
         "handle_exception",
         "handle_http_exception",
         "handle_user_exception",
-        "try_trigger_before_first_request_functions",
         "do_teardown_request",
         "do_teardown_appcontext",
         "send_static_file",
     ]
+    if flask_version < (2, 2, 0):
+        flask_app_traces.append("try_trigger_before_first_request_functions")
+
     for name in flask_app_traces:
         _w("flask", "Flask.{}".format(name), simple_tracer("flask.{}".format(name)))
 
@@ -185,7 +187,6 @@ def unpatch():
         "Flask.handle_exception",
         "Flask.handle_http_exception",
         "Flask.handle_user_exception",
-        "Flask.try_trigger_before_first_request_functions",
         "Flask.do_teardown_request",
         "Flask.do_teardown_appcontext",
         "Flask.send_static_file",
@@ -236,6 +237,10 @@ def unpatch():
         props.append("appcontext_pushed.receivers_for")
         props.append("appcontext_popped.receivers_for")
         props.append("message_flashed.receivers_for")
+
+    # These were removed in 2.2.0
+    if flask_version < (2, 2, 0):
+        props.append("Flask.try_trigger_before_first_request_functions")
 
     for prop in props:
         # Handle 'flask.request_started.receivers_for'
