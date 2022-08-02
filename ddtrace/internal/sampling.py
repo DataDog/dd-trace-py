@@ -258,27 +258,6 @@ def _check_unsupported_pattern(string):
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-def get_json_env_rules(env_json_rules):
-    # type: (str) -> (List[SpanSamplingRules])
-    try:
-        rules = json.loads(env_json_rules)
-    except JSONDecodeError:
-        raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % env_json_rules)
-    return rules
-
-
-if PY3:
-    SpanSamplingRules = TypedDict(
-        "SpanSamplingRules",
-        {
-            "name": NotRequired[str],
-            "service": NotRequired[str],
-            "sample_rate": NotRequired[float],
-            "max_per_second": NotRequired[int],
-        },
-    )
-
-
 def is_single_span_sampled(span):
     # type: (Span) -> bool
     return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
