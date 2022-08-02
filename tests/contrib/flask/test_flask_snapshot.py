@@ -94,7 +94,7 @@ def flask_client(flask_command, flask_env, flask_port):
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.flask.version"], variants={"220": (2, 2, 0) >= flask_version, "": (2, 2, 0) < flask_version}
+    ignores=["meta.flask.version"], variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)}
 )
 def test_flask_200(flask_client):
     # type: (Client) -> None
@@ -102,7 +102,7 @@ def test_flask_200(flask_client):
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.flask.version"], variants={"220": (2, 2, 0) >= flask_version, "": (2, 2, 0) < flask_version}
+    ignores=["meta.flask.version"], variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)}
 )
 def test_flask_stream(flask_client):
     # type: (Client) -> None
