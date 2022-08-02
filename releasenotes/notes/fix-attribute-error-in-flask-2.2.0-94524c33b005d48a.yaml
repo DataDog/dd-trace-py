@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Flask: version 2.2.0 removes ``try_trigger_before_first_request_functions``
+    flask: remove patching for ``Flask.try_trigger_before_first_request_functions``. This method was removed in flask==2.2.0.
