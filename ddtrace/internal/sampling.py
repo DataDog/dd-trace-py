@@ -5,8 +5,6 @@ import sys
 from typing import Optional
 from typing import TYPE_CHECKING
 
-from six import PY3
-
 
 if sys.version_info >= (3, 7, 0):
     from typing_extensions import NotRequired
