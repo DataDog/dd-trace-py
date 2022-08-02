@@ -55,7 +55,7 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-        "graphql.source": "query HELLO { hello }"
+         "graphql.source": "query HELLO { hello }"
        },
        "duration": 536000,
        "start": 1658848788617622000
@@ -69,9 +69,9 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-        "graphql.operation.name": "HELLO",
-        "graphql.operation.type": "query",
-        "graphql.source": "query HELLO { hello }"
+         "graphql.operation.name": "HELLO",
+         "graphql.operation.type": "query",
+         "graphql.source": "query HELLO { hello }"
        },
        "duration": 224000,
        "start": 1658848788618242000

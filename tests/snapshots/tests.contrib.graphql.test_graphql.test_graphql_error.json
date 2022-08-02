@@ -34,7 +34,7 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-        "graphql.source": "{ invalid_schema }"
+         "graphql.source": "{ invalid_schema }"
        },
        "duration": 112000,
        "start": 1658848788529771000
