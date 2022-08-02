@@ -69,12 +69,18 @@ def test_logs_after_fork(ddtrace_run_python_code_in_subprocess):
     # Regression test: telemetry writer should not log an error when a process forks
     _, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
-import ddtrace
+import httpretty
 import logging
 import os
+from ddtrace.internal.telemetry import telemetry_writer
 
 logging.basicConfig() # required for python 2.7
-ddtrace.internal.telemetry.telemetry_writer.enable()
+
+# avoid sending telemetry events to the agent
+httpretty.enable(allow_net_connect=False)
+httpretty.register_uri(httpretty.POST, telemetry_writer.url)
+
+telemetry_writer.enable()
 os.fork()
 """,
     )
