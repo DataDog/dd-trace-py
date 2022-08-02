@@ -199,8 +199,12 @@ class PylonsTestCase(TracerTestCase):
         assert_span_http_status_code(span, 200)
         if config.pylons.trace_query_string:
             assert span.get_tag(http.QUERY_STRING) == query_string
+            if config._appsec:
+                assert _context.get_item("http.request.uri", span=span) == "http://localhost:80/?" + query_string
         else:
             assert http.QUERY_STRING not in span.get_tags()
+            if config._appsec:
+                assert _context.get_item("http.request.uri", span=span) == "http://localhost:80/"
         assert span.error == 0
 
     def test_query_string(self):
@@ -216,6 +220,13 @@ class PylonsTestCase(TracerTestCase):
     def test_multi_query_string_trace(self):
         with self.override_http_config("pylons", dict(trace_query_string=True)):
             return self.test_success_200("foo=bar&foo=baz&x=y")
+
+    def test_appsec_http_raw_uri(self):
+        with self.override_global_config(dict(appsec_enabled=True)):
+            self.test_query_string()
+            self.test_multi_query_string()
+            self.test_query_string_trace()
+            self.test_multi_query_string_trace()
 
     def test_analytics_global_on_integration_default(self):
         """
@@ -512,3 +523,52 @@ class PylonsTestCase(TracerTestCase):
         assert root_span.get_tag("_dd.appsec.json") is None
         span = _context.get_item("http.request.cookies", span=root_span)
         assert span["testingcookie_key"] == "testingcookie_value"
+
+    def test_request_method_get_200(self):
+        res = self.app.get(url_for(controller="root", action="index"))
+        assert res.status == 200
+        spans = self.pop_spans()
+        assert spans[0].get_tag("http.method") == "GET"
+
+    def test_request_method_get_404(self):
+        with pytest.raises(Exception):
+            res = self.app.get(url_for(controller="root", action="index") + "nonexistent-path")
+            assert res.status == 404
+        spans = self.pop_spans()
+        assert spans[0].get_tag("http.method") == "GET"
+
+    def test_request_method_post_200(self):
+        res = self.app.post(url_for(controller="root", action="index"))
+        assert res.status == 200
+        spans = self.pop_spans()
+        assert spans[0].get_tag("http.method") == "POST"
+
+    def test_pylon_path_params(self):
+        self.tracer._appsec_enabled = True
+
+        self.tracer.configure(api_version="v0.4")
+        self.app.get("/path-params/2022/july/")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+        path_params = _context.get_item("http.request.path_params", span=root_span)
+
+        assert path_params["month"] == "july"
+        assert path_params["year"] == "2022"
+
+    def test_pylon_path_params_attack(self):
+        with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            self.tracer._appsec_enabled = True
+
+            self.tracer.configure(api_version="v0.4")
+            self.app.get("/path-params/2022/w00tw00t.at.isc.sans.dfind/")
+
+            spans = self.pop_spans()
+            root_span = spans[0]
+
+            appsec_json = root_span.get_tag("_dd.appsec.json")
+            assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
+
+            query = dict(_context.get_item("http.request.path_params", span=root_span))
+            assert query["month"] == "w00tw00t.at.isc.sans.dfind"
+            assert query["year"] == "2022"

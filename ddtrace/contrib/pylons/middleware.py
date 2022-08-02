@@ -1,9 +1,13 @@
 import sys
+from typing import Any
+from typing import Dict
+from typing import Tuple
 
 from pylons import config
 from webob import Request
 
 from ddtrace import config as ddconfig
+from ddtrace.internal.compat import iteritems
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -43,6 +47,12 @@ class PylonsTraceMiddleware(object):
     def _distributed_tracing(self, distributed_tracing):
         ddconfig.pylons["distributed_tracing"] = asbool(distributed_tracing)
 
+    def _parse_path_params(self, pylon_path_params):  # type: (Tuple[Any, Dict[str, Any]]) -> Dict[str, Any]
+        path_params = {}
+        if len(pylon_path_params) > 0:
+            path_params = {k: v for k, v in iteritems(pylon_path_params[1].copy()) if k not in ["action", "controller"]}
+        return path_params
+
     def __call__(self, environ, start_response):
         request = Request(environ)
         trace_utils.activate_distributed_headers(
@@ -58,7 +68,11 @@ class PylonsTraceMiddleware(object):
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, ddconfig.pylons.get_analytics_sample_rate(use_global_config=True))
 
             trace_utils.set_http_meta(
-                span, ddconfig.pylons, request_headers=request.headers, request_cookies=dict(request.cookies)
+                span,
+                ddconfig.pylons,
+                method=request.method,
+                request_headers=request.headers,
+                request_cookies=dict(request.cookies),
             )
 
             if not span.sampled:
@@ -73,7 +87,11 @@ class PylonsTraceMiddleware(object):
                     response_headers = kwargs.get("response_headers", {})
                 http_code = int(status.split()[0])
                 trace_utils.set_http_meta(
-                    span, ddconfig.pylons, status_code=http_code, response_headers=response_headers
+                    span,
+                    ddconfig.pylons,
+                    method=request.method,
+                    status_code=http_code,
+                    response_headers=response_headers,
                 )
                 return start_response(status, *args, **kwargs)
 
@@ -100,7 +118,7 @@ class PylonsTraceMiddleware(object):
             finally:
                 controller = environ.get("pylons.routes_dict", {}).get("controller")
                 action = environ.get("pylons.routes_dict", {}).get("action")
-
+                path_params = environ.get("wsgiorg.routing_args", [])
                 # There are cases where users re-route requests and manually
                 # set resources. If this is so, don't do anything, otherwise
                 # set the resource to the controller / action that handled it.
@@ -113,12 +131,21 @@ class PylonsTraceMiddleware(object):
                     environ.get("SERVER_PORT"),
                     environ.get("PATH_INFO"),
                 )
+
+                query_string = environ.get("QUERY_STRING")
+
+                raw_uri = url
+                if raw_uri and query_string and ddconfig.pylons.trace_query_string:
+                    raw_uri += "?" + query_string
+
                 trace_utils.set_http_meta(
                     span,
                     ddconfig.pylons,
                     method=environ.get("REQUEST_METHOD"),
                     url=url,
-                    query=environ.get("QUERY_STRING"),
+                    raw_uri=raw_uri,
+                    query=query_string,
+                    request_path_params=self._parse_path_params(path_params),
                 )
                 if controller:
                     span._set_str_tag("pylons.route.controller", controller)
