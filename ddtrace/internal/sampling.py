@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from six import PY3
 
 
-if sys.version >= 3.7:
+if sys.version_info >= (3, 7, 0):
     from typing_extensions import NotRequired
     from typing_extensions import TypedDict
 
@@ -262,7 +262,7 @@ def _check_unsupported_pattern(string):
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-if sys.version >= 3.7:
+if sys.version_info >= (3, 7, 0):
     SpanSamplingRules = TypedDict(
         "SpanSamplingRules",
         {
