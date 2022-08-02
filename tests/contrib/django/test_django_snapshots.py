@@ -98,16 +98,22 @@ def test_middleware_trace_partial_based_view(client):
 
 
 @pytest.mark.django_db
-@snapshot(
-    variants={
-        "18x": django.VERSION < (1, 9),
-        "111x": (1, 9) <= django.VERSION < (1, 12),
-        "21x": (1, 12) < django.VERSION < (2, 2),
-        "": django.VERSION >= (2, 2),
-    }
-)
-def test_safe_string_encoding(client):
-    assert client.get("/safe-template/").status_code == 200
+def test_safe_string_encoding(client, snapshot_context):
+    """test_safe_string_encoding.
+    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces. Until the
+    first request is executed, the SQlite DB isn't create and Django executes the migrations and the snapshot
+    raises: Received unmatched spans: 'sqlite.query'
+    """
+    client.get("/safe-template/")
+    with snapshot_context(
+        variants={
+            "18x": django.VERSION < (1, 9),
+            "111x": (1, 9) <= django.VERSION < (1, 12),
+            "21x": (1, 12) < django.VERSION < (2, 2),
+            "": django.VERSION >= (2, 2),
+        }
+    ):
+        assert client.get("/safe-template/").status_code == 200
 
 
 @snapshot(
@@ -141,20 +147,23 @@ def psycopg2_patched(transactional_db):
     unpatch()
 
 
-@snapshot(ignores=["meta.out.host"])
 @pytest.mark.django_db
-def test_psycopg_query_default(client, psycopg2_patched):
-    """Execute a psycopg2 query on a Django database wrapper"""
+def test_psycopg_query_default(client, snapshot_context, psycopg2_patched):
+    """Execute a psycopg2 query on a Django database wrapper.
+
+    If we use @snapshot decorator in a Django snapshot test, the first test adds DB creation traces
+    """
     from django.db import connections
     from psycopg2.sql import SQL
 
-    query = SQL("""select 'one' as x""")
-    conn = connections["postgres"]
-    with conn.cursor() as cur:
-        cur.execute(query)
-        rows = cur.fetchall()
-        assert len(rows) == 1, rows
-        assert rows[0][0] == "one"
+    with snapshot_context(ignores=["meta.out.host"]):
+        query = SQL("""select 'one' as x""")
+        conn = connections["postgres"]
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+            assert len(rows) == 1, rows
+            assert rows[0][0] == "one"
 
 
 @pytest.mark.skipif(django.VERSION < (3, 0, 0), reason="ASGI not supported in django<3")
