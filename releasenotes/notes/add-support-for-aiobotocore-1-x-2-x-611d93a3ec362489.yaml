@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Adds support for aiobotocore 1.x and 2.x
+    Add support for aiobotocore 1.x and 2.x.
