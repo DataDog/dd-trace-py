@@ -1211,25 +1211,18 @@ venv = Venv(
             },
             venvs=[
                 # async_generator 1.10 used because @asynccontextmanager was only available in Python 3.6+
-                # aiobotocore 2.x and higher require Python 3.6 or higher
+                # aiobotocore 1.x and higher require Python 3.6 or higher
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
-                        "aiobotocore": ["~=2.3"],
+                        "aiobotocore": ["~=2.0.0", "~=2.1.0", "~=2.2.0", "~=2.3.0"],
                         "async_generator": ["~=1.10"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
-                        "aiobotocore": [">=2.0.0,<2.3.0"],
-                        "async_generator": ["~=1.10"],
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.5"),
-                    pkgs={
-                        "aiobotocore": [">=1.0.0,<2.0.0"],
+                        "aiobotocore": ["~=1.0.0", "~=1.2.0", "~=1.3.0", "~=1.4.2"],
                         "async_generator": ["~=1.10"],
                     },
                 ),
