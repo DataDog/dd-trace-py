@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Adds support for aiobotocore 1.x and 2.x
+fixes:
+  - |
+    Prevent aiobotocore patching errors caused by the `ClientResponseContentProxy` import.
