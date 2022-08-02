@@ -207,9 +207,11 @@ def get_span_sampling_rules():
         for rule in json_rules:
             if not isinstance(rule, dict):
                 raise TypeError("rule specified via DD_SPAN_SAMPLING_RULES is not a dictionary:%r" % rule)
+            # If sample_rate not specified default to 100%
             sample_rate = float(rule.get("sample_rate", 1.0))
             service = rule.get("service")
             name = rule.get("name")
+            # If max_per_second not specified default to no limit
             max_per_second = int(rule.get("max_per_second", -1))
             if service is None and name is None:
                 raise ValueError("Neither service or name specified for single span sampling rule:%r" % rule)
@@ -238,7 +240,7 @@ def _check_unsupported_pattern(string):
 
 
 class SpanSamplingRules(TypedDict):
-    name: NotRequired[Optional[str]]
-    service: NotRequired[Optional[str]]
-    sample_rate: NotRequired[Optional[float]]
-    max_per_second: NotRequired[Optional[int]]
+    name: NotRequired[str]
+    service: NotRequired[str]
+    sample_rate: NotRequired[float]
+    max_per_second: NotRequired[int]
