@@ -1,7 +1,11 @@
+from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
+
+
+REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
 
 
 class FlaskStaticFileTestCase(BaseFlaskTestCase):
@@ -16,7 +20,7 @@ class FlaskStaticFileTestCase(BaseFlaskTestCase):
         self.assertEqual(res.data, b"Hello Flask\n")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 9 - REMOVED_SPANS_2_2_0)
 
         req_span = self.find_span_by_name(spans, "flask.request")
         handler_span = self.find_span_by_name(spans, "static")
@@ -57,7 +61,7 @@ class FlaskStaticFileTestCase(BaseFlaskTestCase):
         self.assertEqual(res.status_code, 404)
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 11)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         req_span = self.find_span_by_name(spans, "flask.request")
         handler_span = self.find_span_by_name(spans, "static")

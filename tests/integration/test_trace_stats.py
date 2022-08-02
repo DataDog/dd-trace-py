@@ -8,6 +8,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from ddtrace.sampler import DatadogSampler
+from ddtrace.sampler import SamplingRule
 from tests.utils import override_global_config
 
 from .test_integration import AGENT_VERSION
@@ -142,3 +143,17 @@ def test_top_level(stats_tracer):
         with stats_tracer.trace("parent", service="svc-one"):  # Should have stats
             with stats_tracer.trace("child", service="svc-two"):  # Should have stats
                 pass
+
+
+@pytest.mark.parametrize(
+    "sampling_rule",
+    [SamplingRule(sample_rate=0, service="test"), SamplingRule(sample_rate=1, service="test")],
+)
+@pytest.mark.snapshot()
+def test_single_span_sampling(stats_tracer, sampling_rule):
+    sampler = DatadogSampler([sampling_rule])
+    stats_tracer.configure(sampler=sampler)
+    with stats_tracer.trace("parent", service="test"):
+        with stats_tracer.trace("child") as child:
+            # FIXME: Replace with span sampling rule
+            child.set_metric("_dd.span_sampling.mechanism", 8)
