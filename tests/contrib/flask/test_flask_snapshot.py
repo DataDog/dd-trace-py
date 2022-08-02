@@ -6,10 +6,10 @@ from typing import Dict
 from typing import Generator
 from typing import List
 
-from flask import __version__ as flask_version
 import pytest
 import tenacity
 
+from ddtrace.contrib.flask.patch import flask_version
 from tests.webclient import Client
 
 
@@ -94,7 +94,7 @@ def flask_client(flask_command, flask_env, flask_port):
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.flask.version"], variants={"220": "2.2.0" == flask_version, "": "2.2.0" != flask_version}
+    ignores=["meta.flask.version"], variants={"220": (2, 2, 0) >= flask_version, "": (2, 2, 0) < flask_version}
 )
 def test_flask_200(flask_client):
     # type: (Client) -> None
@@ -102,7 +102,7 @@ def test_flask_200(flask_client):
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.flask.version"], variants={"220": "2.2.0" == flask_version, "": "2.2.0" != flask_version}
+    ignores=["meta.flask.version"], variants={"220": (2, 2, 0) >= flask_version, "": (2, 2, 0) < flask_version}
 )
 def test_flask_stream(flask_client):
     # type: (Client) -> None

@@ -1,13 +1,13 @@
 from flask import Blueprint
-from flask import __version__
 
+from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
 
 
-REMOVED_SPANS_2_2_0 = 1 if __version__ == "2.2.0" else 0
+REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
 
 
 class FlaskHookTestCase(BaseFlaskTestCase):
@@ -128,7 +128,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
-        if __version__ == "2.2.0":
+        if flask_version >= (2, 2, 0):
             self.assertEqual(parent.name, "flask.request")
         else:
             self.assertEqual(parent.name, "flask.try_trigger_before_first_request_functions")
@@ -353,7 +353,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
-        if __version__ == "2.2.0":
+        if flask_version >= (2, 2, 0):
             self.assertEqual(parent.name, "flask.request")
         else:
             self.assertEqual(parent.name, "flask.try_trigger_before_first_request_functions")

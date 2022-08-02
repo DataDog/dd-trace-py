@@ -1,12 +1,11 @@
-from flask import __version__
-
+from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
 
 
-REMOVED_SPANS_2_2_0 = 1 if __version__ == "2.2.0" else 0
+REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
 
 
 class FlaskStaticFileTestCase(BaseFlaskTestCase):

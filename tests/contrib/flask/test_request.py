@@ -18,7 +18,7 @@ from tests.utils import assert_span_http_status_code
 from . import BaseFlaskTestCase
 
 
-REMOVED_SPANS_2_2_0 = 1 if flask.__version__ == "2.2.0" else 0
+REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
 
 
 base_exception_name = "builtins.Exception"
@@ -55,7 +55,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
         ]
-        if flask.__version__ == "2.2.0":
+        if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
                 "flask.preprocess_request",
@@ -375,7 +375,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
         ]
-        if flask.__version__ == "2.2.0":
+        if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
                 "flask.preprocess_request",
@@ -452,7 +452,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
         ]
-        if flask.__version__ == "2.2.0":
+        if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
                 "flask.preprocess_request",
@@ -518,7 +518,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
         ]
-        if flask.__version__ == "2.2.0":
+        if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
                 "flask.preprocess_request",
@@ -593,7 +593,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
         ]
-        if flask.__version__ == "2.2.0":
+        if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
                 "flask.preprocess_request",
@@ -677,7 +677,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.handle_user_exception",
             "flask.handle_exception",
         ]
-        if flask.__version__ == "2.2.0":
+        if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
                 "flask.preprocess_request",
@@ -779,7 +779,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
         ]
-        if flask.__version__ == "2.2.0":
+        if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
                 "flask.preprocess_request",
@@ -882,7 +882,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
             ]
-            if flask.__version__ == "2.2.0":
+            if flask_version >= (2, 2, 0):
                 expected_spans = [
                     "flask.request",
                     "flask.preprocess_request",

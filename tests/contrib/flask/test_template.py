@@ -2,6 +2,7 @@ import flask
 
 from ddtrace import Pin
 from ddtrace.contrib.flask import unpatch
+from ddtrace.contrib.flask.patch import flask_version
 
 from . import BaseFlaskTestCase
 
@@ -49,7 +50,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
 
         self.assertIsNone(spans[0].service)
         self.assertEqual(spans[0].name, "flask.render_template")
-        resource = "tests.contrib.flask" if flask.__version__ == "2.2.0" else "test.html"
+        resource = "tests.contrib.flask" if flask_version >= (2, 2, 0) else "test.html"
         self.assertEqual(spans[0].resource, resource)  # FIXME: should always be 'test.html'?
         self.assertEqual(set(spans[0].get_tags().keys()), set(["flask.template_name", "runtime-id", "_dd.p.dm"]))
         self.assertEqual(spans[0].get_tag("flask.template_name"), resource)  # FIXME: should always be 'test.html'?
@@ -90,7 +91,7 @@ class FlaskTemplateTestCase(BaseFlaskTestCase):
 
         self.assertIsNone(spans[0].service)
         self.assertEqual(spans[0].name, "flask.render_template_string")
-        resource = "tests.contrib.flask" if flask.__version__ == "2.2.0" else "<memory>"
+        resource = "tests.contrib.flask" if flask_version >= (2, 2, 0) else "<memory>"
         self.assertEqual(spans[0].resource, resource)  # FIXME: should always be '<memory>'?
         self.assertEqual(set(spans[0].get_tags().keys()), set(["flask.template_name", "runtime-id", "_dd.p.dm"]))
         self.assertEqual(spans[0].get_tag("flask.template_name"), resource)  # FIXME: should always be '<memory>'?

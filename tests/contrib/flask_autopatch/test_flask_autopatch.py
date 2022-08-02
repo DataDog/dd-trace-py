@@ -2,6 +2,7 @@
 import flask
 
 from ddtrace import Pin
+from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.vendor import wrapt
 from tests.utils import TracerTestCase
@@ -9,7 +10,7 @@ from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 
 
-REMOVED_SPANS_2_2_0 = 1 if flask.__version__ == "2.2.0" else 0
+REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
 
 
 class FlaskAutopatchTestCase(TracerTestCase):
@@ -66,7 +67,7 @@ class FlaskAutopatchTestCase(TracerTestCase):
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
         ]
-        if flask.__version__ == "2.2.0":
+        if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
                 "flask.preprocess_request",
@@ -112,10 +113,10 @@ class FlaskAutopatchTestCase(TracerTestCase):
 
         expected_span_name = (
             "flask.process_response"
-            if flask.__version__ == "2.2.0"
+            if flask_version >= (2, 2, 0)
             else "tests.contrib.flask_autopatch.test_flask_autopatch.index"
         )
         self.assertEqual(handler_span.name, expected_span_name)
-        expected_span_resource = "/" if flask.__version__ != "2.2.0" else "flask.process_response"
+        expected_span_resource = "flask.process_response" if flask_version >= (2, 2, 0) else "/"
         self.assertEqual(handler_span.resource, expected_span_resource)
         self.assertEqual(req_span.error, 0)
