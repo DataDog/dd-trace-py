@@ -87,11 +87,14 @@ def patch():
     # flask.app.Flask traced hook decorators
     flask_hooks = [
         "before_request",
-        "before_first_request",
         "after_request",
         "teardown_request",
         "teardown_appcontext",
     ]
+
+    if flask_version < (2, 2):
+        flask_hooks.append("before_first_request")
+
     for hook in flask_hooks:
         _w("flask", "Flask.{}".format(hook), traced_flask_hook)
     _w("flask", "after_this_request", traced_flask_hook)
@@ -102,11 +105,14 @@ def patch():
         "handle_exception",
         "handle_http_exception",
         "handle_user_exception",
-        "try_trigger_before_first_request_functions",
         "do_teardown_request",
         "do_teardown_appcontext",
         "send_static_file",
     ]
+
+    if flask_version < (2, 2):
+        flask_app_traces.append("try_trigger_before_first_request_functions")
+
     for name in flask_app_traces:
         _w("flask", "Flask.{}".format(name), simple_tracer("flask.{}".format(name)))
 
@@ -125,12 +131,15 @@ def patch():
     bp_hooks = [
         "after_app_request",
         "after_request",
-        "before_app_first_request",
         "before_app_request",
         "before_request",
         "teardown_request",
         "teardown_app_request",
     ]
+
+    if flask_version < (2, 0):
+        bp_hooks.append("before_app_first_request")
+
     for hook in bp_hooks:
         _w("flask", "Blueprint.{}".format(hook), traced_flask_hook)
 
@@ -184,7 +193,6 @@ def unpatch():
         "Flask.handle_exception",
         "Flask.handle_http_exception",
         "Flask.handle_user_exception",
-        "Flask.try_trigger_before_first_request_functions",
         "Flask.do_teardown_request",
         "Flask.do_teardown_appcontext",
         "Flask.send_static_file",
@@ -220,6 +228,9 @@ def unpatch():
         "render_template_string",
         "templating._render",
     ]
+
+    if flask_version < (2, 2):
+        props.append("Flask.try_trigger_before_first_request_functions")
 
     if flask_version >= (2, 0, 0):
         props.append("Flask.register_error_handler")

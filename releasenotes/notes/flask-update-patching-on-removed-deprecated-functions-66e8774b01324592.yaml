@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    flask: removes patching from ``Flask.before_first_request``, ``Blueprint.before_app_first_request``, ``Blueprint.before_app_first_request``, ``Flask.try_trigger_before_first_request_functions``. 
+    These methods were removed or deprecated in ``flask>=2.2.0``.
