@@ -222,6 +222,11 @@ class AppSecSpanProcessor(SpanProcessor):
             if response_headers is not None:
                 data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_headers(response_headers)
 
+        if self._is_needed(_Addresses.SERVER_REQUEST_BODY):
+            body = _context.get_item("http.request.body", span=span)
+            if body is not None:
+                data[_Addresses.SERVER_REQUEST_BODY] = body
+
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
         if res is not None:
