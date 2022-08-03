@@ -10,7 +10,7 @@ cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
 mysql_image: &mysql_image mysql:5.7
-postgres_image: &postgres_image postgres:10.5-alpine
+postgres_image: &postgres_image postgres:11-alpine
 mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
@@ -398,6 +398,14 @@ jobs:
       - run_test:
           pattern: "tracer"
 
+  telemetry:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "telemetry"
+          snapshot: true
+          store_coverage: false
+
   debugger:
     <<: *contrib_job
     parallelism: 7
@@ -737,6 +745,13 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
+
+  graphql:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "graphql"
+          snapshot: true
 
   grpc:
     <<: *machine_executor
@@ -1143,6 +1158,7 @@ requires_tests: &requires_tests
     - flask
     - futures
     - gevent
+    - graphql
     - grpc
     - httplib
     - httpx
@@ -1184,6 +1200,7 @@ requires_tests: &requires_tests
     - starlette
     - test_logging
     - tracer
+    - telemetry
     - debugger
     - appsec
     - tornado
@@ -1241,6 +1258,7 @@ workflows:
       - flask: *requires_base_venvs
       - futures: *requires_base_venvs
       - gevent: *requires_base_venvs
+      - graphql: *requires_base_venvs
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
@@ -1284,6 +1302,7 @@ workflows:
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
+      - telemetry: *requires_base_venvs
       - debugger: *requires_base_venvs
       - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs

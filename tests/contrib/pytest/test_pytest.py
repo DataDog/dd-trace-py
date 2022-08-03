@@ -160,7 +160,7 @@ class TestPytest(TracerTestCase):
                 pytest.param({"a": A("test_name", "value"), "b": [1, 2, 3]}, marks=pytest.mark.skip),
                 pytest.param(MagicMock(value=MagicMock()), marks=pytest.mark.skip),
                 pytest.param(circular_reference, marks=pytest.mark.skip),
-                pytest.param({("x", "y"): 12345}, marks=pytest.mark.skip),
+                pytest.param({("x", "y"): 12345}, marks=pytest.mark.skip)
             ]
             )
             class Test1(object):
@@ -178,7 +178,7 @@ class TestPytest(TracerTestCase):
         expected_params_contains = [
             "test_parameterize_case_complex_objects.A",
             "test_parameterize_case_complex_objects.A",
-            "<function item_param at 0x",
+            "<function item_param>",
             "'a': <test_parameterize_case_complex_objects.A",
             "<MagicMock id=",
             "test_parameterize_case_complex_objects.A",
