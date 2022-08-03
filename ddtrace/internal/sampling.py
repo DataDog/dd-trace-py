@@ -1,18 +1,15 @@
 import json
 import os
 import re
-import sys
 from typing import Optional
 from typing import TYPE_CHECKING
 
 
-if sys.version_info >= (3, 7, 0):
-    from typing_extensions import NotRequired
-
-    try:
-        from typing import TypedDict
-    except ImportError:
-        from typing_extensions import TypedDict
+# TypedDict was added to typing in python 3.8
+try:
+    from typing import TypedDict
+except ImportError:
+    from typing_extensions import TypedDict
 
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
@@ -60,6 +57,18 @@ SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 
 # Use regex to validate trace tag value
 TRACE_TAG_RE = re.compile(r"^-([0-9])$")
+
+
+SpanSamplingRules = TypedDict(
+    "SpanSamplingRules",
+    {
+        "name": str,
+        "service": str,
+        "sample_rate": float,
+        "max_per_second": int,
+    },
+    total=False,
+)
 
 
 def _set_trace_tag(
@@ -243,18 +252,6 @@ def _check_unsupported_pattern(string):
     for char in string:
         if char in unsupported_chars:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
-
-
-if sys.version_info >= (3, 7, 0):
-    SpanSamplingRules = TypedDict(
-        "SpanSamplingRules",
-        {
-            "name": NotRequired[str],
-            "service": NotRequired[str],
-            "sample_rate": NotRequired[float],
-            "max_per_second": NotRequired[int],
-        },
-    )
 
 
 def is_single_span_sampled(span):
