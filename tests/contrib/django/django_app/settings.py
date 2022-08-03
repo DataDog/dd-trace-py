@@ -50,11 +50,13 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.memcached.PyLibMCCache",
         "LOCATION": "127.0.0.1:11211",
     },
-    "python_memcached": {
+}
+
+if django.VERSION <= (4, 1, 0):
+    CACHES["python_memcached"] = {
         "BACKEND": "django.core.cache.backends.memcached.MemcachedCache",
         "LOCATION": "127.0.0.1:11211",
-    },
-}
+    }
 
 SITE_ID = 1
 SECRET_KEY = "not_very_secret_in_tests"
