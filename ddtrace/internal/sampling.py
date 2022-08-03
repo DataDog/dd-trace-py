@@ -207,7 +207,11 @@ def get_span_sampling_rules():
         json_rules = get_json_env_rules(env_json_rules)  # type: List[SpanSamplingRules]
     elif file_json_rules:
         with open(file_json_rules) as f:
-            json_rules = json.loads(f.read())  # type: List[SpanSamplingRules]
+            try:
+                # DEV TODO: refactor this so that you can just pass f.read or env_json_rules to loads and only need to throw these errors once
+                json_rules = json.loads(f.read())  # type: List[SpanSamplingRules]
+            except JSONDecodeError:
+                raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % file_json_rules)
     # No rules specified
     else:
         return []
@@ -256,7 +260,7 @@ def get_json_env_rules(env_json_rules):
     try:
         rules = json.loads(env_json_rules)
     except JSONDecodeError:
-        raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES")
+        raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % env_json_rules)
     return rules
 
 
