@@ -10,6 +10,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.flask import TraceMiddleware
+from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
@@ -143,7 +144,8 @@ class TestFlask(TracerTestCase):
         assert s.get_tag(http.METHOD) == "GET"
 
         t = by_name["flask.template"]
-        assert t.get_tag("flask.template") == "test.html"
+        resource = "tests.contrib.flask.web" if flask_version >= (2, 2, 0) else "test.html"
+        assert t.get_tag("flask.template") == resource
         assert t.parent_id == s.span_id
         assert t.trace_id == s.trace_id
         assert s.start < t.start < t.start + t.duration < end
@@ -218,7 +220,8 @@ class TestFlask(TracerTestCase):
         assert_span_http_status_code(s, 500)
         assert s.get_tag(http.METHOD) == "GET"
         t = by_name["flask.template"]
-        assert t.get_tag("flask.template") == "render_err.html"
+        resource = "tests.contrib.flask.web" if flask_version >= (2, 2, 0) else "render_err.html"
+        assert t.get_tag("flask.template") == resource
         assert t.error == 1
         assert t.parent_id == s.span_id
         assert t.trace_id == s.trace_id
