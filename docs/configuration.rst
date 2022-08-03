@@ -68,7 +68,7 @@ below:
    * - ``DD_INSTRUMENTATION_TELEMETRY_ENABLED``
      - Boolean
      - True
-     - Enables sending telemetry events to the agent.
+     - Enables sending :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
 
        .. _dd-trace-debug:
    * - ``DD_TRACE_DEBUG``
