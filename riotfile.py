@@ -251,6 +251,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="telemetry",
+            command="pytest {cmdargs} tests/telemetry/",
+            pys=select_pys(),
+            pkgs={
+                # httpretty v1.0 drops python 2.7 support
+                "httpretty": "==0.9.7",
+            },
+        ),
+        Venv(
             name="integration",
             pys=select_pys(),
             command="pytest --no-cov {cmdargs} tests/integration/",
