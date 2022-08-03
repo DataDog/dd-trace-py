@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 if sys.version_info >= (3, 7, 0):
     from typing_extensions import NotRequired
+
     try:
         from typing import TypedDict
     except ImportError:
