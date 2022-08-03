@@ -202,47 +202,44 @@ def get_span_sampling_rules():
                 "Defaulting to DD_SPAN_SAMPLING_RULES value."
             )
         )
-        json_rules_raw = env_json_rules
+        json_rules = get_json_env_rules(env_json_rules)  # type: List[SpanSamplingRules]
     elif env_json_rules:
-        json_rules_raw = env_json_rules
+        json_rules = get_json_env_rules(env_json_rules)  # type: List[SpanSamplingRules]
     elif file_json_rules:
         with open(file_json_rules) as f:
-            json_rules_raw = json.load(f)
-
-    if json_rules_raw is None:
-        return []
+            json_rules = json.loads(f.read())  # type: List[SpanSamplingRules]
+    # No rules specified
     else:
-        sampling_rules = []
-        try:
-            json_rules = json.loads(json_rules_raw)  # type: List[SpanSamplingRules]
-            if not isinstance(json_rules, list):
-                raise TypeError("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
-        except JSONDecodeError:
-            raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % json_rules_raw)
-        for rule in json_rules:
-            if not isinstance(rule, dict):
-                raise TypeError("rule specified via DD_SPAN_SAMPLING_RULES is not a dictionary:%r" % rule)
-            # If sample_rate not specified default to 100%
-            sample_rate = float(rule.get("sample_rate", 1.0))
-            service = rule.get("service")
-            name = rule.get("name")
-            # If max_per_second not specified default to no limit
-            max_per_second = int(rule.get("max_per_second", -1))
-            if service is None and name is None:
-                raise ValueError("Neither service or name specified for single span sampling rule:%r" % rule)
-            if service:
-                _check_unsupported_pattern(service)
-            if name:
-                _check_unsupported_pattern(name)
+        return []
 
-            try:
-                sampling_rule = SpanSamplingRule(
-                    sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
-                )
-            except Exception as e:
-                raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
-            sampling_rules.append(sampling_rule)
-        return sampling_rules
+    if not isinstance(json_rules, list):
+        raise TypeError("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
+
+    sampling_rules = []
+    for rule in json_rules:
+        if not isinstance(rule, dict):
+            raise TypeError("rule specified via DD_SPAN_SAMPLING_RULES is not a dictionary:%r" % rule)
+        # If sample_rate not specified default to 100%
+        sample_rate = float(rule.get("sample_rate", 1.0))
+        service = rule.get("service")
+        name = rule.get("name")
+        # If max_per_second not specified default to no limit
+        max_per_second = int(rule.get("max_per_second", -1))
+        if service is None and name is None:
+            raise ValueError("Neither service or name specified for single span sampling rule:%r" % rule)
+        if service:
+            _check_unsupported_pattern(service)
+        if name:
+            _check_unsupported_pattern(name)
+
+        try:
+            sampling_rule = SpanSamplingRule(
+                sample_rate=sample_rate, service=service, name=name, max_per_second=max_per_second
+            )
+        except Exception as e:
+            raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
+        sampling_rules.append(sampling_rule)
+    return sampling_rules
 
 
 def _check_unsupported_pattern(string):
@@ -252,6 +249,15 @@ def _check_unsupported_pattern(string):
     for char in string:
         if char in unsupported_chars:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
+
+
+def get_json_env_rules(env_json_rules):
+    # type: (str) -> (List[SpanSamplingRules])
+    try:
+        rules = json.loads(env_json_rules)
+    except JSONDecodeError:
+        raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES")
+    return rules
 
 
 if PY3:

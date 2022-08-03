@@ -35,7 +35,7 @@ def test_sampling_rule_init_via_env():
         assert sampling_rules[0]._sample_rate == 1.0
         assert sampling_rules[0]._service_matcher.pattern == "xy?"
         assert sampling_rules[0]._name_matcher.pattern == "a*c"
-        assert sampling_rules[0]._max_per_second is None
+        assert sampling_rules[0]._max_per_second == -1
 
         assert sampling_rules[1]._sample_rate == 0.5
         assert sampling_rules[1]._service_matcher.pattern == "my-service"
@@ -48,7 +48,7 @@ def test_sampling_rule_init_via_env():
         sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._sample_rate == 1.0
         assert sampling_rules[0]._service_matcher.pattern == "xyz"
-        assert sampling_rules[0]._max_per_second is None
+        assert sampling_rules[0]._max_per_second == -1
         assert len(sampling_rules) == 1
 
     # Testing for only name being set
@@ -56,7 +56,74 @@ def test_sampling_rule_init_via_env():
         sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._sample_rate == 1.0
         assert sampling_rules[0]._name_matcher.pattern == "xyz"
-        assert sampling_rules[0]._max_per_second is None
+        assert sampling_rules[0]._max_per_second == -1
+        assert len(sampling_rules) == 1
+
+    # Testing error thrown when neither name nor service is set
+    with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"sample_rate":1.0}]')):
+        with pytest.raises(ValueError):
+            sampling_rules = get_span_sampling_rules()
+
+    # Testing exception thrown when service pattern contains unsupported char
+    with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"h[!a]i"}]')):
+        with pytest.raises(ValueError):
+            sampling_rules = get_span_sampling_rules()
+
+    # Testing exception thrown when name pattern contains unsupported char
+    with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"name":"h[!a]i"}]')):
+        with pytest.raises(ValueError):
+            sampling_rules = get_span_sampling_rules()
+
+
+def test_sampling_rule_init_via_file(tmpdir):
+    # Testing single sampling rule
+    file = tmpdir.mkdir("data").join("rules.json")
+    file.write('[{"sample_rate":0.5,"service":"xyz","name":"abc","max_per_second":100}]')
+    log = open(str(file), "r")
+    for line in log:
+        print(repr(line))
+
+    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
+        sampling_rules = get_span_sampling_rules()
+        assert sampling_rules[0]._sample_rate == 0.5
+        assert sampling_rules[0]._service_matcher.pattern == "xyz"
+        assert sampling_rules[0]._name_matcher.pattern == "abc"
+        assert sampling_rules[0]._max_per_second == 100
+        assert len(sampling_rules) == 1
+
+    # Testing multiple sampling rules
+    with override_env(
+        dict(
+            DD_SPAN_SAMPLING_RULES='[{"service":"xy?","name":"a*c"}, \
+            {"sample_rate":0.5,"service":"my-service","name":"my-name", "max_per_second":20}]'
+        )
+    ):
+        sampling_rules = get_span_sampling_rules()
+        assert sampling_rules[0]._sample_rate == 1.0
+        assert sampling_rules[0]._service_matcher.pattern == "xy?"
+        assert sampling_rules[0]._name_matcher.pattern == "a*c"
+        assert sampling_rules[0]._max_per_second == -1
+
+        assert sampling_rules[1]._sample_rate == 0.5
+        assert sampling_rules[1]._service_matcher.pattern == "my-service"
+        assert sampling_rules[1]._name_matcher.pattern == "my-name"
+        assert sampling_rules[1]._max_per_second == 20
+        assert len(sampling_rules) == 2
+
+    # Testing for only service being set
+    with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"xyz"}]')):
+        sampling_rules = get_span_sampling_rules()
+        assert sampling_rules[0]._sample_rate == 1.0
+        assert sampling_rules[0]._service_matcher.pattern == "xyz"
+        assert sampling_rules[0]._max_per_second == -1
+        assert len(sampling_rules) == 1
+
+    # Testing for only name being set
+    with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"name":"xyz"}]')):
+        sampling_rules = get_span_sampling_rules()
+        assert sampling_rules[0]._sample_rate == 1.0
+        assert sampling_rules[0]._name_matcher.pattern == "xyz"
+        assert sampling_rules[0]._max_per_second == -1
         assert len(sampling_rules) == 1
 
     # Testing error thrown when neither name nor service is set
