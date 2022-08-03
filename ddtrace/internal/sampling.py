@@ -229,7 +229,10 @@ def get_span_sampling_rules():
             # If max_per_second not specified default to no limit
             max_per_second = int(rule.get("max_per_second", -1))
             if service is None and name is None:
-                raise ValueError("Neither service or name specified for single span sampling rule:%r" % rule)
+                raise ValueError(
+                    "Neither service or name specified for single span sampling rule:%r,"
+                    "at least one of these must be specified" % rule
+                )
             if service:
                 _check_unsupported_pattern(service)
             if name:
