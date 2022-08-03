@@ -5,7 +5,7 @@ set -eu
 PREFIX=${1}
 
 AUSTIN_INTERVAL=200  # usec
-AUSTIN_EXPOSURE=10  # sec
+AUSTIN_EXPOSURE=5  # sec
 
 test -f ${PREFIX}/gunicorn.pid && (kill -9 `cat ${PREFIX}/gunicorn.pid` ; sleep 3) || rm -f ${PREFIX}/gunicorn.pid
 pkill k6 || true
@@ -18,7 +18,7 @@ function profile_with_load {
 
     sleep 3
     ${PREFIX}/k6*/k6 run --quiet scripts/profiles/django-simple/k6-load.js &
-        sleep 1
+        sleep 2
         sudo ${PREFIX}/austin -sCi ${AUSTIN_INTERVAL} -o ${PREFIX}/artifacts/${name}.austin -p `cat ${PREFIX}/gunicorn.pid` -x ${AUSTIN_EXPOSURE}
     pkill k6
 }
