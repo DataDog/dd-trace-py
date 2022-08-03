@@ -1,0 +1,9 @@
+start: &base
+  nspans: 1000
+  allenabled: false
+all-enabled:
+  <<: *base
+  allenabled: false
+all-disabled:
+  <<: *base
+  allenabled: false
