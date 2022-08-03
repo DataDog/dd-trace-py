@@ -220,9 +220,9 @@ class _ProfilerInstance(service.Service):
 
         if exporters:
             if self._lambda_function_name:
-                scheduler_class = serverless_scheduler.ServerlessScheduler
+                scheduler_class = serverless_scheduler.ServerlessScheduler # type: Union[type[scheduler.Scheduler], type[serverless_scheduler.ServerlessScheduler]]
             else:
-                scheduler_class = scheduler.Scheduler  # type: ignore[assignment]
+                scheduler_class = scheduler.Scheduler
             self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
 
         self.set_asyncio_event_loop_policy()
