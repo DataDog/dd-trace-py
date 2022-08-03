@@ -51,6 +51,11 @@ def redact_query_string(query_string, query_string_obfuscation_pattern):
 
 def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     # type: (str, re.Pattern, Optional[str]) -> bytes
+
+    # Avoid further processing if obfuscation is disabled
+    if query_string_obfuscation_pattern is None:
+        return url.encode("utf-8")
+
     parts = compat.parse.urlparse(url)
     redacted_query = None
 
@@ -62,13 +67,14 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     if redacted_query is not None:
         redacted_parts = parts[:4] + (redacted_query,) + parts[5:]  # type: Tuple[Union[str, bytes], ...]
         bytes_redacted_parts = tuple(x if isinstance(x, bytes) else x.encode("utf-8") for x in redacted_parts)
-        return urlunsplit(bytes_redacted_parts)
+        return urlunsplit(bytes_redacted_parts, url)
 
+    # If no obfuscation is performed, return original url
     return url.encode("utf-8")
 
 
-def urlunsplit(components):
-    # type: (Tuple[bytes, ...]) -> bytes
+def urlunsplit(components, original_url):
+    # type: (Tuple[bytes, ...], str) -> bytes
     """
     Adaptation from urlunsplit and urlunparse, using bytes components
     """
@@ -81,9 +87,9 @@ def urlunsplit(components):
         url = b"//%s%s" % ((netloc or b""), url)
     if scheme:
         url = b"%s:%s" % (scheme, url)
-    if query:
+    if query or (original_url and original_url[-1] == "?"):
         url = b"%s?%s" % (url, query)
-    if fragment:
+    if fragment or (original_url and original_url[-1] == "#"):
         url = b"%s#%s" % (url, fragment)
     return url
 
