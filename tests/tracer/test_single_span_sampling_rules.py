@@ -259,7 +259,7 @@ def test_wrong_file_path(tmpdir):
     file = tmpdir.mkdir("data").join("rules.json")
     file.write('[{"service":"test_ser","name":"test_na"}]')
     with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE="data/this_doesnt_exist.json")):
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(ValueError):
             sampling_rules = get_span_sampling_rules()
             assert sampling_rules is None
 

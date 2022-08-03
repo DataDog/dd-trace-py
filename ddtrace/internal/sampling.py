@@ -224,8 +224,8 @@ def get_span_sampling_rules():
         with open(file_json_rules) as f:
             try:
                 raw_json_rules = f.read()
-            except JSONDecodeError:
-                raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % file_json_rules)
+            except FileNotFoundError:
+                raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES_FILE=%r" % file_json_rules)
     # No rules specified
     else:
         return []
