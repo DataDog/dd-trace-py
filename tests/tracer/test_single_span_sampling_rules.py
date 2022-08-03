@@ -254,6 +254,16 @@ def test_single_span_rules_do_not_tag_if_tracer_samples_via_file(tmpdir):
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None, trace_sampling=True)
 
 
+def test_wrong_file_path(tmpdir):
+    """Test that single span sampling tags are not applied to spans that do not match rules via file"""
+    file = tmpdir.mkdir("data").join("rules.json")
+    file.write('[{"service":"test_ser","name":"test_na"}]')
+    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE="data/this_doesnt_exist.json")):
+        with pytest.raises(FileNotFoundError):
+            sampling_rules = get_span_sampling_rules()
+            assert sampling_rules is None
+
+
 def test_default_to_env_if_both_env_and_file_config(tmpdir):
     file = tmpdir.mkdir("data").join("rules.json")
     file.write('[{"sample_rate":1.0,"service":"x","name":"ab","max_per_second":1000}]')
