@@ -208,7 +208,6 @@ class SpanSamplingRule:
 
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
-<<<<<<< HEAD
     env_json_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
     file_json_rules = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
     if env_json_rules and file_json_rules:
@@ -223,38 +222,6 @@ def get_span_sampling_rules():
         raw_json_rules = env_json_rules
     elif file_json_rules:
         with open(file_json_rules) as f:
-=======
-    json_rules_raw = os.getenv("DD_SPAN_SAMPLING_RULES")
-    if json_rules_raw is None:
-        return []
-    else:
-        sampling_rules = []
-        try:
-            json_rules = json.loads(json_rules_raw)  # type: List[SpanSamplingRules]
-            if not isinstance(json_rules, list):
-                raise TypeError("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
-        except JSONDecodeError:
-            raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % json_rules_raw)
-        for rule in json_rules:
-            if not isinstance(rule, dict):
-                raise TypeError("rule specified via DD_SPAN_SAMPLING_RULES is not a dictionary:%r" % rule)
-            # If sample_rate not specified default to 100%
-            sample_rate = float(rule.get("sample_rate", 1.0))
-            service = rule.get("service")
-            name = rule.get("name")
-            # If max_per_second not specified default to no limit
-            max_per_second = int(rule.get("max_per_second", -1))
-            if service is None and name is None:
-                raise ValueError(
-                    "Neither service or name specified for single span sampling rule:%r,"
-                    "at least one of these must be specified" % rule
-                )
-            if service:
-                _check_unsupported_pattern(service)
-            if name:
-                _check_unsupported_pattern(name)
-
->>>>>>> d28cc4fd (nit)
             try:
                 raw_json_rules = f.read()
             except JSONDecodeError:
