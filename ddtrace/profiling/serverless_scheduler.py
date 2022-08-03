@@ -4,7 +4,6 @@ import logging
 import attr
 
 from ddtrace.internal import compat
-from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.profiling import scheduler
 
 
