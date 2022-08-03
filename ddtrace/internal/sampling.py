@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING
 
 if sys.version_info >= (3, 7, 0):
     from typing_extensions import NotRequired
-    from typing_extensions import TypedDict
+    try:
+        from typing import TypedDict
+    except ImportError:
+        from typing_extensions import TypedDict
 
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
