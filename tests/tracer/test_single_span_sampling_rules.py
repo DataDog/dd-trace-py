@@ -35,7 +35,7 @@ def test_sampling_rule_init_via_env():
         assert sampling_rules[0]._sample_rate == 1.0
         assert sampling_rules[0]._service_matcher.pattern == "xy?"
         assert sampling_rules[0]._name_matcher.pattern == "a*c"
-        assert sampling_rules[0]._max_per_second is None
+        assert sampling_rules[0]._max_per_second == -1
 
         assert sampling_rules[1]._sample_rate == 0.5
         assert sampling_rules[1]._service_matcher.pattern == "my-service"
@@ -48,7 +48,7 @@ def test_sampling_rule_init_via_env():
         sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._sample_rate == 1.0
         assert sampling_rules[0]._service_matcher.pattern == "xyz"
-        assert sampling_rules[0]._max_per_second is None
+        assert sampling_rules[0]._max_per_second == -1
         assert len(sampling_rules) == 1
 
     # Testing for only name being set
@@ -56,7 +56,7 @@ def test_sampling_rule_init_via_env():
         sampling_rules = get_span_sampling_rules()
         assert sampling_rules[0]._sample_rate == 1.0
         assert sampling_rules[0]._name_matcher.pattern == "xyz"
-        assert sampling_rules[0]._max_per_second is None
+        assert sampling_rules[0]._max_per_second == -1
         assert len(sampling_rules) == 1
 
     # Testing error thrown when neither name nor service is set
