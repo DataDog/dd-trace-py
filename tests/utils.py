@@ -992,7 +992,7 @@ def call_program(*args, **kwargs):
     return stdout, stderr, subp.wait(), subp.pid
 
 
-def pytest_request_token(request):
+def request_token(request):
     # type: (pytest.FixtureRequest) -> str
     token = ""
     token += request.module.__name__

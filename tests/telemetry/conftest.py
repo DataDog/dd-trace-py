@@ -12,7 +12,7 @@ from ddtrace.internal.compat import httplib
 from ddtrace.internal.compat import parse
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.utils.formats import parse_tags_str
-from tests.utils import pytest_request_token
+from tests.utils import request_token
 
 
 @pytest.fixture
@@ -78,7 +78,7 @@ class TelemetryTestSession(object):
 @pytest.fixture
 def test_agent_session(telemetry_writer, request):
     # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
-    token = pytest_request_token(request)
+    token = request_token(request)
 
     telemetry_writer._headers["X-Datadog-Test-Session-Token"] = token
 

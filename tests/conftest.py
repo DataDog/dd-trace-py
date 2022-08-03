@@ -18,7 +18,7 @@ import ddtrace
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
-from tests.utils import pytest_request_token
+from tests.utils import request_token
 from tests.utils import snapshot_context as _snapshot_context
 
 
@@ -78,7 +78,7 @@ def snapshot(request):
         if token:
             del snap.kwargs["token"]
         else:
-            token = pytest_request_token(request).replace(" ", "_").replace(os.path.sep, "_")
+            token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
         with _snapshot_context(token, *snap.args, **snap.kwargs) as snapshot:
             yield snapshot
@@ -96,7 +96,7 @@ def snapshot_context(request):
         with snapshot_context():
             # my code
     """
-    token = pytest_request_token(request)
+    token = request_token(request)
 
     @contextlib.contextmanager
     def _snapshot(**kwargs):
