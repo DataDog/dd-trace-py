@@ -3,8 +3,8 @@ import mock
 
 from ddtrace.internal import compat
 from ddtrace.profiling import exporter
-from ddtrace.profiling import serverless_scheduler
 from ddtrace.profiling import recorder
+from ddtrace.profiling import serverless_scheduler
 
 
 @mock.patch("ddtrace.profiling.scheduler.Scheduler.periodic")
