@@ -50,7 +50,7 @@ def redact_query_string(query_string, query_string_obfuscation_pattern):
 
 
 def redact_url(url, query_string_obfuscation_pattern, query_string=None):
-    # type: (str, re.Pattern, Optional[str]) -> Union[str, bytes]
+    # type: (str, re.Pattern, Optional[str]) -> bytes
     parts = compat.parse.urlparse(url)
     redacted_query = None
 
@@ -64,7 +64,7 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
         bytes_redacted_parts = tuple(x if isinstance(x, bytes) else x.encode("utf-8") for x in redacted_parts)
         return urlunsplit(bytes_redacted_parts)
 
-    return url
+    return url.encode("utf-8")
 
 
 def urlunsplit(components):
