@@ -2,9 +2,11 @@ import json
 
 from ddtrace.ext import http
 from ddtrace.internal import _context
+from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 class FlaskAppSecTestCase(BaseFlaskTestCase):
@@ -116,3 +118,63 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
+
+    def test_flask_body_urlencoded(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
+            self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
+            root_span = self.pop_spans()[0]
+            query = dict(_context.get_item("http.request.body", span=root_span))
+
+            assert root_span.get_tag("_dd.appsec.json") is None
+            assert query == {"mytestingbody_key": "mytestingbody_value"}
+
+    def test_flask_body_urlencoded_appsec_disabled_then_no_body(self):
+        with override_global_config(dict(_appsec_enabled=False)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
+            self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
+            root_span = self.pop_spans()[0]
+            assert not _context.get_item("http.request.body", span=root_span)
+
+    def test_flask_request_body_urlencoded_attack(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = urlencode({"attack": "1' or '1' = '1'"})
+            self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
+            root_span = self.pop_spans()[0]
+            query = dict(_context.get_item("http.request.body", span=root_span))
+            assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+            assert query == {"attack": "1' or '1' = '1'"}
+
+    def test_flask_body_json(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = {"mytestingbody_key": "mytestingbody_value"}
+            self.client.post("/", json=payload, content_type="application/json")
+            root_span = self.pop_spans()[0]
+            query = dict(_context.get_item("http.request.body", span=root_span))
+
+            assert root_span.get_tag("_dd.appsec.json") is None
+            assert query == {"mytestingbody_key": "mytestingbody_value"}
+
+    def test_flask_body_json_attack(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = {"attack": "1' or '1' = '1'"}
+            self.client.post("/", json=payload, content_type="application/json")
+            root_span = self.pop_spans()[0]
+            query = dict(_context.get_item("http.request.body", span=root_span))
+            assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+            assert query == {"attack": "1' or '1' = '1'"}
