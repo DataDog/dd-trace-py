@@ -202,22 +202,25 @@ def get_span_sampling_rules():
                 "Defaulting to DD_SPAN_SAMPLING_RULES value."
             )
         )
-        json_rules = get_json_env_rules(env_json_rules)  # type: List[SpanSamplingRules]
+        raw_json_rules = env_json_rules
     elif env_json_rules:
-        json_rules = get_json_env_rules(env_json_rules)  # type: List[SpanSamplingRules]
+        raw_json_rules = env_json_rules
     elif file_json_rules:
         with open(file_json_rules) as f:
             try:
-                # DEV TODO: refactor this so that you can just pass f.read or env_json_rules to loads and only need to throw these errors once
-                json_rules = json.loads(f.read())  # type: List[SpanSamplingRules]
+                raw_json_rules = f.read()
             except JSONDecodeError:
                 raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % file_json_rules)
     # No rules specified
     else:
         return []
 
-    if not isinstance(json_rules, list):
-        raise TypeError("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
+    try:
+        json_rules = json.loads(raw_json_rules)
+        if not isinstance(json_rules, list):
+            raise TypeError("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
+    except JSONDecodeError:
+        raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % env_json_rules)
 
     sampling_rules = []
     for rule in json_rules:
