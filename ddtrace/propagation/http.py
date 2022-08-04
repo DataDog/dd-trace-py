@@ -66,7 +66,7 @@ def _extract_header_value(possible_header_names, headers, default=None):
     # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
     for header in possible_header_names:
         if header in headers:
-            return headers[header]
+            return ensure_str(headers[header], errors="backslashreplace")
 
     return default
 

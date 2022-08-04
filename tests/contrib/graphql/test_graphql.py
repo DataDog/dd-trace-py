@@ -34,7 +34,7 @@ def test_schema():
 
 @pytest.fixture
 def test_source_str():
-    return "{ hello }"
+    return "query HELLO { hello }"
 
 
 @pytest.fixture
