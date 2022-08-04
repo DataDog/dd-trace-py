@@ -9,10 +9,13 @@ from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.settings import _config as config
 
 
+MOCKED_TIME = 1642544540
+
+
 @pytest.fixture(autouse=True)
 def mock_time():
     with mock.patch("time.time") as mt:
-        mt.return_value = 1642544540
+        mt.return_value = MOCKED_TIME
         yield
 
 
@@ -194,7 +197,7 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session):
 def _get_request_body(payload, payload_type, seq_id=1):
     """used to test the body of requests intercepted by httpretty"""
     return {
-        "tracer_time": 1642544540,
+        "tracer_time": MOCKED_TIME,
         "runtime_id": get_runtime_id(),
         "api_version": "v1",
         "seq_id": seq_id,
