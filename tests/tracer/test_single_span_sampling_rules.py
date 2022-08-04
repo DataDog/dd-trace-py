@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 from ddtrace import Tracer
@@ -257,9 +259,14 @@ def test_single_span_rules_do_not_tag_if_tracer_samples_via_file(tmpdir):
 def test_wrong_file_path(tmpdir):
     """Test that single span sampling tags are not applied to spans that do not match rules via file"""
     with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE="data/this_doesnt_exist.json")):
-        with pytest.raises(FileNotFoundError):
-            sampling_rules = get_span_sampling_rules()
-            assert sampling_rules is None
+        if sys.version_info.major > 3:
+            with pytest.raises(FileNotFoundError):
+                sampling_rules = get_span_sampling_rules()
+                assert sampling_rules is None
+        else:
+            with pytest.raises(IOError):
+                sampling_rules = get_span_sampling_rules()
+                assert sampling_rules is None
 
 
 def test_default_to_env_if_both_env_and_file_config(tmpdir):
@@ -300,4 +307,4 @@ def assert_sampling_decision_tags(
     assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
     if trace_sampling:
-        assert span.get_metric(SAMPLING_PRIORITY_KEY) >= 0
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) > 0
