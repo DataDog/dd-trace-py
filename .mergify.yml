@@ -28,6 +28,12 @@ pull_request_rules:
       - "#approved-reviews-by>=1"
     actions:
       update: {}
+  - name: update approved PRs
+    conditions:
+      - label!=manual merge
+      - "#approved-reviews-by>=2"
+    actions:
+      update: {}
   - name: warn on conflicts
     conditions:
       - conflict

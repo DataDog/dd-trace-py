@@ -33,6 +33,9 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
+       "meta": {
+         "graphql.source": "{ invalid_schema }"
+       },
        "duration": 112000,
        "start": 1658848788529771000
      },
@@ -47,7 +50,8 @@
        "error": 1,
        "meta": {
          "error.msg": "Cannot query field \"invalid_schema\" on type \"RootQueryType\".",
-         "error.type": "graphql.error.base.GraphQLError"
+         "error.type": "graphql.error.base.GraphQLError",
+         "graphql.source": "{ invalid_schema }"
        },
        "duration": 768000,
        "start": 1658848788530031000

@@ -145,6 +145,7 @@ class PylonsTraceMiddleware(object):
                     url=url,
                     raw_uri=raw_uri,
                     query=query_string,
+                    parsed_query=dict(request.GET),
                     request_path_params=self._parse_path_params(path_params),
                 )
                 if controller:

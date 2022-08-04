@@ -174,6 +174,53 @@ def test_extract(tracer):
             }
 
 
+def test_extract_unicode(tracer):
+    """
+    When input data is unicode
+      we decode everything to str for Python2
+
+
+    Cython encoder expects `context.dd_origin` to be `str`
+    which for Python2 means only `str`, and `unicode` is
+    not accepted. If `context.dd_origin` is `unicode`
+    then trace encoding will fail and the trace will be
+    lost.
+    """
+    headers = {
+        u"x-datadog-trace-id": u"1234",
+        u"x-datadog-parent-id": u"5678",
+        u"x-datadog-sampling-priority": u"1",
+        u"x-datadog-origin": u"synthetics",
+        u"x-datadog-tags": u"_dd.p.test=value,any=tag",
+    }
+
+    context = HTTPPropagator.extract(headers)
+
+    tracer.context_provider.activate(context)
+
+    with tracer.trace("local_root_span") as span:
+        assert span.trace_id == 1234
+        assert span.parent_id == 5678
+        assert span.context.sampling_priority == 1
+
+        assert span.context.dd_origin == "synthetics"
+        assert type(span.context.dd_origin) is str
+
+        assert span.context._meta == {
+            "_dd.origin": "synthetics",
+            "_dd.p.test": "value",
+        }
+        with tracer.trace("child_span") as child_span:
+            assert child_span.trace_id == 1234
+            assert child_span.parent_id != 5678
+            assert child_span.context.sampling_priority == 1
+            assert child_span.context.dd_origin == "synthetics"
+            assert child_span.context._meta == {
+                "_dd.origin": "synthetics",
+                "_dd.p.test": "value",
+            }
+
+
 @pytest.mark.parametrize(
     "x_datadog_tags, expected_trace_tags",
     [
