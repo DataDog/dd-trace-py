@@ -1,3 +1,4 @@
+import json
 import sys
 from typing import Any
 from typing import Dict
@@ -85,16 +86,18 @@ class PylonsTraceMiddleware(object):
 
             req_body = None
 
-            # XXX check how to use appsec_enabled here
-            # if ddconfig.pylons._appsec_enabled and request.method in _BODY_METHODS:
-            if request.method in _BODY_METHODS:
-                content_type = getattr(request, "content_type", request.META["CONTENT_TYPE"])
+            if ddconfig._appsec_enabled and request.method in _BODY_METHODS:
+                content_type = getattr(request, "content_type", request.headers.environ.get("CONTENT_TYPE"))
 
                 try:
                     if content_type == "application/x-www-form-urlencoded":
                         req_body = self._unlist_multidict_params(request.POST.dict_of_lists())
                     elif content_type == "application/json":
-                        req_body = request.json
+                        # if pylons>=0.10,<0.11 request.json not exists
+                        if hasattr(request, "json"):
+                            req_body = request.json
+                        else:
+                            req_body = json.loads(request.body.decode("UTF-8"))
                     else:  # text/plain, xml, others: take them as strings
                         req_body = request.body.decode("UTF-8")
 
@@ -106,7 +109,7 @@ class PylonsTraceMiddleware(object):
                 span,
                 ddconfig.pylons,
                 method=request.method,
-                request_headers=request.headers,
+                request_headers=dict(request.headers),
                 request_cookies=dict(request.cookies),
                 request_body=req_body,
             )
