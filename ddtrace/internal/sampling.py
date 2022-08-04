@@ -246,9 +246,9 @@ def get_span_sampling_rules():
         name = rule.get("name")
         # If max_per_second not specified default to no limit
         max_per_second = int(rule.get("max_per_second", -1))
-        if not isinstance(service, (string_types, type(None))):
+        if service is not None and not isinstance(service, string_types):
             raise ValueError("The service value is not a string or None:%r" % service)
-        if not isinstance(name, (string_types, type(None))):
+        if name is not None and not isinstance(name, string_types):
             raise ValueError("The name value is not a string or None:%r" % name)
 
         if service is None and name is None:
