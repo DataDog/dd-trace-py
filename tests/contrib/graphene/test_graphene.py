@@ -36,7 +36,7 @@ def enable_graphql_patching():
 @pytest.fixture
 def test_source_str():
     return """
-    query {
+    {
       patron {
         id
         name
