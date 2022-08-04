@@ -1,9 +1,15 @@
-start: &base
-  nspans: 1000
+start: &defaults
   allenabled: false
+  useragentkey: true
 all-enabled:
-  <<: *base
-  allenabled: false
+  <<: *defaults
+  allenabled: true
+  useragentkey: true
 all-disabled:
-  <<: *base
+  <<: *defaults
   allenabled: false
+  useragentkey: true
+no-useragentkey:
+  <<: *defaults
+  allenabled: true
+  useragentkey: false
