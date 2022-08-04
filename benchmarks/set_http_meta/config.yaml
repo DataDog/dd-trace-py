@@ -1,15 +1,24 @@
 start: &defaults
   allenabled: false
   useragentkey: true
+  useragentvariants: false
 all-enabled:
   <<: *defaults
   allenabled: true
   useragentkey: true
+  useragentvariants: false
 all-disabled:
   <<: *defaults
   allenabled: false
   useragentkey: true
+  useragentvariants: false
 no-useragentkey:
   <<: *defaults
   allenabled: true
   useragentkey: false
+  useragentvariants: false
+useragentvariants:
+  <<: *defaults
+  allenabled: true
+  useragentkey: true
+  useragentvariants: true
