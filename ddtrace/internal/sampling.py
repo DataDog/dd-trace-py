@@ -11,6 +11,8 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
+from six import string_types
+
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
@@ -222,10 +224,7 @@ def get_span_sampling_rules():
         raw_json_rules = env_json_rules
     elif file_json_rules:
         with open(file_json_rules) as f:
-            try:
-                raw_json_rules = f.read()
-            except FileNotFoundError:
-                raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES_FILE=%r" % file_json_rules)
+            raw_json_rules = f.read()
     # No rules specified
     else:
         return []
@@ -247,6 +246,11 @@ def get_span_sampling_rules():
         name = rule.get("name")
         # If max_per_second not specified default to no limit
         max_per_second = int(rule.get("max_per_second", -1))
+        if not isinstance(service, (string_types, type(None))):
+            raise ValueError("The service value is not a string or None:%r" % service)
+        if not isinstance(name, (string_types, type(None))):
+            raise ValueError("The name value is not a string or None:%r" % name)
+
         if service is None and name is None:
             raise ValueError("Neither service or name specified for single span sampling rule:%r" % rule)
         if service:
