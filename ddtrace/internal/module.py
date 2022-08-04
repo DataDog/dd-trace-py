@@ -183,6 +183,9 @@ class _ImportHookChainedLoader(Loader):
     def get_code(self, mod_name):
         return self.loader.get_code(mod_name)
 
+    def get_data(self, mod_name):
+        return self.loader.get_data(mod_name)
+
 
 class ModuleWatchdog(dict):
     """Module watchdog.
