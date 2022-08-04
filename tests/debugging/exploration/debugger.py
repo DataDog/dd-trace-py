@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Tuple
+from warnings import warn
 
 from ddtrace.debugging._config import config
 from ddtrace.debugging._debugger import Debugger
@@ -29,6 +30,10 @@ try:
     _ = os.getenv("VIRTUAL_ENV")
     VENV = os.path.abspath(_) if _ is not None else None
 except TypeError:
+    warn(
+        "No virtual environment detected. Running without a virtual environment active might cause exploration tests "
+        "to instrument more than intended."
+    )
     VENV = None
 
 RUN_MODULE = False  # sys.argv[:1] == ["-m"]

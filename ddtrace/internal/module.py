@@ -309,6 +309,8 @@ class ModuleWatchdog(dict):
 
                 loader.add_callback(type(self), self.after_import)
 
+                return loader
+
         finally:
             self._finding.remove(fullname)
 
