@@ -299,22 +299,17 @@ def test_single_trace_too_large(encoding, monkeypatch):
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()
 
-        try:
-            log.warning.assert_not_called()
-        except AssertionError:
-            calls = [
-                mock.call(
-                    "trace (%db) larger than payload buffer item limit (%db), dropping",
-                    AnyInt(),
-                    AnyInt(),
-                    AnyInt(),
-                    AnyInt(),
-                )
-            ]
-            print(calls)
-            log.warning.assert_has_calls(calls)
-        else:
-            log.error.assert_not_called()
+        calls = [
+            mock.call(
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+                AnyInt(),
+                AnyInt(),
+                AnyInt(),
+                AnyInt(),
+            )
+        ]
+        log.warning.assert_has_calls(calls)
+        log.error.assert_not_called()
 
 
 @allencodings
