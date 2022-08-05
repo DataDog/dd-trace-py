@@ -182,7 +182,7 @@ def _traced_query(func, args, kwargs):
     resource = _get_source_str(source)
 
     with pin.tracer.trace(
-        name="graphql.graphql",
+        name="graphql.request",
         resource=resource,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
