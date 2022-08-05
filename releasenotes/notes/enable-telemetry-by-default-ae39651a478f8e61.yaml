@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Enable :ref:`telemetry <Instrumentation Telemetry>` collection when using ``ddtrace-run``.
+    Enable :ref:`telemetry <Instrumentation Telemetry>` collection when tracing is enabled.
