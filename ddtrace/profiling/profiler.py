@@ -4,7 +4,6 @@ import os
 import typing
 from typing import List
 from typing import Optional
-from typing import Union
 
 import attr
 
@@ -134,7 +133,9 @@ class _ProfilerInstance(service.Service):
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
     _scheduler = attr.ib(
-        init=False, default=None, type=Union[scheduler.Scheduler, serverless_scheduler.ServerlessScheduler]
+        init=False,
+        default=None,
+        type=scheduler.Scheduler,
     )
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
@@ -219,12 +220,10 @@ class _ProfilerInstance(service.Service):
         exporters = self._build_default_exporters()
 
         if exporters:
-            if self._lambda_function_name:
-                scheduler_class = (
-                    serverless_scheduler.ServerlessScheduler
-                )  # type: Union[type[scheduler.Scheduler], type[serverless_scheduler.ServerlessScheduler]]
-            else:
+            if not self._lambda_function_name:
                 scheduler_class = scheduler.Scheduler
+            else:
+                scheduler_class = serverless_scheduler.ServerlessScheduler
             self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
 
         self.set_asyncio_event_loop_policy()
