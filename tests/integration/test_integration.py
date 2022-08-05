@@ -299,7 +299,12 @@ def test_single_trace_too_large(encoding, monkeypatch):
                     s.set_tag("a" * 10, "b" * 10)
         t.shutdown()
 
-        log.warning.assert_not_called()
+        try:
+            assert sys.version_info >= (3, 7)
+            log.warning.assert_not_called()
+        except AssertionError:
+            calls = [mock.call("trace (%db) larger than payload buffer item limit (%db), dropping", AnyInt(), AnyInt())]
+            log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
 
 
