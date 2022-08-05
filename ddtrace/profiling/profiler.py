@@ -19,7 +19,6 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
-from ddtrace.profiling import serverless_scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack

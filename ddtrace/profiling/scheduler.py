@@ -65,3 +65,26 @@ class Scheduler(periodic.PeriodicService):
             self.flush()
         finally:
             self.interval = max(0, self._configured_interval - (compat.monotonic() - start_time))
+
+
+@attr.s
+class ServerlessScheduler(Scheduler):
+    """Serverless scheduler that works on, e.g., AWS Lambda.
+
+    The idea with this scheduler is to not sleep 60s, but to sleep 1s and flush out profiles after 60 sleeping period.
+    As the service can be frozen a few seconds after flushing out a profile, we want to make sure the next flush is not
+    > 60s later, but after at least 60 periods of 1s.
+
+    """
+    _interval = attr.ib(default=1.0, type=float)
+    _profiled_intervals = attr.ib(init=False, default=0)
+
+    def periodic(self):
+        now = compat.time_ns()
+        if (now - self._last_export) >= 60 * 1e9 and self._profiled_intervals >= 60:
+            self._profiled_intervals = 0
+            super(ServerlessScheduler, self).periodic()
+            # Override interval so it's always 1
+            self.interval = 1.0
+        else:
+            self._profiled_intervals += 1
