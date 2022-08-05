@@ -527,18 +527,6 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         # assert no spans were created
         assert tracer.pop() == []
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYMONGO_SERVICE="mysvc"))
-    def test_user_specified_service_integration(self):
-        tracer = DummyTracer()
-        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        Pin.get_from(client).clone(tracer=tracer).onto(client)
-        # We do not wish to trace tcp spans here
-        Pin.get_from(pymongo.server.Server).remove_from(pymongo.server.Server)
-        client["testdb"].drop_collection("whatever")
-        spans = tracer.pop()
-        assert len(spans) == 1
-        assert spans[0].service == "mysvc"
-
 
 class TestPymongoSocketTracing(TracerTestCase):
     """
