@@ -413,8 +413,12 @@ def test_encoder_propagates_dd_origin(Encoder, item):
             with tracer.trace("child"):
                 pass
     trace = tracer._writer.pop()
+    assert trace, "DummyWriter failed to encode the trace"
+
     encoder.put(trace)
     decoded_trace = decode(encoder.encode())
+    assert len(decoded_trace) == 1
+    assert decoded_trace[0]
 
     # Ensure encoded trace contains dd_origin tag in all spans
     assert all((_[item][_ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
