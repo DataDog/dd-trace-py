@@ -24,7 +24,7 @@
   }],
 [
   {
-    "name": "graphql.query",
+    "name": "graphql.request",
     "service": "graphql",
     "resource": "query HELLO { hello }",
     "trace_id": 1,
