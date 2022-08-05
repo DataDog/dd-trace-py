@@ -222,7 +222,7 @@ class _ProfilerInstance(service.Service):
             if not self._lambda_function_name:
                 scheduler_class = scheduler.Scheduler
             else:
-                scheduler_class = serverless_scheduler.ServerlessScheduler
+                scheduler_class = scheduler.ServerlessScheduler
             self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
 
         self.set_asyncio_event_loop_policy()

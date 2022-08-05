@@ -63,7 +63,13 @@ def test_before_flush_failure(caplog):
 def test_serverless_periodic(mock_periodic):
     r = recorder.Recorder()
     s = scheduler.ServerlessScheduler(r, [exporter.NullExporter()])
-    s._last_export = compat.time_ns() - 65 * 1e9
+    # Fake start()
+    s._last_export = compat.time_ns()
+    s.periodic()
+    assert s._profiled_intervals == 1
+    mock_periodic.assert_not_called()
     s._profiled_intervals = 65
     s.periodic()
+    assert s._profiled_intervals == 0
+    assert s.interval == 1
     mock_periodic.assert_called()

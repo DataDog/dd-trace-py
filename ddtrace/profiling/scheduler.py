@@ -76,15 +76,24 @@ class ServerlessScheduler(Scheduler):
     > 60s later, but after at least 60 periods of 1s.
 
     """
-    _interval = attr.ib(default=1.0, type=float)
+
+    # We force this interval everywhere
+    FORCED_INTERVAL = 1.0
+    FLUSH_AFTER_INTERVALS = 60.0
+
+    _interval = attr.ib(default=FORCED_INTERVAL, type=float)
     _profiled_intervals = attr.ib(init=False, default=0)
 
     def periodic(self):
-        now = compat.time_ns()
-        if (now - self._last_export) >= 60 * 1e9 and self._profiled_intervals >= 60:
-            self._profiled_intervals = 0
-            super(ServerlessScheduler, self).periodic()
-            # Override interval so it's always 1
-            self.interval = 1.0
+        # Check both the number of intervals and time frame to be sure we don't flush, e.g., empty profiles
+        if self._profiled_intervals >= self.FLUSH_AFTER_INTERVALS and (compat.time_ns() - self._last_export) >= (
+            self.FORCED_INTERVAL * self.FLUSH_AFTER_INTERVALS
+        ):
+            try:
+                super(ServerlessScheduler, self).periodic()
+            finally:
+                # Override interval so it's always back to the value we n
+                self.interval = self.FORCED_INTERVAL
+                self._profiled_intervals = 0
         else:
             self._profiled_intervals += 1
