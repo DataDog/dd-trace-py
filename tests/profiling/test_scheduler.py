@@ -68,6 +68,7 @@ def test_serverless_periodic(mock_periodic):
     s.periodic()
     assert s._profiled_intervals == 1
     mock_periodic.assert_not_called()
+    s._last_export = compat.time_ns() - 65
     s._profiled_intervals = 65
     s.periodic()
     assert s._profiled_intervals == 0
