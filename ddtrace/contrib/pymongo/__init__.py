@@ -32,7 +32,7 @@ Global Configuration
 
    The option can also be set with the ``DD_PYMONGO_SERVICE`` environment variable
 
-   Default: ``''``
+   Default: ``"pymongo"``
 
 """
 from ...internal.utils.importlib import require_modules
