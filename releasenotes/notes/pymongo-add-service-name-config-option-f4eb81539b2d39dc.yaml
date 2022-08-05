@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add dd_pymongo_service config option
