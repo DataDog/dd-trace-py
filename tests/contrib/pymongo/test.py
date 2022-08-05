@@ -539,6 +539,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert len(spans) == 1
         assert spans[0].service == "mysvc"
 
+
 class TestPymongoSocketTracing(TracerTestCase):
     """
     Test suite which checks that tcp socket creation/retrieval is correctly traced
