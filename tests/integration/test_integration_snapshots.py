@@ -273,3 +273,11 @@ def test_trace_with_wrong_metrics_types_not_sent(metrics):
                 with tracer.trace("child") as child:
                     child._metrics = metrics
         log.exception.assert_called_once_with("error closing trace")
+
+
+@snapshot()
+def test_tracetagsprocessor_only_adds_new_tags():
+    tracer = Tracer()
+    with tracer.trace(name="web.request") as span:
+        span.context.sampling_priority = 1
+        span.set_tag("manual.drop", 1)
