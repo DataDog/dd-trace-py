@@ -18,6 +18,7 @@ import ddtrace
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
+from tests.utils import request_token
 from tests.utils import snapshot_context as _snapshot_context
 
 
@@ -67,14 +68,6 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
     yield _run
 
 
-def _request_token(request):
-    token = ""
-    token += request.module.__name__
-    token += ".%s" % request.cls.__name__ if request.cls else ""
-    token += ".%s" % request.node.name
-    return token
-
-
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
@@ -85,7 +78,7 @@ def snapshot(request):
         if token:
             del snap.kwargs["token"]
         else:
-            token = _request_token(request).replace(" ", "_").replace(os.path.sep, "_")
+            token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
         with _snapshot_context(token, *snap.args, **snap.kwargs) as snapshot:
             yield snapshot
@@ -103,7 +96,7 @@ def snapshot_context(request):
         with snapshot_context():
             # my code
     """
-    token = _request_token(request)
+    token = request_token(request)
 
     @contextlib.contextmanager
     def _snapshot(**kwargs):
