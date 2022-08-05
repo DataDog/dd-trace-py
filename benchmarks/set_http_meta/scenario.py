@@ -102,8 +102,7 @@ DATA_POST = dict(
 
 class SetHttpMeta(bm.Scenario):
     allenabled = bm.var_bool()
-    useragentkey = bm.var_bool()
-    useragentvariants = bm.var_bool()
+    useragentvariant = bm.var(type=str)
 
     def run(self):
         # run scenario to also set tags on spans
@@ -114,19 +113,16 @@ class SetHttpMeta(bm.Scenario):
 
         data = copy.deepcopy(DATA_GET)
 
-        user_agent_keys = []
-        if self.useragentkey:
-            user_agent_keys = ["HTTP_USER_AGENT"]
-            if self.useragentvariants:
-                user_agent_keys = ["HTTP_USER_AGENT", "USER_AGENT", "UserAgent", "User-Agent", "user-agent"]
+        if self.useragentvariant:
+            data["request_headers"][self.useragentvariant] = (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36"
+            )
+
+        span = utils.gen_span(str("test"))
+        span._local_root = utils.gen_span(str("root"))
 
         def bm(loops):
             for _ in range(loops):
-                for user_agent_key in user_agent_keys:
-                    data["request_headers"][user_agent_key] = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " \
-                                                              "(KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36"
-                    span = utils.gen_span(str("test"))
-                    span._local_root = utils.gen_span(str("root"))
-                    set_http_meta(span, config, **data)
-
+                set_http_meta(span, config, **data)
         yield bm
