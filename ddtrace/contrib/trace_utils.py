@@ -69,6 +69,7 @@ NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
 USER_AGENT_PATTERNS = {"HTTP_USER_AGENT", "User-Agent", "user-agent"}
 
+
 @cached()
 def _normalized_header_name(header_name):
     # type: (str) -> str
