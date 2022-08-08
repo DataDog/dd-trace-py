@@ -1,24 +1,21 @@
-start: &defaults
+no-useragentvariant: &all-enabled
   allenabled: true
   useragentvariant: ""
 all-disabled:
-  <<: *defaults
+  <<: *all-enabled
   allenabled: false
-no-useragentvariant:
-  <<: *defaults
-  useragentvariant: ""
-useragentvariant_1:
-  <<: *defaults
+useragentvariant_exists_1:
+  <<: *all-enabled
   useragentvariant: "HTTP_USER_AGENT"
-useragentvariant_2:
-  <<: *defaults
-  useragentvariant: "USER_AGENT"
-useragentvariant_3:
-  <<: *defaults
-  useragentvariant: "UserAgent"
-useragentvariant_4:
-  <<: *defaults
+useragentvariant_exists_2:
+  <<: *all-enabled
   useragentvariant: "User-Agent"
-useragentvariant_5:
-  <<: *defaults
+useragentvariant_exists_3:
+  <<: *all-enabled
   useragentvariant: "user-agent"
+useragentvariant_not_exists_1:
+  <<: *all-enabled
+  useragentvariant: "USER_AGENT"
+useragentvariant_not_exists_2:
+  <<: *all-enabled
+  useragentvariant: "UserAgent"
