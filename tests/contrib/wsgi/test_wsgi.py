@@ -7,7 +7,6 @@ from ddtrace.contrib.wsgi import wsgi
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import PY3
 from tests.utils import override_config
-from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
 
