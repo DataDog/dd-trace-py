@@ -125,4 +125,5 @@ class SetHttpMeta(bm.Scenario):
         def bm(loops):
             for _ in range(loops):
                 set_http_meta(span, config, **data)
+
         yield bm
