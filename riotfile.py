@@ -1213,13 +1213,24 @@ venv = Venv(
             ],
         ),
         Venv(
-            # aiobotocore: aiobotocore>=1.0 not yet supported
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
-            pkgs={
-                "pytest-asyncio": latest,
-            },
+            pkgs={"pytest-asyncio": latest, "async_generator": ["~=1.10"]},
             venvs=[
+                # async_generator 1.10 used because @asynccontextmanager was only available in Python 3.6+
+                # aiobotocore 1.x and higher require Python 3.6 or higher
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "aiobotocore": ["~=2.0.0", "~=2.1.0", "~=2.2.0", "~=2.3.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "aiobotocore": ["~=1.0.0", "~=1.2.0", "~=1.3.0", "~=1.4.2"],
+                    },
+                ),
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
@@ -1243,7 +1254,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
-                        "aiobotocore": "~=0.12",
+                        "aiobotocore": ["~=0.12"],
                     },
                 ),
             ],
@@ -1432,6 +1443,26 @@ venv = Venv(
                         # 3.10 wheels were started to be provided in 1.41
                         # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
                         "grpcio": ["~=1.42.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="graphene",
+            command="pytest {cmdargs} tests/contrib/graphene",
+            pkgs={"pytest-asyncio": latest},
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pkgs={
+                        # requires graphql-core<2.2 which is not supported in python 3.10
+                        "graphene": ["~=2.0.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "graphene": ["~=2.1.9", "~=3.0.0", latest],
                     },
                 ),
             ],
