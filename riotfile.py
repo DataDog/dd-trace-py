@@ -1213,13 +1213,24 @@ venv = Venv(
             ],
         ),
         Venv(
-            # aiobotocore: aiobotocore>=1.0 not yet supported
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
-            pkgs={
-                "pytest-asyncio": latest,
-            },
+            pkgs={"pytest-asyncio": latest, "async_generator": ["~=1.10"]},
             venvs=[
+                # async_generator 1.10 used because @asynccontextmanager was only available in Python 3.6+
+                # aiobotocore 1.x and higher require Python 3.6 or higher
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "aiobotocore": ["~=2.0.0", "~=2.1.0", "~=2.2.0", "~=2.3.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "aiobotocore": ["~=1.0.0", "~=1.2.0", "~=1.3.0", "~=1.4.2"],
+                    },
+                ),
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
@@ -1243,7 +1254,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
-                        "aiobotocore": "~=0.12",
+                        "aiobotocore": ["~=0.12"],
                     },
                 ),
             ],
