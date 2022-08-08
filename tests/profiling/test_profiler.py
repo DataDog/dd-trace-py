@@ -9,6 +9,7 @@ from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
+from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
@@ -378,3 +379,11 @@ def test_default_collectors():
     else:
         assert any(isinstance(c, asyncio.AsyncioLockCollector) for c in p._profiler._collectors)
     p.stop(flush=False)
+
+
+def test_profiler_serverless(monkeypatch):
+    # type: (...) -> None
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
+    p = profiler.Profiler()
+    assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
+    assert p.tags["functionname"] == b"foobar"
