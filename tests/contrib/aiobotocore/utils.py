@@ -33,7 +33,11 @@ async def aiobotocore_client(service, tracer):
         aws_session_token="aws",
     )
 
-    # In aiobotocore 1.x, ClientCreatorContext was added: https://github.com/aio-libs/aiobotocore/pull/659
+    """Check that ClientCreatorContext exists and that client is an expected type before async with
+    ClientCreatorContext was added in aiobotocore 1.x: https://github.com/aio-libs/aiobotocore/pull/659
+    In 0.x, client evaluates to aiobotocore.client.EC2 while in 1.x, client
+    evaluates to aiobotocore.session.ClientCreatorContext
+    """
     if hasattr(aiobotocore.session, "ClientCreatorContext") and isinstance(
         client, aiobotocore.session.ClientCreatorContext
     ):
