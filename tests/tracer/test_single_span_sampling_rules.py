@@ -8,6 +8,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.sampling import SamplingMechanism
+from ddtrace.internal.sampling import get_file_json
 from ddtrace.internal.sampling import get_span_sampling_rules
 from tests.utils import DummyWriter
 
@@ -121,139 +122,23 @@ def test_single_span_rules_do_not_tag_if_tracer_samples_via_env():
         assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None, trace_sampling=True)
 
 
-def test_sampling_rule_init_sngl_rule_via_file(tmpdir):
-    file = tmpdir.join("rules.json")
-    file.write('[{"sample_rate":0.5,"service":"xyz","name":"abc","max_per_second":100}]')
-
-    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        sampling_rules = get_span_sampling_rules()
-        assert sampling_rules[0]._sample_rate == 0.5
-        assert sampling_rules[0]._service_matcher.pattern == "xyz"
-        assert sampling_rules[0]._name_matcher.pattern == "abc"
-        assert sampling_rules[0]._max_per_second == 100
-        assert len(sampling_rules) == 1
-
-
-def test_sampling_rule_init_config_multiple_sampling_rules_via_file(tmpdir):
+def test_sampling_rule_init_config_multiple_sampling_rule_json_via_file(tmpdir):
     file = tmpdir.join("rules.json")
     file.write(
         '[{"service":"xy?","name":"a*c"}, \
-            {"sample_rate":0.5,"service":"my-service","name":"my-name", "max_per_second":20}]'
+            {"sample_rate":0.5,"service":"my-service","name":"my-name", "max_per_second":"20"}]'
     )
 
     with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        sampling_rules = get_span_sampling_rules()
-        assert sampling_rules[0]._sample_rate == 1.0
-        assert sampling_rules[0]._service_matcher.pattern == "xy?"
-        assert sampling_rules[0]._name_matcher.pattern == "a*c"
-        assert sampling_rules[0]._max_per_second == -1
+        sampling_rules = get_file_json()
+        assert sampling_rules[0]["service"] == "xy?"
+        assert sampling_rules[0]["name"] == "a*c"
 
-        assert sampling_rules[1]._sample_rate == 0.5
-        assert sampling_rules[1]._service_matcher.pattern == "my-service"
-        assert sampling_rules[1]._name_matcher.pattern == "my-name"
-        assert sampling_rules[1]._max_per_second == 20
+        assert sampling_rules[1]["sample_rate"] == 0.5
+        assert sampling_rules[1]["service"] == "my-service"
+        assert sampling_rules[1]["name"] == "my-name"
+        assert sampling_rules[1]["max_per_second"] == "20"
         assert len(sampling_rules) == 2
-
-
-def test_sampling_rule_init_config_only_service_via_file(tmpdir):
-    file = tmpdir.join("rules.json")
-    file.write('[{"service":"xyz"}]')
-    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        sampling_rules = get_span_sampling_rules()
-        assert sampling_rules[0]._sample_rate == 1.0
-        assert sampling_rules[0]._service_matcher.pattern == "xyz"
-        assert sampling_rules[0]._max_per_second == -1
-        assert len(sampling_rules) == 1
-
-
-def test_sampling_rule_init_only_name_via_file(tmpdir):
-    file = tmpdir.join("rules.json")
-    file.write('[{"name":"xyz"}]')
-    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        sampling_rules = get_span_sampling_rules()
-        assert sampling_rules[0]._sample_rate == 1.0
-        assert sampling_rules[0]._name_matcher.pattern == "xyz"
-        assert sampling_rules[0]._max_per_second == -1
-        assert len(sampling_rules) == 1
-
-
-def test_exception_thrown_no_name_or_service_via_file(tmpdir):
-    file = tmpdir.join("rules.json")
-    file.write('[{"sample_rate":1.0}]')
-    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        with pytest.raises(ValueError):
-            sampling_rules = get_span_sampling_rules()
-            assert sampling_rules is None
-
-
-def test_exception_thrown_service_unsupported_char_via_file(tmpdir):
-    file = tmpdir.join("rules.json")
-    file.write('[{"service":"h[!a]i"}]')
-    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        with pytest.raises(ValueError):
-            sampling_rules = get_span_sampling_rules()
-            assert sampling_rules is None
-
-
-def test_exception_thrown_name_unsupported_char_via_file(tmpdir):
-    file = tmpdir.join("rules.json")
-    file.write('[{"name":"h[!a]i"}]')
-    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        with pytest.raises(ValueError):
-            sampling_rules = get_span_sampling_rules()
-            assert sampling_rules is None
-
-
-def test_rules_sample_span_via_file(tmpdir):
-    """Test that single span sampling tags are applied to spans that should get sampled when file set"""
-    file = tmpdir.join("rules.json")
-    file.write('[{"service":"test_service","name":"test_name"}]')
-    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        sampling_rules = get_span_sampling_rules()
-        assert sampling_rules[0]._service_matcher.pattern == "test_service"
-        assert sampling_rules[0]._name_matcher.pattern == "test_name"
-        tracer = Tracer()
-        tracer.configure(writer=DummyWriter())
-
-        span = traced_function(tracer)
-
-        assert_sampling_decision_tags(span)
-
-
-def test_rules_do_not_sample_wrong_span_via_file(tmpdir):
-    """Test that single span sampling tags are not applied to spans that do not match rules via file"""
-    file = tmpdir.join("rules.json")
-    file.write('[{"service":"test_ser","name":"test_na"}]')
-    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        sampling_rules = get_span_sampling_rules()
-        assert sampling_rules[0]._service_matcher.pattern == "test_ser"
-        assert sampling_rules[0]._name_matcher.pattern == "test_na"
-        tracer = Tracer()
-        tracer.configure(writer=DummyWriter())
-
-        span = traced_function(tracer)
-
-        assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
-
-
-def test_single_span_rules_do_not_tag_if_tracer_samples_via_file(tmpdir):
-    """Test that single span sampling rules via file aren't applied
-    if a span is already going to be sampled by trace sampler
-    """
-    file = tmpdir.join("rules.json")
-    file.write('[{"service":"test_service","name":"test_name"}]')
-    with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        sampling_rules = get_span_sampling_rules()
-        assert sampling_rules[0]._service_matcher.pattern == "test_service"
-        assert sampling_rules[0]._name_matcher.pattern == "test_name"
-        tracer = Tracer()
-        tracer.configure(writer=DummyWriter())
-
-        span = traced_function(tracer, trace_sampling=True)
-
-        assert sampling_rules[0].match(span) is True
-
-        assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None, trace_sampling=True)
 
 
 def test_wrong_file_path(tmpdir):

@@ -31,6 +31,7 @@ except ImportError:
     JSONDecodeError = ValueError  # type: ignore
 
 if TYPE_CHECKING:
+    from typing import Any
     from typing import Dict
     from typing import List
     from typing import Text
@@ -210,32 +211,7 @@ class SpanSamplingRule:
 
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
-    env_json_rules = os.getenv("DD_SPAN_SAMPLING_RULES")
-    file_json_rules = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
-    if env_json_rules and file_json_rules:
-        log.warning(
-            (
-                "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. "
-                "Defaulting to DD_SPAN_SAMPLING_RULES value."
-            )
-        )
-        raw_json_rules = env_json_rules
-    elif env_json_rules:
-        raw_json_rules = env_json_rules
-    elif file_json_rules:
-        with open(file_json_rules) as f:
-            raw_json_rules = f.read()
-    # No rules specified
-    else:
-        return []
-
-    try:
-        json_rules = json.loads(raw_json_rules)
-        if not isinstance(json_rules, list):
-            raise TypeError("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
-    except JSONDecodeError:
-        raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % env_json_rules)
-
+    json_rules = get_span_sampling_json()
     sampling_rules = []
     for rule in json_rules:
         if not isinstance(rule, dict):
@@ -266,6 +242,55 @@ def get_span_sampling_rules():
             raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
         sampling_rules.append(sampling_rule)
     return sampling_rules
+
+
+def get_span_sampling_json():
+    # type: () -> List[SpanSamplingRule]
+    env_json_rules = get_env_json()
+    file_json_rules = get_file_json()
+
+    if env_json_rules and file_json_rules:
+        log.warning(
+            (
+                "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. "
+                "Defaulting to DD_SPAN_SAMPLING_RULES value."
+            )
+        )
+        return env_json_rules
+    elif env_json_rules:
+        return env_json_rules
+    elif file_json_rules:
+        return file_json_rules
+    # No rules specified
+    else:
+        return []
+
+
+def get_file_json():
+    # type: () -> List[Dict[str, Any]]
+    file_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
+    if file_json_raw:
+        with open(file_json_raw) as f:
+            return load_span_sampling_json(f.read())
+
+
+def get_env_json():
+    # type: () -> List[Dict[str, Any]]
+    env_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES")
+    if env_json_raw:
+        return load_span_sampling_json(env_json_raw)
+
+
+def load_span_sampling_json(raw_json_rules):
+    # type: (str) -> List[Dict[str, Any]]
+    try:
+        json_rules = json.loads(raw_json_rules)
+        if not isinstance(json_rules, list):
+            raise TypeError("DD_SPAN_SAMPLING_RULES is not list, got %r" % json_rules)
+    except JSONDecodeError:
+        raise ValueError("Unable to parse DD_SPAN_SAMPLING_RULES=%r" % raw_json_rules)
+
+    return json_rules
 
 
 def _check_unsupported_pattern(string):
