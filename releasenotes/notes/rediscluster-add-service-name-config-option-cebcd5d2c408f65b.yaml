@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Added dd_rediscluster_service config option
+    rediscluster: add service name configuration with ``DD_REDISCLUSTER_SERVICE``
