@@ -1,3 +1,5 @@
+import typing
+
 import pytest
 import redis
 import redis.asyncio
@@ -12,8 +14,10 @@ from tests.utils import override_config
 from ..config import REDIS_CONFIG
 
 
-def get_redis_instance(max_connections: int):
-    return redis.asyncio.from_url("redis://127.0.0.1:%s" % REDIS_CONFIG["port"], max_connections=max_connections)
+def get_redis_instance(max_connections: int, client_name: typing.Optional[str] = None):
+    return redis.asyncio.from_url(
+        "redis://127.0.0.1:%s" % REDIS_CONFIG["port"], max_connections=max_connections, client_name=client_name
+    )
 
 
 @pytest.mark.asyncio
@@ -208,4 +212,12 @@ async def test_two_traced_pipelines(redis_client):
 async def test_parenting(redis_client):
     with tracer.trace("web-request", service="test"):
         await redis_client.set("blah", "boo")
+        await redis_client.get("blah")
+
+
+@pytest.mark.asyncio
+@pytest.mark.snapshot
+async def test_client_name():
+    with tracer.trace("web-request", service="test"):
+        redis_client = get_redis_instance(10, client_name="testing-client-name")
         await redis_client.get("blah")
