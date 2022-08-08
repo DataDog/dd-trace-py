@@ -76,6 +76,7 @@ formatter
 gRPC
 gevent
 graphql
+graphene
 greenlet
 greenlets
 grpc
