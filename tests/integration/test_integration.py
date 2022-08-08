@@ -289,6 +289,8 @@ def test_metrics_partial_flush_disabled(encoding, monkeypatch):
 @allencodings
 def test_single_trace_too_large(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+    # setting writer interval to 5 seconds so that buffer can fit larger traces
+    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "5.0")
 
     t = Tracer()
     assert t._partial_flush_enabled is True
