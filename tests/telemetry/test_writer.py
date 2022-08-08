@@ -1,6 +1,7 @@
 import os
 import time
 from typing import Any
+from typing import Dict
 
 import httpretty
 import mock
@@ -12,6 +13,8 @@ from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.settings import _config as config
+
+from .conftest import TelemetryTestSession
 
 
 @pytest.fixture(autouse=True)
@@ -282,6 +285,8 @@ def test_app_heartbeat_event_fork(mock_time, telemetry_writer, test_agent_sessio
 
 
 def _assert_app_heartbeat_event(seq_id, test_agent_session):
+    # type: (int, TelemetryWriter, TelemetryTestSession) -> None
+    """used to test heartbeat events received by the testagent"""
     events = test_agent_session.get_events()
     assert len(events) == seq_id
     # The test_agent returns telemetry events in reverse chronological order
@@ -292,7 +297,8 @@ def _assert_app_heartbeat_event(seq_id, test_agent_session):
 
 
 def _get_request_body(payload, payload_type, seq_id=1):
-    """used to test the body of requests intercepted by httpretty"""
+    # type: (Dict, str, int) -> Dict
+    """used to test the body of requests received by the testagent"""
     return {
         "tracer_time": time.time(),
         "runtime_id": get_runtime_id(),
