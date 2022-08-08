@@ -1437,6 +1437,26 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="graphene",
+            command="pytest {cmdargs} tests/contrib/graphene",
+            pkgs={"pytest-asyncio": latest},
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pkgs={
+                        # requires graphql-core<2.2 which is not supported in python 3.10
+                        "graphene": ["~=2.0.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "graphene": ["~=2.1.9", "~=3.0.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="graphql",
             command="pytest {cmdargs} tests/contrib/graphql",
             pkgs={"pytest-asyncio": latest},
