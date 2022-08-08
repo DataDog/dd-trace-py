@@ -29,7 +29,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT = (
     r"(?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+"
     r"PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|"
     r"ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}"
-).encode("ascii")
+)
 
 
 def _parse_propagation_styles(name, default):
@@ -231,7 +231,7 @@ class Config(object):
         self._obfuscation_query_string_pattern = (
             None
             if dd_trace_obfuscation_query_string_pattern == ""
-            else re.compile(dd_trace_obfuscation_query_string_pattern)
+            else re.compile(dd_trace_obfuscation_query_string_pattern.encode("ascii"))
         )
 
     def __getattr__(self, name):
