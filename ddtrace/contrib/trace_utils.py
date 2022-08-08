@@ -50,7 +50,7 @@ RESPONSE = "response"
 NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
 # Possible User Agent header.
-USER_AGENT_PATTERNS = {"HTTP_USER_AGENT", "User-Agent", "user-agent"}
+USER_AGENT_PATTERNS = {"HTTP_USER_AGENT", "User-Agent", "user-agent", "Http-User-Agent"}
 
 
 @cached()

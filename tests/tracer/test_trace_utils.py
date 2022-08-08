@@ -454,13 +454,14 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
         ("HTTP_USER_AGENT", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("Http-User-Agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
         ("HTTP_USER_AGENT", None, ["runtime-id"], None),
         ("HTTP_USER_AGENT", 101234, ["runtime-id"], None),
-        ("UserAgent", True, ["runtime-id", http.USER_AGENT], "True"),
+        ("UserAgent", True, ["runtime-id"], None),
         ("HTTP_USER_AGENT", False, ["runtime-id"], None),
         ("HTTP_USER_AGENT", [], ["runtime-id"], None),
         ("HTTP_USER_AGENT", {}, ["runtime-id"], None),
-        ("User_Agent", ["test1", "test2"], ["runtime-id", http.USER_AGENT], "['test1', 'test2']"),
+        ("User_Agent", ["test1", "test2"], ["runtime-id"], None),
         ("User-Agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
     ],
 )
