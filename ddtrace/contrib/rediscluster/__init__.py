@@ -24,7 +24,7 @@ Global Configuration
 
    The option can also be set with the ``DD_REDISCLUSTER_SERVICE`` environment variable
 
-   Default: ``''``
+   Default: ``'rediscluster'``
 """
 
 from ...internal.utils.importlib import require_modules
