@@ -230,7 +230,7 @@ def test_warn_logs_can_go_to_file(run_python_code_in_subprocess, ddtrace_run_pyt
     env = os.environ.copy()
     log_file = tmpdir.strpath + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
-    env["DD_TRACE_FILE_SIZE_BYTES"] = "200000"
+    env["DD_TRACE_LOG_FILE_SIZE_BYTES"] = "200000"
     patch_code = """
 import logging
 import ddtrace
@@ -346,7 +346,7 @@ def test_debug_logs_can_go_to_file_backup_count(
     log_file = tmpdir.strpath + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
     env["DD_TRACE_DEBUG"] = "true"
-    env["DD_TRACE_FILE_SIZE_BYTES"] = "10"
+    env["DD_TRACE_LOG_FILE_SIZE_BYTES"] = "10"
     code = """
 import logging
 import os
@@ -421,7 +421,7 @@ def test_unknown_log_level_error(run_python_code_in_subprocess, ddtrace_run_pyth
     log_file = tmpdir.strpath + "/testlog.log"
     env["DD_TRACE_LOG_FILE"] = log_file
     env["DD_TRACE_DEBUG"] = "true"
-    env["DD_TRACE_FILE_SIZE_BYTES"] = "10"
+    env["DD_TRACE_LOG_FILE_SIZE_BYTES"] = "10"
     code = """
 import logging
 import ddtrace

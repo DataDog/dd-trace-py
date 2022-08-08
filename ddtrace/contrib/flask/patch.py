@@ -1,5 +1,17 @@
+import json
+
 import flask
 import werkzeug
+from werkzeug.exceptions import BadRequest
+
+
+# Not all versions of flask/werkzeug have this mixin
+try:
+    from werkzeug.wrappers.json import JSONMixin
+
+    _HAS_JSON_MIXIN = True
+except ImportError:
+    _HAS_JSON_MIXIN = False
 
 from ddtrace import Pin
 from ddtrace import config
@@ -27,6 +39,7 @@ FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
 FLASK_URL_RULE = "flask.url_rule"
 FLASK_VERSION = "flask.version"
+_BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 # Configure default configuration
 config._add(
@@ -41,6 +54,15 @@ config._add(
     ),
 )
 
+
+if _HAS_JSON_MIXIN:
+
+    class RequestWithJson(werkzeug.Request, JSONMixin):
+        pass
+
+    _RequestType = RequestWithJson
+else:
+    _RequestType = werkzeug.Request
 
 # Extract flask version into a tuple e.g. (0, 12, 1) or (1, 0, 2)
 # DEV: This makes it so we can do `if flask_version >= (0, 12, 0):`
@@ -102,11 +124,13 @@ def patch():
         "handle_exception",
         "handle_http_exception",
         "handle_user_exception",
-        "try_trigger_before_first_request_functions",
         "do_teardown_request",
         "do_teardown_appcontext",
         "send_static_file",
     ]
+    if flask_version < (2, 2, 0):
+        flask_app_traces.append("try_trigger_before_first_request_functions")
+
     for name in flask_app_traces:
         _w("flask", "Flask.{}".format(name), simple_tracer("flask.{}".format(name)))
 
@@ -184,7 +208,6 @@ def unpatch():
         "Flask.handle_exception",
         "Flask.handle_http_exception",
         "Flask.handle_user_exception",
-        "Flask.try_trigger_before_first_request_functions",
         "Flask.do_teardown_request",
         "Flask.do_teardown_appcontext",
         "Flask.send_static_file",
@@ -235,6 +258,10 @@ def unpatch():
         props.append("appcontext_pushed.receivers_for")
         props.append("appcontext_popped.receivers_for")
         props.append("message_flashed.receivers_for")
+
+    # These were removed in 2.2.0
+    if flask_version < (2, 2, 0):
+        props.append("Flask.try_trigger_before_first_request_functions")
 
     for prop in props:
         # Handle 'flask.request_started.receivers_for'
@@ -292,7 +319,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
     # Create a werkzeug request from the `environ` to make interacting with it easier
     # DEV: This executes before a request context is created
-    request = werkzeug.Request(environ)
+    request = _RequestType(environ)
 
     # Configure distributed tracing
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.flask, request_headers=request.headers)
@@ -318,6 +345,24 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
 
         start_response = _wrap_start_response(start_response, span, request)
 
+        req_body = None
+        if config._appsec_enabled and request.method in _BODY_METHODS:
+            content_type = request.content_type
+            try:
+                if content_type == "application/json":
+                    if _HAS_JSON_MIXIN and hasattr(request, "json"):
+                        req_body = request.json
+                    else:
+                        req_body = json.loads(request.data.decode("UTF-8"))
+                elif hasattr(request, "values"):
+                    req_body = request.values.to_dict()
+                elif hasattr(request, "args"):
+                    req_body = request.args.to_dict()
+                elif hasattr(request, "form"):
+                    req_body = request.form.to_dict()
+            except (AttributeError, RuntimeError, TypeError, BadRequest):
+                log.warning("Failed to parse werkzeug request body", exc_info=True)
+
         # DEV: We set response status code in `_wrap_start_response`
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
         trace_utils.set_http_meta(
@@ -329,6 +374,8 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             query=request.query_string,
             parsed_query=request.args,
             request_headers=request.headers,
+            request_cookies=request.cookies,
+            request_body=req_body,
         )
 
         return wrapped(environ, start_response)
@@ -525,5 +572,6 @@ def _set_request_tags(span):
                 # DEV: Do not use `_set_str_tag` here since view args can be string/int/float/path/uuid/etc
                 #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
                 span.set_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
+            trace_utils.set_http_meta(span, config.flask, request_path_params=request.view_args)
     except Exception:
         log.debug('failed to set tags for "flask.request" span', exc_info=True)

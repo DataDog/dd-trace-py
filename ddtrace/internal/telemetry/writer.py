@@ -16,6 +16,7 @@ from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
+from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
 from .data import get_application
 from .data import get_dependencies
@@ -52,6 +53,14 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
+
+        self._headers = {
+            "Content-type": "application/json",
+            "DD-Telemetry-API-Version": "v1",
+        }  # type: Dict[str, str]
+        additional_header_str = os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            self._headers.update(parse_tags_str(additional_header_str))
 
         # _sequence is a counter representing the number of requests sent by the writer
         self._sequence = 1  # type: int
@@ -215,11 +224,9 @@ class TelemetryWriter(PeriodicService):
     def _create_headers(self, payload_type):
         # type: (str) -> Dict
         """Creates request headers"""
-        return {
-            "Content-type": "application/json",
-            "DD-Telemetry-Request-Type": payload_type,
-            "DD-Telemetry-API-Version": "v1",
-        }
+        headers = self._headers.copy()
+        headers["DD-Telemetry-Request-Type"] = payload_type
+        return headers
 
     def _create_telemetry_request(self, payload, payload_type, sequence_id):
         # type: (Dict, str, int) -> Dict
@@ -241,7 +248,6 @@ class TelemetryWriter(PeriodicService):
         # Avoid sending duplicate events.
         # Queued events should be sent in the main process.
         self._reset_queues()
-        self.start()
 
     def disable(self):
         # type: () -> None

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: Detect attacks on path parameters

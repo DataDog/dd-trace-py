@@ -145,10 +145,10 @@ class _ImportHookLoader(object):
 
 
 class _ImportHookChainedLoader(Loader):
-    def __init__(self, loader, callback):
-        # type: (Loader, Callable[[ModuleType], None]) -> None
+    def __init__(self, loader):
+        # type: (Loader) -> None
         self.loader = loader
-        self.callback = callback
+        self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
 
         # DEV: load_module is deprecated so we define it at runtime if also
         # defined by the default loader. We also check and define for the
@@ -160,10 +160,15 @@ class _ImportHookChainedLoader(Loader):
         if hasattr(loader, "exec_module"):
             self.exec_module = self._exec_module  # type: ignore[assignment]
 
+    def add_callback(self, key, callback):
+        # type: (Any, Callable[[ModuleType], None]) -> None
+        self.callbacks[key] = callback
+
     def _load_module(self, fullname):
         # type: (str) -> ModuleType
         module = self.loader.load_module(fullname)
-        self.callback(module)
+        for callback in self.callbacks.values():
+            callback(module)
 
         return module
 
@@ -172,7 +177,8 @@ class _ImportHookChainedLoader(Loader):
 
     def _exec_module(self, module):
         self.loader.exec_module(module)
-        self.callback(sys.modules[module.__name__])
+        for callback in self.callbacks.values():
+            callback(module)
 
     def get_code(self, mod_name):
         return self.loader.get_code(mod_name)
@@ -297,8 +303,13 @@ class ModuleWatchdog(dict):
                 return _ImportHookLoader(self.after_import)
 
             loader = getattr(find_spec(fullname), "loader", None)
-            if loader and not isinstance(loader, _ImportHookChainedLoader):
-                return _ImportHookChainedLoader(loader, self.after_import)
+            if loader is not None:
+                if not isinstance(loader, _ImportHookChainedLoader):
+                    loader = _ImportHookChainedLoader(loader)
+
+                loader.add_callback(type(self), self.after_import)
+
+                return loader
 
         finally:
             self._finding.remove(fullname)
@@ -319,8 +330,11 @@ class ModuleWatchdog(dict):
 
             loader = getattr(spec, "loader", None)
 
-            if loader and not isinstance(loader, _ImportHookChainedLoader):
-                spec.loader = _ImportHookChainedLoader(loader, self.after_import)
+            if loader is not None:
+                if not isinstance(loader, _ImportHookChainedLoader):
+                    spec.loader = _ImportHookChainedLoader(loader)
+
+                cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
 
             return spec
 
@@ -359,7 +373,7 @@ class ModuleWatchdog(dict):
 
     @classmethod
     def unregister_origin_hook(cls, origin, hook):
-        # type: (str, Any) -> None
+        # type: (str, ModuleHookType) -> None
         """Unregister the hook registered with the given module origin and
         argument.
         """
@@ -467,7 +481,7 @@ class ModuleWatchdog(dict):
                 else:
                     sys.modules = getattr(current, "_modules")
                 cls._instance = None
-                log.debug("ModuleWatchdog uninstalled")
+                log.debug("%s uninstalled", cls)
                 return
             parent = current
             current = current._modules

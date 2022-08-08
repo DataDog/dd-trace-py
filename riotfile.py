@@ -251,6 +251,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="telemetry",
+            command="pytest {cmdargs} tests/telemetry/",
+            pys=select_pys(),
+            pkgs={
+                # httpretty v1.0 drops python 2.7 support
+                "httpretty": "==0.9.7",
+            },
+        ),
+        Venv(
             name="integration",
             pys=select_pys(),
             command="pytest --no-cov {cmdargs} tests/integration/",
@@ -306,11 +315,17 @@ venv = Venv(
         Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
-            pys=select_pys(),
             pkgs={
                 "msgpack": latest,
                 "httpretty": "==0.9.7",
             },
+            venvs=[
+                Venv(pys="2.7"),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={"pytest-asyncio": latest},
+                ),
+            ],
         ),
         Venv(
             name="vendor",
@@ -739,9 +754,8 @@ venv = Venv(
         ),
         Venv(
             name="flask",
-            # TODO: Re-enable coverage for Flask tests
-            command="pytest --no-cov {cmdargs} tests/contrib/flask",
-            pkgs={"blinker": latest},
+            command="pytest {cmdargs} tests/contrib/flask",
+            pkgs={"blinker": latest, "requests": latest, "uwsgi": latest},
             venvs=[
                 # Flask == 0.12.0
                 Venv(
@@ -760,8 +774,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(max_version="3.9"),
-                    # TODO: Re-enable coverage for Flask tests
-                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
@@ -799,8 +812,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(),
-                    # TODO: Re-enable coverage for Flask tests
-                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
@@ -834,8 +846,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    # TODO: Re-enable coverage for Flask tests
-                    command="python tests/ddtrace_run.py pytest --no-cov {cmdargs} tests/contrib/flask_autopatch",
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch",
                     env={
                         "DD_SERVICE": "test.flask.service",
                         "DD_PATCH_MODULES": "jinja2:false",
@@ -852,8 +863,7 @@ venv = Venv(
         ),
         Venv(
             name="flask_cache",
-            # TODO: Re-enable coverage for Flask tests
-            command="pytest --no-cov {cmdargs} tests/contrib/flask_cache",
+            command="pytest {cmdargs} tests/contrib/flask_cache",
             pkgs={
                 "python-memcached": latest,
                 "redis": "~=2.0",
@@ -1156,6 +1166,32 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pymysql",
+            command="pytest {cmdargs} tests/contrib/pymysql",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        "pymysql": [
+                            "~=0.7",
+                            "~=0.8",
+                            "~=0.9",
+                        ],
+                    },
+                ),
+                Venv(
+                    # 1.x dropped support for 2.7 and 3.5
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "pymysql": [
+                            "~=1.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="pyramid",
             venvs=[
                 Venv(
@@ -1396,6 +1432,46 @@ venv = Venv(
                         # 3.10 wheels were started to be provided in 1.41
                         # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
                         "grpcio": ["~=1.42.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="graphene",
+            command="pytest {cmdargs} tests/contrib/graphene",
+            pkgs={"pytest-asyncio": latest},
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pkgs={
+                        # requires graphql-core<2.2 which is not supported in python 3.10
+                        "graphene": ["~=2.0.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "graphene": ["~=2.1.9", "~=3.0.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="graphql",
+            command="pytest {cmdargs} tests/contrib/graphql",
+            pkgs={"pytest-asyncio": latest},
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pkgs={
+                        # graphql-core<2.2 is not supported in python 3.10
+                        "graphql-core": ["~=2.0.0", "~=2.1.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    pkgs={
+                        "graphql-core": ["~=2.2.0", "~=2.3.0", "~=3.0.0", "~=3.1.0", "~=3.2.0", latest],
                     },
                 ),
             ],
