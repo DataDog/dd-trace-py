@@ -281,3 +281,5 @@ def test_tracetagsprocessor_only_adds_new_tags():
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = 1
         span.set_tag("manual.drop", 1)
+
+    tracer.shutdown()
