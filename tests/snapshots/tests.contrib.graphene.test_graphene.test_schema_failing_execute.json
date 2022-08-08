@@ -1,6 +1,6 @@
 [[
   {
-    "name": "graphql.query",
+    "name": "graphql.request",
     "service": "graphql",
     "resource": "{ patron { id name age } }",
     "trace_id": 0,
