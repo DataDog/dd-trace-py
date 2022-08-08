@@ -38,7 +38,7 @@ class TelemetryWriter(PeriodicService):
 
     # telemetry endpoint uses events platform v2 api
     ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
-    HEARTBEAT_INTERVAL = 60  # type: int
+    HEARTBEAT_MIN_INTERVAL = 60  # type: int
 
     def __init__(self, agent_url=None):
         # type: (Optional[str]) -> None
@@ -227,7 +227,7 @@ class TelemetryWriter(PeriodicService):
         #   will queue a heartbeat event every flush:
         #   60 <= X <= flush interval.
         now = time.time()
-        if now - self._last_heartbeat >= TelemetryWriter.HEARTBEAT_INTERVAL:
+        if now - self._last_heartbeat >= TelemetryWriter.HEARTBEAT_MIN_INTERVAL:
             self.add_event({}, "app-heartbeat")
             self._last_heartbeat = now
 
