@@ -990,3 +990,12 @@ def call_program(*args, **kwargs):
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     stdout, stderr = subp.communicate()
     return stdout, stderr, subp.wait(), subp.pid
+
+
+def request_token(request):
+    # type: (pytest.FixtureRequest) -> str
+    token = ""
+    token += request.module.__name__
+    token += ".%s" % request.cls.__name__ if request.cls else ""
+    token += ".%s" % request.node.name
+    return token
