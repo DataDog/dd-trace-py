@@ -88,7 +88,6 @@ def override_global_config(values):
         "health_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
-        "propagation_skip_multiple_extract",
         "_x_datadog_tags_max_length",
         "_x_datadog_tags_enabled",
         "_propagate_service",

@@ -1,9 +1,4 @@
 ---
 fixes:
   - |
-    tracing: fixes issues with nested web frameworks re-extracting HTTP context propgation headers.
-
-    This new behavior can be disabled with::
-
-      import ddtrace
-      ddtrace.config.propagation_skip_multiple_extract = False
+    tracing: fixes issues with nested web frameworks re-extracting HTTP context propagation headers.
