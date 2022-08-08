@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Added dd_rediscluster_service config option
