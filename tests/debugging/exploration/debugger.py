@@ -1,15 +1,17 @@
 import os
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Tuple
+from threading import Thread
+from types import FrameType
+from types import ModuleType
+import typing as t
 from warnings import warn
 
+from ddtrace.context import Context
 from ddtrace.debugging._config import config
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._debugger import DebuggerModuleWatchdog
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
+from ddtrace.debugging._probe.model import ConditionalProbe
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.poller import ProbePollerEvent
 from ddtrace.debugging._snapshot.collector import SnapshotCollector
@@ -36,7 +38,6 @@ except TypeError:
     )
     VENV = None
 
-RUN_MODULE = False  # sys.argv[:1] == ["-m"]
 ENCODE = asbool(os.getenv("DD_DEBUGGER_EXPL_ENCODE", True))
 
 
@@ -45,11 +46,16 @@ class ModuleCollector(DebuggerModuleWatchdog):
         super(ModuleCollector, self).__init__(*args, **kwargs)
 
     def on_collect(self, discovery):
+        # type: (FunctionDiscovery) -> None
         raise NotImplementedError()
 
     def after_import(self, module):
+        # type: (ModuleType) -> None
         o = origin(module)
         if o.startswith(CWD) and not o.startswith(TESTS) and (VENV is None or not o.startswith(VENV)):
+            # We want to instrument only the modules that belong to the codebase
+            # and exclude the modules that belong to the tests and the
+            # dependencies installed within the virtual environment.
             self.on_collect(FunctionDiscovery(module))
 
         return super(ModuleCollector, self).after_import(module)
@@ -104,12 +110,12 @@ class NoopSnapshotJsonEncoder(SnapshotJsonEncoder):
     @classmethod
     def capture_context(
         cls,
-        arguments,  # type: List[Tuple[str, Any]]
-        _locals,  # type: List[Tuple[str, Any]]
+        arguments,  # type: t.List[t.Tuple[str, t.Any]]
+        _locals,  # type: t.List[t.Tuple[str, t.Any]]
         throwable,  # type: ExcInfoType
         level=1,  # type: int
     ):
-        # type: (...) -> Dict[str, Any]
+        # type: (...) -> t.Dict[str, t.Any]
         return {}
 
 
@@ -125,6 +131,7 @@ class ExplorationSnapshotCollector(SnapshotCollector):
         self.on_snapshot = None
 
     def _enqueue(self, snapshot):
+        # type: (Snapshot) -> None
         if ENCODE:
             try:
                 self._snapshots.append(self._encoder.encode(snapshot))
@@ -136,14 +143,17 @@ class ExplorationSnapshotCollector(SnapshotCollector):
             self.on_snapshot(snapshot)
 
     def collect(self, probe, frame, thread, args, context=None):
+        # type: (ConditionalProbe, FrameType, Thread, t.List[t.Tuple[str, t.Any]], t.Optional[Context]) -> SnapshotContext
         return SnapshotContext(self, probe, frame, thread, args, context)
 
     @property
     def snapshots(self):
+        # type: () -> t.List[Snapshot]
         return self._snapshots or [None]
 
     @property
     def probes(self):
+        # type: () -> t.List[Probe]
         return self._probes or [None]
 
 
@@ -157,34 +167,38 @@ class ExplorationDebugger(Debugger):
 
     @classmethod
     def on_disable(cls):
+        # type: () -> None
         raise NotImplementedError()
 
     @classmethod
     def on_snapshot(cls, snapshot):
+        # type: (Snapshot) -> None
         pass
 
     @classmethod
-    def enable(cls, run_module=RUN_MODULE):
+    def enable(cls):
+        # type: () -> None
         config.max_probes = float("inf")
         config.global_rate_limit = float("inf")
         config.metrics = False
 
-        super(ExplorationDebugger, cls).enable(run_module=run_module)
+        super(ExplorationDebugger, cls).enable()
 
         cls._instance._collector.on_snapshot = cls.on_snapshot
 
     @classmethod
     def disable(cls):
+        # type: () -> None
         registry = cls._instance._probe_registry
 
         nprobes = len(registry)
         nokprobes = sum(_.installed for _ in registry.values())
 
         print(("{:=^%ds}" % COLS).format(" %s: probes stats " % cls.__name__))
-        print()
+        print("")
 
         print("Installed probes: %d/%d" % (nokprobes, nprobes))
-        print()
+        print("")
 
         cls.on_disable()
 
@@ -196,12 +210,14 @@ class ExplorationDebugger(Debugger):
 
     @classmethod
     def get_snapshots(cls):
+        # type: () -> t.List[Snapshot]
         if cls._instance is None:
             return None
         return cls._instance._collector.snapshots
 
     @classmethod
     def get_triggered_probes(cls):
+        # type: () -> t.List[Probe]
         if cls._instance is None:
             return None
         return cls._instance._collector.probes
@@ -213,14 +229,24 @@ class ExplorationDebugger(Debugger):
 
     @classmethod
     def add_probes(cls, probes):
-        # type: (List[Probe]) -> None
+        # type: (t.List[Probe]) -> None
         cls._instance._on_poller_event(ProbePollerEvent.NEW_PROBES, probes)
 
     @classmethod
     def delete_probe(cls, probe):
+        # type: (Probe) -> None
         cls._instance._on_poller_event(ProbePollerEvent.DELETED_PROBES, [probe])
 
 
-def status(msg):
-    # print(("{:%d}" % COLS).format(msg), end="\n")
-    pass
+if asbool(os.getenv("DD_DEBUGGER_EXPL_STATUS_MESSAGES", False)):
+
+    def status(msg):
+        # type: (str) -> None
+        print(("{:%d}" % COLS).format(msg))
+
+
+else:
+
+    def status(msg):
+        # type: (str) -> None
+        pass
