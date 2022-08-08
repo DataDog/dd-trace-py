@@ -28,23 +28,19 @@ def flask_wsgi_application():
 @pytest.fixture
 def flask_command(flask_wsgi_application, flask_port):
     # type: (str, str) -> List[str]
-    cmd = (
-        "uwsgi --enable-threads --lazy-apps "
-        "--import=ddtrace.bootstrap.sitecustomize "
-        "--master --processes=1 --http 0.0.0.0:%s "
-        "--module %s"
-    ) % (flask_port, flask_wsgi_application)
-    return cmd.split(" ")
+    cmd = "ddtrace-run flask run -h 0.0.0.0 -p %s" % (flask_port,)
+    return cmd.split()
 
 
 @pytest.fixture
-def flask_env():
-    # type: () -> Dict[str, str]
+def flask_env(flask_wsgi_application):
+    # type: (str) -> Dict[str, str]
     env = os.environ.copy()
     env.update(
         {
             # Avoid noisy database spans being output on app startup/teardown.
             "DD_TRACE_SQLITE3_ENABLED": "0",
+            "FLASK_APP": flask_wsgi_application,
         }
     )
     return env
@@ -87,9 +83,9 @@ def flask_client(flask_command, flask_env, flask_port):
         # but the test agent hasn't necessarily finished processing
         # the traces (race condition) so wait just a bit for that
         # processing to complete.
-        time.sleep(0.2)
+        time.sleep(0.5)
     finally:
-        os.killpg(proc.pid, signal.SIGKILL)
+        os.kill(proc.pid, signal.SIGKILL)
         proc.wait()
 
 
@@ -106,4 +102,4 @@ def test_flask_200(flask_client):
 )
 def test_flask_stream(flask_client):
     # type: (Client) -> None
-    assert flask_client.get("/stream").status_code == 200
+    assert flask_client.get("/stream", stream=True).status_code == 200
