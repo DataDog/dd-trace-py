@@ -49,24 +49,7 @@ RESPONSE = "response"
 # starting a "new object" on the UI.
 NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
-# Permutation of possible User Agent header. Mix of upper, camel case and lower of words
-# "user", "agent", separators such as "-" and "_". the result would be like:
-# ['User-Agent', 'USER-AGENT', 'User_Agent', 'USER_AGENT', 'UserAgent', 'USERAGENT', ...]
-# Its important that 'User-Agent' would be the first element because is the most common case, for this reason
-# this variable is a list instead a set (orders matters)
-# USER_AGENT_PATTERNS = [
-#     "{http}{user}{sep}{agent}".format(http=getattr(h, f)(), user=getattr(u, f)(), sep=sep, agent=getattr(a, f)())
-#     for h, u, sep, a in [
-#         ["", "user", "-", "agent"],
-#         ["", "user", "_", "agent"],
-#         ["", "user", "", "agent"],
-#         ["http-", "user", "-", "agent"],
-#         ["http_", "user", "_", "agent"],
-#         ["http", "user", "", "agent"],
-#     ]
-#     for f in ["title", "upper", "lower"]
-# ]
-
+# Possible User Agent header.
 USER_AGENT_PATTERNS = {"HTTP_USER_AGENT", "User-Agent", "user-agent"}
 
 
