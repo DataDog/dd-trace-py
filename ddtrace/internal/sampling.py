@@ -245,7 +245,7 @@ def get_span_sampling_rules():
 
 
 def get_span_sampling_json():
-    # type: () -> List[SpanSamplingRule]
+    # type: () -> List[Dict[str, Any]]
     env_json_rules = get_env_json()
     file_json_rules = get_file_json()
 
@@ -267,18 +267,22 @@ def get_span_sampling_json():
 
 
 def get_file_json():
-    # type: () -> List[Dict[str, Any]]
+    # type: () -> Optional[List[Dict[str, Any]]]
     file_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
     if file_json_raw:
         with open(file_json_raw) as f:
             return load_span_sampling_json(f.read())
+    else:
+        return None
 
 
 def get_env_json():
-    # type: () -> List[Dict[str, Any]]
+    # type: () -> Optional[List[Dict[str, Any]]]
     env_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES")
     if env_json_raw:
         return load_span_sampling_json(env_json_raw)
+    else:
+        return None
 
 
 def load_span_sampling_json(raw_json_rules):
