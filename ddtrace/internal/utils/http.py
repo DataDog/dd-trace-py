@@ -87,9 +87,9 @@ def urlunsplit(components, original_url):
         url = b"//%s%s" % ((netloc or b""), url)
     if scheme:
         url = b"%s:%s" % (scheme, url)
-    if query or (original_url and original_url[-1] == "?"):
+    if query or (original_url and original_url[-1] in ("?", b"?")):
         url = b"%s?%s" % (url, query)
-    if fragment or (original_url and original_url[-1] == "#"):
+    if fragment or (original_url and original_url[-1] in ("#", b"#")):
         url = b"%s#%s" % (url, fragment)
     return url
 

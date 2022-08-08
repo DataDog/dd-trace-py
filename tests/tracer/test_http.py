@@ -59,7 +59,7 @@ def test_strip_query_string(url):
 @example("://?&?")
 @example("://?&#")
 def test_redact_url_obfuscation_disabled_without_param(url):
-    assert redact_url(url, None, None) == url.encode("utf-8")
+    assert redact_url(url, None, None) == url
 
 
 @given(urls())
@@ -73,7 +73,7 @@ def test_redact_url_obfuscation_disabled_without_param(url):
 @example("://?&?")
 @example("://?&#")
 def test_redact_url_obfuscation_disabled_with_param(url):
-    assert redact_url(url, None, "query_string") == url.encode("utf-8")
+    assert redact_url(url, None, "query_string") == url
 
 
 @given(urls())
@@ -87,7 +87,9 @@ def test_redact_url_obfuscation_disabled_with_param(url):
 @example("://?&?")
 @example("://?&#")
 def test_redact_url_not_redacts_without_param(url):
-    assert redact_url(url, re.compile(b"\\*"), None) == url.encode("utf-8")
+    res = redact_url(url, re.compile(b"\\@"), None)
+    expected_result = url if isinstance(res, str) else url.encode("utf-8")
+    assert res == expected_result
 
 
 @given(urls())
