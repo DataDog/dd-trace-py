@@ -55,6 +55,10 @@ config._add(
     ),
 )
 
+_GRAPHQL_SOURCE = "graphql.source"
+_GRAPHQL_OPERATION_TYPE = "graphql.operation.type"
+_GRAPHQL_OPERATION_NAME = "graphql.operation.name"
+
 
 def patch():
     if getattr(graphql, "_datadog_patch", False):
@@ -103,13 +107,16 @@ def _traced_parse(func, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
+    source = get_argument_value(args, kwargs, 0, "source")
+    source_str = _get_source_str(source)
     # If graphql.parse() is called outside graphql.graphql(), graphql.parse will
     # be a top level span. Therefore we must explicitly set the service name.
     with pin.tracer.trace(
         name="graphql.parse",
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
-    ):
+    ) as span:
+        span._set_str_tag(_GRAPHQL_SOURCE, source_str)
         return func(*args, **kwargs)
 
 
@@ -118,6 +125,8 @@ def _traced_validate(func, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
+    document = get_argument_value(args, kwargs, 1, "ast")
+    source_str = _get_source_str(document)
     # If graphql.validate() is called outside graphql.graphql(), graphql.validate will
     # be a top level span. Therefore we must explicitly set the service name.
     with pin.tracer.trace(
@@ -125,6 +134,7 @@ def _traced_validate(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
+        span._set_str_tag(_GRAPHQL_SOURCE, source_str)
         errors = func(*args, **kwargs)
         _set_span_errors(errors, span)
         return errors
@@ -144,14 +154,17 @@ def _traced_execute(func, args, kwargs):
         document = get_argument_value(args, kwargs, 1, "document_ast")
     else:
         document = get_argument_value(args, kwargs, 1, "document")
-    resource = _get_source_str(document)
+    source_str = _get_source_str(document)
 
     with pin.tracer.trace(
         name="graphql.execute",
-        resource=resource,
+        resource=source_str,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
+        _set_span_operation_tags(span, document)
+        span._set_str_tag(_GRAPHQL_SOURCE, source_str)
+
         result = func(*args, **kwargs)
         if isinstance(result, ExecutionResult):
             # set error tags if the result contains a list of GraphqlErrors, skip if it's a promise
@@ -169,7 +182,7 @@ def _traced_query(func, args, kwargs):
     resource = _get_source_str(source)
 
     with pin.tracer.trace(
-        name="graphql.query",
+        name="graphql.request",
         resource=resource,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
@@ -269,3 +282,19 @@ def _set_span_errors(errors, span):
     # we will not set the error.stack tag on graphql spans. Setting only one traceback
     # could be misleading and might obfuscate errors.
     span._set_str_tag(ERROR_MSG, error_msgs)
+
+
+def _set_span_operation_tags(span, document):
+    operation_def = graphql.get_operation_ast(document)
+    if not operation_def:
+        return
+
+    # operation_def.operation should never be None
+    if _graphql_version < (3, 0):
+        span._set_str_tag(_GRAPHQL_OPERATION_TYPE, operation_def.operation)
+    else:
+        # OperationDefinition.operation is an Enum in graphql-core>=3
+        span._set_str_tag(_GRAPHQL_OPERATION_TYPE, operation_def.operation.value)
+
+    if operation_def.name:
+        span._set_str_tag(_GRAPHQL_OPERATION_NAME, operation_def.name.value)
