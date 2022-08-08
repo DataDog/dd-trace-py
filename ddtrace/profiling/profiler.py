@@ -172,8 +172,8 @@ class _ProfilerInstance(service.Service):
             # to the agent base path.
             endpoint_path = "profiling/v1/input"
 
-        if self._lambda_function_name:
-            self.tags.update({"functionname": self._lambda_function_name.encode()})
+        if self._lambda_function_name is not None:
+            self.tags.update({"functionname": self._lambda_function_name.encode("utf-8")})
 
         return [
             http.PprofHTTPExporter(
@@ -219,7 +219,7 @@ class _ProfilerInstance(service.Service):
         exporters = self._build_default_exporters()
 
         if exporters:
-            if not self._lambda_function_name:
+            if self._lambda_function_name is None:
                 scheduler_class = scheduler.Scheduler
             else:
                 scheduler_class = scheduler.ServerlessScheduler
