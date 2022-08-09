@@ -73,6 +73,18 @@ SpanSamplingRules = TypedDict(
     total=False,
 )
 
+span_sampling_json_schema = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "anyOf": [
+            {"properties": {"service": {"type": "string"}}, "required": ["service"]},
+            {"properties": {"name": {"type": "string"}}, "required": ["name"]},
+        ],
+        "properties": {"max_per_second": {"type": "integer"}, "sample_rate": {"type": "number"}},
+    },
+}
+
 
 def _set_trace_tag(
     context,  # type: Context
@@ -212,7 +224,7 @@ class SpanSamplingRule:
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
     json_rules = get_span_sampling_json()
-    validate_json(json_rules)
+    validate(json_rules, span_sampling_json_schema)
     sampling_rules = []
     for rule in json_rules:
         # If sample_rate not specified default to 100%
@@ -234,21 +246,6 @@ def get_span_sampling_rules():
             raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
         sampling_rules.append(sampling_rule)
     return sampling_rules
-
-
-def validate_json(json_rules):
-    schema = {
-        "type": "array",
-        "items": {
-            "type": "object",
-            "anyOf": [
-                {"properties": {"service": {"type": "string"}}, "required": ["service"]},
-                {"properties": {"name": {"type": "string"}}, "required": ["name"]},
-            ],
-            "properties": {"max_per_second": {"type": "integer"}, "sample_rate": {"type": "number"}},
-        },
-    }
-    validate(json_rules, schema)
 
 
 def get_span_sampling_json():
