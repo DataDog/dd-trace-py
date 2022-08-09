@@ -156,7 +156,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         )
 
 
-
 def patch():
     """
     Patch `flask` module for tracing
