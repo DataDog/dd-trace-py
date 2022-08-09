@@ -95,8 +95,6 @@ class TracedCursor(wrapt.ObjectProxy):
                     if hasattr(self.__wrapped__, tag):
                         s.set_tag(tag, getattr(self.__wrapped__, tag))
 
-
-
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
