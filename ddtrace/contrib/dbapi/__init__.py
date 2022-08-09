@@ -90,10 +90,11 @@ class TracedCursor(wrapt.ObjectProxy):
                 if isinstance(row_count, six.integer_types) and row_count >= 0:
                     s.set_tag(sql.ROWS, row_count)
                 # Try to fetch custom properties that were passed by the specific Database implementation
-                specific_tags = {tag for tag in pin.tags if not pin.tags[tag]}
-                for tag in specific_tags:
-                    if hasattr(self.__wrapped__, tag):
-                        s.set_tag(tag, getattr(self.__wrapped__, tag))
+                if pin.tags:
+                    specific_tags = {tag for tag in pin.tags if not pin.tags[tag]}
+                    for tag in specific_tags:
+                        if hasattr(self.__wrapped__, tag):
+                            s.set_tag(tag, getattr(self.__wrapped__, tag))
 
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
