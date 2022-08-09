@@ -77,5 +77,5 @@ urlpatterns = [
     handler(r"^404-view/$", views.not_found_view, name="404-view"),
     handler(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
     handler(r"^alter-resource/$", views.alter_resource),
-    handler(r"^identify/$", views.identify, name="shutdown-tracer"),
+    handler(r"^identify/$", views.identify, name="identify"),
 ]
