@@ -61,7 +61,7 @@ def patched_connect(connect_func, _, args, kwargs):
         "db.application": conn.application,
         "db.schema": conn.schema,
         "db.warehouse": conn.warehouse,
-        "sfqid": None # This will be determined after the query done and will be populated inside dbapi/__init__.py/_trace_method
+        "sfqid": None,  # This will be determined after the query done and will be populated inside dbapi/__init__.py/_trace_method
     }
 
     pin = Pin(tags=tags)
