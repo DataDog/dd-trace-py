@@ -1,4 +1,10 @@
+<<<<<<< HEAD
 import os
+=======
+import time
+from typing import Any
+from typing import Dict
+>>>>>>> ef81a03a (test(telemetry): fix broken fork test (#4063))
 
 import httpretty
 import mock
@@ -266,8 +272,107 @@ def test_send_request_exception():
 def test_telemetry_graceful_shutdown(mock_time, mock_send_request, telemetry_writer):
     telemetry_writer.start()
     telemetry_writer.stop()
+<<<<<<< HEAD
     assert len(httpretty.latest_requests()) == 2
     assert httpretty.last_request().parsed_body == _get_request_body({}, "app-closing", 2)
+=======
+
+    events = test_agent_session.get_events()
+    assert len(events) == 2
+
+    # Reverse chronological orger
+    assert events[0]["request_type"] == "app-closing"
+    assert events[0] == _get_request_body({}, "app-closing", 2)
+    assert events[1]["request_type"] == "app-started"
+
+
+def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
+    # type: (mock.Mock, Any, TelemetryWriter) -> None
+    """asserts that we queue/send app-heartbeat event every 60 seconds when periodc() is called"""
+
+    # Assert clean slate
+    events = test_agent_session.get_events()
+    assert len(events) == 0
+
+    # Assert first flush does not queue any events
+    events = test_agent_session.get_events()
+    assert len(events) == 0
+
+    # Advance time 60 seconds
+    mock_time.return_value += 60
+
+    # Assert next flush contains app-heartbeat event
+    telemetry_writer.periodic()
+    _assert_app_heartbeat_event(1, test_agent_session)
+
+    # Advance time 59 seconds
+    mock_time.return_value += 59
+
+    # Assert next flush does not contain an app-heartbeat event
+    telemetry_writer.periodic()
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+
+    # Advance time 1 second
+    mock_time.return_value += 1
+
+    # Assert next flush contains app-heartbeat event
+    telemetry_writer.periodic()
+    _assert_app_heartbeat_event(2, test_agent_session)
+
+    # Advance time 120 seconds (2 intervals)
+    mock_time.return_value += 120
+
+    # Assert next flush contains only one app-heartbeat event
+    telemetry_writer.periodic()
+    _assert_app_heartbeat_event(3, test_agent_session)
+
+
+def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
+    # type: (mock.Mock, Any, TelemetryWriter) -> None
+    """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
+
+    # Assert clean slate
+    events = test_agent_session.get_events()
+    assert len(events) == 0
+
+    # Within 60 seconds of telemetry writer creation, no event is queued
+    telemetry_writer.app_heartbeat_event()
+    telemetry_writer.periodic()
+    events = test_agent_session.get_events()
+    assert len(events) == 0
+
+    # Advance time 60 seconds
+    mock_time.return_value += 60
+
+    # Manual queueing and calling periodic will only queue and flush 1 event
+    telemetry_writer.app_heartbeat_event()
+    telemetry_writer.periodic()
+    _assert_app_heartbeat_event(1, test_agent_session)
+
+    # Advance time 120 seconds (2 intervals)
+    mock_time.return_value += 120
+
+    # Calling multiple times will only enqueue one event
+    telemetry_writer.app_heartbeat_event()
+    telemetry_writer.app_heartbeat_event()
+    telemetry_writer.app_heartbeat_event()
+    telemetry_writer.app_heartbeat_event()
+    telemetry_writer.periodic()
+    _assert_app_heartbeat_event(2, test_agent_session)
+
+
+def _assert_app_heartbeat_event(seq_id, test_agent_session):
+    # type: (int, TelemetryTestSession) -> None
+    """used to test heartbeat events received by the testagent"""
+    events = test_agent_session.get_events()
+    assert len(events) == seq_id
+    # The test_agent returns telemetry events in reverse chronological order
+    # The first event in the list is last event sent by the Telemetry Client
+    last_event = events[0]
+    assert last_event["request_type"] == "app-heartbeat"
+    assert last_event == _get_request_body({}, "app-heartbeat", seq_id=seq_id)
+>>>>>>> ef81a03a (test(telemetry): fix broken fork test (#4063))
 
 
 def _get_request_body(payload, payload_type, seq_id=1):
