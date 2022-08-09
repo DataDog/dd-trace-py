@@ -616,6 +616,22 @@ def test_sanitized_url_in_http_meta(span, int_config):
     assert span.get_tag(http.URL) == FULL_URL
 
 
+def test_stripped_url_in_http_meta_if_trace_query_string_disabled_globally(span, int_config):
+    SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
+    STRIPPED_URL = "http://example.com/search#frag?ment"
+
+    int_config.trace_query_string = True
+    with override_global_config({"global_trace_query_string_disabled": True}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method="GET",
+            url=SENSITIVE_QS_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == STRIPPED_URL
+
+
 def test_redacted_url_in_http_meta(span, int_config):
     SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
     STRIPPED_URL = "http://example.com/search#frag?ment"
