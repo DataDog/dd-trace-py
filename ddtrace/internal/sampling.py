@@ -11,7 +11,7 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
-from six import string_types
+from jsonschema import validate
 
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
@@ -212,23 +212,15 @@ class SpanSamplingRule:
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
     json_rules = get_span_sampling_json()
+    validate_json(json_rules)
     sampling_rules = []
     for rule in json_rules:
-        if not isinstance(rule, dict):
-            raise TypeError("rule specified via DD_SPAN_SAMPLING_RULES is not a dictionary:%r" % rule)
         # If sample_rate not specified default to 100%
-        sample_rate = float(rule.get("sample_rate", 1.0))
+        sample_rate = rule.get("sample_rate", 1.0)
         service = rule.get("service")
         name = rule.get("name")
         # If max_per_second not specified default to no limit
-        max_per_second = int(rule.get("max_per_second", -1))
-        if service is not None and not isinstance(service, string_types):
-            raise ValueError("The service value is not a string or None:%r" % service)
-        if name is not None and not isinstance(name, string_types):
-            raise ValueError("The name value is not a string or None:%r" % name)
-
-        if service is None and name is None:
-            raise ValueError("Neither service or name specified for single span sampling rule:%r" % rule)
+        max_per_second = rule.get("max_per_second", -1)
         if service:
             _check_unsupported_pattern(service)
         if name:
@@ -242,6 +234,26 @@ def get_span_sampling_rules():
             raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
         sampling_rules.append(sampling_rule)
     return sampling_rules
+
+
+def validate_json(json_rules):
+    schema = {
+        "type": "array",
+        "anyOf": [
+            {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "anyOf": [
+                        {"properties": {"service": {"type": "string"}}, "required": ["service"]},
+                        {"properties": {"name": {"type": "string"}}, "required": ["name"]},
+                    ],
+                    "properties": {"max_per_second": {"type": "integer"}, "sample_rate": {"type": "number"}},
+                },
+            },
+        ],
+    }
+    validate(json_rules, schema)
 
 
 def get_span_sampling_json():
