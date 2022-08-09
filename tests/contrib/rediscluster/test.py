@@ -140,14 +140,14 @@ class TestRedisPatch(TracerTestCase):
         span = spans[0]
         assert span.service != "mysvc"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDIS_SERVICE="myrediscluster"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDISCLUSTER_SERVICE="myrediscluster"))
     def test_env_user_specified_rediscluster_service(self):
         Pin.override(self.r, service="myrediscluster", tracer=self.tracer)
         self.r.get("cheese")
         span = self.get_spans()[0]
         assert span.service == "myrediscluster", span.service
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDIS_SERVICE="env-rediscluster"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDISCLUSTER_SERVICE="myrediscluster"))
     def test_service_precedence(self):
         Pin.override(self.r, service="env-rediscluster", tracer=self.tracer)
         self.r.get("cheese")
