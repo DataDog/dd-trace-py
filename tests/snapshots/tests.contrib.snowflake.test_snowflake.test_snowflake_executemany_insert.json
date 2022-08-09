@@ -16,7 +16,8 @@
       "db.warehouse": "mock-warehouse-name",
       "out.host": "mock-account.snowflakecomputing.com",
       "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf",
-      "sql.executemany": "true"
+      "sql.executemany": "true",
+      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
