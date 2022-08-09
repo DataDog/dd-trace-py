@@ -64,7 +64,7 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     elif parts.query:
         redacted_query = redact_query_string(parts.query, query_string_obfuscation_pattern)
 
-    if redacted_query is not None:
+    if redacted_query is not None and len(parts) >= 5:
         redacted_parts = parts[:4] + (redacted_query,) + parts[5:]  # type: Tuple[Union[str, bytes], ...]
         bytes_redacted_parts = tuple(x if isinstance(x, bytes) else x.encode("utf-8") for x in redacted_parts)
         return urlunsplit(bytes_redacted_parts, url)
