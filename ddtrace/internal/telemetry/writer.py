@@ -38,6 +38,7 @@ class TelemetryWriter(PeriodicService):
 
     # telemetry endpoint uses events platform v2 api
     ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
+    HEARTBEAT_MIN_INTERVAL = 60  # type: int
 
     def __init__(self, agent_url=None):
         # type: (Optional[str]) -> None
@@ -53,6 +54,8 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
+        # Set initial heartbeat time to now since we'll be sending an app-started event
+        self._last_heartbeat = time.time()  # type: float
 
         self._headers = {
             "Content-type": "application/json",
@@ -114,6 +117,8 @@ class TelemetryWriter(PeriodicService):
             self._events_queue = []
 
     def periodic(self):
+        self.app_heartbeat_event()
+
         integrations = self._flush_integrations_queue()
         if integrations:
             self._app_integrations_changed_event(integrations)
@@ -203,6 +208,28 @@ class TelemetryWriter(PeriodicService):
             "configurations": [],
         }
         self.add_event(payload, "app-started")
+
+    def app_heartbeat_event(self):
+        # type: () -> None
+        if self._forked:
+            # TODO: Enable app-heartbeat on forks
+            #   Since we only send app-started events in the main process
+            #   any forked processes won't be able to access the list of
+            #   dependencies for this app, and therefore app-heartbeat won't
+            #   add much value today.
+            return
+
+        # DEV: Although the default flush interval is 60 seconds,
+        #   we want to explicitly control the flow here in case
+        #   the flush interval ever changes.
+        #
+        #   If the flush interval ever exceeds 60 seconds, then we
+        #   will queue a heartbeat event every flush:
+        #   60 <= X <= flush interval.
+        now = time.time()
+        if now - self._last_heartbeat >= TelemetryWriter.HEARTBEAT_MIN_INTERVAL:
+            self.add_event({}, "app-heartbeat")
+            self._last_heartbeat = now
 
     def _app_closing_event(self):
         # type: () -> None
