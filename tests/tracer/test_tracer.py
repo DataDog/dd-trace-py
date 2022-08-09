@@ -30,6 +30,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
+from ddtrace.ext import user
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.writer import AgentWriter
@@ -491,6 +492,36 @@ class TracerTestCases(TracerTestCase):
         assert tracer._writer.dogstatsd.host is None
         assert tracer._writer.dogstatsd.port is None
         assert tracer._writer.dogstatsd.socket_path == "/foo.sock"
+
+    def test_tracer_set_user(self):
+        span = self.trace("fake_span")
+        self.tracer.set_user(
+            user_id="usr.id",
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+        )
+        assert span.get_tag(user.ID)
+        assert span.get_tag(user.EMAIL)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(user.NAME)
+        assert span.get_tag(user.ROLE)
+        assert span.get_tag(user.SCOPE)
+
+    def test_tracer_set_user_mandatory(self):
+        span = self.trace("fake_span")
+        self.tracer.set_user(
+            user_id="usr.id",
+        )
+        assert list(span.get_tags().keys()) == ["runtime-id", "usr.id"]
+        assert span.get_tag(user.ID)
+        assert span.get_tag(user.EMAIL) is None
+        assert span.get_tag(user.SESSION_ID) is None
+        assert span.get_tag(user.NAME) is None
+        assert span.get_tag(user.ROLE) is None
+        assert span.get_tag(user.SCOPE) is None
 
 
 def test_tracer_url():

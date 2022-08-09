@@ -1,6 +1,8 @@
 from pylons import response
 from pylons.controllers import WSGIController
 
+from ddtrace import tracer
+
 from ..lib.helpers import ExceptionWithCodeMethod
 from ..lib.helpers import get_render_fn
 
@@ -50,3 +52,14 @@ class RootController(BaseController):
     def response_headers(self):
         response.headers["custom-header"] = "value"
         return "hi"
+
+    def identify(self):
+        tracer.set_user(
+            user_id="usr.id",
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+        )
+        return "ok"

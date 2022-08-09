@@ -1,0 +1,96 @@
+[[
+  {
+    "name": "flask.request",
+    "service": "flask",
+    "resource": "GET /identify",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "flask.endpoint": "identify",
+      "flask.url_rule": "/identify",
+      "flask.version": "2.2.1",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:8000/identify",
+      "runtime-id": "7eea28a3fca0415087746e62aa889d2c",
+      "usr.email": "usr.email",
+      "usr.id": "usr.id",
+      "usr.name": "usr.name",
+      "usr.role": "usr.role",
+      "usr.scope": "usr.scope",
+      "usr.session_id": "usr.session_id"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 495912
+    },
+    "duration": 647660,
+    "start": 1660038814966006362
+  },
+     {
+       "name": "flask.preprocess_request",
+       "service": "flask",
+       "resource": "flask.preprocess_request",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 19678,
+       "start": 1660038814966333925
+     },
+     {
+       "name": "flask.dispatch_request",
+       "service": "flask",
+       "resource": "flask.dispatch_request",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "duration": 66794,
+       "start": 1660038814966392370
+     },
+        {
+          "name": "tests.contrib.flask.app.identify",
+          "service": "flask",
+          "resource": "/identify",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 3,
+          "duration": 24170,
+          "start": 1660038814966426968
+        },
+     {
+       "name": "flask.process_response",
+       "service": "flask",
+       "resource": "flask.process_response",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "duration": 12965,
+       "start": 1660038814966509012
+     },
+     {
+       "name": "flask.do_teardown_request",
+       "service": "flask",
+       "resource": "flask.do_teardown_request",
+       "trace_id": 0,
+       "span_id": 5,
+       "parent_id": 1,
+       "duration": 12583,
+       "start": 1660038814966593814
+     },
+     {
+       "name": "flask.do_teardown_appcontext",
+       "service": "flask",
+       "resource": "flask.do_teardown_appcontext",
+       "trace_id": 0,
+       "span_id": 6,
+       "parent_id": 1,
+       "duration": 9149,
+       "start": 1660038814966634349
+     }]]

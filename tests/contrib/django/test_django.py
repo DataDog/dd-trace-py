@@ -26,6 +26,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
+from ddtrace.ext import user
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
@@ -1869,3 +1870,16 @@ def test_connections_patched():
         assert isinstance(conn.cursor, wrapt.ObjectProxy)
 
     assert isinstance(connection.cursor, wrapt.ObjectProxy)
+
+
+def test_django_get_user(client, test_spans):
+    assert client.get("/identify/").status_code == 200
+
+    root = test_spans.get_root_span()
+
+    assert root.get_tag(user.ID)
+    assert root.get_tag(user.EMAIL)
+    assert root.get_tag(user.SESSION_ID)
+    assert root.get_tag(user.NAME)
+    assert root.get_tag(user.ROLE)
+    assert root.get_tag(user.SCOPE)

@@ -19,4 +19,5 @@ def create_routes():
     routes.connect("/path-params/{year:\d+}/{month}/", controller="root", action="path_params")  # noqa: W605
     routes.connect("/render_exception", controller="root", action="render_exception")
     routes.connect("/response_headers", controller="root", action="response_headers")
+    routes.connect("/identify", controller="root", action="identify")
     return routes

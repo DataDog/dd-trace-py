@@ -22,6 +22,19 @@ def index():
     return "hello"
 
 
+@app.route("/identify")
+def identify():
+    tracer.set_user(
+        user_id="usr.id",
+        email="usr.email",
+        name="usr.name",
+        session_id="usr.session_id",
+        role="usr.role",
+        scope="usr.scope",
+    )
+    return "identify"
+
+
 @app.route("/shutdown")
 def shutdown():
     tracer.shutdown()

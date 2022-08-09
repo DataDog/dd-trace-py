@@ -15,6 +15,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 from ddtrace.ext import http
+from ddtrace.ext import user
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -722,3 +723,16 @@ class PylonsTestCase(TracerTestCase):
             query = dict(_context.get_item("http.request.path_params", span=root_span))
             assert query["month"] == "w00tw00t.at.isc.sans.dfind"
             assert query["year"] == "2022"
+
+    def test_pylon_get_user(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        assert root_span.get_tag(user.ID)
+        assert root_span.get_tag(user.EMAIL)
+        assert root_span.get_tag(user.SESSION_ID)
+        assert root_span.get_tag(user.NAME)
+        assert root_span.get_tag(user.ROLE)
+        assert root_span.get_tag(user.SCOPE)

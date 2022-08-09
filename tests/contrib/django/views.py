@@ -182,3 +182,15 @@ def not_found_view(request):
 
 def path_params_view(request, year, month):
     return HttpResponse(status=200)
+
+
+def identify(request):
+    tracer.set_user(
+        user_id="usr.id",
+        email="usr.email",
+        name="usr.name",
+        session_id="usr.session_id",
+        role="usr.role",
+        scope="usr.scope",
+    )
+    return HttpResponse(status=200)
