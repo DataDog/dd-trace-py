@@ -239,19 +239,14 @@ def get_span_sampling_rules():
 def validate_json(json_rules):
     schema = {
         "type": "array",
-        "anyOf": [
-            {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "anyOf": [
-                        {"properties": {"service": {"type": "string"}}, "required": ["service"]},
-                        {"properties": {"name": {"type": "string"}}, "required": ["name"]},
-                    ],
-                    "properties": {"max_per_second": {"type": "integer"}, "sample_rate": {"type": "number"}},
-                },
-            },
-        ],
+        "items": {
+            "type": "object",
+            "anyOf": [
+                {"properties": {"service": {"type": "string"}}, "required": ["service"]},
+                {"properties": {"name": {"type": "string"}}, "required": ["name"]},
+            ],
+            "properties": {"max_per_second": {"type": "integer"}, "sample_rate": {"type": "number"}},
+        },
     }
     validate(json_rules, schema)
 
