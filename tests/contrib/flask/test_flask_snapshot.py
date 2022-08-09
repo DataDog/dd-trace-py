@@ -83,9 +83,9 @@ def flask_client(flask_command, flask_env, flask_port):
         # but the test agent hasn't necessarily finished processing
         # the traces (race condition) so wait just a bit for that
         # processing to complete.
-        time.sleep(0.5)
+        time.sleep(0.2)
     finally:
-        os.kill(proc.pid, signal.SIGKILL)
+        os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
 
 
