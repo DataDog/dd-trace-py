@@ -76,6 +76,7 @@ formatter
 gRPC
 gevent
 graphql
+graphene
 greenlet
 greenlets
 grpc
@@ -186,3 +187,5 @@ yaaredis
 Kinesis
 AppSec
 libddwaf
+Serverless
+serverless

@@ -23,7 +23,7 @@ def patch_aiobotocore():
 
 @pytest.mark.asyncio
 async def test_traced_client(tracer):
-    with aiobotocore_client("ec2", tracer) as ec2:
+    async with aiobotocore_client("ec2", tracer) as ec2:
         await ec2.describe_instances()
 
     traces = tracer.pop_traces()
@@ -47,7 +47,7 @@ async def test_traced_client(tracer):
 @pytest.mark.asyncio
 async def test_traced_client_analytics(tracer):
     with override_config("aiobotocore", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
-        with aiobotocore_client("ec2", tracer) as ec2:
+        async with aiobotocore_client("ec2", tracer) as ec2:
             await ec2.describe_instances()
 
     traces = tracer.pop_traces()
@@ -58,7 +58,7 @@ async def test_traced_client_analytics(tracer):
 
 @pytest.mark.asyncio
 async def test_s3_client(tracer):
-    with aiobotocore_client("s3", tracer) as s3:
+    async with aiobotocore_client("s3", tracer) as s3:
         await s3.list_buckets()
         await s3.list_buckets()
 
@@ -79,7 +79,7 @@ async def test_s3_client(tracer):
 async def test_s3_put(tracer):
     params = dict(Key="foo", Bucket="mybucket", Body=b"bar")
 
-    with aiobotocore_client("s3", tracer) as s3:
+    async with aiobotocore_client("s3", tracer) as s3:
         await s3.create_bucket(Bucket="mybucket")
         await s3.put_object(**params)
 
@@ -103,7 +103,7 @@ async def test_s3_put(tracer):
 
 @pytest.mark.asyncio
 async def test_s3_client_error(tracer):
-    with aiobotocore_client("s3", tracer) as s3:
+    async with aiobotocore_client("s3", tracer) as s3:
         with pytest.raises(ClientError):
             # FIXME: add proper clean-up to tearDown
             await s3.list_objects(Bucket="doesnotexist")
@@ -121,7 +121,7 @@ async def test_s3_client_error(tracer):
 
 @pytest.mark.asyncio
 async def test_s3_client_read(tracer):
-    with aiobotocore_client("s3", tracer) as s3:
+    async with aiobotocore_client("s3", tracer) as s3:
         # prepare S3 and flush traces if any
         await s3.create_bucket(Bucket="tracing")
         await s3.put_object(Bucket="tracing", Key="apm", Body=b"")
@@ -163,7 +163,7 @@ async def test_s3_client_read(tracer):
 
 @pytest.mark.asyncio
 async def test_sqs_client(tracer):
-    with aiobotocore_client("sqs", tracer) as sqs:
+    async with aiobotocore_client("sqs", tracer) as sqs:
         await sqs.list_queues()
 
     traces = tracer.pop_traces()
@@ -182,7 +182,7 @@ async def test_sqs_client(tracer):
 
 @pytest.mark.asyncio
 async def test_kinesis_client(tracer):
-    with aiobotocore_client("kinesis", tracer) as kinesis:
+    async with aiobotocore_client("kinesis", tracer) as kinesis:
         await kinesis.list_streams()
 
     traces = tracer.pop_traces()
@@ -201,7 +201,7 @@ async def test_kinesis_client(tracer):
 
 @pytest.mark.asyncio
 async def test_lambda_client(tracer):
-    with aiobotocore_client("lambda", tracer) as lambda_client:
+    async with aiobotocore_client("lambda", tracer) as lambda_client:
         # https://github.com/spulec/moto/issues/906
         await lambda_client.list_functions(MaxItems=5)
 
@@ -221,7 +221,7 @@ async def test_lambda_client(tracer):
 
 @pytest.mark.asyncio
 async def test_kms_client(tracer):
-    with aiobotocore_client("kms", tracer) as kms:
+    async with aiobotocore_client("kms", tracer) as kms:
         await kms.list_keys(Limit=21)
 
     traces = tracer.pop_traces()
@@ -243,7 +243,7 @@ async def test_kms_client(tracer):
 @pytest.mark.asyncio
 async def test_unpatch(tracer):
     unpatch()
-    with aiobotocore_client("kinesis", tracer) as kinesis:
+    async with aiobotocore_client("kinesis", tracer) as kinesis:
         await kinesis.list_streams()
 
     traces = tracer.pop_traces()
@@ -253,7 +253,7 @@ async def test_unpatch(tracer):
 @pytest.mark.asyncio
 async def test_double_patch(tracer):
     patch()
-    with aiobotocore_client("sqs", tracer) as sqs:
+    async with aiobotocore_client("sqs", tracer) as sqs:
         await sqs.list_queues()
 
     traces = tracer.pop_traces()
@@ -268,7 +268,7 @@ async def test_opentraced_client(tracer):
     ot_tracer = init_tracer("my_svc", tracer)
 
     with ot_tracer.start_active_span("ot_outer_span"):
-        with aiobotocore_client("ec2", tracer) as ec2:
+        async with aiobotocore_client("ec2", tracer) as ec2:
             await ec2.describe_instances()
 
     traces = tracer.pop_traces()
@@ -302,7 +302,7 @@ async def test_opentraced_s3_client(tracer):
     ot_tracer = init_tracer("my_svc", tracer)
 
     with ot_tracer.start_active_span("ot_outer_span"):
-        with aiobotocore_client("s3", tracer) as s3:
+        async with aiobotocore_client("s3", tracer) as s3:
             await s3.list_buckets()
             with ot_tracer.start_active_span("ot_inner_span1"):
                 await s3.list_buckets()
@@ -353,7 +353,7 @@ async def test_user_specified_service(tracer):
         # Repatch to take config into account
         unpatch()
         patch()
-        with aiobotocore_client("ec2", tracer) as ec2:
+        async with aiobotocore_client("ec2", tracer) as ec2:
             await ec2.describe_instances()
 
         traces = tracer.pop_traces()
@@ -368,7 +368,7 @@ async def test_user_specified_service(tracer):
 async def test_response_context_manager(tracer):
     # the client should call the wrapped __aenter__ and return the
     # object proxy
-    with aiobotocore_client("s3", tracer) as s3:
+    async with aiobotocore_client("s3", tracer) as s3:
         # prepare S3 and flush traces if any
         await s3.create_bucket(Bucket="tracing")
         await s3.put_object(Bucket="tracing", Key="apm", Body=b"")
