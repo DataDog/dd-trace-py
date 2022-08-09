@@ -5,6 +5,7 @@ import mock
 import pytest
 
 from ddtrace import Tracer
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -281,7 +282,7 @@ def test_trace_with_wrong_metrics_types_not_sent(metrics):
 def test_tracetagsprocessor_only_adds_new_tags():
     tracer = Tracer()
     with tracer.trace(name="web.request") as span:
-        span.set_tag("manual.drop", "1")
+        span.context.sampling_priority = AUTO_KEEP
         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
 
     tracer.shutdown()

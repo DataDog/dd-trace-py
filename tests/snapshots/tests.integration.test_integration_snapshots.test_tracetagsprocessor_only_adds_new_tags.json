@@ -7,15 +7,16 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
-      "runtime-id": "7b584767e5bd47b9928a000dd16f05ec"
+      "_dd.p.dm": "-0",
+      "runtime-id": "334311a6f22143ff855bbf68dbabac50"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 85794
+      "system.pid": 15332
     },
-    "duration": 48000,
-    "start": 1659990677743232000
+    "duration": 34000,
+    "start": 1660010337590045000
   }]]
