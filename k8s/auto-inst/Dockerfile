@@ -1,11 +1,5 @@
-FROM python:3.9-slim AS build
+FROM ubuntu:latest
 
-WORKDIR /operator-build
+WORKDIR /autoinstrumentation-build
 
-RUN mkdir workspace && pip install --target workspace ddtrace
-
-FROM busybox
-
-COPY --from=build /operator-build/workspace /pypackages
-
-RUN chmod -R go+r /pypackages
+ADD sitecustomize.py .

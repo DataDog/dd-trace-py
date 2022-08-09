@@ -12,15 +12,17 @@ spec:
           mountPath: /autoinstrumentation
       # Sharing the volume doesn't seem to be sufficient to mount the files,
       # they have to be copied.
-      command: ["cp", "-r", "/pypackages/.", "/autoinstrumentation"]
+      command: ["cp", "-r", "/autoinstrumentation-build/.", "/autoinstrumentation"]
   containers:
     - name: app
       image: ddkverhoog/django-hw:latest
       env:
         - name: PYTHONPATH
-          value: /autoinstrumentation/ddtrace/bootstrap:/autoinstrumentation
+          value: /autoinstrumentation/:/autoinstrumentation
         - name: DD_TRACE_DEBUG
           value: "true"
+        - name: DD_INSTALL_DDTRACE_PYTHON
+          value: "1"
       ports:
         - containerPort: 8000
       volumeMounts:
