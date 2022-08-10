@@ -80,15 +80,8 @@ class TracedCursor(wrapt.ObjectProxy):
             try:
                 return method(*args, **kwargs)
             finally:
-                row_count = self.__wrapped__.rowcount
-                s.set_metric("db.rowcount", row_count)
-                # Necessary for django integration backward compatibility. Django integration used to provide its own
-                # implementation of the TracedCursor, which used to store the row count into a tag instead of
-                # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
-                # this tag has been added since.
-                # Check row count is an integer type to avoid comparison type error
-                if isinstance(row_count, six.integer_types) and row_count >= 0:
-                    s.set_tag(sql.ROWS, row_count)
+                # Try to fetch custom properties that were passed by the specific Database implementation
+                self._set_post_execute_tags(s)
 
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
@@ -121,6 +114,17 @@ class TracedCursor(wrapt.ObjectProxy):
         """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
         return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, *args)
+
+    def _set_post_execute_tags(self, span):
+        row_count = self.__wrapped__.rowcount
+        span.set_metric("db.rowcount", row_count)
+        # Necessary for django integration backward compatibility. Django integration used to provide its own
+        # implementation of the TracedCursor, which used to store the row count into a tag instead of
+        # as a metric. Such custom implementation has been replaced by this generic dbapi implementation and
+        # this tag has been added since.
+        # Check row count is an integer type to avoid comparison type error
+        if isinstance(row_count, six.integer_types) and row_count >= 0:
+            span.set_tag(sql.ROWS, row_count)
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's
