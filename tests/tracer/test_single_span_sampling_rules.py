@@ -176,7 +176,7 @@ def test_default_to_env_if_both_env_and_file_config(tmpdir, caplog):
             (
                 "ddtrace.internal.sampling",
                 30,
-                "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. " 
+                "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. "
                 "Defaulting to DD_SPAN_SAMPLING_RULES value.",
             )
         ]
