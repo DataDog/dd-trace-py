@@ -1,5 +1,6 @@
 import sys
 
+
 from jsonschema import ValidationError
 import pytest
 
@@ -9,7 +10,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.sampling import SamplingMechanism
-from ddtrace.internal.sampling import get_file_json
+from ddtrace.internal.sampling import _get_file_json
 from ddtrace.internal.sampling import get_span_sampling_rules
 from tests.utils import DummyWriter
 
@@ -79,6 +80,22 @@ def test_sampling_rule_init_via_env():
             sampling_rules = get_span_sampling_rules()
 
 
+def test_json_not_list_error():
+    with override_env(
+        dict(DD_SPAN_SAMPLING_RULES='{"sample_rate":0.5,"service":"xyz","name":"abc","max_per_second":100}')
+    ):
+        with pytest.raises(TypeError):
+            get_span_sampling_rules()
+
+
+def test_json_decode_error_throws_ValueError():
+    with override_env(
+        dict(DD_SPAN_SAMPLING_RULES='{"sample_rate":0.5,"service":"xyz","name":"abc","max_per_second":100')
+    ):
+        with pytest.raises(ValueError):
+            get_span_sampling_rules()
+
+
 def test_rules_sample_span_via_env():
     """Test that single span sampling tags are applied to spans that should get sampled when envars set"""
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"test_service","name":"test_name"}]')):
@@ -131,31 +148,22 @@ def test_sampling_rule_init_config_multiple_sampling_rule_json_via_file(tmpdir):
     )
 
     with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE=str(file))):
-        sampling_rules = get_file_json()
-        assert sampling_rules[0]["service"] == "xy?"
-        assert sampling_rules[0]["name"] == "a*c"
-
-        assert sampling_rules[1]["sample_rate"] == 0.5
-        assert sampling_rules[1]["service"] == "my-service"
-        assert sampling_rules[1]["name"] == "my-name"
-        assert sampling_rules[1]["max_per_second"] == "20"
-        assert len(sampling_rules) == 2
+        sampling_rules = _get_file_json()
+        assert sampling_rules == [
+            {"service": "xy?", "name": "a*c"},
+            {"sample_rate": 0.5, "service": "my-service", "name": "my-name", "max_per_second": "20"},
+        ]
 
 
 def test_wrong_file_path(tmpdir):
     """Test that single span sampling tags are not applied to spans that do not match rules via file"""
     with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE="data/this_doesnt_exist.json")):
-        if sys.version_info.major > 3:
-            with pytest.raises(FileNotFoundError):
-                sampling_rules = get_span_sampling_rules()
-                assert sampling_rules is None
-        else:
-            with pytest.raises(IOError):
-                sampling_rules = get_span_sampling_rules()
-                assert sampling_rules is None
+        exception = FileNotFoundError if sys.version_info.major > 3 else IOError
+        with pytest.raises(exception):
+            get_span_sampling_rules()
 
 
-def test_default_to_env_if_both_env_and_file_config(tmpdir):
+def test_default_to_env_if_both_env_and_file_config(tmpdir, caplog):
     file = tmpdir.join("rules.json")
     file.write('[{"sample_rate":1.0,"service":"x","name":"ab","max_per_second":1000}]')
 
@@ -166,6 +174,14 @@ def test_default_to_env_if_both_env_and_file_config(tmpdir):
         )
     ):
         sampling_rules = get_span_sampling_rules()
+        assert caplog.record_tuples == [
+            (
+                "ddtrace.internal.sampling",
+                30,
+                "DD_SPAN_SAMPLING_RULES and DD_SPAN_SAMPLING_RULES_FILE detected. "
+                "Defaulting to DD_SPAN_SAMPLING_RULES value.",
+            )
+        ]
         assert sampling_rules[0]._sample_rate == 0.5
         assert sampling_rules[0]._service_matcher.pattern == "xyz"
         assert sampling_rules[0]._name_matcher.pattern == "abc"
