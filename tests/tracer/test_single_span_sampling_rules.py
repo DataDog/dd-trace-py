@@ -158,8 +158,7 @@ def test_wrong_file_path(tmpdir):
     with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE="data/this_doesnt_exist.json")):
         exception = FileNotFoundError if sys.version_info.major > 3 else IOError
         with pytest.raises(exception):
-            sampling_rules = get_span_sampling_rules()
-            assert sampling_rules is None
+            get_span_sampling_rules()
 
 
 def test_default_to_env_if_both_env_and_file_config(tmpdir, caplog):
