@@ -19,8 +19,15 @@ log = get_logger(__name__)
 def _extract_hostname(uri):
     # type: (str) -> str
     parsed_uri = parse.urlparse(uri)
-    if parsed_uri.port:
-        return "%s:%s" % (parsed_uri.hostname, str(parsed_uri.port))
+    port = None
+    try:
+        port = parsed_uri.port
+    except ValueError:
+        # ValueError is raised in PY>3.5 when parsed_uri.port < 0 or parsed_uri.port > 65535
+        return "%s:?" % (parsed_uri.hostname,)
+
+    if port is not None:
+        return "%s:%s" % (parsed_uri.hostname, str(port))
     return parsed_uri.hostname
 
 
