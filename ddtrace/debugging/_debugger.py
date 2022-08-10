@@ -216,8 +216,7 @@ class Debugger(Service):
         self._probe_registry = ProbeRegistry(self.__logger__(service_name, self._encoder))
         self._uploader = self.__uploader__(self._encoder)
         self._collector = self.__collector__(self._encoder)
-        self._probe_poller = self.__poller__(self.__rc__(service_name), self._on_poller_event)
-        self._services = [self._uploader, self._probe_poller]
+        self._services = [self._uploader]
 
         self._function_store = FunctionStore(extra_attrs=["__dd_wrappers__"])
 

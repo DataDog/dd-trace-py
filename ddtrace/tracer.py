@@ -221,10 +221,6 @@ class Tracer(object):
             self._agent_url,
         )
 
-        self._rc = RemoteConfigWorker()
-        self._rc._client.register_product("FEATURES", self._reload_features)
-        self._rc.start()
-
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
@@ -232,14 +228,6 @@ class Tracer(object):
         self._shutdown_lock = RLock()
 
         self._new_process = False
-
-    def _reload_features(self, metadata, features):
-        log.info(
-            "Reloading tracer features. %r", features
-        )
-        self.configure(
-            appsec_enabled=features.get("asm", {}).get("enabled", self._appsec_enabled)
-        )
 
     def _atexit(self):
         # type: () -> None
@@ -504,11 +492,6 @@ class Tracer(object):
             self._compute_stats,
             self._agent_url,
         )
-
-        self._rc.stop()
-        self._rc = RemoteConfigWorker()
-        self._rc._client.register_product("FEATURES", self._reload_features)
-        self._rc.start()
 
         self._new_process = True
 

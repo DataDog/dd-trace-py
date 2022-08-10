@@ -86,7 +86,6 @@ try:
         RemoteConfig.disable()
         RemoteConfig.enable()
 
-    log.debug("Starting remote config")
     RemoteConfig.enable()
     forksafe.register(restart_remoteconfig)
     atexit.register(RemoteConfig.disable)
@@ -138,7 +137,6 @@ try:
     #     telemetry_writer.enable()
 
     # TODO: Fix this
-    log.debug("Starting the debugger")
     Debugger.enable()
 
     # Check for and import any sitecustomize that would have normally been used
