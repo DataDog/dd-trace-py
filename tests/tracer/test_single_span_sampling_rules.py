@@ -1,3 +1,4 @@
+from logging import exception
 import sys
 
 import pytest
@@ -156,8 +157,8 @@ def test_sampling_rule_init_config_multiple_sampling_rule_json_via_file(tmpdir):
 def test_wrong_file_path(tmpdir):
     """Test that single span sampling tags are not applied to spans that do not match rules via file"""
     with override_env(dict(DD_SPAN_SAMPLING_RULES_FILE="data/this_doesnt_exist.json")):
-        error = FileNotFoundError if sys.version_info.major > 3 else IOError
-        with pytest.raises(error):
+        exception = FileNotFoundError if sys.version_info.major > 3 else IOError
+        with pytest.raises(exception):
             sampling_rules = get_span_sampling_rules()
             assert sampling_rules is None
 
