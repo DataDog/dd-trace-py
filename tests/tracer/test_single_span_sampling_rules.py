@@ -1,6 +1,5 @@
 import sys
 
-
 from jsonschema import ValidationError
 import pytest
 

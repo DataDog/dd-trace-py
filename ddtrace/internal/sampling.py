@@ -218,7 +218,7 @@ class SpanSamplingRule:
         span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
         span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
         # Only set this tag if it's not the default -1
-        if self._max_per_second != -1:
+        if self._max_per_second != _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
@@ -247,7 +247,6 @@ def get_span_sampling_rules():
             raise ValueError("Error creating single span sampling rule {}: {}".format(json.dumps(rule), e))
         sampling_rules.append(sampling_rule)
     return sampling_rules
-
 
 
 def _get_span_sampling_json():
