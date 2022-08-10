@@ -73,7 +73,7 @@ SpanSamplingRules = TypedDict(
     total=False,
 )
 
-span_sampling_json_schema = {
+SPAN_SAMPLING_JSON_SCHEMA = {
     "type": "array",
     "items": {
         "type": "object",
@@ -224,7 +224,7 @@ class SpanSamplingRule:
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
     json_rules = get_span_sampling_json()
-    validate(json_rules, span_sampling_json_schema)
+    validate(json_rules, SPAN_SAMPLING_JSON_SCHEMA)
     sampling_rules = []
     for rule in json_rules:
         # If sample_rate not specified default to 100%
