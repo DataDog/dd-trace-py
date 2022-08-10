@@ -9,6 +9,21 @@ from ddtrace.internal.module import origin
 import tests.test_module
 
 
+@pytest.fixture(autouse=True, scope="module")
+def ensure_no_module_watchdog():
+    # DEV: The library might use the ModuleWatchdog and install it at a very
+    # early stage. This fixture ensures that the watchdog is not installed
+    # before the tests start.
+    was_installed = ModuleWatchdog.is_installed()
+    if was_installed:
+        ModuleWatchdog.uninstall()
+
+    yield
+
+    if was_installed:
+        ModuleWatchdog.install()
+
+
 @pytest.fixture
 def module_watchdog():
     ModuleWatchdog.install()
@@ -65,7 +80,10 @@ def test_import_origin_hook_for_module_not_yet_imported():
     path = os.getenv("MODULE_ORIGIN")
     hook = mock.Mock()
 
-    ModuleWatchdog.install()
+    try:
+        ModuleWatchdog.install()
+    except RuntimeError:
+        pass
 
     ModuleWatchdog.register_origin_hook(path, hook)
 
@@ -100,7 +118,10 @@ def test_import_module_hook_for_module_not_yet_imported():
     name = "tests.test_module"
     hook = mock.Mock()
 
-    ModuleWatchdog.install()
+    try:
+        ModuleWatchdog.install()
+    except RuntimeError:
+        pass
 
     ModuleWatchdog.register_module_hook(name, hook)
 
@@ -136,7 +157,10 @@ def test_module_deleted():
     path = os.getenv("MODULE_ORIGIN")
     hook = mock.Mock()
 
-    ModuleWatchdog.install()
+    try:
+        ModuleWatchdog.install()
+    except RuntimeError:
+        pass
 
     ModuleWatchdog.register_origin_hook(path, hook)
     ModuleWatchdog.register_module_hook(name, hook)
