@@ -1,4 +1,3 @@
-import os
 import time
 from typing import Any
 from typing import Dict
@@ -266,26 +265,8 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     _assert_app_heartbeat_event(2, test_agent_session)
 
 
-def test_app_heartbeat_event_fork(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, TelemetryWriter) -> None
-    """asserts that we do not queue/send app-heartbeat events on forks"""
-    if os.fork() == 0:
-        # Advance time 120 seconds (2 intervals)
-        mock_time.return_value += 120
-
-        telemetry_writer.app_heartbeat_event()
-        telemetry_writer.app_heartbeat_event()
-        telemetry_writer.app_heartbeat_event()
-        telemetry_writer.app_heartbeat_event()
-        telemetry_writer.periodic()
-        # Kill the process so it doesn't continue running the rest of the test suite
-        events = test_agent_session.get_events()
-        assert len(events) == 0
-        os._exit(0)
-
-
 def _assert_app_heartbeat_event(seq_id, test_agent_session):
-    # type: (int, TelemetryWriter, TelemetryTestSession) -> None
+    # type: (int, TelemetryTestSession) -> None
     """used to test heartbeat events received by the testagent"""
     events = test_agent_session.get_events()
     assert len(events) == seq_id
