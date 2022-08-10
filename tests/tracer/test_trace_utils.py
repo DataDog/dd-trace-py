@@ -14,6 +14,7 @@ from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
+from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
 from ddtrace.internal import _context
@@ -586,6 +587,42 @@ def test_activate_distributed_headers_override_false(int_config):
         tracer, int_config=int_config.myint, request_headers=headers, override=False
     )
     assert tracer.context_provider.active() is None
+
+
+def test_activate_distributed_headers_existing_context(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = True
+
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+
+    ctx = Context(trace_id=678910, span_id=823923)  # Note: Span id is different
+    tracer.context_provider.activate(ctx)
+
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=headers)
+    assert tracer.context_provider.active() == ctx
+
+
+def test_activate_distributed_headers_existing_context_different_trace_id(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = True
+
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+
+    ctx = Context(trace_id=3473873, span_id=678308)  # Note: Trace id is different
+    tracer.context_provider.activate(ctx)
+
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=headers)
+    new_ctx = tracer.context_provider.active()
+    assert new_ctx != ctx
+    assert new_ctx is not None
+    assert new_ctx.trace_id == 678910
+    assert new_ctx.span_id == 12345
 
 
 def test_sanitized_url_in_http_meta(span, int_config):
