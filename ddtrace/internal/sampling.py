@@ -14,6 +14,7 @@ except ImportError:
 from six import string_types
 
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
+from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.glob_matching import GlobMatcher
@@ -211,7 +212,7 @@ class SpanSamplingRule:
 
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
-    json_rules = get_span_sampling_json()
+    json_rules = _get_span_sampling_json()
     sampling_rules = []
     for rule in json_rules:
         if not isinstance(rule, dict):
@@ -221,7 +222,7 @@ def get_span_sampling_rules():
         service = rule.get("service")
         name = rule.get("name")
         # If max_per_second not specified default to no limit
-        max_per_second = int(rule.get("max_per_second", -1))
+        max_per_second = int(rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT))
         if service is not None and not isinstance(service, string_types):
             raise ValueError("The service value is not a string or None:%r" % service)
         if name is not None and not isinstance(name, string_types):
@@ -244,10 +245,10 @@ def get_span_sampling_rules():
     return sampling_rules
 
 
-def get_span_sampling_json():
+def _get_span_sampling_json():
     # type: () -> List[Dict[str, Any]]
-    env_json_rules = get_env_json()
-    file_json_rules = get_file_json()
+    env_json_rules = _get_env_json()
+    file_json_rules = _get_file_json()
 
     if env_json_rules and file_json_rules:
         log.warning(
@@ -257,35 +258,27 @@ def get_span_sampling_json():
             )
         )
         return env_json_rules
-    elif env_json_rules:
-        return env_json_rules
-    elif file_json_rules:
-        return file_json_rules
-    # No rules specified
-    else:
-        return []
+    return env_json_rules or file_json_rules or []
 
 
-def get_file_json():
+def _get_file_json():
     # type: () -> Optional[List[Dict[str, Any]]]
     file_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
     if file_json_raw:
         with open(file_json_raw) as f:
-            return load_span_sampling_json(f.read())
-    else:
-        return None
+            return _load_span_sampling_json(f.read())
+    return None
 
 
-def get_env_json():
+def _get_env_json():
     # type: () -> Optional[List[Dict[str, Any]]]
     env_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES")
     if env_json_raw:
-        return load_span_sampling_json(env_json_raw)
-    else:
-        return None
+        return _load_span_sampling_json(env_json_raw)
+    return None
 
 
-def load_span_sampling_json(raw_json_rules):
+def _load_span_sampling_json(raw_json_rules):
     # type: (str) -> List[Dict[str, Any]]
     try:
         json_rules = json.loads(raw_json_rules)
