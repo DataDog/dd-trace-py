@@ -10,7 +10,7 @@ on:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    # if: github.ref == 'refs/heads/1.x'
+    if: github.ref == 'refs/heads/1.x'
     steps:
     - uses: actions/checkout@v2
 
@@ -28,7 +28,7 @@ jobs:
       id: set_names
       run: |
         DOCKER_IMAGE_TAG="latest"
-        DOCKER_IMAGE_NAME=dd-python-agent-init
+        DOCKER_IMAGE_NAME=dd-lib-python-init
         DOCKER_IMAGE_NAME=$(echo ghcr.io/${GITHUB_REPOSITORY}/${DOCKER_IMAGE_NAME} | tr '[:upper:]' '[:lower:]')
         DOCKER_IMAGE_NAME_WITH_TAG=$(echo ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} | tr '[:upper:]' '[:lower:]')
         echo "Using image name '$DOCKER_IMAGE_NAME_WITH_TAG'"
@@ -42,3 +42,17 @@ jobs:
         tags: ${{ steps.set_names.outputs.image_name }}
         platforms: "linux/amd64,linux/arm64/v8"
         context: ./lib-injection
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: engineerd/setup-kind@v0.5.0
+        with:
+          version: "v0.11.1"
+      - name: Testing
+        run: |
+          kubectl cluster-info
+          kubectl get pods -n kube-system
+          echo "current-context:" $(kubectl config current-context)
+          echo "environment-kubeconfig:" ${KUBECONFIG}

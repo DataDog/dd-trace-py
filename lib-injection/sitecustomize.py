@@ -18,20 +18,20 @@ def _configure_ddtrace():
 
 if "DD_INSTALL_DDTRACE_PYTHON" in os.environ:
     try:
-        import ddtrace
+        import ddtrace  # noqa: F401
 
     except ImportError:
         import subprocess
 
         print("datadog autoinstrumentation: installing python package")
 
-        # Avoid infinite recursion
+        # Avoid infinite recursion when executing a python subprocess
         del os.environ["DD_INSTALL_DDTRACE_PYTHON"]
 
         # Execute the installation with the current interpreter
         try:
             subprocess.run([sys.executable, "-m", "pip", "install", "ddtrace"], env=os.environ.copy())
-        except:
+        except Exception:
             print("datadog autoinstrumentation: failed to install python package")
         else:
             print("datadog autoinstrumentation: successfully installed python package")
