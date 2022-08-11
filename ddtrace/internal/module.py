@@ -134,7 +134,9 @@ else:
     from importlib.machinery import ModuleSpec
     from importlib.util import find_spec
 
-    find_loader = None
+    def find_loader(fullname):
+        # type: (str) -> Optional[Loader]
+        return getattr(find_spec(fullname), "loader", None)
 
 
 class _ImportHookChainedLoader(Loader):
@@ -152,6 +154,19 @@ class _ImportHookChainedLoader(Loader):
             self.create_module = self._create_module  # type: ignore[assignment]
         if hasattr(loader, "exec_module"):
             self.exec_module = self._exec_module  # type: ignore[assignment]
+
+    def __getattribute__(self, name):
+        if name == "__class__":
+            # Make isinstance believe that self is also an instance of
+            # type(self.loader). This is required, e.g. by some tools, like
+            # slotscheck, that can handle known loaders only.
+            return self.loader.__class__
+
+        return super(_ImportHookChainedLoader, self).__getattribute__(name)
+
+    def __getattr__(self, name):
+        # Proxy any other attribute access to the underlying loader.
+        return getattr(self.loader, name)
 
     def add_callback(self, key, callback):
         # type: (Any, Callable[[ModuleType], None]) -> None
@@ -172,10 +187,6 @@ class _ImportHookChainedLoader(Loader):
         self.loader.exec_module(module)
         for callback in self.callbacks.values():
             callback(module)
-
-    def __getattr__(self, name):
-        # type: (str) -> Any
-        return getattr(self.loader, name)
 
 
 class ModuleWatchdog(dict):
@@ -292,7 +303,7 @@ class ModuleWatchdog(dict):
         self._finding.add(fullname)
 
         try:
-            loader = find_loader(fullname) if PY2 else getattr(find_spec(fullname), "loader", None)
+            loader = find_loader(fullname)
             if loader is not None:
                 if not isinstance(loader, _ImportHookChainedLoader):
                     loader = _ImportHookChainedLoader(loader)
