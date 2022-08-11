@@ -3,6 +3,7 @@ import json
 import flask
 import werkzeug
 from werkzeug.exceptions import BadRequest
+import xmltodict
 
 
 # Not all versions of flask/werkzeug have this mixin
@@ -133,12 +134,16 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                         req_body = request.json
                     else:
                         req_body = json.loads(request.data.decode("UTF-8"))
+                elif content_type in ("application/xml", "text/xml"):
+                    req_body = xmltodict.parse(request.get_data())
                 elif hasattr(request, "values"):
                     req_body = request.values.to_dict()
                 elif hasattr(request, "args"):
                     req_body = request.args.to_dict()
                 elif hasattr(request, "form"):
                     req_body = request.form.to_dict()
+                else:
+                    req_body = request.get_data()
             except (AttributeError, RuntimeError, TypeError, BadRequest):
                 log.warning("Failed to parse werkzeug request body", exc_info=True)
 
