@@ -233,7 +233,7 @@ def get_span_sampling_rules():
         service = rule.get("service")
         name = rule.get("name")
         # If max_per_second not specified default to no limit
-        max_per_second = rule.get("max_per_second", -1)
+        max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
         if service:
             _check_unsupported_pattern(service)
         if name:
