@@ -122,26 +122,19 @@ def _resolve(path):
 # https://github.com/GrahamDumpleton/wrapt/blob/df0e62c2740143cceb6cafea4c306dae1c559ef8/src/wrapt/importer.py
 
 if PY2:
+    import pkgutil
+
     find_spec = ModuleSpec = None
     Loader = object
+
+    find_loader = pkgutil.find_loader
+
 else:
     from importlib.abc import Loader
     from importlib.machinery import ModuleSpec
     from importlib.util import find_spec
 
-
-# DEV: This is used by Python 2 only
-class _ImportHookLoader(object):
-    def __init__(self, callback):
-        # type: (Callable[[ModuleType], None]) -> None
-        self.callback = callback
-
-    def load_module(self, fullname):
-        # type: (str) -> ModuleType
-        module = sys.modules[fullname]
-        self.callback(module)
-
-        return module
+    find_loader = None
 
 
 class _ImportHookChainedLoader(Loader):
@@ -180,8 +173,9 @@ class _ImportHookChainedLoader(Loader):
         for callback in self.callbacks.values():
             callback(module)
 
-    def get_code(self, mod_name):
-        return self.loader.get_code(mod_name)
+    def __getattr__(self, name):
+        # type: (str) -> Any
+        return getattr(self.loader, name)
 
 
 class ModuleWatchdog(dict):
@@ -298,11 +292,7 @@ class ModuleWatchdog(dict):
         self._finding.add(fullname)
 
         try:
-            if PY2:
-                __import__(fullname)
-                return _ImportHookLoader(self.after_import)
-
-            loader = getattr(find_spec(fullname), "loader", None)
+            loader = find_loader(fullname) if PY2 else getattr(find_spec(fullname), "loader", None)
             if loader is not None:
                 if not isinstance(loader, _ImportHookChainedLoader):
                     loader = _ImportHookChainedLoader(loader)
