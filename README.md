@@ -74,8 +74,8 @@ We recommend using a virtual environment for local development.
 
 If you followed the optional step to install the `pyenv-virtualenv` plugin, you can use it to manage your Python virtual environments:
 
-    pyenv virtualenv 3.9.11 ddtrace-py3.9
-    pyenv activate ddtrace-py3.9
+    pyenv virtualenv 3.9.11 ddtrace
+    pyenv activate ddtrace
 
 Before running tests, you will need to install the following test requirements:
 
