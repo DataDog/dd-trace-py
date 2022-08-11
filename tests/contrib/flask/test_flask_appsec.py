@@ -178,3 +178,29 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             query = dict(_context.get_item("http.request.body", span=root_span))
             assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
             assert query == {"attack": "1' or '1' = '1'"}
+
+    def test_flask_body_xml(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
+            self.client.post("/", data=payload, content_type="application/xml")
+            root_span = self.pop_spans()[0]
+            query = dict(_context.get_item("http.request.body", span=root_span))
+
+            assert root_span.get_tag("_dd.appsec.json") is None
+            assert query == {"mytestingbody_key": "mytestingbody_value"}
+
+    def test_flask_body_xml_attack(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "<attack>1' or '1' = '1'</attack>"
+            self.client.post("/", data=payload, content_type="application/xml")
+            root_span = self.pop_spans()[0]
+            query = dict(_context.get_item("http.request.body", span=root_span))
+
+            assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+            assert query == {"attack": "1' or '1' = '1'"}
