@@ -1,4 +1,5 @@
 import os
+import sys
 
 import pytest
 import six
@@ -285,3 +286,59 @@ def test_double_fork():
     pid, status = os.waitpid(child, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 42
+
+
+@pytest.mark.subprocess(
+    out="C\nT\nC\nT\nC\nT\n" if sys.platform == "darwin" else "C\nC\nC\nT\nT\nT\n",
+    err=None,
+)
+def test_gevent_reinit_patch():
+    import os
+    import sys
+
+    from ddtrace.internal import forksafe
+    from ddtrace.internal.periodic import PeriodicService
+
+    class TestService(PeriodicService):
+        def __init__(self):
+            super(TestService, self).__init__(interval=1.0)
+
+        def periodic(self):
+            print("T")
+
+    service = TestService()
+    service.start()
+
+    def restart_service():
+        global service
+
+        service.stop()
+        service = TestService()
+        service.start()
+
+    forksafe.register(restart_service)
+
+    import gevent  # noqa
+
+    def run_child():
+        global service
+
+        # We mimic what gunicorn does in child processes
+        gevent.monkey.patch_all()
+        gevent.hub.reinit()
+
+        print("C")
+
+        gevent.sleep(1.1)
+
+        service.stop()
+
+    def fork_workers(num):
+        for _ in range(num):
+            if os.fork() == 0:
+                run_child()
+                sys.exit(0)
+
+    fork_workers(3)
+
+    service.stop()

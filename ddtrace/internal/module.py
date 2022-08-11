@@ -278,6 +278,13 @@ class ModuleWatchdog(dict):
 
     def __getattribute__(self, name):
         # type: (str) -> Any
+        if PY2 and name == "keys":
+            # This is a potential attempt to make a copy of sys.modules using
+            # dict(sys.modules), so we take this change to update self to look
+            # like sys.modules.
+            super(ModuleWatchdog, self).clear()
+            super(ModuleWatchdog, self).update(self._modules)
+
         try:
             return super(ModuleWatchdog, self).__getattribute__("_modules").__getattribute__(name)
         except AttributeError:
@@ -308,7 +315,15 @@ class ModuleWatchdog(dict):
                 if not isinstance(loader, _ImportHookChainedLoader):
                     loader = _ImportHookChainedLoader(loader)
 
-                loader.add_callback(type(self), self.after_import)
+                if PY2:
+                    # With Python 2 we don't get all the finder invoked, so we
+                    # make sure we register all the callbacks at the earliest
+                    # opportunity.
+                    for finder in sys.meta_path:
+                        if isinstance(finder, ModuleWatchdog):
+                            loader.add_callback(type(finder), finder.after_import)
+                else:
+                    loader.add_callback(type(self), self.after_import)
 
                 return loader
 
