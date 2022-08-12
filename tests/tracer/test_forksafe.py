@@ -289,7 +289,7 @@ def test_double_fork():
 
 
 @pytest.mark.subprocess(
-    out="C\nT\nC\nT\nC\nT\n" if sys.platform == "darwin" else "C\nC\nC\nT\nT\nT\n",
+    out="CTCTCT" if sys.platform == "darwin" else "CCCTTT",
     err=None,
 )
 def test_gevent_reinit_patch():
@@ -304,7 +304,7 @@ def test_gevent_reinit_patch():
             super(TestService, self).__init__(interval=1.0)
 
         def periodic(self):
-            print("T")
+            sys.stdout.write("T")
 
     service = TestService()
     service.start()
@@ -327,9 +327,9 @@ def test_gevent_reinit_patch():
         gevent.monkey.patch_all()
         gevent.hub.reinit()
 
-        print("C")
+        sys.stdout.write("C")
 
-        gevent.sleep(1.1)
+        gevent.sleep(1.5)
 
         service.stop()
 
