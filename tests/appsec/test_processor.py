@@ -3,7 +3,9 @@ import os.path
 
 import pytest
 
+from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec.processor import DEFAULT_RULES
 from ddtrace.appsec.processor import _transform_headers
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
@@ -196,3 +198,9 @@ def test_appsec_span_rate_limit(tracer):
         assert span1.get_tag("_dd.appsec.json") is not None
         assert span2.get_tag("_dd.appsec.json") is not None
         assert span3.get_tag("_dd.appsec.json") is None
+
+
+def test_ddwaf_not_raises_exception():
+    with open(DEFAULT_RULES) as rules:
+        rules_json = json.loads(rules.read())
+        DDWaf(rules_json)
