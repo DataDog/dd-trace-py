@@ -300,9 +300,15 @@ def test_single_trace_too_large(encoding, monkeypatch):
             for i in range(200000):
                 with t.trace("operation") as s:
                     # Need to make the strings unique so that the v0.5 encoding doesn’t compress the data
-                    s.set_tag(key + str(i),key + str(i))
+                    s.set_tag(key + str(i), key + str(i))
         t.shutdown()
-        log.warning.assert_any_call("trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping", AnyInt(), AnyInt(), AnyInt(), AnyInt())
+        log.warning.assert_any_call(
+            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+            AnyInt(),
+            AnyInt(),
+            AnyInt(),
+            AnyInt(),
+        )
         log.error.assert_not_called()
 
 
