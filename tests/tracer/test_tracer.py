@@ -30,6 +30,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
+from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
@@ -495,7 +496,8 @@ class TracerTestCases(TracerTestCase):
 
     def test_tracer_set_user(self):
         span = self.trace("fake_span")
-        self.tracer.set_user(
+        set_user(
+            self.tracer,
             user_id="usr.id",
             email="usr.email",
             name="usr.name",
@@ -512,7 +514,8 @@ class TracerTestCases(TracerTestCase):
 
     def test_tracer_set_user_mandatory(self):
         span = self.trace("fake_span")
-        self.tracer.set_user(
+        set_user(
+            self.tracer,
             user_id="usr.id",
         )
         span_keys = list(span.get_tags().keys())

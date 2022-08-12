@@ -16,7 +16,6 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
-from ddtrace.ext import user
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
@@ -944,35 +943,6 @@ class Tracer(object):
         :param dict tags: dict of tags to set at tracer level
         """
         self._tags.update(tags)
-
-    def set_user(self, user_id, name="", email="", scope="", role="", session_id=""):
-        # type: (str, str, str, str, str, str) -> None
-        """Set user tags.
-        https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
-        https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
-        """
-        span = self.current_root_span()
-        if span:
-            # Required unique identifier of the user
-            span.set_tag(user.ID, user_id)
-
-            # All other fields are optional
-            if name:
-                span.set_tag(user.NAME, name)
-            if email:
-                span.set_tag(user.EMAIL, email)
-            if scope:
-                span.set_tag(user.SCOPE, scope)
-            if role:
-                span.set_tag(user.ROLE, role)
-            if session_id:
-                span.set_tag(user.SESSION_ID, session_id)
-        else:
-            log.debug(
-                "No root span in the current execution. Skipping set_user tags. "
-                "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
-                "?tab=set_user&code-lang=python for more information.",
-            )
 
     def shutdown(self, timeout=None):
         # type: (Optional[float]) -> None

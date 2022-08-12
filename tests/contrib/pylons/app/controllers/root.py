@@ -2,6 +2,7 @@ from pylons import response
 from pylons.controllers import WSGIController
 
 from ddtrace import tracer
+from ddtrace.contrib.trace_utils import set_user
 
 from ..lib.helpers import ExceptionWithCodeMethod
 from ..lib.helpers import get_render_fn
@@ -54,7 +55,8 @@ class RootController(BaseController):
         return "hi"
 
     def identify(self):
-        tracer.set_user(
+        set_user(
+            tracer,
             user_id="usr.id",
             email="usr.email",
             name="usr.name",

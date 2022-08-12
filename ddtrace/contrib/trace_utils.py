@@ -19,6 +19,7 @@ from typing import cast
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
+from ddtrace.ext import user
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
@@ -390,3 +391,33 @@ def set_flattened_tags(
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
             span.set_tag(tag, processor(v) if processor is not None else v)
+
+
+def set_user(tracer, user_id, name="", email="", scope="", role="", session_id=""):
+    # type: (Tracer, str, str, str, str, str) -> None
+    """Set user tags.
+    https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
+    https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
+    """
+    span = tracer.current_root_span()
+    if span:
+        # Required unique identifier of the user
+        span.set_tag(user.ID, user_id)
+
+        # All other fields are optional
+        if name:
+            span.set_tag(user.NAME, name)
+        if email:
+            span.set_tag(user.EMAIL, email)
+        if scope:
+            span.set_tag(user.SCOPE, scope)
+        if role:
+            span.set_tag(user.ROLE, role)
+        if session_id:
+            span.set_tag(user.SESSION_ID, session_id)
+    else:
+        log.debug(
+            "No root span in the current execution. Skipping set_user tags. "
+            "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
+            "?tab=set_user&code-lang=python for more information.",
+        )

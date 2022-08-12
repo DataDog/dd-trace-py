@@ -4,6 +4,7 @@ import sys
 from flask import Flask
 
 from ddtrace import tracer
+from ddtrace.contrib.trace_utils import set_user
 from tests.webclient import PingFilter
 
 
@@ -24,7 +25,8 @@ def index():
 
 @app.route("/identify")
 def identify():
-    tracer.set_user(
+    set_user(
+        tracer,
         user_id="usr.id",
         email="usr.email",
         name="usr.name",
