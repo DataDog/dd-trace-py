@@ -139,6 +139,9 @@ else:
         return getattr(find_spec(fullname), "loader", None)
 
 
+LEGACY_DICT_COPY = sys.version_info < (3, 6)
+
+
 class _ImportHookChainedLoader(Loader):
     def __init__(self, loader):
         # type: (Loader) -> None
@@ -278,10 +281,15 @@ class ModuleWatchdog(dict):
 
     def __getattribute__(self, name):
         # type: (str) -> Any
-        if PY2 and name == "keys":
+        if LEGACY_DICT_COPY and name == "keys":
             # This is a potential attempt to make a copy of sys.modules using
-            # dict(sys.modules), so we take this change to update self to look
-            # like sys.modules.
+            # dict(sys.modules) on a Python version that uses the C API to
+            # perform the operation. Since we are an instance of a dict, this
+            # means that we will end up looking like the empty dict, so we take
+            # this chance to actually look like sys.modules.
+            # NOTE: This is a potential source of memory leaks. However, we
+            # expect this to occur only on defunct Python versions, and only
+            # during special code executions, like test runs.
             super(ModuleWatchdog, self).clear()
             super(ModuleWatchdog, self).update(self._modules)
 
