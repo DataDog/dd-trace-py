@@ -615,4 +615,4 @@ if PY2:
             self.assertEqual(span.error, 0)
             self.assertEqual(span.get_tag("http.method"), "GET")
             assert_span_http_status_code(span, 200)
-            self.assertEqual(span.get_tag("http.url"), "https://httpbin.org/status/200")
+            self.assertEqual(span.get_tag("http.url"), url)
