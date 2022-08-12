@@ -5,7 +5,7 @@ from libc.string cimport strlen
 import threading
 from ._utils cimport PyBytesLike_Check
 
-from ddtrace.constants import ORIGIN_KEY
+from ..constants import ORIGIN_KEY
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
