@@ -289,7 +289,7 @@ def test_double_fork():
 
 
 @pytest.mark.subprocess(
-    out="CTCTCT" if sys.platform == "darwin" else "CCCTTT",
+    out="" if (3,) < sys.version_info < (3, 7) else ("CTCTCT" if sys.platform == "darwin" else "CCCTTT"),
     err=None,
 )
 def test_gevent_reinit_patch():
