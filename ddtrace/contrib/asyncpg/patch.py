@@ -5,9 +5,9 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
+from ...ext.span import SpanTypes
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ..trace_utils import ext_service

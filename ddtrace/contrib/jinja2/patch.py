@@ -6,7 +6,7 @@ from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 from ...internal.compat import stringify
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value

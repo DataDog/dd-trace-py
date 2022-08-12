@@ -19,7 +19,7 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 from ...internal.compat import to_unicode
 from ...propagation.http import HTTPPropagator
 from ..grpc import constants

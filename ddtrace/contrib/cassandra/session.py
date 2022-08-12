@@ -11,9 +11,9 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
 from ...ext import cassandra as cassx
 from ...ext import net
+from ...ext.span import SpanTypes
 from ...internal.compat import maybe_stringify
 from ...internal.compat import stringify
 from ...internal.logger import get_logger

@@ -7,7 +7,7 @@ from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.processor import _transform_headers
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
-from ddtrace.ext import SpanTypes
+from ddtrace.ext.span import SpanTypes
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot

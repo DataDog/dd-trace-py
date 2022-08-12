@@ -13,9 +13,9 @@ from ddtrace.contrib.pytest.constants import HELP_MSG
 from ddtrace.contrib.pytest.constants import KIND
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.trace_utils import int_service
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.ext import test
+from ddtrace.ext.span import SpanTypes
 from ddtrace.filters import TraceCiVisibilityFilter
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger

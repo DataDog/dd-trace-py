@@ -1,8 +1,7 @@
 import dogpile
 
-from ddtrace.ext import SpanTypes
-
 from ...constants import SPAN_MEASURED_KEY
+from ...ext.span import SpanTypes
 from ...internal.utils import get_argument_value
 from ...pin import Pin
 

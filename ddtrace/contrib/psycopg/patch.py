@@ -8,12 +8,12 @@ from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.trace_utils import ext_service
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import sql
 from ddtrace.vendor import wrapt
 
+from ...ext.span import SpanTypes
 from ...internal.utils.formats import asbool
 from ...internal.utils.version import parse_version
 

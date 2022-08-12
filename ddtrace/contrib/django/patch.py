@@ -29,7 +29,6 @@ except ImportError:
     psycopg_cursor_cls = None
     Psycopg2TracedCursor = None
 
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal.compat import maybe_stringify
@@ -40,6 +39,7 @@ from ddtrace.vendor import wrapt
 
 from . import utils
 from .. import trace_utils
+from ...ext.span import SpanTypes
 
 
 log = get_logger(__name__)

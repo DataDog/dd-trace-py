@@ -6,9 +6,9 @@ from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
 from ...ext import aws
 from ...ext import http
+from ...ext.span import SpanTypes
 from ...internal.compat import PYTHON_VERSION_INFO
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value

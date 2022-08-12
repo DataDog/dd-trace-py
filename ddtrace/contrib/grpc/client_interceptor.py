@@ -3,7 +3,6 @@ import collections
 import grpc
 
 from ddtrace import config
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.compat import to_unicode
 from ddtrace.vendor import wrapt
@@ -16,6 +15,7 @@ from ...constants import ERROR_MSG
 from ...constants import ERROR_STACK
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
+from ...ext.span import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 

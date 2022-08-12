@@ -7,10 +7,10 @@ from psycopg2.extensions import connection
 from psycopg2.extensions import cursor
 
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
 from ...ext import sql
+from ...ext.span import SpanTypes
 
 
 class TracedCursor(cursor):

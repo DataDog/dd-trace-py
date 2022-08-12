@@ -8,7 +8,7 @@ import typing
 import attr
 import six
 
-from ddtrace import ext
+import ddtrace.ext.span
 from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.utils import config
 from ddtrace.profiling import event
@@ -656,7 +656,7 @@ class PprofExporter(exporter.Exporter):
     def _get_event_trace_resource(self, event: event.StackBasedEvent) -> str:
         trace_resource = ""
         # Do not export trace_resource for non Web spans for privacy concerns.
-        if event.trace_resource_container and event.trace_type == ext.SpanTypes.WEB:
+        if event.trace_resource_container and event.trace_type == ddtrace.ext.span.SpanTypes.WEB:
             (trace_resource,) = event.trace_resource_container
         return ensure_str(trace_resource, errors="backslashreplace")
 

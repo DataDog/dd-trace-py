@@ -9,9 +9,9 @@ from ddtrace.ext import sql
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.vendor import wrapt
 
-from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
+from ...ext.span import SpanTypes
 
 
 config._add(

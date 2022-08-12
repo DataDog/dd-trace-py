@@ -95,7 +95,8 @@ services:
         image: datadog/agent:latest
         environment:
             - DD_BIND_HOST=0.0.0.0
-            - DD_API_KEY=${DD_API_KEY-invalid_but_this_is_fine}
+            - DD_SITE=datad0g.com
+            - DD_API_KEY=1083586a8868935e986421252bae9e0c
             - DD_APM_RECEIVER_SOCKET=/tmp/ddagent/trace.sock
         ports:
             - "127.0.0.1:8126:8126"

@@ -7,7 +7,7 @@ from . import constants as c
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 from ...internal.logger import get_logger
 from ...propagation.http import HTTPPropagator
 from .utils import attach_span

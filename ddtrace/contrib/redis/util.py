@@ -6,9 +6,9 @@ from contextlib import contextmanager
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
 from ...ext import net
 from ...ext import redis as redisx
+from ...ext.span import SpanTypes
 from ...internal.utils.formats import stringify_cache_args
 
 

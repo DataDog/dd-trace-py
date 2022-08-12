@@ -7,8 +7,8 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import sql
+from ddtrace.ext.span import SpanTypes
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt

@@ -5,7 +5,7 @@ from mako.template import Template
 from ddtrace import config
 
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 from ...internal.utils.importlib import func_name
 from ...pin import Pin
 from ..trace_utils import unwrap as _u

@@ -8,7 +8,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor import wrapt
 
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 from ...internal.compat import parse
 from ...pin import Pin
 from ...propagation.http import HTTPPropagator

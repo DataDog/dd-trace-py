@@ -9,9 +9,9 @@ from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
+from ...ext.span import SpanTypes
 from ...internal.utils.formats import asbool
 from ...internal.utils.wrappers import unwrap as _u
 

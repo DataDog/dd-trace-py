@@ -8,7 +8,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 from ...internal.compat import parse
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value

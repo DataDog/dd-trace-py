@@ -14,17 +14,16 @@ if TYPE_CHECKING:
     from ddtrace import Tracer
     from ddtrace.settings import Config
 
-
 from six.moves.urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 
 from .. import trace_utils
+from ...ext.span import SpanTypes
 
 
 log = get_logger(__name__)

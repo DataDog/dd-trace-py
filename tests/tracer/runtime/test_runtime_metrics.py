@@ -4,7 +4,7 @@ import time
 
 import mock
 
-from ddtrace.ext import SpanTypes
+from ddtrace.ext.span import SpanTypes
 from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import ENV
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0

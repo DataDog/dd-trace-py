@@ -9,9 +9,9 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.pylibmc.addrs import parse_addresses
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import memcached
 from ddtrace.ext import net
+from ddtrace.ext.span import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import ObjectProxy
 

@@ -8,7 +8,7 @@ from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 from ...internal.compat import PY2
 from ...internal.compat import httplib
 from ...internal.compat import parse

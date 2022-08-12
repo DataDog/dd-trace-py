@@ -16,7 +16,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SERVICE_VERSION_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.constants import VERSION_KEY
-from ddtrace.ext import SpanTypes
+from ddtrace.ext.span import SpanTypes
 from ddtrace.span import Span
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

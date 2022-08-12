@@ -36,7 +36,7 @@ from ddtrace.internal.wrapping import wrap
 from ddtrace.pin import Pin
 
 from .. import trace_utils
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 
 
 _graphql_version = parse_version(getattr(graphql, "__version__"))

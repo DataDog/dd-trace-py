@@ -14,7 +14,7 @@ from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.contrib.trace_utils import _normalize_tag_name
-from ddtrace.ext import SpanTypes
+from ddtrace.ext.span import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor

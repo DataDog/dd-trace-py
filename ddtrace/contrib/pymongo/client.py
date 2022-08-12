@@ -12,9 +12,9 @@ from ddtrace.vendor.wrapt import ObjectProxy
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
-from ...ext import SpanTypes
 from ...ext import mongo as mongox
 from ...ext import net as netx
+from ...ext.span import SpanTypes
 from ...internal.compat import iteritems
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value

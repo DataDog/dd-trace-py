@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 
 from .. import trace_utils
+from ...ext.span import SpanTypes
 from ...internal.compat import reraise
 from ...internal.logger import get_logger
 from .utils import guarantee_single_callable

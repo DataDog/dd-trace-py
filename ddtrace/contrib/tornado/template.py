@@ -2,7 +2,7 @@ from tornado import template
 
 from ddtrace import Pin
 
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 
 
 def generate(func, renderer, args, kwargs):

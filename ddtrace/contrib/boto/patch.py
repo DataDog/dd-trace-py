@@ -5,13 +5,13 @@ import boto.connection
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import aws
 from ddtrace.ext import http
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
+from ...ext.span import SpanTypes
 from ...internal.utils import get_argument_value
 
 

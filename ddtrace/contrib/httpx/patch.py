@@ -11,7 +11,7 @@ from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.trace_utils import distributed_tracing_enabled
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import set_http_meta
-from ddtrace.ext import SpanTypes
+from ddtrace.ext.span import SpanTypes
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u

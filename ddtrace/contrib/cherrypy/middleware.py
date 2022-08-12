@@ -13,7 +13,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 
 from .. import trace_utils
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 from ...internal import compat
 from ...internal.utils.formats import asbool
 

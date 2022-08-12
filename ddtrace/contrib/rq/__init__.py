@@ -82,7 +82,7 @@ from ddtrace import Pin
 from ddtrace import config
 
 from .. import trace_utils
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import asbool
 from ...propagation.http import HTTPPropagator

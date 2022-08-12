@@ -1,7 +1,7 @@
 from ddtrace import Pin
 from ddtrace import config
 
-from ...ext import SpanTypes
+from ...ext.span import SpanTypes
 from ...internal.utils import get_argument_value
 from ..trace_utils import unwrap
 from ..trace_utils import with_traced_module

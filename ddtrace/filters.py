@@ -5,11 +5,11 @@ from typing import Optional
 from typing import TYPE_CHECKING
 
 import ddtrace
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.internal.processor.trace import TraceProcessor
 
 from .ext import http
+from .ext.span import SpanTypes
 
 
 if TYPE_CHECKING:

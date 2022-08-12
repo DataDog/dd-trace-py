@@ -15,10 +15,10 @@ from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
-from ddtrace.ext import SpanTypes
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
+from ...ext.span import SpanTypes
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
 from ...vendor.wrapt import FunctionWrapper
