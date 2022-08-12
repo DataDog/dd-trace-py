@@ -32,15 +32,15 @@ def patch():
 
     _w = wrapt.wrap_function_wrapper
     if REDISCLUSTER_VERSION >= (2, 0, 0):
-        _w("rediscluster", "client.RedisCluster.execute_command", traced_execute_command)
+        _w("rediscluster", "client.RedisCluster.execute_command", traced_execute_command(config.rediscluster))
         _w("rediscluster", "client.RedisCluster.pipeline", traced_pipeline)
         _w("rediscluster", "pipeline.ClusterPipeline.execute", traced_execute_pipeline)
-        Pin(service=redisx.DEFAULT_SERVICE).onto(rediscluster.RedisCluster)
+        Pin().onto(rediscluster.RedisCluster)
     else:
-        _w("rediscluster", "StrictRedisCluster.execute_command", traced_execute_command)
+        _w("rediscluster", "StrictRedisCluster.execute_command", traced_execute_command(config.rediscluster))
         _w("rediscluster", "StrictRedisCluster.pipeline", traced_pipeline)
         _w("rediscluster", "StrictClusterPipeline.execute", traced_execute_pipeline)
-        Pin(service=redisx.DEFAULT_SERVICE).onto(rediscluster.StrictRedisCluster)
+        Pin().onto(rediscluster.StrictRedisCluster)
 
 
 def unpatch():

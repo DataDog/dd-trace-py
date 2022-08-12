@@ -29,7 +29,7 @@ class TestRedisPatch(TracerTestCase):
         patch()
         r = self._get_test_client()
         r.flushall()
-        Pin.override(r, service=self.TEST_SERVICE, tracer=self.tracer)
+        Pin.override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
