@@ -143,11 +143,10 @@ class TestRedisPatch(TracerTestCase):
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDISCLUSTER_SERVICE="myrediscluster"))
     def test_env_user_specified_rediscluster_service(self):
         # Pin.override(self.r, service="myrediscluster", tracer=self.tracer)
+        from ddtrace import config
         self.r.get("cheese")
         span = self.get_spans()[0]
-        from ddtrace import config
-        print("Muhammad'sv2", span.service, config.service)
-        print("MConfig rediscluster",config.rediscluster)
+        print("This is my stringRediscluster", span.service, self._get_env_overrides(), config.service, flush=True)
         assert span.service == "myrediscluster", span.service
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_REDISCLUSTER_SERVICE="myrediscluster"))
