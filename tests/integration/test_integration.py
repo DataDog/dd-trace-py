@@ -295,22 +295,14 @@ def test_single_trace_too_large(encoding, monkeypatch):
     t = Tracer()
     assert t._partial_flush_enabled is True
     with mock.patch("ddtrace.internal.writer.log") as log:
+        key = "a" * 100
         with t.trace("huge"):
             for i in range(200000):
                 with t.trace("operation") as s:
-                    s.set_tag("a" * 10, "b" * 10)
+                    # Need to make the strings unique so that the v0.5 encoding doesn’t compress the data
+                    s.set_tag(key + str(i),key + str(i))
         t.shutdown()
-
-        calls = [
-            mock.call(
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-                AnyInt(),
-            )
-        ]
-        log.warning.assert_has_calls(calls)
+        log.warning.assert_any_call("trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping", AnyInt(), AnyInt(), AnyInt(), AnyInt())
         log.error.assert_not_called()
 
 
