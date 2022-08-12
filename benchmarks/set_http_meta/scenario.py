@@ -65,10 +65,8 @@ COOKIES = {"csrftoken": "cR8TVoVebF2afssCR16pQeqHcxAlA3867P6zkkUBYDL5Q92kjSGtqpt
 
 DATA_GET = dict(
     method="GET",
-    url="http://localhost:8888{}".format(PATH),
     status_code=200,
     status_msg="OK",
-    query=b"key1=value1&key2=value2&token=cR8TVoVebF2afssCR16pQeqHcxAlA3867P6zkkUBYDL5Q92kjSGtqptAry1htdlL",
     parsed_query={
         "key1": "value1",
         "key2": "value2",
@@ -83,26 +81,14 @@ DATA_GET = dict(
     request_path_params={"id": 1},
 )
 
-DATA_POST = dict(
-    method="GET",
-    url="http://localhost:8888/test-benchmark",
-    status_code=200,
-    status_msg="OK",
-    query=b"key1=value1&key2=value2",
-    parsed_query={"key1": "value1", "key2": "value2"},
-    request_headers=COMMON_DJANGO_META,
-    response_headers=COMMON_DJANGO_META,
-    retries_remain=0,
-    raw_uri="http://127.0.0.1:8081/test/1/?key1=value1&key2=value2",
-    request_cookies=COOKIES,
-    request_path_params={"id": 1},
-    request_body=None,
-)
-
 
 class SetHttpMeta(bm.Scenario):
     allenabled = bm.var_bool()
     useragentvariant = bm.var(type=str)
+    obfuscation_disabled = bm.var_bool()
+    send_querystring_enabled = bm.var_bool()
+    url = bm.var(type=str)
+    querystring = bm.var(type=str)
 
     def run(self):
         # run scenario to also set tags on spans
@@ -111,7 +97,14 @@ class SetHttpMeta(bm.Scenario):
         else:
             config = Config(lambda: False)
 
+        # querystring obfuscation config
+        config["trace_query_string"] = self.send_querystring_enabled
+        if self.obfuscation_disabled:
+            ddconfig._obfuscation_query_string_pattern = None
+
         data = copy.deepcopy(DATA_GET)
+        data["url"] = self.url
+        data["query"] = self.querystring
 
         if self.useragentvariant:
             data["request_headers"][self.useragentvariant] = (
