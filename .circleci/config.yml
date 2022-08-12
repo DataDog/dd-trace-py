@@ -771,8 +771,10 @@ jobs:
   httplib:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib'
+      - run_test:
+          pattern: "httplib"
+          snapshot: true
+          docker_services: 'httpbin_local'
 
   httpx:
     <<: *machine_executor
