@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    redis: track the connection client_name.

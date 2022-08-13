@@ -1,0 +1,22 @@
+[[
+  {
+    "name": "web.request",
+    "service": null,
+    "resource": "web.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "334311a6f22143ff855bbf68dbabac50"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "system.pid": 15332
+    },
+    "duration": 34000,
+    "start": 1660010337590045000
+  }]]
