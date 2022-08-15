@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Add dd_pymongo_service config option
+    add DD_PYMONGO_SERVICE configuration
