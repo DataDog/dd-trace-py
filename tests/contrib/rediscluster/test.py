@@ -154,9 +154,3 @@ class TestRedisPatch(TracerTestCase):
         assert span.service == "myrediscluster"
 
         self.reset()
-
-        # Do a manual override
-        Pin.override(self.r, service="myrediscluster", tracer=self.tracer)
-        self.r.get("cheese")
-        span = self.get_spans()[0]
-        assert span.service == "myrediscluster", span.service
