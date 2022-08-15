@@ -231,7 +231,7 @@ below:
    * - ``DD_TRACE_PARTIAL_FLUSH_ENABLED``
      - Boolean
      - True
-     - To prevent large payloads to be sent to APM.
+     - Prevents large payloads being sent to APM.
 
        .. _dd-profiling-enabled:
    * - ``DD_PROFILING_ENABLED``
