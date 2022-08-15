@@ -255,6 +255,7 @@ setup(
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
         "pathlib2; python_version<'3.5'",
+        "xmltodict>=0.12",
     ]
     + bytecode,
     extras_require={

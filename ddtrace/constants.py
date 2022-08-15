@@ -7,6 +7,7 @@ SAMPLING_LIMIT_DECISION = "_dd.limit_psr"
 _SINGLE_SPAN_SAMPLING_MECHANISM = "_dd.span_sampling.mechanism"
 _SINGLE_SPAN_SAMPLING_RATE = "_dd.span_sampling.rule_rate"
 _SINGLE_SPAN_SAMPLING_MAX_PER_SEC = "_dd.span_sampling.max_per_second"
+_SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT = -1
 
 ORIGIN_KEY = "_dd.origin"
 HOSTNAME_KEY = "_dd.hostname"

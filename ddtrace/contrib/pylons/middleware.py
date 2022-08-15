@@ -7,6 +7,7 @@ from typing import Tuple
 from pylons import config
 import webob
 from webob import Request
+import xmltodict
 
 from ddtrace import config as ddconfig
 from ddtrace.internal.compat import iteritems
@@ -98,6 +99,8 @@ class PylonsTraceMiddleware(object):
                             req_body = request.json
                         else:
                             req_body = json.loads(request.body.decode("UTF-8"))
+                    elif content_type in ("application/xml", "text/xml"):
+                        req_body = xmltodict.parse(request.body.decode("UTF-8"))
                     else:  # text/plain, xml, others: take them as strings
                         req_body = request.body.decode("UTF-8")
 
