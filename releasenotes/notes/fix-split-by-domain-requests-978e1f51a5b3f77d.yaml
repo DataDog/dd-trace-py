@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    requests: fix split-by-domain service name when multiple ``@`` signs are present in the url
