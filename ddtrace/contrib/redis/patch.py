@@ -83,6 +83,7 @@ def traced_execute_command(integration_config):
 
         with _trace_redis_cmd(pin, integration_config, instance, args):
             return func(*args, **kwargs)
+
     return _traced_execute_command
 
 
