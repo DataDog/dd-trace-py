@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import itertools
 import logging
 import os
@@ -295,7 +296,7 @@ def test_single_trace_too_large(encoding, monkeypatch):
     t = Tracer()
     assert t._partial_flush_enabled is True
     with mock.patch("ddtrace.internal.writer.log") as log:
-        key = "a" * 100
+        key = "a" * 150
         with t.trace("huge"):
             for i in range(200000):
                 with t.trace("operation") as s:
