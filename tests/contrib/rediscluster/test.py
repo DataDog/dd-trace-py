@@ -13,7 +13,6 @@ from tests.utils import assert_is_measured
 
 class TestRedisPatch(TracerTestCase):
 
-    TEST_SERVICE = "rediscluster-patch"
     TEST_HOST = REDISCLUSTER_CONFIG["host"]
     TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
 
@@ -43,7 +42,7 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "rediscluster"
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
@@ -58,7 +57,7 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "rediscluster"
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
@@ -77,7 +76,7 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "rediscluster"
         assert span.name == "redis.command"
         assert span.resource == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.span_type == "redis"
