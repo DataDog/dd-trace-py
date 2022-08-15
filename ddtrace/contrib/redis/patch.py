@@ -105,4 +105,5 @@ def traced_execute_pipeline(integration_config):
         resource = "\n".join(cmds)
         with _trace_redis_execute_pipeline(pin, integration_config, resource, instance):
             return func(*args, **kwargs)
+
     return _traced_execute_pipeline
