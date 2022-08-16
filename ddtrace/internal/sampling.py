@@ -6,6 +6,13 @@ from typing import TYPE_CHECKING
 
 from six import string_types
 
+
+# TypedDict was added to typing in python 3.8
+try:
+    from typing import TypedDict
+except ImportError:
+    from typing_extensions import TypedDict
+
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
@@ -54,6 +61,18 @@ SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 
 # Use regex to validate trace tag value
 TRACE_TAG_RE = re.compile(r"^-([0-9])$")
+
+
+SpanSamplingRules = TypedDict(
+    "SpanSamplingRules",
+    {
+        "name": str,
+        "service": str,
+        "sample_rate": float,
+        "max_per_second": int,
+    },
+    total=False,
+)
 
 
 def _set_trace_tag(
