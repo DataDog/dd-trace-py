@@ -12,6 +12,7 @@
       "http.method": "POST",
       "http.status_code": "200",
       "http.url": "http://testserver/notes",
+      "http.useragent": "testclient",
       "http.version": "1.1",
       "runtime-id": "d28db718d7af4382ae0c6b34a484ce61"
     },
@@ -58,6 +59,7 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://testserver/notes",
+      "http.useragent": "testclient",
       "http.version": "1.1",
       "runtime-id": "d28db718d7af4382ae0c6b34a484ce61"
     },
