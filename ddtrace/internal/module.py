@@ -160,6 +160,19 @@ class _ImportHookChainedLoader(Loader):
         if hasattr(loader, "exec_module"):
             self.exec_module = self._exec_module  # type: ignore[assignment]
 
+    def __getattribute__(self, name):
+        if name == "__class__":
+            # Make isinstance believe that self is also an instance of
+            # type(self.loader). This is required, e.g. by some tools, like
+            # slotscheck, that can handle known loaders only.
+            return self.loader.__class__
+
+        return super(_ImportHookChainedLoader, self).__getattribute__(name)
+
+    def __getattr__(self, name):
+        # Proxy any other attribute access to the underlying loader.
+        return getattr(self.loader, name)
+
     def add_callback(self, key, callback):
         # type: (Any, Callable[[ModuleType], None]) -> None
         self.callbacks[key] = callback
@@ -179,9 +192,6 @@ class _ImportHookChainedLoader(Loader):
         self.loader.exec_module(module)
         for callback in self.callbacks.values():
             callback(module)
-
-    def get_code(self, mod_name):
-        return self.loader.get_code(mod_name)
 
 
 class ModuleWatchdog(dict):
