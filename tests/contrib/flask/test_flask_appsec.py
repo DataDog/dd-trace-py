@@ -1,5 +1,6 @@
 import json
 
+from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -111,6 +112,12 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         assert query == {"testingcookie_key": "testingcookie_value"} or query == {
             "testingcookie_key": ["testingcookie_value"]
         }
+
+    def test_flask_useragent(self):
+        self.client.get("/", headers={"User-Agent": "test/1.2.3"})
+        spans = self.pop_spans()
+        root_span = spans[0]
+        assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
 
     def test_flask_body_urlencoded(self):
         with override_global_config(dict(_appsec_enabled=True)):
