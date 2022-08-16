@@ -310,3 +310,20 @@ def test_module_watchdog_propagation():
 
     Bob.uninstall()
     Alice.uninstall()
+
+
+def test_module_watchdog_dict_shallow_copy():
+    # Save original reference to sys.modules
+    original_sys_modules = sys.modules
+
+    ModuleWatchdog.install()
+
+    # Ensure that we have replaced sys.modules
+    assert original_sys_modules is not sys.modules
+
+    # Make a shallow copy of both using the dict constructor
+    original_modules = set(dict(original_sys_modules).keys())
+    new_modules = set(dict(sys.modules).keys())
+
+    # Ensure that they match
+    assert original_modules == new_modules
