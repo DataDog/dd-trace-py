@@ -68,12 +68,12 @@ def _update_patching(operation, module_str, cls, func_name, wrapper):
     operation(func, wrapper)
     
 
-def traced_init(wrapped, instance, args, kwargs):
+def traced_init(func, args, kwargs):
+    import pdb; pdb.set_trace()
     mw = kwargs.pop("middleware", [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
     kwargs.update({"middleware": mw})
-
-    wrapped(*args, **kwargs)
+    return func(*args, **kwargs)
 
 
 def patch():
@@ -82,7 +82,7 @@ def patch():
 
     setattr(starlette, "_datadog_patch", True)
 # Throwing attribute error atm although I verified it should be there?  https://github.com/DataDog/dd-trace-py/blob/69fca3189b84548d35553c98b4c50cfd7b039a98/ddtrace/contrib/starlette/patch.py
-    # _update_patching(wrap, "starlette.applications", "Starlette.__init__", traced_init)
+    _update_patching(wrap, "starlette.applications", "Starlette", "__init__", traced_init)
 
     Pin().onto(starlette)
 
@@ -103,10 +103,8 @@ def unpatch():
 
     setattr(starlette, "_datadog_patch", False)
 
-    # _update_patching(unwrap, "starlette.applications", "Starlette.__init__", traced_init)
+    _update_patching(unwrap, "starlette.applications", "Starlette", "__init__", traced_init)
 
-
-    # _u(starlette.applications.Starlette, "__init__")
 
     # We need to check that Fastapi instrumentation hasn't already unpatched these
     if isinstance(starlette.routing.Route.handle, ObjectProxy):
@@ -129,16 +127,16 @@ def traced_handler(func, args, kwargs):
 
         return func(*args, **kwargs)
 
-    import pdb; pdb.set_trace()
 
     pin = Pin.get_from(starlette)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
     
 
+    import pdb; pdb.set_trace()
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
-    scope = get_argument_value(args, kwargs, 0, "scope")  # type: Optional[Dict[str, Any]]
+    scope = get_argument_value(args, kwargs, 1, "scope")  # type: Optional[Dict[str, Any]]
     if not scope:
         return func(*args, **kwargs)
 
