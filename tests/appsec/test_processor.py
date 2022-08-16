@@ -3,7 +3,9 @@ import os.path
 
 import pytest
 
+from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec.processor import DEFAULT_RULES
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import priority
 from tests.utils import override_env
@@ -75,3 +77,9 @@ def test_appsec_span_tags_snapshot(tracer):
         span.set_tag("http.status_code", "404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+
+def test_ddwaf_not_raises_exception():
+    with open(DEFAULT_RULES) as rules:
+        rules_json = json.loads(rules.read())
+        DDWaf(rules_json)
