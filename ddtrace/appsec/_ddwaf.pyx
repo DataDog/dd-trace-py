@@ -56,6 +56,7 @@ def version():
 
 
 cdef inline object _string_to_bytes(object string, const char **ptr, ssize_t *length):
+    ptr[0] = NULL
     if isinstance(string, six.binary_type):
         ptr[0] = PyBytes_AsString(string)
         length[0] = PyBytes_Size(string)
