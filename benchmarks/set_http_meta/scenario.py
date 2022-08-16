@@ -5,6 +5,7 @@ from io import BytesIO
 import bm as bm
 import bm.utils as utils
 
+from ddtrace import config as ddconfig
 from ddtrace.contrib.trace_utils import set_http_meta
 
 
