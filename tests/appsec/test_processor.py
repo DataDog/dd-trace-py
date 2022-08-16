@@ -6,7 +6,6 @@ import pytest
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.processor import DEFAULT_RULES
-from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import priority
 from tests.utils import override_env
