@@ -2,18 +2,8 @@ import re
 from typing import Optional
 from typing import TYPE_CHECKING
 
-<<<<<<< HEAD
-=======
-
-# TypedDict was added to typing in python 3.8
-try:
-    from typing import TypedDict
-except ImportError:
-    from typing_extensions import TypedDict
-
 from six import string_types
 
->>>>>>> c0e9a9bc (feat(internal): span sampling file config envar (#4042))
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
@@ -192,8 +182,6 @@ class SpanSamplingRule:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
-<<<<<<< HEAD
-=======
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
     json_rules = _get_span_sampling_json()
@@ -283,7 +271,6 @@ def _check_unsupported_pattern(string):
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
->>>>>>> c0e9a9bc (feat(internal): span sampling file config envar (#4042))
 def is_single_span_sampled(span):
     # type: (Span) -> bool
     return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
