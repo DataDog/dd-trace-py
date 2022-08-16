@@ -9,7 +9,6 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
-from ...ext import mongo as mongox
 from ..trace_utils import unwrap as _u
 from .client import TracedMongoClient
 from .client import set_address_tags
@@ -18,7 +17,7 @@ from .client import set_address_tags
 config._add(
     "pymongo",
     dict(
-        _default_service=mongox.SERVICE,
+        _default_service="pymongo",
     ),
 )
 
