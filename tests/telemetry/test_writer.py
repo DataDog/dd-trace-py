@@ -9,6 +9,8 @@ import pytest
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_dependencies
 from ddtrace.internal.telemetry.data import get_host_info
+from ddtrace.internal.telemetry.data import get_hostname
+from ddtrace.internal.telemetry.data import get_version
 from ddtrace.internal.telemetry.writer import TelemetryWriter
 from ddtrace.internal.telemetry.writer import get_runtime_id
 from ddtrace.settings import _config as config
@@ -187,6 +189,43 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session):
     assert events[0]["request_type"] == "app-closing"
     assert events[0] == _get_request_body({}, "app-closing", 2)
     assert events[1]["request_type"] == "app-started"
+
+
+def test_send_test_metric(mock_time, telemetry_writer, test_agent_session):
+    telemetry_writer.add_count_metric("test-metric", 1, {"hi": "HELLO", "NAME": "CANDY"})
+    telemetry_writer.add_count_metric("test-metric", 1, {})
+    telemetry_writer.add_count_metric("test-metric", 1, {})
+    telemetry_writer.periodic()
+
+    events = test_agent_session.get_events()
+    assert len(events) == 1
+
+    payload = {
+        "namespace": "tracers",
+        "lib_language": "python",
+        "lib_version": get_version(),
+        "series": [
+            {
+                "host": get_hostname(),
+                "metric": "test-metric",
+                "type": "count",
+                "common": False,
+                "interval": None,
+                "points": [
+                    [1642544540, 1],
+                    [1642544540, 1],
+                    [1642544540, 1],
+                ],
+                "tags": {
+                    "hi": "HELLO",
+                    "NAME": "CANDY",
+                },
+            }
+        ],
+    }
+
+    assert events[0]["request_type"] == "app-generate-metrics"
+    assert events[0] == _get_request_body(payload, "app-generate-metrics", 1)
 
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
