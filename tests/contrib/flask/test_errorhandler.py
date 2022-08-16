@@ -15,6 +15,8 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # Make our 404 request
         res = self.client.get("/unknown")
         self.assertEqual(res.status_code, 404)
+        # Read response data from the test client to close flask.request and flask.response spans
+        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
 
@@ -57,6 +59,8 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # Make our 500 request
         res = self.client.get("/500")
         self.assertEqual(res.status_code, 500)
+        # Read response data from the test client to close flask.request and flask.response spans
+        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
 
@@ -117,7 +121,8 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # Make our 500 request
         res = self.client.get("/500")
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data, b"whoops")
+        # Read response data from the test client to close flask.request and flask.response spans
+        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
 
@@ -183,6 +188,8 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # Make our 500 request
         res = self.client.get("/error")
         self.assertEqual(res.status_code, 500)
+        # Read response data from the test client to close flask.request and flask.response spans
+        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
 
