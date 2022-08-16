@@ -1,3 +1,5 @@
+import json
+import os
 import re
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -16,9 +18,16 @@ from .rate_limiter import RateLimiter
 
 log = get_logger(__name__)
 
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
 if TYPE_CHECKING:
     from typing import Any
     from typing import Dict
+    from typing import List
     from typing import Text
 
     from ddtrace.context import Context
