@@ -158,7 +158,7 @@ def pyramid_client(snapshot, pyramid_app):
         "ddtrace-run python tests/contrib/pyramid/app/app.py",
     ],
 )
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
 def test_simple_pyramid_app_endpoint(pyramid_client):
     r = pyramid_client.get("/")
     assert r.status_code == 200
