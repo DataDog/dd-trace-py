@@ -70,8 +70,10 @@ class Context(object):
     def _update_tags(self, span):
         # type: (Span) -> None
         with self._lock:
-            span._meta.update(self._meta)
-            span._metrics.update(self._metrics)
+            for tag in self._meta:
+                span._meta.setdefault(tag, self._meta[tag])
+            for metric in self._metrics:
+                span._metrics.setdefault(metric, self._metrics[metric])
 
     @property
     def sampling_priority(self):
