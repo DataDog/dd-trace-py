@@ -15,7 +15,8 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/stream",
-      "runtime-id": "c6a8a096ffa146b590298e5b0960757d"
+      "http.useragent": "python-httpx/x.xx.x",
+      "runtime-id": "fa018fb2492d45ecb6d978b5a512b9b6"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
