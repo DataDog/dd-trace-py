@@ -11,7 +11,7 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
-from six import string_types
+from jsonschema import validate
 
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
@@ -73,6 +73,18 @@ SpanSamplingRules = TypedDict(
     },
     total=False,
 )
+
+SPAN_SAMPLING_JSON_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "anyOf": [
+            {"properties": {"service": {"type": "string"}}, "required": ["service"]},
+            {"properties": {"name": {"type": "string"}}, "required": ["name"]},
+        ],
+        "properties": {"max_per_second": {"type": "integer"}, "sample_rate": {"type": "number"}},
+    },
+}
 
 
 def _set_trace_tag(
@@ -206,30 +218,22 @@ class SpanSamplingRule:
         span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
         span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
         # Only set this tag if it's not the default -1
-        if self._max_per_second != -1:
+        if self._max_per_second != _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
 def get_span_sampling_rules():
     # type: () -> List[SpanSamplingRule]
     json_rules = _get_span_sampling_json()
+    validate(json_rules, SPAN_SAMPLING_JSON_SCHEMA)
     sampling_rules = []
     for rule in json_rules:
-        if not isinstance(rule, dict):
-            raise TypeError("rule specified via DD_SPAN_SAMPLING_RULES is not a dictionary:%r" % rule)
         # If sample_rate not specified default to 100%
-        sample_rate = float(rule.get("sample_rate", 1.0))
+        sample_rate = rule.get("sample_rate", 1.0)
         service = rule.get("service")
         name = rule.get("name")
         # If max_per_second not specified default to no limit
-        max_per_second = int(rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT))
-        if service is not None and not isinstance(service, string_types):
-            raise ValueError("The service value is not a string or None:%r" % service)
-        if name is not None and not isinstance(name, string_types):
-            raise ValueError("The name value is not a string or None:%r" % name)
-
-        if service is None and name is None:
-            raise ValueError("Neither service or name specified for single span sampling rule:%r" % rule)
+        max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
         if service:
             _check_unsupported_pattern(service)
         if name:
