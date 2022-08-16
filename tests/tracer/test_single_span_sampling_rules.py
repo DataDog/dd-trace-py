@@ -1,5 +1,6 @@
 import sys
 
+from jsonschema import ValidationError
 import pytest
 
 from ddtrace import Tracer
@@ -47,9 +48,9 @@ def test_sampling_rule_init_via_env():
         assert len(sampling_rules) == 2
 
     # Testing for only service being set
-    with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"xyz"}]')):
+    with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"service":"xyz", "sample_rate":0.23}]')):
         sampling_rules = get_span_sampling_rules()
-        assert sampling_rules[0]._sample_rate == 1.0
+        assert sampling_rules[0]._sample_rate == 0.23
         assert sampling_rules[0]._service_matcher.pattern == "xyz"
         assert sampling_rules[0]._max_per_second == -1
         assert len(sampling_rules) == 1
@@ -64,7 +65,7 @@ def test_sampling_rule_init_via_env():
 
     # Testing error thrown when neither name nor service is set
     with override_env(dict(DD_SPAN_SAMPLING_RULES='[{"sample_rate":1.0}]')):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValidationError):
             sampling_rules = get_span_sampling_rules()
 
     # Testing exception thrown when service pattern contains unsupported char
