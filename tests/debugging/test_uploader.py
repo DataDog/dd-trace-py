@@ -52,6 +52,9 @@ def test_uploader_full_buffer():
         with pytest.raises(BufferFull):
             uploader._encoder.put(item)
 
+            # OK, maybe this time then
+            uploader._encoder.put(item)
+
         # The full buffer forces a flush
         sleep(0.01)
         assert len(uploader.queue) == 1
