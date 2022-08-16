@@ -1,5 +1,6 @@
 import json
 
+from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -206,3 +207,9 @@ def test_django_path_params(client, test_spans, tracer):
     assert path_params["month"] == "july"
     # django>=1.8,<1.9 returns string instead int
     assert int(path_params["year"]) == 2022
+
+
+def test_django_useragent(client, test_spans, tracer):
+    client.get("/?a=1&b&c=d", HTTP_USER_AGENT="test/1.2.3")
+    root_span = test_spans.spans[0]
+    assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
