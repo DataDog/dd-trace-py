@@ -539,7 +539,6 @@ class PylonsTestCase(TracerTestCase):
                 extra_environ={"CONTENT_TYPE": "application/x-www-form-urlencoded"},
             )
             assert response.status == 200
-            assert response.body == '{"mytestingbody_key": "mytestingbody_value"}'
 
             spans = self.pop_spans()
             assert spans

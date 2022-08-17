@@ -146,7 +146,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             response = self.client.post("/body", data=payload, content_type="application/x-www-form-urlencoded")
             assert response.status_code == 200
-            assert response.data == b"{'mytestingbody_key': 'mytestingbody_value'}"
 
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
@@ -190,7 +189,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             response = self.client.post("/body", json=payload, content_type="application/json")
             assert response.status_code == 200
-            assert response.data == b"{'mytestingbody_key': 'mytestingbody_value'}"
 
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
