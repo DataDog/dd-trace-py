@@ -196,4 +196,4 @@ def body_view(request):
         return HttpResponse(data, status=200)
     else:
         data = request.POST
-        return HttpResponse(dict(data), status=200)
+        return HttpResponse(str(dict(data)), status=200)
