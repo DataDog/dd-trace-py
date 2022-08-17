@@ -31,7 +31,7 @@ else:
 
 
 # socket name comes from https://english.stackexchange.com/a/44048
-SOCKET = "httpbin.org"
+SOCKET = "localhost:8001"
 URL_200 = "http://{}/status/200".format(SOCKET)
 URL_500 = "http://{}/status/500".format(SOCKET)
 URL_404 = "http://{}/status/404".format(SOCKET)
@@ -182,6 +182,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                 we return the original response
                 we capture a span for the request
         """
+        # TODO: figure out how to use https in our local httpbin container
         conn = self.get_https_connection("httpbin.org")
         with contextlib.closing(conn):
             conn.request("GET", "/status/200")
@@ -403,6 +404,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                we return the original response
                we capture a span for the request
         """
+        # TODO: figure out how to use https in our local httpbin container
         with override_global_tracer(self.tracer):
             resp = urlopen("https://httpbin.org/status/200")
 
@@ -595,8 +597,10 @@ if PY2:
                    we return the original response
                    we capture a span for the request
             """
+            # TODO: figure out how to use https in our local httpbin container
+            url = "https://httpbin.org/status/200"
             with override_global_tracer(self.tracer):
-                resp = urllib.urlopen("https://httpbin.org/status/200")
+                resp = urllib.urlopen(url)
 
             self.assertEqual(resp.read(), "")
             self.assertEqual(resp.getcode(), 200)
@@ -611,4 +615,4 @@ if PY2:
             self.assertEqual(span.error, 0)
             self.assertEqual(span.get_tag("http.method"), "GET")
             assert_span_http_status_code(span, 200)
-            self.assertEqual(span.get_tag("http.url"), "https://httpbin.org/status/200")
+            self.assertEqual(span.get_tag("http.url"), url)

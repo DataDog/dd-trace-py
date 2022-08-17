@@ -336,6 +336,11 @@ venv = Venv(
             },
         ),
         Venv(
+            name="httplib",
+            command="pytest {cmdargs} tests/contrib/httplib",
+            pys=select_pys(),
+        ),
+        Venv(
             name="test_logging",
             command="pytest {cmdargs} tests/contrib/logging",
             pys=select_pys(),

@@ -50,6 +50,9 @@ RESPONSE = "response"
 # starting a "new object" on the UI.
 NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
+# Possible User Agent header.
+USER_AGENT_PATTERNS = {"HTTP_USER_AGENT", "User-Agent", "user-agent", "Http-User-Agent"}
+
 
 @cached()
 def _normalized_header_name(header_name):
@@ -103,11 +106,26 @@ def _store_headers(headers, span, integration_config, request_or_response):
         return
 
     for header_name, header_value in headers.items():
+        """config._header_tag_name gets an element of the dictionary in config.http._header_tags
+        which gets the value from DD_TRACE_HEADER_TAGS environment variable."""
         tag_name = integration_config._header_tag_name(header_name)
         if tag_name is None:
             continue
         # An empty tag defaults to a http.<request or response>.headers.<header name> tag
         span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
+
+
+def _get_request_header_user_agent(headers):
+    # type: (Dict[str, str], Span, IntegrationConfig, str) -> str
+    """Get user agent from request headers
+    :param headers: A dict of http headers to be stored in the span
+    :type headers: dict or list
+    """
+    for key_pattern in USER_AGENT_PATTERNS:
+        user_agent = headers.get(key_pattern)
+        if user_agent:
+            return user_agent
+    return ""
 
 
 def _store_request_headers(headers, span, integration_config):
@@ -293,8 +311,15 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span._set_str_tag(http.QUERY_STRING, query)
 
-    if request_headers is not None and integration_config.is_header_tracing_configured:
-        _store_request_headers(dict(request_headers), span, integration_config)
+    if request_headers:
+        user_agent = _get_request_header_user_agent(request_headers)
+        if user_agent:
+            span.set_tag(http.USER_AGENT, user_agent)
+
+        if integration_config.is_header_tracing_configured:
+            """We should store both http.<request_or_response>.headers.<header_name> and http.<key>. The last one
+            is the DD standardized tag for user-agent"""
+            _store_request_headers(dict(request_headers), span, integration_config)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
