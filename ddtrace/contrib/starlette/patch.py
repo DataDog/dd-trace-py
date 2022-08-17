@@ -25,6 +25,8 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from .. import trace_utils
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
+
 
 
 log = get_logger(__name__)
@@ -69,10 +71,11 @@ def _update_patching(operation, module_str, cls, func_name, wrapper):
     
 
 def traced_init(func, args, kwargs):
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     mw = kwargs.pop("middleware", [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
-    kwargs.update({"middleware": mw})
+    args, kwargs = set_argument_value(args, kwargs, 3, "middleware", mw)
+    # kwargs.update({"middleware": mw})
     return func(*args, **kwargs)
 
 
@@ -105,14 +108,15 @@ def unpatch():
 
     _update_patching(unwrap, "starlette.applications", "Starlette", "__init__", traced_init)
 
-
+    # import pdb; pdb.set_trace()
     # We need to check that Fastapi instrumentation hasn't already unpatched these
-    if isinstance(starlette.routing.Route.handle, ObjectProxy):
-        _update_patching(unwrap, "starlette.routing", "Mount.handle", traced_handler)
+    # not sure how to do that rn with the new tracing
+    # if isinstance(starlette.routing.Route.handle, ObjectProxy):
+    _update_patching(unwrap, "starlette.routing", "Route", "handle", traced_handler)
         # _u(starlette.routing.Route, "handle")
 
-    if isinstance(starlette.routing.Mount.handle, ObjectProxy):
-        _update_patching(unwrap,"starlette.routing", "Mount.handle", traced_handler)
+    # if isinstance(starlette.routing.Mount.handle, ObjectProxy):
+    _update_patching(unwrap,"starlette.routing", "Mount", "handle", traced_handler)
 
         # _u(starlette.routing.Mount, "handle")
 
@@ -133,7 +137,7 @@ def traced_handler(func, args, kwargs):
         return func(*args, **kwargs)
     
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
     scope = get_argument_value(args, kwargs, 1, "scope")  # type: Optional[Dict[str, Any]]
@@ -155,6 +159,8 @@ def traced_handler(func, args, kwargs):
 
     request_spans = scope["datadog"].get("request_spans", [])  # type: List[Span]
     resource_paths = scope["datadog"].get("resource_paths", [])  # type: List[str]
+
+    # import pdb; pdb.set_trace()
 
     if len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
@@ -183,13 +189,11 @@ def traced_handler(func, args, kwargs):
             resource_paths,
         )
 
-    pin.tracer.trace(
+    with pin.tracer.trace(
         name="starlette.request",
         resource=resource,
         service=trace_utils.int_service(pin, config.starlette),
         span_type="starlette",
-    )
+    ) as span:
 
-    result = func(*args, **kwargs)
-
-    return result
+        return func(*args, **kwargs)
