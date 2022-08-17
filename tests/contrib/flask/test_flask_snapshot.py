@@ -111,7 +111,8 @@ def test_flask_stream(flask_client):
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.flask.version"], variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)}
+    ignores=["meta.flask.version", "http.useragent"],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 def test_flask_get_user(flask_client):
     # type: (Client) -> None
