@@ -147,7 +147,10 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 # Reset wsgi input to the beginning
                 wsgi_input = environ.get("wsgi.input")
                 if wsgi_input:
-                    wsgi_input.seek(0)
+                    try:
+                        wsgi_input.seek(0)
+                    except OSError:
+                        pass
             except (AttributeError, RuntimeError, TypeError, BadRequest):
                 log.warning("Failed to parse werkzeug request body", exc_info=True)
 
