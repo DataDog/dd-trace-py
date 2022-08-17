@@ -37,6 +37,7 @@ start_new_thread = get_original(six.moves._thread.__name__, "start_new_thread")
 thread_get_ident = get_original(six.moves._thread.__name__, "get_ident")
 Thread = get_original("threading", "Thread")
 Lock = get_original("threading", "Lock")
+RLock = get_original("threading", "RLock")
 
 is_threading_patched = is_module_patched("threading")
 
