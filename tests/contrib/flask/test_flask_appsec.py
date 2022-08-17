@@ -141,11 +141,12 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.tracer._appsec_enabled = True
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
-            payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
+            data = {"mytestingbody_key": "mytestingbody_value"}
+            payload = urlencode(data)
 
             response = self.client.post("/body", data=payload, content_type="application/x-www-form-urlencoded")
             assert response.status_code == 200
-            assert response.json == payload
+            assert response.json == data
 
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))

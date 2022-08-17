@@ -160,6 +160,11 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_body=req_body,
         )
 
+        # Reset wsgi input to the beginning
+        wsgi_input = environ.get("wsgi.input")
+        if wsgi_input:
+            wsgi_input.seek(0)
+
 
 def patch():
     """
