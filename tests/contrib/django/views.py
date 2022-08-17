@@ -186,7 +186,13 @@ def path_params_view(request, year, month):
 
 
 def body_view(request):
-    if request.headers["Content-Type"] in ("application/json", "application/xml", "text/xml"):
+    # Django >= 3
+    if hasattr(request, "headers"):
+        content_type = request.headers["Content-Type"]
+    else:
+        # Django < 3
+        content_type = request.META["CONTENT_TYPE"]
+    if content_type in ("application/json", "application/xml", "text/xml"):
         data = request.body
         return HttpResponse(data, status=200)
     else:
