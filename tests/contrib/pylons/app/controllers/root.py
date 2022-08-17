@@ -1,6 +1,5 @@
 import json
 
-from pylons import Response
 from pylons import request
 from pylons import response
 from pylons.controllers import WSGIController
