@@ -782,9 +782,10 @@ class PylonsTestCase(TracerTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
 
-        assert root_span.get_tag(user.ID)
-        assert root_span.get_tag(user.EMAIL)
-        assert root_span.get_tag(user.SESSION_ID)
-        assert root_span.get_tag(user.NAME)
-        assert root_span.get_tag(user.ROLE)
-        assert root_span.get_tag(user.SCOPE)
+        # Values defined in tests/contrib/pylons/app/controllers/root.py::RootController::identify
+        assert root_span.get_tag(user.ID) == "usr.id"
+        assert root_span.get_tag(user.EMAIL) == "usr.email"
+        assert root_span.get_tag(user.SESSION_ID) == "usr.session_id"
+        assert root_span.get_tag(user.NAME) == "usr.name"
+        assert root_span.get_tag(user.ROLE) == "usr.role"
+        assert root_span.get_tag(user.SCOPE) == "usr.scope"

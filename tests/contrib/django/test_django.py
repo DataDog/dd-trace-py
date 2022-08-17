@@ -1877,9 +1877,10 @@ def test_django_get_user(client, test_spans):
 
     root = test_spans.get_root_span()
 
-    assert root.get_tag(user.ID)
-    assert root.get_tag(user.EMAIL)
-    assert root.get_tag(user.SESSION_ID)
-    assert root.get_tag(user.NAME)
-    assert root.get_tag(user.ROLE)
-    assert root.get_tag(user.SCOPE)
+    # Values defined in tests/contrib/django/views.py::identify
+    assert root.get_tag(user.ID) == "usr.id"
+    assert root.get_tag(user.EMAIL) == "usr.email"
+    assert root.get_tag(user.SESSION_ID) == "usr.session_id"
+    assert root.get_tag(user.NAME) == "usr.name"
+    assert root.get_tag(user.ROLE) == "usr.role"
+    assert root.get_tag(user.SCOPE) == "usr.scope"

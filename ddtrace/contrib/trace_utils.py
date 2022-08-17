@@ -116,7 +116,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
 
 
 def _get_request_header_user_agent(headers):
-    # type: (Dict[str, str], Span, IntegrationConfig, str) -> str
+    # type: (Dict[str, str]) -> str
     """Get user agent from request headers
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
@@ -419,7 +419,7 @@ def set_flattened_tags(
 
 
 def set_user(tracer, user_id, name="", email="", scope="", role="", session_id=""):
-    # type: (Tracer, str, str, str, str, str) -> None
+    # type: (Tracer, str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]) -> None
     """Set user tags.
     https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
