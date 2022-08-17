@@ -8,6 +8,7 @@ from django.contrib.auth.models import User
 from django.contrib.syndication.views import Feed
 from django.http import Http404
 from django.http import HttpResponse
+from django.http import JsonResponse
 from django.template import loader
 from django.template.response import TemplateResponse
 from django.utils.safestring import mark_safe
@@ -182,3 +183,12 @@ def not_found_view(request):
 
 def path_params_view(request, year, month):
     return HttpResponse(status=200)
+
+
+def body_view(request):
+    if request.headers["Content-Type"] in ("application/json", "application/xml", "text/xml"):
+        data = request.body
+        return HttpResponse(data, status=200)
+    else:
+        data = request.POST
+        return JsonResponse(dict(data), status=200)

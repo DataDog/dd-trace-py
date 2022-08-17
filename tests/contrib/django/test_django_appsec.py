@@ -74,7 +74,11 @@ def test_django_request_body_urlencoded(client, test_spans, tracer):
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
-        client.post("/", payload, content_type="application/x-www-form-urlencoded")
+
+        response = client.post("/body/", payload, content_type="application/x-www-form-urlencoded")
+        assert response.status_code == 200
+        assert response.json() == {"mytestingbody_key": ["mytestingbody_value"]}
+
         root_span = test_spans.spans[0]
         query = dict(_context.get_item("http.request.body", span=root_span))
 
@@ -99,7 +103,7 @@ def test_django_request_body_urlencoded_attack(client, test_spans, tracer):
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         payload = urlencode({"attack": "1' or '1' = '1'"})
-        client.post("/", payload, content_type="application/x-www-form-urlencoded")
+        client.post("/body/", payload, content_type="application/x-www-form-urlencoded")
         root_span = test_spans.spans[0]
 
         query = dict(_context.get_item("http.request.body", span=root_span))
@@ -113,7 +117,11 @@ def test_django_request_body_json(client, test_spans, tracer):
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
         payload = json.dumps({"mytestingbody_key": "mytestingbody_value"})
-        client.post("/", payload, content_type="application/json")
+
+        response = client.post("/body/", payload, content_type="application/json")
+        assert response.status_code == 200
+        assert response.content == b'{"mytestingbody_key": "mytestingbody_value"}'
+
         root_span = test_spans.spans[0]
         query = dict(_context.get_item("http.request.body", span=root_span))
 
@@ -144,7 +152,10 @@ def test_django_request_body_xml(client, test_spans, tracer):
         payload = "<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
 
         for content_type in ("application/xml", "text/xml"):
-            client.post("/", payload, content_type=content_type)
+            response = client.post("/body/", payload, content_type=content_type)
+            assert response.status_code == 200
+            assert response.content == b"<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
+
             root_span = test_spans.spans[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
             assert root_span.get_tag("_dd.appsec.json") is None
