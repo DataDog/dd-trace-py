@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Reset wsgi input after reading.
