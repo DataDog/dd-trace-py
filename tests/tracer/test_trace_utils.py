@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+import sys
+
 from hypothesis import given
 from hypothesis.strategies import booleans
 from hypothesis.strategies import dictionaries
@@ -438,12 +441,97 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     trace_utils.set_http_meta(
         span,
         int_config.myint,
-        request_headers={"HTTP_REQUEST_HEADER": "value"},
+        request_headers={"HTTP_REQUEST_HEADER": "value", "user-agent": "dd-agent/1.0.0"},
         response_headers={"HTTP_RESPONSE_HEADER": "value"},
     )
-    assert list(span.get_tags().keys()) == [
-        "runtime-id",
-    ]
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == ["runtime-id", http.USER_AGENT]
+    mock_store_headers.assert_not_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "user_agent_key,user_agent_value,expected_keys,expected",
+    [
+        ("HTTP_USER_AGENT", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("Http-User-Agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("HTTP_USER_AGENT", None, ["runtime-id"], None),
+        ("HTTP_USER_AGENT", 101234, ["runtime-id"], None),
+        ("UserAgent", True, ["runtime-id"], None),
+        ("HTTP_USER_AGENT", False, ["runtime-id"], None),
+        ("HTTP_USER_AGENT", [], ["runtime-id"], None),
+        ("HTTP_USER_AGENT", {}, ["runtime-id"], None),
+        ("User_Agent", ["test1", "test2"], ["runtime-id"], None),
+        ("User-Agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
+    ],
+)
+def test_set_http_meta_headers_useragent(
+    mock_store_headers, user_agent_key, user_agent_value, expected_keys, expected, span, int_config
+):
+    int_config.myint.http._header_tags = {"enabled": True}
+    assert int_config.myint.is_header_tracing_configured is True
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={user_agent_key: user_agent_value},
+    )
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == expected_keys
+    assert span.get_tag(http.USER_AGENT) == expected
+    mock_store_headers.assert_called()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python2 tests")
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "user_agent_value, expected_keys ,expected",
+    [
+        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], "ㄲㄴㄷㄸ"),
+        (b"", ["runtime-id"], None),
+    ],
+)
+def test_set_http_meta_headers_useragent_py3(
+    mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
+):
+    assert int_config.myint.is_header_tracing_configured is False
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={"user-agent": user_agent_value},
+    )
+
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == expected_keys
+    assert span.get_tag(http.USER_AGENT) == expected
+    mock_store_headers.assert_not_called()
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 0, 0), reason="Python2 tests")
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "user_agent_value, expected_keys ,expected",
+    [
+        ("ㄲㄴㄷㄸ", ["runtime-id"], None),
+        (u"", ["runtime-id"], None),
+    ],
+)
+def test_set_http_meta_headers_useragent_py2(
+    mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
+):
+    assert int_config.myint.is_header_tracing_configured is False
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={"user-agent": user_agent_value},
+    )
+
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == expected_keys
+    assert span.get_tag(http.USER_AGENT) == expected
     mock_store_headers.assert_not_called()
 
 

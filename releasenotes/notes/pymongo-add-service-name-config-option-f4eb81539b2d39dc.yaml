@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    add DD_PYMONGO_SERVICE configuration

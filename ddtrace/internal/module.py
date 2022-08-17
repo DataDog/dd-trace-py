@@ -324,7 +324,7 @@ class ModuleWatchdog(dict):
                     loader = _ImportHookChainedLoader(loader)
 
                 if PY2:
-                    # With Python 2 we don't get all the finder invoked, so we
+                    # With Python 2 we don't get all the finders invoked, so we
                     # make sure we register all the callbacks at the earliest
                     # opportunity.
                     for finder in sys.meta_path:
