@@ -144,6 +144,10 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                     req_body = request.form.to_dict()
                 else:
                     req_body = request.get_data()
+                # Reset wsgi input to the beginning
+                wsgi_input = environ.get("wsgi.input")
+                if wsgi_input:
+                    wsgi_input.seek(0)
             except (AttributeError, RuntimeError, TypeError, BadRequest):
                 log.warning("Failed to parse werkzeug request body", exc_info=True)
 
@@ -159,11 +163,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_cookies=request.cookies,
             request_body=req_body,
         )
-
-        # Reset wsgi input to the beginning
-        wsgi_input = environ.get("wsgi.input")
-        if wsgi_input:
-            wsgi_input.seek(0)
 
 
 def patch():
