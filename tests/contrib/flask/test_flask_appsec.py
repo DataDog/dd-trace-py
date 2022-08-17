@@ -134,8 +134,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
     def test_flask_body_urlencoded(self):
         @self.app.route("/body", methods=["GET", "POST", "DELETE"])
         def body():
-            data = request.form
-            return data, 200
+            data = dict(request.form)
+            return str(data), 200
 
         with override_global_config(dict(_appsec_enabled=True)):
             self.tracer._appsec_enabled = True
@@ -146,7 +146,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             response = self.client.post("/body", data=payload, content_type="application/x-www-form-urlencoded")
             assert response.status_code == 200
-            assert response.json == data
+            assert response.data == b"{'mytestingbody_key': 'mytestingbody_value'}"
 
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
@@ -180,7 +180,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         @self.app.route("/body", methods=["GET", "POST", "DELETE"])
         def body():
             data = request.get_json()
-            return data, 200
+            return str(data), 200
 
         with override_global_config(dict(_appsec_enabled=True)):
             self.tracer._appsec_enabled = True
@@ -190,7 +190,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             response = self.client.post("/body", json=payload, content_type="application/json")
             assert response.status_code == 200
-            assert response.json == payload
+            assert response.data == b"{'mytestingbody_key': 'mytestingbody_value'}"
 
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))

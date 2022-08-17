@@ -8,7 +8,6 @@ from django.contrib.auth.models import User
 from django.contrib.syndication.views import Feed
 from django.http import Http404
 from django.http import HttpResponse
-from django.http import JsonResponse
 from django.template import loader
 from django.template.response import TemplateResponse
 from django.utils.safestring import mark_safe
@@ -197,4 +196,4 @@ def body_view(request):
         return HttpResponse(data, status=200)
     else:
         data = request.POST
-        return JsonResponse(dict(data), status=200)
+        return HttpResponse(dict(data), status=200)

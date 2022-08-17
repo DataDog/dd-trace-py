@@ -25,12 +25,13 @@ class RootController(BaseController):
 
     def body(self):
         result = request.body
-        if request.content_type in ("application/json"):
+        content_type = getattr(request, "content_type", request.headers.environ.get("CONTENT_TYPE"))
+        if content_type in ("application/json"):
             if hasattr(request, "json"):
                 result = json.dumps(request.json)
             else:
                 result = request.body.decode("UTF-8")
-        elif request.content_type in ("application/x-www-form-urlencoded"):
+        elif content_type in ("application/x-www-form-urlencoded"):
             result = json.dumps(dict(request.POST))
         return result
 
