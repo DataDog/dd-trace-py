@@ -144,8 +144,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             data = {"mytestingbody_key": "mytestingbody_value"}
             payload = urlencode(data)
 
-            response = self.client.post("/body", data=payload, content_type="application/x-www-form-urlencoded")
-            assert response.status_code == 200
+            self.client.post("/body", data=payload, content_type="application/x-www-form-urlencoded")
 
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
@@ -187,8 +186,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.tracer.configure(api_version="v0.4")
             payload = {"mytestingbody_key": "mytestingbody_value"}
 
-            response = self.client.post("/body", json=payload, content_type="application/json")
-            assert response.status_code == 200
+            self.client.post("/body", json=payload, content_type="application/json")
 
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
