@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    profiler: don't initialize the ``AsyncioLockCollector`` unless asyncio is
+      available. This prevents noisy logs messages from being emitted in Python
+      2.

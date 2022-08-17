@@ -75,6 +75,8 @@ fastapi
 formatter
 gRPC
 gevent
+graphql
+graphene
 greenlet
 greenlets
 grpc
@@ -140,6 +142,7 @@ quickstart
 redis
 rediscluster
 renderers
+resolvers
 repo
 respawn
 rq
@@ -169,6 +172,7 @@ unpatch
 unpatched
 unregister
 unvendored
+uri
 url
 urls
 username
@@ -183,4 +187,6 @@ yaaredis
 Kinesis
 AppSec
 libddwaf
+Serverless
+serverless
 localhost

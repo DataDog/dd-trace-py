@@ -122,3 +122,6 @@ ENV/
 
 # Auto-generated version file
 ddtrace/_version.py
+
+# Benchmarks
+artifacts/

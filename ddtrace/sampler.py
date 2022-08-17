@@ -3,8 +3,6 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 import abc
-import json
-import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -250,7 +248,7 @@ class DatadogSampler(RateByServiceSampler):
                 default_sample_rate = float(sample_rate)
 
         if rate_limit is None:
-            rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
+            rate_limit = config.trace_rate_limit
 
         # Ensure rules is a list
         self.rules = []  # type: List[SamplingRule]
@@ -278,27 +276,6 @@ class DatadogSampler(RateByServiceSampler):
         )
 
     __repr__ = __str__
-
-    def _parse_rules_from_env_variable(self, rules):
-        sampling_rules = []
-        if rules is not None:
-            json_rules = []
-            try:
-                json_rules = json.loads(rules)
-            except JSONDecodeError:
-                raise ValueError("Unable to parse DD_TRACE_SAMPLING_RULES={}".format(rules))
-            for rule in json_rules:
-                if "sample_rate" not in rule:
-                    raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
-                sample_rate = float(rule["sample_rate"])
-                service = rule.get("service", SamplingRule.NO_RULE)
-                name = rule.get("name", SamplingRule.NO_RULE)
-                try:
-                    sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
-                except ValueError as e:
-                    raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
-                sampling_rules.append(sampling_rule)
-        return sampling_rules
 
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None

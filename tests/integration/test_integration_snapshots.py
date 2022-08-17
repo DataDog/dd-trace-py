@@ -5,8 +5,11 @@ import mock
 import pytest
 
 from ddtrace import Tracer
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.sampler import DatadogSampler
 from ddtrace.sampler import RateSampler
@@ -273,3 +276,13 @@ def test_trace_with_wrong_metrics_types_not_sent(metrics):
                 with tracer.trace("child") as child:
                     child._metrics = metrics
         log.exception.assert_called_once_with("error closing trace")
+
+
+@snapshot()
+def test_tracetagsprocessor_only_adds_new_tags():
+    tracer = Tracer()
+    with tracer.trace(name="web.request") as span:
+        span.context.sampling_priority = AUTO_KEEP
+        span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
+
+    tracer.shutdown()

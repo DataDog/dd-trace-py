@@ -310,9 +310,12 @@ class Config(En):
     )
     trace_agent_url = En.d(
         str,
-        lambda c: c._trace_agent_url or "unix:///var/run/datadog/apm.socket"
-        if os.path.exists("/var/run/datadog/apm.socket")
-        else "http://%s:%s" % (c.agent.hostname, c.agent.port),
+        lambda c: c._trace_agent_url
+        or (
+            "unix:///var/run/datadog/apm.socket"
+            if os.path.exists("/var/run/datadog/apm.socket")
+            else "http://%s:%s" % (c.agent.hostname, c.agent.port)
+        ),
     )
 
     trace_agent_timeout = En.v(
@@ -373,12 +376,12 @@ class Config(En):
         help_default="",
         help=dedent(
             """
-        A JSON array of objects. Each object must have a “sample_rate”, and the “name” and “service” fields are
-        "optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+        A JSON array of objects. Each object must have a "sample_rate", and the "name" and "service" fields are
+        optional. The "sample_rate" value must be between 0.0 and 1.0 (inclusive).
 
         **Example:** ``DD_TRACE_SAMPLING_RULES=\'[{"sample_rate":0.5,"service":"my-service"}]\'``
 
-        "**Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the
+        **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the
         double quote (\") character."""
         ),
     )
@@ -387,7 +390,7 @@ class Config(En):
         Optional[str],
         "trace.api_version",
         default=None,  # TODO: This is not correct
-        validator=v.choice(["v0.%d" % v for v in range(3, 6)]),
+        validator=v.choice(["v0.%d" % _ for _ in range(3, 6)]),
         help_type="String",
         help_default="``v0.4`` if priority sampling is enabled, else ``v0.3``",
         help="The trace API version to use when sending traces to the Datadog agent. Currently, the supported "
@@ -519,7 +522,20 @@ class Config(En):
     _x_datadog_tags_enabled = En.d(bool, lambda c: c._x_datadog_tags_max_length > 0)
 
     _raise = En.v(bool, "testing.raise", default=False)
-    _trace_compute_stats = En.v(bool, "trace.compute_stats", default=False)
+    _trace_stats_computation_enabled = En.v(bool, "trace.stats_computation.enabled", default=False)
+    _trace_compute_stats_v = En.v(Optional[bool], "trace.compute_stats", default=None)
+    _trace_compute_stats = En.d(
+        bool,
+        lambda c: c._trace_compute_stats_v
+        if c._trace_compute_stats_v is not None
+        else c._trace_stats_computation_enabled,
+    )
+
+    trace_rate_limit = En.v(
+        int,
+        "trace.rate_limit",
+        default=100,
+    )
 
     def __getattr__(self, name):
         with self._int_config_lock:

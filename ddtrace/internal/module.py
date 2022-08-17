@@ -122,33 +122,31 @@ def _resolve(path):
 # https://github.com/GrahamDumpleton/wrapt/blob/df0e62c2740143cceb6cafea4c306dae1c559ef8/src/wrapt/importer.py
 
 if PY2:
+    import pkgutil
+
     find_spec = ModuleSpec = None
     Loader = object
+
+    find_loader = pkgutil.find_loader
+
 else:
     from importlib.abc import Loader
     from importlib.machinery import ModuleSpec
     from importlib.util import find_spec
 
+    def find_loader(fullname):
+        # type: (str) -> Optional[Loader]
+        return getattr(find_spec(fullname), "loader", None)
 
-# DEV: This is used by Python 2 only
-class _ImportHookLoader(object):
-    def __init__(self, callback):
-        # type: (Callable[[ModuleType], None]) -> None
-        self.callback = callback
 
-    def load_module(self, fullname):
-        # type: (str) -> ModuleType
-        module = sys.modules[fullname]
-        self.callback(module)
-
-        return module
+LEGACY_DICT_COPY = sys.version_info < (3, 6)
 
 
 class _ImportHookChainedLoader(Loader):
-    def __init__(self, loader, callback):
-        # type: (Loader, Callable[[ModuleType], None]) -> None
+    def __init__(self, loader):
+        # type: (Loader) -> None
         self.loader = loader
-        self.callback = callback
+        self.callbacks = {}  # type: Dict[Any, Callable[[ModuleType], None]]
 
         # DEV: load_module is deprecated so we define it at runtime if also
         # defined by the default loader. We also check and define for the
@@ -160,10 +158,28 @@ class _ImportHookChainedLoader(Loader):
         if hasattr(loader, "exec_module"):
             self.exec_module = self._exec_module  # type: ignore[assignment]
 
+    def __getattribute__(self, name):
+        if name == "__class__":
+            # Make isinstance believe that self is also an instance of
+            # type(self.loader). This is required, e.g. by some tools, like
+            # slotscheck, that can handle known loaders only.
+            return self.loader.__class__
+
+        return super(_ImportHookChainedLoader, self).__getattribute__(name)
+
+    def __getattr__(self, name):
+        # Proxy any other attribute access to the underlying loader.
+        return getattr(self.loader, name)
+
+    def add_callback(self, key, callback):
+        # type: (Any, Callable[[ModuleType], None]) -> None
+        self.callbacks[key] = callback
+
     def _load_module(self, fullname):
         # type: (str) -> ModuleType
         module = self.loader.load_module(fullname)
-        self.callback(module)
+        for callback in self.callbacks.values():
+            callback(module)
 
         return module
 
@@ -172,10 +188,8 @@ class _ImportHookChainedLoader(Loader):
 
     def _exec_module(self, module):
         self.loader.exec_module(module)
-        self.callback(sys.modules[module.__name__])
-
-    def get_code(self, mod_name):
-        return self.loader.get_code(mod_name)
+        for callback in self.callbacks.values():
+            callback(module)
 
 
 class ModuleWatchdog(dict):
@@ -267,6 +281,18 @@ class ModuleWatchdog(dict):
 
     def __getattribute__(self, name):
         # type: (str) -> Any
+        if LEGACY_DICT_COPY and name == "keys":
+            # This is a potential attempt to make a copy of sys.modules using
+            # dict(sys.modules) on a Python version that uses the C API to
+            # perform the operation. Since we are an instance of a dict, this
+            # means that we will end up looking like the empty dict, so we take
+            # this chance to actually look like sys.modules.
+            # NOTE: This is a potential source of memory leaks. However, we
+            # expect this to occur only on defunct Python versions, and only
+            # during special code executions, like test runs.
+            super(ModuleWatchdog, self).clear()
+            super(ModuleWatchdog, self).update(self._modules)
+
         try:
             return super(ModuleWatchdog, self).__getattribute__("_modules").__getattribute__(name)
         except AttributeError:
@@ -292,13 +318,22 @@ class ModuleWatchdog(dict):
         self._finding.add(fullname)
 
         try:
-            if PY2:
-                __import__(fullname)
-                return _ImportHookLoader(self.after_import)
+            loader = find_loader(fullname)
+            if loader is not None:
+                if not isinstance(loader, _ImportHookChainedLoader):
+                    loader = _ImportHookChainedLoader(loader)
 
-            loader = getattr(find_spec(fullname), "loader", None)
-            if loader and not isinstance(loader, _ImportHookChainedLoader):
-                return _ImportHookChainedLoader(loader, self.after_import)
+                if PY2:
+                    # With Python 2 we don't get all the finders invoked, so we
+                    # make sure we register all the callbacks at the earliest
+                    # opportunity.
+                    for finder in sys.meta_path:
+                        if isinstance(finder, ModuleWatchdog):
+                            loader.add_callback(type(finder), finder.after_import)
+                else:
+                    loader.add_callback(type(self), self.after_import)
+
+                return loader
 
         finally:
             self._finding.remove(fullname)
@@ -319,8 +354,11 @@ class ModuleWatchdog(dict):
 
             loader = getattr(spec, "loader", None)
 
-            if loader and not isinstance(loader, _ImportHookChainedLoader):
-                spec.loader = _ImportHookChainedLoader(loader, self.after_import)
+            if loader is not None:
+                if not isinstance(loader, _ImportHookChainedLoader):
+                    spec.loader = _ImportHookChainedLoader(loader)
+
+                cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
 
             return spec
 
@@ -359,7 +397,7 @@ class ModuleWatchdog(dict):
 
     @classmethod
     def unregister_origin_hook(cls, origin, hook):
-        # type: (str, Any) -> None
+        # type: (str, ModuleHookType) -> None
         """Unregister the hook registered with the given module origin and
         argument.
         """
@@ -467,7 +505,7 @@ class ModuleWatchdog(dict):
                 else:
                     sys.modules = getattr(current, "_modules")
                 cls._instance = None
-                log.debug("ModuleWatchdog uninstalled")
+                log.debug("%s uninstalled", cls)
                 return
             parent = current
             current = current._modules

@@ -8,6 +8,7 @@ import pytest
 
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils import time
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
@@ -272,6 +273,37 @@ def test_infer_arg_value_miss(args, kwargs, pos, kw):
     with pytest.raises(ArgumentError) as e:
         get_argument_value(args, kwargs, pos, kw)
         assert e.value == "%s (at position %d)" % (kw, pos)
+
+
+@pytest.mark.parametrize(
+    "args,kwargs,pos,kw,new_value",
+    [
+        ((), {"foo": 42, "bar": "snafu"}, 0, "foo", 4442),
+        ((), {"foo": 42, "bar": "snafu"}, 1, "bar", "new_snafu"),
+        ((42,), {"bar": "snafu"}, 0, "foo", 442),
+        ((42, "snafu"), {}, 1, "bar", "snafu_new"),
+    ],
+)
+def test_set_argument_value(args, kwargs, pos, kw, new_value):
+    new_args, new_kwargs = set_argument_value(args, kwargs, pos, kw, new_value)
+
+    if kw in kwargs:
+        assert new_kwargs[kw] == new_value
+    else:
+        assert new_args[pos] == new_value
+
+
+@pytest.mark.parametrize(
+    "args,kwargs,pos,kw,value",
+    [
+        ([], {}, 0, "foo", "val"),
+        ([], {}, 1, "bar", "val"),
+    ],
+)
+def test_set_invalid_argument_value(args, kwargs, pos, kw, value):
+    with pytest.raises(ArgumentError) as e:
+        set_argument_value(args, kwargs, pos, kw, value)
+        assert e.value == "%s (at position %d) is invalid" % (kw, pos)
 
 
 def cached_test_recipe(expensive, cheap, witness, cache_size):

@@ -8,10 +8,9 @@ from ddtrace.debugging._encoding import BufferFull
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 
 
-class MockLogsIntakeUploader(LogsIntakeUploaderV1):
+class MockLogsIntakeUploaderV1(LogsIntakeUploaderV1):
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault("interval", 0.1)
-        super(MockLogsIntakeUploader, self).__init__(*args, **kwargs)
+        super(MockLogsIntakeUploaderV1, self).__init__(*args, **kwargs)
         self.queue = []
 
     def _write(self, payload):
@@ -22,10 +21,10 @@ class MockLogsIntakeUploader(LogsIntakeUploaderV1):
         return [json.loads(data) for data in self.queue]
 
 
-class ActiveBatchJsonEncoder(MockLogsIntakeUploader):
+class ActiveBatchJsonEncoder(MockLogsIntakeUploaderV1):
     def __init__(self, size=1 << 10, interval=0.1):
         super(ActiveBatchJsonEncoder, self).__init__(
-            None, BatchJsonEncoder({str: str}, size, self.on_full), interval=interval
+            BatchJsonEncoder({str: str}, size, self.on_full), interval=interval
         )
 
     def on_full(self, item, encoded):
@@ -51,6 +50,9 @@ def test_uploader_full_buffer():
             uploader._encoder.put(item)
 
         with pytest.raises(BufferFull):
+            uploader._encoder.put(item)
+
+            # OK, maybe this time then
             uploader._encoder.put(item)
 
         # The full buffer forces a flush

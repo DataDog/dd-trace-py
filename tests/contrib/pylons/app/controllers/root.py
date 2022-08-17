@@ -36,6 +36,9 @@ class RootController(BaseController):
         e.code = "512"
         raise e
 
+    def path_params(self, year, month):
+        return "Hello World"
+
     def render(self):
         render = get_render_fn()
         return render("/template.mako")

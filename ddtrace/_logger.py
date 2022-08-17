@@ -55,7 +55,8 @@ def _configure_ddtrace_file_logger(logger):
 
     log_path = config.log_file
     if log_path is not None:
-        max_file_bytes = int(os.environ.get("DD_TRACE_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
+        log_path = os.path.abspath(log_path)
+        max_file_bytes = int(os.environ.get("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))
         num_backup = 1
         ddtrace_file_handler = RotatingFileHandler(
             filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup

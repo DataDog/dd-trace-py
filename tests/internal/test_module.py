@@ -272,3 +272,58 @@ def test_post_run_module_hook():
 
 def test_get_by_origin(module_watchdog):
     assert module_watchdog.get_by_origin(__file__) is sys.modules[__name__]
+
+
+@pytest.mark.subprocess
+def test_module_watchdog_propagation():
+    # Test that the module watchdog propagates the module hooks to each
+    # installed subclass.
+    from ddtrace.internal.module import ModuleWatchdog
+
+    class BaseCollector(ModuleWatchdog):
+        def __init__(self):
+            self.__modules__ = set()
+            super(BaseCollector, self).__init__()
+
+        def after_import(self, module):
+            # We save the module name as proof that the after_import method
+            # was called on the subclass instance.
+            self.__modules__.add(module.__name__)
+            return super(BaseCollector, self).after_import(module)
+
+    class Alice(BaseCollector):
+        pass
+
+    class Bob(BaseCollector):
+        pass
+
+    Alice.install()
+    Bob.install()
+
+    a = Alice._instance
+    b = Bob._instance
+
+    import tests.submod.stuff  # noqa
+
+    assert a.__modules__ >= {"tests.submod.stuff"}, a.__modules__
+    assert b.__modules__ >= {"tests.submod.stuff"}, b.__modules__
+
+    Bob.uninstall()
+    Alice.uninstall()
+
+
+def test_module_watchdog_dict_shallow_copy():
+    # Save original reference to sys.modules
+    original_sys_modules = sys.modules
+
+    ModuleWatchdog.install()
+
+    # Ensure that we have replaced sys.modules
+    assert original_sys_modules is not sys.modules
+
+    # Make a shallow copy of both using the dict constructor
+    original_modules = set(dict(original_sys_modules).keys())
+    new_modules = set(dict(sys.modules).keys())
+
+    # Ensure that they match
+    assert original_modules == new_modules

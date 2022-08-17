@@ -1,0 +1,58 @@
+[[
+  {
+    "name": "test_wsgi.request",
+    "service": "wsgi",
+    "resource": "request resource was modified",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.status_code": "200",
+      "request_tag": "req test tag set",
+      "runtime-id": "64ea1baed8d745ef8d4b22ef77fb75ee"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "request_metric": 1,
+      "system.pid": 71585
+    },
+    "duration": 345000,
+    "start": 1657200588963520000
+  },
+     {
+       "name": "test_wsgi.application",
+       "service": "wsgi",
+       "resource": "app resource was modified",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "meta": {
+         "app_tag": "app test tag set"
+       },
+       "metrics": {
+         "app_metric": 2
+       },
+       "duration": 138000,
+       "start": 1657200588963625000
+     },
+     {
+       "name": "test_wsgi.response",
+       "service": "wsgi",
+       "resource": "response resource was modified",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "meta": {
+         "response_tag": "resp test tag set"
+       },
+       "metrics": {
+         "response_metric": 3
+       },
+       "duration": 29000,
+       "start": 1657200588963817000
+     }]]

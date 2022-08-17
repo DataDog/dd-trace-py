@@ -1,9 +1,11 @@
 # Load the configuration as first thing in the module.
-from .settings import _config as config  # noqa: E402
-
 # Then configure the logger immediately after
-from ._logger import configure_ddtrace_logger  # noqa: E402
+# fmt: off
+from .settings import _config as config  # noqa
+from ._logger import configure_ddtrace_logger  # noqa
 
+
+# fmt: on
 
 
 # configure ddtrace logger before other modules log
