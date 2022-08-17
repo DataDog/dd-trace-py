@@ -30,7 +30,7 @@ class RootController(BaseController):
             if hasattr(request, "json"):
                 result = json.dumps(request.json)
             else:
-                result = request.body
+                result = str(request.body)
         elif content_type in ("application/x-www-form-urlencoded"):
             result = json.dumps(dict(request.POST))
         return result

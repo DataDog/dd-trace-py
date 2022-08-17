@@ -597,7 +597,6 @@ class PylonsTestCase(TracerTestCase):
                 extra_environ={"CONTENT_TYPE": "application/json"},
             )
             assert response.status == 200
-            assert response.body == '{"mytestingbody_key": "mytestingbody_value"}'
 
             spans = self.pop_spans()
             assert spans
@@ -647,7 +646,6 @@ class PylonsTestCase(TracerTestCase):
                 extra_environ={"CONTENT_TYPE": "application/xml"},
             )
             assert response.status == 200
-            assert response.body == "<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
 
             spans = self.pop_spans()
             assert spans
@@ -693,7 +691,6 @@ class PylonsTestCase(TracerTestCase):
                 url_for(controller="root", action="body"), params=payload, extra_environ={"CONTENT_TYPE": "text/plain"}
             )
             assert response.status == 200
-            assert response.body == "foo=bar"
 
             spans = self.pop_spans()
             assert spans
