@@ -1,32 +1,31 @@
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-import sys
-from ddtrace.pin import Pin
-from ddtrace.internal.wrapping import unwrap
-from ddtrace.internal.wrapping import wrap
 
 import starlette
 from starlette.middleware import Middleware
 from starlette.routing import Match
 
 from ddtrace import config
+from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.internal.wrapping import unwrap
+from ddtrace.internal.wrapping import wrap
+from ddtrace.pin import Pin
 from ddtrace.span import Span
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.debtcollector import removals
 from ddtrace.vendor.wrapt import ObjectProxy
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
-from .. import trace_utils
-from ddtrace.constants import SPAN_MEASURED_KEY
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils import set_argument_value
 
+from .. import trace_utils
 
 
 log = get_logger(__name__)
@@ -65,17 +64,14 @@ config._add(
 
 def _update_patching(operation, module_str, cls, func_name, wrapper):
     module = sys.modules[module_str]
-    # import pdb; pdb.set_trace()
     func = getattr(getattr(module, cls), func_name)
     operation(func, wrapper)
-    
+
 
 def traced_init(func, args, kwargs):
-    # import pdb; pdb.set_trace()
     mw = kwargs.pop("middleware", [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
     args, kwargs = set_argument_value(args, kwargs, 3, "middleware", mw)
-    # kwargs.update({"middleware": mw})
     return func(*args, **kwargs)
 
 
@@ -84,18 +80,17 @@ def patch():
         return
 
     setattr(starlette, "_datadog_patch", True)
-# Throwing attribute error atm although I verified it should be there?  https://github.com/DataDog/dd-trace-py/blob/69fca3189b84548d35553c98b4c50cfd7b039a98/ddtrace/contrib/starlette/patch.py
+    # Throwing attribute error atm although I verified it should be there?  https://github.com/DataDog/dd-trace-py/blob/69fca3189b84548d35553c98b4c50cfd7b039a98/ddtrace/contrib/starlette/patch.py
     _update_patching(wrap, "starlette.applications", "Starlette", "__init__", traced_init)
 
     Pin().onto(starlette)
-
 
     # We need to check that Fastapi instrumentation hasn't already patched these
     if not isinstance(starlette.routing.Route.handle, ObjectProxy):
         _update_patching(wrap, "starlette.routing", "Route", "handle", traced_handler)
         # _w("starlette.routing", "Route.handle", traced_handler)
     if not isinstance(starlette.routing.Mount.handle, ObjectProxy):
-        _update_patching(wrap,"starlette.routing", "Mount", "handle", traced_handler)
+        _update_patching(wrap, "starlette.routing", "Mount", "handle", traced_handler)
 
         # _w("starlette.routing", "Mount.handle", traced_handler)
 
@@ -108,17 +103,16 @@ def unpatch():
 
     _update_patching(unwrap, "starlette.applications", "Starlette", "__init__", traced_init)
 
-    # import pdb; pdb.set_trace()
     # We need to check that Fastapi instrumentation hasn't already unpatched these
     # not sure how to do that rn with the new tracing
     # if isinstance(starlette.routing.Route.handle, ObjectProxy):
     _update_patching(unwrap, "starlette.routing", "Route", "handle", traced_handler)
-        # _u(starlette.routing.Route, "handle")
+    # _u(starlette.routing.Route, "handle")
 
     # if isinstance(starlette.routing.Mount.handle, ObjectProxy):
-    _update_patching(unwrap,"starlette.routing", "Mount", "handle", traced_handler)
+    _update_patching(unwrap, "starlette.routing", "Mount", "handle", traced_handler)
 
-        # _u(starlette.routing.Mount, "handle")
+    # _u(starlette.routing.Mount, "handle")
 
 
 def traced_handler(func, args, kwargs):
@@ -131,13 +125,10 @@ def traced_handler(func, args, kwargs):
 
         return func(*args, **kwargs)
 
-
     pin = Pin.get_from(starlette)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
-    
 
-    # import pdb; pdb.set_trace()
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
     scope = get_argument_value(args, kwargs, 1, "scope")  # type: Optional[Dict[str, Any]]
@@ -159,8 +150,6 @@ def traced_handler(func, args, kwargs):
 
     request_spans = scope["datadog"].get("request_spans", [])  # type: List[Span]
     resource_paths = scope["datadog"].get("resource_paths", [])  # type: List[str]
-
-    # import pdb; pdb.set_trace()
 
     if len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each

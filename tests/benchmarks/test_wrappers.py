@@ -1,43 +1,48 @@
-import starlette
 import sys
-from ddtrace.pin import Pin
-from ddtrace.internal.wrapping import unwrap
-from ddtrace.internal.wrapping import wrap
 
+import starlette
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
-from starlette.routing import Route, Mount, WebSocketRoute
+from starlette.routing import Mount
+from starlette.routing import Route
+from starlette.routing import WebSocketRoute
 from starlette.staticfiles import StaticFiles
+
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.internal.wrapping import unwrap
+from ddtrace.internal.wrapping import wrap
+from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
-
 def homepage(request):
-    return PlainTextResponse('Hello, world!')
+    return PlainTextResponse("Hello, world!")
 
 
 routes = [
-    Route('/', homepage),
+    Route("/", homepage),
 ]
 
 app = Starlette(routes=routes)
 
 
 def patch_byte_code():
-        setattr(starlette, "_datadog_patch", True)
-        Pin().onto(starlette)
-        _update_patching(wrap, "starlette.routing", "Route", "handle", traced_handler_byte)
+    setattr(starlette, "_datadog_patch", True)
+    Pin().onto(starlette)
+    _update_patching(wrap, "starlette.routing", "Route", "handle", traced_handler_byte)
+
 
 def unpatch_byte_code():
-        Pin().onto(starlette)
-        _update_patching(unwrap, "starlette.routing", "Route", "handle", traced_handler_byte)
-        setattr(starlette, "_datadog_patch", False)
+    Pin().onto(starlette)
+    _update_patching(unwrap, "starlette.routing", "Route", "handle", traced_handler_byte)
+    setattr(starlette, "_datadog_patch", False)
+
 
 def _update_patching(operation, module_str, cls, func_name, wrapper):
     module = sys.modules[module_str]
     func = getattr(getattr(module, cls), func_name)
     operation(func, wrapper)
+
 
 def traced_handler_byte(func, args, kwargs):
     pin = Pin.get_from(starlette)
@@ -60,9 +65,6 @@ def test_byte_code_wrap(benchmark):
             unpatch_byte_code()
 
     benchmark(func)
-
-
-
 
 
 def patch():

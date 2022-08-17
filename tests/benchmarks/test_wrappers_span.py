@@ -1,25 +1,26 @@
-import starlette
 import sys
-from ddtrace.pin import Pin
-from ddtrace.internal.wrapping import unwrap
-from ddtrace.internal.wrapping import wrap
+
 import pytest
+import requests
+import sqlalchemy
+import starlette
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
-from starlette.routing import Route, Mount, WebSocketRoute
+from starlette.routing import Mount
+from starlette.routing import Route
+from starlette.routing import WebSocketRoute
 from starlette.staticfiles import StaticFiles
-from ddtrace.contrib.starlette.patch import patch as byte_patch
-from ddtrace.contrib.starlette.patch import unpatch as byte_unpatch
-
-from ddtrace.contrib.starlette.starlette_normal import patch as normal_patch
-from ddtrace.contrib.starlette.starlette_normal import patch as normal_unpatch
+from starlette.testclient import TestClient
 
 from ddtrace.contrib.sqlalchemy import patch as sql_patch
 from ddtrace.contrib.sqlalchemy import unpatch as sql_unpatch
-import requests
-from starlette.testclient import TestClient
-import sqlalchemy
-
+from ddtrace.contrib.starlette.patch import patch as byte_patch
+from ddtrace.contrib.starlette.patch import unpatch as byte_unpatch
+from ddtrace.contrib.starlette.starlette_normal import patch as normal_patch
+from ddtrace.contrib.starlette.starlette_normal import patch as normal_unpatch
+from ddtrace.internal.wrapping import unwrap
+from ddtrace.internal.wrapping import wrap
+from ddtrace.pin import Pin
 from tests.contrib.starlette.app import get_app
 
 
@@ -35,7 +36,7 @@ def engine():
 def app(tracer, engine):
     app = get_app(engine)
     yield app
-    
+
 
 @pytest.fixture
 def client(app):
@@ -51,6 +52,7 @@ def client(app):
 
 def test_byte_code_wrap(benchmark, client):
     byte_patch()
+
     def func():
         for i in range(1000):
             client.get("/200")
@@ -59,9 +61,9 @@ def test_byte_code_wrap(benchmark, client):
     byte_unpatch()
 
 
-
 def test_normal_wrap(benchmark, client):
     normal_patch()
+
     def func():
         for i in range(1000):
             client.get("/200")
