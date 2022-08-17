@@ -15,7 +15,8 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/identify",
-      "runtime-id": "f188227598a340ce829a098322ee71ba",
+      "http.useragent": "python-requests/2.27.1",
+      "runtime-id": "0745b9786cf04c38a5bc98a57cd6ced9",
       "usr.email": "usr.email",
       "usr.id": "usr.id",
       "usr.name": "usr.name",
@@ -29,10 +30,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 530251
+      "system.pid": 625013
     },
-    "duration": 787618,
-    "start": 1660044212599431793
+    "duration": 1417028,
+    "start": 1660724027104045783
   },
      {
        "name": "flask.try_trigger_before_first_request_functions",
@@ -41,8 +42,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 13826,
-       "start": 1660044212599862383
+       "duration": 16119,
+       "start": 1660724027105076364
      },
      {
        "name": "flask.preprocess_request",
@@ -51,8 +52,8 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "duration": 18695,
-       "start": 1660044212599916468
+       "duration": 21184,
+       "start": 1660724027105137268
      },
      {
        "name": "flask.dispatch_request",
@@ -61,8 +62,8 @@
        "trace_id": 0,
        "span_id": 4,
        "parent_id": 1,
-       "duration": 66254,
-       "start": 1660044212599960066
+       "duration": 73515,
+       "start": 1660724027105184674
      },
         {
           "name": "tests.contrib.flask.app.identify",
@@ -71,8 +72,8 @@
           "trace_id": 0,
           "span_id": 8,
           "parent_id": 4,
-          "duration": 27726,
-          "start": 1660044212599990650
+          "duration": 32429,
+          "start": 1660724027105217426
         },
      {
        "name": "flask.process_response",
@@ -81,8 +82,8 @@
        "trace_id": 0,
        "span_id": 5,
        "parent_id": 1,
-       "duration": 14796,
-       "start": 1660044212600074359
+       "duration": 15086,
+       "start": 1660724027105310532
      },
      {
        "name": "flask.do_teardown_request",
@@ -91,8 +92,8 @@
        "trace_id": 0,
        "span_id": 6,
        "parent_id": 1,
-       "duration": 14509,
-       "start": 1660044212600158051
+       "duration": 15108,
+       "start": 1660724027105399773
      },
      {
        "name": "flask.do_teardown_appcontext",
@@ -101,6 +102,6 @@
        "trace_id": 0,
        "span_id": 7,
        "parent_id": 1,
-       "duration": 9752,
-       "start": 1660044212600198256
+       "duration": 9964,
+       "start": 1660724027105441111
      }]]
