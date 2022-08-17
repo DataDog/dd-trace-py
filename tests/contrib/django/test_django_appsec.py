@@ -77,7 +77,7 @@ def test_django_request_body_urlencoded(client, test_spans, tracer):
 
         response = client.post("/body/", payload, content_type="application/x-www-form-urlencoded")
         assert response.status_code == 200
-        assert response.json() == {"mytestingbody_key": ["mytestingbody_value"]}
+        assert response.content == '{"mytestingbody_key": ["mytestingbody_value"]}'
 
         root_span = test_spans.spans[0]
         query = dict(_context.get_item("http.request.body", span=root_span))
