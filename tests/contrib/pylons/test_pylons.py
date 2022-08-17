@@ -533,11 +533,13 @@ class PylonsTestCase(TracerTestCase):
 
             self.tracer.configure(api_version="v0.4")
             payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
-            self.app.post(
-                url_for(controller="root", action="index"),
+            response = self.app.post(
+                url_for(controller="root", action="body"),
                 params=payload,
                 extra_environ={"CONTENT_TYPE": "application/x-www-form-urlencoded"},
             )
+            assert response.status == 200
+            assert response.body == '{"mytestingbody_key": "mytestingbody_value"}'
 
             spans = self.pop_spans()
             assert spans
@@ -590,11 +592,13 @@ class PylonsTestCase(TracerTestCase):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = json.dumps({"mytestingbody_key": "mytestingbody_value"})
-            self.app.post(
-                url_for(controller="root", action="index"),
+            response = self.app.post(
+                url_for(controller="root", action="body"),
                 params=payload,
                 extra_environ={"CONTENT_TYPE": "application/json"},
             )
+            assert response.status == 200
+            assert response.body == '{"mytestingbody_key": "mytestingbody_value"}'
 
             spans = self.pop_spans()
             assert spans
@@ -637,11 +641,14 @@ class PylonsTestCase(TracerTestCase):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = "<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
-            self.app.post(
-                url_for(controller="root", action="index"),
+
+            response = self.app.post(
+                url_for(controller="root", action="body"),
                 params=payload,
                 extra_environ={"CONTENT_TYPE": "application/xml"},
             )
+            assert response.status == 200
+            assert response.body == "<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
 
             spans = self.pop_spans()
             assert spans
@@ -682,9 +689,12 @@ class PylonsTestCase(TracerTestCase):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = "foo=bar"
-            self.app.post(
-                url_for(controller="root", action="index"), params=payload, extra_environ={"CONTENT_TYPE": "text/plain"}
+
+            response = self.app.post(
+                url_for(controller="root", action="body"), params=payload, extra_environ={"CONTENT_TYPE": "text/plain"}
             )
+            assert response.status == 200
+            assert response.body == "foo=bar"
 
             spans = self.pop_spans()
             assert spans
@@ -704,7 +714,7 @@ class PylonsTestCase(TracerTestCase):
             self.tracer.configure(api_version="v0.4")
             payload = "1' or '1' = '1'"
             self.app.post(
-                url_for(controller="root", action="index"),
+                url_for(controller="root", action="body"),
                 params=payload,
                 extra_environ={"CONTENT_TYPE": "text/plain"},
             )
