@@ -84,15 +84,11 @@ def patch():
     _update_patching(wrap, "starlette.applications", "Starlette", "__init__", traced_init)
 
     Pin().onto(starlette)
-
     # We need to check that Fastapi instrumentation hasn't already patched these
-    if not isinstance(starlette.routing.Route.handle, ObjectProxy):
+    if not getattr(starlette.routing.Route.handle, "__dd_wrapped__", None):
         _update_patching(wrap, "starlette.routing", "Route", "handle", traced_handler)
-        # _w("starlette.routing", "Route.handle", traced_handler)
-    if not isinstance(starlette.routing.Mount.handle, ObjectProxy):
+    if not getattr(starlette.routing.Mount.handle, "__dd_wrapped__", None):
         _update_patching(wrap, "starlette.routing", "Mount", "handle", traced_handler)
-
-        # _w("starlette.routing", "Mount.handle", traced_handler)
 
 
 def unpatch():
@@ -103,27 +99,25 @@ def unpatch():
 
     _update_patching(unwrap, "starlette.applications", "Starlette", "__init__", traced_init)
 
-    # We need to check that Fastapi instrumentation hasn't already unpatched these
-    # not sure how to do that rn with the new tracing
-    # if isinstance(starlette.routing.Route.handle, ObjectProxy):
-    _update_patching(unwrap, "starlette.routing", "Route", "handle", traced_handler)
+    if getattr(starlette.routing.Route.handle, "__dd_wrapped__", None):
+        _update_patching(unwrap, "starlette.routing", "Route", "handle", traced_handler)
     # _u(starlette.routing.Route, "handle")
 
-    # if isinstance(starlette.routing.Mount.handle, ObjectProxy):
-    _update_patching(unwrap, "starlette.routing", "Mount", "handle", traced_handler)
+    if not getattr(starlette.routing.Mount.handle, "__dd_wrapped__", None):
+        _update_patching(unwrap, "starlette.routing", "Mount", "handle", traced_handler)
 
     # _u(starlette.routing.Mount, "handle")
 
 
 def traced_handler(func, args, kwargs):
-    if config.starlette.get("aggregate_resources") is False or config.fastapi.get("aggregate_resources") is False:
-        deprecate(
-            "ddtrace.contrib.starlette.patch",
-            message="`aggregate_resources` is deprecated and will be removed in tracer version 2.0.0",
-            category=DDTraceDeprecationWarning,
-        )
+    # if config.starlette.get("aggregate_resources") is False or config.fastapi.get("aggregate_resources") is False:
+    #     deprecate(
+    #         "ddtrace.contrib.starlette.patch",
+    #         message="`aggregate_resources` is deprecated and will be removed in tracer version 2.0.0",
+    #         category=DDTraceDeprecationWarning,
+    #     )
 
-        return func(*args, **kwargs)
+    #     return func(*args, **kwargs)
 
     pin = Pin.get_from(starlette)
     if not pin or not pin.enabled():
@@ -178,11 +172,4 @@ def traced_handler(func, args, kwargs):
             resource_paths,
         )
 
-    with pin.tracer.trace(
-        name="starlette.request",
-        resource=resource,
-        service=trace_utils.int_service(pin, config.starlette),
-        span_type="starlette",
-    ) as span:
-
-        return func(*args, **kwargs)
+    return func(*args, **kwargs)
