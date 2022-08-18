@@ -27,16 +27,16 @@ def patch():
     _w = wrapt.wrap_function_wrapper
 
     if redis.VERSION < (3, 0, 0):
-        _w("redis", "StrictRedis.execute_command", traced_execute_command)
+        _w("redis", "StrictRedis.execute_command", traced_execute_command(config.redis))
         _w("redis", "StrictRedis.pipeline", traced_pipeline)
         _w("redis", "Redis.pipeline", traced_pipeline)
-        _w("redis.client", "BasePipeline.execute", traced_execute_pipeline)
-        _w("redis.client", "BasePipeline.immediate_execute_command", traced_execute_command)
+        _w("redis.client", "BasePipeline.execute", traced_execute_pipeline(config.redis))
+        _w("redis.client", "BasePipeline.immediate_execute_command", traced_execute_command(config.redis))
     else:
-        _w("redis", "Redis.execute_command", traced_execute_command)
+        _w("redis", "Redis.execute_command", traced_execute_command(config.redis))
         _w("redis", "Redis.pipeline", traced_pipeline)
-        _w("redis.client", "Pipeline.execute", traced_execute_pipeline)
-        _w("redis.client", "Pipeline.immediate_execute_command", traced_execute_command)
+        _w("redis.client", "Pipeline.execute", traced_execute_pipeline(config.redis))
+        _w("redis.client", "Pipeline.immediate_execute_command", traced_execute_command(config.redis))
         # Avoid mypy invalid syntax errors when parsing Python 2 files
         if PY3 and redis.VERSION >= (4, 2, 0):
             from .asyncio_patch import traced_async_execute_command
@@ -75,13 +75,16 @@ def unpatch():
 #
 # tracing functions
 #
-def traced_execute_command(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
+def traced_execute_command(integration_config):
+    def _traced_execute_command(func, instance, args, kwargs):
+        pin = Pin.get_from(instance)
+        if not pin or not pin.enabled():
+            return func(*args, **kwargs)
 
-    with _trace_redis_cmd(pin, config.redis, instance, args):
-        return func(*args, **kwargs)
+        with _trace_redis_cmd(pin, integration_config, instance, args):
+            return func(*args, **kwargs)
+
+    return _traced_execute_command
 
 
 def traced_pipeline(func, instance, args, kwargs):
@@ -92,12 +95,15 @@ def traced_pipeline(func, instance, args, kwargs):
     return pipeline
 
 
-def traced_execute_pipeline(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
+def traced_execute_pipeline(integration_config):
+    def _traced_execute_pipeline(func, instance, args, kwargs):
+        pin = Pin.get_from(instance)
+        if not pin or not pin.enabled():
+            return func(*args, **kwargs)
 
-    cmds = [stringify_cache_args(c) for c, _ in instance.command_stack]
-    resource = "\n".join(cmds)
-    with _trace_redis_execute_pipeline(pin, config.redis, resource, instance):
-        return func(*args, **kwargs)
+        cmds = [stringify_cache_args(c) for c, _ in instance.command_stack]
+        resource = "\n".join(cmds)
+        with _trace_redis_execute_pipeline(pin, integration_config, resource, instance):
+            return func(*args, **kwargs)
+
+    return _traced_execute_pipeline

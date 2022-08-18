@@ -1,5 +1,6 @@
 import json
 
+from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -15,6 +16,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         self.tracer.configure(api_version="v0.4")
         resp = self.client.get("/.git?q=1")
         assert resp.status_code == 404
+        # Read response data from the test client to close flask.request and flask.response spans
+        assert resp.data is not None
         spans = self.pop_spans()
         root_span = spans[0]
 
@@ -34,6 +37,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         self.tracer.configure(api_version="v0.4")
         resp = self.client.get("/params/attack")
         assert resp.status_code == 200
+        # Read response data from the test client to close flask.request and flask.response spans
+        assert resp.data is not None
         spans = self.pop_spans()
         root_span = spans[0]
 
@@ -54,6 +59,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.tracer.configure(api_version="v0.4")
             resp = self.client.get("/params/w00tw00t.at.isc.sans.dfind")
             assert resp.status_code == 200
+            # Read response data from the test client to close flask.request and flask.response spans
+            assert resp.data is not None
 
             spans = self.pop_spans()
             root_span = spans[0]
@@ -85,6 +92,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self.tracer.configure(api_version="v0.4")
             self.client.set_cookie("localhost", "attack", "1' or '1' = '1'")
             resp = self.client.get("/")
+            # Read response data from the test client to close flask.request and flask.response spans
+            assert resp.data is not None
             assert resp.status_code == 404
             spans = self.pop_spans()
             root_span = spans[0]
@@ -102,6 +111,8 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         self.client.set_cookie("localhost", "testingcookie_key", "testingcookie_value")
         resp = self.client.get("/")
         assert resp.status_code == 404
+        # Read response data from the test client to close flask.request and flask.response spans
+        assert resp.data is not None
         spans = self.pop_spans()
         root_span = spans[0]
 
@@ -111,6 +122,12 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         assert query == {"testingcookie_key": "testingcookie_value"} or query == {
             "testingcookie_key": ["testingcookie_value"]
         }
+
+    def test_flask_useragent(self):
+        self.client.get("/", headers={"User-Agent": "test/1.2.3"})
+        spans = self.pop_spans()
+        root_span = spans[0]
+        assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
 
     def test_flask_body_urlencoded(self):
         with override_global_config(dict(_appsec_enabled=True)):
