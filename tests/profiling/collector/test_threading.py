@@ -72,7 +72,7 @@ def test_lock_acquire_events():
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 65, "test_lock_acquire_events")
+    assert event.frames[0] == (__file__.replace(".pyc", ".py"), 65, "test_lock_acquire_events")
     assert event.sampling_pct == 100
 
 
@@ -187,7 +187,7 @@ def test_lock_release_events():
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 180, "test_lock_release_events")
+    assert event.frames[0] == (__file__.replace(".pyc", ".py"), 180, "test_lock_release_events")
     assert event.sampling_pct == 100
 
 
@@ -217,7 +217,7 @@ def test_lock_gevent_tasks():
             # It's called through pytest so I'm sure it's gonna be that long, right?
             assert len(event.frames) > 3
             assert event.nframes > 3
-            assert event.frames[0] == (__file__, 200, "play_with_lock")
+            assert event.frames[0] == (__file__.replace(".pyc", ".py"), 200, "play_with_lock")
             assert event.sampling_pct == 100
             assert event.task_id == t.ident
             assert event.task_name == "foobar"
@@ -234,7 +234,7 @@ def test_lock_gevent_tasks():
             # It's called through pytest so I'm sure it's gonna be that long, right?
             assert len(event.frames) > 3
             assert event.nframes > 3
-            assert event.frames[0] == (__file__, 201, "play_with_lock")
+            assert event.frames[0] == (__file__.replace(".pyc", ".py"), 201, "play_with_lock")
             assert event.sampling_pct == 100
             assert event.task_id == t.ident
             assert event.task_name == "foobar"
