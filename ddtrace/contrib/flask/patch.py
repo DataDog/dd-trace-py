@@ -138,6 +138,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 seekable = False
             if not seekable:
                 body = wsgi_input.read()
+                environ["wsgi.input"] = BytesIO(body)
 
             try:
                 if content_type == "application/json":
