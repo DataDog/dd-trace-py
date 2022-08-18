@@ -18,10 +18,11 @@ def ensure_no_module_watchdog():
     if was_installed:
         ModuleWatchdog.uninstall()
 
-    yield
-
-    if was_installed:
-        ModuleWatchdog.install()
+    try:
+        yield
+    finally:
+        if was_installed:
+            ModuleWatchdog.install()
 
 
 @pytest.fixture
@@ -80,11 +81,6 @@ def test_import_origin_hook_for_module_not_yet_imported():
     path = os.getenv("MODULE_ORIGIN")
     hook = mock.Mock()
 
-    try:
-        ModuleWatchdog.install()
-    except RuntimeError:
-        pass
-
     ModuleWatchdog.register_origin_hook(path, hook)
 
     hook.assert_not_called()
@@ -117,11 +113,6 @@ def test_import_module_hook_for_module_not_yet_imported():
 
     name = "tests.test_module"
     hook = mock.Mock()
-
-    try:
-        ModuleWatchdog.install()
-    except RuntimeError:
-        pass
 
     ModuleWatchdog.register_module_hook(name, hook)
 
@@ -156,11 +147,6 @@ def test_module_deleted():
     name = "tests.test_module"
     path = os.getenv("MODULE_ORIGIN")
     hook = mock.Mock()
-
-    try:
-        ModuleWatchdog.install()
-    except RuntimeError:
-        pass
 
     ModuleWatchdog.register_origin_hook(path, hook)
     ModuleWatchdog.register_module_hook(name, hook)
@@ -351,3 +337,5 @@ def test_module_watchdog_dict_shallow_copy():
 
     # Ensure that they match
     assert original_modules == new_modules
+
+    ModuleWatchdog.uninstall()
