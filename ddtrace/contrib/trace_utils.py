@@ -441,7 +441,7 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
         if session_id:
             span.set_tag(user.SESSION_ID, session_id)
     else:
-        log.debug(
+        log.warning(
             "No root span in the current execution. Skipping set_user tags. "
             "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
             "?tab=set_user&code-lang=python for more information.",

@@ -49,6 +49,10 @@ from ..utils import override_env
 
 
 class TracerTestCases(TracerTestCase):
+    @pytest.fixture(autouse=True)
+    def inject_fixtures(self, caplog):
+        self._caplog = caplog
+
     def test_tracer_vars(self):
         span = self.trace("a", service="s", resource="r", span_type="t")
         span.assert_matches(name="a", service="s", resource="r", span_type="t")
@@ -527,6 +531,18 @@ class TracerTestCases(TracerTestCase):
         assert span.get_tag(user.NAME) is None
         assert span.get_tag(user.ROLE) is None
         assert span.get_tag(user.SCOPE) is None
+
+    def test_tracer_set_user_warning_no_span(self):
+        class MockTracerNoSpan:
+            def current_root_span(self):
+                return None
+
+        with self._caplog.at_level(logging.WARNING):
+            set_user(
+                MockTracerNoSpan(),
+                user_id="usr.id",
+            )
+            assert "No root span in the current execution. Skipping set_user tags" in self._caplog.records[0].message
 
 
 def test_tracer_url():
