@@ -132,7 +132,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             wsgi_input = environ.get("wsgi.input", "")
 
             # Copy wsgi input if not seekable
-            if not wsgi_input.seekable():
+            if not hasattr(wsgi_input, "seekable") or not wsgi_input.seekable():
                 body = wsgi_input.read()
                 environ["wsgi.input"] = BytesIO(body)
 
@@ -156,7 +156,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 log.warning("Failed to parse werkzeug request body", exc_info=True)
             finally:
                 # Reset wsgi input to the beginning
-                if wsgi_input.seekable():
+                if hasattr(wsgi_input, "seekable") and wsgi_input.seekable():
                     wsgi_input.seek(0)
                 else:
                     environ["wsgi.input"] = BytesIO(body)
