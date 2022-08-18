@@ -78,10 +78,6 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
         name = code->co_name;
     }
 
-#ifdef _PY39_AND_LATER
-    Py_DECREF(code);
-#endif
-
     if (name)
         frame->name = name;
     else
@@ -95,6 +91,10 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
         frame->filename = unknown_name;
 
     Py_INCREF(frame->filename);
+
+#ifdef _PY39_AND_LATER
+    Py_XDECREF(code);
+#endif
 }
 
 static traceback_t*
