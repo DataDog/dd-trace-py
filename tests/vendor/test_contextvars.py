@@ -11,6 +11,9 @@ import unittest
 
 import pytest
 
+from ddtrace.internal import compat
+from ddtrace.internal.compat import PY2
+from ddtrace.internal.compat import PY3
 from ddtrace.vendor import contextvars
 
 
@@ -26,6 +29,18 @@ def isolated_context(func):
 
 
 class ContextTest(unittest.TestCase):
+    # python2/3 unicode test
+    def test_context_var_new_1_with_unicode(self):
+        with self.assertRaises(TypeError):
+            contextvars.ContextVar()
+
+        with pytest.raises(TypeError) as e:
+            contextvars.ContextVar(1)
+        if PY3:
+            assert "must be a str" in compat.to_unicode(e.value)
+        if PY2:
+            assert u"must be a str" in compat.to_unicode(e.value)
+
     def test_context_var_new_1(self):
         with self.assertRaises(TypeError):
             contextvars.ContextVar()
