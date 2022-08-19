@@ -13,6 +13,11 @@ from ddtrace.contrib.flask.patch import flask_version
 from tests.webclient import Client
 
 
+DEFAULT_HEADERS = {
+    "User-Agent": "python-httpx/x.xx.x",
+}
+
+
 @pytest.fixture
 def flask_port():
     # type: () -> str
@@ -94,7 +99,7 @@ def flask_client(flask_command, flask_env, flask_port):
 )
 def test_flask_200(flask_client):
     # type: (Client) -> None
-    assert flask_client.get("/").status_code == 200
+    assert flask_client.get("/", headers=DEFAULT_HEADERS).status_code == 200
 
 
 @pytest.mark.snapshot(
@@ -102,4 +107,4 @@ def test_flask_200(flask_client):
 )
 def test_flask_stream(flask_client):
     # type: (Client) -> None
-    assert flask_client.get("/stream", stream=True).status_code == 200
+    assert flask_client.get("/stream", headers=DEFAULT_HEADERS, stream=True).status_code == 200

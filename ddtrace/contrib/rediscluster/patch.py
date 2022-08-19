@@ -14,10 +14,14 @@ from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
+from .. import trace_utils
+
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
 #      but in `1.x.x` `__version__` is a tuple annd `VERSION` does not exist
 REDISCLUSTER_VERSION = getattr(rediscluster, "VERSION", rediscluster.__version__)
+
+config._add("rediscluster", dict(_default_service="rediscluster"))
 
 
 def patch():
@@ -28,15 +32,15 @@ def patch():
 
     _w = wrapt.wrap_function_wrapper
     if REDISCLUSTER_VERSION >= (2, 0, 0):
-        _w("rediscluster", "client.RedisCluster.execute_command", traced_execute_command)
+        _w("rediscluster", "client.RedisCluster.execute_command", traced_execute_command(config.rediscluster))
         _w("rediscluster", "client.RedisCluster.pipeline", traced_pipeline)
         _w("rediscluster", "pipeline.ClusterPipeline.execute", traced_execute_pipeline)
-        Pin(service=redisx.DEFAULT_SERVICE).onto(rediscluster.RedisCluster)
+        Pin().onto(rediscluster.RedisCluster)
     else:
-        _w("rediscluster", "StrictRedisCluster.execute_command", traced_execute_command)
+        _w("rediscluster", "StrictRedisCluster.execute_command", traced_execute_command(config.rediscluster))
         _w("rediscluster", "StrictRedisCluster.pipeline", traced_pipeline)
         _w("rediscluster", "StrictClusterPipeline.execute", traced_execute_pipeline)
-        Pin(service=redisx.DEFAULT_SERVICE).onto(rediscluster.StrictRedisCluster)
+        Pin().onto(rediscluster.StrictRedisCluster)
 
 
 def unpatch():
@@ -66,7 +70,12 @@ def traced_execute_pipeline(func, instance, args, kwargs):
     cmds = [stringify_cache_args(c.args) for c in instance.command_stack]
     resource = "\n".join(cmds)
     tracer = pin.tracer
-    with tracer.trace(redisx.CMD, resource=resource, service=pin.service, span_type=SpanTypes.REDIS) as s:
+    with tracer.trace(
+        redisx.CMD,
+        resource=resource,
+        service=trace_utils.ext_service(pin, config.rediscluster, "rediscluster"),
+        span_type=SpanTypes.REDIS,
+    ) as s:
         s.set_tag(SPAN_MEASURED_KEY)
         s.set_tag(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))

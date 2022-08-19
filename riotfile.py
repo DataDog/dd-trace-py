@@ -246,6 +246,7 @@ venv = Venv(
                         "structlog": latest,
                         # httpretty v1.0 drops python 2.7 support
                         "httpretty": "==0.9.7",
+                        "gevent": latest,
                     },
                 )
             ],
@@ -334,6 +335,11 @@ venv = Venv(
             pkgs={
                 "msgpack": ["~=1.0.0", latest],
             },
+        ),
+        Venv(
+            name="httplib",
+            command="pytest {cmdargs} tests/contrib/httplib",
+            pys=select_pys(),
         ),
         Venv(
             name="test_logging",

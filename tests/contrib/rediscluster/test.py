@@ -13,7 +13,6 @@ from tests.utils import assert_is_measured
 
 class TestRedisPatch(TracerTestCase):
 
-    TEST_SERVICE = "rediscluster-patch"
     TEST_HOST = REDISCLUSTER_CONFIG["host"]
     TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
 
@@ -29,7 +28,7 @@ class TestRedisPatch(TracerTestCase):
         patch()
         r = self._get_test_client()
         r.flushall()
-        Pin.override(r, service=self.TEST_SERVICE, tracer=self.tracer)
+        Pin.override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
@@ -43,7 +42,7 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "rediscluster"
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
@@ -58,7 +57,7 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "rediscluster"
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
@@ -77,7 +76,7 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
-        assert span.service == self.TEST_SERVICE
+        assert span.service == "rediscluster"
         assert span.name == "redis.command"
         assert span.resource == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.span_type == "redis"
@@ -139,3 +138,19 @@ class TestRedisPatch(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         assert span.service != "mysvc"
+
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REDISCLUSTER_SERVICE="myrediscluster"))
+    def test_env_user_specified_rediscluster_service(self):
+        self.r.get("cheese")
+        span = self.get_spans()[0]
+        assert span.service == "myrediscluster", span.service
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_SERVICE="app-svc", DD_REDISCLUSTER_SERVICE="myrediscluster")
+    )
+    def test_service_precedence(self):
+        self.r.get("cheese")
+        span = self.get_spans()[0]
+        assert span.service == "myrediscluster"
+
+        self.reset()

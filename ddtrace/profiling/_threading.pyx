@@ -69,7 +69,9 @@ class _ThreadLink(_thread_link_base):
     # Key is a thread_id
     # Value is a weakref to an object
     _thread_id_to_object = attr.ib(factory=dict, repr=False, init=False, type=typing.Dict[int, _weakref_type])
-    _lock = attr.ib(factory=nogevent.Lock, repr=False, init=False, type=nogevent.Lock)
+    # Note that this lock has to be reentrant as spans can be activated unexpectedly in the same thread
+    # ex. during a gc weakref finalize callback
+    _lock = attr.ib(factory=nogevent.RLock, repr=False, init=False, type=nogevent.RLock)
 
     def link_object(
             self,

@@ -15,7 +15,8 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/stream",
-      "runtime-id": "c6a8a096ffa146b590298e5b0960757d"
+      "http.useragent": "python-httpx/x.xx.x",
+      "runtime-id": "6bd58ff688004046a9547d8ccc2bb845"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -29,62 +30,86 @@
     "start": 1658268142335582000
   },
      {
-       "name": "flask.preprocess_request",
+       "name": "flask.application",
        "service": "flask",
-       "resource": "flask.preprocess_request",
+       "resource": "GET /stream",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 9000,
-       "start": 1658268142335780000
+       "meta": {
+         "flask.endpoint": "hello",
+         "flask.url_rule": "/stream"
+       },
+       "duration": 927000,
+       "start": 1658786318060690000
      },
+        {
+          "name": "flask.preprocess_request",
+          "service": "flask",
+          "resource": "flask.preprocess_request",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "duration": 28000,
+          "start": 1658786318061030000
+        },
+        {
+          "name": "flask.dispatch_request",
+          "service": "flask",
+          "resource": "flask.dispatch_request",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "duration": 127000,
+          "start": 1658786318061114000
+        },
+           {
+             "name": "tests.contrib.flask.app.hello",
+             "service": "flask",
+             "resource": "/stream",
+             "trace_id": 0,
+             "span_id": 9,
+             "parent_id": 5,
+             "duration": 51000,
+             "start": 1658786318061169000
+           },
+        {
+          "name": "flask.process_response",
+          "service": "flask",
+          "resource": "flask.process_response",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 2,
+          "duration": 24000,
+          "start": 1658786318061292000
+        },
+        {
+          "name": "flask.do_teardown_request",
+          "service": "flask",
+          "resource": "flask.do_teardown_request",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 2,
+          "duration": 28000,
+          "start": 1658786318061463000
+        },
+        {
+          "name": "flask.do_teardown_appcontext",
+          "service": "flask",
+          "resource": "flask.do_teardown_appcontext",
+          "trace_id": 0,
+          "span_id": 8,
+          "parent_id": 2,
+          "duration": 21000,
+          "start": 1658786318061565000
+        },
      {
-       "name": "flask.dispatch_request",
+       "name": "flask.response",
        "service": "flask",
-       "resource": "flask.dispatch_request",
+       "resource": "flask.response",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "duration": 31000,
-       "start": 1658268142335800000
-     },
-        {
-          "name": "tests.contrib.flask.app.hello",
-          "service": "flask",
-          "resource": "/stream",
-          "trace_id": 0,
-          "span_id": 7,
-          "parent_id": 3,
-          "duration": 14000,
-          "start": 1658268142335814000
-        },
-     {
-       "name": "flask.process_response",
-       "service": "flask",
-       "resource": "flask.process_response",
-       "trace_id": 0,
-       "span_id": 4,
-       "parent_id": 1,
-       "duration": 6000,
-       "start": 1658268142335842000
-     },
-     {
-       "name": "flask.do_teardown_request",
-       "service": "flask",
-       "resource": "flask.do_teardown_request",
-       "trace_id": 0,
-       "span_id": 5,
-       "parent_id": 1,
-       "duration": 6000,
-       "start": 1658268142335881000
-     },
-     {
-       "name": "flask.do_teardown_appcontext",
-       "service": "flask",
-       "resource": "flask.do_teardown_appcontext",
-       "trace_id": 0,
-       "span_id": 6,
-       "parent_id": 1,
        "duration": 3000,
-       "start": 1658268142335899000
+       "start": 1658796518061565000
      }]]
