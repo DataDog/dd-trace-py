@@ -1,3 +1,4 @@
+import os
 import platform
 import sys
 
@@ -33,6 +34,7 @@ def test_get_application():
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
         "runtime_version": runtime_v,
+        "products": {},
     }
 
     assert get_application("", "", "") == expected_application
@@ -152,3 +154,26 @@ def test_get_dependencies():
     pkgs_as_dicts = {(dep["name"], dep["version"]) for dep in get_dependencies()}
     pkgs_as_distributions = {(dist.name, dist.version) for dist in get_distributions()}
     assert pkgs_as_dicts == pkgs_as_distributions
+
+
+def test_enable_appsec(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_APPSEC_ENABLED"] = "true"
+
+    out, err, status, _ = run_python_code_in_subprocess(
+        """
+from ddtrace.internal.telemetry.data import get_application
+from ddtrace.internal.telemetry.data import get_version
+
+application = get_application("service-x", "1.1.1", "staging")
+assert "products" in application
+
+assert application["products"] == {
+    "appsec": {
+        "version": get_version()
+    }
+}
+""",
+        env=env,
+    )
+    assert status == 0, out + err

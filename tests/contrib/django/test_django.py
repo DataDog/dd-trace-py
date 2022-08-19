@@ -1226,7 +1226,7 @@ def test_django_request_distributed(client, test_spans):
     headers = {
         get_wsgi_header(HTTP_HEADER_TRACE_ID): "12345",
         get_wsgi_header(HTTP_HEADER_PARENT_ID): "78910",
-        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
+        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): str(USER_KEEP),
     }
     resp = client.get("/", **headers)
     assert resp.status_code == 200
@@ -1258,7 +1258,7 @@ def test_django_request_distributed_disabled(client, test_spans):
     headers = {
         get_wsgi_header(HTTP_HEADER_TRACE_ID): "12345",
         get_wsgi_header(HTTP_HEADER_PARENT_ID): "78910",
-        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
+        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): str(USER_KEEP),
     }
     with override_config("django", dict(distributed_tracing_enabled=False)):
         resp = client.get("/", **headers)

@@ -131,7 +131,14 @@ class _ProfilerInstance(service.Service):
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
-    _scheduler = attr.ib(init=False, default=None)
+    _scheduler = attr.ib(
+        init=False,
+        default=None,
+        type=scheduler.Scheduler,
+    )
+    _lambda_function_name = attr.ib(
+        init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
+    )
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -164,6 +171,9 @@ class _ProfilerInstance(service.Service):
             # path is relative because it is appended
             # to the agent base path.
             endpoint_path = "profiling/v1/input"
+
+        if self._lambda_function_name is not None:
+            self.tags.update({"functionname": self._lambda_function_name.encode("utf-8")})
 
         return [
             http.PprofHTTPExporter(
@@ -209,9 +219,11 @@ class _ProfilerInstance(service.Service):
         exporters = self._build_default_exporters()
 
         if exporters:
-            self._scheduler = scheduler.Scheduler(
-                recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
-            )
+            if self._lambda_function_name is None:
+                scheduler_class = scheduler.Scheduler
+            else:
+                scheduler_class = scheduler.ServerlessScheduler
+            self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
 
         self.set_asyncio_event_loop_policy()
 
