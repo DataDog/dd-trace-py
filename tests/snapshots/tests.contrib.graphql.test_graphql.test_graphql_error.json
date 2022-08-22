@@ -1,6 +1,6 @@
 [[
   {
-    "name": "graphql.query",
+    "name": "graphql.request",
     "service": "graphql",
     "resource": "{ invalid_schema }",
     "trace_id": 0,
