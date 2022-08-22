@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiler: extract class names from the memory allocation and heap profiles.

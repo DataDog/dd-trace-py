@@ -16,6 +16,7 @@ typedef struct
 {
     PyObject* filename;
     PyObject* name;
+    PyObject* type;
     unsigned int lineno;
 } frame_t;
 #if defined(_MSC_VER)

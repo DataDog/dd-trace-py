@@ -57,6 +57,7 @@ traceback_free(traceback_t* tb)
     for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
         Py_DECREF(tb->frames[nframe].filename);
         Py_DECREF(tb->frames[nframe].name);
+        Py_XDECREF(tb->frames[nframe].type);
     }
     PyMem_RawFree(tb);
 }
@@ -79,12 +80,50 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
     PyCodeObject* code = pyframe->f_code;
 #endif
 
+    frame->type = NULL;
+
     if (code == NULL) {
         filename = unknown_name;
         name = unknown_name;
     } else {
+        /* This whole block code is optimized to not allocate any piece of
+           Python memory: if it ends up allocating memory, the program will
+           crash in a recursive loop. Even if we'd fix that loop with a
+           re-entrant barrier, for performance reason we want to be sure we
+           don't allocate anything.*/
         filename = code->co_filename;
         name = code->co_name;
+
+        PyObject* co_varnames = code->co_varnames;
+        PyObject** f_localsplus = pyframe->f_localsplus;
+
+        if (f_localsplus && co_varnames && PyTuple_GET_SIZE(co_varnames) > 0) {
+            PyObject* argname = PyTuple_GetItem(co_varnames, 0);
+
+            if (argname && PyUnicode_Check(argname)) {
+                PyObject* value = f_localsplus[0];
+
+                if (value) {
+                    Py_ssize_t wlen;
+                    /* Warning: tracking PyMem allocation in the future will
+                     * break this as it will loop */
+                    wchar_t* wstr = PyUnicode_AsWideCharString(argname, &wlen);
+
+                    if (wstr) {
+                        if (wcscmp(wstr, L"self") == 0) {
+                            frame->type = PyObject_Type(value);
+                        } else if (wcscmp(wstr, L"cls") == 0) {
+                            if (PyType_Check(value)) {
+                                frame->type = value;
+                                Py_INCREF(value);
+                            }
+                        }
+
+                        PyMem_Free(wstr);
+                    }
+                }
+            }
+        }
     }
 
     if (name)
@@ -191,9 +230,19 @@ traceback_to_tuple(traceback_t* tb)
         PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
         PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
         Py_INCREF(frame->name);
-        /* Class name */
-        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
-        Py_INCREF(empty_string);
+
+        PyObject* class_name;
+
+        if (frame->type) {
+            PyTypeObject* type = (PyTypeObject*)frame->type;
+            /* Improvement for Python 3.11+? */
+            // class_name = _PyType_GetQualName(type);
+            class_name = PyUnicode_FromString(type->tp_name);
+        } else {
+            class_name = empty_string;
+            Py_INCREF(class_name);
+        }
+        PyTuple_SET_ITEM(frame_tuple, 3, class_name);
 
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
     }

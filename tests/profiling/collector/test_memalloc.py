@@ -63,6 +63,11 @@ def _pre_allocate_1k():
     return _allocate_1k()
 
 
+class Allocator(object):
+    def allocate(self):
+        return _allocate_1k()
+
+
 def test_iter_events():
     max_nframe = 32
     _memalloc.start(max_nframe, 10000, 512 * 1024)
@@ -151,7 +156,7 @@ def test_memory_collector():
     r = recorder.Recorder()
     mc = memalloc.MemoryCollector(r)
     with mc:
-        _allocate_1k()
+        Allocator().allocate()
         # Make sure we collect at least once
         mc.periodic()
 
@@ -166,9 +171,14 @@ def test_memory_collector():
             assert event.thread_id == nogevent.main_thread_id
             assert event.thread_name == "MainThread"
             count_object += 1
+            assert event.frames[1][0] == __file__
+            assert event.frames[1][1] == _ALLOC_LINE_NUMBER
+            assert event.frames[1][2] == "_allocate_1k"
+            assert event.frames[1][3] == ""
             assert event.frames[2][0] == __file__
-            assert event.frames[2][1] == 154
-            assert event.frames[2][2] == "test_memory_collector"
+            assert event.frames[2][1] == 68
+            assert event.frames[2][2] == "allocate"
+            assert event.frames[2][3] == "Allocator"
 
     assert count_object > 0
 
@@ -220,7 +230,7 @@ def test_memory_collector_ignore_profiler(
 def test_heap():
     max_nframe = 32
     _memalloc.start(max_nframe, 10, 1024)
-    x = _allocate_1k()
+    x = Allocator().allocate()
     # Check that at least one sample comes from the main thread
     thread_found = False
     for (stack, nframe, thread_id), size in _memalloc.heap():
@@ -233,11 +243,17 @@ def test_heap():
             stack[0][0] == __file__
             and stack[0][1] == _ALLOC_LINE_NUMBER
             and stack[0][2] == "<listcomp>"
+            and stack[0][3] == ""
             and stack[1][0] == __file__
             and stack[1][1] == _ALLOC_LINE_NUMBER
             and stack[1][2] == "_allocate_1k"
+            and stack[1][3] == ""
             and stack[2][0] == __file__
-            and stack[2][2] == "test_heap"
+            and stack[2][2] == "allocate"
+            and stack[2][3] == "Allocator"
+            and stack[3][0] == __file__
+            and stack[3][2] == "test_heap"
+            and stack[3][3] == ""
         ):
             break
     else:

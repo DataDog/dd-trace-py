@@ -321,6 +321,7 @@ class _PprofConverter(object):
                 ("thread id", thread_id),
                 ("thread native id", thread_native_id),
                 ("thread name", thread_name),
+                ("class name", frames[0][3]),
             ),
         )
 
@@ -338,6 +339,7 @@ class _PprofConverter(object):
                 ("thread id", _none_to_str(event.thread_id)),
                 ("thread native id", _none_to_str(event.thread_native_id)),
                 ("thread name", _get_thread_name(event.thread_id, event.thread_name)),
+                ("class name", event.frames[0][3]),
             ),
         )
 
