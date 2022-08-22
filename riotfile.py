@@ -159,7 +159,7 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            pkgs={"slotscheck": latest, "six": latest, "tenacity": latest},
+            pkgs={"slotscheck": latest},
             venvs=[
                 Venv(
                     name="slotscheck",
