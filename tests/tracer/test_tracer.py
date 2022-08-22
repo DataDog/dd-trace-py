@@ -533,13 +533,9 @@ class TracerTestCases(TracerTestCase):
         assert span.get_tag(user.SCOPE) is None
 
     def test_tracer_set_user_warning_no_span(self):
-        class MockTracerNoSpan:
-            def current_root_span(self):
-                return None
-
         with self._caplog.at_level(logging.WARNING):
             set_user(
-                MockTracerNoSpan(),
+                self.tracer,
                 user_id="usr.id",
             )
             assert "No root span in the current execution. Skipping set_user tags" in self._caplog.records[0].message
