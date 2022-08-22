@@ -7,6 +7,7 @@ from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
+from ...internal.compat import parse
 from ...internal.logger import get_logger
 from ...internal.utils import get_argument_value
 from ...propagation.http import HTTPPropagator
@@ -17,23 +18,17 @@ log = get_logger(__name__)
 
 def _extract_hostname(uri):
     # type: (str) -> str
-    end = len(uri)
-    j = uri.rfind("#", 0, end)
-    if j != -1:
-        end = j
-    j = uri.rfind("&", 0, end)
-    if j != -1:
-        end = j
+    parsed_uri = parse.urlparse(uri)
+    port = None
+    try:
+        port = parsed_uri.port
+    except ValueError:
+        # ValueError is raised in PY>3.5 when parsed_uri.port < 0 or parsed_uri.port > 65535
+        return "%s:?" % (parsed_uri.hostname,)
 
-    start = uri.find("://", 0, end) + 3
-    i = uri.find("@", start, end) + 1
-    if i != 0:
-        start = i
-    j = uri.find("/", start, end)
-    if j != -1:
-        end = j
-
-    return uri[start:end]
+    if port is not None:
+        return "%s:%s" % (parsed_uri.hostname, str(port))
+    return parsed_uri.hostname
 
 
 def _extract_query_string(uri):
