@@ -106,7 +106,7 @@ class TelemetryWriter(PeriodicService):
 
     def _flush_metrics(self):
         # type () -> List[Metric]
-        """Returns a list of all integrations queued by add_integration"""
+        """Returns a list of all queued metrics"""
         with self._lock:
             metrics = self._name_to_metric.values()
             self._name_to_metric = {}
