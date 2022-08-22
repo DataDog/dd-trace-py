@@ -1,4 +1,9 @@
-from ._logger import configure_ddtrace_logger
+from ddtrace.internal.module import ModuleWatchdog
+
+
+ModuleWatchdog.install()
+
+from ._logger import configure_ddtrace_logger  # noqa: E402
 
 
 # configure ddtrace logger before other modules log
