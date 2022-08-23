@@ -560,9 +560,9 @@ static inline int msgpack_pack_double(msgpack_packer* x, double d)
     buf[0] = 0xcb;
     // Python 3.11 introduced PyFloat_Pack8() to the public C API and moved PyFloat_Pack8() to the internal C API
     #if PY_VERSION_HEX <= 0x030B00A1
-        PyFloat_Pack8(d, &buf[1], 0);
-    #else
         _PyFloat_Pack8(d, &buf[1], 0);
+    #else
+        PyFloat_Pack8(d, &buf[1], 0);
     #endif
     msgpack_pack_append_buffer(x, buf, 9);
 }
