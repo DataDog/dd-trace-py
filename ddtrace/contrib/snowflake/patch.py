@@ -8,6 +8,7 @@ from ...ext import db
 from ...ext import net
 from ...internal.utils.formats import asbool
 from ..dbapi import TracedConnection
+from ..dbapi import TracedCursor
 from ..trace_utils import unwrap
 
 
@@ -24,6 +25,12 @@ config._add(
         trace_fetch_methods=asbool(os.getenv("DD_SNOWFLAKE_TRACE_FETCH_METHODS", default=False)),
     ),
 )
+
+
+class _SFTracedCursor(TracedCursor):
+    def _set_post_execute_tags(self, span):
+        super(_SFTracedCursor, self)._set_post_execute_tags(span)
+        span._set_str_tag("sfqid", self.__wrapped__.sfqid)
 
 
 def patch():
@@ -64,6 +71,6 @@ def patched_connect(connect_func, _, args, kwargs):
     }
 
     pin = Pin(tags=tags)
-    traced_conn = TracedConnection(conn, pin=pin, cfg=config.snowflake)
+    traced_conn = TracedConnection(conn, pin=pin, cfg=config.snowflake, cursor_cls=_SFTracedCursor)
     pin.onto(traced_conn)
     return traced_conn
