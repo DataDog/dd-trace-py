@@ -2,6 +2,7 @@ import os
 import sys
 
 from flask import Flask
+from flask import request
 
 from ddtrace import tracer
 from tests.webclient import PingFilter
@@ -35,3 +36,9 @@ def hello():
             yield str(i)
 
     return app.response_class(resp())
+
+
+@app.route("/body")
+def body():
+    data = request.get_json()
+    return data, 200
