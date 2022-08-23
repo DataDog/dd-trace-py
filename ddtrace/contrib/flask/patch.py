@@ -4,6 +4,7 @@ import flask
 from six import BytesIO
 import werkzeug
 from werkzeug.exceptions import BadRequest
+import xmltodict
 
 
 # Not all versions of flask/werkzeug have this mixin
