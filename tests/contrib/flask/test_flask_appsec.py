@@ -1,11 +1,8 @@
 import json
 
-<<<<<<< HEAD
-=======
 from flask import request
 
 from ddtrace.ext import http
->>>>>>> 90e11db0 (fix(asm): fix reading wsgi input (#4114))
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -192,8 +189,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             query = dict(_context.get_item("http.request.body", span=root_span))
             assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
             assert query == {"attack": "1' or '1' = '1'"}
-<<<<<<< HEAD
-=======
 
     def test_flask_body_xml(self):
         @self.app.route("/body", methods=["GET", "POST", "DELETE"])
@@ -228,4 +223,3 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
             assert query == {"attack": "1' or '1' = '1'"}
->>>>>>> 90e11db0 (fix(asm): fix reading wsgi input (#4114))

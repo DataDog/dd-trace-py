@@ -524,8 +524,6 @@ class PylonsTestCase(TracerTestCase):
         span = _context.get_item("http.request.cookies", span=root_span)
         assert span["testingcookie_key"] == "testingcookie_value"
 
-<<<<<<< HEAD
-=======
     def test_pylons_body_urlencoded(self):
         with self.override_global_config(dict(_appsec_enabled=True)):
 
@@ -724,7 +722,6 @@ class PylonsTestCase(TracerTestCase):
             assert span
             assert span == "1' or '1' = '1'"
 
->>>>>>> 90e11db0 (fix(asm): fix reading wsgi input (#4114))
     def test_request_method_get_200(self):
         res = self.app.get(url_for(controller="root", action="index"))
         assert res.status == 200

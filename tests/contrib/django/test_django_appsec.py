@@ -142,8 +142,6 @@ def test_django_request_body_json_attack(client, test_spans, tracer):
             assert query == {"attack": "1' or '1' = '1'"}
 
 
-<<<<<<< HEAD
-=======
 def test_django_request_body_xml(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         tracer._appsec_enabled = True
@@ -178,7 +176,6 @@ def test_django_request_body_xml_attack(client, test_spans, tracer):
             assert query == {"attack": "1' or '1' = '1'"}
 
 
->>>>>>> 90e11db0 (fix(asm): fix reading wsgi input (#4114))
 def test_django_request_body_plain(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         tracer._appsec_enabled = True
