@@ -4,7 +4,6 @@ import flask
 from six import BytesIO
 import werkzeug
 from werkzeug.exceptions import BadRequest
-import xmltodict
 
 
 # Not all versions of flask/werkzeug have this mixin
@@ -367,8 +366,6 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                         req_body = request.json
                     else:
                         req_body = json.loads(request.data.decode("UTF-8"))
-                elif content_type in ("application/xml", "text/xml"):
-                    req_body = xmltodict.parse(request.get_data())
                 elif hasattr(request, "values"):
                     req_body = request.values.to_dict()
                 elif hasattr(request, "args"):
