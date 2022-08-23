@@ -1,5 +1,11 @@
 import json
 
+<<<<<<< HEAD
+=======
+from flask import request
+
+from ddtrace.ext import http
+>>>>>>> 90e11db0 (fix(asm): fix reading wsgi input (#4114))
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -113,12 +119,20 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         }
 
     def test_flask_body_urlencoded(self):
+        @self.app.route("/body", methods=["GET", "POST", "DELETE"])
+        def body():
+            data = dict(request.form)
+            return str(data), 200
+
         with override_global_config(dict(_appsec_enabled=True)):
             self.tracer._appsec_enabled = True
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
-            payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
-            self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
+            data = {"mytestingbody_key": "mytestingbody_value"}
+            payload = urlencode(data)
+
+            self.client.post("/body", data=payload, content_type="application/x-www-form-urlencoded")
+
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
 
@@ -148,12 +162,19 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert query == {"attack": "1' or '1' = '1'"}
 
     def test_flask_body_json(self):
+        @self.app.route("/body", methods=["GET", "POST", "DELETE"])
+        def body():
+            data = request.get_json()
+            return str(data), 200
+
         with override_global_config(dict(_appsec_enabled=True)):
             self.tracer._appsec_enabled = True
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = {"mytestingbody_key": "mytestingbody_value"}
-            self.client.post("/", json=payload, content_type="application/json")
+
+            self.client.post("/body", json=payload, content_type="application/json")
+
             root_span = self.pop_spans()[0]
             query = dict(_context.get_item("http.request.body", span=root_span))
 
@@ -171,3 +192,40 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             query = dict(_context.get_item("http.request.body", span=root_span))
             assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
             assert query == {"attack": "1' or '1' = '1'"}
+<<<<<<< HEAD
+=======
+
+    def test_flask_body_xml(self):
+        @self.app.route("/body", methods=["GET", "POST", "DELETE"])
+        def body():
+            data = request.data
+            return data, 200
+
+        with override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
+            response = self.client.post("/body", data=payload, content_type="application/xml")
+            assert response.status_code == 200
+            assert response.data == b"<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
+
+            root_span = self.pop_spans()[0]
+            query = dict(_context.get_item("http.request.body", span=root_span))
+
+            assert root_span.get_tag("_dd.appsec.json") is None
+            assert query == {"mytestingbody_key": "mytestingbody_value"}
+
+    def test_flask_body_xml_attack(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "<attack>1' or '1' = '1'</attack>"
+            self.client.post("/", data=payload, content_type="application/xml")
+            root_span = self.pop_spans()[0]
+            query = dict(_context.get_item("http.request.body", span=root_span))
+
+            assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+            assert query == {"attack": "1' or '1' = '1'"}
+>>>>>>> 90e11db0 (fix(asm): fix reading wsgi input (#4114))

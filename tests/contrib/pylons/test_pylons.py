@@ -524,6 +524,207 @@ class PylonsTestCase(TracerTestCase):
         span = _context.get_item("http.request.cookies", span=root_span)
         assert span["testingcookie_key"] == "testingcookie_value"
 
+<<<<<<< HEAD
+=======
+    def test_pylons_body_urlencoded(self):
+        with self.override_global_config(dict(_appsec_enabled=True)):
+
+            self.tracer.configure(api_version="v0.4")
+            payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
+            response = self.app.post(
+                url_for(controller="root", action="body"),
+                params=payload,
+                extra_environ={"CONTENT_TYPE": "application/x-www-form-urlencoded"},
+            )
+            assert response.status == 200
+
+            spans = self.pop_spans()
+            assert spans
+
+            root_span = spans[0]
+            assert root_span
+            assert root_span.get_tag("_dd.appsec.json") is None
+
+            span = dict(_context.get_item("http.request.body", span=root_span))
+            assert span
+            assert span["mytestingbody_key"] == "mytestingbody_value"
+
+    def test_pylons_request_body_urlencoded_appsec_disabled_then_no_body(self):
+        self.tracer._appsec_enabled = False
+        # Hack: need to pass an argument to configure so that the processors are recreated
+        self.tracer.configure(api_version="v0.4")
+        payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
+        self.app.post(url_for(controller="root", action="index"), params=payload)
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        assert root_span
+        assert not _context.get_item("http.request.body", span=root_span)
+
+    def test_pylons_body_urlencoded_attack(self):
+        with self.override_global_config(dict(_appsec_enabled=True)):
+            with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+                self.tracer._appsec_enabled = True
+                # Hack: need to pass an argument to configure so that the processors are recreated
+                self.tracer.configure(api_version="v0.4")
+                payload = urlencode({"attack": "1' or '1' = '1'"})
+                self.app.post(url_for(controller="root", action="index"), params=payload)
+
+                spans = self.pop_spans()
+                assert spans
+
+                root_span = spans[0]
+                assert root_span
+
+                appsec_json = root_span.get_tag("_dd.appsec.json")
+                assert appsec_json
+                assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
+
+                query = dict(_context.get_item("http.request.body", span=root_span))
+                assert query == {"attack": "1' or '1' = '1'"}
+
+    def test_pylons_body_json(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = json.dumps({"mytestingbody_key": "mytestingbody_value"})
+            response = self.app.post(
+                url_for(controller="root", action="body"),
+                params=payload,
+                extra_environ={"CONTENT_TYPE": "application/json"},
+            )
+            assert response.status == 200
+
+            spans = self.pop_spans()
+            assert spans
+
+            root_span = spans[0]
+            assert root_span
+            assert root_span.get_tag("_dd.appsec.json") is None
+
+            span = dict(_context.get_item("http.request.body", span=root_span))
+            assert span
+            assert span["mytestingbody_key"] == "mytestingbody_value"
+
+    def test_pylons_body_json_attack(self):
+        with self.override_global_config(dict(_appsec_enabled=True)):
+            with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+                self.tracer._appsec_enabled = True
+                # Hack: need to pass an argument to configure so that the processors are recreated
+                self.tracer.configure(api_version="v0.4")
+                payload = json.dumps({"attack": "1' or '1' = '1'"})
+                self.app.post(
+                    url_for(controller="root", action="index"),
+                    params=payload,
+                    extra_environ={"CONTENT_TYPE": "application/json"},
+                )
+
+                spans = self.pop_spans()
+                assert spans
+
+                root_span = spans[0]
+                appsec_json = root_span.get_tag("_dd.appsec.json")
+                assert appsec_json
+                assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
+
+                span = dict(_context.get_item("http.request.body", span=root_span))
+                assert span
+                assert span == {"attack": "1' or '1' = '1'"}
+
+    def test_pylons_body_xml(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
+
+            response = self.app.post(
+                url_for(controller="root", action="body"),
+                params=payload,
+                extra_environ={"CONTENT_TYPE": "application/xml"},
+            )
+            assert response.status == 200
+
+            spans = self.pop_spans()
+            assert spans
+
+            root_span = spans[0]
+            assert root_span
+            assert root_span.get_tag("_dd.appsec.json") is None
+
+            span = dict(_context.get_item("http.request.body", span=root_span))
+            assert span
+            assert span["mytestingbody_key"] == "mytestingbody_value"
+
+    def test_pylons_body_xml_attack(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "<attack>1' or '1' = '1'</attack>"
+            self.app.post(
+                url_for(controller="root", action="index"),
+                params=payload,
+                extra_environ={"CONTENT_TYPE": "application/xml"},
+            )
+
+            spans = self.pop_spans()
+            assert spans
+
+            root_span = spans[0]
+            assert root_span
+            assert root_span.get_tag("_dd.appsec.json") is None
+
+            span = dict(_context.get_item("http.request.body", span=root_span))
+            assert span
+            assert span == {"attack": "1' or '1' = '1'"}
+
+    def test_pylons_body_plain(self):
+        with self.override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "foo=bar"
+
+            response = self.app.post(
+                url_for(controller="root", action="body"), params=payload, extra_environ={"CONTENT_TYPE": "text/plain"}
+            )
+            assert response.status == 200
+
+            spans = self.pop_spans()
+            assert spans
+
+            root_span = spans[0]
+            assert root_span
+            assert root_span.get_tag("_dd.appsec.json") is None
+
+            span = _context.get_item("http.request.body", span=root_span)
+            assert span
+            assert span == "foo=bar"
+
+    def test_pylons_body_plain_attack(self):
+        with self.override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "1' or '1' = '1'"
+            self.app.post(
+                url_for(controller="root", action="body"),
+                params=payload,
+                extra_environ={"CONTENT_TYPE": "text/plain"},
+            )
+
+            spans = self.pop_spans()
+            assert spans
+
+            root_span = spans[0]
+            appsec_json = root_span.get_tag("_dd.appsec.json")
+            assert "triggers" in json.loads(appsec_json if appsec_json else "{}")
+
+            span = _context.get_item("http.request.body", span=root_span)
+            assert span
+            assert span == "1' or '1' = '1'"
+
+>>>>>>> 90e11db0 (fix(asm): fix reading wsgi input (#4114))
     def test_request_method_get_200(self):
         res = self.app.get(url_for(controller="root", action="index"))
         assert res.status == 200
