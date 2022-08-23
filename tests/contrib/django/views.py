@@ -196,3 +196,18 @@ def identify(request):
         scope="usr.scope",
     )
     return HttpResponse(status=200)
+
+
+def body_view(request):
+    # Django >= 3
+    if hasattr(request, "headers"):
+        content_type = request.headers["Content-Type"]
+    else:
+        # Django < 3
+        content_type = request.META["CONTENT_TYPE"]
+    if content_type in ("application/json", "application/xml", "text/xml"):
+        data = request.body
+        return HttpResponse(data, status=200)
+    else:
+        data = request.POST
+        return HttpResponse(str(dict(data)), status=200)

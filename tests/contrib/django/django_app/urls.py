@@ -78,4 +78,5 @@ urlpatterns = [
     handler(r"^shutdown-tracer/$", shutdown, name="shutdown-tracer"),
     handler(r"^alter-resource/$", views.alter_resource),
     handler(r"^identify/$", views.identify, name="identify"),
+    handler(r"^body/$", views.body_view, name="body_view"),
 ]

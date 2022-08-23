@@ -1,3 +1,6 @@
+import json
+
+from pylons import request
 from pylons import response
 from pylons.controllers import WSGIController
 
@@ -22,6 +25,18 @@ class RootController(BaseController):
 
     def index(self):
         return "Hello World"
+
+    def body(self):
+        result = str(request.body)
+        content_type = getattr(request, "content_type", request.headers.environ.get("CONTENT_TYPE"))
+        if content_type in ("application/json"):
+            if hasattr(request, "json"):
+                result = json.dumps(request.json)
+            else:
+                result = str(request.body)
+        elif content_type in ("application/x-www-form-urlencoded"):
+            result = json.dumps(dict(request.POST))
+        return result
 
     def raise_exception(self):
         raise Exception("Ouch!")
