@@ -2,6 +2,7 @@ import random
 
 from flask import Flask
 from flask import render_template_string
+from flask import request
 
 
 app = Flask(__name__)
@@ -40,3 +41,9 @@ def index():
     """,
         rand_numbers=rand_numbers,
     )
+
+
+@app.route("/post-view", methods=["POST"])
+def post_view():
+    data = request.data
+    return data, 200

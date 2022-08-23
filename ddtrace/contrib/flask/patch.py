@@ -1,6 +1,7 @@
 import json
 
 import flask
+from six import BytesIO
 import werkzeug
 from werkzeug.exceptions import BadRequest
 
@@ -348,6 +349,17 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         req_body = None
         if config._appsec_enabled and request.method in _BODY_METHODS:
             content_type = request.content_type
+            wsgi_input = environ.get("wsgi.input", "")
+
+            # Copy wsgi input if not seekable
+            try:
+                seekable = wsgi_input.seekable()
+            except AttributeError:
+                seekable = False
+            if not seekable:
+                body = wsgi_input.read()
+                environ["wsgi.input"] = BytesIO(body)
+
             try:
                 if content_type == "application/json":
                     if _HAS_JSON_MIXIN and hasattr(request, "json"):
@@ -360,8 +372,16 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                     req_body = request.args.to_dict()
                 elif hasattr(request, "form"):
                     req_body = request.form.to_dict()
+                else:
+                    req_body = request.get_data()
             except (AttributeError, RuntimeError, TypeError, BadRequest):
                 log.warning("Failed to parse werkzeug request body", exc_info=True)
+            finally:
+                # Reset wsgi input to the beginning
+                if seekable:
+                    wsgi_input.seek(0)
+                else:
+                    environ["wsgi.input"] = BytesIO(body)
 
         # DEV: We set response status code in `_wrap_start_response`
         # DEV: Use `request.base_url` and not `request.url` to keep from leaking any query string parameters
