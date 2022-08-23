@@ -2,7 +2,6 @@ import json
 
 from flask import request
 
-from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH

@@ -16,12 +16,14 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 from ddtrace.ext import http
 from ddtrace.internal import _context
+from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 class PylonsTestCase(TracerTestCase):
@@ -561,7 +563,7 @@ class PylonsTestCase(TracerTestCase):
         assert not _context.get_item("http.request.body", span=root_span)
 
     def test_pylons_body_urlencoded_attack(self):
-        with self.override_global_config(dict(_appsec_enabled=True)):
+        with override_global_config(dict(_appsec_enabled=True)):
             with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
                 self.tracer._appsec_enabled = True
                 # Hack: need to pass an argument to configure so that the processors are recreated
