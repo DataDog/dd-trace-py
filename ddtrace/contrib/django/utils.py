@@ -26,6 +26,13 @@ from .compat import get_resolver
 from .compat import user_is_authenticated
 
 
+try:
+    from json.decoder import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
+
 log = get_logger(__name__)
 
 # Set on patch, when django is imported
@@ -264,7 +271,7 @@ def _extract_body(request):
             UnreadablePostError,
             OSError,
             ValueError,
-            json.decode.DecodeError,
+            JSONDecodeError,
         ):
             log.warning("Failed to parse request body", exc_info=True)
             # req_body is None
