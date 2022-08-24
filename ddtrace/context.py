@@ -9,6 +9,7 @@ from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
 from .internal.compat import NumericType
+from .internal.compat import PY2
 from .internal.logger import get_logger
 
 
@@ -116,7 +117,10 @@ class Context(object):
         """Get the user ID of the trace."""
         user_id = self._meta.get(USER_ID_KEY)
         if user_id:
-            return str(base64.b64decode(user_id), encoding="utf-8")
+            if not PY2:
+                return str(base64.b64decode(user_id), encoding="utf-8")
+            else:
+                return str(base64.b64decode(user_id))
         return None
 
     @dd_user_id.setter
@@ -128,8 +132,11 @@ class Context(object):
                 if USER_ID_KEY in self._meta:
                     del self._meta[USER_ID_KEY]
                 return
-            value_to_bytes = bytes(value, encoding="utf-8")
-            self._meta[USER_ID_KEY] = str(base64.b64encode(value_to_bytes), encoding="utf-8")
+            if not PY2:
+                value = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
+            else:
+                value = str(base64.b64encode(bytes(value)))
+            self._meta[USER_ID_KEY] = value
 
     def __eq__(self, other):
         # type: (Any) -> bool
