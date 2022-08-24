@@ -252,4 +252,4 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             self.client.post("/", data="", content_type="application/json")
-            assert "Failed to parse json request body" in self._caplog.text
+            assert "Failed to parse werkzeug request body" in self._caplog.text

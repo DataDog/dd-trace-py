@@ -104,7 +104,7 @@ class PylonsTraceMiddleware(object):
                     else:  # text/plain, xml, others: take them as strings
                         req_body = request.body.decode("UTF-8")
 
-                except (AttributeError, OSError):
+                except (AttributeError, OSError, ValueError, json.decoder.JSONDecodeError):
                     log.warning("Failed to parse request body", exc_info=True)
                     # req_body is None
 

@@ -258,7 +258,14 @@ def _extract_body(request):
                 )
             else:  # text/plain, xml, others: take them as strings
                 req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
-        except (AttributeError, RawPostDataException, UnreadablePostError, OSError):
+        except (
+            AttributeError,
+            RawPostDataException,
+            UnreadablePostError,
+            OSError,
+            ValueError,
+            json.decode.DecodeError,
+        ):
             log.warning("Failed to parse request body", exc_info=True)
             # req_body is None
 

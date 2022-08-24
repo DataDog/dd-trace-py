@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 from paste import fixture
@@ -33,6 +34,10 @@ class PylonsTestCase(TracerTestCase):
     """
 
     conf_dir = os.path.dirname(os.path.abspath(__file__))
+
+    @pytest.fixture(autouse=True)
+    def inject_fixtures(self, caplog):
+        self._caplog = caplog
 
     def setUp(self):
         super(PylonsTestCase, self).setUp()
@@ -780,3 +785,19 @@ class PylonsTestCase(TracerTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
+
+    def test_pylons_body_json_empty_body(self):
+        """
+        "Failed to parse request body"
+        """
+        with self._caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)):
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = ""
+
+            self.app.post(
+                url_for(controller="root", action="body"),
+                params=payload,
+                extra_environ={"CONTENT_TYPE": "application/json"},
+            )
+            assert "Failed to parse werkzeug request body" in self._caplog.text

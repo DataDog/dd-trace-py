@@ -145,10 +145,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                     if _HAS_JSON_MIXIN and hasattr(request, "json"):
                         req_body = request.json
                     else:
-                        try:
-                            req_body = json.loads(request.data.decode("UTF-8"))
-                        except (ValueError, json.decoder.JSONDecodeError):
-                            log.warning("Failed to parse json request body", exc_info=True)
+                        req_body = json.loads(request.data.decode("UTF-8"))
                 elif content_type in ("application/xml", "text/xml"):
                     req_body = xmltodict.parse(request.get_data())
                 elif hasattr(request, "values"):
@@ -159,7 +156,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                     req_body = request.form.to_dict()
                 else:
                     req_body = request.get_data()
-            except (AttributeError, RuntimeError, TypeError, BadRequest):
+            except (AttributeError, RuntimeError, TypeError, BadRequest, ValueError, json.decoder.JSONDecodeError):
                 log.warning("Failed to parse werkzeug request body", exc_info=True)
             finally:
                 # Reset wsgi input to the beginning
