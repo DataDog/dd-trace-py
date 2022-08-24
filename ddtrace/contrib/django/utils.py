@@ -244,7 +244,7 @@ def _extract_body(request):
     req_body = None
 
     if config._appsec_enabled and request.method in _BODY_METHODS:
-        content_type = request.content_type if hasattr(request, "content_type") else request.META["CONTENT_TYPE"]
+        content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
 
         rest_framework = hasattr(request, "data")
 
@@ -273,7 +273,7 @@ def _extract_body(request):
             ValueError,
             JSONDecodeError,
         ):
-            log.warning("Failed to parse request body", exc_info=True)
+            log.warning("Failed to parse request body")
             # req_body is None
 
         return req_body

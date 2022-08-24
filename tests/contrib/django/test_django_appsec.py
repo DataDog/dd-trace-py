@@ -214,9 +214,10 @@ def test_django_request_body_json_empty(caplog, client, test_spans, tracer):
         tracer._appsec_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
-        payload = ""
-        client.post("/", payload, content_type="application/json")
-        assert "Failed to parse werkzeug request body" in caplog.text
+        payload = '{"attack": "bad_payload",}'
+        response = client.post("/", payload, content_type="application/json")
+        assert response.status_code == 200
+        assert "Failed to parse request body" in caplog.text
 
 
 def test_django_path_params(client, test_spans, tracer):
