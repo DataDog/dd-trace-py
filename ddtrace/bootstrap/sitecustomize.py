@@ -2,7 +2,6 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
-import atexit
 import logging
 import os
 import sys
@@ -10,7 +9,6 @@ from typing import Any
 from typing import Dict
 
 from ddtrace.debugging._debugger import Debugger
-from ddtrace.internal import forksafe
 
 
 # Perform gevent patching as early as possible in the application before
@@ -24,11 +22,10 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
 from ddtrace import config  # noqa
 from ddtrace import constants
 from ddtrace.internal.logger import get_logger  # noqa
+from ddtrace.internal.remoteconfig._worker import RemoteConfig
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.remoteconfig._worker import RemoteConfig
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode
 from ddtrace.vendor.debtcollector import deprecate
@@ -82,14 +79,13 @@ def update_patched_modules():
 
 try:
 
-    def restart_remoteconfig():
-        RemoteConfig.disable()
-        RemoteConfig.enable()
-
     RemoteConfig.enable()
-    forksafe.register(restart_remoteconfig)
-    atexit.register(RemoteConfig.disable)
 
+except Exception:
+    log.warning("error starting the RCM client", exc_info=True)
+
+
+try:
     from ddtrace import tracer
 
     priority_sampling = os.getenv("DD_PRIORITY_SAMPLING")

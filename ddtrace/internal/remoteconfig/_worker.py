@@ -1,10 +1,11 @@
+import atexit
 import logging
 import os
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
+from ddtrace.internal.remoteconfig._client import Client
 from ddtrace.internal.utils.time import StopWatch
-from ddtrace.remoteconfig._client import Client
 
 
 log = logging.getLogger(__name__)
@@ -48,6 +49,14 @@ class RemoteConfig(object):
                 cls._worker = RemoteConfigWorker()
                 cls._worker.start()
 
+                forksafe.register(cls._restart)
+                atexit.register(cls.disable)
+
+    @classmethod
+    def _restart(cls):
+        cls.disable()
+        cls.enable()
+
     @classmethod
     def register(cls, product, handler):
         if cls._worker is not None:
@@ -60,3 +69,6 @@ class RemoteConfig(object):
             if cls._worker is not None:
                 cls._worker.stop()
                 cls._worker = None
+
+                forksafe.unregister(cls._restart)
+                atexit.unregister(cls.disable)

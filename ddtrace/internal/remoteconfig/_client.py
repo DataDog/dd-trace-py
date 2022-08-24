@@ -203,7 +203,8 @@ class Client(object):
                 is_tracer=True,
                 client_tracer=self._client_tracer,
                 state=state,
-            )
+            ),
+            cached_target_files=[],  # TODO
         )
 
     def _build_state(self):
@@ -232,6 +233,7 @@ class Client(object):
 
         signed = payload.targets.signed
         if signed.expires <= datetime.utcnow():
+            signed_expiration = datetime.strftime(signed.expires, "%Y-%m-%dT%H:%M:%SZ")
             raise RemoteConfigError("targets are expired, expiration date was {}".format(signed_expiration))
 
         targets = dict()
@@ -288,15 +290,14 @@ class Client(object):
             log.debug("invalid agent payload received: %r", data, exc_info=True)
             raise RemoteConfigError("invalid agent payload received")
 
+        # TODO: Also check among cached targets
+        paths = {_.path for _ in payload.target_files}
+        if not set(payload.client_configs) <= paths:
+            raise RemoteConfigError("Not all client configurations have target files")
+
         # 1. Deserialize targets
         last_targets_version, backend_state, targets = self._process_targets(payload)
-
-        if last_targets_version is None:
-            return
-
-        self._last_targets_version = last_targets_version
-
-        if targets is None:
+        if last_targets_version is None or targets is None:
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
@@ -342,6 +343,7 @@ class Client(object):
             else:
                 applied_configs[target] = config
 
+        self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs
         self._backend_state = backend_state
 
