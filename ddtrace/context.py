@@ -1,3 +1,4 @@
+import base64
 import threading
 from typing import Any
 from typing import Optional
@@ -6,6 +7,7 @@ from typing import Text
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
+from .constants import USER_ID_KEY
 from .internal.compat import NumericType
 from .internal.logger import get_logger
 
@@ -107,6 +109,27 @@ class Context(object):
                     del self._meta[ORIGIN_KEY]
                 return
             self._meta[ORIGIN_KEY] = value
+
+    @property
+    def dd_user_id(self):
+        # type: () -> Optional[Text]
+        """Get the user ID of the trace."""
+        user_id = self._meta.get(USER_ID_KEY)
+        if user_id:
+            return str(base64.b64decode(user_id), encoding="utf-8")
+        return None
+
+    @dd_user_id.setter
+    def dd_user_id(self, value):
+        # type: (Optional[Text]) -> None
+        """Set the user ID of the trace."""
+        with self._lock:
+            if value is None:
+                if USER_ID_KEY in self._meta:
+                    del self._meta[USER_ID_KEY]
+                return
+            value_to_bytes = bytes(value, encoding="utf-8")
+            self._meta[USER_ID_KEY] = str(base64.b64encode(value_to_bytes), encoding="utf-8")
 
     def __eq__(self, other):
         # type: (Any) -> bool

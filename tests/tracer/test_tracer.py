@@ -515,6 +515,7 @@ class TracerTestCases(TracerTestCase):
         assert span.get_tag(user.NAME)
         assert span.get_tag(user.ROLE)
         assert span.get_tag(user.SCOPE)
+        assert span.context.dd_user_id is None
 
     def test_tracer_set_user_mandatory(self):
         span = self.trace("fake_span")
@@ -531,6 +532,7 @@ class TracerTestCases(TracerTestCase):
         assert span.get_tag(user.NAME) is None
         assert span.get_tag(user.ROLE) is None
         assert span.get_tag(user.SCOPE) is None
+        assert span.context.dd_user_id is None
 
     def test_tracer_set_user_warning_no_span(self):
         with self._caplog.at_level(logging.WARNING):
@@ -539,6 +541,24 @@ class TracerTestCases(TracerTestCase):
                 user_id="usr.id",
             )
             assert "No root span in the current execution. Skipping set_user tags" in self._caplog.records[0].message
+
+    def test_tracer_set_user_propagation(self):
+        span = self.trace("fake_span")
+        set_user(
+            self.tracer,
+            user_id="usr.id",
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) == "usr.id"
+        assert span.context.dd_user_id == "usr.id"
+        assert user_id == "dXNyLmlk"
 
 
 def test_tracer_url():
