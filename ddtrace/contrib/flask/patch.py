@@ -145,7 +145,10 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                     if _HAS_JSON_MIXIN and hasattr(request, "json"):
                         req_body = request.json
                     else:
-                        req_body = json.loads(request.data.decode("UTF-8"))
+                        try:
+                            req_body = json.loads(request.data.decode("UTF-8"))
+                        except (ValueError, json.decoder.JSONDecodeError):
+                            log.warning("Failed to parse json request body", exc_info=True)
                 elif content_type in ("application/xml", "text/xml"):
                     req_body = xmltodict.parse(request.get_data())
                 elif hasattr(request, "values"):
