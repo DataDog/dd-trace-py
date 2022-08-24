@@ -27,7 +27,7 @@ from .compat import user_is_authenticated
 
 
 try:
-    from json.decoder import JSONDecodeError
+    from json import JSONDecodeError
 except ImportError:
     # handling python 2.X import error
     JSONDecodeError = ValueError  # type: ignore

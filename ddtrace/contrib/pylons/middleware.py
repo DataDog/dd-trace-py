@@ -25,7 +25,7 @@ from .renderer import trace_rendering
 
 
 try:
-    from json.decoder import JSONDecodeError
+    from json import JSONDecodeError
 except ImportError:
     # handling python 2.X import error
     JSONDecodeError = ValueError  # type: ignore
