@@ -34,6 +34,13 @@ from .wrappers import wrap_function
 from .wrappers import wrap_signal
 
 
+try:
+    from json import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
+
 log = get_logger(__name__)
 
 FLASK_ENDPOINT = "flask.endpoint"
@@ -81,6 +88,105 @@ flask_version_str = getattr(flask, "__version__", "0.0.0")
 flask_version = parse_version(flask_version_str)
 
 
+<<<<<<< HEAD
+=======
+class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
+    _request_span_name = "flask.request"
+    _application_span_name = "flask.application"
+    _response_span_name = "flask.response"
+
+    def _traced_start_response(self, start_response, span, status_code, headers, exc_info=None):
+        code, _, _ = status_code.partition(" ")
+        # If values are accessible, set the resource as `<method> <path>` and add other request tags
+        _set_request_tags(span)
+
+        # Override root span resource name to be `<method> 404` for 404 requests
+        # DEV: We do this because we want to make it easier to see all unknown requests together
+        #      Also, we do this to reduce the cardinality on unknown urls
+        # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
+        #      we still want `GET /product/<int:product_id>` grouped together,
+        #      even if it is a 404
+        if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
+            span.resource = u" ".join((flask.request.method, code))
+
+        trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=headers)
+
+        return start_response(status_code, headers)
+
+    def _request_span_modifier(self, span, environ):
+        # Create a werkzeug request from the `environ` to make interacting with it easier
+        # DEV: This executes before a request context is created
+        request = _RequestType(environ)
+
+        # Default resource is method and path:
+        #   GET /
+        #   POST /save
+        # We will override this below in `traced_dispatch_request` when we have a `
+        # RequestContext` and possibly a url rule
+        span.resource = u" ".join((request.method, request.path))
+
+        span.set_tag(SPAN_MEASURED_KEY)
+        # set analytics sample rate with global config enabled
+        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+
+        span._set_str_tag(FLASK_VERSION, flask_version_str)
+
+        req_body = None
+        if config._appsec_enabled and request.method in _BODY_METHODS:
+            content_type = request.content_type
+            wsgi_input = environ.get("wsgi.input", "")
+
+            # Copy wsgi input if not seekable
+            try:
+                seekable = wsgi_input.seekable()
+            except AttributeError:
+                seekable = False
+            if not seekable:
+                body = wsgi_input.read()
+                environ["wsgi.input"] = BytesIO(body)
+
+            try:
+                if content_type == "application/json":
+                    if _HAS_JSON_MIXIN and hasattr(request, "json"):
+                        req_body = request.json
+                    else:
+                        req_body = json.loads(request.data.decode("UTF-8"))
+                elif content_type in ("application/xml", "text/xml"):
+                    req_body = xmltodict.parse(request.get_data())
+                elif hasattr(request, "values"):
+                    req_body = request.values.to_dict()
+                elif hasattr(request, "args"):
+                    req_body = request.args.to_dict()
+                elif hasattr(request, "form"):
+                    req_body = request.form.to_dict()
+                else:
+                    req_body = request.get_data()
+            except (AttributeError, RuntimeError, TypeError, BadRequest, ValueError, JSONDecodeError):
+                log.warning("Failed to parse werkzeug request body", exc_info=True)
+            finally:
+                # Reset wsgi input to the beginning
+                if seekable:
+                    wsgi_input.seek(0)
+                else:
+                    environ["wsgi.input"] = BytesIO(body)
+
+        trace_utils.set_http_meta(
+            span,
+            config.flask,
+            method=request.method,
+            url=request.base_url,
+            raw_uri=request.url,
+            query=request.query_string,
+            parsed_query=request.args,
+            request_headers=request.headers,
+            request_cookies=request.cookies,
+            request_body=req_body,
+        )
+
+
+>>>>>>> b8ddbec2 (fix(asm): avoid json decode error in request body (#4129))
 def patch():
     """
     Patch `flask` module for tracing

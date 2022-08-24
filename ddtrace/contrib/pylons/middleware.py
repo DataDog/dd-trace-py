@@ -21,6 +21,12 @@ from .constants import CONFIG_MIDDLEWARE
 from .renderer import trace_rendering
 
 
+try:
+    from json import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
 log = get_logger(__name__)
 
 
@@ -67,6 +73,32 @@ class PylonsTraceMiddleware(object):
             # set analytics sample rate with global config enabled
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, ddconfig.pylons.get_analytics_sample_rate(use_global_config=True))
 
+<<<<<<< HEAD
+=======
+            req_body = None
+
+            if ddconfig._appsec_enabled and request.method in _BODY_METHODS:
+                content_type = getattr(request, "content_type", request.headers.environ.get("CONTENT_TYPE"))
+
+                try:
+                    if content_type == "application/x-www-form-urlencoded":
+                        req_body = self._unlist_multidict_params(request.POST.dict_of_lists())
+                    elif content_type == "application/json":
+                        # if pylons>=0.10,<0.11 request.json not exists
+                        if hasattr(request, "json"):
+                            req_body = request.json
+                        else:
+                            req_body = json.loads(request.body.decode("UTF-8"))
+                    elif content_type in ("application/xml", "text/xml"):
+                        req_body = xmltodict.parse(request.body.decode("UTF-8"))
+                    else:  # text/plain, xml, others: take them as strings
+                        req_body = request.body.decode("UTF-8")
+
+                except (AttributeError, OSError, ValueError, JSONDecodeError):
+                    log.warning("Failed to parse request body", exc_info=True)
+                    # req_body is None
+
+>>>>>>> b8ddbec2 (fix(asm): avoid json decode error in request body (#4129))
             trace_utils.set_http_meta(
                 span,
                 ddconfig.pylons,

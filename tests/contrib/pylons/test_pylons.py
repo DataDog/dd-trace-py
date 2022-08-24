@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 from paste import fixture
@@ -31,6 +32,10 @@ class PylonsTestCase(TracerTestCase):
     """
 
     conf_dir = os.path.dirname(os.path.abspath(__file__))
+
+    @pytest.fixture(autouse=True)
+    def inject_fixtures(self, caplog):
+        self._caplog = caplog
 
     def setUp(self):
         super(PylonsTestCase, self).setUp()
@@ -572,3 +577,42 @@ class PylonsTestCase(TracerTestCase):
             query = dict(_context.get_item("http.request.path_params", span=root_span))
             assert query["month"] == "w00tw00t.at.isc.sans.dfind"
             assert query["year"] == "2022"
+<<<<<<< HEAD
+=======
+
+    def test_pylons_useragent(self):
+        self.app.get(url_for(controller="root", action="index"), headers={"HTTP_USER_AGENT": "test/1.2.3"})
+        spans = self.pop_spans()
+        root_span = spans[0]
+        assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
+
+    def test_pylons_body_json_empty_body(self):
+        """
+        "Failed to parse request body"
+        """
+        with self._caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)):
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = ""
+
+            self.app.post(
+                url_for(controller="root", action="body"),
+                params=payload,
+                extra_environ={"CONTENT_TYPE": "application/json"},
+            )
+            assert "Failed to parse request body" in self._caplog.text
+
+    def test_pylon_get_user(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        # Values defined in tests/contrib/pylons/app/controllers/root.py::RootController::identify
+        assert root_span.get_tag(user.ID) == "usr.id"
+        assert root_span.get_tag(user.EMAIL) == "usr.email"
+        assert root_span.get_tag(user.SESSION_ID) == "usr.session_id"
+        assert root_span.get_tag(user.NAME) == "usr.name"
+        assert root_span.get_tag(user.ROLE) == "usr.role"
+        assert root_span.get_tag(user.SCOPE) == "usr.scope"
+>>>>>>> b8ddbec2 (fix(asm): avoid json decode error in request body (#4129))

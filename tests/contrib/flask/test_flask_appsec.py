@@ -1,6 +1,8 @@
 import json
+import logging
 
 from flask import request
+import pytest
 
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
@@ -11,6 +13,10 @@ from tests.utils import override_global_config
 
 
 class FlaskAppSecTestCase(BaseFlaskTestCase):
+    @pytest.fixture(autouse=True)
+    def inject_fixtures(self, caplog):
+        self._caplog = caplog
+
     def test_flask_simple_attack(self):
         self.tracer._appsec_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
@@ -188,3 +194,48 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             query = dict(_context.get_item("http.request.body", span=root_span))
             assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
             assert query == {"attack": "1' or '1' = '1'"}
+<<<<<<< HEAD
+=======
+
+    def test_flask_body_xml(self):
+        @self.app.route("/body", methods=["GET", "POST", "DELETE"])
+        def body():
+            data = request.data
+            return data, 200
+
+        with override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
+            response = self.client.post("/body", data=payload, content_type="application/xml")
+            assert response.status_code == 200
+            assert response.data == b"<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
+
+            root_span = self.pop_spans()[0]
+            query = dict(_context.get_item("http.request.body", span=root_span))
+
+            assert root_span.get_tag("_dd.appsec.json") is None
+            assert query == {"mytestingbody_key": "mytestingbody_value"}
+
+    def test_flask_body_xml_attack(self):
+        with override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = "<attack>1' or '1' = '1'</attack>"
+            self.client.post("/", data=payload, content_type="application/xml")
+            root_span = self.pop_spans()[0]
+            query = dict(_context.get_item("http.request.body", span=root_span))
+
+            assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+            assert query == {"attack": "1' or '1' = '1'"}
+
+    def test_flask_body_json_empty_body_logs_warning(self):
+        with self._caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)):
+            self.tracer._appsec_enabled = True
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            self.client.post("/", data="", content_type="application/json")
+            assert "Failed to parse werkzeug request body" in self._caplog.text
+>>>>>>> b8ddbec2 (fix(asm): avoid json decode error in request body (#4129))
