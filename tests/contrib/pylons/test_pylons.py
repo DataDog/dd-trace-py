@@ -801,7 +801,7 @@ class PylonsTestCase(TracerTestCase):
                 params=payload,
                 extra_environ={"CONTENT_TYPE": "application/json"},
             )
-            assert "Failed to parse werkzeug request body" in self._caplog.text
+            assert "Failed to parse request body" in self._caplog.text
 
     def test_pylon_get_user(self):
         self.app.get("/identify")
