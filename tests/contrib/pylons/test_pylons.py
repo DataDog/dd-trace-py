@@ -15,6 +15,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 from ddtrace.ext import http
+from ddtrace.ext import user
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -780,3 +781,17 @@ class PylonsTestCase(TracerTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
+
+    def test_pylon_get_user(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        # Values defined in tests/contrib/pylons/app/controllers/root.py::RootController::identify
+        assert root_span.get_tag(user.ID) == "usr.id"
+        assert root_span.get_tag(user.EMAIL) == "usr.email"
+        assert root_span.get_tag(user.SESSION_ID) == "usr.session_id"
+        assert root_span.get_tag(user.NAME) == "usr.name"
+        assert root_span.get_tag(user.ROLE) == "usr.role"
+        assert root_span.get_tag(user.SCOPE) == "usr.scope"
