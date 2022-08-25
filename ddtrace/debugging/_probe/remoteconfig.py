@@ -125,18 +125,8 @@ def probe(_id, _type, attribs):
 
 
 @_filter_by_env_and_version
-def get_probes(data):
+def get_probes(service_config):
     # type: (list) -> Optional[Iterable[Probe]]
-    for service_config in data:
-        try:
-            if service_config["id"] == config.service_name:
-                break
-        except Exception:
-            log.error("Invalid configuration item received", exc_info=True)
-    else:
-        log.warning("No configurations for service '%s'", config.service_name)
-        return []
-
     return chain(
         [probe(p["id"], "snapshotProbes", p) for p in service_config.get("snapshotProbes") or []],
         [probe(p["id"], "metricProbes", p) for p in service_config.get("metricProbes") or []],
@@ -182,7 +172,6 @@ class ProbeRCAdapter(object):
 
     def __call__(self, metadata, config):
         # type: (Any, Any) -> None
-
         # DEV: We emit a status update event here to avoid having to spawn a
         # separate thread for this.
         if time.time() > self._status_timestamp:
@@ -190,13 +179,14 @@ class ProbeRCAdapter(object):
             self._callback(ProbePollerEvent.STATUS_UPDATE, self._probes.values())
             self._next_status_update_timestamp()
 
-        probes = get_probes(config)
-        if probes is None:
+        if config is None:
             return
+
+        probes = get_probes(config)
 
         current_probes = {_.probe_id: _ for _ in probes}
 
-        new_probes = [p for _, p in current_probes.item() if _ not in self._probes]
+        new_probes = [p for _, p in current_probes.items() if _ not in self._probes]
         deleted_probes = [p for _, p in self._probes.items() if _ not in current_probes]
         modified_probes = [
             p for _, p in current_probes.items() if _ in self._probes and probe_modified(p, self._probes[_])
