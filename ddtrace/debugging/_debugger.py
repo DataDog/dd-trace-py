@@ -30,12 +30,11 @@ from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import MetricProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.poller import ProbePoller
-from ddtrace.debugging._probe.poller import ProbePollerEvent
-from ddtrace.debugging._probe.poller import ProbePollerEventType
 from ddtrace.debugging._probe.registry import ProbeRegistry
+from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
+from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
+from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.debugging._remoteconfig import DebuggingRCV07
 from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
@@ -48,10 +47,10 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping import Wrapper
-from ddtrace.remoteconfig._worker import RemoteConfig
 
 
 if TYPE_CHECKING:
@@ -140,8 +139,7 @@ class Debugger(Service):
     _instance = None  # type: Optional[Debugger]
     _probe_meter = _probe_metrics.get_meter("probe")
 
-    __rc__ = DebuggingRCV07
-    __poller__ = ProbePoller
+    __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
     __collector__ = SnapshotCollector
     __watchdog__ = DebuggerModuleWatchdog
@@ -170,8 +168,6 @@ class Debugger(Service):
         atexit.register(cls.disable)
 
         log.debug("%s enabled", cls.__name__)
-
-        RemoteConfig.register("LIVE_DEBUGGING", cls._handle_remoteconfig)
 
     @classmethod
     def _handle_remoteconfig(cls, metadata, remoteconfig):
@@ -227,6 +223,8 @@ class Debugger(Service):
             call_once=True,
             raise_on_exceed=False,
         )
+
+        RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
@@ -549,7 +547,7 @@ class Debugger(Service):
                 except ValueError:
                     log.error("Cannot unregister wrapping import hook for module %r", module_name, exc_info=True)
 
-    def _on_poller_event(self, event, probes):
+    def _on_configuration(self, event, probes):
         # type: (ProbePollerEventType, List[Probe]) -> None
         log.debug("Received poller event %r with probes %r", event, probes)
         if len(probes) + len(self._probe_registry) > config.max_probes:

@@ -406,13 +406,6 @@ jobs:
           snapshot: true
           store_coverage: false
 
-  remoteconfig:
-    <<: *contrib_job
-    parallelism: 7
-    steps:
-      - run_test:
-          pattern: "remoteconfig"
-
   debugger:
     <<: *contrib_job
     parallelism: 7
@@ -1217,7 +1210,6 @@ requires_tests: &requires_tests
     - test_logging
     - tracer
     - telemetry
-    - remoteconfig
     - debugger
     - appsec
     - tornado
@@ -1321,7 +1313,6 @@ workflows:
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
       - telemetry: *requires_base_venvs
-      - remoteconfig: *requires_base_venvs
       - debugger: *requires_base_venvs
       - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs

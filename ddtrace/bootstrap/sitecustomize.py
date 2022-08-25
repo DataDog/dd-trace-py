@@ -22,8 +22,8 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
 from ddtrace import config  # noqa
 from ddtrace import constants
 from ddtrace.internal.logger import get_logger  # noqa
-from ddtrace.internal.remoteconfig._worker import RemoteConfig
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
@@ -78,14 +78,6 @@ def update_patched_modules():
 
 
 try:
-
-    RemoteConfig.enable()
-
-except Exception:
-    log.warning("error starting the RCM client", exc_info=True)
-
-
-try:
     from ddtrace import tracer
 
     priority_sampling = os.getenv("DD_PRIORITY_SAMPLING")
@@ -129,8 +121,8 @@ try:
 
     # instrumentation telemetry writer should be enabled/started after the global tracer and configs
     # are initialized
-    # if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
-    #     telemetry_writer.enable()
+    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
+        telemetry_writer.enable()
 
     # TODO: Fix this
     Debugger.enable()

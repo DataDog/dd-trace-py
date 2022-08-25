@@ -103,7 +103,7 @@ class Targets(object):
     _type = attr.ib(type=str, validator=attr.validators.in_(("targets",)))
     custom = attr.ib(type=Mapping[str, Any])
     expires = attr.ib(type=datetime, converter=parse_isoformat)
-    spec_version = attr.ib(type=str, validator=attr.validators.in_(("1.0",)))
+    spec_version = attr.ib(type=str, validator=attr.validators.in_(("1.0", "1.0.0")))
     targets = attr.ib(type=Mapping[str, TargetDesc])
     version = attr.ib(type=int)
 
@@ -128,7 +128,31 @@ class AgentPayload(object):
     client_configs = attr.ib(type=Set[str], default={})
 
 
-class Client(object):
+def _extract_target_file(payload, target, config):
+    # type: (Sequence[TargetFile], str, ConfigMetadata) -> Optional[Mapping[str, Any]]
+    candidates = [item.raw for item in payload.target_files if item.path == target]
+    if len(candidates) != 1 or candidates[0] is None:
+        log.debug("invalid target_files for %r", target)
+        return None
+
+    try:
+        raw = base64.b64decode(candidates[0])
+    except Exception:
+        raise RemoteConfigError("invalid base64 target_files for {!r}".format(target))
+
+    computed_hash = hashlib.sha256(raw).hexdigest()
+    if computed_hash != config.sha256_hash:
+        raise RemoteConfigError(
+            "mismatch between target {!r} hashes {!r} != {!r}".format(target, computed_hash, config.sha256_hash)
+        )
+
+    try:
+        return json.loads(raw)
+    except Exception:
+        raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
+
+
+class RemoteConfigClient(object):
     """
     The Remote Configuration client regularly checks for updates on the agent
     and dispatches configurations to registered products.
@@ -258,33 +282,10 @@ class Client(object):
             tuf_version=metadata.custom.get("v"),
         )
 
-    def _extract_target_file(self, target_files, target, config):
-        # type: (Sequence[TargetFile], str, ConfigMetadata) -> Optional[Mapping[str, Any]]
-        candidates = [item.raw for item in target_files if item.path == target]
-        if len(candidates) != 1 or candidates[0] is None:
-            log.debug("invalid target_files for %r", target)
-            return None
-
-        try:
-            raw = base64.b64decode(candidates[0])
-        except Exception:
-            raise RemoteConfigError("invalid base64 target_files for {!r}".format(target))
-
-        computed_hash = hashlib.sha256(raw).hexdigest()
-        if computed_hash != config.sha256_hash:
-            raise RemoteConfigError(
-                "mismatch between target {!r} hashes {!r} != {!r}".format(target, computed_hash, config.sha256_hash)
-            )
-
-        try:
-            return json.loads(raw)
-        except Exception:
-            raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
-
     def _process_response(self, data):
         # type: (Mapping[str, Any]) -> None
         try:
-            log.debug("response payload: %r", data)
+            # log.debug("response payload: %r", data)
             payload = self.converter.structure_attrs_fromdict(data, AgentPayload)
         except Exception:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
@@ -298,6 +299,9 @@ class Client(object):
         # 1. Deserialize targets
         last_targets_version, backend_state, targets = self._process_targets(payload)
         if last_targets_version is None or targets is None:
+            log.debug("No targets in configuration payload")
+            for callback in self._products.values():
+                callback(None, None)
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
@@ -305,7 +309,6 @@ class Client(object):
         # 2. Remove previously applied configurations
         applied_configs = dict()
         for target, config in self._applied_configs.items():
-
             if target in client_configs and targets.get(target) == config:
                 # The configuration has not changed.
                 applied_configs[target] = config
@@ -323,6 +326,7 @@ class Client(object):
 
         # 3. Load new configurations
         for target, config in client_configs.items():
+            log.debug("new configuration for product %s", config.product_name)
             callback = self._products.get(config.product_name)
             if callback is None:
                 continue
@@ -331,7 +335,7 @@ class Client(object):
             if applied_config == config:
                 continue
 
-            config_content = self._extract_target_file(payload.target_files, target, config)
+            config_content = _extract_target_file(payload, target, config)
             if config_content is None:
                 continue
 
@@ -352,7 +356,7 @@ class Client(object):
         try:
             state = self._build_state()
             payload = json.dumps(self._build_payload(state), indent=2)
-            log.debug("request payload: %r", payload)
+            # log.debug("request payload: %r", payload)
             self._process_response(self._send_request(payload))
         except RemoteConfigError as e:
             self._last_error = str(e)
