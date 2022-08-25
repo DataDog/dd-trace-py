@@ -133,6 +133,7 @@ rq
 runnable
 runtime
 runtime-id
+RLock
 sanic
 screenshots
 serializable
