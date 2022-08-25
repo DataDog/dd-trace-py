@@ -194,6 +194,12 @@ below:
      - The trace API version to use when sending traces to the Datadog agent.
        Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
 
+       .. _dd-trace-obfuscation-query-string-pattern:
+   * - ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN``
+     - String
+     - ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\s|%20)*(?::|%3A)(?:\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|bearer(?:\s|%20)+[a-z0-9\._\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}.``
+     - A regexp to redact sensitive query strings. Obfuscation disabled if set to empty string
+
        .. _dd-trace-propagation-style-extract:
    * - ``DD_TRACE_PROPAGATION_STYLE_EXTRACT``
      - String
