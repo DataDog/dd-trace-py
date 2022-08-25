@@ -50,6 +50,7 @@ def _determine_transport_module(elasticsearch):
     transport_module = getattr(elasticsearch, "transport", False)
     if not transport_module:
         import elastic_transport
+
         transport_module = getattr(elastic_transport, "_transport")
 
     return transport_module
