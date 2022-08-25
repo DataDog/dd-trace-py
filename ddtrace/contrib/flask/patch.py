@@ -34,6 +34,13 @@ from .wrappers import wrap_function
 from .wrappers import wrap_signal
 
 
+try:
+    from json import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
+
 log = get_logger(__name__)
 
 FLASK_ENDPOINT = "flask.endpoint"
@@ -374,7 +381,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
                     req_body = request.form.to_dict()
                 else:
                     req_body = request.get_data()
-            except (AttributeError, RuntimeError, TypeError, BadRequest):
+            except (AttributeError, RuntimeError, TypeError, BadRequest, ValueError, JSONDecodeError):
                 log.warning("Failed to parse werkzeug request body", exc_info=True)
             finally:
                 # Reset wsgi input to the beginning
