@@ -149,6 +149,7 @@ runnable
 runtime
 runtimes
 runtime-id
+RLock
 sanic
 screenshots
 serializable
