@@ -8,6 +8,7 @@ import logging
 import multiprocessing
 import os
 from os import getpid
+import sys
 import threading
 from unittest.case import SkipTest
 import weakref
@@ -544,9 +545,10 @@ class TracerTestCases(TracerTestCase):
 
     def test_tracer_set_user_propagation(self):
         span = self.trace("fake_span")
+        user_id_string = "usr.id"
         set_user(
             self.tracer,
-            user_id="usr.id",
+            user_id=user_id_string,
             email="usr.email",
             name="usr.name",
             session_id="usr.session_id",
@@ -556,9 +558,68 @@ class TracerTestCases(TracerTestCase):
         )
         user_id = span.context._meta.get("_dd.p.usr.id")
 
-        assert span.get_tag(user.ID) == "usr.id"
-        assert span.context.dd_user_id == "usr.id"
+        assert span.get_tag(user.ID) == user_id_string
+        assert span.context.dd_user_id == user_id_string
         assert user_id == "dXNyLmlk"
+
+    def test_tracer_set_user_propagation_empty(self):
+        span = self.trace("fake_span")
+        user_id_string = ""
+        set_user(
+            self.tracer,
+            user_id=user_id_string,
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) == user_id_string
+        assert span.context.dd_user_id is None
+        assert user_id == user_id_string
+
+    @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python3 tests")
+    def test_tracer_set_user_propagation_string_error_py3(self):
+        span = self.trace("fake_span")
+        user_id_string = "ユーザーID"
+        set_user(
+            self.tracer,
+            user_id=user_id_string,
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) == user_id_string
+        assert span.context.dd_user_id == user_id_string
+        assert user_id == "44Om44O844K244O8SUQ="
+
+    @pytest.mark.skipif(sys.version_info >= (3, 0, 0), reason="Python tests")
+    def test_tracer_set_user_propagation_string_error_py2(self):
+        span = self.trace("fake_span")
+        user_id_string = "ユーザーID"
+        set_user(
+            self.tracer,
+            user_id="ユーザーID",
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) is None
+        assert span.context.dd_user_id == user_id_string
+        assert user_id == "44Om44O844K244O8SUQ="
 
 
 def test_tracer_url():
