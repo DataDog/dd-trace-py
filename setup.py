@@ -312,37 +312,37 @@ setup(
                 libraries=encoding_libraries,
                 define_macros=encoding_macros,
             ),
-            # Cython.Distutils.Extension(
-            #     "ddtrace.profiling.collector.stack",
-            #     sources=["ddtrace/profiling/collector/stack.pyx"],
-            #     language="c",
-            #     extra_compile_args=extra_compile_args,
-            # ),
-            # Cython.Distutils.Extension(
-            #     "ddtrace.profiling.collector._traceback",
-            #     sources=["ddtrace/profiling/collector/_traceback.pyx"],
-            #     language="c",
-            # ),
-            # Cython.Distutils.Extension(
-            #     "ddtrace.profiling._threading",
-            #     sources=["ddtrace/profiling/_threading.pyx"],
-            #     language="c",
-            # ),
-            # Cython.Distutils.Extension(
-            #     "ddtrace.profiling.collector._task",
-            #     sources=["ddtrace/profiling/collector/_task.pyx"],
-            #     language="c",
-            # ),
-            # Cython.Distutils.Extension(
-            #     "ddtrace.profiling.exporter.pprof",
-            #     sources=["ddtrace/profiling/exporter/pprof.pyx"],
-            #     language="c",
-            # ),
-            # Cython.Distutils.Extension(
-            #     "ddtrace.profiling._build",
-            #     sources=["ddtrace/profiling/_build.pyx"],
-            #     language="c",
-            # ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector.stack",
+                sources=["ddtrace/profiling/collector/stack.pyx"],
+                language="c",
+                extra_compile_args=extra_compile_args,
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._traceback",
+                sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling._threading",
+                sources=["ddtrace/profiling/_threading.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._task",
+                sources=["ddtrace/profiling/collector/_task.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.exporter.pprof",
+                sources=["ddtrace/profiling/exporter/pprof.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling._build",
+                sources=["ddtrace/profiling/_build.pyx"],
+                language="c",
+            ),
             # Cython.Distutils.Extension(
             #     "ddtrace.appsec._ddwaf",
             #     sources=["ddtrace/appsec/_ddwaf.pyx"],
