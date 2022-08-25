@@ -31,6 +31,7 @@ def _es_modules():
         "elasticsearch5",
         "elasticsearch6",
         "elasticsearch7",
+        "elasticsearch8",
     )
     for module_name in module_names:
         try:
@@ -45,12 +46,22 @@ def patch():
         _patch(elasticsearch)
 
 
+def _determine_transport_module(elasticsearch):
+    transport_module = getattr(elasticsearch, "transport", False)
+    if not transport_module:
+        import elastic_transport
+        transport_module = getattr(elastic_transport, "_transport")
+
+    return transport_module
+
+
 def _patch(elasticsearch):
     if getattr(elasticsearch, "_datadog_patch", False):
         return
     setattr(elasticsearch, "_datadog_patch", True)
-    _w(elasticsearch.transport, "Transport.perform_request", _get_perform_request(elasticsearch))
-    Pin().onto(elasticsearch.transport.Transport)
+    transport_module = _determine_transport_module(elasticsearch)
+    _w(transport_module, "Transport.perform_request", _get_perform_request(elasticsearch))
+    Pin().onto(transport_module.Transport)
 
 
 def unpatch():
@@ -61,7 +72,8 @@ def unpatch():
 def _unpatch(elasticsearch):
     if getattr(elasticsearch, "_datadog_patch", False):
         setattr(elasticsearch, "_datadog_patch", False)
-        _u(elasticsearch.transport.Transport, "perform_request")
+        transport_module = _determine_transport_module(elasticsearch)
+        _u(transport_module.Transport, "perform_request")
 
 
 def _get_perform_request(elasticsearch):

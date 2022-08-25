@@ -729,9 +729,7 @@ venv = Venv(
                             "~=7.6.0",
                             "~=7.8.0",
                             "~=7.10.0",
-                            # FIXME: Elasticsearch introduced a breaking change in 7.14
-                            # which makes it incompatible with previous major versions.
-                            # latest,
+                            "~=8.4.0",
                         ]
                     },
                 ),
@@ -740,6 +738,7 @@ venv = Venv(
                 Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.0", latest]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch8": ["~=8.4.0"]}),
             ],
         ),
         Venv(
@@ -754,6 +753,7 @@ venv = Venv(
                         "elasticsearch5": [latest],
                         "elasticsearch6": [latest],
                         "elasticsearch7": ["<7.14.0"],
+                        "elasticsearch8": ["~=8.4.0"],
                     },
                 ),
             ],

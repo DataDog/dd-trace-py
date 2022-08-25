@@ -19,6 +19,7 @@ module_names = (
     "elasticsearch5",
     "elasticsearch6",
     "elasticsearch7",
+    "elasticsearch8",
 )
 
 for module_name in module_names:
