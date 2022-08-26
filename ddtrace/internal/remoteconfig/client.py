@@ -7,6 +7,7 @@ import re
 from typing import Any
 from typing import List
 from typing import Mapping
+from typing import Optional
 from typing import Set
 from typing import TYPE_CHECKING
 import uuid
@@ -23,11 +24,9 @@ from ddtrace.internal.utils.time import parse_isoformat
 if TYPE_CHECKING:
     from typing import Callable
     from typing import MutableMapping
-    from typing import Optional
-    from typing import Sequence
     from typing import Tuple
 
-    ProductCallback = Callable[["ConfigMetadata", Optional[Mapping[str, Any]]], None]
+    ProductCallback = Callable[[Optional["ConfigMetadata"], Optional[Mapping[str, Any]]], None]
 
 
 log = logging.getLogger(__name__)
@@ -50,8 +49,8 @@ class ConfigMetadata(object):
 
     id = attr.ib(type=str)
     product_name = attr.ib(type=str)
-    sha256_hash = attr.ib(type=str)
-    tuf_version = attr.ib(type=int)
+    sha256_hash = attr.ib(type=Optional[str])
+    tuf_version = attr.ib(type=Optional[int])
 
 
 @attr.s
@@ -129,7 +128,7 @@ class AgentPayload(object):
 
 
 def _extract_target_file(payload, target, config):
-    # type: (Sequence[TargetFile], str, ConfigMetadata) -> Optional[Mapping[str, Any]]
+    # type: (AgentPayload, str, ConfigMetadata) -> Optional[Mapping[str, Any]]
     candidates = [item.raw for item in payload.target_files if item.path == target]
     if len(candidates) != 1 or candidates[0] is None:
         log.debug("invalid target_files for %r", target)
@@ -152,20 +151,30 @@ def _extract_target_file(payload, target, config):
         raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
 
 
+def _parse_target(target, metadata):
+    # type: (str, TargetDesc) -> ConfigMetadata
+    m = TARGET_FORMAT.match(target)
+    if m is None:
+        raise RemoteConfigError("unexpected target format {!r}".format(target))
+    _, product_name, config_id, _ = m.groups()
+    return ConfigMetadata(
+        id=config_id,
+        product_name=product_name,
+        sha256_hash=metadata.hashes.get("sha256"),
+        tuf_version=metadata.custom.get("v"),
+    )
+
+
 class RemoteConfigClient(object):
     """
     The Remote Configuration client regularly checks for updates on the agent
     and dispatches configurations to registered products.
     """
 
-    def __init__(
-        self,
-        agent_url=agent.get_trace_url(),
-    ):
-        # type: (str, float) -> None
-        self.agent_url = agent_url
+    def __init__(self):
+        # type: () -> None
         self.id = str(uuid.uuid4())
-        self._conn = agent.get_connection(agent_url, timeout=agent.get_trace_agent_timeout())
+        self._conn = agent.get_connection(agent.get_trace_url(), timeout=agent.get_trace_agent_timeout())
         self._headers = {"content-type": "application/json"}
         self._client_tracer = dict(
             runtime_id=runtime.get_runtime_id(),
@@ -200,7 +209,7 @@ class RemoteConfigClient(object):
             self._products.pop(product_name, None)
 
     def _send_request(self, payload):
-        # type: (Mapping[str, Any]) -> None
+        # type: (str) -> Optional[Mapping[str, Any]]
         try:
             self._conn.request("POST", "v0.7/config", payload, self._headers)
             resp = self._conn.getresponse()
@@ -262,25 +271,12 @@ class RemoteConfigClient(object):
 
         targets = dict()
         for target, metadata in signed.targets.items():
-            config = self._parse_target(target, metadata)
+            config = _parse_target(target, metadata)
             if config is not None:
                 targets[target] = config
 
         backend_state = signed.custom.get("opaque_backend_state")
         return signed.version, backend_state, targets
-
-    def _parse_target(self, target, metadata):
-        # type: (str, Mapping[str, Any]) -> ConfigMetadata
-        m = TARGET_FORMAT.match(target)
-        if m is None:
-            raise RemoteConfigError("unexpected target format {!r}".format(target))
-        _, product_name, config_id, _ = m.groups()
-        return ConfigMetadata(
-            id=config_id,
-            product_name=product_name,
-            sha256_hash=metadata.hashes.get("sha256"),
-            tuf_version=metadata.custom.get("v"),
-        )
 
     def _process_response(self, data):
         # type: (Mapping[str, Any]) -> None
@@ -300,8 +296,8 @@ class RemoteConfigClient(object):
         last_targets_version, backend_state, targets = self._process_targets(payload)
         if last_targets_version is None or targets is None:
             log.debug("No targets in configuration payload")
-            for callback in self._products.values():
-                callback(None, None)
+            for cb in self._products.values():
+                cb(None, None)
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
@@ -357,7 +353,10 @@ class RemoteConfigClient(object):
             state = self._build_state()
             payload = json.dumps(self._build_payload(state), indent=2)
             # log.debug("request payload: %r", payload)
-            self._process_response(self._send_request(payload))
+            response = self._send_request(payload)
+            if response is None:
+                return
+            self._process_response(response)
         except RemoteConfigError as e:
             self._last_error = str(e)
             log.warning("remote configuration client reported an error", exc_info=True)

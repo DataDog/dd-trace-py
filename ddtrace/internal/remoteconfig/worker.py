@@ -14,7 +14,7 @@ DEFAULT_REMOTECONFIG_POLL_SECONDS = 2.0  # seconds
 
 
 def get_poll_interval_seconds():
-    # type:() -> int
+    # type:() -> float
     return float(os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS))
 
 
