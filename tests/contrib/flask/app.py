@@ -2,8 +2,10 @@ import os
 import sys
 
 from flask import Flask
+from flask import request
 
 from ddtrace import tracer
+from ddtrace.contrib.trace_utils import set_user
 from tests.webclient import PingFilter
 
 
@@ -22,6 +24,20 @@ def index():
     return "hello"
 
 
+@app.route("/identify")
+def identify():
+    set_user(
+        tracer,
+        user_id="usr.id",
+        email="usr.email",
+        name="usr.name",
+        session_id="usr.session_id",
+        role="usr.role",
+        scope="usr.scope",
+    )
+    return "identify"
+
+
 @app.route("/shutdown")
 def shutdown():
     tracer.shutdown()
@@ -35,3 +51,9 @@ def hello():
             yield str(i)
 
     return app.response_class(resp())
+
+
+@app.route("/body")
+def body():
+    data = request.get_json()
+    return data, 200
