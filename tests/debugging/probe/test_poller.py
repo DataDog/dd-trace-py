@@ -5,9 +5,9 @@ import pytest
 from ddtrace.debugging._config import config
 from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
-from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
-from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
+from ddtrace.debugging._probe.poller import ProbePoller
+from ddtrace.debugging._probe.poller import ProbePollerEvent
+from ddtrace.debugging._remoteconfig import _filter_by_env_and_version
 from ddtrace.internal.compat import PY2
 from tests.utils import override_global_config
 
@@ -80,7 +80,7 @@ def test_poller_env_version(env, version, expected):
                 ),
             ]
         )
-        poller = ProbeRCAdapter(api, cb, interval=0.1)
+        poller = ProbePoller(api, cb, interval=0.1)
         poller.start()
         sleep(0.2)
         poller.stop()
@@ -127,7 +127,7 @@ def test_poller_events():
     old_interval = config.diagnostic_interval
     config.diagnostic_interval = 0.5
     try:
-        poller = ProbeRCAdapter(api, cb, interval=0.1)
+        poller = ProbePoller(api, cb, interval=0.1)
         poller.start()
         sleep(0.2)
         api.remove_probes("probe1", "probe2")

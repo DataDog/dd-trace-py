@@ -7,8 +7,8 @@ from typing import List
 from ddtrace.debugging._config import config
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
-from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
+from ddtrace.debugging._probe.poller import ProbePollerEvent
+from ddtrace.debugging._remoteconfig import _filter_by_env_and_version
 from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
@@ -65,17 +65,18 @@ class TestSnapshotCollector(SnapshotCollector):
 
 
 class TestDebugger(Debugger):
+    __rc__ = MockDebuggingRCV07
     __logger__ = MockProbeStatusLogger
     __uploader__ = MockLogsIntakeUploaderV1
     __collector__ = TestSnapshotCollector
 
     def add_probes(self, *probes):
-        # type: (Probe) -> None
-        self._on_configuration(ProbePollerEvent.NEW_PROBES, probes)
+        # type: (List[Probe]) -> None
+        self._on_poller_event(ProbePollerEvent.NEW_PROBES, probes)
 
-    def remove_probes(self, *probes):
-        # type: (Probe) -> None
-        self._on_configuration(ProbePollerEvent.DELETED_PROBES, probes)
+    @property
+    def rc(self):
+        return self._probe_poller._rc
 
     @property
     def test_queue(self):

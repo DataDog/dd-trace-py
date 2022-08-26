@@ -8,8 +8,6 @@ import sys
 from typing import Any
 from typing import Dict
 
-from ddtrace.debugging._debugger import Debugger
-
 
 # Perform gevent patching as early as possible in the application before
 # importing more of the library internals.
@@ -123,9 +121,6 @@ try:
     # are initialized
     if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
         telemetry_writer.enable()
-
-    # TODO: Fix this
-    Debugger.enable()
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.
