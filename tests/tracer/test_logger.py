@@ -94,7 +94,7 @@ class DDLoggerTestCase(BaseTestCase):
 
         # If a PlaceHolder is in place of the logger
         # We should return the DDLogger
-        placeholder = logging.PlaceHolder()
+        placeholder = logging.PlaceHolder("test")
         self.manager.loggerDict["test.name.logger"] = placeholder
         log = get_logger("test.name.logger")
         self.assertEqual(log.name, "test.name.logger")
