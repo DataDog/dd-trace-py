@@ -49,10 +49,19 @@ class ElasticsearchPatchTest(TracerTestCase):
         """Prepare ES"""
         super(ElasticsearchPatchTest, self).setUp()
 
-        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
+        if elasticsearch.__version__ >= (8, 0, 0):
+            es = elasticsearch.Elasticsearch(hosts="http://localhost:" + self.TEST_PORT)
+        else:
+            es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
         Pin(tracer=self.tracer).onto(es.transport)
-        mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+
+        properties = {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}
+        if elasticsearch.__version__ >= (8, 0, 0):
+            properties["properties"]["name"] = {"type": "keyword"}
+            es.options(ignore_status=400).indices.create(index=self.ES_INDEX, mappings=properties)
+        else:
+            mapping = {"mapping": properties}
+            es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
 
         patch()
 
@@ -63,12 +72,20 @@ class ElasticsearchPatchTest(TracerTestCase):
         super(ElasticsearchPatchTest, self).tearDown()
 
         unpatch()
-        self.es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
+        if elasticsearch.__version__ >= (8, 0, 0):
+            self.es.options(ignore_status=[400, 404]).indices.delete(index=self.ES_INDEX)
+        else:
+            self.es.indices.delete(index=self.ES_INDEX, ignore=[400, 404])
 
     def test_elasticsearch(self):
         es = self.es
-        mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+        properties = {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}
+        if elasticsearch.__version__ >= (8, 0, 0):
+            properties["properties"]["name"] = {"type": "keyword"}
+            es.options(ignore_status=400).indices.create(index=self.ES_INDEX, mappings=properties)
+        else:
+            mapping = {"mapping": properties}
+            es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
 
         spans = self.get_spans()
         self.reset()
@@ -86,9 +103,16 @@ class ElasticsearchPatchTest(TracerTestCase):
 
         args = {"index": self.ES_INDEX, "doc_type": self.ES_TYPE}
         args["doc_type"] = self.ES_TYPE
-        es.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
-        es.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
-        es.index(id=12, body={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
+
+        if elasticsearch.__version__ >= (8, 0, 0):
+            del args["doc_type"]
+            es.index(id=10, document={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
+            es.index(id=11, document={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
+            es.index(id=12, document={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
+        else:
+            es.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
+            es.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
+            es.index(id=12, body={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
 
         spans = self.get_spans()
         self.reset()
@@ -97,13 +121,18 @@ class ElasticsearchPatchTest(TracerTestCase):
         span = spans[0]
         TracerTestCase.assert_is_measured(span)
         assert span.error == 0
-        if (7, 0, 0) <= elasticsearch.__version__ < (7, 5, 0):
+        if elasticsearch.__version__ >= (8, 0, 0):
+            assert span.get_tag("elasticsearch.method") == "PUT"
+            assert span.resource == "PUT /%s/_doc/?" % (self.ES_INDEX)
+            assert span.get_tag("elasticsearch.url") == "/%s/_doc/%s" % (self.ES_INDEX, 10)
+        elif (7, 0, 0) <= elasticsearch.__version__ < (7, 5, 0):
             assert span.get_tag("elasticsearch.method") == "POST"
             assert span.resource == "POST /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE)
+            assert span.get_tag("elasticsearch.url") == "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10)
         else:
             assert span.get_tag("elasticsearch.method") == "PUT"
             assert span.resource == "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE)
-        assert span.get_tag("elasticsearch.url") == "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10)
+            assert span.get_tag("elasticsearch.url") == "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10)
 
         es.indices.refresh(index=self.ES_INDEX)
 
@@ -120,12 +149,19 @@ class ElasticsearchPatchTest(TracerTestCase):
         # search data
         args = {"index": self.ES_INDEX, "doc_type": self.ES_TYPE}
         with self.override_http_config("elasticsearch", dict(trace_query_string=True)):
-            es.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
-            es.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
-            es.index(id=12, body={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
-            if (7, 0, 0) <= elasticsearch.__version__ < (7, 2, 0):
+            if elasticsearch.__version__ >= (8, 0, 0):
                 del args["doc_type"]
-            result = es.search(sort=["name:desc"], size=100, body={"query": {"match_all": {}}}, **args)
+                es.index(id=10, document={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
+                es.index(id=11, document={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
+                es.index(id=12, document={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
+                result = es.search(sort=["name:desc"], size=100, query={"match_all": {}}, **args)
+            else:
+                es.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
+                es.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
+                es.index(id=12, body={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
+                if (7, 0, 0) <= elasticsearch.__version__ < (7, 2, 0):
+                    del args["doc_type"]
+                result = es.search(sort=["name:desc"], size=100, body={"query": {"match_all": {}}}, **args)
 
         assert len(result["hits"]["hits"]) == 3, result
         spans = self.get_spans()
@@ -138,24 +174,40 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert method == span.get_tag("elasticsearch.method")
         assert method in ["GET", "POST"]
         assert self.ES_INDEX in url
+        if elasticsearch.__version__ >= (8, 0, 0):
+            assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}},"size":100}'
+        else:
+            assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}}}'
+
         assert url.endswith("/_search")
         assert url == span.get_tag("elasticsearch.url")
-        assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}}}'
-        assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc", "size=100"}
-        assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc", "size=100"}
-
-        self.assertTrue(span.get_metric("elasticsearch.took") > 0)
+        if elasticsearch.__version__ >= (8, 0, 0):
+            assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc"}
+            assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc"}
+            self.assertTrue(span.get_metric("elasticsearch.took") >= 0)
+        else:
+            assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc", "size=100"}
+            assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc", "size=100"}
+            self.assertTrue(span.get_metric("elasticsearch.took") > 0)
 
         # Search by type not supported by default json encoder
         query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}
-        result = es.search(size=100, body={"query": query}, **args)
+        if elasticsearch.__version__ >= (8, 0, 0):
+            result = es.search(size=100, query=query, **args)
+        else:
+            result = es.search(size=100, body={"query": query}, **args)
 
         assert len(result["hits"]["hits"]) == 2, result
 
     def test_analytics_default(self):
         es = self.es
-        mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-        es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+        properties = {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}
+        if elasticsearch.__version__ >= (8, 0, 0):
+            properties["properties"]["name"] = {"type": "keyword"}
+            es.options(ignore_status=400).indices.create(index=self.ES_INDEX, mappings=properties)
+        else:
+            mapping = {"mapping": properties}
+            es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
 
         spans = self.get_spans()
         self.assertEqual(len(spans), 1)
@@ -164,8 +216,13 @@ class ElasticsearchPatchTest(TracerTestCase):
     def test_analytics_with_rate(self):
         with self.override_config("elasticsearch", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             es = self.es
-            mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-            es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+            properties = {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}
+            if elasticsearch.__version__ >= (8, 0, 0):
+                properties["properties"]["name"] = {"type": "keyword"}
+                es.options(ignore_status=400).indices.create(index=self.ES_INDEX, mappings=properties)
+            else:
+                mapping = {"mapping": properties}
+                es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
 
             spans = self.get_spans()
             self.assertEqual(len(spans), 1)
@@ -174,8 +231,13 @@ class ElasticsearchPatchTest(TracerTestCase):
     def test_analytics_without_rate(self):
         with self.override_config("elasticsearch", dict(analytics_enabled=True)):
             es = self.es
-            mapping = {"mapping": {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}}
-            es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
+            properties = {"properties": {"created": {"type": "date", "format": "yyyy-MM-dd"}}}
+            if elasticsearch.__version__ >= (8, 0, 0):
+                properties["properties"]["name"] = {"type": "keyword"}
+                es.options(ignore_status=400).indices.create(index=self.ES_INDEX, mappings=properties)
+            else:
+                mapping = {"mapping": properties}
+                es.indices.create(index=self.ES_INDEX, ignore=400, body=mapping)
 
             spans = self.get_spans()
             self.assertEqual(len(spans), 1)
@@ -186,11 +248,17 @@ class ElasticsearchPatchTest(TracerTestCase):
         patch()
         patch()
 
-        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
+        if elasticsearch.__version__ >= (8, 0, 0):
+            es = elasticsearch.Elasticsearch(hosts="http://localhost:" + self.TEST_PORT)
+        else:
+            es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
         Pin(tracer=self.tracer).onto(es.transport)
 
         # Test index creation
-        es.indices.create(index=self.ES_INDEX, ignore=400)
+        if elasticsearch.__version__ >= (8, 0, 0):
+            es.options(ignore_status=400).indices.create(index=self.ES_INDEX)
+        else:
+            es.indices.create(index=self.ES_INDEX, ignore=400)
 
         spans = self.get_spans()
         self.reset()
@@ -201,10 +269,16 @@ class ElasticsearchPatchTest(TracerTestCase):
         self.reset()
         unpatch()
 
-        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
+        if elasticsearch.__version__ >= (8, 0, 0):
+            es = elasticsearch.Elasticsearch(hosts="http://localhost:" + self.TEST_PORT)
+        else:
+            es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
 
         # Test index creation
-        es.indices.create(index=self.ES_INDEX, ignore=400)
+        if elasticsearch.__version__ >= (8, 0, 0):
+            es.options(ignore_status=400).indices.create(index=self.ES_INDEX)
+        else:
+            es.indices.create(index=self.ES_INDEX, ignore=400)
 
         spans = self.get_spans()
         self.reset()
@@ -214,11 +288,17 @@ class ElasticsearchPatchTest(TracerTestCase):
         self.reset()
         patch()
 
-        es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
+        if elasticsearch.__version__ >= (8, 0, 0):
+            es = elasticsearch.Elasticsearch(hosts="http://localhost:" + self.TEST_PORT)
+        else:
+            es = elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
         Pin(tracer=self.tracer).onto(es.transport)
 
         # Test index creation
-        es.indices.create(index=self.ES_INDEX, ignore=400)
+        if elasticsearch.__version__ >= (8, 0, 0):
+            es.options(ignore_status=400).indices.create(index=self.ES_INDEX)
+        else:
+            es.indices.create(index=self.ES_INDEX, ignore=400)
 
         spans = self.get_spans()
         self.reset()
@@ -233,7 +313,10 @@ class ElasticsearchPatchTest(TracerTestCase):
         """
         assert config.service == "mysvc"
 
-        self.es.indices.create(index=self.ES_INDEX, ignore=400)
+        if elasticsearch.__version__ >= (8, 0, 0):
+            self.es.options(ignore_status=400).indices.create(index=self.ES_INDEX)
+        else:
+            self.es.indices.create(index=self.ES_INDEX, ignore=400)
         Pin(service="es", tracer=self.tracer).onto(self.es.transport)
         spans = self.get_spans()
         self.reset()
@@ -247,7 +330,10 @@ class ElasticsearchPatchTest(TracerTestCase):
         """
         assert config.elasticsearch.service != "custom-elasticsearch"
 
-        self.es.indices.create(index=self.ES_INDEX, ignore=400)
+        if elasticsearch.__version__ >= (8, 0, 0):
+            self.es.options(ignore_status=400).indices.create(index=self.ES_INDEX)
+        else:
+            self.es.indices.create(index=self.ES_INDEX, ignore=400)
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
@@ -258,7 +344,10 @@ class ElasticsearchPatchTest(TracerTestCase):
         When a user specifies a service mapping it should override the default
         """
         with self.override_config("elasticsearch", dict(service="test_service")):
-            self.es.indices.create(index=self.ES_INDEX, ignore=400)
+            if elasticsearch.__version__ >= (8, 0, 0):
+                self.es.options(ignore_status=400).indices.create(index=self.ES_INDEX)
+            else:
+                self.es.indices.create(index=self.ES_INDEX, ignore=400)
             spans = self.get_spans()
             self.reset()
             assert len(spans) == 1
@@ -266,7 +355,11 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     def test_none_param(self):
         try:
-            self.es.transport.perform_request("GET", "/test-index", body="{}", params=None)
+            if elasticsearch.__version__ >= (8, 0, 0):
+                headers = {"Content-Type": "application/json"}
+                self.es.transport.perform_request("GET", "/test-index", body="{}", headers=headers)
+            else:
+                self.es.transport.perform_request("GET", "/test-index", body="{}", params=None)
         except elasticsearch.exceptions.NotFoundError:
             pass
         spans = self.get_spans()

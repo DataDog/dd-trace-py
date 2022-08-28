@@ -54,6 +54,8 @@ except ImportError:
 
 httplib = six.moves.http_client
 urlencode = six.moves.urllib.parse.urlencode
+urldecode = six.moves.urllib.parse.unquote
+urlparse = six.moves.urllib.parse.urlparse
 parse = six.moves.urllib.parse
 Queue = six.moves.queue.Queue
 iteritems = six.iteritems

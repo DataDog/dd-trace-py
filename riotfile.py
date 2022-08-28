@@ -730,6 +730,7 @@ venv = Venv(
                             "~=7.8.0",
                             "~=7.10.0",
                             "~=8.4.0",
+                            latest,
                         ]
                     },
                 ),
@@ -753,7 +754,6 @@ venv = Venv(
                         "elasticsearch5": [latest],
                         "elasticsearch6": [latest],
                         "elasticsearch7": ["<7.14.0"],
-                        "elasticsearch8": ["~=8.4.0"],
                     },
                 ),
             ],

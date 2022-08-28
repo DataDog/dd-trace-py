@@ -9,7 +9,9 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import elasticsearch as metadata
 from ...ext import http
+from ...internal.compat import urldecode
 from ...internal.compat import urlencode
+from ...internal.compat import urlparse
 from ...internal.utils.wrappers import unwrap as _u
 from ...pin import Pin
 from .quantize import quantize
@@ -51,7 +53,7 @@ def _determine_transport_module(elasticsearch):
     if not transport_module:
         import elastic_transport
 
-        transport_module = getattr(elastic_transport, "_transport")
+        transport_module = elastic_transport._transport
 
     return transport_module
 
@@ -77,6 +79,26 @@ def _unpatch(elasticsearch):
         _u(transport_module.Transport, "perform_request")
 
 
+def _parse_elasticsearch8_urlparams(url):
+    parsed_url = urlparse(url)
+    url = parsed_url.path
+    query_params = parsed_url.query
+    params = {}
+    if query_params:
+        params_list = query_params.split("&")
+
+        for param in params_list:
+            kv = param.split("=")
+            if len(kv) > 1:
+                k, v = kv
+                if k:
+                    params[k] = urldecode(v)
+            elif len(kv) == 1:
+                k = kv
+                params[k] = ""
+    return url, params
+
+
 def _get_perform_request(elasticsearch):
     def _perform_request(func, instance, args, kwargs):
         pin = Pin.get_from(instance)
@@ -93,7 +115,11 @@ def _get_perform_request(elasticsearch):
                 return func(*args, **kwargs)
 
             method, url = args
-            params = kwargs.get("params") or {}
+            if elasticsearch.__version__ >= (8, 0, 0):
+                url, params = _parse_elasticsearch8_urlparams(url)
+            else:
+                params = kwargs.get("params") or {}
+
             encoded_params = urlencode(params)
             body = kwargs.get("body")
 
@@ -104,7 +130,11 @@ def _get_perform_request(elasticsearch):
                 span.set_tag(http.QUERY_STRING, encoded_params)
 
             if method in ["GET", "POST"]:
-                span.set_tag(metadata.BODY, instance.serializer.dumps(body))
+                if elasticsearch.__version__ >= (8, 0, 0):
+                    span.set_tag(metadata.BODY, instance.serializers.default_serializer.dumps(body).decode("utf-8"))
+                else:
+                    span.set_tag(metadata.BODY, instance.serializer.dumps(body))
+
             status = None
 
             # set analytics sample rate
@@ -130,8 +160,12 @@ def _get_perform_request(elasticsearch):
                     data = result
 
                 took = data.get("took")
-                if took:
-                    span.set_metric(metadata.TOOK, int(took))
+                if elasticsearch.__version__ >= (8, 0, 0):
+                    if took is not None:
+                        span.set_metric(metadata.TOOK, int(took))
+                else:
+                    if took:
+                        span.set_metric(metadata.TOOK, int(took))
             except Exception:
                 pass
 
