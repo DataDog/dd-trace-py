@@ -49,7 +49,7 @@ jobs:
       - name: Run tests
         # Disable TestServerAdapter_gunicorn.test_simple because it checks for
         # log output and it contains the profiler failing to upload
-        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ pytest test --continue-on-collection-errors -v -k 'not TestServerAdapter_gunicorn'
+        run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ pytest test --continue-on-collection-errors -v -k 'not test_simple'
 
   django-testsuite-3_1-coverage:
     name: Django 3.1 (coverage only)

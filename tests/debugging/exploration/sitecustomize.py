@@ -29,12 +29,3 @@ else:
         import sitecustomize  # noqa
     except ImportError:
         pass
-
-pythonpath = os.getenv("PYTHONPATH")
-pythonpaths = [os.path.abspath(_) for _ in (pythonpath.split(os.pathsep) if pythonpath else [])]
-try:
-    pythonpaths.remove(bootstrap_dir)
-except ValueError:
-    pass
-else:
-    os.environ["PYTHONPATH"] = os.pathsep.join(pythonpaths)
