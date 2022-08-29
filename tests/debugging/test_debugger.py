@@ -99,6 +99,7 @@ def test_debugger_line_probe_on_imported_module_function():
                 probe_id="probe-instance-method",
                 module="tests.submod.stuff",
                 func_qname="Stuff.instancestuff",
+                rate=1000,
             ),
             lambda: getattr(Stuff(), "instancestuff")(42),
         ),
@@ -107,6 +108,7 @@ def test_debugger_line_probe_on_imported_module_function():
                 probe_id="probe-instance-method",
                 source_file="tests/submod/stuff.py",
                 line=36,
+                rate=1000,
             ),
             lambda: getattr(Stuff(), "instancestuff")(42),
         ),
@@ -150,7 +152,7 @@ def test_debugger_probe_new_delete(probe, trigger):
 
         assert d.uploader.queue
 
-        payload = d.uploader.payloads[-1]
+        (payload,) = d.uploader.payloads
         assert payload
 
         (snapshot,) = payload
@@ -166,6 +168,7 @@ def test_debugger_probe_new_delete(probe, trigger):
                 probe_id="probe-instance-method",
                 module="tests.submod.stuff",
                 func_qname="Stuff.instancestuff",
+                rate=1000.0,
             ),
             lambda: Stuff().instancestuff(42),
         ),
@@ -174,6 +177,7 @@ def test_debugger_probe_new_delete(probe, trigger):
                 probe_id="probe-instance-method",
                 source_file="tests/submod/stuff.py",
                 line=36,
+                rate=1000.0,
             ),
             lambda: Stuff().instancestuff(42),
         ),
