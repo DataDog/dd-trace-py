@@ -1,11 +1,15 @@
+import json
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Text
 from typing import Union
 
+from django.http import RawPostDataException
+from django.http import UnreadablePostError
 from django.utils.functional import SimpleLazyObject
 import six
+import xmltodict
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -22,6 +26,13 @@ from .compat import get_resolver
 from .compat import user_is_authenticated
 
 
+try:
+    from json import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
+
 log = get_logger(__name__)
 
 # Set on patch, when django is imported
@@ -29,6 +40,7 @@ Resolver404 = None
 DJANGO22 = None
 
 REQUEST_DEFAULT_RESOURCE = "__django_request"
+_BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 _quantize_text = Union[Text, bytes]
 _quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
@@ -228,6 +240,45 @@ def _before_request_tags(pin, span, request):
     span._set_str_tag("django.request.class", func_name(request))
 
 
+def _extract_body(request):
+    req_body = None
+
+    if config._appsec_enabled and request.method in _BODY_METHODS:
+        content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
+
+        rest_framework = hasattr(request, "data")
+
+        try:
+            if content_type == "application/x-www-form-urlencoded":
+                req_body = request.data.dict() if rest_framework else request.POST.dict()
+            elif content_type == "application/json":
+                req_body = (
+                    json.loads(request.data.decode("UTF-8"))
+                    if rest_framework
+                    else json.loads(request.body.decode("UTF-8"))
+                )
+            elif content_type in ("application/xml", "text/xml"):
+                req_body = (
+                    xmltodict.parse(request.data.decode("UTF-8"))
+                    if rest_framework
+                    else xmltodict.parse(request.body.decode("UTF-8"))
+                )
+            else:  # text/plain, xml, others: take them as strings
+                req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
+        except (
+            AttributeError,
+            RawPostDataException,
+            UnreadablePostError,
+            OSError,
+            ValueError,
+            JSONDecodeError,
+        ):
+            log.warning("Failed to parse request body")
+            # req_body is None
+
+        return req_body
+
+
 def _after_request_tags(pin, span, request, response):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
@@ -303,6 +354,7 @@ def _after_request_tags(pin, span, request, response):
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
+
             trace_utils.set_http_meta(
                 span,
                 config.django,
@@ -316,6 +368,7 @@ def _after_request_tags(pin, span, request, response):
                 response_headers=response_headers,
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
+                request_body=_extract_body(request),
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:

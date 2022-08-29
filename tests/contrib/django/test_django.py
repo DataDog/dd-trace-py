@@ -26,6 +26,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
+from ddtrace.ext import user
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
@@ -1226,7 +1227,7 @@ def test_django_request_distributed(client, test_spans):
     headers = {
         get_wsgi_header(HTTP_HEADER_TRACE_ID): "12345",
         get_wsgi_header(HTTP_HEADER_PARENT_ID): "78910",
-        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
+        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): str(USER_KEEP),
     }
     resp = client.get("/", **headers)
     assert resp.status_code == 200
@@ -1258,7 +1259,7 @@ def test_django_request_distributed_disabled(client, test_spans):
     headers = {
         get_wsgi_header(HTTP_HEADER_TRACE_ID): "12345",
         get_wsgi_header(HTTP_HEADER_PARENT_ID): "78910",
-        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
+        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): str(USER_KEEP),
     }
     with override_config("django", dict(distributed_tracing_enabled=False)):
         resp = client.get("/", **headers)
@@ -1869,3 +1870,17 @@ def test_connections_patched():
         assert isinstance(conn.cursor, wrapt.ObjectProxy)
 
     assert isinstance(connection.cursor, wrapt.ObjectProxy)
+
+
+def test_django_get_user(client, test_spans):
+    assert client.get("/identify/").status_code == 200
+
+    root = test_spans.get_root_span()
+
+    # Values defined in tests/contrib/django/views.py::identify
+    assert root.get_tag(user.ID) == "usr.id"
+    assert root.get_tag(user.EMAIL) == "usr.email"
+    assert root.get_tag(user.SESSION_ID) == "usr.session_id"
+    assert root.get_tag(user.NAME) == "usr.name"
+    assert root.get_tag(user.ROLE) == "usr.role"
+    assert root.get_tag(user.SCOPE) == "usr.scope"

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    wsgi: ensures resource and http tags are always set on `wsgi.request` spans.

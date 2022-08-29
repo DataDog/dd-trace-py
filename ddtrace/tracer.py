@@ -17,6 +17,8 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
@@ -40,10 +42,11 @@ from .internal.logger import get_logger
 from .internal.logger import hasHandlers
 from .internal.processor import SpanProcessor
 from .internal.processor.trace import SpanAggregator
+from .internal.processor.trace import SpanSamplingProcessor
+from .internal.processor.trace import TopLevelSpanProcessor
 from .internal.processor.trace import TraceProcessor
 from .internal.processor.trace import TraceSamplingProcessor
 from .internal.processor.trace import TraceTagsProcessor
-from .internal.processor.trace import TraceTopLevelSpanProcessor
 from .internal.runtime import get_runtime_id
 from .internal.service import ServiceStatusError
 from .internal.utils.formats import asbool
@@ -95,6 +98,7 @@ def _default_span_processors_factory(
     partial_flush_min_spans,  # type: int
     appsec_enabled,  # type: bool
     compute_stats_enabled,  # type: bool
+    single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
 ):
     # type: (...) -> List[SpanProcessor]
@@ -102,10 +106,10 @@ def _default_span_processors_factory(
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
     trace_processors += [TraceSamplingProcessor(compute_stats_enabled)]
-    trace_processors += [TraceTopLevelSpanProcessor()]
     trace_processors += trace_filters
 
     span_processors = []  # type: List[SpanProcessor]
+    span_processors += [TopLevelSpanProcessor()]
 
     if appsec_enabled:
         try:
@@ -134,6 +138,10 @@ def _default_span_processors_factory(
                 agent_url,
             ),
         )
+
+    if single_span_sampling_rules:
+        span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
+
     span_processors.append(
         SpanAggregator(
             partial_flush_enabled=partial_flush_enabled,
@@ -205,6 +213,7 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
+        self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
@@ -217,6 +226,7 @@ class Tracer(object):
             self._partial_flush_min_spans,
             self._appsec_enabled,
             self._compute_stats,
+            self._single_span_sampling_rules,
             self._agent_url,
         )
 
@@ -441,6 +451,7 @@ class Tracer(object):
                 self._partial_flush_min_spans,
                 self._appsec_enabled,
                 self._compute_stats,
+                self._single_span_sampling_rules,
                 self._agent_url,
             )
 
@@ -484,6 +495,7 @@ class Tracer(object):
             self._partial_flush_min_spans,
             self._appsec_enabled,
             self._compute_stats,
+            self._single_span_sampling_rules,
             self._agent_url,
         )
         self._new_process = True

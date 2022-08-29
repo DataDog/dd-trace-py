@@ -48,7 +48,7 @@ async def test_template_rendering_snapshot_patched_server(
     app, _ = patched_app_tracer_jinja
     Pin.override(aiohttp_jinja2, tracer=tracer)
     # Ignore meta.http.url tag as the port is not fixed on the server
-    with snapshot_context(ignores=["meta.http.url"]):
+    with snapshot_context(ignores=["meta.http.url", "meta.http.useragent"]):
         client = await aiohttp_client(app)
         # it should trace a template rendering
         request = await client.request("GET", "/template/")

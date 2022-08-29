@@ -12,6 +12,7 @@
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://testserver/sub-app/hello/name",
+      "http.useragent": "testclient",
       "http.version": "1.1",
       "runtime-id": "b09fdf648040415eafff0458ac0bdff7"
     },
@@ -37,6 +38,7 @@
          "http.method": "GET",
          "http.status_code": "200",
          "http.url": "http://testserver/sub-app/hello/name",
+         "http.useragent": "testclient",
          "http.version": "1.1"
        },
        "duration": 185000,

@@ -16,6 +16,7 @@ from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..runtime import get_runtime_id
 from ..service import ServiceStatus
+from ..utils.formats import parse_tags_str
 from ..utils.time import StopWatch
 from .data import get_application
 from .data import get_dependencies
@@ -37,6 +38,7 @@ class TelemetryWriter(PeriodicService):
 
     # telemetry endpoint uses events platform v2 api
     ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
+    HEARTBEAT_MIN_INTERVAL = 60  # type: int
 
     def __init__(self, agent_url=None):
         # type: (Optional[str]) -> None
@@ -52,6 +54,16 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
+        # Set initial heartbeat time to now since we'll be sending an app-started event
+        self._last_heartbeat = time.time()  # type: float
+
+        self._headers = {
+            "Content-type": "application/json",
+            "DD-Telemetry-API-Version": "v1",
+        }  # type: Dict[str, str]
+        additional_header_str = os.environ.get("_DD_TELEMETRY_WRITER_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            self._headers.update(parse_tags_str(additional_header_str))
 
         # _sequence is a counter representing the number of requests sent by the writer
         self._sequence = 1  # type: int
@@ -105,6 +117,8 @@ class TelemetryWriter(PeriodicService):
             self._events_queue = []
 
     def periodic(self):
+        self.app_heartbeat_event()
+
         integrations = self._flush_integrations_queue()
         if integrations:
             self._app_integrations_changed_event(integrations)
@@ -115,14 +129,14 @@ class TelemetryWriter(PeriodicService):
             try:
                 resp = self._send_request(telemetry_request)
                 if resp.status >= 300:
-                    log.warning(
+                    log.debug(
                         "failed to send telemetry to the Datadog Agent at %s/%s. response: %s",
                         self._agent_url,
                         self.ENDPOINT,
                         resp.status,
                     )
             except Exception:
-                log.warning(
+                log.debug(
                     "failed to send telemetry to the Datadog Agent at %s/%s.",
                     self._agent_url,
                     self.ENDPOINT,
@@ -195,6 +209,28 @@ class TelemetryWriter(PeriodicService):
         }
         self.add_event(payload, "app-started")
 
+    def app_heartbeat_event(self):
+        # type: () -> None
+        if self._forked:
+            # TODO: Enable app-heartbeat on forks
+            #   Since we only send app-started events in the main process
+            #   any forked processes won't be able to access the list of
+            #   dependencies for this app, and therefore app-heartbeat won't
+            #   add much value today.
+            return
+
+        # DEV: Although the default flush interval is 60 seconds,
+        #   we want to explicitly control the flow here in case
+        #   the flush interval ever changes.
+        #
+        #   If the flush interval ever exceeds 60 seconds, then we
+        #   will queue a heartbeat event every flush:
+        #   60 <= X <= flush interval.
+        now = time.time()
+        if now - self._last_heartbeat >= TelemetryWriter.HEARTBEAT_MIN_INTERVAL:
+            self.add_event({}, "app-heartbeat")
+            self._last_heartbeat = now
+
     def _app_closing_event(self):
         # type: () -> None
         """Adds a Telemetry request which notifies the agent that an application instance has terminated"""
@@ -215,11 +251,9 @@ class TelemetryWriter(PeriodicService):
     def _create_headers(self, payload_type):
         # type: (str) -> Dict
         """Creates request headers"""
-        return {
-            "Content-type": "application/json",
-            "DD-Telemetry-Request-Type": payload_type,
-            "DD-Telemetry-API-Version": "v1",
-        }
+        headers = self._headers.copy()
+        headers["DD-Telemetry-Request-Type"] = payload_type
+        return headers
 
     def _create_telemetry_request(self, payload, payload_type, sequence_id):
         # type: (Dict, str, int) -> Dict
@@ -241,7 +275,6 @@ class TelemetryWriter(PeriodicService):
         # Avoid sending duplicate events.
         # Queued events should be sent in the main process.
         self._reset_queues()
-        self.start()
 
     def disable(self):
         # type: () -> None

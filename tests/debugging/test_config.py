@@ -2,7 +2,6 @@ from contextlib import contextmanager
 
 import pytest
 
-from ddtrace.debugging._config import DEFAULT_PROBE_API_URL
 from ddtrace.debugging._config import DebuggerConfig
 from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.utils.config import get_application_name
@@ -16,12 +15,12 @@ from tests.utils import override_env
     [
         ("datadoghq.com", "https://app.datadoghq.com"),
         ("datadoghq.eu", "https://app.datadoghq.eu"),
-        ("", DEFAULT_PROBE_API_URL),
+        ("", get_trace_url()),
     ],
 )
 def test_probe_api_url(dd_site, probe_api_url):
     with override_env(dict(DD_SITE=dd_site)):
-        DebuggerConfig().probe_api_url == probe_api_url
+        DebuggerConfig().probe_url == probe_api_url
 
 
 @contextmanager

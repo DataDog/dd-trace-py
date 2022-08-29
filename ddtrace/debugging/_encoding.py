@@ -65,7 +65,7 @@ class JsonBuffer(object):
             raise BufferFull(self.size, size)
 
         if self.size > 2:
-            size += 1
+            self.size += 1
             self._buffer += b","
         self._buffer += item
         self.size += size
@@ -356,7 +356,7 @@ def _snapshot_v2(snapshot):
     return {
         "id": str(uuid4()),
         "timestamp": int(now * 1e3),  # milliseconds
-        "duration": int((now - snapshot.timestamp) * 1e9),
+        "duration": snapshot.duration,  # nanoseconds
         "stack": _unwind_stack(frame),
         "captures": captures,
         "probe": {
@@ -416,7 +416,6 @@ def logs_track_upload_request_v2(
         "dd.span_id": context.span_id if context else None,
         "ddsource": "dd_debugger",
         "message": message,
-        "duration": int((time() - snapshot.timestamp) * 1e9),
     }
     add_tags(payload)
 

@@ -80,7 +80,7 @@ below:
    * - ``DD_TRACE_LOG_FILE``
      - String
      - None
-     - Directs `ddtrace` logs to a specific file. Note: The default backup count is 1. For larger logs, use with `DD_TRACE_LOG_FILE_SIZE_BYTES`. To fine tune the logging level, use with ``DD_TRACE_LOG_FILE_LEVEL``. 
+     - Directs `ddtrace` logs to a specific file. Note: The default backup count is 1. For larger logs, use with ``DD_TRACE_LOG_FILE_SIZE_BYTES``. To fine tune the logging level, use with ``DD_TRACE_LOG_FILE_LEVEL``.
 
        .. _dd-trace-log-file-size-bytes:
    * - ``DD_TRACE_LOG_FILE_SIZE_BYTES``
@@ -252,6 +252,12 @@ below:
      - Integer
      - 64
      - The maximum number of frames to capture in stack execution tracing.
+
+       .. _dd-profiling-code-provenance:
+   * - ``DD_PROFILING_ENABLE_CODE_PROVENANCE``
+     - Boolean
+     - False
+     - Whether to enable code provenance.
 
        .. _dd-profiling-memory-enabled:
    * - ``DD_PROFILING_MEMORY_ENABLED``
