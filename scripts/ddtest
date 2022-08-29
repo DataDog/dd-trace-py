@@ -9,5 +9,27 @@ then
     CMD=bash
 fi
 
+# retry docker pull if fails
+for i in {1..3}; do docker-compose pull -q testrunner && break || sleep 3; done
+
+FULL_CMD="pip install -q --disable-pip-version-check riot tox && $CMD"
+
 # install and upgrade tox and riot in case testrunner image has not been updated
-docker-compose run -e CIRCLE_NODE_TOTAL -e CIRCLE_NODE_INDEX -e DD_TRACE_AGENT_URL --rm testrunner bash -c "pip install -q --disable-pip-version-check riot tox && $CMD"
+# DEV: Use `--no-TTY` and `--quiet-pull` when running in CircleCI
+if [[ "${CIRCLECI}" = "true" ]]; then
+    docker-compose run \
+                   -e CIRCLE_NODE_TOTAL \
+                   -e CIRCLE_NODE_INDEX \
+                   -e DD_TRACE_AGENT_URL \
+                   --no-TTY \
+                   --quiet-pull \
+                   --rm \
+                   testrunner \
+                   bash -c "$FULL_CMD"
+else
+    docker-compose run \
+                   -e DD_TRACE_AGENT_URL \
+                   --rm \
+                   testrunner \
+                   bash -c "$FULL_CMD"
+fi

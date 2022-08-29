@@ -8,9 +8,11 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.dm": "-0",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://localhost:8000/",
+      "http.useragent": "python-requests/2.28.1",
       "pyramid.route.name": "hello",
       "runtime-id": "af71bf0b951244fba40d444b10b2e462"
     },

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import itertools
 import os
 import subprocess
@@ -25,6 +26,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.django.patch import instrument_view
 from ddtrace.contrib.django.utils import get_request_uri
 from ddtrace.ext import http
+from ddtrace.ext import user
 from ddtrace.internal.compat import PY2
 from ddtrace.internal.compat import binary_type
 from ddtrace.internal.compat import string_type
@@ -75,7 +77,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
     if django.VERSION >= (2, 2, 0):
         meta["http.route"] = "^$"
 
-    assert http.QUERY_STRING not in root._get_tags()
+    assert http.QUERY_STRING not in root.get_tags()
     root.assert_matches(
         name="django.request",
         service="django",
@@ -116,7 +118,7 @@ def test_django_v2XX_alter_root_resource(client, test_spans):
     if django.VERSION >= (2, 2, 0):
         meta["http.route"] = "^alter-resource/$"
 
-    assert http.QUERY_STRING not in root._get_tags()
+    assert http.QUERY_STRING not in root.get_tags()
     root.assert_matches(
         name="django.request",
         service="django",
@@ -729,7 +731,31 @@ def test_cache_get(test_spans):
         "django.cache.key": "missing_key",
     }
 
-    assert_dict_issuperset(span._get_tags(), expected_meta)
+    assert_dict_issuperset(span.get_tags(), expected_meta)
+
+
+def test_cache_get_unicode(test_spans):
+    # get the default cache
+    cache = django.core.cache.caches["default"]
+
+    cache.get(u"😐")
+
+    spans = test_spans.get_spans()
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert span.service == "django"
+    assert span.resource == "django.core.cache.backends.locmem.get"
+    assert span.name == "django.cache"
+    assert span.span_type == "cache"
+    assert span.error == 0
+
+    expected_meta = {
+        "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
+        "django.cache.key": u"😐",
+    }
+
+    assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
 def test_cache_set(test_spans):
@@ -754,7 +780,7 @@ def test_cache_set(test_spans):
         "django.cache.key": "a_new_key",
     }
 
-    assert_dict_issuperset(span._get_tags(), expected_meta)
+    assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
 def test_cache_delete(test_spans):
@@ -778,7 +804,7 @@ def test_cache_delete(test_spans):
         "django.cache.key": "an_existing_key",
     }
 
-    assert_dict_issuperset(span._get_tags(), expected_meta)
+    assert_dict_issuperset(span.get_tags(), expected_meta)
 
 
 @pytest.mark.skipif(django.VERSION >= (2, 1, 0), reason="")
@@ -813,8 +839,8 @@ def test_cache_incr_1XX(test_spans):
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_get._get_tags(), expected_meta)
-    assert_dict_issuperset(span_incr._get_tags(), expected_meta)
+    assert_dict_issuperset(span_get.get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
 
 
 @pytest.mark.skipif(django.VERSION < (2, 1, 0), reason="")
@@ -843,7 +869,7 @@ def test_cache_incr_2XX(test_spans):
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_incr._get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
 
 
 @pytest.mark.skipif(django.VERSION >= (2, 1, 0), reason="")
@@ -884,9 +910,9 @@ def test_cache_decr_1XX(test_spans):
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_get._get_tags(), expected_meta)
-    assert_dict_issuperset(span_incr._get_tags(), expected_meta)
-    assert_dict_issuperset(span_decr._get_tags(), expected_meta)
+    assert_dict_issuperset(span_get.get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
+    assert_dict_issuperset(span_decr.get_tags(), expected_meta)
 
 
 @pytest.mark.skipif(django.VERSION < (2, 1, 0), reason="")
@@ -921,8 +947,8 @@ def test_cache_decr_2XX(test_spans):
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_incr._get_tags(), expected_meta)
-    assert_dict_issuperset(span_decr._get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
+    assert_dict_issuperset(span_decr.get_tags(), expected_meta)
 
 
 def test_cache_get_many(test_spans):
@@ -957,10 +983,10 @@ def test_cache_get_many(test_spans):
 
     expected_meta = {
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-        "django.cache.key": str(["missing_key", "another_key"]),
+        "django.cache.key": "missing_key another_key",
     }
 
-    assert_dict_issuperset(span_get_many._get_tags(), expected_meta)
+    assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
 
 
 def test_cache_set_many(test_spans):
@@ -1071,8 +1097,7 @@ def test_cached_view(client, test_spans):
     expected_meta_view = {
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": (
-            "views.decorators.cache.cache_page.."
-            "GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8427e.en-us"
+            "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
     }
 
@@ -1081,8 +1106,8 @@ def test_cached_view(client, test_spans):
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
     }
 
-    assert span_view._get_tags() == expected_meta_view
-    assert span_header._get_tags() == expected_meta_header
+    assert span_view.get_tags() == expected_meta_view
+    assert span_header.get_tags() == expected_meta_header
 
 
 @pytest.mark.django_db
@@ -1118,7 +1143,7 @@ def test_cached_template(client, test_spans):
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
     }
 
-    assert span_template_cache._get_tags() == expected_meta
+    assert span_template_cache.get_tags() == expected_meta
 
 
 """
@@ -1202,7 +1227,7 @@ def test_django_request_distributed(client, test_spans):
     headers = {
         get_wsgi_header(HTTP_HEADER_TRACE_ID): "12345",
         get_wsgi_header(HTTP_HEADER_PARENT_ID): "78910",
-        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
+        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): str(USER_KEEP),
     }
     resp = client.get("/", **headers)
     assert resp.status_code == 200
@@ -1234,7 +1259,7 @@ def test_django_request_distributed_disabled(client, test_spans):
     headers = {
         get_wsgi_header(HTTP_HEADER_TRACE_ID): "12345",
         get_wsgi_header(HTTP_HEADER_PARENT_ID): "78910",
-        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): USER_KEEP,
+        get_wsgi_header(HTTP_HEADER_SAMPLING_PRIORITY): str(USER_KEEP),
     }
     with override_config("django", dict(distributed_tracing_enabled=False)):
         resp = client.get("/", **headers)
@@ -1355,6 +1380,28 @@ def test_template(test_spans):
 
     span = spans[1]
     assert span.get_tag("django.template.name") == "my-template"
+
+
+def test_template_no_instrumented(test_spans):
+    """
+    When rendering templates with instrument_templates option disabled
+
+    This test assert that changing the value at runtime/after patching
+    properly disables template spans.
+    """
+    # prepare a base template using the default engine
+    with override_config("django", dict(instrument_templates=False)):
+        template = django.template.Template("Hello {{name}}!")
+        ctx = django.template.Context({"name": "Django"})
+
+        assert template.render(ctx) == "Hello Django!"
+        spans = test_spans.get_spans()
+        assert len(spans) == 0
+
+        template.name = "my-template"
+        assert template.render(ctx) == "Hello Django!"
+        spans = test_spans.get_spans()
+        assert len(spans) == 0
 
 
 @pytest.mark.skipif(PY2, reason="pathlib is not part of the Python 2 stdlib")
@@ -1494,7 +1541,7 @@ def test_user_name_excluded(client, test_spans):
 
     # user name should not be present in root span tags
     root = test_spans.get_root_span()
-    assert "django.user.name" not in root._get_tags()
+    assert "django.user.name" not in root.get_tags()
     assert root.get_tag("django.user.is_authenticated") == "True"
 
 
@@ -1538,6 +1585,7 @@ def test_django_use_handler_resource_format_env(client, test_spans):
         ("DD_DJANGO_INSTRUMENT_DATABASES", "instrument_databases"),
         ("DD_DJANGO_INSTRUMENT_CACHES", "instrument_caches"),
         ("DD_DJANGO_INSTRUMENT_MIDDLEWARE", "instrument_middleware"),
+        ("DD_DJANGO_INSTRUMENT_TEMPLATES", "instrument_templates"),
     ],
 )
 def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_code_in_subprocess):
@@ -1561,6 +1609,7 @@ def test_enable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_
         ("DD_DJANGO_INSTRUMENT_DATABASES", "instrument_databases"),
         ("DD_DJANGO_INSTRUMENT_CACHES", "instrument_caches"),
         ("DD_DJANGO_INSTRUMENT_MIDDLEWARE", "instrument_middleware"),
+        ("DD_DJANGO_INSTRUMENT_TEMPLATES", "instrument_templates"),
     ],
 )
 def test_disable_django_instrument_env(env_var, instrument_x, ddtrace_run_python_code_in_subprocess):
@@ -1772,7 +1821,7 @@ class TestWSGI:
         if django.VERSION >= (2, 2, 0):
             meta["http.route"] = "^$"
 
-        assert http.QUERY_STRING not in root._get_tags()
+        assert http.QUERY_STRING not in root.get_tags()
         root.assert_matches(
             name="django.request",
             service="django",
@@ -1821,3 +1870,17 @@ def test_connections_patched():
         assert isinstance(conn.cursor, wrapt.ObjectProxy)
 
     assert isinstance(connection.cursor, wrapt.ObjectProxy)
+
+
+def test_django_get_user(client, test_spans):
+    assert client.get("/identify/").status_code == 200
+
+    root = test_spans.get_root_span()
+
+    # Values defined in tests/contrib/django/views.py::identify
+    assert root.get_tag(user.ID) == "usr.id"
+    assert root.get_tag(user.EMAIL) == "usr.email"
+    assert root.get_tag(user.SESSION_ID) == "usr.session_id"
+    assert root.get_tag(user.NAME) == "usr.name"
+    assert root.get_tag(user.ROLE) == "usr.role"
+    assert root.get_tag(user.SCOPE) == "usr.scope"

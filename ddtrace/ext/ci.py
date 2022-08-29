@@ -57,6 +57,9 @@ RUNTIME_NAME = "runtime.name"
 # Runtime Version
 RUNTIME_VERSION = "runtime.version"
 
+# Version of the ddtrace library
+LIBRARY_VERSION = "library_version"
+
 _RE_URL = re.compile(r"(https?://)[^/]*@")
 
 

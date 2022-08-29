@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The CPU profiler now reports the main thread CPU usage even when asyncio
+    tasks are running.

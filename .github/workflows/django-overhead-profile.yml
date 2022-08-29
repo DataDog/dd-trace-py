@@ -19,7 +19,7 @@ jobs:
         with:
           path: ddtrace
 
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: "3.8"
 
@@ -31,7 +31,7 @@ jobs:
         run: |
           bash scripts/profiles/django-simple/run.sh ${PREFIX}
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: django-overhead-profile
           path: ${{ github.workspace }}/prefix/artifacts

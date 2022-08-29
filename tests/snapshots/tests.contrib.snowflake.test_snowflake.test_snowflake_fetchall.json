@@ -8,13 +8,15 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
+      "_dd.p.dm": "-0",
       "db.application": "PythonConnector",
       "db.name": "mock-db-name",
       "db.schema": "mock-schema-name",
       "db.user": "mock-user",
       "db.warehouse": "mock-warehouse-name",
       "out.host": "mock-account.snowflakecomputing.com",
-      "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf"
+      "runtime-id": "1658e263f3084eaca410818e944d7d7e",
+      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -25,8 +27,8 @@
       "db.rowcount": 1,
       "out.port": 443,
       "sql.rows": 1,
-      "system.pid": 79541
+      "system.pid": 88705
     },
-    "duration": 3146000,
-    "start": 1634218669409114000
+    "duration": 3520000,
+    "start": 1660069790438575000
   }]]

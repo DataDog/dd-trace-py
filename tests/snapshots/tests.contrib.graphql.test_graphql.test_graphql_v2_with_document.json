@@ -1,0 +1,78 @@
+[[
+  {
+    "name": "graphql.parse",
+    "service": "graphql",
+    "resource": "graphql.parse",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "graphql.source": "query HELLO { hello }",
+      "runtime-id": "bc0efee142884beb96fdb35ca56aa3dc"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 76591
+    },
+    "duration": 168000,
+    "start": 1658848788617184000
+  }],
+[
+  {
+    "name": "graphql.request",
+    "service": "graphql",
+    "resource": "query HELLO { hello }",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "bc0efee142884beb96fdb35ca56aa3dc"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 76591
+    },
+    "duration": 978000,
+    "start": 1658848788617517000
+  },
+     {
+       "name": "graphql.validate",
+       "service": "graphql",
+       "resource": "graphql.validate",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "graphql",
+       "meta": {
+         "graphql.source": "query HELLO { hello }"
+       },
+       "duration": 536000,
+       "start": 1658848788617622000
+     },
+     {
+       "name": "graphql.execute",
+       "service": "graphql",
+       "resource": "query HELLO { hello }",
+       "trace_id": 1,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "graphql",
+       "meta": {
+         "graphql.operation.name": "HELLO",
+         "graphql.operation.type": "query",
+         "graphql.source": "query HELLO { hello }"
+       },
+       "duration": 224000,
+       "start": 1658848788618242000
+     }]]

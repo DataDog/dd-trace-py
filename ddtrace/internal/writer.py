@@ -5,6 +5,7 @@ from json import loads
 import logging
 import os
 import sys
+import threading
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -56,7 +57,7 @@ DEFAULT_SMA_WINDOW = 10
 DEFAULT_BUFFER_SIZE = 8 << 20  # 8 MB
 DEFAULT_MAX_PAYLOAD_SIZE = 8 << 20  # 8 MB
 DEFAULT_PROCESSING_INTERVAL = 1.0
-DEFAULT_REUSE_CONNECTIONS = True
+DEFAULT_REUSE_CONNECTIONS = False
 
 
 def get_writer_buffer_size():
@@ -251,6 +252,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         sync_mode=False,  # type: bool
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
+        headers=None,  # type: Optional[Dict[str, str]]
     ):
         # type: (...) -> None
         # Pre-conditions:
@@ -270,7 +272,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
             "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
             "Datadog-Meta-Tracer-Version": ddtrace.__version__,
+            "Datadog-Client-Computed-Top-Level": "yes",
         }
+        if headers:
+            self._headers.update(headers)
         self._timeout = timeout
         self._api_version = (
             api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
@@ -307,6 +312,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
         self._conn = None  # type: Optional[ConnectionType]
+        # The connection has to be locked since there exists a race between
+        # the periodic thread of AgentWriter and other threads that might
+        # force a flush with `flush_queue()`.
+        self._conn_lck = threading.RLock()  # type: threading.RLock
         self._retry_upload = tenacity.Retrying(
             # Retry RETRY_ATTEMPTS times within the first half of the processing
             # interval, using a Fibonacci policy with jitter
@@ -372,13 +381,16 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def _reset_connection(self):
         # type: () -> None
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        with self._conn_lck:
+            if self._conn:
+                self._conn.close()
+                self._conn = None
 
     def _put(self, data, headers):
         # type: (bytes, Dict[str, str]) -> Response
-        with StopWatch() as sw:
+        sw = StopWatch()
+        sw.start()
+        with self._conn_lck:
             if self._conn is None:
                 log.debug("creating new agent connection to %s with timeout %d", self.agent_url, self._timeout)
                 self._conn = get_connection(self.agent_url, self._timeout)
@@ -391,12 +403,15 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 else:
                     log_level = logging.DEBUG
                 log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._agent_endpoint)
-                return Response.from_http_response(resp)
             except Exception:
+                # Always reset the connection when an exception occurs
                 self._reset_connection()
                 raise
+            else:
+                return Response.from_http_response(resp)
             finally:
-                if self._conn and not self._reuse_connections:
+                # Reset the connection if reusing connections is disabled.
+                if not self._reuse_connections:
                     self._reset_connection()
 
     def _downgrade(self, payload, response):

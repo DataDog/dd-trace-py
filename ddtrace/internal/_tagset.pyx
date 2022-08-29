@@ -13,7 +13,7 @@ class TagsetEncodeError(ValueError):
     pass
 
 
-class TagsetMaxSizeError(TagsetEncodeError):
+class TagsetMaxSizeEncodeError(TagsetEncodeError):
     """Exception used when the encoded values exceed the max allowed size
 
     This exception will contain the:
@@ -26,7 +26,7 @@ class TagsetMaxSizeError(TagsetEncodeError):
 
         try:
             tagset = encode_tagset_values({"a": "1", "b": 2, "c": "3"}, max_size=6)
-        except TagsetMaxSizeError as e:
+        except TagsetMaxSizeEncodeError as e:
             assert e.values = {"a": "1", "b": "2", "c": "3"}
             assert e.max_size = 6
             assert e.current_results = "a=1,b=2"
@@ -38,11 +38,36 @@ class TagsetMaxSizeError(TagsetEncodeError):
         self.current_results = current_results
 
         msg = "Tagset cannot encode {!r} would exceed max size of {!r}".format(values, max_size)
-        super(TagsetMaxSizeError, self).__init__(msg)
+        super(TagsetMaxSizeEncodeError, self).__init__(msg)
 
 
 class TagsetDecodeError(ValueError):
     pass
+
+
+class TagsetMaxSizeDecodeError(TagsetDecodeError):
+    """Exception used when tagset compatible string is greater than the max size
+
+    This exception will contain the:
+
+    - tagset string being decoded
+    - the max size configured
+
+    Example::
+
+        try:
+            tagset = decode_tagset_values("key=value", max_size=8)
+        except TagsetMaxSizeDecodeError as e:
+            assert e.tagset = "key=value"
+            assert e.max_size = 8
+    """
+    def __init__(self, tagset, max_size):
+        # type: (Dict[str, str], int, str) -> None
+        self.tagset = tagset
+        self.max_size = max_size
+
+        msg = "Tagset cannot decode {!r} which exceeds max size of {!r} with length {!r}".format(tagset, max_size, len(tagset))
+        super(TagsetMaxSizeDecodeError, self).__init__(msg)
 
 
 cdef inline int is_equal(int c):
@@ -70,8 +95,8 @@ cdef inline int is_valid_value_char(int c):
     return c == 32 or is_equal(c) or is_valid_key_char(c)
 
 
-cpdef dict decode_tagset_string(str tagset):
-    # type: (str) -> Dict[str, str]
+cpdef dict decode_tagset_string(str tagset, int max_size=512):
+    # type: (str, int) -> Dict[str, str]
     """Parse a tagset compatible string into a dictionary of tag key/values
 
     Examples::
@@ -82,6 +107,7 @@ cpdef dict decode_tagset_string(str tagset):
         {"a": "1", "b": "2", "c": "3"}
 
     :param str tagset: String of encoded "key=value" pairs to decode into a dictionary
+    :param int max_size: The max size allowed for length of the incoming string (default: 512)
     :rtype: dict
     :returns: a Dict[str,str] of decoded key/value pairs from the provided string
     :raises TagsetDecodeError: When the provided format is not valid
@@ -96,6 +122,10 @@ cpdef dict decode_tagset_string(str tagset):
     # No tagset provided, short circuit the response
     if not tagset:
         return res
+
+    # Raise an exception that the incoming tagset string exceeds the max size
+    if len(tagset) > max_size:
+        raise TagsetMaxSizeDecodeError(tagset, max_size)
 
     # DEV: Parse in a single pass of `tagset`
     #      `is_parsing_key` is used to know if we are on
@@ -172,7 +202,7 @@ cpdef str encode_tagset_values(object values, int max_size=512):
     :param int max_size: The max size to allow the resulting string to be (default: 512)
     :rtype: str
     :returns: tagset encoded key/value pairs
-    :raises TagsetMaxSizeError: Raised when we will exceed the provided max size
+    :raises TagsetMaxSizeEncodeError: Raised when we will exceed the provided max size
     :raises TagsetEncodeError: Raised when we encounter an exception character in a key or value
     """
     cdef str res = ""
@@ -199,7 +229,7 @@ cpdef str encode_tagset_values(object values, int max_size=512):
         # The exception has the value up until now if the caller
         # wants to use the partially encoded value
         if len(res) + len(encoded) > max_size:
-            raise TagsetMaxSizeError(values, max_size, res)
+            raise TagsetMaxSizeEncodeError(values, max_size, res)
 
         res += encoded
     return res

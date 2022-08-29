@@ -13,11 +13,13 @@ from ddtrace.internal import atexit
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
+from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import collector
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling import scheduler
+from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import stack_event
@@ -118,11 +120,25 @@ class _ProfilerInstance(service.Service):
     tracer = attr.ib(default=ddtrace.tracer)
     api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
     agentless = attr.ib(factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_AGENTLESS", "False")), type=bool)
-    asyncio_loop_policy = attr.ib(factory=DdtraceProfilerEventLoopPolicy, repr=False, eq=False)
+    asyncio_loop_policy_class = attr.ib(default=DdtraceProfilerEventLoopPolicy)
+    _memory_collector_enabled = attr.ib(
+        factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
+    )
+    enable_code_provenance = attr.ib(
+        factory=attr_utils.from_env("DD_PROFILING_ENABLE_CODE_PROVENANCE", False, formats.asbool),
+        type=bool,
+    )
 
     _recorder = attr.ib(init=False, default=None)
     _collectors = attr.ib(init=False, default=None)
-    _scheduler = attr.ib(init=False, default=None)
+    _scheduler = attr.ib(
+        init=False,
+        default=None,
+        type=scheduler.Scheduler,
+    )
+    _lambda_function_name = attr.ib(
+        init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
+    )
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -131,7 +147,7 @@ class _ProfilerInstance(service.Service):
         _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
         if _OUTPUT_PPROF:
             return [
-                file.PprofFileExporter(_OUTPUT_PPROF),
+                file.PprofFileExporter(prefix=_OUTPUT_PPROF),
             ]
 
         if self.url is not None:
@@ -156,6 +172,9 @@ class _ProfilerInstance(service.Service):
             # to the agent base path.
             endpoint_path = "profiling/v1/input"
 
+        if self._lambda_function_name is not None:
+            self.tags.update({"functionname": self._lambda_function_name.encode("utf-8")})
+
         return [
             http.PprofHTTPExporter(
                 service=self.service,
@@ -165,15 +184,18 @@ class _ProfilerInstance(service.Service):
                 api_key=self.api_key,
                 endpoint=endpoint,
                 endpoint_path=endpoint_path,
+                enable_code_provenance=self.enable_code_provenance,
             ),
         ]
 
     def __attrs_post_init__(self):
+        # type: (...) -> None
+        # Allow to store up to 10 threads for 60 seconds at 50 Hz
+        max_stack_events = 10 * 60 * 50
         r = self._recorder = recorder.Recorder(
             max_events={
-                # Allow to store up to 10 threads for 60 seconds at 100 Hz
-                stack_event.StackSampleEvent: 10 * 60 * 100,
-                stack_event.StackExceptionSampleEvent: 10 * 60 * 100,
+                stack_event.StackSampleEvent: max_stack_events,
+                stack_event.StackExceptionSampleEvent: int(max_stack_events / 2),
                 # (default buffer size / interval) * export interval
                 memalloc.MemoryAllocSampleEvent: int(
                     (memalloc.MemoryCollector._DEFAULT_MAX_EVENTS / memalloc.MemoryCollector._DEFAULT_INTERVAL) * 60
@@ -185,23 +207,29 @@ class _ProfilerInstance(service.Service):
         )
 
         self._collectors = [
-            stack.StackCollector(r, tracer=self.tracer),
-            memalloc.MemoryCollector(r),
-            threading.LockCollector(r, tracer=self.tracer),
+            stack.StackCollector(r, tracer=self.tracer),  # type: ignore[call-arg]
+            threading.ThreadingLockCollector(r, tracer=self.tracer),
         ]
+        if _asyncio.asyncio_available:
+            self._collectors.append(asyncio.AsyncioLockCollector(r, tracer=self.tracer))
+
+        if self._memory_collector_enabled:
+            self._collectors.append(memalloc.MemoryCollector(r))
 
         exporters = self._build_default_exporters()
 
         if exporters:
-            self._scheduler = scheduler.Scheduler(
-                recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
-            )
+            if self._lambda_function_name is None:
+                scheduler_class = scheduler.Scheduler
+            else:
+                scheduler_class = scheduler.ServerlessScheduler
+            self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
 
         self.set_asyncio_event_loop_policy()
 
     def set_asyncio_event_loop_policy(self):
-        if self.asyncio_loop_policy is not None:
-            _asyncio.set_event_loop_policy(self.asyncio_loop_policy)
+        if self.asyncio_loop_policy_class is not None:
+            _asyncio.set_event_loop_policy(self.asyncio_loop_policy_class())
 
     def _collectors_snapshot(self):
         for c in self._collectors:
@@ -213,9 +241,15 @@ class _ProfilerInstance(service.Service):
             except Exception:
                 LOG.error("Error while snapshoting collector %r", c, exc_info=True)
 
+    _COPY_IGNORE_ATTRIBUTES = {"status"}
+
     def copy(self):
         return self.__class__(
-            service=self.service, env=self.env, version=self.version, tracer=self.tracer, tags=self.tags
+            **{
+                a.name: getattr(self, a.name)
+                for a in attr.fields(self.__class__)
+                if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
+            }
         )
 
     def _start_service(self):  # type: ignore[override]

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 EXCLUDED_ENDPOINT = frozenset({"kms", "sts", "sns", "kinesis", "events"})
 EXCLUDED_ENDPOINT_TAGS = {
     "firehose": frozenset({"params.Records"}),
+    "secretsmanager": frozenset({"params.SecretString", "params.SecretBinary"}),
 }
 
 

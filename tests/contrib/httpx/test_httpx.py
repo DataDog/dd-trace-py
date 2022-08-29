@@ -1,5 +1,3 @@
-import os
-
 import httpx
 import pytest
 import six
@@ -17,6 +15,10 @@ from tests.utils import override_http_config
 # host:port of httpbin_local container
 HOST = "localhost"
 PORT = 8001
+
+DEFAULT_HEADERS = {
+    "User-Agent": "python-httpx/x.xx.x",
+}
 
 
 def get_url(path):
@@ -71,13 +73,14 @@ def test_httpx_service_name(tracer, test_spans):
 @pytest.mark.asyncio
 async def test_get_200(snapshot_context):
     url = get_url("/status/200")
+
     with snapshot_context():
-        resp = httpx.get(url)
+        resp = httpx.get(url, headers=DEFAULT_HEADERS)
         assert resp.status_code == 200
 
     with snapshot_context():
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url)
+            resp = await client.get(url, headers=DEFAULT_HEADERS)
             assert resp.status_code == 200
 
 
@@ -91,12 +94,12 @@ async def test_configure_service_name(snapshot_context):
 
     with override_config("httpx", {"service_name": "test-httpx-service-name"}):
         with snapshot_context():
-            resp = httpx.get(url)
+            resp = httpx.get(url, headers=DEFAULT_HEADERS)
             assert resp.status_code == 200
 
         with snapshot_context():
             async with httpx.AsyncClient() as client:
-                resp = await client.get(url)
+                resp = await client.get(url, headers=DEFAULT_HEADERS)
                 assert resp.status_code == 200
 
 
@@ -126,98 +129,100 @@ async def test_configure_service_name_pin(tracer, test_spans):
     async_client = httpx.AsyncClient()
     Pin.override(async_client, service="async-client", tracer=tracer)
 
-    resp = httpx.get(url)
+    resp = httpx.get(url, headers=DEFAULT_HEADERS)
     assert resp.status_code == 200
     assert_spans(test_spans, service=None)
 
-    resp = client.get(url)
+    resp = client.get(url, headers=DEFAULT_HEADERS)
     assert resp.status_code == 200
     assert_spans(test_spans, service="sync-client")
 
     async with httpx.AsyncClient() as client:
-        resp = await async_client.get(url)
+        resp = await async_client.get(url, headers=DEFAULT_HEADERS)
         assert resp.status_code == 200
     assert_spans(test_spans, service="async-client")
 
 
-def test_configure_service_name_env(run_python_code_in_subprocess):
+@pytest.mark.subprocess(
+    env=dict(
+        DD_HTTPX_SERVICE="env-overridden-service-name",
+        DD_SERVICE="global-service-name",
+    )
+)
+def test_configure_service_name_env():
     """
     When setting DD_HTTPX_SERVICE env variable
         When DD_SERVICE is also set
             We use the value from DD_HTTPX_SERVICE
     """
-    code = """
-import asyncio
-import sys
+    import asyncio
+    import sys
 
-import httpx
+    import httpx
 
-from ddtrace.contrib.httpx import patch
-from tests.contrib.httpx.test_httpx import get_url
-from tests.utils import snapshot_context
+    from ddtrace.contrib.httpx import patch
+    from tests.contrib.httpx.test_httpx import get_url
+    from tests.utils import snapshot_context
 
-patch()
-url = get_url("/status/200")
+    patch()
+    url = get_url("/status/200")
 
-async def test():
-    token = "tests.contrib.httpx.test_httpx.test_configure_service_name_env"
-    with snapshot_context(token=token):
-        httpx.get(url)
+    async def test():
+        token = "tests.contrib.httpx.test_httpx.test_configure_service_name_env"
+        with snapshot_context(token=token):
+            DEFAULT_HEADERS = {
+                "User-Agent": "python-httpx/x.xx.x",
+            }
+            httpx.get(url, headers=DEFAULT_HEADERS)
 
-    with snapshot_context(token=token):
-        async with httpx.AsyncClient() as client:
-            await client.get(url)
+        with snapshot_context(token=token):
+            async with httpx.AsyncClient() as client:
+                DEFAULT_HEADERS = {
+                    "User-Agent": "python-httpx/x.xx.x",
+                }
+                await client.get(url, headers=DEFAULT_HEADERS)
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
-    """
-    env = os.environ.copy()
-    env["DD_HTTPX_SERVICE"] = "env-overridden-service-name"
-    env["DD_SERVICE"] = "global-service-name"
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
-    assert status == 0, err
-    assert err == b""
+    if sys.version_info >= (3, 7, 0):
+        asyncio.run(test())
+    else:
+        asyncio.get_event_loop().run_until_complete(test())
 
 
-def test_configure_global_service_name_env(run_python_code_in_subprocess):
+@pytest.mark.subprocess(env=dict(DD_SERVICE="global-service-name"))
+def test_configure_global_service_name_env():
     """
     When only setting DD_SERVICE
         We use the value from DD_SERVICE for the service name
     """
-    code = """
-import asyncio
-import sys
 
-import httpx
+    import asyncio
+    import sys
 
-from ddtrace.contrib.httpx import patch
-from tests.contrib.httpx.test_httpx import get_url
-from tests.utils import snapshot_context
+    import httpx
 
-patch()
-url = get_url("/status/200")
+    from ddtrace.contrib.httpx import patch
+    from tests.contrib.httpx.test_httpx import get_url
+    from tests.utils import snapshot_context
 
-async def test():
-    token = "tests.contrib.httpx.test_httpx.test_configure_global_service_name_env"
-    with snapshot_context(token=token):
-        httpx.get(url)
+    patch()
+    url = get_url("/status/200")
 
-    with snapshot_context(token=token):
-        async with httpx.AsyncClient() as client:
-            await client.get(url)
+    async def test():
+        token = "tests.contrib.httpx.test_httpx.test_configure_global_service_name_env"
+        with snapshot_context(token=token):
+            DEFAULT_HEADERS = {
+                "User-Agent": "python-httpx/x.xx.x",
+            }
+            httpx.get(url, headers=DEFAULT_HEADERS)
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
-    """
-    env = os.environ.copy()
-    env["DD_SERVICE"] = "global-service-name"
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
-    assert status == 0, err
-    assert err == b""
+        with snapshot_context(token=token):
+            async with httpx.AsyncClient() as client:
+                await client.get(url, headers=DEFAULT_HEADERS)
+
+    if sys.version_info >= (3, 7, 0):
+        asyncio.run(test())
+    else:
+        asyncio.get_event_loop().run_until_complete(test())
 
 
 @pytest.mark.asyncio
@@ -228,12 +233,12 @@ async def test_get_500(snapshot_context):
     """
     url = get_url("/status/500")
     with snapshot_context():
-        resp = httpx.get(url)
+        resp = httpx.get(url, headers=DEFAULT_HEADERS)
         assert resp.status_code == 500
 
     with snapshot_context():
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url)
+            resp = await client.get(url, headers=DEFAULT_HEADERS)
             assert resp.status_code == 500
 
 
@@ -247,12 +252,12 @@ async def test_split_by_domain(snapshot_context):
 
     with override_config("httpx", {"split_by_domain": True}):
         with snapshot_context():
-            resp = httpx.get(url)
+            resp = httpx.get(url, headers=DEFAULT_HEADERS)
             assert resp.status_code == 200
 
         with snapshot_context():
             async with httpx.AsyncClient() as client:
-                resp = await client.get(url)
+                resp = await client.get(url, headers=DEFAULT_HEADERS)
                 assert resp.status_code == 200
 
 
@@ -263,15 +268,20 @@ async def test_trace_query_string(snapshot_context):
         We include the query string as a tag on the span
     """
     url = get_url("/status/200?some=query&string=args")
-
+    # Caveat(avara1986): Docker image "httpbin" set as user-agent "python-httpx/0.23.0".
+    # your local container or the CI container, could have different version. We set
+    # the user agent to use the same version.
+    headers = {
+        "User-Agent": "python-httpx/x.xx.x",
+    }
     with override_http_config("httpx", {"trace_query_string": True}):
         with snapshot_context():
-            resp = httpx.get(url)
+            resp = httpx.get(url, headers=headers)
             assert resp.status_code == 200
 
         with snapshot_context():
             async with httpx.AsyncClient() as client:
-                resp = await client.get(url)
+                resp = await client.get(url, headers=headers)
                 assert resp.status_code == 200
 
 
@@ -285,6 +295,7 @@ async def test_request_headers(snapshot_context):
 
     headers = {
         "Some-Request-Header": "Request-Value",
+        "User-Agent": "python-httpx/x.xx.x",
     }
 
     try:
@@ -315,11 +326,11 @@ async def test_distributed_tracing_headers():
         assert "X-Datadog-Parent-Id" in data["headers"]
         assert "X-Datadog-Sampling-Priority" in data["headers"]
 
-    resp = httpx.get(url)
+    resp = httpx.get(url, headers=DEFAULT_HEADERS)
     assert_request_headers(resp)
 
     async with httpx.AsyncClient() as client:
-        resp = await client.get(url)
+        resp = await client.get(url, headers=DEFAULT_HEADERS)
         assert_request_headers(resp)
 
 
@@ -338,52 +349,53 @@ async def test_distributed_tracing_disabled():
         assert "X-Datadog-Sampling-Priority" not in data["headers"]
 
     with override_config("httpx", {"distributed_tracing": False}):
-        resp = httpx.get(url)
+        resp = httpx.get(url, headers=DEFAULT_HEADERS)
         assert_request_headers(resp)
 
         async with httpx.AsyncClient() as client:
-            resp = await client.get(url)
+            resp = await client.get(url, headers=DEFAULT_HEADERS)
             assert_request_headers(resp)
 
 
-def test_distributed_tracing_disabled_env(run_python_code_in_subprocess):
+@pytest.mark.subprocess(env=dict(DD_HTTPX_DISTRIBUTED_TRACING="false"))
+def test_distributed_tracing_disabled_env():
     """
     When disabling distributed tracing via env variable
         We do not add distributed tracing headers to outbound requests
     """
-    code = """
-import asyncio
-import sys
 
-import httpx
+    import asyncio
+    import sys
 
-from ddtrace.contrib.httpx import patch
-from tests.contrib.httpx.test_httpx import get_url, override_config
+    import httpx
 
-patch()
-url = get_url("/headers")
+    from ddtrace.contrib.httpx import patch
+    from tests.contrib.httpx.test_httpx import get_url
 
-async def test():
-    def assert_request_headers(response):
-        data = response.json()
-        assert "X-Datadog-Trace-Id" not in data["headers"]
-        assert "X-Datadog-Parent-Id" not in data["headers"]
-        assert "X-Datadog-Sampling-Priority" not in data["headers"]
+    patch()
+    url = get_url("/headers")
 
-    resp = httpx.get(url)
-    assert_request_headers(resp)
+    async def test():
+        def assert_request_headers(response):
+            data = response.json()
+            assert "X-Datadog-Trace-Id" not in data["headers"]
+            assert "X-Datadog-Parent-Id" not in data["headers"]
+            assert "X-Datadog-Sampling-Priority" not in data["headers"]
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(url)
+        DEFAULT_HEADERS = {
+            "User-Agent": "python-httpx/x.xx.x",
+        }
+        resp = httpx.get(url, headers=DEFAULT_HEADERS)
         assert_request_headers(resp)
 
-if sys.version_info >= (3, 7, 0):
-    asyncio.run(test())
-else:
-    asyncio.get_event_loop().run_until_complete(test())
-    """
-    env = os.environ.copy()
-    env["DD_HTTPX_DISTRIBUTED_TRACING"] = "false"
-    out, err, status, pid = run_python_code_in_subprocess(code, env=env)
-    assert status == 0, err
-    assert err == b""
+        async with httpx.AsyncClient() as client:
+            DEFAULT_HEADERS = {
+                "User-Agent": "python-httpx/x.xx.x",
+            }
+            resp = await client.get(url, headers=DEFAULT_HEADERS)
+            assert_request_headers(resp)
+
+    if sys.version_info >= (3, 7, 0):
+        asyncio.run(test())
+    else:
+        asyncio.get_event_loop().run_until_complete(test())

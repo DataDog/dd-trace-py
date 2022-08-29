@@ -1,9 +1,11 @@
 """
-This integration provides automatic instrumentation to trace the execution flow
-of concurrent execution of ``asyncio.Task``. Also it provides a legacy context
-provider for supporting tracing of asynchronous execution in Python < 3.7.
+This integration provides context management for tracing the execution flow
+of concurrent execution of ``asyncio.Task``.
 
-For asynchronous execution tracing in Python < 3.7 to work properly the tracer must
+This integration is only necessary in Python < 3.7 (where contextvars is not supported).
+For Python > 3.7 this works automatically without configuration.
+
+For asynchronous execution tracing to work properly the tracer must
 be configured as follows::
 
     import asyncio

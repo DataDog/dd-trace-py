@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add ``Span.get_tags`` and ``Span.get_metrics``.

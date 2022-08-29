@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: fix issue with ``ddtrace-run`` having the wrong priority order of tracer host/port/url env variable configuration.

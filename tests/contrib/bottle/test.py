@@ -71,7 +71,7 @@ class TraceBottleTest(TracerTestCase):
         if ddtrace.config.bottle.trace_query_string:
             assert s.get_tag(http.QUERY_STRING) == query_string
         else:
-            assert http.QUERY_STRING not in s._get_tags()
+            assert http.QUERY_STRING not in s.get_tags()
 
     def test_query_string(self):
         return self.test_200("foo=bar")

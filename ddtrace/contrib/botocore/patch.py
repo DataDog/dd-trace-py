@@ -2,6 +2,7 @@
 Trace queries to aws api done via botocore client
 """
 import base64
+import collections
 import json
 import os
 import typing
@@ -11,8 +12,10 @@ from typing import List
 from typing import Optional
 
 import botocore.client
+import botocore.exceptions
 
 from ddtrace import config
+from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -43,12 +46,14 @@ MAX_EVENTBRIDGE_DETAIL_SIZE = 1 << 18  # 256KB
 
 log = get_logger(__name__)
 
+
 # Botocore default settings
 config._add(
     "botocore",
     {
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
+        "operations": collections.defaultdict(Config._HTTPServerConfig),
     },
 )
 
@@ -61,28 +66,41 @@ class TraceInjectionDecodingError(Exception):
     pass
 
 
-def inject_trace_data_to_message_attributes(trace_data, entry):
-    # type: (Dict[str, str], Dict[str, Any]) -> None
+def inject_trace_data_to_message_attributes(trace_data, entry, endpoint=None):
+    # type: (Dict[str, str], Dict[str, Any], Optional[str]) -> None
     """
     :trace_data: trace headers to be stored in the entry's MessageAttributes
     :entry: an SQS or SNS record
+    :endpoint: endpoint of message, "sqs" or "sns"
 
     Inject trace headers into the an SQS or SNS record's MessageAttributes
     """
     if "MessageAttributes" not in entry:
         entry["MessageAttributes"] = {}
-    # An Amazon SQS message can contain up to 10 metadata attributes.
+    # Max of 10 message attributes.
     if len(entry["MessageAttributes"]) < 10:
-        entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
+        if endpoint == "sqs":
+            # Use String since changing this to Binary would be a breaking
+            # change as other tracers expect this to be a String.
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "String", "StringValue": json.dumps(trace_data)}
+        elif endpoint == "sns":
+            # Use Binary since SNS subscription filter policies fail silently
+            # with JSON strings https://github.com/DataDog/datadog-lambda-js/pull/269
+            # AWS will encode our value if it sees "Binary"
+            entry["MessageAttributes"]["_datadog"] = {"DataType": "Binary", "BinaryValue": json.dumps(trace_data)}
+        else:
+            log.warning("skipping trace injection, endpoint is not SNS or SQS")
     else:
+        # In the event a record has 10 or more msg attributes we cannot add our _datadog msg attribute
         log.warning("skipping trace injection, max number (10) of MessageAttributes exceeded")
 
 
-def inject_trace_to_sqs_or_sns_batch_message(params, span):
-    # type: (Any, Span) -> None
+def inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint=None):
+    # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
+    :endpoint: endpoint of message, "sqs" or "sns"
 
     Inject trace headers into MessageAttributes for all SQS or SNS records inside a batch
     """
@@ -94,21 +112,22 @@ def inject_trace_to_sqs_or_sns_batch_message(params, span):
     # or PublishBatchRequestEntries (in case of PublishBatch).
     entries = params.get("Entries", params.get("PublishBatchRequestEntries", []))
     for entry in entries:
-        inject_trace_data_to_message_attributes(trace_data, entry)
+        inject_trace_data_to_message_attributes(trace_data, entry, endpoint)
 
 
-def inject_trace_to_sqs_or_sns_message(params, span):
-    # type: (Any, Span) -> None
+def inject_trace_to_sqs_or_sns_message(params, span, endpoint=None):
+    # type: (Any, Span, Optional[str]) -> None
     """
     :params: contains the params for the current botocore action
     :span: the span which provides the trace context to be propagated
+    :endpoint: endpoint of message, "sqs" or "sns"
 
     Inject trace headers into MessageAttributes for the SQS or SNS record
     """
     trace_data = {}
     HTTPPropagator.inject(span.context, trace_data)
 
-    inject_trace_data_to_message_attributes(trace_data, params)
+    inject_trace_data_to_message_attributes(trace_data, params, endpoint)
 
 
 def inject_trace_to_eventbridge_detail(params, span):
@@ -147,10 +166,9 @@ def inject_trace_to_eventbridge_detail(params, span):
 
 
 def get_kinesis_data_object(data):
-    # type: (str, Optional[bool]) -> Optional[Dict[str, Any]]
+    # type: (str) -> Optional[Dict[str, Any]]
     """
     :data: the data from a kinesis stream
-    :try_b64: whether we should try to decode the string as base64
 
     The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)
     We support injecting our trace context in the following two cases:
@@ -293,17 +311,17 @@ def patched_api_call(original_func, instance, args, kwargs):
                     if endpoint_name == "lambda" and operation == "Invoke":
                         inject_trace_to_client_context(params, span)
                     if endpoint_name == "sqs" and operation == "SendMessage":
-                        inject_trace_to_sqs_or_sns_message(params, span)
+                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
                     if endpoint_name == "sqs" and operation == "SendMessageBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(params, span)
+                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                     if endpoint_name == "events" and operation == "PutEvents":
                         inject_trace_to_eventbridge_detail(params, span)
                     if endpoint_name == "kinesis" and (operation == "PutRecord" or operation == "PutRecords"):
                         inject_trace_to_kinesis_stream(params, span)
                     if endpoint_name == "sns" and operation == "Publish":
-                        inject_trace_to_sqs_or_sns_message(params, span)
+                        inject_trace_to_sqs_or_sns_message(params, span, endpoint_name)
                     if endpoint_name == "sns" and operation == "PublishBatch":
-                        inject_trace_to_sqs_or_sns_batch_message(params, span)
+                        inject_trace_to_sqs_or_sns_batch_message(params, span, endpoint_name)
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 
@@ -320,20 +338,43 @@ def patched_api_call(original_func, instance, args, kwargs):
         if region_name is not None:
             span._set_str_tag("aws.region", region_name)
 
-        result = original_func(*args, **kwargs)
-
-        response_meta = result.get("ResponseMetadata")
-        if response_meta:
-            if "HTTPStatusCode" in response_meta:
-                span.set_tag(http.STATUS_CODE, response_meta["HTTPStatusCode"])
-
-            if "RetryAttempts" in response_meta:
-                span.set_tag("retry_attempts", response_meta["RetryAttempts"])
-
-            if "RequestId" in response_meta:
-                span.set_tag("aws.requestid", response_meta["RequestId"])
-
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
 
-        return result
+        try:
+            result = original_func(*args, **kwargs)
+            _set_response_metadata_tags(span, result)
+
+            return result
+        except botocore.exceptions.ClientError as e:
+            # `ClientError.response` contains the result, so we can still grab response metadata
+            _set_response_metadata_tags(span, e.response)
+
+            # If we have a status code, and the status code is not an error,
+            #   then ignore the exception being raised
+            status_code = span.get_tag(http.STATUS_CODE)
+            if status_code and not config.botocore.operations[span.resource].is_error_code(int(status_code)):
+                span._ignore_exception(botocore.exceptions.ClientError)
+            raise
+
+
+def _set_response_metadata_tags(span, result):
+    # type: (Span, Dict[str, Any]) -> None
+    if not result.get("ResponseMetadata"):
+        return
+
+    response_meta = result["ResponseMetadata"]
+
+    if "HTTPStatusCode" in response_meta:
+        status_code = response_meta["HTTPStatusCode"]
+        span.set_tag(http.STATUS_CODE, status_code)
+
+        # Mark this span as an error if requested
+        if config.botocore.operations[span.resource].is_error_code(int(status_code)):
+            span.error = 1
+
+    if "RetryAttempts" in response_meta:
+        span.set_tag("retry_attempts", response_meta["RetryAttempts"])
+
+    if "RequestId" in response_meta:
+        span.set_tag("aws.requestid", response_meta["RequestId"])

@@ -45,7 +45,7 @@ class TestTornadoWeb(TornadoTestCase):
         if config.tornado.trace_query_string:
             assert query_string == request_span.get_tag(http.QUERY_STRING)
         else:
-            assert http.QUERY_STRING not in request_span._get_tags()
+            assert http.QUERY_STRING not in request_span.get_tags()
         assert 0 == request_span.error
 
     def test_success_handler_query_string(self):

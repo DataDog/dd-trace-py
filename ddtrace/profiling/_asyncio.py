@@ -16,8 +16,10 @@ except ImportError:
         # type: (...) -> None
         pass
 
+    asyncio_available = False
 
 else:
+    asyncio_available = True
     DefaultEventLoopPolicy = asyncio.DefaultEventLoopPolicy  # type: ignore[misc]
 
     get_event_loop_policy = asyncio.get_event_loop_policy  # type: ignore[assignment]
@@ -72,5 +74,4 @@ class DdtraceProfilerEventLoopPolicy(DefaultEventLoopPolicy):
 
     def _ddtrace_get_loop(self, thread_id):
         # type: (...) -> typing.Optional[asyncio.AbstractEventLoop]
-        self._clear_threads()
         return self.loop_per_thread.get_object(thread_id)

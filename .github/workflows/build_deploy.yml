@@ -21,9 +21,9 @@ jobs:
     strategy:
       matrix:
         include:
-         - os: ubuntu-18.04
+         - os: ubuntu-latest
            archs: x86_64 i686
-         - os: ubuntu-18.04
+         - os: ubuntu-latest
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
@@ -35,14 +35,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         name: Install Python
         with:
           python-version: '3.8'
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
         with:
           platforms: all
 
@@ -61,7 +61,7 @@ jobs:
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
 
@@ -71,9 +71,9 @@ jobs:
     strategy:
       matrix:
         include:
-         - os: ubuntu-18.04
+         - os: ubuntu-latest
            archs: x86_64 i686
-         - os: ubuntu-18.04
+         - os: ubuntu-latest
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
@@ -85,30 +85,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         name: Install Python
         with:
           python-version: '3.8'
 
       - name: Set up QEMU
         if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
         with:
           platforms: all
 
       - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@v2.3.1
+        uses: pypa/cibuildwheel@v2.9.0
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones
           CIBW_ARCHS: ${{ matrix.archs }}
           CIBW_BUILD: cp3*
+          CIBW_SKIP: cp311*
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
 
@@ -121,7 +122,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         name: Install Python
         with:
           python-version: '3.7'
@@ -130,7 +131,7 @@ jobs:
         run: |
           pip install cython
           python setup.py sdist
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           path: dist/*.tar.gz
 
@@ -143,7 +144,7 @@ jobs:
       image: python:3.9-alpine
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: artifact
           path: dist
@@ -169,7 +170,7 @@ jobs:
     runs-on: ubuntu-latest
     if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch')
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/download-artifact@v3
         with:
           name: artifact
           path: dist

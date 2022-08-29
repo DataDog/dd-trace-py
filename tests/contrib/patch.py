@@ -71,9 +71,6 @@ def raise_if_no_attrs(f):
 
     @functools.wraps(f)
     def checked_method(self, *args, **kwargs):
-        if getattr(self, "__unpatch_func__") is None:
-            return
-
         for attr in required_attrs:
             if not getattr(self, attr):
                 raise NotImplementedError(f.__doc__)
@@ -91,7 +88,7 @@ def noop_if_no_unpatch(f):
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
         if getattr(self, "__unpatch_func__") is None:
-            return
+            self.skipTest(reason="No unpatch function given")
         return f(self, *args, **kwargs)
 
     return wrapper
@@ -310,7 +307,6 @@ class PatchTestCase(object):
                 ddtrace.patch(redis=True)
                 self.assert_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             module = importlib.import_module(self.__module_name__)
             self.assert_not_module_patched(module)
             self.__patch_func__()
@@ -329,7 +325,6 @@ class PatchTestCase(object):
                 ddtrace.patch(redis=True)
                 self.assert_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             module = importlib.import_module(self.__module_name__)
             self.__patch_func__()
             self.assert_module_patched(module)
@@ -349,7 +344,6 @@ class PatchTestCase(object):
                 ddtrace.patch(redis=True)
                 self.assert_not_module_double_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__patch_func__()
             module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
@@ -371,7 +365,6 @@ class PatchTestCase(object):
                 ddtrace.patch(redis=True)
                 self.assert_not_module_double_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__patch_func__()
             module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
@@ -392,13 +385,13 @@ class PatchTestCase(object):
                 import redis
                 self.assert_not_double_wrapped(redis.StrictRedis.execute_command)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__patch_func__()
             self.__patch_func__()
             module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
             self.assert_not_module_double_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_import_patch_unpatch_patch(self):
             """
@@ -416,7 +409,6 @@ class PatchTestCase(object):
                 ddtrace.patch(redis=True)
                 self.assert_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             module = importlib.import_module(self.__module_name__)
             self.__patch_func__()
             self.assert_module_patched(module)
@@ -426,6 +418,7 @@ class PatchTestCase(object):
             self.__patch_func__()
             self.assert_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_patch_import_unpatch_patch(self):
             """
@@ -443,7 +436,6 @@ class PatchTestCase(object):
                 ddtrace.patch(redis=True)
                 self.assert_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__patch_func__()
             module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
@@ -452,6 +444,7 @@ class PatchTestCase(object):
             self.__patch_func__()
             self.assert_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_patch_unpatch_import_patch(self):
             """
@@ -469,7 +462,6 @@ class PatchTestCase(object):
                 ddtrace.patch(redis=True)
                 self.assert_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__patch_func__()
             self.__unpatch_func__()
             module = importlib.import_module(self.__module_name__)
@@ -477,6 +469,7 @@ class PatchTestCase(object):
             self.__patch_func__()
             self.assert_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_patch_unpatch_patch_import(self):
             """
@@ -494,13 +487,13 @@ class PatchTestCase(object):
                 import redis
                 self.assert_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__patch_func__()
             self.__unpatch_func__()
             self.__patch_func__()
             module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_unpatch_patch_import(self):
             """
@@ -514,13 +507,13 @@ class PatchTestCase(object):
                 import redis
                 self.assert_not_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__unpatch_func__()
             self.__patch_func__()
             self.__patch_func__()
             module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_patch_unpatch_import(self):
             """
@@ -536,12 +529,12 @@ class PatchTestCase(object):
                 import redis
                 self.assert_not_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__patch_func__()
             self.__unpatch_func__()
             module = importlib.import_module(self.__module_name__)
             self.assert_not_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_import_unpatch_patch(self):
             """
@@ -556,13 +549,13 @@ class PatchTestCase(object):
                 unpatch()
                 self.assert_not_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             module = importlib.import_module(self.__module_name__)
             self.__unpatch_func__()
             self.assert_not_module_patched(module)
             self.__patch_func__()
             self.assert_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_import_patch_unpatch(self):
             """
@@ -577,7 +570,6 @@ class PatchTestCase(object):
                 unpatch()
                 self.assert_not_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             module = importlib.import_module(self.__module_name__)
             self.assert_not_module_patched(module)
             self.__patch_func__()
@@ -585,6 +577,7 @@ class PatchTestCase(object):
             self.__unpatch_func__()
             self.assert_not_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_patch_import_unpatch(self):
             """
@@ -599,13 +592,13 @@ class PatchTestCase(object):
                 unpatch()
                 self.assert_not_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__patch_func__()
             module = importlib.import_module(self.__module_name__)
             self.assert_module_patched(module)
             self.__unpatch_func__()
             self.assert_not_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_import_patch_unpatch_unpatch(self):
             """
@@ -623,7 +616,6 @@ class PatchTestCase(object):
                 unpatch()
                 self.assert_not_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             module = importlib.import_module(self.__module_name__)
             self.__patch_func__()
             self.assert_module_patched(module)
@@ -632,6 +624,7 @@ class PatchTestCase(object):
             self.__unpatch_func__()
             self.assert_not_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_patch_unpatch_import_unpatch(self):
             """
@@ -648,7 +641,6 @@ class PatchTestCase(object):
                 unpatch()
                 self.assert_not_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__patch_func__()
             self.__unpatch_func__()
             module = importlib.import_module(self.__module_name__)
@@ -656,6 +648,7 @@ class PatchTestCase(object):
             self.__unpatch_func__()
             self.assert_not_module_patched(module)
 
+        @noop_if_no_unpatch
         @raise_if_no_attrs
         def test_patch_unpatch_unpatch_import(self):
             """
@@ -671,7 +664,6 @@ class PatchTestCase(object):
                 import redis
                 self.assert_not_module_patched(redis)
             """
-            self.assert_not_module_imported(self.__module_name__)
             self.__patch_func__()
             self.__unpatch_func__()
             self.__unpatch_func__()

@@ -78,9 +78,6 @@ def update_patched_modules():
 try:
     from ddtrace import tracer
 
-    dd_hostname = os.getenv("DD_TRACE_AGENT_HOSTNAME")
-    hostname = os.getenv("DD_AGENT_HOST", dd_hostname)
-    port = os.getenv("DD_TRACE_AGENT_PORT")
     priority_sampling = os.getenv("DD_PRIORITY_SAMPLING")
     profiling = asbool(os.getenv("DD_PROFILING_ENABLED", False))
 
@@ -100,14 +97,11 @@ try:
         trace_enabled = False
         opts["enabled"] = False
 
-    if hostname:
-        opts["hostname"] = hostname
-    if port:
-        opts["port"] = int(port)
     if priority_sampling:
         opts["priority_sampling"] = asbool(priority_sampling)
 
-    tracer.configure(**opts)
+    if not opts:
+        tracer.configure(**opts)
 
     if trace_enabled:
         update_patched_modules()

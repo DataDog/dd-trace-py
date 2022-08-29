@@ -9,10 +9,12 @@
     "type": "http",
     "error": 1,
     "meta": {
+      "_dd.p.dm": "-0",
       "http.method": "GET",
       "http.status_code": "500",
       "http.url": "http://localhost:8001/status/500",
-      "runtime-id": "0c15188ec3454af48be672464b951d64"
+      "http.useragent": "python-httpx/x.xx.x",
+      "runtime-id": "e0fc845aaa70412aa95b1bc36ab72982"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

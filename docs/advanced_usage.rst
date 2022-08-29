@@ -79,10 +79,10 @@ context::
 .. important::
 
     Span objects are owned by the execution in which they are created and must
-    be finished in the same execution. To continue a trace in a different
-    execution then the ``span.context`` can be passed between executions and
-    activated. See the sections below for how to propagate spans and traces
-    across task, thread or process boundaries.
+    be finished in the same execution. The span context can be used to continue
+    a trace in a different execution by passing it and activating it on the other
+    end. See the sections below for how to propagate traces across task, thread or
+    process boundaries.
 
 
 Tracing Across Threads
@@ -96,12 +96,12 @@ threads::
 
     def _target(trace_ctx):
         tracer.context_provider.activate(trace_ctx)
-        with tracer.trace("second_thread") as span2:
-            # span2's parent will be the main_thread span
+        with tracer.trace("second_thread"):
+            # `second_thread`s parent will be the `main_thread` span
             time.sleep(1)
 
-    with tracer.trace("main_thread") as span:
-        thread = threading.Thread(target=_target, args=(span.context,))
+    with tracer.trace("main_thread"):
+        thread = threading.Thread(target=_target, args=(tracer.current_trace_context(),))
         thread.start()
         thread.join()
 
@@ -122,8 +122,8 @@ span has to be propagated as a context::
             time.sleep(1)
         tracer.shutdown()
 
-    with tracer.trace("work") as span:
-        proc = Process(target=_target, args=(span.context,))
+    with tracer.trace("work"):
+        proc = Process(target=_target, args=(tracer.current_trace_context(),))
         proc.start()
         time.sleep(1)
         proc.join()
@@ -173,6 +173,7 @@ then ``None`` can be activated in the new task::
 
     tracer.context_provider.activate(None)
 
+.. note:: For Python < 3.7 the asyncio integration must be used: :ref:`asyncio`
 
 Manual Management
 ^^^^^^^^^^^^^^^^^
@@ -294,39 +295,6 @@ propagate a `rpc_metadata` dictionary over the wire::
 
         with tracer.trace("child_span") as span:
             span.set_tag('my_rpc_method', method)
-
-
-.. _`Upgrading and deprecation warnings`:
-
-Upgrading and deprecation warnings
-----------------------------------
-
-Before upgrading, we recommend resolving any deprecation warnings raised in your application. The messages for the deprecation warnings include the version when the API will be changed or removed.
-
-.. _upgrade-0.x:
-
-0.x Release Line
-^^^^^^^^^^^^^^^^
-
-As of v0.59.0, you can enable warning filters for ddtrace library deprecations.
-
-For those using ``pytest``, add a filter for the ``ddtrace.DDTraceDeprecationWarning`` warning category::
-
-    pytest -W "error::ddtrace.DDTraceDeprecationWarning" tests.py
-
-
-Otherwise, you must set the environment variable ``DD_TRACE_RAISE_DEPRECATIONWARNING`` which will configure the warning filter::
-
-    DD_TRACE_RAISE_DEPRECATIONWARNING=1 python app.py
-
-
-Before v0.59.0, you can still enable all deprecation warnings and filter the application or tests logs for deprecations specific the ``ddtrace`` library::
-
-    $ python -Wall app.py
-
-    # or
-
-    $ PYTHONWARNINGS=all python app.py
 
 
 Trace Filtering

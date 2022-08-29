@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed the environment variable used for log file size bytes to be ``DD_TRACE_LOG_FILE_SIZE_BYTES`` as documented.

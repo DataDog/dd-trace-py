@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pin protobuf to version ``>=3,<4`` due to incompatibility with version ``4.21``.

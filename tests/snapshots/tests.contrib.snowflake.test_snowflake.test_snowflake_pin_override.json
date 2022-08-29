@@ -8,8 +8,10 @@
     "parent_id": 0,
     "type": "sql",
     "meta": {
+      "_dd.p.dm": "-0",
       "custom": "tag",
-      "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf"
+      "runtime-id": "1658e263f3084eaca410818e944d7d7e",
+      "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -19,8 +21,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "sql.rows": 1,
-      "system.pid": 79541
+      "system.pid": 88705
     },
-    "duration": 3174000,
-    "start": 1634218665449110000
+    "duration": 3361000,
+    "start": 1660069787100011000
   }]]

@@ -18,6 +18,22 @@ alongside ``--ddtrace`` or by adding this to your configuration::
     ddtrace = 1
     ddtrace-patch-all = 1
 
+
+.. note::
+   The ddtrace plugin for pytest has the side effect of importing the ddtrace
+   package and starting a global tracer.
+
+   If this is causing issues for your pytest runs where traced execution of
+   tests is not enabled, you can deactivate the plugin::
+
+     [pytest]
+     addopts = -p no:ddtrace
+
+   See the `pytest documentation
+   <https://docs.pytest.org/en/7.1.x/how-to/plugins.html#deactivating-unregistering-a-plugin-by-name>`_
+   for more details.
+
+
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 

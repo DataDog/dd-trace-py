@@ -31,7 +31,7 @@ class TestTracerConfig(object):
     def test_no_service_name(self):
         """A service_name should be generated if one is not provided."""
         tracer = Tracer()
-        assert tracer._service_name == "pytest"
+        assert tracer._service_name in {"pytest.py", "pytest", "__main__.py"}
 
     def test_multiple_tracer_configs(self):
         """Ensure that a tracer config is a copy of the passed config."""

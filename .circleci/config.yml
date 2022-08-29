@@ -10,18 +10,18 @@ cassandra_image: &cassandra_image cassandra:3.11.7
 consul_image: &consul_image consul:1.6.0
 moto_image: &moto_image palazzem/moto:1.0.1
 mysql_image: &mysql_image mysql:5.7
-postgres_image: &postgres_image postgres:10.5-alpine
+postgres_image: &postgres_image postgres:11-alpine
 mongo_image: &mongo_image mongo:3.6
 httpbin_image: &httpbin_image kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
 vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
 orbs:
-  win: circleci/windows@2.2.0
+  win: circleci/windows@4.1
 
 machine_executor: &machine_executor
   machine:
-    image: ubuntu-2004:202107-02
+    image: ubuntu-2004:current
   environment:
     - BOTO_CONFIG: /dev/null
     # https://support.circleci.com/hc/en-us/articles/360045268074-Build-Fails-with-Too-long-with-no-output-exceeded-10m0s-context-deadline-exceeded-
@@ -90,6 +90,38 @@ commands:
           paths:
             - ".tox"
 
+  save_pip_cache:
+    description: "Save pip cache directory"
+    steps:
+      - save_cache:
+          # DEV: Cache misses can still occur as venvs are not necessarily always created on the same node index
+          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+          paths:
+            - ".cache/pip"
+
+  restore_pip_cache:
+    description: "Restore pip cache directory"
+    steps:
+      - restore_cache:
+          key: pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}
+
+  start_docker_services:
+    description: "Start Docker services"
+    parameters:
+      env:
+        type: string
+        default: ""
+      services:
+        type: string
+        default: ""
+    steps:
+      # Retry pulls in case they fail
+      - run: for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done
+      - run: << parameters.env >> docker-compose up -d << parameters.services >>
+      - run:
+          command: docker-compose logs -f
+          background: true
+
   run_test:
     description: "Run tests matching a pattern"
     parameters:
@@ -112,15 +144,15 @@ commands:
       - attach_workspace:
           at: .
       - checkout
+      - restore_pip_cache
       - when:
           condition:
               << parameters.snapshot >>
           steps:
             - setup_riot
-            - run: SNAPSHOT_CI=1 docker-compose up -d testagent << parameters.docker_services >>
-            - run:
-                command: docker-compose logs -f
-                background: true
+            - start_docker_services:
+                env: SNAPSHOT_CI=1
+                services: testagent << parameters.docker_services >>
             - run:
                 environment:
                   DD_TRACE_AGENT_URL: http://localhost:9126
@@ -143,6 +175,7 @@ commands:
             - setup_riot
             - run:
                 command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+      - save_pip_cache
       - when:
           condition:
             << parameters.store_coverage >>
@@ -171,10 +204,9 @@ commands:
             - run:
                 name: "Waiting for << parameters.wait >>"
                 command: tox -e 'wait' << parameters.wait >>
-      - run: SNAPSHOT_CI=1 docker-compose up -d memcached redis testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
+      - start_docker_services:
+          env: SNAPSHOT_CI=1
+          services: memcached redis testagent
       - run:
           name: "Run scripts/run-tox-scenario"
           environment:
@@ -226,7 +258,7 @@ executors:
   python39:
     docker:
       - image: *python39_image
-    resource_class: small
+    resource_class: large
   ddtrace_dev:
     docker:
       - image: *ddtrace_dev_image
@@ -270,6 +302,9 @@ jobs:
           name: "Flake8 check"
           command: riot run -s flake8
       - run:
+          name: "Slots check"
+          command: riot run -s slotscheck
+      - run:
           name: "Mypy check"
           command: riot run -s mypy
       - run:
@@ -284,8 +319,9 @@ jobs:
     steps:
       - checkout
       - run: sudo apt-get update
-      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip
+      - run: sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip cppcheck
       - run: scripts/cformat.sh
+      - run: scripts/cppcheck.sh
       - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
@@ -311,11 +347,6 @@ jobs:
       - run: coverage json --ignore-errors
       - store_artifacts:
           path: coverage.json
-      # Generate and save HTML report
-      # DEV: "--ignore-errors" to skip over files that are missing
-      - run: coverage html --ignore-errors
-      - store_artifacts:
-          path: htmlcov
       # Print ddtrace/ report to stdout
       # DEV: "--ignore-errors" to skip over files that are missing
       - run: coverage report --ignore-errors --omit=tests/
@@ -326,14 +357,19 @@ jobs:
       - run: diff-cover --compare-branch $(git rev-parse --abbrev-ref origin/HEAD) coverage.xml
 
   build_base_venvs:
-    executor: ddtrace_dev
-    parallelism: 6
+    resource_class: large
+    docker:
+      - image: *ddtrace_dev_image
+    parallelism: 7
     steps:
       - checkout
       - setup_riot
       - run:
           name: "Run riotfile.py tests"
           command: riot run -s riot-helpers
+      - run:
+          name: "Run scripts/*.py tests"
+          command: riot run -s scripts
       - run:
           name: "Generate base virtual environments."
           command: "./scripts/tested_pythons | circleci tests split | xargs -I PY riot -v generate --python=PY"
@@ -349,21 +385,119 @@ jobs:
           pattern: 'appsec'
           snapshot: true
 
+  internal:
+    <<: *contrib_job
+    steps:
+      - run_test:
+          pattern: "internal"
+
   tracer:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_test:
           pattern: "tracer"
 
+  telemetry:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "telemetry"
+          snapshot: true
+          store_coverage: false
+
+  debugger:
+    <<: *contrib_job
+    parallelism: 7
+    steps:
+      - run_test:
+          pattern: "debugger"
+
   opentracer:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
 
+  # Building gevent (for which we never want wheels because they crash)
+  # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
+  # which is not installed.
+  # profile-windows-27:
+  #   executor:
+  #     name: win/default
+  #     shell: bash.exe
+  #   steps:
+  #     - run: choco install python2
+  #     - run_tox_scenario:
+  #         store_coverage: false
+  #         pattern: '^py27-profile'
+
+  profile-windows-35:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.5.4
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py35-profile'
+
+  profile-windows-36:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.6.8
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py36-profile'
+
+  # For whatever reason, choco does not install Python 3.7 correctly on Windows
+  # profile-windows-37:
+  #   executor:
+  #     name: win/default
+  #     shell: bash.exe
+  #   steps:
+  #     - run: choco install python --version=3.7.9
+  #     - run_tox_scenario:
+  #         store_coverage: false
+  #         pattern: '^py37-profile'
+
+  profile-windows-38:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.8.10
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py38-profile'
+
+  profile-windows-39:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.9.12
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py39-profile'
+
+  profile-windows-310:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.10.4
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py310-profile'
+
   profile:
     <<: *contrib_job
-    parallelism: 6
+    resource_class: large
+    parallelism: 7
     steps:
       - run_tox_scenario:
           store_coverage: false
@@ -375,14 +509,12 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
-      - run: docker-compose up -d ddagent5
-      - run:
-          command: docker-compose logs -f
-          background: true
+      - start_docker_services:
+          services: ddagent5
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-v5'
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
@@ -390,14 +522,12 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
-      - run: docker-compose up -d ddagent
-      - run:
-          command: docker-compose logs -f
-          background: true
+      - start_docker_services:
+          services: ddagent
       - run:
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-latest'
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-latest'
 
   integration_testagent:
     <<: *machine_executor
@@ -405,16 +535,15 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
-      - run: SNAPSHOT_CI=1 docker-compose up -d testagent
-      - run:
-          command: docker-compose logs -f
-          background: true
+      - start_docker_services:
+          env: SNAPSHOT_CI=1
+          services: testagent
       - run:
           environment:
             DD_TRACE_AGENT_URL: http://localhost:9126
           command: |
             mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env --exit-first -s 'integration-snapshot'
+            ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
 
   vendor:
     <<: *contrib_job_small
@@ -461,6 +590,14 @@ jobs:
       - run_tox_scenario:
           pattern: '^asyncio_contrib-'
 
+  asyncpg:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'asyncpg'
+          snapshot: true
+          docker_services: 'postgres'
+
   pylons:
     <<: *contrib_job
     steps:
@@ -472,7 +609,7 @@ jobs:
     parallelism: 6
     steps:
       - run_test:
-          pattern: 'aiohttp'
+          pattern: 'aiohttp'  # includes aiohttp_jinja2
           snapshot: true
           docker_services: 'httpbin_local'
 
@@ -511,7 +648,7 @@ jobs:
 
   celery:
     <<: *contrib_job
-    parallelism: 6
+    parallelism: 7
     docker:
       - image: *ddtrace_dev_image
       - image: redis:4.0-alpine
@@ -591,37 +728,53 @@ jobs:
           snapshot: true
 
   flask:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-      - image: *redis_image
-      - image: *memcached_image
+    <<: *machine_executor
+    parallelism: 7
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
           # TODO: Re-enable coverage for Flask tests
           store_coverage: false
-          pattern: 'flask(_cache)?'
+          snapshot: true
+          pattern: "flask"
+          docker_services: "memcached redis"
 
   gevent:
     <<: *contrib_job
+    parallelism: 7
     steps:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
+  graphene:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "graphene"
+          snapshot: true
+
+  graphql:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "graphql"
+          snapshot: true
+
   grpc:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 7
     steps:
       - run_test:
           pattern: "grpc"
           snapshot: true
 
   httplib:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib'
+      - run_test:
+          pattern: "httplib"
+          snapshot: true
+          docker_services: 'httpbin_local'
 
   httpx:
     <<: *machine_executor
@@ -671,9 +824,9 @@ jobs:
       - image: *ddtrace_dev_image
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: mysql
-          pattern: '^pymysql_contrib-'
+          pattern: 'pymysql'
 
   pylibmc:
     <<: *contrib_job
@@ -688,7 +841,13 @@ jobs:
     executor: ddtrace_dev
     steps:
       - run_test:
-          pattern: 'pytest'
+          pattern: 'pytest$'
+
+  pytestbdd:
+    executor: ddtrace_dev
+    steps:
+      - run_test:
+          pattern: 'pytest-bdd'
 
   pymemcache:
     <<: *contrib_job
@@ -810,6 +969,15 @@ jobs:
        - run_test:
           pattern: 'aiobotocore'
 
+  aiomysql:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          docker_services: 'mysql'
+          wait: mysql
+          pattern: 'aiomysql'
+          snapshot: true
+
   aiopg:
     <<: *contrib_job
     docker:
@@ -904,6 +1072,7 @@ jobs:
 
   kombu:
     <<: *contrib_job
+    parallelism: 7
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
@@ -972,9 +1141,11 @@ requires_tests: &requires_tests
   requires:
     - aiobotocore
     - aiohttp
+    - aiomysql
     - aiopg
     - aioredis
     - asyncio
+    - asyncpg
     - algoliasearch
     - asgi
     - benchmarks
@@ -996,6 +1167,7 @@ requires_tests: &requires_tests
     - flask
     - futures
     - gevent
+    - graphql
     - grpc
     - httplib
     - httpx
@@ -1023,6 +1195,7 @@ requires_tests: &requires_tests
     - pyodbc
     - pyramid
     - pytest
+    - pytestbdd
     - aredis
     - yaaredis
     - redis
@@ -1036,11 +1209,20 @@ requires_tests: &requires_tests
     - starlette
     - test_logging
     - tracer
+    - telemetry
+    - debugger
     - appsec
     - tornado
     - urllib3
     - vertica
     - wsgi
+    # - profile-windows-27
+    - profile-windows-35
+    - profile-windows-36
+    # - profile-windows-37
+    - profile-windows-38
+    - profile-windows-39
+    - profile-windows-310
 
 workflows:
   version: 2
@@ -1059,9 +1241,11 @@ workflows:
       # Integration test suites
       - aiobotocore: *requires_base_venvs
       - aiohttp: *requires_base_venvs
+      - aiomysql: *requires_base_venvs
       - aiopg: *requires_base_venvs
       - aioredis: *requires_base_venvs
       - asyncio: *requires_base_venvs
+      - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
       - benchmarks: *requires_base_venvs
@@ -1083,12 +1267,15 @@ workflows:
       - flask: *requires_base_venvs
       - futures: *requires_base_venvs
       - gevent: *requires_base_venvs
+      - graphene: *requires_base_venvs
+      - graphql: *requires_base_venvs
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
       - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
+      - internal: *requires_base_venvs
       - vendor: *requires_base_venvs
       - profile: *requires_base_venvs
       - jinja2: *requires_base_venvs
@@ -1110,6 +1297,7 @@ workflows:
       - pyodbc: *requires_base_venvs
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
+      - pytestbdd: *requires_base_venvs
       - aredis: *requires_base_venvs
       - yaaredis: *requires_base_venvs
       - redis: *requires_base_venvs
@@ -1124,11 +1312,19 @@ workflows:
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
+      - telemetry: *requires_base_venvs
+      - debugger: *requires_base_venvs
       - appsec: *requires_base_venvs
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
-
+      # - profile-windows-27: *requires_pre_check
+      - profile-windows-35: *requires_pre_check
+      - profile-windows-36: *requires_pre_check
+      # - profile-windows-37: *requires_pre_check
+      - profile-windows-38: *requires_pre_check
+      - profile-windows-39: *requires_pre_check
+      - profile-windows-310: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
 

@@ -41,9 +41,9 @@ class SpanTestCase(TracerTestCase):
         s.set_tag("a", "a")
         s.set_tag("b", 1)
         s.set_tag("c", "1")
-        d = s.to_dict()
-        assert d["meta"] == dict(a="a", c="1")
-        assert d["metrics"] == dict(b=1)
+
+        assert s.get_tags() == dict(a="a", c="1")
+        assert s.get_metrics() == dict(b=1)
 
     def test_numeric_tags(self):
         s = Span(name="test.span")
@@ -59,12 +59,11 @@ class SpanTestCase(TracerTestCase):
         s.set_tag("large_float", 2.0 ** 53)
         s.set_tag("really_large_float", (2.0 ** 53) + 1)
 
-        d = s.to_dict()
-        assert d["meta"] == dict(
+        assert s.get_tags() == dict(
             really_large_int=str(((2 ** 53) + 1)),
             really_large_negative_int=str(-((2 ** 53) + 1)),
         )
-        assert d["metrics"] == {
+        assert s.get_metrics() == {
             "negative": -1,
             "zero": 0,
             "positive": 1,
@@ -81,20 +80,19 @@ class SpanTestCase(TracerTestCase):
         s.set_tag("true", True)
         s.set_tag("false", False)
 
-        d = s.to_dict()
-        assert d["meta"] == dict(true="True", false="False")
-        assert "metrics" not in d
+        assert s.get_tags() == dict(true="True", false="False")
+        assert len(s.get_metrics()) == 0
 
     def test_set_tag_metric(self):
         s = Span(name="test.span")
 
         s.set_tag("test", "value")
-        assert s._get_tags() == dict(test="value")
-        assert s._get_metrics() == dict()
+        assert s.get_tags() == dict(test="value")
+        assert s.get_metrics() == dict()
 
         s.set_tag("test", 1)
-        assert s._get_tags() == dict()
-        assert s._get_metrics() == dict(test=1)
+        assert s.get_tags() == dict()
+        assert s.get_metrics() == dict(test=1)
 
     def test_set_valid_metrics(self):
         s = Span(name="test.span")
@@ -103,7 +101,6 @@ class SpanTestCase(TracerTestCase):
         s.set_metric("c", 12.134)
         s.set_metric("d", 1231543543265475686787869123)
         s.set_metric("e", "12.34")
-        d = s.to_dict()
         expected = {
             "a": 0,
             "b": -12,
@@ -111,7 +108,7 @@ class SpanTestCase(TracerTestCase):
             "d": 1231543543265475686787869123,
             "e": 12.34,
         }
-        assert d["metrics"] == expected
+        assert s.get_metrics() == expected
 
     def test_set_invalid_metric(self):
         s = Span(name="test.span")
@@ -225,73 +222,15 @@ class SpanTestCase(TracerTestCase):
 
     def test_span_type(self):
         s = Span(name="test.span", service="s", resource="r", span_type=SpanTypes.WEB)
-        s.set_tag("a", "1")
-        s.set_tag("b", "2")
         s.finish()
 
-        d = s.to_dict()
-        assert d
-        assert d["span_id"] == s.span_id
-        assert d["trace_id"] == s.trace_id
-        assert d["parent_id"] == s.parent_id
-        assert d["meta"] == {"a": "1", "b": "2"}
-        assert d["type"] == "web"
-        assert d["error"] == 0
-        assert type(d["error"]) == int
-
-    def test_span_to_dict(self):
-        s = Span(name="test.span", service="s", resource="r")
-        s.span_type = "foo"
-        s.set_tag("a", "1")
-        s.set_tag("b", "2")
-        s.finish()
-
-        d = s.to_dict()
-        assert d
-        assert d["span_id"] == s.span_id
-        assert d["trace_id"] == s.trace_id
-        assert d["parent_id"] == s.parent_id
-        assert d["meta"] == {"a": "1", "b": "2"}
-        assert d["type"] == "foo"
-        assert d["error"] == 0
-        assert type(d["error"]) == int
-
-    def test_span_to_dict_sub(self):
-        parent = Span(name="test.span", service="s", resource="r")
-        s = Span(name="test.span", service="s", resource="r")
-        s._parent = parent
-        s.span_type = "foo"
-        s.set_tag("a", "1")
-        s.set_tag("b", "2")
-        s.finish()
-
-        d = s.to_dict()
-        assert d
-        assert d["span_id"] == s.span_id
-        assert d["trace_id"] == s.trace_id
-        assert d["parent_id"] == s.parent_id
-        assert d["meta"] == {"a": "1", "b": "2"}
-        assert d["type"] == "foo"
-        assert d["error"] == 0
-        assert type(d["error"]) == int
-
-    def test_span_boolean_err(self):
-        s = Span(name="foo.bar", service="s", resource="r")
-        s.error = True
-        s.finish()
-
-        d = s.to_dict()
-        assert d
-        assert d["error"] == 1
-        assert type(d["error"]) == int
+        assert s.span_type == "web"
 
     @mock.patch("ddtrace.span.log")
     def test_numeric_tags_none(self, span_log):
         s = Span(name="test.span")
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, None)
-        d = s.to_dict()
-        assert d
-        assert "metrics" not in d
+        assert len(s.get_metrics()) == 0
 
         # Ensure we log a debug message
         span_log.debug.assert_called_once_with(
@@ -303,37 +242,31 @@ class SpanTestCase(TracerTestCase):
     def test_numeric_tags_true(self):
         s = Span(name="test.span")
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, True)
-        d = s.to_dict()
-        assert d
         expected = {ANALYTICS_SAMPLE_RATE_KEY: 1.0}
-        assert d["metrics"] == expected
+        assert s.get_metrics() == expected
 
     def test_numeric_tags_value(self):
         s = Span(name="test.span")
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, 0.5)
-        d = s.to_dict()
-        assert d
         expected = {ANALYTICS_SAMPLE_RATE_KEY: 0.5}
-        assert d["metrics"] == expected
+        assert s.get_metrics() == expected
 
     def test_numeric_tags_bad_value(self):
         s = Span(name="test.span")
         s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, "Hello")
-        d = s.to_dict()
-        assert d
-        assert "metrics" not in d
+        assert len(s.get_metrics()) == 0
 
     def test_set_tag_none(self):
         s = Span(name="root.span", service="s", resource="r")
-        assert s._get_tags() == dict()
+        assert s.get_tags() == dict()
 
         s.set_tag("custom.key", "100")
 
-        assert s._get_tags() == {"custom.key": "100"}
+        assert s.get_tags() == {"custom.key": "100"}
 
         s.set_tag("custom.key", None)
 
-        assert s._get_tags() == {"custom.key": "None"}
+        assert s.get_tags() == {"custom.key": "None"}
 
     def test_duration_zero(self):
         s = Span(name="foo.bar", service="s", resource="r", start=123)
@@ -493,7 +426,7 @@ def test_span_binary_unicode_set_tag(span_log):
     span._set_str_tag("key_str", "🤔")
     # only span.set_tag() will fail
     span_log.warning.assert_called_once_with("error setting tag %s, ignoring it", "key", exc_info=True)
-    assert "key" not in span._get_tags()
+    assert "key" not in span.get_tags()
     assert span.get_tag("key_str") == u"🤔"
 
 
@@ -520,7 +453,7 @@ def test_span_nonstring_set_str_tag_exc():
     span = Span(None)
     with pytest.raises(TypeError):
         span._set_str_tag("foo", dict(a=1))
-    assert "foo" not in span._get_tags()
+    assert "foo" not in span.get_tags()
 
 
 @mock.patch("ddtrace.span.log")

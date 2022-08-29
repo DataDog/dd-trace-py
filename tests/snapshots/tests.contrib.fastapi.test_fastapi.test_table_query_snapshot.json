@@ -8,21 +8,23 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.dm": "-0",
       "http.method": "POST",
       "http.status_code": "200",
       "http.url": "http://testserver/items/",
+      "http.useragent": "testclient",
       "http.version": "1.1",
-      "runtime-id": "ca13d92107a949fcb9e9070e1bf4ffa3"
+      "runtime-id": "bdffe0368afa4d3c8cb5be8af75b25a4"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 88983
+      "system.pid": 2060
     },
-    "duration": 1456000,
-    "start": 1646400964981676000
+    "duration": 405000,
+    "start": 1656543965510660000
   },
      {
        "name": "fastapi.serialize_response",
@@ -31,8 +33,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 222000,
-       "start": 1646400964982594000
+       "duration": 80000,
+       "start": 1656543965510900000
      }],
 [
   {
@@ -44,21 +46,23 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.dm": "-0",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://testserver/items/test_id",
+      "http.useragent": "testclient",
       "http.version": "1.1",
-      "runtime-id": "ca13d92107a949fcb9e9070e1bf4ffa3"
+      "runtime-id": "bdffe0368afa4d3c8cb5be8af75b25a4"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 88983
+      "system.pid": 2060
     },
-    "duration": 479000,
-    "start": 1646400964985955000
+    "duration": 273000,
+    "start": 1656543965512049000
   },
      {
        "name": "fastapi.serialize_response",
@@ -67,6 +71,6 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 112000,
-       "start": 1646400964986203000
+       "duration": 65000,
+       "start": 1656543965512188000
      }]]

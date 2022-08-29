@@ -8,6 +8,7 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.dm": "-0",
       "asgi.version": "3.0",
       "django.request.class": "django.core.handlers.asgi.ASGIRequest",
       "django.response.class": "django.http.response.HttpResponse",
@@ -17,6 +18,7 @@
       "http.route": "^$",
       "http.status_code": "200",
       "http.url": "http://localhost:8000/",
+      "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
       "runtime-id": "09c0f53e3e5748c29ff8f04cad464bac"
     },

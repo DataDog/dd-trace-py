@@ -68,8 +68,25 @@ below:
    * - ``DD_TRACE_DEBUG``
      - Boolean
      - False
-     - Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if
-       one does not already exist. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_DEBUG``).
+     - Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if one does not already exist. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_DEBUG``). Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
+
+       .. _dd-trace-log-file-level:
+   * - ``DD_TRACE_LOG_FILE_LEVEL``
+     - String
+     - DEBUG
+     - Configures the ``RotatingFileHandler`` used by the `ddtrace` logger to write logs to a file based on the level specified. Defaults to `DEBUG`, but will accept the values found in the standard **logging** library, such as WARNING, ERROR, and INFO, if further customization is needed. Files are not written to unless ``DD_TRACE_LOG_FILE`` has been defined.
+
+       .. _dd-trace-log-file:
+   * - ``DD_TRACE_LOG_FILE``
+     - String
+     - None
+     - Directs `ddtrace` logs to a specific file. Note: The default backup count is 1. For larger logs, use with ``DD_TRACE_LOG_FILE_SIZE_BYTES``. To fine tune the logging level, use with ``DD_TRACE_LOG_FILE_LEVEL``.
+
+       .. _dd-trace-log-file-size-bytes:
+   * - ``DD_TRACE_LOG_FILE_SIZE_BYTES``
+     - Int
+     - 15728640
+     - Max size for a file when used with `DD_TRACE_LOG_FILE`. When a log has exceeded this size, there will be one backup log file created. In total, the files will store ``2 * DD_TRACE_LOG_FILE_SIZE_BYTES`` worth of logs.
 
        .. _dd-trace-integration-enabled:
    * - ``DD_TRACE_<INTEGRATION>_ENABLED``
@@ -177,6 +194,39 @@ below:
      - The trace API version to use when sending traces to the Datadog agent.
        Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
 
+       .. _dd-trace-propagation-style-extract:
+   * - ``DD_TRACE_PROPAGATION_STYLE_EXTRACT``
+     - String
+     - ``datadog``
+     - Comma separated list of propagation styles used for extracting trace context from inbound request headers.
+
+       The supported values are ``datadog``, ``b3``, and ``b3 single header``.
+
+       When checking inbound request headers we will take the first valid trace context in the order ``datadog``, ``b3``,
+       then ``b3 single header``.
+
+       Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
+       headers when parsing incoming request headers for a trace context.
+
+       .. _dd-trace-propagation-style-inject:
+   * - ``DD_TRACE_PROPAGATION_STYLE_INJECT``
+     - String
+     - ``datadog``
+     - Comma separated list of propagation styles used for injecting trace context into outbound request headers.
+
+       The supported values are ``datadog``, ``b3``, and ``b3 single header``.
+
+       All provided styles are injected into the headers of outbound requests.
+
+       Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3"`` to inject both ``x-datadog-*`` and ``x-b3-*``
+       headers into outbound requests.
+
+       .. _dd-trace-x-datadog-tags-max-length:
+   * - ``DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH``
+     - Integer
+     - 512
+     - The maximum length of ``x-datadog-tags`` header allowed in the Datadog propagation style. Must be a value between 0 to 512. If 0, propagation of ``x-datadog-tags`` is disabled.
+
        .. _dd-profiling-enabled:
    * - ``DD_PROFILING_ENABLED``
      - Boolean
@@ -203,6 +253,18 @@ below:
      - 64
      - The maximum number of frames to capture in stack execution tracing.
 
+       .. _dd-profiling-code-provenance:
+   * - ``DD_PROFILING_ENABLE_CODE_PROVENANCE``
+     - Boolean
+     - False
+     - Whether to enable code provenance.
+
+       .. _dd-profiling-memory-enabled:
+   * - ``DD_PROFILING_MEMORY_ENABLED``
+     - Boolean
+     - True
+     - Whether to enable the memory profiler.
+
        .. _dd-profiling-heap-enabled:
    * - ``DD_PROFILING_HEAP_ENABLED``
      - Boolean
@@ -212,7 +274,7 @@ below:
        .. _dd-profiling-capture-pct:
    * - ``DD_PROFILING_CAPTURE_PCT``
      - Float
-     - 2
+     - 1
      - The percentage of events that should be captured (e.g. memory
        allocation). Greater values reduce the program execution speed. Must be
        greater than 0 lesser or equal to 100.

@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.internal import atexit
 
 
@@ -10,35 +12,23 @@ def test_register():
     atexit.unregister(foobar)
 
 
-def test_prog_register(run_python_code_in_subprocess):
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-from ddtrace.internal import atexit
+@pytest.mark.subprocess(out="hello\nworld\n")
+def test_prog_register():
+    from ddtrace.internal import atexit
 
-def foobar(what):
-    print("hello")
-    print(what)
+    def foobar(what):
+        print("hello")
+        print(what)
 
-atexit.register(foobar, "world")
-"""
-    )
-    assert status == 0
-    assert out == b"hello\nworld\n"
-    assert err == b""
+    atexit.register(foobar, "world")
 
 
-def test_prog_unregister(run_python_code_in_subprocess):
-    out, err, status, pid = run_python_code_in_subprocess(
-        """
-from ddtrace.internal import atexit
+@pytest.mark.subprocess
+def test_prog_unregister():
+    from ddtrace.internal import atexit
 
-def foobar():
-    print("hello")
+    def foobar():
+        print("hello")
 
-atexit.register(foobar)
-atexit.unregister(foobar)
-"""
-    )
-    assert status == 0
-    assert out == b""
-    assert err == b""
+    atexit.register(foobar)
+    atexit.unregister(foobar)

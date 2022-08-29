@@ -24,7 +24,7 @@ T = TypeVar("T")
 
 def get_trace_hostname(default=DEFAULT_HOSTNAME):
     # type: (Union[T, str]) -> Union[T, str]
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME", default))
+    return os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME", default))
 
 
 def get_stats_hostname(default=DEFAULT_HOSTNAME):

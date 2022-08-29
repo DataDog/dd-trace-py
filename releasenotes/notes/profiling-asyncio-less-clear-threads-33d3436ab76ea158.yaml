@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes a performance issue with the profiler when used in an asyncio application.

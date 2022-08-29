@@ -9,10 +9,17 @@ from typing import Optional
 import attr
 import six
 
+from ddtrace import config
+from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import USER_KEEP
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
+from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.sampling import is_single_span_sampled
+from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.span import Span
+from ddtrace.span import _is_top_level
 
 
 log = get_logger(__name__)
@@ -56,9 +63,22 @@ class TraceSamplingProcessor(TraceProcessor):
     parts of the trace are unsampled when the whole trace should be sampled.
     """
 
+    _compute_stats_enabled = attr.ib(type=bool)
+
     def process_trace(self, trace):
         # type: (List[Span]) -> Optional[List[Span]]
         if trace:
+            # When stats computation is enabled in the tracer then we can
+            # safely drop the traces.
+            if self._compute_stats_enabled:
+                priority = trace[0]._context.sampling_priority if trace[0]._context is not None else None
+                if priority is not None and priority <= 0:
+                    # When any span is marked as keep by a single span sampling
+                    # decision then we still send all and only those spans.
+                    single_spans = [_ for _ in trace if is_single_span_sampled(_)]
+
+                    return single_spans or None
+
             for span in trace:
                 if span.sampled:
                     return trace
@@ -69,7 +89,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
 
 @attr.s
-class TraceTopLevelSpanProcessor(TraceProcessor):
+class TopLevelSpanProcessor(SpanProcessor):
     """Processor marks spans as top level
 
     A span is top level when it is the entrypoint method for a request to a service.
@@ -81,27 +101,14 @@ class TraceTopLevelSpanProcessor(TraceProcessor):
 
     """
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
-        """Mark a span in a trace as top level if:
-         1. Span is a local root
-         2. Span has a different service name than its parent
+    def on_span_start(self, _):
+        # type: (Span) -> None
+        pass
 
-        Explicitly set top level to 0 if:
-         Span has a truthy parent_id (not zero or None)
-         AND parent span in not in the trace chunk
-        """
-
-        span_ids = {span.span_id for span in trace}
-        for span in trace:
-            if span is span._local_root:
-                span.set_metric("_dd.top_level", 1)
-            elif span._parent and span.service != span._parent.service:
-                span.set_metric("_dd.top_level", 1)
-            elif span.parent_id and span.parent_id not in span_ids:
-                span.set_metric("_dd.top_level", 0)
-
-        return trace
+    def on_span_finish(self, span):
+        # DEV: Update span after finished to avoid race condition
+        if _is_top_level(span):
+            span.set_metric("_dd.top_level", 1)
 
 
 @attr.s
@@ -202,7 +209,51 @@ class SpanAggregator(SpanProcessor):
             log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
             return None
 
-    def shutdown(self):
-        # type: () -> None
-        # TODO: have SpanAggregator own and shutdown its writer (currently `Tracer` owns it)
+    def shutdown(self, timeout):
+        # type: (Optional[float]) -> None
+        """
+        This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
+        used for tracing after this method has been called. A new tracer instance is required to continue tracing.
+
+        :param timeout: How long in seconds to wait for the background worker to flush traces
+            before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
+        :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
+        """
+        try:
+            self._writer.stop(timeout)
+        except ServiceStatusError:
+            # It's possible the writer never got started in the first place :(
+            pass
+
+
+@attr.s
+class SpanSamplingProcessor(SpanProcessor):
+    """SpanProcessor for sampling single spans:
+
+    * Span sampling must be applied after trace sampling priority has been set.
+    * Span sampling rules are specified with a sample rate or rate limit as well as glob patterns
+      for matching spans on service and name.
+    * If the span sampling decision is to keep the span, then span sampling metrics are added to the span.
+    * If a dropped trace includes a span that had been kept by a span sampling rule, then the span is sent to the
+      Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
+    """
+
+    rules = attr.ib(type=List[SpanSamplingRule])
+
+    def on_span_start(self, span):
+        # type: (Span) -> None
         pass
+
+    def on_span_finish(self, span):
+        # type: (Span) -> None
+        # only sample if the span isn't already going to be sampled by trace sampler
+        if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
+            for rule in self.rules:
+                if rule.match(span):
+                    rule.sample(span)
+                    # If stats computation is enabled, we won't send all spans to the agent.
+                    # In order to ensure that the agent does not update priority sampling rates
+                    # due to single spans sampling, we set all of these spans to manual keep.
+                    if config._trace_compute_stats:
+                        span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
+                    break

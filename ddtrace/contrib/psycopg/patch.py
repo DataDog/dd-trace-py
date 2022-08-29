@@ -5,7 +5,10 @@ from psycopg2.sql import Composable
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
+from ddtrace.contrib.trace_utils import ext_service
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.ext import sql
@@ -21,6 +24,7 @@ config._add(
         _default_service="postgres",
         _dbapi_span_name_prefix="postgres",
         trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
+        trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
     ),
 )
 
@@ -38,6 +42,7 @@ def patch():
         return
     setattr(psycopg2, "_datadog_patch", True)
 
+    Pin().onto(psycopg2)
     wrapt.wrap_function_wrapper(psycopg2, "connect", patched_connect)
     _patch_extensions(_psycopg2_extensions)  # do this early just in case
 
@@ -47,6 +52,10 @@ def unpatch():
         setattr(psycopg2, "_datadog_patch", False)
         psycopg2.connect = _connect
         _unpatch_extensions(_psycopg2_extensions)
+
+        pin = Pin.get_from(psycopg2)
+        if pin:
+            pin.remove_from(psycopg2)
 
 
 class Psycopg2TracedCursor(dbapi.TracedCursor):
@@ -120,7 +129,16 @@ def _unpatch_extensions(_extensions):
 
 
 def patched_connect(connect_func, _, args, kwargs):
-    conn = connect_func(*args, **kwargs)
+    pin = Pin.get_from(psycopg2)
+
+    if not pin or not pin.enabled() or not config.psycopg.trace_connect:
+        conn = connect_func(*args, **kwargs)
+    else:
+        with pin.tracer.trace(
+            "psycopg2.connect", service=ext_service(pin, config.psycopg), span_type=SpanTypes.SQL
+        ) as span:
+            span.set_tag(SPAN_MEASURED_KEY)
+            conn = connect_func(*args, **kwargs)
     return patch_conn(conn)
 
 

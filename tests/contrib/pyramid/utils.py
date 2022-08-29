@@ -73,7 +73,7 @@ class PyramidTestCase(PyramidBase):
         if config.pyramid.trace_query_string:
             assert s.get_tag(http.QUERY_STRING) == query_string
         else:
-            assert http.QUERY_STRING not in s._get_tags()
+            assert http.QUERY_STRING not in s.get_tags()
         assert s.get_tag("pyramid.route.name") == "index"
 
     def test_200_query_string(self):

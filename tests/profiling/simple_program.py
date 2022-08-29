@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 import sys
 import time
 
@@ -28,4 +29,5 @@ for x in range(5000000):
     object()
 
 print(len(running_collector.recorder.events[stack_event.StackSampleEvent]))
+print(os.getpid())
 sys.exit(42)

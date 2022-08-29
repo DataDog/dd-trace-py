@@ -35,7 +35,7 @@ def test_lock_acquire_events(tmp_path, monkeypatch):
     p.stop()
 
     lock_found = 0
-    for event in events[collector_threading.LockAcquireEvent]:
+    for event in events[collector_threading.ThreadingLockAcquireEvent]:
         if event.lock_name == "test_threading_asyncio.py:18":
             assert event.task_name.startswith("Task-")
             lock_found += 1

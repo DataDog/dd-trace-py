@@ -6,6 +6,8 @@ from typing import Tuple
 
 from ddtrace.internal.utils.cache import cachedmethod
 
+from ..internal.constants import PROPAGATION_STYLE_ALL
+from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.logger import get_logger
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
@@ -15,6 +17,49 @@ from .integration import IntegrationConfig
 
 
 log = get_logger(__name__)
+
+
+def _parse_propagation_styles(name, default):
+    # type: (str, str) -> set[str]
+    """Helper to parse http propagation extract/inject styles via env variables.
+
+    The expected format is::
+
+        <style>[,<style>...]
+
+
+    The allowed values are:
+
+    - "datadog"
+    - "b3"
+    - "b3 single header"
+
+
+    The default value is ``"datadog"``.
+
+
+    Examples::
+
+        # Extract trace context from "x-datadog-*" or "x-b3-*" headers from upstream headers
+        DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"
+
+        # Inject the "b3: *" header into downstream requests headers
+        DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
+    """
+    styles = set()
+    envvar = os.getenv(name, default=default)
+    for style in envvar.split(","):
+        style = style.strip().lower()
+        if not style:
+            continue
+        if style not in PROPAGATION_STYLE_ALL:
+            raise ValueError(
+                "Unknown style {!r} provided for {!r}, allowed values are {!r}".format(
+                    style, name, PROPAGATION_STYLE_ALL
+                )
+            )
+        styles.add(style)
+    return styles
 
 
 # Borrowed from: https://stackoverflow.com/questions/20656135/python-deep-merge-dictionary-data#20666342
@@ -140,8 +185,32 @@ class Config(object):
 
         self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
+        # Propagation styles
+        self._propagation_style_extract = _parse_propagation_styles(
+            "DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=PROPAGATION_STYLE_DATADOG
+        )
+        self._propagation_style_inject = _parse_propagation_styles(
+            "DD_TRACE_PROPAGATION_STYLE_INJECT", default=PROPAGATION_STYLE_DATADOG
+        )
+
+        # Datadog tracer tags propagation
+        x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
+        if x_datadog_tags_max_length < 0 or x_datadog_tags_max_length > 512:
+            raise ValueError(
+                (
+                    "Invalid value {!r} provided for DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH, "
+                    "only non-negative values less than or equal to 512 allowed"
+                ).format(x_datadog_tags_max_length)
+            )
+        self._x_datadog_tags_max_length = x_datadog_tags_max_length
+        self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
+
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
+        self._trace_compute_stats = asbool(
+            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
+        )
+        self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", False))
 
     def __getattr__(self, name):
         if name not in self._config:

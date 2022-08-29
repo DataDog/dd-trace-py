@@ -14,9 +14,9 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import net
 from ...ext import redis as redisx
+from ...internal.utils.formats import stringify_cache_args
 from ..redis.util import _trace_redis_cmd
 from ..redis.util import _trace_redis_execute_pipeline
-from ..redis.util import format_command_args
 
 
 try:
@@ -84,7 +84,7 @@ async def traced_execute_pipeline(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    cmds = [format_command_args(c) for c, _ in instance.command_stack]
+    cmds = [stringify_cache_args(c) for c, _ in instance.command_stack]
     resource = "\n".join(cmds)
     with _trace_redis_execute_pipeline(pin, config.aioredis, resource, instance):
         return await func(*args, **kwargs)
@@ -120,7 +120,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
     )
 
     span.set_tag(SPAN_MEASURED_KEY)
-    query = format_command_args(args)
+    query = stringify_cache_args(args)
     span.resource = query
     span.set_tag(redisx.RAWCMD, query)
     if pin.tags:
@@ -166,7 +166,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
     for _, cmd, cmd_args, _ in instance._pipeline:
         parts = [cmd]
         parts.extend(cmd_args)
-        cmds.append(format_command_args(parts))
+        cmds.append(stringify_cache_args(parts))
     resource = "\n".join(cmds)
     with pin.tracer.trace(
         redisx.CMD,

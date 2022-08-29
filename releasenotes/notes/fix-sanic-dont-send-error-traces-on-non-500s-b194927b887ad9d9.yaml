@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    sanic: Don't send non-500s error traces.

@@ -63,7 +63,7 @@ class TracedMongoClient(ObjectProxy):
             client._topology = TracedTopology(client._topology)
 
         # Default Pin
-        ddtrace.Pin(service=mongox.SERVICE).onto(self)
+        ddtrace.Pin(service="pymongo").onto(self)
 
     def __setddpin__(self, pin):
         pin.onto(self._topology)

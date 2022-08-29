@@ -1,24 +1,27 @@
-# dd-trace-py
+# `ddtrace`
 
 [![CircleCI](https://circleci.com/gh/DataDog/dd-trace-py/tree/1.x.svg?style=svg)](https://circleci.com/gh/DataDog/dd-trace-py/tree/1.x)
-[![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
 [![PypiVersions](https://img.shields.io/pypi/v/ddtrace.svg)](https://pypi.org/project/ddtrace/)
-[![OpenTracing Badge](https://img.shields.io/badge/OpenTracing-enabled-blue.svg)](https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html#opentracing)
+[![Pyversions](https://img.shields.io/pypi/pyversions/ddtrace.svg?style=flat)](https://pypi.org/project/ddtrace/)
 
-`ddtrace` is Datadog's tracing library for Python. It is used to trace requests
-as they flow across web servers, databases and microservices so that developers
-have great visibility into bottlenecks and troublesome requests.
+<img align="right" src="https://user-images.githubusercontent.com/6321485/167082083-53f6e48f-1843-4708-9b98-587c94f7ddb3.png" alt="bits python" width="200px"/>
 
-## Getting Started
+This repository contains `ddtrace`, Datadog's APM client Python package. `ddtrace` contains APIs to automatically or
+manually [trace](https://docs.datadoghq.com/tracing/visualization/#trace) and
+[profile](https://docs.datadoghq.com/tracing/profiler/) Python applications.
 
-For a basic product overview, installation and quick start, check out our
-[setup documentation][setup docs].
+These features power [Distributed Tracing](https://docs.datadoghq.com/tracing/),
+ [Continuous Profiling](https://docs.datadoghq.com/tracing/profiler/),
+ [Error Tracking](https://docs.datadoghq.com/tracing/error_tracking/),
+ [Continuous Integration Visibility](https://docs.datadoghq.com/continuous_integration/),
+ [Deployment Tracking](https://docs.datadoghq.com/tracing/deployment_tracking/),
+ [Code Hotspots](https://docs.datadoghq.com/tracing/profiler/connect_traces_and_profiles/) and more.
 
-For more advanced usage and configuration, check out our [API
-documentation][api docs].
+To get started, check out the [setup documentation][setup docs].
 
-For descriptions of terminology used in APM, take a look at the [official
-documentation][visualization docs].
+For advanced usage and configuration, check out the [API documentation][api docs].
+
+Confused about the terminology of APM? Take a look at the [APM Glossary][visualization docs].
 
 [setup docs]: https://docs.datadoghq.com/tracing/setup/python/
 [api docs]: https://ddtrace.readthedocs.io/
@@ -28,7 +31,7 @@ documentation][visualization docs].
 
 ### Contributing
 
-See [docs/contributing.rst](docs/contributing.rst).
+See [the contributing docs](https://ddtrace.readthedocs.io/en/stable/contributing.html) first.
 
 ### Pre-commit Hooks
 
@@ -61,9 +64,9 @@ launch them through:
 2. The tests for this project run on various versions of Python. We recommend
    using a Python version management tool, such as
    [pyenv](https://github.com/pyenv/pyenv), to utilize multiple versions of
-   Python. Install Pyenv: https://github.com/pyenv/pyenv#installation
-3. Install the relevant versions of Python in Pyenv: `pyenv install 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
-4. Make those versions available globally: `pyenv global 3.9.1, 2.7.18, 3.5.10, 3.6.12, 3.7.9, 3.8.7, 3.10.0`
+   Python. [How to install Pyenv](https://github.com/pyenv/pyenv#installation) 
+3. Install the relevant versions of Python in Pyenv: `pyenv install 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.13 3.10.5`
+4. Make those versions available globally: `pyenv global 2.7.18 3.5.10 3.6.15 3.7.13 3.8.13 3.9.13 3.10.5`
 
 ### Testing
 

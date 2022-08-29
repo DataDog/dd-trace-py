@@ -16,6 +16,7 @@ from django.views.generic import TemplateView
 from django.views.generic import View
 
 from ddtrace import tracer
+from ddtrace.contrib.trace_utils import set_user
 
 
 class UserList(ListView):
@@ -178,3 +179,35 @@ class ComposedView(TemplateView, CustomDispatchView):
 
 def not_found_view(request):
     raise Http404("DNE")
+
+
+def path_params_view(request, year, month):
+    return HttpResponse(status=200)
+
+
+def identify(request):
+    set_user(
+        tracer,
+        user_id="usr.id",
+        email="usr.email",
+        name="usr.name",
+        session_id="usr.session_id",
+        role="usr.role",
+        scope="usr.scope",
+    )
+    return HttpResponse(status=200)
+
+
+def body_view(request):
+    # Django >= 3
+    if hasattr(request, "headers"):
+        content_type = request.headers["Content-Type"]
+    else:
+        # Django < 3
+        content_type = request.META["CONTENT_TYPE"]
+    if content_type in ("application/json", "application/xml", "text/xml"):
+        data = request.body
+        return HttpResponse(data, status=200)
+    else:
+        data = request.POST
+        return HttpResponse(str(dict(data)), status=200)

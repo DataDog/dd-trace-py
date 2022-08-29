@@ -1,0 +1,24 @@
+[[
+  {
+    "name": "psycopg2.connect",
+    "service": "postgres",
+    "resource": "psycopg2.connect",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "4165259776d24f23aae066cf1adfca38"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 98154
+    },
+    "duration": 9097000,
+    "start": 1650568907426444000
+  }]]

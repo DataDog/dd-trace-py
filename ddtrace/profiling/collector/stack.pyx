@@ -114,8 +114,10 @@ IF UNAME_SYSNAME == "Linux":
 
             return pthread_cpu_time
 ELSE:
+    from libc cimport stdint
+
     cdef class _ThreadTime(object):
-        cdef long _last_process_time
+        cdef stdint.int64_t _last_process_time
 
         def __init__(self):
             self._last_process_time = compat.process_time_ns()
@@ -286,66 +288,66 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
     stack_events = []
     exc_events = []
 
-    for thread_id, thread_native_id, thread_name, frame, exception, span, cpu_time in running_threads:
-        task_id, task_name, task_frame = _task.get_task(thread_id)
+    for thread_id, thread_native_id, thread_name, thread_pyframes, exception, span, cpu_time in running_threads:
+        thread_task_id, thread_task_name, thread_task_frame = _task.get_task(thread_id)
 
         # When gevent thread monkey-patching is enabled, our PeriodicCollector non-real-threads are gevent tasks.
         # Therefore, they run in the main thread and their samples are collected by `collect_threads`.
         # We ignore them here:
-        if task_id in thread_id_ignore_list:
+        if thread_task_id in thread_id_ignore_list:
             continue
 
         tasks = _task.list_tasks(thread_id)
 
+        # This boolean value is used to know if we injected a sample that accounts for the CPU time.
+        # In the case of a gevent program this can be injected into a task.
+        # In other cases, it's injected in a regular sample.
+        cpu_time_accounted_for = False
+
         # Inject wall time for all running tasks
-        for task_id, task_name, task_frame in tasks:
-            # Inject the task frame and replace the thread frame: this is especially handy for gevent as it allows us to
-            # replace the "hub" stack trace by the latest active greenlet, which is more interesting to show and account
-            # resources for.
-            if task_frame is not None:
-               frame = task_frame
+        for task_id, task_name, task_pyframes in tasks:
 
-            frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
+            # Ignore tasks with no frames; nothing to show.
+            if task_pyframes is None:
+                continue
 
-            if task_id == compat.main_thread.ident:
-                event = stack_event.StackSampleEvent(
-                    thread_id=thread_id,
-                    thread_native_id=thread_native_id,
-                    thread_name=thread_name,
-                    task_id=task_id,
-                    task_name=task_name,
-                    nframes=nframes, frames=frames,
-                    wall_time_ns=wall_time,
-                    cpu_time_ns=cpu_time,
-                    sampling_period=int(interval * 1e9),
-                )
+            if task_id in thread_id_ignore_list:
+                continue
 
-                # FIXME: we only trace spans per thread, so we assign the span to the main thread for now
-                # we'd need to leverage the greenlet tracer to also store the active span
-                event.set_trace_info(span, collect_endpoint)
-            else:
-                event = stack_event.StackSampleEvent(
-                    thread_id=thread_id,
-                    thread_native_id=thread_native_id,
-                    thread_name=thread_name,
-                    task_id=task_id,
-                    task_name=task_name,
-                    nframes=nframes, frames=frames,
-                    wall_time_ns=wall_time,
-                    # we don't have CPU time per task
-                    sampling_period=int(interval * 1e9),
-                )
-
-            stack_events.append(event)
-
-        # If a thread has no task, we inject the "regular" thread samples
-        if len(tasks) == 0:
-            frames, nframes = _traceback.pyframe_to_frames(frame, max_nframes)
+            frames, nframes = _traceback.pyframe_to_frames(task_pyframes, max_nframes)
 
             event = stack_event.StackSampleEvent(
                 thread_id=thread_id,
                 thread_native_id=thread_native_id,
                 thread_name=thread_name,
+                task_id=task_id,
+                task_name=task_name,
+                nframes=nframes, frames=frames,
+                wall_time_ns=wall_time,
+                sampling_period=int(interval * 1e9),
+            )
+
+            # This only works for gevent
+            if task_id == compat.main_thread.ident:
+                event.cpu_time_ns = cpu_time
+                # FIXME: we only trace spans per thread, so we assign the span to the main thread for now
+                # we'd need to leverage the greenlet tracer to also store the active span
+                event.set_trace_info(span, collect_endpoint)
+
+                cpu_time_accounted_for = True
+
+            stack_events.append(event)
+
+        # If a thread has no task, we inject the "regular" thread samples
+        if not cpu_time_accounted_for:
+            frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
+
+            event = stack_event.StackSampleEvent(
+                thread_id=thread_id,
+                thread_native_id=thread_native_id,
+                thread_name=thread_name,
+                task_id=thread_task_id,
+                task_name=thread_task_name,
                 nframes=nframes,
                 frames=frames,
                 wall_time_ns=wall_time,
@@ -364,8 +366,8 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 thread_id=thread_id,
                 thread_name=thread_name,
                 thread_native_id=thread_native_id,
-                task_id=task_id,
-                task_name=task_name,
+                task_id=thread_task_id,
+                task_name=thread_task_name,
                 nframes=nframes,
                 frames=frames,
                 sampling_period=int(interval * 1e9),
@@ -439,7 +441,7 @@ class StackCollector(collector.PeriodicCollector):
     endpoint_collection_enabled = attr.ib(factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool))
     tracer = attr.ib(default=None)
     _thread_time = attr.ib(init=False, repr=False, eq=False)
-    _last_wall_time = attr.ib(init=False, repr=False, eq=False)
+    _last_wall_time = attr.ib(init=False, repr=False, eq=False, type=int)
     _thread_span_links = attr.ib(default=None, init=False, repr=False, eq=False)
 
     @max_time_usage_pct.validator

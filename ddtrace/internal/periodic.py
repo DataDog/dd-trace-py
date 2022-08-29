@@ -53,21 +53,68 @@ class PeriodicThread(threading.Thread):
         if self.is_alive():
             self.quit.set()
 
+    def _is_proper_class(self):
+        # DEV: Some frameworks, like e.g. gevent, seem to resuscitate some
+        # of the threads that were running prior to the fork of the worker
+        # processes. These threads are normally created via the native API
+        # and are exposed to the child process as _DummyThreads. We check
+        # whether the current thread is no longer an instance of the
+        # original thread class to prevent it from running in the child
+        # process while the state copied over from the parent is being
+        # cleaned up. The restarting of the thread is responsibility to the
+        # registered forksafe hooks.
+        return isinstance(threading.current_thread(), self.__class__)
+
     def run(self):
         """Run the target function periodically."""
         while not self.quit.wait(self.interval):
-            # DEV: Some frameworks, like e.g. gevent, seem to resuscitate some
-            # of the threads that were running prior to the fork of the worker
-            # processes. These threads are normally created via the native API
-            # and are exposed to the child process as _DummyThreads. We check
-            # whether the current thread is no longer an instance of the
-            # original thread class to prevent it from running in the child
-            # process while the state copied over from the parent is being
-            # cleaned up. The restarting of the thread is responsibility to the
-            # registered forksafe hooks.
-            if not isinstance(threading.current_thread(), self.__class__):
+            if not self._is_proper_class():
                 break
             self._target()
+        if self._on_shutdown is not None:
+            self._on_shutdown()
+
+
+class AwakeablePeriodicThread(PeriodicThread):
+    """Periodic thread that can be awakened on demand.
+
+    This class can be used to instantiate a worker thread that will run its
+    `run_periodic` function every `interval` seconds, or upon request.
+    """
+
+    def __init__(
+        self,
+        interval,  # type: float
+        target,  # type: typing.Callable[[], typing.Any]
+        name=None,  # type: typing.Optional[str]
+        on_shutdown=None,  # type: typing.Optional[typing.Callable[[], typing.Any]]
+    ):
+        # type: (...) -> None
+        """Create a periodic thread that can be awakened on demand."""
+        super(AwakeablePeriodicThread, self).__init__(interval, target, name, on_shutdown)
+        self.request = forksafe.Event()
+        self.served = forksafe.Event()
+        self.awake_lock = forksafe.Lock()
+
+    def awake(self):
+        """Awake the thread."""
+        with self.awake_lock:
+            self.served.clear()
+            self.request.set()
+            self.served.wait()
+
+    def run(self):
+        """Run the target function periodically or on demand."""
+        while not self.quit.is_set():
+            if not self._is_proper_class():
+                break
+
+            self._target()
+
+            if self.request.wait(self.interval):
+                self.request.clear()
+                self.served.set()
+
         if self._on_shutdown is not None:
             self._on_shutdown()
 
@@ -163,6 +210,67 @@ class _GeventPeriodicThread(PeriodicThread):
                     raise
 
 
+class _GeventAwakeablePeriodicThread(_GeventPeriodicThread):
+    """Periodic awakeable thread."""
+
+    def __init__(self, interval, target, name=None, on_shutdown=None):
+        super(_GeventAwakeablePeriodicThread, self).__init__(interval, target, name, on_shutdown)
+        self.request = False
+        self.served = False
+        self.awake_lock = nogevent.DoubleLock()
+
+    def stop(self):
+        """Stop the thread."""
+        super(_GeventAwakeablePeriodicThread, self).stop()
+        self.request = True
+
+    def awake(self):
+        with self.awake_lock:
+            self.served = False
+            self.request = True
+            while not self.served:
+                nogevent.sleep(self.SLEEP_INTERVAL)
+
+    def run(self):
+        """Run the target function periodically."""
+        # Do not use the threading._active_limbo_lock here because it's a gevent lock
+        threading._active[self._tident] = self
+
+        self._periodic_started = True
+
+        try:
+            while not self.quit:
+                self._target()
+
+                slept = 0
+                while self.request is False and slept < self.interval:
+                    nogevent.sleep(self.SLEEP_INTERVAL)
+                    slept += self.SLEEP_INTERVAL
+
+                if self.request:
+                    self.request = False
+                    self.served = True
+
+            if self._on_shutdown is not None:
+                self._on_shutdown()
+        except Exception:
+            # Exceptions might happen during interpreter shutdown.
+            # We're mimicking what `threading.Thread` does in daemon mode, we ignore them.
+            # See `threading.Thread._bootstrap` for details.
+            if sys is not None:
+                raise
+        finally:
+            try:
+                self._periodic_stopped = True
+                del threading._active[self._tident]
+            except Exception:
+                # Exceptions might happen during interpreter shutdown.
+                # We're mimicking what `threading.Thread` does in daemon mode, we ignore them.
+                # See `threading.Thread._bootstrap` for details.
+                if sys is not None:
+                    raise
+
+
 def PeriodicRealThreadClass():
     # type: () -> typing.Type[PeriodicThread]
     """Return a PeriodicThread class based on the underlying thread implementation (native, gevent, etc).
@@ -177,6 +285,11 @@ def PeriodicRealThreadClass():
     return PeriodicThread
 
 
+def AwakeablePeriodicRealThreadClass():
+    # type: () -> typing.Type[PeriodicThread]
+    return _GeventAwakeablePeriodicThread if nogevent.is_module_patched("threading") else AwakeablePeriodicThread
+
+
 @attr.s(eq=False)
 class PeriodicService(service.Service):
     """A service that runs periodically."""
@@ -186,6 +299,8 @@ class PeriodicService(service.Service):
 
     _real_thread = False
     "Class variable to override if the service should run in a real OS thread."
+
+    __thread_class__ = (PeriodicRealThreadClass, PeriodicThread)
 
     @property
     def interval(self):
@@ -209,7 +324,8 @@ class PeriodicService(service.Service):
     ):
         # type: (...) -> None
         """Start the periodic service."""
-        periodic_thread_class = PeriodicRealThreadClass() if self._real_thread else PeriodicThread
+        real_class, python_class = self.__thread_class__
+        periodic_thread_class = real_class() if self._real_thread else python_class
         self._worker = periodic_thread_class(
             self.interval,
             target=self.periodic,
@@ -242,3 +358,13 @@ class PeriodicService(service.Service):
     def periodic(self):
         # type: (...) -> None
         pass
+
+
+class AwakeablePeriodicService(PeriodicService):
+    """A service that runs periodically but that can also be awakened on demand."""
+
+    __thread_class__ = (AwakeablePeriodicRealThreadClass, AwakeablePeriodicThread)
+
+    def awake(self):
+        # type: (...) -> None
+        self._worker.awake()

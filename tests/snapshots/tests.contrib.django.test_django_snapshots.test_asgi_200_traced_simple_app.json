@@ -8,10 +8,12 @@
     "parent_id": 0,
     "type": "web",
     "meta": {
+      "_dd.p.dm": "-0",
       "asgi.version": "3.0",
       "http.method": "GET",
       "http.status_code": "200",
-      "http.url": "http://127.0.0.1:8000/traced-simple-asgi-app/",
+      "http.url": "http://localhost:8000/traced-simple-asgi-app/",
+      "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
       "runtime-id": "74a5040e28844593a7cbe579f49ab5e4"
     },

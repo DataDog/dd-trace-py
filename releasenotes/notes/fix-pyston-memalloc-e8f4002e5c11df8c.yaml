@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix issue building ``ddtrace`` for the Pyston Python implementation by
+    not building the ``_memalloc`` extension anymore when using Pyston. 

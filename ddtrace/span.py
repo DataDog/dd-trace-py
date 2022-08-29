@@ -38,6 +38,8 @@ from .internal.compat import numeric_types
 from .internal.compat import stringify
 from .internal.compat import time_ns
 from .internal.logger import get_logger
+from .internal.sampling import SamplingMechanism
+from .internal.sampling import update_sampling_decision
 
 
 _NUMERIC_TAGS = (ANALYTICS_SAMPLE_RATE_KEY,)
@@ -61,6 +63,7 @@ class Span(object):
         "_meta",
         "error",
         "_metrics",
+        "_store",
         "span_type",
         "start_ns",
         "duration_ns",
@@ -146,6 +149,7 @@ class Span(object):
         self._parent = None  # type: Optional[Span]
         self._ignored_exceptions = None  # type: Optional[List[Exception]]
         self._local_root = None  # type: Optional[Span]
+        self._store = None  # type: Optional[Dict[str, Any]]
 
     def _ignore_exception(self, exc):
         # type: (Exception) -> None
@@ -153,6 +157,18 @@ class Span(object):
             self._ignored_exceptions = [exc]
         else:
             self._ignored_exceptions.append(exc)
+
+    def _set_ctx_item(self, key, val):
+        # type: (str, Any) -> None
+        if not self._store:
+            self._store = {}
+        self._store[key] = val
+
+    def _get_ctx_item(self, key):
+        # type: (str) -> Optional[Any]
+        if not self._store:
+            return None
+        return self._store.get(key)
 
     @property
     def start(self):
@@ -283,9 +299,11 @@ class Span(object):
 
         elif key == MANUAL_KEEP_KEY:
             self.context.sampling_priority = USER_KEEP
+            update_sampling_decision(self.context, SamplingMechanism.MANUAL, True)
             return
         elif key == MANUAL_DROP_KEY:
             self.context.sampling_priority = USER_REJECT
+            update_sampling_decision(self.context, SamplingMechanism.MANUAL, False)
             return
         elif key == SERVICE_KEY:
             self.service = value
@@ -331,7 +349,7 @@ class Span(object):
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def _get_tags(self):
+    def get_tags(self):
         # type: () -> _MetaDictType
         """Return all tags."""
         return self._meta.copy()
@@ -385,47 +403,13 @@ class Span(object):
 
     def get_metric(self, key):
         # type: (_TagNameType) -> Optional[NumericType]
+        """Return the given metric or None if it doesn't exist."""
         return self._metrics.get(key)
 
-    def _get_metrics(self):
+    def get_metrics(self):
         # type: () -> _MetricDictType
+        """Return all metrics."""
         return self._metrics.copy()
-
-    def to_dict(self):
-        # type: () -> Dict[str, Any]
-        d = {
-            "trace_id": self.trace_id,
-            "parent_id": self.parent_id,
-            "span_id": self.span_id,
-            "service": self.service,
-            "resource": self.resource,
-            "name": self.name,
-            "error": self.error,
-        }
-
-        # a common mistake is to set the error field to a boolean instead of an
-        # int. let's special case that here, because it's sure to happen in
-        # customer code.
-        err = d.get("error")
-        if err and type(err) == bool:
-            d["error"] = 1
-
-        if self.start_ns:
-            d["start"] = self.start_ns
-
-        if self.duration_ns:
-            d["duration"] = self.duration_ns
-
-        if self._meta:
-            d["meta"] = self._meta
-
-        if self._metrics:
-            d["metrics"] = self._metrics
-
-        if self.span_type:
-            d["type"] = self.span_type
-
-        return d
 
     def set_traceback(self, limit=20):
         # type: (int) -> None
@@ -521,3 +505,15 @@ class Span(object):
             self.parent_id,
             self.name,
         )
+
+
+def _is_top_level(span):
+    # type: (Span) -> bool
+    """Return whether the span is a "top level" span.
+
+    Top level meaning the root of the trace or a child span
+    whose service is different from its parent.
+    """
+    return (span._local_root is span) or (
+        span._parent is not None and span._parent.service != span.service and span.service is not None
+    )

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    psycopg2: add option to enable tracing ``psycopg2.connect`` method.
+
+    See our :ref:`psycopg2` documentation for more information.

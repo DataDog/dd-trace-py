@@ -1,4 +1,15 @@
+from contextlib import contextmanager
+from typing import Any
+from typing import Callable
+from typing import ContextManager
+from typing import Generator
 from typing import Optional
+from typing import Union
+
+from ddtrace.internal import compat
+
+
+Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
 
 
 def normalize_header_name(header_name):
@@ -25,3 +36,45 @@ def strip_query_string(url):
     if not f:
         return h
     return h + fs + f
+
+
+def connector(url, **kwargs):
+    # type: (str, Any) -> Connector
+    """Create a connector context manager for the given URL.
+
+    This function returns a context manager that wraps a connection object to
+    perform HTTP requests against the given URL. Extra keyword arguments can be
+    passed to the underlying connection object, if needed.
+
+    Example::
+        >>> connect = connector("http://localhost:8080")
+        >>> with connect() as conn:
+        ...     conn.request("GET", "/")
+        ...     ...
+    """
+    scheme = "http"
+    if "://" in url:
+        scheme, _, authority = url.partition("://")
+    else:
+        authority = url
+
+    try:
+        Connection = {
+            "http": compat.httplib.HTTPConnection,
+            "https": compat.httplib.HTTPSConnection,
+            "unix": compat.httplib.HTTPConnection,
+        }[scheme]
+    except KeyError:
+        raise ValueError("Unsupported scheme: %s" % scheme)
+
+    host, _, _port = authority.partition(":")
+    port = int(_port) if _port else None
+
+    @contextmanager
+    def _connector_context():
+        # type: () -> Generator[Union[compat.httplib.HTTPConnection, compat.httplib.HTTPSConnection], None, None]
+        connection = Connection(host, port, **kwargs)
+        yield connection
+        connection.close()
+
+    return _connector_context

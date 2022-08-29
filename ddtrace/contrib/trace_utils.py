@@ -8,15 +8,19 @@ from typing import Callable
 from typing import Dict
 from typing import Generator
 from typing import Iterator
+from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
+from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.ext import http
+from ddtrace.ext import user
+from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
@@ -45,6 +49,9 @@ RESPONSE = "response"
 # With the exception of '.' in header names which are replaced with '_' to avoid
 # starting a "new object" on the UI.
 NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
+
+# Possible User Agent header.
+USER_AGENT_PATTERNS = {"HTTP_USER_AGENT", "User-Agent", "user-agent", "Http-User-Agent"}
 
 
 @cached()
@@ -99,11 +106,26 @@ def _store_headers(headers, span, integration_config, request_or_response):
         return
 
     for header_name, header_value in headers.items():
+        """config._header_tag_name gets an element of the dictionary in config.http._header_tags
+        which gets the value from DD_TRACE_HEADER_TAGS environment variable."""
         tag_name = integration_config._header_tag_name(header_name)
         if tag_name is None:
             continue
         # An empty tag defaults to a http.<request or response>.headers.<header name> tag
         span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
+
+
+def _get_request_header_user_agent(headers):
+    # type: (Dict[str, str]) -> str
+    """Get user agent from request headers
+    :param headers: A dict of http headers to be stored in the span
+    :type headers: dict or list
+    """
+    for key_pattern in USER_AGENT_PATTERNS:
+        user_agent = headers.get(key_pattern)
+        if user_agent:
+            return user_agent
+    return ""
 
 
 def _store_request_headers(headers, span, integration_config):
@@ -179,6 +201,7 @@ def distributed_tracing_enabled(int_config, default=False):
 
 
 def int_service(pin, int_config, default=None):
+    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -186,47 +209,44 @@ def int_service(pin, int_config, default=None):
     For internal integrations we prioritize overrides, then global defaults and
     lastly the default provided by the integration.
     """
-    int_config = int_config or {}
-
     # Pin has top priority since it is user defined in code
-    if pin and pin.service:
+    if pin is not None and pin.service:
         return pin.service
 
     # Config is next since it is also configured via code
     # Note that both service and service_name are used by
     # integrations.
     if "service" in int_config and int_config.service is not None:
-        return int_config.service
+        return cast(str, int_config.service)
     if "service_name" in int_config and int_config.service_name is not None:
-        return int_config.service_name
+        return cast(str, int_config.service_name)
 
     global_service = int_config.global_config._get_service()
     if global_service:
-        return global_service
+        return cast(str, global_service)
 
     if "_default_service" in int_config and int_config._default_service is not None:
-        return int_config._default_service
+        return cast(str, int_config._default_service)
 
     return default
 
 
 def ext_service(pin, int_config, default=None):
+    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
     """
-    int_config = int_config or {}
-
-    if pin and pin.service:
+    if pin is not None and pin.service:
         return pin.service
 
     if "service" in int_config and int_config.service is not None:
-        return int_config.service
+        return cast(str, int_config.service)
     if "service_name" in int_config and int_config.service_name is not None:
-        return int_config.service_name
+        return cast(str, int_config.service_name)
 
     if "_default_service" in int_config and int_config._default_service is not None:
-        return int_config._default_service
+        return cast(str, int_config._default_service)
 
     # A default is required since it's an external service.
     return default
@@ -240,11 +260,32 @@ def set_http_meta(
     status_code=None,  # type: Optional[Union[int, str]]
     status_msg=None,  # type: Optional[str]
     query=None,  # type: Optional[str]
+    parsed_query=None,  # type: Optional[Mapping[str, str]]
     request_headers=None,  # type: Optional[Mapping[str, str]]
     response_headers=None,  # type: Optional[Mapping[str, str]]
     retries_remain=None,  # type: Optional[Union[int, str]]
+    raw_uri=None,  # type: Optional[str]
+    request_cookies=None,  # type: Optional[Dict[str, str]]
+    request_path_params=None,  # type: Optional[Dict[str, str]]
+    request_body=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
 ):
     # type: (...) -> None
+    """
+    Set HTTP metas on the span
+
+    :param method: the HTTP method
+    :param url: the HTTP URL
+    :param status_code: the HTTP status code
+    :param status_msg: the HTTP status message
+    :param query: the HTTP query part of the URI as a string
+    :param parsed_query: the HTTP query part of the URI as parsed by the framework and forwarded to the user code
+    :param request_headers: the HTTP request headers
+    :param response_headers: the HTTP response headers
+    :param raw_uri: the full raw HTTP URI (including ports and query)
+    :param request_cookies: the HTTP request cookies as a dict
+    :param request_path_params: the parameters of the HTTP URL as set by the framework: /posts/<id:int> would give us
+         { "id": <int_value> }
+    """
     if method is not None:
         span._set_str_tag(http.METHOD, method)
 
@@ -267,14 +308,43 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span._set_str_tag(http.QUERY_STRING, query)
 
-    if request_headers is not None and integration_config.is_header_tracing_configured:
-        _store_request_headers(dict(request_headers), span, integration_config)
+    if request_headers:
+        user_agent = _get_request_header_user_agent(request_headers)
+        if user_agent:
+            span.set_tag(http.USER_AGENT, user_agent)
+
+        if integration_config.is_header_tracing_configured:
+            """We should store both http.<request_or_response>.headers.<header_name> and http.<key>. The last one
+            is the DD standardized tag for user-agent"""
+            _store_request_headers(dict(request_headers), span, integration_config)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
 
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
+
+    if config._appsec:
+        status_code = str(status_code) if status_code is not None else None
+
+        _context.set_items(
+            {
+                k: v
+                for k, v in [
+                    ("http.request.uri", raw_uri),
+                    ("http.request.method", method),
+                    ("http.request.cookies", request_cookies),
+                    ("http.request.query", parsed_query),
+                    ("http.request.headers", request_headers),
+                    ("http.response.headers", response_headers),
+                    ("http.response.status", status_code),
+                    ("http.request.path_params", request_path_params),
+                    ("http.request.body", request_body),
+                ]
+                if v is not None
+            },
+            span=span,
+        )
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
@@ -289,9 +359,31 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
 
     if override or (int_config and distributed_tracing_enabled(int_config)):
         context = HTTPPropagator.extract(request_headers)
+
         # Only need to activate the new context if something was propagated
-        if context.trace_id:
-            tracer.context_provider.activate(context)
+        if not context.trace_id:
+            return None
+
+        # Do not reactivate a context with the same trace id
+        # DEV: An example could be nested web frameworks, when one layer already
+        #      parsed request headers and activated them.
+        #
+        # Example::
+        #
+        #     app = Flask(__name__)  # Traced via Flask instrumentation
+        #     app = DDWSGIMiddleware(app)  # Extra layer on top for WSGI
+        current_context = tracer.current_trace_context()
+        if current_context and current_context.trace_id == context.trace_id:
+            log.debug(
+                "will not activate extracted Context(trace_id=%r, span_id=%r), a context with that trace id is already active",  # noqa: E501
+                context.trace_id,
+                context.span_id,
+            )
+            return None
+
+        # We have parsed a trace id from headers, and we do not already
+        # have a context with the same trace id active
+        tracer.context_provider.activate(context)
 
 
 def _flatten(
@@ -324,3 +416,33 @@ def set_flattened_tags(
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
             span.set_tag(tag, processor(v) if processor is not None else v)
+
+
+def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, session_id=None):
+    # type: (Tracer, str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]) -> None
+    """Set user tags.
+    https://docs.datadoghq.com/logs/log_configuration/attributes_naming_convention/#user-related-attributes
+    https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
+    """
+    span = tracer.current_root_span()
+    if span:
+        # Required unique identifier of the user
+        span.set_tag(user.ID, user_id)
+
+        # All other fields are optional
+        if name:
+            span.set_tag(user.NAME, name)
+        if email:
+            span.set_tag(user.EMAIL, email)
+        if scope:
+            span.set_tag(user.SCOPE, scope)
+        if role:
+            span.set_tag(user.ROLE, role)
+        if session_id:
+            span.set_tag(user.SESSION_ID, session_id)
+    else:
+        log.warning(
+            "No root span in the current execution. Skipping set_user tags. "
+            "See https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/"
+            "?tab=set_user&code-lang=python for more information.",
+        )

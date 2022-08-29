@@ -1,12 +1,16 @@
 import platform
 import sys
 from typing import Dict
+from typing import List
 from typing import Tuple
 
 from ddtrace.internal.compat import PY3
+from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.runtime.container import get_container_info
 from ddtrace.internal.utils.cache import cached
 
+from ...settings import _config as config
 from ...version import get_version
 from ..hostname import get_hostname
 
@@ -46,7 +50,7 @@ def _get_application(key):
     service, version, env = key
 
     return {
-        "service_name": service or "unnamed_python_service",  # mandatory field, can not be empty
+        "service_name": service or DEFAULT_SERVICE_NAME,  # mandatory field, can not be empty
         "service_version": version or "",
         "env": env or "",
         "language_name": "python",
@@ -54,14 +58,32 @@ def _get_application(key):
         "tracer_version": get_version(),
         "runtime_name": platform.python_implementation(),
         "runtime_version": _format_version_info(sys.implementation.version) if PY3 else "",
+        "products": _get_products(),
     }
 
 
+def get_dependencies():
+    # type: () -> List[Dict[str, str]]
+    """Returns a unique list of the names and versions of all installed packages"""
+    dependencies = {(dist.name, dist.version) for dist in get_distributions()}
+    return [{"name": name, "version": version} for name, version in dependencies]
+
+
 def get_application(service, version, env):
+    # type: (str, str, str) -> Dict
     """Creates a dictionary to store application data using ddtrace configurations and the System-Specific module"""
     # We cache the application dict to reduce overhead since service, version, or env configurations
     # can change during runtime
     return _get_application((service, version, env))
+
+
+def _get_products():
+    # type: () -> Dict
+    products = {}
+    if config._appsec_enabled:
+        products["appsec"] = {"version": get_version()}
+
+    return products
 
 
 _host_info = None

@@ -33,6 +33,19 @@ Global Configuration
 
    Default: ``False``
 
+.. _mysqldb_config_trace_connect:
+
+.. py:data:: ddtrace.config.mysqldb["trace_connect"]
+
+   Whether or not to trace connecting.
+
+   Can also be configured via the ``DD_MYSQLDB_TRACE_CONNECT`` environment variable.
+
+   Note that if you are overriding the service name via the Pin on an individual cursor, that will not affect
+   connect traces. The service name must also be overridden on the Pin on the MySQLdb module.
+
+   Default: ``False``
+
 
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~

@@ -27,7 +27,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: scripts/check-releasenotes
 
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v4
         name: Install Python
         with:
           python-version: '3.8'
@@ -44,7 +44,7 @@ jobs:
           rst2html.py CHANGELOG.rst CHANGELOG.html
 
       - name: Upload CHANGELOG.rst
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: changelog
           path: |

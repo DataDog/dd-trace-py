@@ -49,7 +49,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
-        self.assertEqual(handler_span._get_tags(), dict())
+        self.assertEqual(handler_span.get_tags(), dict())
 
     def test_view_handler_error(self):
         """
@@ -68,6 +68,8 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         res = self.client.get("/hello/flask")
         self.assertEqual(res.status_code, 500)
+        # Read response data from the test client to close flask.request and flask.response spans
+        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
 
@@ -130,7 +132,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
-        self.assertEqual(handler_span._get_tags(), dict())
+        self.assertEqual(handler_span.get_tags(), dict())
 
     def test_method_view_handler_error(self):
         """
@@ -147,6 +149,8 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         res = self.client.get("/hello/flask")
         self.assertEqual(res.status_code, 500)
+        # Read response data from the test client to close flask.request and flask.response spans
+        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
 

@@ -11,6 +11,7 @@ from typing import List
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Tuple
+from typing import Union
 
 import six
 
@@ -26,6 +27,8 @@ from .internal.compat import iteritems
 from .internal.compat import pattern_type
 from .internal.logger import get_logger
 from .internal.rate_limiter import RateLimiter
+from .internal.sampling import SamplingMechanism
+from .internal.sampling import update_sampling_decision
 from .internal.utils.cache import cachedmethod
 
 
@@ -52,12 +55,18 @@ class SamplingError(Exception):
 
 
 class BaseSampler(six.with_metaclass(abc.ABCMeta)):
+
+    __slots__ = ()
+
     @abc.abstractmethod
     def sample(self, span):
         pass
 
 
 class BasePrioritySampler(BaseSampler):
+
+    __slots__ = ()
+
     @abc.abstractmethod
     def update_rate_by_service_sample_rates(self, sample_rates):
         pass
@@ -106,6 +115,8 @@ class RateByServiceSampler(BasePrioritySampler):
     The sample rate is kept independently for each service/env tuple.
     """
 
+    __slots__ = ("sample_rate", "_by_service_samplers", "_default_sampler")
+
     _default_key = "service:,env:"
 
     @staticmethod
@@ -122,11 +133,8 @@ class RateByServiceSampler(BasePrioritySampler):
     def __init__(self, sample_rate=1.0):
         # type: (float) -> None
         self.sample_rate = sample_rate
-        self._by_service_samplers = self._get_new_by_service_sampler()
-
-    def _get_new_by_service_sampler(self):
-        # type: () -> Dict[str, RateSampler]
-        return {self._default_key: RateSampler(self.sample_rate)}
+        self._default_sampler = RateSampler(self.sample_rate)
+        self._by_service_samplers = {}  # type: Dict[str, RateSampler]
 
     def set_sample_rate(
         self,
@@ -142,26 +150,37 @@ class RateByServiceSampler(BasePrioritySampler):
         span.context.sampling_priority = priority
         span.sampled = priority > 0  # Positive priorities mean it was kept
 
+    def _set_sampler_decision(self, span, sampler, sampled):
+        # type: (Span, RateSampler, bool) -> None
+        priority = AUTO_KEEP if sampled else AUTO_REJECT
+        self._set_priority(span, priority)
+
+        span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
+
+        sampling_mechanism = (
+            SamplingMechanism.DEFAULT if sampler == self._default_sampler else SamplingMechanism.AGENT_RATE
+        )
+
+        update_sampling_decision(span.context, sampling_mechanism, sampled)
+
     def sample(self, span):
         # type: (Span) -> bool
         env = span.get_tag(ENV_KEY)
         key = self._key(span.service, env)
 
-        sampler = self._by_service_samplers.get(key, self._by_service_samplers[self._default_key])
+        sampler = self._by_service_samplers.get(key) or self._default_sampler
         sampled = sampler.sample(span)
-        priority = AUTO_KEEP if sampled else AUTO_REJECT
+        self._set_sampler_decision(span, sampler, sampled)
 
-        span.set_metric(SAMPLING_AGENT_DECISION, sampler.sample_rate)
-        self._set_priority(span, priority)
         return sampled
 
     def update_rate_by_service_sample_rates(self, rate_by_service):
         # type: (Dict[str, float]) -> None
-        new_by_service_samplers = self._get_new_by_service_sampler()
+        samplers = {}
         for key, sample_rate in iteritems(rate_by_service):
-            new_by_service_samplers[key] = RateSampler(sample_rate)
+            samplers[key] = RateSampler(sample_rate)
 
-        self._by_service_samplers = new_by_service_samplers
+        self._by_service_samplers = samplers
 
 
 class DatadogSampler(RateByServiceSampler):
@@ -283,6 +302,32 @@ class DatadogSampler(RateByServiceSampler):
                 sampling_rules.append(sampling_rule)
         return sampling_rules
 
+    def _set_priority(self, span, priority):
+        # type: (Span, int) -> None
+        span.context.sampling_priority = priority
+        span.sampled = priority > 0  # Positive priorities mean it was kept
+
+    def _set_sampler_decision(self, span, sampler, sampled):
+        # type: (Span, Union[RateSampler, SamplingRule, RateLimiter], bool) -> None
+        if isinstance(sampler, RateSampler):
+            # When agent based sampling is used
+            return super(DatadogSampler, self)._set_sampler_decision(span, sampler, sampled)
+
+        if isinstance(sampler, SamplingRule):
+            span.set_metric(SAMPLING_RULE_DECISION, sampler.sample_rate)
+        elif isinstance(sampler, RateLimiter) and not sampled:
+            # We only need to set the rate limit metric if the limiter is rejecting the span
+            # DEV: Setting this allows us to properly compute metrics and debug the
+            #      various sample rates that are getting applied to this span
+            span.set_metric(SAMPLING_LIMIT_DECISION, sampler.effective_rate)
+
+        if not sampled:
+            self._set_priority(span, USER_REJECT)
+        else:
+            self._set_priority(span, USER_KEEP)
+
+        update_sampling_decision(span.context, SamplingMechanism.TRACE_SAMPLING_RULE, sampled)
+
     def sample(self, span):
         # type: (Span) -> bool
         """
@@ -296,52 +341,39 @@ class DatadogSampler(RateByServiceSampler):
         :rtype: :obj:`bool`
         """
         # If there are rules defined, then iterate through them and find one that wants to sample
-        matching_rule = None  # type: Optional[SamplingRule]
+        sampler = None  # type: Optional[Union[SamplingRule, RateLimiter]]
 
         # Go through all rules and grab the first one that matched
         # DEV: This means rules should be ordered by the user from most specific to least specific
         for rule in self.rules:
             if rule.matches(span):
-                matching_rule = rule
+                sampler = rule
                 break
         else:
             # No rules matches so use agent based sampling
             return super(DatadogSampler, self).sample(span)
 
         # DEV: This should never happen, but since the type is Optional we have to check
-        if not matching_rule:
+        if not sampler:
             raise SamplingError("No sampling rule found for span {!r} from {!r}".format(span, self))
 
-        # Sample with the matching sampling rule
-        span.set_metric(SAMPLING_RULE_DECISION, matching_rule.sample_rate)
-        if not matching_rule.sample(span):
-            self._set_priority(span, USER_REJECT)
-            return False
-        else:
-            # Do not return here, we need to apply rate limit
-            self._set_priority(span, USER_KEEP)
+        sampled = sampler.sample(span)
+        self._set_sampler_decision(span, sampler, sampled)
 
-        # Ensure all allowed traces adhere to the global rate limit
-        allowed = self.limiter.is_allowed(span.start_ns)
-        if not allowed:
-            self._set_priority(span, USER_REJECT)
-            # We only need to set the rate limit metric if the limiter is rejecting the span
-            # DEV: Setting this allows us to properly compute metrics and debug the
-            #      various sample rates that are getting applied to this span
-            span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
-            return False
+        if sampled:
+            # Ensure all allowed traces adhere to the global rate limit
+            allowed = self.limiter.is_allowed(span.start_ns)
+            if not allowed:
+                self._set_sampler_decision(span, self.limiter, allowed)
+                return False
 
-        # We made it by all of checks, sample this trace
-        self._set_priority(span, USER_KEEP)
-        return True
+        return sampled
 
 
 class SamplingRule(BaseSampler):
     """
     Definition of a sampling rule used by :class:`DatadogSampler` for applying a sample rate on a span
     """
-
-    __slots__ = ("_sample_rate", "_sampling_id_threshold", "service", "name")
 
     NO_RULE = object()
 
@@ -450,7 +482,7 @@ class SamplingRule(BaseSampler):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        # Our MFU cache expects a single key, convert the
+        # Our LFU cache expects a single key, convert the
         # provided Span into a hashable tuple for the cache
         return self._matches((span.service, span.name))
 

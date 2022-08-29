@@ -22,6 +22,6 @@ upgrade:
   - ".. _remove-tracer-log:
 
 
-    :py:attr:`ddtrace.Tracer.log` was removed.
+    ``ddtrace.Tracer.log`` was removed.
 
     "

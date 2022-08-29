@@ -9,6 +9,7 @@
     "type": "web",
     "error": 1,
     "meta": {
+      "_dd.p.dm": "-0",
       "django.request.class": "django.core.handlers.asgi.ASGIRequest",
       "django.response.class": "django.http.response.HttpResponseServerError",
       "django.user.is_authenticated": "False",
@@ -17,6 +18,7 @@
       "http.route": "^error-500/$",
       "http.status_code": "500",
       "http.url": "http://localhost:8000/error-500/",
+      "http.useragent": "python-requests/2.28.1",
       "runtime-id": "53c8551075354feca497329e594aaa13"
     },
     "metrics": {

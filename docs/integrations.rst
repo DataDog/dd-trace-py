@@ -42,12 +42,17 @@ asgi
 ^^^^
 .. automodule:: ddtrace.contrib.asgi
 
-
 .. _aiohttp:
 
 aiohttp
 ^^^^^^^
 .. automodule:: ddtrace.contrib.aiohttp
+
+.. _aiomysql:
+
+aiomysql
+^^^^^^^^
+.. automodule:: ddtrace.contrib.aiomysql
 
 
 .. _aiohttp_jinja2:
@@ -62,6 +67,13 @@ aiohttp_jinja2
 asyncio
 ^^^^^^^
 .. automodule:: ddtrace.contrib.asyncio
+
+
+.. _asyncpg:
+
+asyncpg
+^^^^^^^
+.. automodule:: ddtrace.contrib.asyncpg
 
 
 .. _botocore:
@@ -175,6 +187,13 @@ futures
 gevent
 ^^^^^^
 .. automodule:: ddtrace.contrib.gevent
+
+
+.. _graphql:
+
+graphql
+^^^^^^^
+.. automodule:: ddtrace.contrib.graphql
 
 
 .. _grpc:
@@ -316,6 +335,12 @@ pytest
 ^^^^^^
 .. automodule:: ddtrace.contrib.pytest
 
+
+.. _pytest_bdd:
+
+pytest-bdd
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.pytest_bdd
 
 .. _psycopg2:
 

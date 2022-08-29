@@ -17,24 +17,19 @@ async def test_full_request(patched_app_tracer, aiohttp_client, loop):
     client = await aiohttp_client(app)
     # it should create a root span when there is a handler hit
     # with the proper tags
-    request = await client.request("GET", "/template/")
+    request = await client.request("GET", "/")
     assert 200 == request.status
     await request.text()
     # the trace is created
     traces = tracer.pop_traces()
     assert 1 == len(traces)
-    assert 2 == len(traces[0])
+    assert 1 == len(traces[0])
     request_span = traces[0][0]
-    template_span = traces[0][1]
     # request
     assert_is_measured(request_span)
     assert "aiohttp-web" == request_span.service
     assert "aiohttp.request" == request_span.name
-    assert "GET /template/" == request_span.resource
-    # template
-    assert "aiohttp-web" == template_span.service
-    assert "aiohttp.template" == template_span.name
-    assert "aiohttp.template" == template_span.resource
+    assert "GET /" == request_span.resource
 
 
 async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):

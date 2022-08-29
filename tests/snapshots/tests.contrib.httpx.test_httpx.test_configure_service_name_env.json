@@ -8,10 +8,12 @@
     "parent_id": 0,
     "type": "http",
     "meta": {
+      "_dd.p.dm": "-0",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://localhost:8001/status/200",
-      "runtime-id": "8aab8e4cdd6d4489ab4d0b0381688677"
+      "http.useragent": "python-httpx/x.xx.x",
+      "runtime-id": "7250856326034aafbe8305e3720c7fde"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

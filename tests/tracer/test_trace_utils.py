@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+import sys
+
 from hypothesis import given
 from hypothesis.strategies import booleans
 from hypothesis.strategies import dictionaries
@@ -14,8 +17,10 @@ from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
+from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
+from ddtrace.internal import _context
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -297,38 +302,80 @@ def test_ext_service(int_config, pin, config_val, default, expected):
     assert trace_utils.ext_service(pin, int_config.myint, default) == expected
 
 
+@pytest.mark.parametrize("appsec_enabled", [False, True])
 @pytest.mark.parametrize(
-    "method,url,status_code,status_msg,query,request_headers",
+    "method,url,status_code,status_msg,query,request_headers,response_headers,uri,path_params,cookies",
     [
-        ("GET", "http://localhost/", 0, None, None, None),
-        ("GET", "http://localhost/", 200, "OK", None, None),
-        (None, None, None, None, None, None),
-        ("GET", "http://localhost/", 200, "OK", None, {"my-header": "value1"}),
-        ("GET", "http://localhost/", 200, "OK", "search?q=test+query", {"my-header": "value1"}),
+        ("GET", "http://localhost/", 0, None, None, None, None, None, None, None),
+        ("GET", "http://localhost/", 200, "OK", None, None, None, None, None, None),
+        (None, None, None, None, None, None, None, None, None, None),
+        (
+            "GET",
+            "http://localhost/",
+            200,
+            "OK",
+            None,
+            {"my-header": "value1"},
+            {"resp-header": "val"},
+            "http://localhost/",
+            None,
+            None,
+        ),
+        (
+            "GET",
+            "http://localhost/",
+            200,
+            "OK",
+            "q=test+query&q2=val",
+            {"my-header": "value1"},
+            {"resp-header": "val"},
+            "http://localhost/search?q=test+query&q2=val",
+            {"id": "val", "name": "vlad"},
+            None,
+        ),
     ],
 )
-def test_set_http_meta(span, int_config, method, url, status_code, status_msg, query, request_headers):
+def test_set_http_meta(
+    span,
+    int_config,
+    method,
+    url,
+    status_code,
+    status_msg,
+    query,
+    request_headers,
+    response_headers,
+    uri,
+    path_params,
+    cookies,
+    appsec_enabled,
+):
     int_config.http.trace_headers(["my-header"])
     int_config.trace_query_string = True
-    trace_utils.set_http_meta(
-        span,
-        int_config,
-        method=method,
-        url=url,
-        status_code=status_code,
-        status_msg=status_msg,
-        query=query,
-        request_headers=request_headers,
-    )
+    with override_global_config({"_appsec_enabled": appsec_enabled}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method=method,
+            url=url,
+            status_code=status_code,
+            status_msg=status_msg,
+            query=query,
+            raw_uri=uri,
+            request_headers=request_headers,
+            response_headers=response_headers,
+            request_cookies=cookies,
+            request_path_params=path_params,
+        )
     if method is not None:
         assert span.get_tag(http.METHOD) == method
     else:
-        assert http.METHOD not in span._get_tags()
+        assert http.METHOD not in span.get_tags()
 
     if url is not None:
         assert span.get_tag(http.URL) == stringify(url)
     else:
-        assert http.URL not in span._get_tags()
+        assert http.URL not in span.get_tags()
 
     if status_code is not None:
         assert span.get_tag(http.STATUS_CODE) == str(status_code)
@@ -337,7 +384,7 @@ def test_set_http_meta(span, int_config, method, url, status_code, status_msg, q
         else:
             assert span.error == 0
     else:
-        assert http.STATUS_CODE not in span._get_tags()
+        assert http.STATUS_CODE not in span.get_tags()
 
     if status_msg is not None:
         assert span.get_tag(http.STATUS_MSG) == stringify(status_msg)
@@ -349,6 +396,18 @@ def test_set_http_meta(span, int_config, method, url, status_code, status_msg, q
         for header, value in request_headers.items():
             tag = "http.request.headers." + header
             assert span.get_tag(tag) == value
+
+    if appsec_enabled:
+        if uri is not None:
+            assert _context.get_item("http.request.uri", span=span) == uri
+        if method is not None:
+            assert _context.get_item("http.request.method", span=span) == method
+        if request_headers is not None:
+            assert _context.get_item("http.request.headers", span=span) == request_headers
+        if response_headers is not None:
+            assert _context.get_item("http.response.headers", span=span) == response_headers
+        if path_params is not None:
+            assert _context.get_item("http.request.path_params", span=span) == path_params
 
 
 @mock.patch("ddtrace.settings.config.log")
@@ -382,12 +441,97 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     trace_utils.set_http_meta(
         span,
         int_config.myint,
-        request_headers={"HTTP_REQUEST_HEADER", "value"},
+        request_headers={"HTTP_REQUEST_HEADER": "value", "user-agent": "dd-agent/1.0.0"},
         response_headers={"HTTP_RESPONSE_HEADER": "value"},
     )
-    assert list(span._get_tags().keys()) == [
-        "runtime-id",
-    ]
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == ["runtime-id", http.USER_AGENT]
+    mock_store_headers.assert_not_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "user_agent_key,user_agent_value,expected_keys,expected",
+    [
+        ("HTTP_USER_AGENT", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("Http-User-Agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("HTTP_USER_AGENT", None, ["runtime-id"], None),
+        ("HTTP_USER_AGENT", 101234, ["runtime-id"], None),
+        ("UserAgent", True, ["runtime-id"], None),
+        ("HTTP_USER_AGENT", False, ["runtime-id"], None),
+        ("HTTP_USER_AGENT", [], ["runtime-id"], None),
+        ("HTTP_USER_AGENT", {}, ["runtime-id"], None),
+        ("User_Agent", ["test1", "test2"], ["runtime-id"], None),
+        ("User-Agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
+    ],
+)
+def test_set_http_meta_headers_useragent(
+    mock_store_headers, user_agent_key, user_agent_value, expected_keys, expected, span, int_config
+):
+    int_config.myint.http._header_tags = {"enabled": True}
+    assert int_config.myint.is_header_tracing_configured is True
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={user_agent_key: user_agent_value},
+    )
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == expected_keys
+    assert span.get_tag(http.USER_AGENT) == expected
+    mock_store_headers.assert_called()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python2 tests")
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "user_agent_value, expected_keys ,expected",
+    [
+        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], "ㄲㄴㄷㄸ"),
+        (b"", ["runtime-id"], None),
+    ],
+)
+def test_set_http_meta_headers_useragent_py3(
+    mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
+):
+    assert int_config.myint.is_header_tracing_configured is False
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={"user-agent": user_agent_value},
+    )
+
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == expected_keys
+    assert span.get_tag(http.USER_AGENT) == expected
+    mock_store_headers.assert_not_called()
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 0, 0), reason="Python2 tests")
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "user_agent_value, expected_keys ,expected",
+    [
+        ("ㄲㄴㄷㄸ", ["runtime-id"], None),
+        (u"", ["runtime-id"], None),
+    ],
+)
+def test_set_http_meta_headers_useragent_py2(
+    mock_store_headers, user_agent_value, expected_keys, expected, span, int_config
+):
+    assert int_config.myint.is_header_tracing_configured is False
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        request_headers={"user-agent": user_agent_value},
+    )
+
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == expected_keys
+    assert span.get_tag(http.USER_AGENT) == expected
     mock_store_headers.assert_not_called()
 
 
@@ -405,7 +549,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
 def test_bad_http_code(mock_log, span, int_config, val, bad):
     trace_utils.set_http_meta(span, int_config, status_code=val)
     if bad:
-        assert http.STATUS_CODE not in span._get_tags()
+        assert http.STATUS_CODE not in span.get_tags()
         mock_log.debug.assert_called_once_with("failed to convert http status code %r to int", val)
     else:
         assert span.get_tag(http.STATUS_CODE) == str(val)
@@ -533,6 +677,42 @@ def test_activate_distributed_headers_override_false(int_config):
     assert tracer.context_provider.active() is None
 
 
+def test_activate_distributed_headers_existing_context(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = True
+
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+
+    ctx = Context(trace_id=678910, span_id=823923)  # Note: Span id is different
+    tracer.context_provider.activate(ctx)
+
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=headers)
+    assert tracer.context_provider.active() == ctx
+
+
+def test_activate_distributed_headers_existing_context_different_trace_id(int_config):
+    tracer = Tracer()
+    int_config.myint["distributed_tracing_enabled"] = True
+
+    headers = {
+        HTTP_HEADER_PARENT_ID: "12345",
+        HTTP_HEADER_TRACE_ID: "678910",
+    }
+
+    ctx = Context(trace_id=3473873, span_id=678308)  # Note: Trace id is different
+    tracer.context_provider.activate(ctx)
+
+    trace_utils.activate_distributed_headers(tracer, int_config=int_config.myint, request_headers=headers)
+    new_ctx = tracer.context_provider.active()
+    assert new_ctx != ctx
+    assert new_ctx is not None
+    assert new_ctx.trace_id == 678910
+    assert new_ctx.span_id == 12345
+
+
 def test_sanitized_url_in_http_meta(span, int_config):
     FULL_URL = "http://example.com/search?q=test+query#frag?ment"
     STRIPPED_URL = "http://example.com/search#frag?ment"
@@ -577,8 +757,8 @@ def test_set_flattened_tags_is_flat(items):
     """Ensure that flattening of a nested dict results in a normalized, 1-level dict"""
     span = Span("test")
     trace_utils.set_flattened_tags(span, items)
-    assert isinstance(span._get_tags(), dict)
-    assert not any(isinstance(v, dict) for v in span._get_tags().values())
+    assert isinstance(span.get_tags(), dict)
+    assert not any(isinstance(v, dict) for v in span.get_tags().values())
 
 
 def test_set_flattened_tags_keys():
@@ -587,7 +767,7 @@ def test_set_flattened_tags_keys():
     e = dict(A=1, B=2, C_A=3, C_B=4, C_C_A=5, C_C_B=6)
     span = Span("test")
     trace_utils.set_flattened_tags(span, d.items(), sep="_")
-    assert span._get_metrics() == e
+    assert span.get_metrics() == e
 
 
 def test_set_flattened_tags_exclude_policy():
@@ -597,4 +777,4 @@ def test_set_flattened_tags_exclude_policy():
     span = Span("test")
 
     trace_utils.set_flattened_tags(span, d.items(), sep="_", exclude_policy=lambda tag: tag in {"C_A", "C_C"})
-    assert span._get_metrics() == e
+    assert span.get_metrics() == e

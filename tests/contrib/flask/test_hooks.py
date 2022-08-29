@@ -1,9 +1,13 @@
 from flask import Blueprint
 
+from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
+
+
+REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
 
 
 class FlaskHookTestCase(BaseFlaskTestCase):
@@ -35,7 +39,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         # DEV: This will raise an exception if this span doesn't exist
         self.find_span_by_name(spans, "flask.dispatch_request")
@@ -47,7 +51,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.before_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.before_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
@@ -68,7 +72,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Not Allowed")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 7)
+        self.assertEqual(len(spans), 9 - REMOVED_SPANS_2_2_0)
 
         dispatch = self.find_span_by_name(spans, "flask.dispatch_request", required=False)
         self.assertIsNone(dispatch)
@@ -92,7 +96,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.before_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.before_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
@@ -112,7 +116,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.before_first_request")
         parent = self.find_span_parent(spans, span)
@@ -121,10 +125,13 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.before_first_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.before_first_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
-        self.assertEqual(parent.name, "flask.try_trigger_before_first_request_functions")
+        if flask_version >= (2, 2, 0):
+            self.assertEqual(parent.name, "flask.application")
+        else:
+            self.assertEqual(parent.name, "flask.try_trigger_before_first_request_functions")
 
         # Make a second request to ensure a span isn't created
         req = self.client.get("/")
@@ -132,7 +139,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 8)
+        self.assertEqual(len(spans), 10 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.before_first_request", required=False)
         self.assertIsNone(span)
@@ -152,7 +159,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.after_request")
         parent = self.find_span_parent(spans, span)
@@ -161,7 +168,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.after_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.after_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
@@ -182,7 +189,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         root = self.find_span_by_name(spans, "flask.request")
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.after_request")
@@ -195,7 +202,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.after_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.after_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
@@ -215,7 +222,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.teardown_request")
         parent = self.find_span_parent(spans, span)
@@ -224,7 +231,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.teardown_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.teardown_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_request")
@@ -244,7 +251,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.teardown_appcontext")
         parent = self.find_span_parent(spans, span)
@@ -253,7 +260,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.teardown_appcontext")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.teardown_appcontext")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_appcontext")
@@ -274,7 +281,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Blueprint")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.bp_before_request")
         parent = self.find_span_parent(spans, span)
@@ -283,7 +290,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_before_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_before_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
@@ -304,7 +311,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.bp_before_app_request")
         parent = self.find_span_parent(spans, span)
@@ -313,7 +320,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_before_app_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_before_app_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
@@ -334,7 +341,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.bp_before_app_first_request")
         parent = self.find_span_parent(spans, span)
@@ -343,10 +350,13 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_before_app_first_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_before_app_first_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
-        self.assertEqual(parent.name, "flask.try_trigger_before_first_request_functions")
+        if flask_version >= (2, 2, 0):
+            self.assertEqual(parent.name, "flask.application")
+        else:
+            self.assertEqual(parent.name, "flask.try_trigger_before_first_request_functions")
 
         # Make a second request to ensure a span isn't created
         req = self.client.get("/")
@@ -354,7 +364,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 8)
+        self.assertEqual(len(spans), 10 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(
             spans,
@@ -379,7 +389,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Blueprint")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.bp_after_request")
         parent = self.find_span_parent(spans, span)
@@ -388,7 +398,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_after_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_after_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
@@ -409,7 +419,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.bp_after_app_request")
         parent = self.find_span_parent(spans, span)
@@ -418,7 +428,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_after_app_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_after_app_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
@@ -439,7 +449,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Blueprint")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.bp_teardown_request")
         parent = self.find_span_parent(spans, span)
@@ -448,7 +458,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_teardown_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_teardown_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_request")
@@ -469,7 +479,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(req.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.bp_teardown_app_request")
         parent = self.find_span_parent(spans, span)
@@ -478,7 +488,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_teardown_app_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_teardown_app_request")
-        self.assertEqual(span._get_tags(), dict())
+        self.assertEqual(span.get_tags(), dict())
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_request")

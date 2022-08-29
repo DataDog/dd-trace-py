@@ -4,13 +4,23 @@ import re
 import sys
 import textwrap
 import threading
+from types import BuiltinFunctionType
+from types import BuiltinMethodType
+from types import FunctionType
+from types import MethodType
+from types import TracebackType
 from typing import Any
 from typing import AnyStr
 from typing import Optional
 from typing import Text
+from typing import Tuple
+from typing import Type
 from typing import Union
 
 import six
+
+from ddtrace.vendor.wrapt.wrappers import BoundFunctionWrapper
+from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 
 
 __all__ = [
@@ -29,6 +39,9 @@ __all__ = [
 PYTHON_VERSION_INFO = sys.version_info
 PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
+
+if not PY2:
+    long = int
 
 # Infos about python passed to the trace agent through the header
 PYTHON_VERSION = platform.python_version()
@@ -121,7 +134,9 @@ except ImportError:
 if sys.version_info.major < 3:
     getrandbits = random.SystemRandom().getrandbits
 else:
-    getrandbits = random.getrandbits
+    # Use a wrapper that allows passing k as a kwargs like in Python 2
+    def getrandbits(k):
+        return random.getrandbits(k)
 
 
 if sys.version_info.major < 3:
@@ -133,7 +148,7 @@ else:
     main_thread = threading.main_thread()
 
 
-if PYTHON_VERSION_INFO[0:2] >= (3, 4):
+if PYTHON_VERSION_INFO[0:2] >= (3, 5):
     from asyncio import iscoroutinefunction
 
     # Execute from a string to get around syntax errors from `yield from`
@@ -158,17 +173,15 @@ if PYTHON_VERSION_INFO[0:2] >= (3, 4):
         :param dict kw_params: keyword arguments given to the Tracer.trace()
         \"\"\"
         @functools.wraps(coro)
-        @asyncio.coroutine
-        def func_wrapper(*args, **kwargs):
+        async def func_wrapper(*args, **kwargs):
             with tracer.trace(*params, **kw_params):
-                result = yield from coro(*args, **kwargs)  # noqa: E999
+                result = await coro(*args, **kwargs)
                 return result
 
         return func_wrapper
     """
         )
     )
-
 else:
     # asyncio is missing so we can't have coroutines; these
     # functions are used only to ensure code executions in case
@@ -237,3 +250,41 @@ def maybe_stringify(obj):
     if obj is not None:
         return stringify(obj)
     return None
+
+
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, type(None), type, long])
+BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
+BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
+
+
+try:
+    from types import MethodWrapperType
+
+except ImportError:
+    MethodWrapperType = object().__init__.__class__  # type: ignore[misc]
+
+CALLABLE_TYPES = (
+    BuiltinMethodType,
+    BuiltinFunctionType,
+    FunctionType,
+    MethodType,
+    MethodWrapperType,
+    FunctionWrapper,
+    BoundFunctionWrapper,
+    property,
+    classmethod,
+    staticmethod,
+)
+BUILTIN = "__builtin__" if PY2 else "builtins"
+
+
+try:
+    from typing import Collection
+except ImportError:
+    from typing import List
+    from typing import Set
+    from typing import Union
+
+    Collection = Union[List, Set, Tuple]  # type: ignore[misc,assignment]
+
+ExcInfoType = Union[Tuple[Type[BaseException], BaseException, Optional[TracebackType]], Tuple[None, None, None]]

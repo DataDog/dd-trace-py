@@ -1,0 +1,93 @@
+[[
+  {
+    "name": "starlette.request",
+    "service": "starlette",
+    "resource": "POST /notes",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "POST",
+      "http.status_code": "200",
+      "http.url": "http://testserver/notes",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "runtime-id": "d28db718d7af4382ae0c6b34a484ce61"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 4441
+    },
+    "duration": 41721600,
+    "start": 1632161674325085600
+  },
+     {
+       "name": "sqlite.query",
+       "service": "sqlite",
+       "resource": "INSERT INTO notes (id, text, completed) VALUES (?, ?, ?)",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "sql",
+       "meta": {
+         "sql.db": "test.db"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "sql.rows": 1
+       },
+       "duration": 17785900,
+       "start": 1632161674329525200
+     }],
+[
+  {
+    "name": "starlette.request",
+    "service": "starlette",
+    "resource": "GET /notes",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://testserver/notes",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "runtime-id": "d28db718d7af4382ae0c6b34a484ce61"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 4441
+    },
+    "duration": 13264900,
+    "start": 1632161674374141500
+  },
+     {
+       "name": "sqlite.query",
+       "service": "sqlite",
+       "resource": "SELECT * FROM NOTES",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "sql",
+       "meta": {
+         "sql.db": "test.db"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1
+       },
+       "duration": 6997400,
+       "start": 1632161674379481900
+     }]]

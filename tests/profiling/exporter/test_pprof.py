@@ -1,12 +1,13 @@
 import os
+import platform
 
 import mock
 import six
 
 from ddtrace import ext
+from ddtrace.profiling.collector import _lock
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import stack_event
-from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import pprof
 
 
@@ -444,8 +445,8 @@ TEST_EVENTS = {
             nframes=3,
         ),
     ],
-    threading.LockAcquireEvent: [
-        threading.LockAcquireEvent(
+    _lock.LockAcquireEvent: [
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=1,
             thread_id=67892304,
@@ -465,7 +466,7 @@ TEST_EVENTS = {
             wait_time_ns=74839,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=2,
             thread_id=67892304,
@@ -483,7 +484,7 @@ TEST_EVENTS = {
             wait_time_ns=7483,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=3,
             thread_id=67892304,
@@ -497,7 +498,7 @@ TEST_EVENTS = {
             wait_time_ns=7489,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=4,
             thread_id=67892304,
@@ -511,7 +512,7 @@ TEST_EVENTS = {
             wait_time_ns=4839,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=5,
             thread_id=67892304,
@@ -525,7 +526,7 @@ TEST_EVENTS = {
             wait_time_ns=748394,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=6,
             thread_id=67892304,
@@ -539,7 +540,7 @@ TEST_EVENTS = {
             wait_time_ns=748339,
             sampling_pct=10,
         ),
-        threading.LockAcquireEvent(
+        _lock.LockAcquireEvent(
             lock_name="foobar.py:12",
             timestamp=7,
             thread_id=67892304,
@@ -554,8 +555,8 @@ TEST_EVENTS = {
             sampling_pct=10,
         ),
     ],
-    threading.LockReleaseEvent: [
-        threading.LockReleaseEvent(
+    _lock.LockReleaseEvent: [
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=1,
             thread_id=67892304,
@@ -569,7 +570,7 @@ TEST_EVENTS = {
             locked_for_ns=74839,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=2,
             thread_id=67892304,
@@ -583,7 +584,7 @@ TEST_EVENTS = {
             locked_for_ns=7483,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=3,
             thread_id=67892304,
@@ -597,7 +598,7 @@ TEST_EVENTS = {
             locked_for_ns=7489,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=4,
             thread_id=67892304,
@@ -611,7 +612,7 @@ TEST_EVENTS = {
             locked_for_ns=4839,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=5,
             thread_id=67892304,
@@ -625,7 +626,7 @@ TEST_EVENTS = {
             locked_for_ns=748394,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=6,
             thread_id=67892304,
@@ -639,7 +640,7 @@ TEST_EVENTS = {
             locked_for_ns=748339,
             sampling_pct=5,
         ),
-        threading.LockReleaseEvent(
+        _lock.LockReleaseEvent(
             lock_name="foobar.py:12",
             timestamp=7,
             thread_id=67892304,
@@ -692,7 +693,7 @@ def test_to_str_none():
 def test_pprof_exporter(gan):
     gan.return_value = "bonjour"
     exp = pprof.PprofExporter()
-    exports = exp.export(TEST_EVENTS, 1, 7)
+    exports, libs = exp.export(TEST_EVENTS, 1, 7)
     if six.PY2:
         filename = "test-pprof-exporter-py2.txt"
     else:
@@ -701,7 +702,89 @@ def test_pprof_exporter(gan):
         assert f.read() == str(exports), filename
 
 
+@mock.patch("ddtrace.internal.utils.config.get_application_name")
+def test_pprof_exporter_libs(gan):
+    gan.return_value = "bonjour"
+    exp = pprof.PprofExporter()
+    TEST_EVENTS = {
+        stack_event.StackSampleEvent: [
+            stack_event.StackSampleEvent(
+                timestamp=1,
+                thread_id=67892304,
+                thread_native_id=123987,
+                thread_name="MainThread",
+                local_root_span_id=1322219321,
+                span_id=49343,
+                trace_type=ext.SpanTypes.WEB,
+                trace_resource_container=["myresource"],
+                frames=[
+                    (six.__file__, 23, "func1"),
+                    (memalloc.__file__, 44, "func2"),
+                    ("foobar.py", 19, "func5"),
+                ],
+                task_id=123,
+                task_name="sometask",
+                wall_time_ns=1324,
+                cpu_time_ns=1321,
+                sampling_period=1000000,
+                nframes=3,
+            ),
+            stack_event.StackSampleEvent(
+                timestamp=2,
+                thread_id=67892304,
+                thread_native_id=123987,
+                thread_name="MainThread",
+                local_root_span_id=1322219321,
+                span_id=24930,
+                trace_type="sql",
+                trace_resource_container=[u"\x1bnotme"],
+                frames=[
+                    (__file__, 23, "func1"),
+                    ("foobar.py", 44, "func2"),
+                    (os.__file__, 20, "func5"),
+                ],
+                wall_time_ns=13244,
+                cpu_time_ns=1312,
+                sampling_period=1000000,
+                nframes=3,
+            ),
+        ]
+    }
+
+    exports, libs = exp.export(TEST_EVENTS, 1, 7)
+
+    # Version does not match between pip and __version__ for ddtrace; ignore
+    for lib in libs:
+        if lib["name"] == "ddtrace":
+            del lib["version"]
+        elif lib["kind"] == "standard library":
+            assert len(lib["paths"]) == 1
+            del lib["paths"]
+        elif lib["name"] == "<unknown>":
+            assert len(lib["paths"]) == 1
+            del lib["paths"]
+
+    expected_libs = [
+        {"name": "ddtrace", "kind": "library", "paths": [memalloc.__file__, __file__]},
+        {"name": "six", "kind": "library", "version": six.__version__, "paths": [six.__file__]},
+        {"kind": "standard library", "name": "stdlib", "version": platform.python_version()},
+        {
+            "kind": "library",
+            "name": "<unknown>",
+            "version": "<unknown>",
+        },
+    ]
+
+    if six.PY3:
+        expected_libs.append(
+            {"kind": "standard library", "name": "platstdlib", "version": platform.python_version()},
+        )
+
+    assert libs == expected_libs
+
+
 def test_pprof_exporter_empty():
     exp = pprof.PprofExporter()
-    export = exp.export({}, 0, 1)
+    export, libs = exp.export({}, 0, 1)
+    assert len(libs) > 0
     assert len(export.sample) == 0

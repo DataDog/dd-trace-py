@@ -7,17 +7,18 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
-      "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf"
+      "_dd.p.dm": "-0",
+      "runtime-id": "1658e263f3084eaca410818e944d7d7e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 79541
+      "system.pid": 88705
     },
-    "duration": 4333896,
-    "start": 1634218675238127104
+    "duration": 3603928,
+    "start": 1660069797945859072
   },
      {
        "name": "sql.query",
@@ -33,7 +34,8 @@
          "db.schema": "mock-schema-name",
          "db.user": "mock-user",
          "db.warehouse": "mock-warehouse-name",
-         "out.host": "mock-account.snowflakecomputing.com"
+         "out.host": "mock-account.snowflakecomputing.com",
+         "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
        },
        "metrics": {
          "_dd.measured": 1,
@@ -42,6 +44,6 @@
          "out.port": 443,
          "sql.rows": 2
        },
-       "duration": 3877000,
-       "start": 1634218675238459000
+       "duration": 3211000,
+       "start": 1660069797946069000
      }]]
