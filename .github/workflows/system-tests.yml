@@ -55,7 +55,7 @@ jobs:
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
         if: ${{ always() }}  
-        run: tar -czvf artifact.tar.gz $(ls | grep logs)
+        run: tar -czvf artifact.tar.gz $(ls | grep logs) || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
