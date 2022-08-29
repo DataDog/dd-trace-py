@@ -20,6 +20,7 @@ SERVICE_VERSION_KEY = "service.version"
 SPAN_KIND = "span.kind"
 SPAN_MEASURED_KEY = "_dd.measured"
 KEEP_SPANS_RATE_KEY = "_dd.tracer_kr"
+MULTIPLE_IP_HEADERS = "_dd.multiple-ip-headers"
 
 APPSEC_ENABLED = "_dd.appsec.enabled"
 APPSEC_JSON = "_dd.appsec.json"
