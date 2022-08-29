@@ -40,6 +40,7 @@ from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.internal import atexit
+from ddtrace.internal import compat
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
@@ -311,10 +312,13 @@ class Debugger(Service):
             if not open_contexts:
                 return wrapped(*args, **kwargs)
 
+            start_time = compat.monotonic_ns()
             try:
                 retval = wrapped(*args, **kwargs)
+                end_time = compat.monotonic_ns()
                 exc_info = (None, None, None)
             except Exception:
+                end_time = compat.monotonic_ns()
                 retval = None
                 exc_info = sys.exc_info()  # type: ignore[assignment]
             else:
@@ -325,7 +329,7 @@ class Debugger(Service):
                     return dd_coroutine_wrapper(retval, open_contexts)
 
             for context in open_contexts:
-                context.exit(retval, exc_info)
+                context.exit(retval, exc_info, end_time - start_time)
 
             exc = exc_info[1]
             if exc is not None:
