@@ -68,6 +68,7 @@ def test_debugger_line_probe_on_instance_method():
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
     assert captures["fields"] == {}
+    assert snapshot["debugger.snapshot"]["duration"] is None
 
 
 def test_debugger_line_probe_on_imported_module_function():
@@ -668,3 +669,25 @@ def test_probe_status_logging():
 
         sleep(0.5)
         assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
+
+
+@pytest.mark.parametrize("duration", [1e5, 1e6, 1e7])
+def test_debugger_function_probe_duration(duration):
+    from tests.submod.stuff import durationstuff
+
+    with debugger(poll_interval=0.1) as d:
+        d.rc.add_probes(
+            [
+                FunctionProbe(
+                    probe_id="duration-probe",
+                    module="tests.submod.stuff",
+                    func_qname="durationstuff",
+                )
+            ]
+        )
+        sleep(0.5)
+
+        durationstuff(duration)
+
+        (snapshot,) = d.test_queue
+        assert 0.9 * duration <= snapshot.duration <= 2.5 * duration, snapshot
