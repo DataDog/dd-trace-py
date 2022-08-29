@@ -174,7 +174,8 @@ class RemoteConfigClient(object):
     def __init__(self):
         # type: () -> None
         self.id = str(uuid.uuid4())
-        self._conn = agent.get_connection(agent.get_trace_url(), timeout=agent.get_trace_agent_timeout())
+        self.agent_url = agent_url = agent.get_trace_url()
+        self._conn = agent.get_connection(agent_url, timeout=agent.get_trace_agent_timeout())
         self._headers = {"content-type": "application/json"}
         self._client_tracer = dict(
             runtime_id=runtime.get_runtime_id(),
