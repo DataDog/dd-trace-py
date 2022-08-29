@@ -257,6 +257,7 @@ setup(
         "pathlib2; python_version<'3.5'",
         "jsonschema",
         "xmltodict>=0.12",
+        "backport_ipaddress; python_version=='2.7'",
     ]
     + bytecode,
     extras_require={

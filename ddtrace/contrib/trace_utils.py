@@ -2,6 +2,8 @@
 This module contains utility functions for writing ddtrace integrations.
 """
 from collections import deque
+import ipaddress
+import os
 import re
 from typing import Any
 from typing import Callable
@@ -18,11 +20,13 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace import constants
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
@@ -52,6 +56,18 @@ NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
 # Possible User Agent header.
 USER_AGENT_PATTERNS = {"HTTP_USER_AGENT", "User-Agent", "user-agent", "Http-User-Agent"}
+
+IP_PATTERNS = (
+    "x-forwarded-for",
+    "x-real-ip",
+    "client-ip",
+    "x-forwarded",
+    "x-cluster-client-ip",
+    "forwarded-for",
+    "forwarded",
+    "via",
+    "true-client-ip",
+)
 
 
 @cached()
@@ -116,7 +132,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
 
 
 def _get_request_header_user_agent(headers):
-    # type: (Dict[str, str]) -> str
+    # type: (Mapping[str, str]) -> str
     """Get user agent from request headers
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
@@ -126,6 +142,94 @@ def _get_request_header_user_agent(headers):
         if user_agent:
             return user_agent
     return ""
+
+
+def _get_request_header_client_ip(span, headers, peer_ip=None):
+    # type: (Span, Mapping[str, str], Optional[str]) -> str
+    if asbool(os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=False)):
+        return ""
+
+    ip_header_value = ""
+    user_configured_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER", None)
+    if user_configured_ip_header:
+        print("XXX 1, headers: %s" % headers)
+        # Used selected the header to use to get the IP
+        ip_header = headers.get(user_configured_ip_header)
+        print("XXX 1 ip header: %s" % ip_header)
+        if ip_header:
+            ip_header_value = headers.get(ip_header)
+            print("XXX 1.1")
+            if not ip_header_value:
+                print("XXX 1.2")
+                log.debug("DD_TRACE_CLIENT_IP_HEADER configured but '%s' header missing", ip_header)
+                return ""
+
+            try:
+                print("XXX 1.3")
+                _ = ipaddress.ip_address(ip_header_value)
+            except ValueError:
+                print("XXX 1.4")
+                log.debug(
+                    "Invalid IP address from configured %s header: %s", user_configured_ip_header, ip_header_value
+                )
+                return ""
+    else:
+        print("XXX 2")
+        # No configured IP header, go through the list defined in:
+        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+        used_ip_headers = []
+        headers_count = 0
+        for ip_header in IP_PATTERNS:
+            tmp_ip_header_value = headers.get(ip_header)
+            print("XXX 2 ip_header_value: |%s|" % ip_header_value)
+            if tmp_ip_header_value:
+                ip_header_value = tmp_ip_header_value
+                used_ip_headers.append(ip_header)
+                headers_count += 1
+                if headers_count > 1:
+                    print(
+                        "XXX 2 incrementing headers count for header %s and count %d" % (ip_header_value, headers_count)
+                    )
+                    log.debug("Multiple IP headers found: %s", used_ip_headers)
+                    span._set_str_tag(constants.MULTIPLE_IP_HEADERS, ",".join(used_ip_headers))
+                    print("XXX 2 exit empty")
+                    return ""
+
+    # At this point, we have one IP header, check its value and retrieve the first public IP
+    private_ip = ""
+
+    print("XXX ip_header_value after: %s" % ip_header_value)
+    if ip_header_value:
+        print("XXX 2 ip_header_value: %s" % ip_header_value)
+        ip_list = ip_header_value.split(",")
+        for ip in ip_list:
+            ip = ip.strip()
+            if not ip:
+                continue
+
+            try:
+                ip_obj = ipaddress.ip_address(ip)
+            except ValueError:
+                continue
+
+            if ip_obj.is_global:
+                return ip
+            elif not private_ip:
+                private_ip = ip
+            # else: it's private, but we already have one: continue in case we find a public one
+
+    # So we have none or maybe one private ip, check the peer ip in case it's public and if not
+    # return either the private_ip from the headers (if we have one) or the peer private ip
+    if peer_ip:
+        try:
+            peer_ip_obj = ipaddress.ip_address(peer_ip)
+            # "or" because if both are private we prefer the one from the headers
+            if peer_ip_obj.is_global or not private_ip:
+                return peer_ip
+        except ValueError:
+            pass
+
+    return private_ip
 
 
 def _store_request_headers(headers, span, integration_config):
@@ -268,6 +372,7 @@ def set_http_meta(
     request_cookies=None,  # type: Optional[Dict[str, str]]
     request_path_params=None,  # type: Optional[Dict[str, str]]
     request_body=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
+    peer_ip=None,  # type: Optional[str]
 ):
     # type: (...) -> None
     """
@@ -309,6 +414,7 @@ def set_http_meta(
         span._set_str_tag(http.QUERY_STRING, query)
 
     if request_headers:
+        print("XXX request_headers: %s" % request_headers)
         user_agent = _get_request_header_user_agent(request_headers)
         if user_agent:
             span.set_tag(http.USER_AGENT, user_agent)
@@ -317,6 +423,10 @@ def set_http_meta(
             """We should store both http.<request_or_response>.headers.<header_name> and http.<key>. The last one
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
+
+        ip = _get_request_header_client_ip(span, request_headers, peer_ip)
+        if ip:
+            span.set_tag(http.CLIENT_IP, ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)

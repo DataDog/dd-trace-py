@@ -1,0 +1,3 @@
+features:
+  - |
+    ASM: Collect http.client_ip
