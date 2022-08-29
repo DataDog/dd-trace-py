@@ -66,7 +66,7 @@ def _eject_hook(code, hook, line, arg):
             # hook and we also test for the expected opcode arguments
             if (
                 instr.lineno == line
-                and code[i].arg is hook
+                and code[i].arg == hook  # bound methods don't like identity comparisons
                 and code[i + 1].arg is arg
                 and [code[_].name for _ in range(i, i + 4)] == ["LOAD_CONST", "LOAD_CONST", "CALL_FUNCTION", "POP_TOP"]
             ):
