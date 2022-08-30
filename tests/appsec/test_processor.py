@@ -257,3 +257,59 @@ def test_obfuscation_parameter_key_and_value_invalid_regex():
         processor = AppSecSpanProcessor()
 
     assert processor.enabled
+
+
+def test_obfuscation_parameter_unconfigured_value_not_matching(tracer):
+    _enable_appsec(tracer)
+
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        set_http_meta(span, Config(), raw_uri="http://example.com/.git?hello=goodbye", status_code="404")
+
+    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+    assert "hello" in span.get_tag("_dd.appsec.json")
+    assert "goodbye" in span.get_tag("_dd.appsec.json")
+    assert "<Redacted>" not in span.get_tag("_dd.appsec.json")
+
+
+def test_obfuscation_parameter_unconfigured_key_matching(tracer):
+    _enable_appsec(tracer)
+
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        set_http_meta(span, Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
+
+    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+    assert "password" not in span.get_tag("_dd.appsec.json")
+    assert "goodbye" not in span.get_tag("_dd.appsec.json")
+    assert "<Redacted>" in span.get_tag("_dd.appsec.json")
+
+
+def test_obfuscation_parameter_value_configured_not_matching(tracer):
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")):
+
+        _enable_appsec(tracer)
+
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(span, Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
+
+        assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+        assert "password" in span.get_tag("_dd.appsec.json")
+        assert "goodbye" in span.get_tag("_dd.appsec.json")
+        assert "<Redacted>" not in span.get_tag("_dd.appsec.json")
+
+
+def test_obfuscation_parameter_value_configured_matching(tracer):
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")):
+
+        _enable_appsec(tracer)
+
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(span, Config(), raw_uri="http://example.com/.git?token=goodbye", status_code="404")
+
+        assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+        assert "token" not in span.get_tag("_dd.appsec.json")
+        assert "goodbye" not in span.get_tag("_dd.appsec.json")
+        assert "<Redacted>" in span.get_tag("_dd.appsec.json")

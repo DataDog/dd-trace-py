@@ -44,14 +44,6 @@ DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
 )
 
 
-APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = ensure_binary(
-    os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
-)
-APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = ensure_binary(
-    os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
-)
-
-
 log = get_logger(__name__)
 
 
@@ -77,6 +69,20 @@ def _transform_headers(data):
 def get_rules():
     # type: () -> str
     return os.getenv("DD_APPSEC_RULES", default=DEFAULT_RULES)
+
+
+def get_appsec_obfuscation_parameter_key_regexp():
+    # type: () -> bytes
+    return ensure_binary(
+        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
+    )
+
+
+def get_appsec_obfuscation_parameter_value_regexp():
+    # type: () -> bytes
+    return ensure_binary(
+        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
+    )
 
 
 class _Addresses(object):
@@ -137,8 +143,8 @@ def _get_waf_timeout():
 class AppSecSpanProcessor(SpanProcessor):
 
     rules = attr.ib(type=str, factory=get_rules)
-    obfuscation_parameter_key_regexp = attr.ib(type=bytes, default=APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
-    obfuscation_parameter_value_regexp = attr.ib(type=bytes, default=APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
+    obfuscation_parameter_key_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_key_regexp)
+    obfuscation_parameter_value_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_value_regexp)
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
