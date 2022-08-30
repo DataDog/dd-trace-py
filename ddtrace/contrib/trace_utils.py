@@ -144,6 +144,26 @@ def _get_request_header_user_agent(headers):
     return ""
 
 
+def _find_normalized_header(headers, header):
+    # type: (Mapping[str, str], str) -> Optional[str]
+    if not header or not headers:
+        return None
+
+    if header in headers:
+        return header
+
+    norm_header = header.lower().replace("-", "_").strip()
+
+    if norm_header in headers:
+        return norm_header
+
+    for header_key in headers.keys():
+        if header_key.lower().replace("-", "_").strip() == norm_header:
+            return header_key
+
+    return None
+
+
 def _get_request_header_client_ip(span, headers, peer_ip=None):
     # type: (Span, Mapping[str, str], Optional[str]) -> str
     if asbool(os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=False)):
@@ -152,55 +172,41 @@ def _get_request_header_client_ip(span, headers, peer_ip=None):
     ip_header_value = ""
     user_configured_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER", None)
     if user_configured_ip_header:
-        print("XXX 1, headers: %s" % headers)
         # Used selected the header to use to get the IP
-        ip_header = headers.get(user_configured_ip_header)
-        print("XXX 1 ip header: %s" % ip_header)
+        ip_header = _find_normalized_header(headers, user_configured_ip_header)
         if ip_header:
             ip_header_value = headers.get(ip_header)
-            print("XXX 1.1")
             if not ip_header_value:
-                print("XXX 1.2")
                 log.debug("DD_TRACE_CLIENT_IP_HEADER configured but '%s' header missing", ip_header)
                 return ""
 
             try:
-                print("XXX 1.3")
                 _ = ipaddress.ip_address(ip_header_value)
             except ValueError:
-                print("XXX 1.4")
                 log.debug(
                     "Invalid IP address from configured %s header: %s", user_configured_ip_header, ip_header_value
                 )
                 return ""
     else:
-        print("XXX 2")
         # No configured IP header, go through the list defined in:
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         used_ip_headers = []
         headers_count = 0
         for ip_header in IP_PATTERNS:
-            tmp_ip_header_value = headers.get(ip_header)
-            print("XXX 2 ip_header_value: |%s|" % ip_header_value)
+            tmp_ip_header_value = headers.get(_find_normalized_header(headers, ip_header))
             if tmp_ip_header_value:
                 ip_header_value = tmp_ip_header_value
                 used_ip_headers.append(ip_header)
                 headers_count += 1
                 if headers_count > 1:
-                    print(
-                        "XXX 2 incrementing headers count for header %s and count %d" % (ip_header_value, headers_count)
-                    )
                     log.debug("Multiple IP headers found: %s", used_ip_headers)
                     span._set_str_tag(constants.MULTIPLE_IP_HEADERS, ",".join(used_ip_headers))
-                    print("XXX 2 exit empty")
                     return ""
 
     # At this point, we have one IP header, check its value and retrieve the first public IP
     private_ip = ""
 
-    print("XXX ip_header_value after: %s" % ip_header_value)
     if ip_header_value:
-        print("XXX 2 ip_header_value: %s" % ip_header_value)
         ip_list = ip_header_value.split(",")
         for ip in ip_list:
             ip = ip.strip()
@@ -214,7 +220,7 @@ def _get_request_header_client_ip(span, headers, peer_ip=None):
 
             if ip_obj.is_global:
                 return ip
-            elif not private_ip:
+            elif not private_ip and not ip_obj.is_loopback:
                 private_ip = ip
             # else: it's private, but we already have one: continue in case we find a public one
 
@@ -414,7 +420,6 @@ def set_http_meta(
         span._set_str_tag(http.QUERY_STRING, query)
 
     if request_headers:
-        print("XXX request_headers: %s" % request_headers)
         user_agent = _get_request_header_user_agent(request_headers)
         if user_agent:
             span.set_tag(http.USER_AGENT, user_agent)
