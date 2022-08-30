@@ -2,6 +2,7 @@ import json
 import os.path
 
 import pytest
+from six import ensure_binary
 
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
@@ -207,6 +208,52 @@ def test_ddwaf_not_raises_exception():
         rules_json = json.loads(rules.read())
         DDWaf(
             rules_json,
-            DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP,
-            DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP,
+            ensure_binary(DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP),
+            ensure_binary(DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP),
         )
+
+
+def test_obfuscation_parameter_key_empty():
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="")):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_value_empty():
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="")):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_key_and_value_empty():
+    with override_env(
+        dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="", DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="")
+    ):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_key_invalid_regex():
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="(")):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_invalid_regex():
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="(")):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_key_and_value_invalid_regex():
+    with override_env(
+        dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="(", DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="(")
+    ):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
