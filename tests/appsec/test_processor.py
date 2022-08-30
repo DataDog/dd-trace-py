@@ -259,7 +259,7 @@ def test_obfuscation_parameter_key_and_value_invalid_regex():
     assert processor.enabled
 
 
-def test_obfuscation_parameter_unconfigured_value_not_matching(tracer):
+def test_obfuscation_parameter_value_unconfigured_not_matching(tracer):
     _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -272,7 +272,7 @@ def test_obfuscation_parameter_unconfigured_value_not_matching(tracer):
     assert "<Redacted>" not in span.get_tag("_dd.appsec.json")
 
 
-def test_obfuscation_parameter_unconfigured_key_matching(tracer):
+def test_obfuscation_parameter_value_unconfigured_matching(tracer):
     _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
