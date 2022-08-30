@@ -193,7 +193,10 @@ def _get_request_header_client_ip(span, headers, peer_ip=None):
         used_ip_headers = []
         headers_count = 0
         for ip_header in IP_PATTERNS:
-            tmp_ip_header_value = headers.get(_find_normalized_header(headers, ip_header))
+            norm_header = _find_normalized_header(headers, ip_header)
+            if not norm_header:
+                continue
+            tmp_ip_header_value = headers.get(norm_header)
             if tmp_ip_header_value:
                 ip_header_value = tmp_ip_header_value
                 used_ip_headers.append(ip_header)
