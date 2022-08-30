@@ -5,6 +5,8 @@ import pytest
 
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
+from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
 from ddtrace.appsec.processor import DEFAULT_RULES
 from ddtrace.appsec.processor import _transform_headers
 from ddtrace.constants import USER_KEEP
@@ -203,4 +205,8 @@ def test_appsec_span_rate_limit(tracer):
 def test_ddwaf_not_raises_exception():
     with open(DEFAULT_RULES) as rules:
         rules_json = json.loads(rules.read())
-        DDWaf(rules_json)
+        DDWaf(
+            rules_json,
+            DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP,
+            DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP,
+        )

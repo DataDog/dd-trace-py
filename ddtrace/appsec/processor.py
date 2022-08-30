@@ -9,6 +9,7 @@ from typing import Tuple
 from typing import Union
 
 import attr
+from six import ensure_binary
 
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
@@ -30,6 +31,26 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
 DEFAULT_TRACE_RATE_LIMIT = 100
 DEFAULT_WAF_TIMEOUT = 20  # ms
+DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
+    rb"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?)key)|token|consumer_?"
+    rb"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization"
+)
+DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
+    rb"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)"
+    rb"key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)"
+    rb'(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}'
+    rb"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
+    rb"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
+)
+
+
+APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = ensure_binary(
+    os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
+)
+APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = ensure_binary(
+    os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
+)
+
 
 log = get_logger(__name__)
 
@@ -116,6 +137,8 @@ def _get_waf_timeout():
 class AppSecSpanProcessor(SpanProcessor):
 
     rules = attr.ib(type=str, factory=get_rules)
+    obfuscation_parameter_key_regexp = attr.ib(type=bytes, default=APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
+    obfuscation_parameter_value_regexp = attr.ib(type=bytes, default=APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
@@ -150,7 +173,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
             try:
-                self._ddwaf = DDWaf(rules)
+                self._ddwaf = DDWaf(
+                    rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
+                )
             except ValueError:
                 # Partial of DDAS-0005-00
                 log.warning("[DDAS-0005-00] WAF initialization failed")

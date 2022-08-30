@@ -4,6 +4,15 @@ from libc.stdint cimport uint32_t
 from libc.stdint cimport uint64_t
 from libcpp cimport bool
 
+cdef extern from "include/ddwaf.h" namespace "_ddwaf_config":
+    ctypedef struct _ddwaf_config_limits:
+        uint32_t max_container_size
+        uint32_t max_container_depth
+        uint32_t max_string_length
+
+    ctypedef struct _ddwaf_config_obfuscator:
+        const char *key_regex
+        const char *value_regex
 
 cdef extern from "include/ddwaf.h":
     ctypedef struct ddwaf_version:
@@ -33,10 +42,11 @@ cdef extern from "include/ddwaf.h":
         ddwaf_object errors
         const char *version
 
-    ctypedef struct ddwaf_handle:
-        pass
-
     ctypedef struct ddwaf_config:
+        _ddwaf_config_limits limits
+        _ddwaf_config_obfuscator obfuscator
+
+    ctypedef struct ddwaf_handle:
         pass
 
     ctypedef struct ddwaf_context:
