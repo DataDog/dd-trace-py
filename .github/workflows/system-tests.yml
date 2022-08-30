@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         weblog-variant: ['']
-        lib-injection-enabled: ['1']
+        lib-injection-enabled: ['lib-injection-enabled']
         lib-injection-connection: ['uds', 'network']
         lib-injection-use-admission-controller: ['', 'use-admission-controller']
         include:
@@ -31,8 +31,8 @@ jobs:
       LIBRARY_INJECTION_ENABLED: ${{ matrix.lib-injection-enabled }}
       LIBRARY_INJECTION_CONNECTION: ${{ matrix.lib-injection-connection }}
       LIBRARY_INJECTION_ADMISSION_CONTROLLER: ${{ matrix.lib-injection-admission-controller }}
-      LIBRARY_INJECTION_INIT_IMAGE: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:latest
-      LIBRARY_INJECTION_TEST_APP_IMAGE: ddkverhoog/k8s-auto-init-py
+      LIBRARY_INJECTION_INIT_IMAGE: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:f7f2642cb012f9b4a93a3c52e4da7dcc301dfb49
+      LIBRARY_INJECTION_TEST_APP_IMAGE: ghcr.io/datadog/dd-trace-py/dd-lib-python-init-test-app:f7f2642cb012f9b4a93a3c52e4da7dcc301dfb49
     steps:
       - name: Checkout system tests
         uses: actions/checkout@v3

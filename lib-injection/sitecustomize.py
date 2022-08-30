@@ -16,7 +16,7 @@ def _configure_ddtrace():
     print("datadog autoinstrumentation: successfully configured python package")
 
 
-if "DD_INSTALL_DDTRACE_PYTHON" in os.environ:
+if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
     try:
         import ddtrace  # noqa: F401
 
@@ -25,8 +25,9 @@ if "DD_INSTALL_DDTRACE_PYTHON" in os.environ:
 
         print("datadog autoinstrumentation: installing python package")
 
-        # Avoid infinite recursion when executing a python subprocess
-        del os.environ["DD_INSTALL_DDTRACE_PYTHON"]
+        # Avoid infinite recursion when executing a python subprocess by setting an env var
+        # which is checked above.
+        os.environ["DDTRACE_PYTHON_INSTALL_IN_PROGRESS"] = "true"
 
         # Execute the installation with the current interpreter
         try:
