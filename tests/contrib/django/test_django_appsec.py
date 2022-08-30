@@ -264,8 +264,8 @@ def test_django_client_ip_header_set_by_env_var_invalid(client, test_spans, trac
 
 
 def test_django_client_ip_header_set_by_env_var_valid(client, test_spans, tracer):
-    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER="X-FOO")):
-        client.get("/?a=1&b&c=d", HTTP_X_FOO="use-this", HTTP_CLIENT_IP="8.8.8.8", HTTP_USE_THIS="4.4.4.4")
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER="X-USE-THIS")):
+        client.get("/?a=1&b&c=d", HTTP_CLIENT_IP="8.8.8.8", HTTP_X_USE_THIS="4.4.4.4")
         root_span = test_spans.spans[0]
         assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
 
