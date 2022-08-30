@@ -17,6 +17,7 @@ from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
+from ddtrace import constants
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
@@ -26,6 +27,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -481,6 +483,41 @@ def test_set_http_meta_headers_useragent(
     assert result_keys == expected_keys
     assert span.get_tag(http.USER_AGENT) == expected
     mock_store_headers.assert_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "header_env_var,headers_dict,expected_keys,expected",
+    [
+        ("", {"X-FORWARDED-FOR": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
+        ("", {"X_FoRwArDeD-for": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
+        ("", {"X-FORWARDED-FOR": "8.8.8.8,127.0.0.1"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
+        ("", {"X-FORWARDED-FOR": "192.168.1.14,8.8.8.8,127.0.0.1"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
+        ("", {"X-FORWARDED-FOR": "192.168.1.14,127.0.0.1"}, ["runtime-id", http.CLIENT_IP], "192.168.1.14"),
+        ("", {"X-FORWARDED-FOR": "foobar"}, ["runtime-id"], None),
+        ("", {"X-FORWARDED-FOR": "4.4.4.4", "via": "8.8.8.8"}, ["runtime-id", constants.MULTIPLE_IP_HEADERS], None),
+        ("via", {"X-FORWARDED-FOR": "4.4.4.4"}, ["runtime-id"], None),
+        ("via", {"VIA": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
+        ("via", {"X-FORWARDED-FOR": "4.4.4.4", "Via": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
+    ],
+)
+def test_set_http_meta_headers_ip(
+    mock_store_headers, header_env_var, headers_dict, expected_keys, expected, span, int_config
+):
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+        with override_env(dict(DD_TRACE_CLIENT_IP_HEADER=header_env_var)):
+            int_config.myint.http._header_tags = {"enabled": True}
+            assert int_config.myint.is_header_tracing_configured is True
+            trace_utils.set_http_meta(
+                span,
+                int_config.myint,
+                request_headers=headers_dict,
+            )
+            result_keys = list(span.get_tags().keys())
+            result_keys.sort(reverse=True)
+            assert result_keys == expected_keys
+            assert span.get_tag(http.CLIENT_IP) == expected
+            mock_store_headers.assert_called()
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python2 tests")
