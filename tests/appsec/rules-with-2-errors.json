@@ -1,5 +1,8 @@
 {
-  "version": "2.1",
+  "version": "2.2",
+  "metadata": {
+    "rules_version": "5.5.5"
+  },
   "rules": [
     {
       "id": "crs-913-110",

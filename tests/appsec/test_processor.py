@@ -135,7 +135,13 @@ def test_headers_collection(tracer):
     assert span.get_tag("http.response.headers.foo") is None
 
 
-@snapshot(include_tracer=True)
+@snapshot(
+    include_tracer=True,
+    ignores=[
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+    ],
+)
 def test_appsec_cookies_no_collection_snapshot(tracer):
     _enable_appsec(tracer)
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -150,7 +156,13 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
 
-@snapshot(include_tracer=True)
+@snapshot(
+    include_tracer=True,
+    ignores=[
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+    ],
+)
 def test_appsec_body_no_collection_snapshot(tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
@@ -166,13 +178,36 @@ def test_appsec_body_no_collection_snapshot(tracer):
         assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
 
-@snapshot(include_tracer=True)
+@snapshot(
+    include_tracer=True,
+    ignores=[
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+    ],
+)
 def test_appsec_span_tags_snapshot(tracer):
     _enable_appsec(tracer)
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         span.set_tag("http.url", "http://example.com/.git")
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
+
+    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+
+@snapshot(
+    include_tracer=True,
+    ignores=[
+        "metrics._dd.appsec.waf.duration",
+        "metrics._dd.appsec.waf.duration_ext",
+    ],
+)
+def test_appsec_span_tags_snapshot_with_errors(tracer):
+    with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))):
+        _enable_appsec(tracer)
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            span.set_tag("http.url", "http://example.com/.git")
+            set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
 
@@ -217,8 +252,13 @@ def test_ddwaf_run():
             "server.request.cookies": {"attack": "1' or '1' = '1'"},
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
-        res = _ddwaf.run(data, DEFAULT_WAF_TIMEOUT)  # res is a serialized json
+        res, total_time, total_overall_runtime = _ddwaf.run(data, DEFAULT_WAF_TIMEOUT)  # res is a serialized json
+        print(total_time)
+        print(total_overall_runtime)
         assert res.startswith('[{"rule":{"id":"crs-942-100"')
+        assert total_time > 0
+        assert total_overall_runtime > 0
+        assert total_overall_runtime > total_time
 
 
 def test_ddwaf_info():
@@ -230,6 +270,7 @@ def test_ddwaf_info():
         assert info["loaded"] == 3
         assert info["failed"] == 0
         assert info["errors"] == {}
+        assert info["version"] == "1.3.1"
 
 
 def test_ddwaf_info_with_2_errors():
@@ -241,6 +282,7 @@ def test_ddwaf_info_with_2_errors():
         assert info["loaded"] == 1
         assert info["failed"] == 2
         assert info["errors"] == {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}
+        assert info["version"] == "1.3.1"
 
 
 def test_ddwaf_info_with_3_errors():

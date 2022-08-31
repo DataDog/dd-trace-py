@@ -11,8 +11,19 @@ from typing import Union
 import attr
 
 from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf import version
+from ddtrace.constants import APPSEC_ENABLED
+from ddtrace.constants import APPSEC_EVENT_RULE_ERRORS
+from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
+from ddtrace.constants import APPSEC_EVENT_RULE_LOADED
+from ddtrace.constants import APPSEC_EVENT_RULE_VERSION
+from ddtrace.constants import APPSEC_JSON
+from ddtrace.constants import APPSEC_WAF_DURATION
+from ddtrace.constants import APPSEC_WAF_DURATION_EXT
+from ddtrace.constants import APPSEC_WAF_VERSION
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
+from ddtrace.constants import RUNTIME_FAMILY
 from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
@@ -178,8 +189,8 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
             return
-        span.set_metric("_dd.appsec.enabled", 1.0)
-        span._set_str_tag("_dd.runtime_family", "python")
+        span.set_metric(APPSEC_ENABLED, 1.0)
+        span._set_str_tag(RUNTIME_FAMILY, "python")
 
         data = {}
         if self._is_needed(_Addresses.SERVER_REQUEST_QUERY):
@@ -228,7 +239,23 @@ class AppSecSpanProcessor(SpanProcessor):
                 data[_Addresses.SERVER_REQUEST_BODY] = body
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        res, total_runtime, total_overall_runtime = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+
+        try:
+            info = self._ddwaf.info
+            if info["errors"]:
+                span._set_str_tag(APPSEC_EVENT_RULE_ERRORS, json.dumps(info["errors"]))
+            span._set_str_tag(APPSEC_EVENT_RULE_VERSION, info["version"])
+            span._set_str_tag(APPSEC_WAF_VERSION, "%s.%s.%s" % version())
+
+            span.set_metric(APPSEC_EVENT_RULE_LOADED, info["loaded"])
+            span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info["failed"])
+            span.set_metric(APPSEC_WAF_DURATION, total_runtime)
+            span.set_metric(APPSEC_WAF_DURATION_EXT, total_overall_runtime)
+        except (json.decoder.JSONDecodeError, ValueError):
+            log.debug("Error parsing data AppSec In-App WAF metrics report")
+        except Exception:
+            log.debug("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
         if res is not None:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
@@ -244,7 +271,7 @@ class AppSecSpanProcessor(SpanProcessor):
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span._set_str_tag("appsec.event", "true")
-            span._set_str_tag("_dd.appsec.json", '{"triggers":%s}' % (res,))
+            span._set_str_tag(APPSEC_JSON, '{"triggers":%s}' % (res,))
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
             span.set_tag(MANUAL_KEEP_KEY)

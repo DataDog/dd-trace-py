@@ -1,5 +1,5 @@
 from collections import deque
-import sys
+import time
 from typing import Tuple
 
 import six
@@ -35,12 +35,7 @@ from cpython.mem cimport PyMem_Realloc
 from cpython.unicode cimport PyUnicode_AsEncodedString
 from libc.stdint cimport uint32_t
 from libc.stdint cimport uint64_t
-from libc.stdlib cimport malloc
-from libc.string cimport memcpy
 from libc.string cimport memset
-from libc.string cimport strcat
-from libc.string cimport strlen
-from libcpp.string cimport string
 
 
 DEFAULT_DDWAF_TIMEOUT_MS=20
@@ -217,6 +212,13 @@ cdef class _Wrapper(object):
     def __dealloc__(self):
         PyMem_Free(self._ptr)
 
+cdef str _char_to_str(const char* char_value):
+    value = ""
+    IF PY_MAJOR_VERSION >= 3:
+        value = str(char_value, encoding="utf-8")
+    ELSE:
+        value = str(char_value)
+    return value
 
 cdef class DDWafObject(object):
     cdef ddwaf_object _obj
@@ -233,20 +235,14 @@ cdef class DDWafObject(object):
         cdef ddwaf_object* base = self._obj.array
         return (<ddwaf_object*>(base + ((i - 1) * sizeof(ddwaf_object))))[0]
 
-    cdef str _char_to_str(self, const char* char_value):
-        value = ""
-        IF PY_MAJOR_VERSION >= 3:
-            value = str(char_value, encoding="utf-8")
-        ELSE:
-            value = str(char_value)
-        return value
+
 
     cdef get_value(self, ddwaf_object dd_obj):
         value = ""
         cdef DDWAF_OBJ_TYPE type_ob = dd_obj.type
 
         if type_ob == DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING:
-            value = self._char_to_str(dd_obj.stringValue)
+            value = _char_to_str(dd_obj.stringValue)
         elif type_ob == DDWAF_OBJ_TYPE.DDWAF_OBJ_SIGNED:
             value = int(dd_obj.intValue)
         elif type_ob == DDWAF_OBJ_TYPE.DDWAF_OBJ_UNSIGNED:
@@ -269,7 +265,7 @@ cdef class DDWafObject(object):
 
         if base.parameterName != NULL:
             result = {}
-            result[self._char_to_str(base.parameterName)] = value
+            result[_char_to_str(base.parameterName)] = value
         else:
             result = value
         return result
@@ -322,7 +318,7 @@ cdef class DDWaf(object):
 
             version = ""
             if self._info.version != NULL:
-                version = self._info.version
+                version = _char_to_str(self._info.version)
             return {
                 "loaded": self._info.loaded,
                 "failed": self._info.failed,
@@ -337,6 +333,7 @@ cdef class DDWaf(object):
             }
 
     def run(self, data, timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS):
+        start = time.time_ns()
         cdef ddwaf_context ctx
         cdef ddwaf_result result
 
@@ -347,7 +344,8 @@ cdef class DDWaf(object):
             wrapper = _Wrapper(data)
             ddwaf_run(ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms * 1000)
             if result.data != NULL:
-                return (<bytes> result.data).decode("utf-8")
+
+                return (<bytes> result.data).decode("utf-8"), result.total_runtime / 1e3, (time.time_ns() - start) / 1e3
         finally:
             ddwaf_result_free(&result)
             ddwaf_context_destroy(ctx)

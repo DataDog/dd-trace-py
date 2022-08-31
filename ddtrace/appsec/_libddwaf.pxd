@@ -51,6 +51,7 @@ cdef extern from "include/ddwaf.h":
 
     ctypedef struct ddwaf_result:
         DDWAF_RET_CODE action
+        uint64_t total_runtime
         const char* data
 
     ctypedef void (*ddwaf_object_free_fn)(ddwaf_object *object);
