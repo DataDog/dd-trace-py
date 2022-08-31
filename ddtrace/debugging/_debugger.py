@@ -40,6 +40,7 @@ from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.internal import atexit
+from ddtrace.internal import compat
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
@@ -311,10 +312,13 @@ class Debugger(Service):
             if not open_contexts:
                 return wrapped(*args, **kwargs)
 
+            start_time = compat.monotonic_ns()
             try:
                 retval = wrapped(*args, **kwargs)
+                end_time = compat.monotonic_ns()
                 exc_info = (None, None, None)
             except Exception:
+                end_time = compat.monotonic_ns()
                 retval = None
                 exc_info = sys.exc_info()  # type: ignore[assignment]
             else:
@@ -325,7 +329,7 @@ class Debugger(Service):
                     return dd_coroutine_wrapper(retval, open_contexts)
 
             for context in open_contexts:
-                context.exit(retval, exc_info)
+                context.exit(retval, exc_info, end_time - start_time)
 
             exc = exc_info[1]
             if exc is not None:
@@ -405,12 +409,12 @@ class Debugger(Service):
                     self._probe_registry.set_exc_info(probe, exc_info)
                 log.error("Cannot register probe injection hook on source '%s'", source, exc_info=True)
 
-    def _eject_probes(self, probes):
+    def _eject_probes(self, probes_to_eject):
         # type: (List[LineProbe]) -> None
         # TODO[perf]: Bulk-collect probes as for injection. This is lower
         # priority as probes are normally removed manually by users.
         unregistered_probes = []  # type: List[LineProbe]
-        for probe in probes:
+        for probe in probes_to_eject:
             if probe not in self._probe_registry:
                 log.error("Attempted to eject unregistered probe %r", probe)
                 continue
@@ -438,12 +442,12 @@ class Debugger(Service):
                     for function in (cast(FullyNamedWrappedFunction, _) for _ in functions):
                         probes_for_function[function].append(probe)
 
-                for function, probes in probes_for_function.items():
+                for function, ps in probes_for_function.items():
                     failed = self._function_store.eject_hooks(
                         cast(FunctionType, function),
-                        [(self._dd_debugger_hook, probe.line, probe) for probe in probes if probe.line is not None],
+                        [(self._dd_debugger_hook, probe.line, probe) for probe in ps if probe.line is not None],
                     )
-                    for probe in probes:
+                    for probe in ps:
                         if probe.probe_id in failed:
                             log.error("Failed to eject %r from %r", probe, function)
                         else:
