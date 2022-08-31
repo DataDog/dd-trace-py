@@ -157,7 +157,7 @@ def _find_normalized_header(headers, header):
     if norm_header in headers:
         return norm_header
 
-    for header_key in headers.keys():
+    for header_key in dict(headers).keys():
         if header_key.lower().replace("-", "_").strip() == norm_header:
             return header_key
 
