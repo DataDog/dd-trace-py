@@ -142,8 +142,15 @@ class ExplorationSnapshotCollector(SnapshotCollector):
         if self.on_snapshot:
             self.on_snapshot(snapshot)
 
-    def collect(self, probe, frame, thread, args, context=None):
-        # type: (ConditionalProbe, FrameType, Thread, t.List[t.Tuple[str, t.Any]], t.Optional[Context]) -> SnapshotContext
+    def collect(
+        self,
+        probe,  # type: ConditionalProbe
+        frame,  # type: FrameType
+        thread,  # type: Thread
+        args,  # type: t.List[t.Tuple[str, t.Any]]
+        context=None,  # type: t.Optional[Context]
+    ):
+        # type: (...) -> SnapshotContext
         return SnapshotContext(self, probe, frame, thread, args, context)
 
     @property

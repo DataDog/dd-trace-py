@@ -241,7 +241,7 @@ jobs:
           # Debugger exploration testing does not work in CI
           # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
         # test_pool_timeout raises RuntimeError: The connection pool was closed while 1 HTTP requests/responses were still in-flight
-        run: pytest -k 'not test_pool_timeout and not test_deleting_unclosed_async_client_causes_warning'
+        run: pytest -k 'not test_pool_timeout'
 
   mako-testsuite-1_1_4:
     runs-on: ubuntu-latest
