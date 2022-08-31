@@ -305,6 +305,3 @@ def test_django_client_ip_nothing(client, test_spans, tracer):
     client.get("/?a=1&b&c=d")
     root_span = test_spans.spans[0]
     assert not root_span.get_tag(http.CLIENT_IP)
-
-
-# XXX add tests for peer ip

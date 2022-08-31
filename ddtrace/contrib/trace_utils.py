@@ -24,6 +24,7 @@ from ddtrace import constants
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
+from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
@@ -181,7 +182,7 @@ def _get_request_header_client_ip(span, headers, peer_ip=None):
                 return ""
 
             try:
-                _ = ipaddress.ip_address(ip_header_value)
+                _ = ipaddress.ip_address(six.text_type(ip_header_value))
             except ValueError:
                 log.debug(
                     "Invalid IP address from configured %s header: %s", user_configured_ip_header, ip_header_value
@@ -217,7 +218,7 @@ def _get_request_header_client_ip(span, headers, peer_ip=None):
                 continue
 
             try:
-                ip_obj = ipaddress.ip_address(ip)
+                ip_obj = ipaddress.ip_address(six.text_type(ip))
             except ValueError:
                 continue
 
@@ -231,9 +232,9 @@ def _get_request_header_client_ip(span, headers, peer_ip=None):
     # return either the private_ip from the headers (if we have one) or the peer private ip
     if peer_ip:
         try:
-            peer_ip_obj = ipaddress.ip_address(peer_ip)
+            peer_ip_obj = ipaddress.ip_address(six.text_type(peer_ip))
             # "or" because if both are private we prefer the one from the headers
-            if peer_ip_obj.is_global or not private_ip:
+            if not peer_ip_obj.is_private or not private_ip:
                 return peer_ip
         except ValueError:
             pass
