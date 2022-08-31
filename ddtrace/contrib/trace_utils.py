@@ -221,7 +221,7 @@ def _get_request_header_client_ip(span, headers, peer_ip=None):
             except ValueError:
                 continue
 
-            if ip_obj.is_global:
+            if not ip_obj.is_private:  # is_global is Python3+ only
                 return ip
             elif not private_ip and not ip_obj.is_loopback:
                 private_ip = ip
