@@ -11,7 +11,6 @@ if six.PY3:
 else:
     from collections import Mapping, Sequence
 
-from _libddwaf cimport DDWAF_LOG_LEVEL
 from _libddwaf cimport DDWAF_OBJ_TYPE
 from _libddwaf cimport ddwaf_context
 from _libddwaf cimport ddwaf_context_destroy
@@ -24,8 +23,8 @@ from _libddwaf cimport ddwaf_object
 from _libddwaf cimport ddwaf_required_addresses
 from _libddwaf cimport ddwaf_result
 from _libddwaf cimport ddwaf_result_free
+from _libddwaf cimport ddwaf_ruleset_info
 from _libddwaf cimport ddwaf_run
-from _libddwaf cimport ddwaf_set_log_cb
 from _libddwaf cimport ddwaf_version
 from cpython.bytes cimport PyBytes_AsString
 from cpython.bytes cimport PyBytes_Size
@@ -36,8 +35,12 @@ from cpython.mem cimport PyMem_Realloc
 from cpython.unicode cimport PyUnicode_AsEncodedString
 from libc.stdint cimport uint32_t
 from libc.stdint cimport uint64_t
-from libc.stdint cimport uintptr_t
+from libc.stdlib cimport malloc
+from libc.string cimport memcpy
 from libc.string cimport memset
+from libc.string cimport strcat
+from libc.string cimport strlen
+from libcpp.string cimport string
 
 
 DEFAULT_DDWAF_TIMEOUT_MS=20
@@ -215,6 +218,65 @@ cdef class _Wrapper(object):
         PyMem_Free(self._ptr)
 
 
+cdef class DDWafObject(object):
+    cdef ddwaf_object _obj
+
+    cdef init(self, ddwaf_object obj):
+        self._obj = obj
+
+    cdef uint64_t length(self):
+        return self._obj.nbEntries
+
+    cdef ddwaf_object index_OLD(self, uint64_t i):
+        if i == 0:
+            return self._obj
+        cdef ddwaf_object* base = self._obj.array
+        return (<ddwaf_object*>(base + ((i - 1) * sizeof(ddwaf_object))))[0]
+
+    cdef str _char_to_str(self, const char* char_value):
+        value = ""
+        IF PY_MAJOR_VERSION >= 3:
+            value = str(char_value, encoding="utf-8")
+        ELSE:
+            value = str(char_value)
+        return value
+
+    cdef get_value(self, ddwaf_object dd_obj):
+        value = ""
+        cdef DDWAF_OBJ_TYPE type_ob = dd_obj.type
+
+        if type_ob == DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING:
+            value = self._char_to_str(dd_obj.stringValue)
+        elif type_ob == DDWAF_OBJ_TYPE.DDWAF_OBJ_SIGNED:
+            value = int(dd_obj.intValue)
+        elif type_ob == DDWAF_OBJ_TYPE.DDWAF_OBJ_UNSIGNED:
+            value = int(dd_obj.uintValue)
+        elif type_ob == DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY:
+            value = []
+            for i in range(dd_obj.nbEntries):
+                result = self._index(dd_obj, i)
+                value.append(result)
+        elif type_ob == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP:
+            value = {}
+            for i in range(dd_obj.nbEntries):
+                result = self._index(dd_obj, i)
+                value.update(result)
+        return value
+
+    cdef _index(self, ddwaf_object obj, uint64_t i):
+        cdef ddwaf_object base = obj.array[i]
+        value = self.get_value(base)
+
+        if base.parameterName != NULL:
+            result = {}
+            result[self._char_to_str(base.parameterName)] = value
+        else:
+            result = value
+        return result
+
+    cdef index(self, uint64_t i):
+        return self._index(self._obj, i)
+
 cdef class DDWaf(object):
     """
     A DDWaf instance performs a matching operation on provided data according
@@ -222,13 +284,14 @@ cdef class DDWaf(object):
     """
 
     cdef ddwaf_handle _handle
+    cdef ddwaf_ruleset_info _info
     cdef object _rules
 
     def __init__(self, rules):
         cdef ddwaf_object* rule_objects
         self._rules = _Wrapper(rules, max_objects=None)
         rule_objects = (<_Wrapper?>self._rules)._ptr;
-        self._handle = ddwaf_init(rule_objects, NULL, NULL)
+        self._handle = ddwaf_init(rule_objects, NULL, &self._info)
         if <void *> self._handle == NULL:
             raise ValueError("invalid rules")
 
@@ -242,6 +305,36 @@ cdef class DDWaf(object):
         for i in range(size):
             addresses.append((<bytes> ptr[i]).decode("utf-8"))
         return addresses
+
+    @property
+    def info(self):
+        cdef dict result
+        cdef dict errors_result = {}
+        cdef DDWafObject errors_ob = DDWafObject()
+
+        errors_ob.init(self._info.errors)
+
+        if self._info.loaded > 0:
+            if self._info.failed > 0:
+                for i in range(errors_ob.length()):
+                    result = errors_ob.index(<uint64_t?>i)
+                    errors_result.update(result)
+
+            version = ""
+            if self._info.version != NULL:
+                version = self._info.version
+            return {
+                "loaded": self._info.loaded,
+                "failed": self._info.failed,
+                "errors": errors_result,
+                "version": version,
+            }
+        return {
+                "loaded": 0,
+                "failed": 0,
+                "errors": errors_result,
+                "version": "",
+            }
 
     def run(self, data, timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS):
         cdef ddwaf_context ctx

@@ -17,6 +17,8 @@ cdef extern from "include/ddwaf.h":
         DDWAF_OBJ_ARRAY
         DDWAF_OBJ_MAP
         DDWAF_OBJ_STRING
+        DDWAF_OBJ_SIGNED
+        DDWAF_OBJ_UNSIGNED
         DDWAF_OBJ_INVALID
 
     ctypedef struct ddwaf_object:
@@ -24,6 +26,8 @@ cdef extern from "include/ddwaf.h":
         uint64_t parameterNameLength
         ddwaf_object* array
         const char* stringValue
+        uint64_t intValue
+        int64_t uintValue
         uint64_t nbEntries
         DDWAF_OBJ_TYPE type
 
