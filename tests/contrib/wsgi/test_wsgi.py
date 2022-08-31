@@ -275,3 +275,18 @@ def test_wsgi_base_middleware_500(use_global_tracer, tracer):
     app = TestApp(WsgiCustomMiddleware(application, tracer, config.wsgi, None))
     with pytest.raises(Exception):
         app.get("/error")
+
+
+@snapshot()
+def test_distributed_tracing_nested():
+    app = TestApp(
+        wsgi.DDWSGIMiddleware(
+            wsgi.DDWSGIMiddleware(application),
+        )
+    )
+
+    resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
+
+    assert config.wsgi.distributed_tracing is True
+    assert resp.status == "200 OK"
+    assert resp.status_int == 200

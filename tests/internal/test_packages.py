@@ -17,8 +17,11 @@ def test_get_distributions():
         # The package name in typing_extensions-4.x.x.dist-info/METADATA is set to `typing_extensions`
         # this is inconsistent with the package name found in pkg_resources. The block below corrects this.
         # The correct package name is typing-extensions.
+        # The issue exists in pkgutil-resolve-name package.
         if pkg.name == "typing_extensions" and "typing-extensions" in pkg_resources_ws:
             importlib_pkgs.add("typing-extensions")
+        elif pkg.name == "pkgutil_resolve_name" and "pkgutil-resolve-name" in pkg_resources_ws:
+            importlib_pkgs.add("pkgutil-resolve-name")
         else:
             importlib_pkgs.add(pkg.name)
 

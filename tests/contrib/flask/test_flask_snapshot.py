@@ -13,6 +13,11 @@ from ddtrace.contrib.flask.patch import flask_version
 from tests.webclient import Client
 
 
+DEFAULT_HEADERS = {
+    "User-Agent": "python-httpx/x.xx.x",
+}
+
+
 @pytest.fixture
 def flask_port():
     # type: () -> str
@@ -28,23 +33,19 @@ def flask_wsgi_application():
 @pytest.fixture
 def flask_command(flask_wsgi_application, flask_port):
     # type: (str, str) -> List[str]
-    cmd = (
-        "uwsgi --enable-threads --lazy-apps "
-        "--import=ddtrace.bootstrap.sitecustomize "
-        "--master --processes=1 --http 0.0.0.0:%s "
-        "--module %s"
-    ) % (flask_port, flask_wsgi_application)
-    return cmd.split(" ")
+    cmd = "ddtrace-run flask run -h 0.0.0.0 -p %s" % (flask_port,)
+    return cmd.split()
 
 
 @pytest.fixture
-def flask_env():
-    # type: () -> Dict[str, str]
+def flask_env(flask_wsgi_application):
+    # type: (str) -> Dict[str, str]
     env = os.environ.copy()
     env.update(
         {
             # Avoid noisy database spans being output on app startup/teardown.
             "DD_TRACE_SQLITE3_ENABLED": "0",
+            "FLASK_APP": flask_wsgi_application,
         }
     )
     return env
@@ -98,7 +99,7 @@ def flask_client(flask_command, flask_env, flask_port):
 )
 def test_flask_200(flask_client):
     # type: (Client) -> None
-    assert flask_client.get("/").status_code == 200
+    assert flask_client.get("/", headers=DEFAULT_HEADERS).status_code == 200
 
 
 @pytest.mark.snapshot(
@@ -106,4 +107,13 @@ def test_flask_200(flask_client):
 )
 def test_flask_stream(flask_client):
     # type: (Client) -> None
-    assert flask_client.get("/stream").status_code == 200
+    assert flask_client.get("/stream", headers=DEFAULT_HEADERS, stream=True).status_code == 200
+
+
+@pytest.mark.snapshot(
+    ignores=["meta.flask.version", "meta.http.useragent"],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
+)
+def test_flask_get_user(flask_client):
+    # type: (Client) -> None
+    assert flask_client.get("/identify").status_code == 200
