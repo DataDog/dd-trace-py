@@ -76,6 +76,7 @@ formatter
 gRPC
 gevent
 graphql
+graphene
 greenlet
 greenlets
 grpc
@@ -149,6 +150,7 @@ runnable
 runtime
 runtimes
 runtime-id
+RLock
 sanic
 screenshots
 serializable
@@ -186,3 +188,5 @@ yaaredis
 Kinesis
 AppSec
 libddwaf
+Serverless
+serverless

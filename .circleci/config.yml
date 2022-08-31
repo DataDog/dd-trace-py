@@ -746,6 +746,13 @@ jobs:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
 
+  graphene:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "graphene"
+          snapshot: true
+
   graphql:
     <<: *machine_executor
     steps:
@@ -762,10 +769,12 @@ jobs:
           snapshot: true
 
   httplib:
-    <<: *contrib_job
+    <<: *machine_executor
     steps:
-      - run_tox_scenario:
-          pattern: '^httplib_contrib'
+      - run_test:
+          pattern: "httplib"
+          snapshot: true
+          docker_services: 'httpbin_local'
 
   httpx:
     <<: *machine_executor
@@ -1258,6 +1267,7 @@ workflows:
       - flask: *requires_base_venvs
       - futures: *requires_base_venvs
       - gevent: *requires_base_venvs
+      - graphene: *requires_base_venvs
       - graphql: *requires_base_venvs
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs

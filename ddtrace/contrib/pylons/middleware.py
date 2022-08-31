@@ -1,10 +1,13 @@
+import json
 import sys
 from typing import Any
 from typing import Dict
 from typing import Tuple
 
 from pylons import config
+import webob
 from webob import Request
+import xmltodict
 
 from ddtrace import config as ddconfig
 from ddtrace.internal.compat import iteritems
@@ -21,7 +24,14 @@ from .constants import CONFIG_MIDDLEWARE
 from .renderer import trace_rendering
 
 
+try:
+    from json import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
 log = get_logger(__name__)
+_BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
 class PylonsTraceMiddleware(object):
@@ -47,6 +57,20 @@ class PylonsTraceMiddleware(object):
     def _distributed_tracing(self, distributed_tracing):
         ddconfig.pylons["distributed_tracing"] = asbool(distributed_tracing)
 
+    def _unlist_multidict_params(self, multidict):  # type: (webob.multidict.MultiDict) -> Dict[str, Any]
+        # Pylons multidict always return values in a list. This will convert lists with a
+        # single value
+        # into the un-listed value
+        new_dict = {}  # type: Dict[str, Any]
+
+        for k, v in iteritems(multidict):
+            if isinstance(v, list) and len(v) == 1:
+                new_dict[k] = v[0]
+            else:
+                new_dict[k] = v
+
+        return new_dict
+
     def _parse_path_params(self, pylon_path_params):  # type: (Tuple[Any, Dict[str, Any]]) -> Dict[str, Any]
         path_params = {}
         if len(pylon_path_params) > 0:
@@ -67,12 +91,36 @@ class PylonsTraceMiddleware(object):
             # set analytics sample rate with global config enabled
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, ddconfig.pylons.get_analytics_sample_rate(use_global_config=True))
 
+            req_body = None
+
+            if ddconfig._appsec_enabled and request.method in _BODY_METHODS:
+                content_type = getattr(request, "content_type", request.headers.environ.get("CONTENT_TYPE"))
+
+                try:
+                    if content_type == "application/x-www-form-urlencoded":
+                        req_body = self._unlist_multidict_params(request.POST.dict_of_lists())
+                    elif content_type == "application/json":
+                        # if pylons>=0.10,<0.11 request.json not exists
+                        if hasattr(request, "json"):
+                            req_body = request.json
+                        else:
+                            req_body = json.loads(request.body.decode("UTF-8"))
+                    elif content_type in ("application/xml", "text/xml"):
+                        req_body = xmltodict.parse(request.body.decode("UTF-8"))
+                    else:  # text/plain, xml, others: take them as strings
+                        req_body = request.body.decode("UTF-8")
+
+                except (AttributeError, OSError, ValueError, JSONDecodeError):
+                    log.warning("Failed to parse request body", exc_info=True)
+                    # req_body is None
+
             trace_utils.set_http_meta(
                 span,
                 ddconfig.pylons,
                 method=request.method,
-                request_headers=request.headers,
+                request_headers=dict(request.headers),
                 request_cookies=dict(request.cookies),
+                request_body=req_body,
             )
 
             if not span.sampled:

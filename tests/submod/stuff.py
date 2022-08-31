@@ -123,3 +123,11 @@ class PropertyStuff(object):
         self._foo = "foo"
 
     foo = property(operator.attrgetter("_foo"))
+
+
+from time import sleep  # noqa
+
+
+def durationstuff(ns):
+
+    sleep(ns / 1e9)

@@ -1,14 +1,8 @@
 import aiobotocore.client
 
 from ddtrace import config
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.vendor import wrapt
-
-
-try:
-    from aiobotocore.endpoint import ClientResponseContentProxy
-except ImportError:
-    # aiobotocore>=0.11.0
-    from aiobotocore._endpoint_helpers import ClientResponseContentProxy
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
@@ -21,6 +15,16 @@ from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ..trace_utils import unwrap
+
+
+aiobotocore_version_str = getattr(aiobotocore, "__version__", "0.0.0")
+AIOBOTOCORE_VERSION = parse_version(aiobotocore_version_str)
+
+if AIOBOTOCORE_VERSION <= (0, 10, 0):
+    # aiobotocore>=0.11.0
+    from aiobotocore.endpoint import ClientResponseContentProxy
+elif AIOBOTOCORE_VERSION >= (0, 11, 0) and AIOBOTOCORE_VERSION < (2, 3, 0):
+    from aiobotocore._endpoint_helpers import ClientResponseContentProxy
 
 
 ARGS_NAME = ("action", "params", "path", "verb")
@@ -110,7 +114,9 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         result = await original_func(*args, **kwargs)
 
         body = result.get("Body")
-        if isinstance(body, ClientResponseContentProxy):
+
+        # ClientResponseContentProxy removed in aiobotocore 2.3.x: https://github.com/aio-libs/aiobotocore/pull/934/
+        if hasattr(body, "ClientResponseContentProxy") and isinstance(body, ClientResponseContentProxy):
             result["Body"] = WrappedClientResponseContentProxy(body, pin, span)
 
         response_meta = result["ResponseMetadata"]

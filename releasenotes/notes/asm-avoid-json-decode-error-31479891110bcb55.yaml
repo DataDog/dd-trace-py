@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: (flask) avoid json decode error while parsing request body.
