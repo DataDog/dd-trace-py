@@ -155,7 +155,9 @@ def _collect_functions(module):
         for k, o in c:
             if PY2 and _isinstance(o, UnboundMethodType):
                 o = o.__func__
-            if _isinstance(o, (FunctionType, FunctionWrapper)) and abspath(o.__code__.co_filename) == path:
+
+            code = getattr(o, "__code__", None) if _isinstance(o, (FunctionType, FunctionWrapper)) else None
+            if code is not None and abspath(code.co_filename) == path:
                 if o not in seen_functions:
                     seen_functions.add(o)
                     o = cast(FullyNamedFunction, o)
