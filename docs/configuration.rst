@@ -304,6 +304,24 @@ below:
      - True
      - Whether to enable the endpoint data collection in profiles.
 
+       .. _dd-appsec-enabled:
+   * - ``DD_APPSEC_ENABLED``
+     - Boolean
+     - False
+     - Whether to enable AppSec monitoring.
+
+       .. _dd-appsec-rules:
+   * - ``DD_APPSEC_RULES``
+     - String
+     -
+     - Path to a json file containing AppSec rules.
+
+       .. _dd-compile-debug:
+   * - ``DD_COMPILE_DEBUG``
+     - Boolean
+     - False
+     - Compile Cython extensions in RelWithDebInfo mode (with debug info, but no debug code or asserts)
+
        .. _dd-appsec-obfuscation-parameter-key-regexp:
    * - ``DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP``
      - String
