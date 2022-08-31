@@ -43,7 +43,9 @@ cassandra
 cgroups
 cherrypy
 ciapp
+client_ip
 codepath
+collect
 committer
 compat
 composable
