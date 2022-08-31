@@ -1,10 +1,13 @@
+"""
+This module when included on the PYTHONPATH will install the ddtrace package from pypi
+for the Python runtime being used.
+"""
 import os
 import sys
 
 
 def _configure_ddtrace():
-    # This import has the same effect as ddtrace-run for the current
-    # process.
+    # This import has the same effect as ddtrace-run for the current process.
     import ddtrace.bootstrap.sitecustomize
 
     bootstrap_dir = os.path.abspath(os.path.dirname(ddtrace.bootstrap.sitecustomize.__file__))
@@ -16,6 +19,8 @@ def _configure_ddtrace():
     print("datadog autoinstrumentation: successfully configured python package")
 
 
+# Avoid infinite loop when attempting to install ddtrace. This flag is set when
+# the subprocess is launched to perform the install.
 if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
     try:
         import ddtrace  # noqa: F401
@@ -25,13 +30,13 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
 
         print("datadog autoinstrumentation: installing python package")
 
-        # Avoid infinite recursion when executing a python subprocess by setting an env var
-        # which is checked above.
-        os.environ["DDTRACE_PYTHON_INSTALL_IN_PROGRESS"] = "true"
+        # Set the flag to avoid an infinite loop.
+        env = os.environ.copy()
+        env["DDTRACE_PYTHON_INSTALL_IN_PROGRESS"] = "true"
 
         # Execute the installation with the current interpreter
         try:
-            subprocess.run([sys.executable, "-m", "pip", "install", "ddtrace"], env=os.environ.copy())
+            subprocess.run([sys.executable, "-m", "pip", "install", "ddtrace"], env=env)
         except Exception:
             print("datadog autoinstrumentation: failed to install python package")
         else:
