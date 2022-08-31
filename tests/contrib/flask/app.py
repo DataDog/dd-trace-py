@@ -5,6 +5,7 @@ from flask import Flask
 from flask import request
 
 from ddtrace import tracer
+from ddtrace.contrib.trace_utils import set_user
 from tests.webclient import PingFilter
 
 
@@ -21,6 +22,20 @@ app = Flask(__name__, template_folder=tmpl_path)
 @app.route("/")
 def index():
     return "hello"
+
+
+@app.route("/identify")
+def identify():
+    set_user(
+        tracer,
+        user_id="usr.id",
+        email="usr.email",
+        name="usr.name",
+        session_id="usr.session_id",
+        role="usr.role",
+        scope="usr.scope",
+    )
+    return "identify"
 
 
 @app.route("/shutdown")

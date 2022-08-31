@@ -16,6 +16,7 @@ from django.views.generic import TemplateView
 from django.views.generic import View
 
 from ddtrace import tracer
+from ddtrace.contrib.trace_utils import set_user
 
 
 class UserList(ListView):
@@ -181,6 +182,19 @@ def not_found_view(request):
 
 
 def path_params_view(request, year, month):
+    return HttpResponse(status=200)
+
+
+def identify(request):
+    set_user(
+        tracer,
+        user_id="usr.id",
+        email="usr.email",
+        name="usr.name",
+        session_id="usr.session_id",
+        role="usr.role",
+        scope="usr.scope",
+    )
     return HttpResponse(status=200)
 
 
