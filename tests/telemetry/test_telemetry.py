@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_enable(test_agent_session, run_python_code_in_subprocess):
     code = """
 from ddtrace.internal.telemetry import telemetry_writer
@@ -15,6 +18,28 @@ telemetry_writer.enable()
 
     # Same runtime id is used
     assert events[0]["runtime_id"] == events[1]["runtime_id"]
+    assert events[0]["request_type"] == "app-closing"
+    assert events[1]["request_type"] == "app-started"
+
+
+@pytest.mark.snapshot
+def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """assert telemetry events are generated after the first trace is flushed to the agent"""
+    # Using ddtrace-run and/or importing ddtrace alone should not enable telemetry
+    # Telemetry data should only be sent after the first trace to the agent
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import ddtrace")
+    assert status == 0, stderr
+    # No trace and No Telemetry
+    assert len(test_agent_session.get_events()) == 0
+
+    # Submit a trace to the agent in a subprocess
+    code = 'from ddtrace import tracer; span = tracer.trace("test-telemetry"); span.finish()'
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code)
+    assert status == 0, stderr
+    assert stderr == b""
+    # Ensure telemetry events were sent to the agent (snapshot ensures one trace was generated)
+    events = test_agent_session.get_events()
+    assert len(events) == 2
     assert events[0]["request_type"] == "app-closing"
     assert events[1]["request_type"] == "app-started"
 
