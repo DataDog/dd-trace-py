@@ -344,8 +344,8 @@ cdef class DDWaf(object):
             wrapper = _Wrapper(data)
             ddwaf_run(ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms * 1000)
             if result.data != NULL:
-
                 return (<bytes> result.data).decode("utf-8"), result.total_runtime / 1e3, (time.time_ns() - start) / 1e3
+            return None, result.total_runtime / 1e3, (time.time_ns() - start) / 1e3
         finally:
             ddwaf_result_free(&result)
             ddwaf_context_destroy(ctx)
