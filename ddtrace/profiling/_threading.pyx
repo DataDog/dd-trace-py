@@ -69,9 +69,6 @@ class _ThreadLink(_thread_link_base):
     # Key is a thread_id
     # Value is a weakref to an object
     _thread_id_to_object = attr.ib(factory=dict, repr=False, init=False, type=typing.Dict[int, _weakref_type])
-    # Note that this lock has to be reentrant as spans can be activated unexpectedly in the same thread
-    # ex. during a gc weakref finalize callback
-    _lock = attr.ib(factory=nogevent.RLock, repr=False, init=False, type=nogevent.RLock)
 
     def link_object(
             self,
@@ -79,9 +76,7 @@ class _ThreadLink(_thread_link_base):
     ):
         # type: (...) -> None
         """Link an object to the current running thread."""
-        # Since we're going to iterate over the set, make sure it's locked
-        with self._lock:
-            self._thread_id_to_object[nogevent.thread_get_ident()] = weakref.ref(obj)
+        self._thread_id_to_object[nogevent.thread_get_ident()] = weakref.ref(obj)
 
     def clear_threads(self,
                       existing_thread_ids,  # type: typing.Set[int]
@@ -92,11 +87,17 @@ class _ThreadLink(_thread_link_base):
 
         :param existing_thread_ids: A set of thread ids to keep.
         """
-        with self._lock:
-            # Iterate over a copy of the list of keys since it's mutated during our iteration.
-            for thread_id in list(self._thread_id_to_object.keys()):
-                if thread_id not in existing_thread_ids:
-                    del self._thread_id_to_object[thread_id]
+        # This code clears the thread/object mapping by clearing a copy and swapping it in an atomic operation This is
+        # needed to be able to have this whole class lock-free and avoid concurrency issues.
+        # The fact that is is lock free means we might lose some accuracy, but it's worth the trade-off for speed and simplicity.
+        new_thread_id_to_object_mapping = self._thread_id_to_object.copy()
+        # Iterate over a copy of the list of keys since it's mutated during our iteration.
+        for thread_id in list(new_thread_id_to_object_mapping):
+            if thread_id not in existing_thread_ids:
+                del new_thread_id_to_object_mapping[thread_id]
+
+        # Swap with the new list
+        self._thread_id_to_object = new_thread_id_to_object_mapping
 
     def get_object(
             self,
@@ -108,8 +109,6 @@ class _ThreadLink(_thread_link_base):
         :param thread_id: The thread id.
         :return: The attached object.
         """
-
-        with self._lock:
-            obj_ref = self._thread_id_to_object.get(thread_id)
-            if obj_ref is not None:
-                return obj_ref()
+        obj_ref = self._thread_id_to_object.get(thread_id)
+        if obj_ref is not None:
+            return obj_ref()
