@@ -270,7 +270,7 @@ def test_ddwaf_info():
         assert info["loaded"] == 3
         assert info["failed"] == 0
         assert info["errors"] == {}
-        assert info["version"] == "1.3.1"
+        assert info["version"] == ""
 
 
 def test_ddwaf_info_with_2_errors():
@@ -282,7 +282,7 @@ def test_ddwaf_info_with_2_errors():
         assert info["loaded"] == 1
         assert info["failed"] == 2
         assert info["errors"] == {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}
-        assert info["version"] == "1.3.1"
+        assert info["version"] == "5.5.5"
 
 
 def test_ddwaf_info_with_3_errors():
