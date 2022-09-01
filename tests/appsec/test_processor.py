@@ -3,9 +3,12 @@ import os.path
 import sys
 
 import pytest
+from six import ensure_binary
 
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
+from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
+from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
 from ddtrace.appsec.processor import DEFAULT_RULES
 from ddtrace.appsec.processor import DEFAULT_WAF_TIMEOUT
 from ddtrace.appsec.processor import _transform_headers
@@ -260,7 +263,113 @@ def test_appsec_span_rate_limit(tracer):
 def test_ddwaf_not_raises_exception():
     with open(DEFAULT_RULES) as rules:
         rules_json = json.loads(rules.read())
-        DDWaf(rules_json)
+        DDWaf(
+            rules_json,
+            ensure_binary(DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP),
+            ensure_binary(DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP),
+        )
+
+
+def test_obfuscation_parameter_key_empty():
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="")):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_value_empty():
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="")):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_key_and_value_empty():
+    with override_env(
+        dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="", DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="")
+    ):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_key_invalid_regex():
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="(")):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_invalid_regex():
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="(")):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_key_and_value_invalid_regex():
+    with override_env(
+        dict(DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP="(", DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="(")
+    ):
+        processor = AppSecSpanProcessor()
+
+    assert processor.enabled
+
+
+def test_obfuscation_parameter_value_unconfigured_not_matching(tracer):
+    _enable_appsec(tracer)
+
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        set_http_meta(span, Config(), raw_uri="http://example.com/.git?hello=goodbye", status_code="404")
+
+    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+    assert "hello" in span.get_tag("_dd.appsec.json")
+    assert "goodbye" in span.get_tag("_dd.appsec.json")
+    assert "<Redacted>" not in span.get_tag("_dd.appsec.json")
+
+
+def test_obfuscation_parameter_value_unconfigured_matching(tracer):
+    _enable_appsec(tracer)
+
+    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        set_http_meta(span, Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
+
+    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+    assert "password" not in span.get_tag("_dd.appsec.json")
+    assert "goodbye" not in span.get_tag("_dd.appsec.json")
+    assert "<Redacted>" in span.get_tag("_dd.appsec.json")
+
+
+def test_obfuscation_parameter_value_configured_not_matching(tracer):
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")):
+
+        _enable_appsec(tracer)
+
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(span, Config(), raw_uri="http://example.com/.git?password=goodbye", status_code="404")
+
+        assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+        assert "password" in span.get_tag("_dd.appsec.json")
+        assert "goodbye" in span.get_tag("_dd.appsec.json")
+        assert "<Redacted>" not in span.get_tag("_dd.appsec.json")
+
+
+def test_obfuscation_parameter_value_configured_matching(tracer):
+    with override_env(dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")):
+
+        _enable_appsec(tracer)
+
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(span, Config(), raw_uri="http://example.com/.git?token=goodbye", status_code="404")
+
+        assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+
+        assert "token" not in span.get_tag("_dd.appsec.json")
+        assert "goodbye" not in span.get_tag("_dd.appsec.json")
+        assert "<Redacted>" in span.get_tag("_dd.appsec.json")
 
 
 def test_ddwaf_run():

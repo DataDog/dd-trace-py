@@ -12,6 +12,7 @@ else:
     from collections import Mapping, Sequence
 
 from _libddwaf cimport DDWAF_OBJ_TYPE
+from _libddwaf cimport ddwaf_config
 from _libddwaf cimport ddwaf_context
 from _libddwaf cimport ddwaf_context_destroy
 from _libddwaf cimport ddwaf_context_init
@@ -283,11 +284,26 @@ cdef class DDWaf(object):
     cdef ddwaf_ruleset_info _info
     cdef object _rules
 
-    def __init__(self, rules):
+    def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
         cdef ddwaf_object* rule_objects
+        cdef ddwaf_config config
+
+        config = {
+            # Default limits
+            'limits': {
+                "max_container_size": 0,
+                "max_container_depth": 0,
+                "max_string_length": 0
+            },
+            'obfuscator': {
+                "key_regex": obfuscation_parameter_key_regexp,
+                "value_regex": obfuscation_parameter_value_regexp
+            },
+        }
+
         self._rules = _Wrapper(rules, max_objects=None)
         rule_objects = (<_Wrapper?>self._rules)._ptr;
-        self._handle = ddwaf_init(rule_objects, NULL, &self._info)
+        self._handle = ddwaf_init(rule_objects, &config, &self._info)
         if <void *> self._handle == NULL:
             raise ValueError("invalid rules")
 
