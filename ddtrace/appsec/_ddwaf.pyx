@@ -333,7 +333,7 @@ cdef class DDWaf(object):
             }
 
     def run(self, data, timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS):
-        start = time.time_ns()
+        start = time.time()
         cdef ddwaf_context ctx
         cdef ddwaf_result result
 
@@ -344,8 +344,8 @@ cdef class DDWaf(object):
             wrapper = _Wrapper(data)
             ddwaf_run(ctx, (<_Wrapper?>wrapper)._ptr, &result, <uint64_t?> timeout_ms * 1000)
             if result.data != NULL:
-                return (<bytes> result.data).decode("utf-8"), result.total_runtime / 1e3, (time.time_ns() - start) / 1e3
-            return None, result.total_runtime / 1e3, (time.time_ns() - start) / 1e3
+                return (<bytes> result.data).decode("utf-8"), result.total_runtime / 1e3, (time.time() - start) * 1e6
+            return None, result.total_runtime / 1e3, (time.time() - start) * 1e6
         finally:
             ddwaf_result_free(&result)
             ddwaf_context_destroy(ctx)
