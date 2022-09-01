@@ -89,7 +89,7 @@ class _ThreadLink(_thread_link_base):
         """
         # This code clears the thread/object mapping by clearing a copy and swapping it in an atomic operation This is
         # needed to be able to have this whole class lock-free and avoid concurrency issues.
-        # The fact that is is lock free means we might lose some accuracy, but it's worth the trade-off for speed and simplicity.
+        # The fact that it is lock free means we might lose some accuracy, but it's worth the trade-off for speed and simplicity.
         new_thread_id_to_object_mapping = self._thread_id_to_object.copy()
         # Iterate over a copy of the list of keys since it's mutated during our iteration.
         for thread_id in list(new_thread_id_to_object_mapping):
