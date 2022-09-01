@@ -355,6 +355,8 @@ def _after_request_tags(pin, span, request, response):
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
 
+            client_addr = request.META.get("REMOTE_ADDR")
+
             trace_utils.set_http_meta(
                 span,
                 config.django,
@@ -369,6 +371,7 @@ def _after_request_tags(pin, span, request, response):
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
                 request_body=_extract_body(request),
+                peer_ip=client_addr,
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:

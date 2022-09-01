@@ -233,9 +233,20 @@ def _get_request_header_client_ip(span, headers, peer_ip=None):
     if peer_ip:
         try:
             peer_ip_obj = ipaddress.ip_address(six.text_type(peer_ip))
-            # "or" because if both are private we prefer the one from the headers
-            if not peer_ip_obj.is_private or not private_ip:
+
+            if peer_ip_obj.is_loopback:
+                return private_ip
+
+            if not peer_ip_obj.is_private:
+                # peer is public and ip from headers is private or does not exists: return peer
                 return peer_ip
+            elif private_ip:
+                # peer is private and ip from headers exists and it's private: return headers ip
+                return private_ip
+            else:
+                # peer is private and we dont have a (private or public) ip from headers: peer
+                return peer_ip
+
         except ValueError:
             pass
 
@@ -423,6 +434,7 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span._set_str_tag(http.QUERY_STRING, query)
 
+    ip = None
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers)
         if user_agent:
@@ -436,6 +448,9 @@ def set_http_meta(
         ip = _get_request_header_client_ip(span, request_headers, peer_ip)
         if ip:
             span.set_tag(http.CLIENT_IP, ip)
+            if span._meta:
+                span._meta["network.client.ip"] = ip
+                span._meta["actor.ip"] = ip
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
@@ -459,6 +474,7 @@ def set_http_meta(
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
                     ("http.request.body", request_body),
+                    ("http.request.remote_ip", ip),
                 ]
                 if v is not None
             },

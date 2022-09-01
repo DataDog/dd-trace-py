@@ -489,16 +489,46 @@ def test_set_http_meta_headers_useragent(
 @pytest.mark.parametrize(
     "header_env_var,headers_dict,expected_keys,expected",
     [
-        ("", {"X-FORWARDED-FOR": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
-        ("", {"X_FoRwArDeD-for": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
-        ("", {"X-FORWARDED-FOR": "8.8.8.8,127.0.0.1"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
-        ("", {"X-FORWARDED-FOR": "192.168.1.14,8.8.8.8,127.0.0.1"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
-        ("", {"X-FORWARDED-FOR": "192.168.1.14,127.0.0.1"}, ["runtime-id", http.CLIENT_IP], "192.168.1.14"),
+        (
+            "",
+            {"X-FORWARDED-FOR": "8.8.8.8"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"X_FoRwArDeD-for": "8.8.8.8"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"X-FORWARDED-FOR": "8.8.8.8,127.0.0.1"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"X-FORWARDED-FOR": "192.168.1.14,8.8.8.8,127.0.0.1"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"X-FORWARDED-FOR": "192.168.1.14,127.0.0.1"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "192.168.1.14",
+        ),
         ("", {"X-FORWARDED-FOR": "foobar"}, ["runtime-id"], None),
         ("", {"X-FORWARDED-FOR": "4.4.4.4", "via": "8.8.8.8"}, ["runtime-id", constants.MULTIPLE_IP_HEADERS], None),
         ("via", {"X-FORWARDED-FOR": "4.4.4.4"}, ["runtime-id"], None),
-        ("via", {"VIA": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
-        ("via", {"X-FORWARDED-FOR": "4.4.4.4", "Via": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
+        ("via", {"VIA": "8.8.8.8"}, ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"], "8.8.8.8"),
+        (
+            "via",
+            {"X-FORWARDED-FOR": "4.4.4.4", "Via": "8.8.8.8"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
     ],
 )
 def test_set_http_meta_headers_ip(
