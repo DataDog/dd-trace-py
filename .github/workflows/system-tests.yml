@@ -7,7 +7,6 @@ on:
     - cron:  '00 04 * * 2-6'
   push:
     branches:
-      - master
       - 0.x
       - 1.x
 
@@ -16,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        weblog-variant: ['']
+        lib-injection-enabled: ['lib-injection-enabled']
+        lib-injection-connection: ['uds', 'network']
+        lib-injection-use-admission-controller: ['', 'use-admission-controller']
         include:
           - weblog-variant: flask-poc
           - weblog-variant: uwsgi-poc
@@ -25,11 +28,17 @@ jobs:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
       DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      LIBRARY_INJECTION_ENABLED: ${{ matrix.lib-injection-enabled }}
+      LIBRARY_INJECTION_CONNECTION: ${{ matrix.lib-injection-connection }}
+      LIBRARY_INJECTION_ADMISSION_CONTROLLER: ${{ matrix.lib-injection-admission-controller }}
+      LIBRARY_INJECTION_INIT_IMAGE: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:${{ github.sha }}
+      LIBRARY_INJECTION_TEST_APP_IMAGE: ghcr.io/datadog/dd-trace-py/dd-lib-python-init-test-app:${{ github.sha }}
     steps:
       - name: Checkout system tests
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
+          ref: 'injection-tests'  # TODO: update when merged
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@v3
@@ -43,10 +52,10 @@ jobs:
         run: ./run.sh
 
       # even on failures, we want to have artifact to be able to investigate
-      # The compress step speed up a lot the uplaod artifact process
+      # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
         if: ${{ always() }}  
-        run: tar -czvf artifact.tar.gz $(ls | grep logs)
+        run: tar -czvf artifact.tar.gz $(ls | grep logs) || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
