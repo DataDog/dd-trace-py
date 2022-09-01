@@ -110,18 +110,20 @@ class TelemetryWriter(PeriodicService):
             self._events_queue = []
         return requests
 
-    def _reset_queues(self):
+    def reset_queues(self):
         # type: () -> None
         with self._lock:
             self._integrations_queue = []
             self._events_queue = []
 
     def periodic(self):
-        self.app_heartbeat_event()
-
         integrations = self._flush_integrations_queue()
         if integrations:
             self._app_integrations_changed_event(integrations)
+
+        if not self._events_queue:
+            # Optimization: only queue heartbeat if no other events are queued
+            self.app_heartbeat_event()
 
         telemetry_requests = self._flush_events_queue()
 
@@ -274,7 +276,7 @@ class TelemetryWriter(PeriodicService):
         self._forked = True
         # Avoid sending duplicate events.
         # Queued events should be sent in the main process.
-        self._reset_queues()
+        self.reset_queues()
 
     def disable(self):
         # type: () -> None
@@ -284,7 +286,7 @@ class TelemetryWriter(PeriodicService):
         """
         with self._lock:
             self._enabled = False
-        self._reset_queues()
+        self.reset_queues()
         if self.status == ServiceStatus.STOPPED:
             return
 
