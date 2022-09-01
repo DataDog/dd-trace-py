@@ -305,3 +305,12 @@ def test_django_client_ip_nothing(client, test_spans, tracer):
     client.get("/?a=1&b&c=d")
     root_span = test_spans.spans[0]
     assert not root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tracer):
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER="fooipheader")):
+        result = client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="", HTTP_X_REAL_IP="アスダス")
+        assert result.status_code == 200
+        root_span = test_spans.spans[0]
+        # X_REAL_IP should be ignored since the client provided a header
+        assert not root_span.get_tag(http.CLIENT_IP)
