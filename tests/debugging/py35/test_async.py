@@ -7,10 +7,12 @@ class MockSnapshotContext:
     def __init__(self):
         self.retval = None
         self.exc_info = None
+        self.duration = None
 
-    def exit(self, retval, exc_info):
+    def exit(self, retval, exc_info, duration):
         self.retval = retval
         self.exc_info = exc_info
+        self.duration = duration
 
 
 @pytest.mark.asyncio
