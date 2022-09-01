@@ -197,7 +197,7 @@ def test_appsec_span_tags_snapshot(tracer):
     assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
 
 
-@pytest.mark.skipif(sys.version_info > (3, 0, 0), reason="Python 2.7 test")
+@pytest.mark.skipif(sys.version_info > (3, 5, 0), reason="Python 2.7 and Python 3.5 test")
 @snapshot(
     include_tracer=True,
     ignores=[
