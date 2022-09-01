@@ -8,7 +8,7 @@ from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.processor import DEFAULT_RULES
 from ddtrace.appsec.processor import DEFAULT_WAF_TIMEOUT
 from ddtrace.appsec.processor import _transform_headers
-from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_KEEP, APPSEC_JSON
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from tests.utils import override_env
@@ -95,7 +95,7 @@ def test_valid_json(tracer):
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+    assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
 
 
 def test_header_attack(tracer):
@@ -104,7 +104,7 @@ def test_header_attack(tracer):
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
         set_http_meta(span, Config(), request_headers={"User-Agent": "Arachni/v1", "user-agent": "aa"})
 
-    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+    assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
 
 
 def test_headers_collection(tracer):
@@ -153,7 +153,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
             request_cookies={"cookie1": "im the cookie1"},
         )
 
-    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+    assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
 
 
 @snapshot(
@@ -175,7 +175,7 @@ def test_appsec_body_no_collection_snapshot(tracer):
                 request_body={"somekey": "somekey value"},
             )
 
-        assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
 
 
 @snapshot(
@@ -192,7 +192,7 @@ def test_appsec_span_tags_snapshot(tracer):
         span.set_tag("http.url", "http://example.com/.git")
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+    assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
 
 
 @snapshot(
@@ -209,7 +209,7 @@ def test_appsec_span_tags_snapshot_with_errors(tracer):
             span.set_tag("http.url", "http://example.com/.git")
             set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert "triggers" in json.loads(span.get_tag("_dd.appsec.json"))
+    assert "triggers" not in json.loads(span.get_tag(APPSEC_JSON))
 
 
 def test_appsec_span_rate_limit(tracer):
@@ -231,9 +231,9 @@ def test_appsec_span_rate_limit(tracer):
             set_http_meta(span3, {}, raw_uri="http://example.com/.git", status_code="404")
             span2.start_ns = span1.start_ns + 2
 
-        assert span1.get_tag("_dd.appsec.json") is not None
-        assert span2.get_tag("_dd.appsec.json") is not None
-        assert span3.get_tag("_dd.appsec.json") is None
+        assert span1.get_tag(APPSEC_JSON) is not None
+        assert span2.get_tag(APPSEC_JSON) is not None
+        assert span3.get_tag(APPSEC_JSON) is None
 
 
 def test_ddwaf_not_raises_exception():
