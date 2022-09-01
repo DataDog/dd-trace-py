@@ -375,7 +375,7 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
 def test_ddwaf_run():
     with open(RULES_GOOD_PATH) as rules:
         rules_json = json.loads(rules.read())
-        _ddwaf = DDWaf(rules_json)
+        _ddwaf = DDWaf(rules_json, b"", b"")
         data = {
             "server.request.query": {},
             "server.request.headers.no_cookies": {"user-agent": "werkzeug/2.1.2", "host": "localhost"},
@@ -394,7 +394,7 @@ def test_ddwaf_run():
 def test_ddwaf_info():
     with open(RULES_GOOD_PATH) as rules:
         rules_json = json.loads(rules.read())
-        _ddwaf = DDWaf(rules_json)
+        _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
         assert info["loaded"] == 3
@@ -406,7 +406,7 @@ def test_ddwaf_info():
 def test_ddwaf_info_with_2_errors():
     with open(os.path.join(ROOT_DIR, "rules-with-2-errors.json")) as rules:
         rules_json = json.loads(rules.read())
-        _ddwaf = DDWaf(rules_json)
+        _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
         assert info["loaded"] == 1
@@ -418,7 +418,7 @@ def test_ddwaf_info_with_2_errors():
 def test_ddwaf_info_with_3_errors():
     with open(os.path.join(ROOT_DIR, "rules-with-3-errors.json")) as rules:
         rules_json = json.loads(rules.read())
-        _ddwaf = DDWaf(rules_json)
+        _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
         assert info["loaded"] == 1
