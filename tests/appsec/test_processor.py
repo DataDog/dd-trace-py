@@ -8,7 +8,8 @@ from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.processor import DEFAULT_RULES
 from ddtrace.appsec.processor import DEFAULT_WAF_TIMEOUT
 from ddtrace.appsec.processor import _transform_headers
-from ddtrace.constants import USER_KEEP, APPSEC_JSON
+from ddtrace.constants import APPSEC_JSON
+from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from tests.utils import override_env
