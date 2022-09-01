@@ -45,7 +45,7 @@ def test_telemetry_enabled_on_first_tracer_flush(test_agent_session, ddtrace_run
 
 
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
-    """assert app-started/app-closing/app-heartbeat events are only sent in parent process"""
+    """assert app-started/app-closing events are only sent in parent process"""
     code = """
 import os
 import mock
@@ -81,15 +81,57 @@ else:
 
     requests = test_agent_session.get_requests()
 
-    # We expect 3 events from the parent process to get sent, but none from the child process
-    assert len(requests) == 3
+    # We expect 2 events from the parent process to get sent, but none from the child process
+    assert len(requests) == 2
+    # Validate that the runtime id sent for every event is the parent processes runtime id
+    assert requests[0]["body"]["runtime_id"] == runtime_id
+    assert requests[0]["body"]["request_type"] == "app-closing"
+    assert requests[1]["body"]["runtime_id"] == runtime_id
+    assert requests[1]["body"]["request_type"] == "app-started"
+
+
+def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess):
+    """assert app-heartbeat events are only sent in parent process when no other events are queued"""
+    code = """
+import os
+import mock
+import time
+
+from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.telemetry import telemetry_writer
+
+telemetry_writer.enable()
+# Reset queue to avoid sending app-started event
+telemetry_writer.reset_queues()
+
+# Update time to generate a heartbeat event when the writer is flushed
+now = time.time()
+time_skip_for_heartbeat = 2*telemetry_writer.HEARTBEAT_MIN_INTERVAL
+time.time = mock.Mock(return_value= now + time_skip_for_heartbeat)
+
+if os.fork() > 0:
+    # Print the parent process runtime id for validation
+    print(get_runtime_id())
+
+# Call periodic to send heartbeat event
+telemetry_writer.periodic()
+# Disable telemetry writer to avoid sending app-closed event
+telemetry_writer.disable()
+    """
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, stderr
+    assert stderr == b""
+
+    runtime_id = stdout.strip().decode("utf-8")
+
+    requests = test_agent_session.get_requests()
+
+    # We expect event from the parent process to get sent, but none from the child process
+    assert len(requests) == 1
     # Validate that the runtime id sent for every event is the parent processes runtime id
     assert requests[0]["body"]["runtime_id"] == runtime_id
     assert requests[0]["body"]["request_type"] == "app-heartbeat"
-    assert requests[1]["body"]["runtime_id"] == runtime_id
-    assert requests[1]["body"]["request_type"] == "app-closing"
-    assert requests[2]["body"]["runtime_id"] == runtime_id
-    assert requests[2]["body"]["request_type"] == "app-started"
 
 
 def test_logs_after_fork(run_python_code_in_subprocess):
