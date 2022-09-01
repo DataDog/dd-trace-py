@@ -1,5 +1,4 @@
-import atexit
-
+from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.worker import RemoteConfigWorker
