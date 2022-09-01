@@ -210,7 +210,7 @@ def test_appsec_span_tags_snapshot_with_errors(tracer):
             span.set_tag("http.url", "http://example.com/.git")
             set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert "triggers" not in json.loads(span.get_tag(APPSEC_JSON))
+    assert span.get_tag(APPSEC_JSON) is None
 
 
 def test_appsec_span_rate_limit(tracer):
