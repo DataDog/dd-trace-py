@@ -26,6 +26,13 @@ from .compat import get_resolver
 from .compat import user_is_authenticated
 
 
+try:
+    from json import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
+
 log = get_logger(__name__)
 
 # Set on patch, when django is imported
@@ -237,7 +244,7 @@ def _extract_body(request):
     req_body = None
 
     if config._appsec_enabled and request.method in _BODY_METHODS:
-        content_type = request.content_type if hasattr(request, "content_type") else request.META["CONTENT_TYPE"]
+        content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
 
         rest_framework = hasattr(request, "data")
 
@@ -258,8 +265,15 @@ def _extract_body(request):
                 )
             else:  # text/plain, xml, others: take them as strings
                 req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
-        except (AttributeError, RawPostDataException, UnreadablePostError, OSError):
-            log.warning("Failed to parse request body", exc_info=True)
+        except (
+            AttributeError,
+            RawPostDataException,
+            UnreadablePostError,
+            OSError,
+            ValueError,
+            JSONDecodeError,
+        ):
+            log.warning("Failed to parse request body")
             # req_body is None
 
         return req_body

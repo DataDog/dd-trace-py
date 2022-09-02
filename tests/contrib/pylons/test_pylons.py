@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 from paste import fixture
@@ -15,6 +16,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pylons import PylonsTraceMiddleware
 from ddtrace.ext import http
+from ddtrace.ext import user
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -33,6 +35,10 @@ class PylonsTestCase(TracerTestCase):
     """
 
     conf_dir = os.path.dirname(os.path.abspath(__file__))
+
+    @pytest.fixture(autouse=True)
+    def inject_fixtures(self, caplog):
+        self._caplog = caplog
 
     def setUp(self):
         super(PylonsTestCase, self).setUp()
@@ -533,11 +539,12 @@ class PylonsTestCase(TracerTestCase):
 
             self.tracer.configure(api_version="v0.4")
             payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
-            self.app.post(
-                url_for(controller="root", action="index"),
+            response = self.app.post(
+                url_for(controller="root", action="body"),
                 params=payload,
                 extra_environ={"CONTENT_TYPE": "application/x-www-form-urlencoded"},
             )
+            assert response.status == 200
 
             spans = self.pop_spans()
             assert spans
@@ -590,11 +597,12 @@ class PylonsTestCase(TracerTestCase):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = json.dumps({"mytestingbody_key": "mytestingbody_value"})
-            self.app.post(
-                url_for(controller="root", action="index"),
+            response = self.app.post(
+                url_for(controller="root", action="body"),
                 params=payload,
                 extra_environ={"CONTENT_TYPE": "application/json"},
             )
+            assert response.status == 200
 
             spans = self.pop_spans()
             assert spans
@@ -637,11 +645,13 @@ class PylonsTestCase(TracerTestCase):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = "<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
-            self.app.post(
-                url_for(controller="root", action="index"),
+
+            response = self.app.post(
+                url_for(controller="root", action="body"),
                 params=payload,
                 extra_environ={"CONTENT_TYPE": "application/xml"},
             )
+            assert response.status == 200
 
             spans = self.pop_spans()
             assert spans
@@ -682,9 +692,11 @@ class PylonsTestCase(TracerTestCase):
             # Hack: need to pass an argument to configure so that the processors are recreated
             self.tracer.configure(api_version="v0.4")
             payload = "foo=bar"
-            self.app.post(
-                url_for(controller="root", action="index"), params=payload, extra_environ={"CONTENT_TYPE": "text/plain"}
+
+            response = self.app.post(
+                url_for(controller="root", action="body"), params=payload, extra_environ={"CONTENT_TYPE": "text/plain"}
             )
+            assert response.status == 200
 
             spans = self.pop_spans()
             assert spans
@@ -704,7 +716,7 @@ class PylonsTestCase(TracerTestCase):
             self.tracer.configure(api_version="v0.4")
             payload = "1' or '1' = '1'"
             self.app.post(
-                url_for(controller="root", action="index"),
+                url_for(controller="root", action="body"),
                 params=payload,
                 extra_environ={"CONTENT_TYPE": "text/plain"},
             )
@@ -774,3 +786,33 @@ class PylonsTestCase(TracerTestCase):
         spans = self.pop_spans()
         root_span = spans[0]
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
+
+    def test_pylons_body_json_empty_body(self):
+        """
+        "Failed to parse request body"
+        """
+        with self._caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)):
+            # Hack: need to pass an argument to configure so that the processors are recreated
+            self.tracer.configure(api_version="v0.4")
+            payload = ""
+
+            self.app.post(
+                url_for(controller="root", action="body"),
+                params=payload,
+                extra_environ={"CONTENT_TYPE": "application/json"},
+            )
+            assert "Failed to parse request body" in self._caplog.text
+
+    def test_pylon_get_user(self):
+        self.app.get("/identify")
+
+        spans = self.pop_spans()
+        root_span = spans[0]
+
+        # Values defined in tests/contrib/pylons/app/controllers/root.py::RootController::identify
+        assert root_span.get_tag(user.ID) == "usr.id"
+        assert root_span.get_tag(user.EMAIL) == "usr.email"
+        assert root_span.get_tag(user.SESSION_ID) == "usr.session_id"
+        assert root_span.get_tag(user.NAME) == "usr.name"
+        assert root_span.get_tag(user.ROLE) == "usr.role"
+        assert root_span.get_tag(user.SCOPE) == "usr.scope"

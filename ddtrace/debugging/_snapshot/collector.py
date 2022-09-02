@@ -49,6 +49,7 @@ class SnapshotContext(object):
         self.args = args
         self.snapshot = None
         self.return_value = NO_RETURN_VALUE
+        self.duration = None
         self._snapshot_encoder = collector._encoder._encoders[Snapshot]  # type: ignore[attr-defined]
 
         # TODO: Put rate limiting after condition evaluation
@@ -75,16 +76,19 @@ class SnapshotContext(object):
 
         self.snapshot = snapshot
 
-    def exit(self, retval, exc_info):
-        # type: (Any, ExcInfoType) -> None
+    def exit(self, retval, exc_info, duration_ns):
+        # type: (Any, ExcInfoType, int) -> None
         """Exit the snapshot context.
 
-        The arguments can be used to record a return value or an exception.
+        The arguments can be used to record a return value or an exception, and
+        the duration of the wrapped call.
         """
         if self.snapshot is None:
             return
 
         self.return_value = retval
+        self.duration = duration_ns
+
         return self.__exit__(*exc_info)
 
     def __enter__(self):
@@ -108,6 +112,7 @@ class SnapshotContext(object):
             exc_info,
             level=1,  # TODO: Retrieve from probe
         )
+        self.snapshot.duration = self.duration
         self.collector._enqueue(self.snapshot)
         meter.increment("encoded", tags={"probe_id": self.snapshot.probe.probe_id})
         log.debug("Encoded %r", self.snapshot)
