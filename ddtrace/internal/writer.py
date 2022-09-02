@@ -23,6 +23,7 @@ from . import compat
 from . import periodic
 from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
+from ..internal.telemetry import telemetry_writer
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..internal.utils.time import StopWatch
@@ -508,6 +509,10 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             try:
                 if self.status != service.ServiceStatus.RUNNING:
                     self.start()
+                    # instrumentation telemetry writer should be enabled/started after the global tracer and configs
+                    # are initialized
+                    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
+                        telemetry_writer.enable()
             except service.ServiceStatusError:
                 pass
 
