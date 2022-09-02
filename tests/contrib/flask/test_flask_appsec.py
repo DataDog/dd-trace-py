@@ -137,6 +137,13 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         root_span = spans[0]
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
 
+    def test_flask_client_ip_header_set_by_env_var_valid(self):
+        with override_env(dict(DD_TRACE_CLIENT_IP_HEADER="X-Use-This")):
+            self.client.get("/?a=1&b&c=d", headers={"HTTP_CLIENT_IP": "8.8.8.8", "X_USE_THIS": "4.4.4.4"})
+            spans = self.pop_spans()
+            root_span = spans[0]
+            assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
+
     def test_flask_body_urlencoded(self):
         @self.app.route("/body", methods=["GET", "POST", "DELETE"])
         def body():
