@@ -411,7 +411,12 @@ def test_ddwaf_info_with_2_errors():
         info = _ddwaf.info
         assert info["loaded"] == 1
         assert info["failed"] == 2
-        assert info["errors"] == {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}
+        # Compare dict contents insensitive to ordering
+        expected_dict = sorted(
+            {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}.items()
+        )
+        assert sorted(info["errors"].items()) == expected_dict
+
         assert info["version"] == "5.5.5"
 
 
