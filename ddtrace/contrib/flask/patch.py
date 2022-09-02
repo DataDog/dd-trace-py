@@ -134,7 +134,6 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         span._set_str_tag(FLASK_VERSION, flask_version_str)
 
         req_body = None
-        client_addr = request.remote_addr
         if config._appsec_enabled and request.method in _BODY_METHODS:
             content_type = request.content_type
             wsgi_input = environ.get("wsgi.input", "")
@@ -184,7 +183,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_headers=request.headers,
             request_cookies=request.cookies,
             request_body=req_body,
-            peer_ip=client_addr,
+            peer_ip=request.remote_addr,
         )
 
 
