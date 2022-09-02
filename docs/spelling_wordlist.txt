@@ -75,6 +75,8 @@ fastapi
 formatter
 gRPC
 gevent
+graphql
+graphene
 greenlet
 greenlets
 grpc
@@ -114,6 +116,7 @@ mysql
 mysqlclient
 mysqldb
 namespace
+obfuscator
 opentracer
 opentracing
 parameterized
@@ -140,6 +143,7 @@ quickstart
 redis
 rediscluster
 renderers
+resolvers
 repo
 respawn
 rq
@@ -147,6 +151,7 @@ runnable
 runtime
 runtimes
 runtime-id
+RLock
 sanic
 screenshots
 serializable
@@ -169,6 +174,7 @@ unpatch
 unpatched
 unregister
 unvendored
+uri
 url
 urls
 username
@@ -183,3 +189,5 @@ yaaredis
 Kinesis
 AppSec
 libddwaf
+Serverless
+serverless

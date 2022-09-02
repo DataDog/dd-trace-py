@@ -1,5 +1,5 @@
 import bm
-import utils
+import bm.utils as utils
 
 
 class Span(bm.Scenario):

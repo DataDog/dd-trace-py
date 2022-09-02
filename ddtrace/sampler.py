@@ -214,7 +214,7 @@ class DatadogSampler(RateByServiceSampler):
     provided. It is not used when the agent supplied sample rates are used.
     """
 
-    __slots__ = ("limiter", "rules", "_default_sampler")
+    __slots__ = ("limiter", "rules")
 
     NO_RATE_LIMIT = -1
     DEFAULT_RATE_LIMIT = 100

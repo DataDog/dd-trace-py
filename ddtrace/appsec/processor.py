@@ -9,6 +9,7 @@ from typing import Tuple
 from typing import Union
 
 import attr
+from six import ensure_binary
 
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.constants import MANUAL_KEEP_KEY
@@ -30,6 +31,18 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_RULES = os.path.join(ROOT_DIR, "rules.json")
 DEFAULT_TRACE_RATE_LIMIT = 100
 DEFAULT_WAF_TIMEOUT = 20  # ms
+DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP = (
+    r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?)key)|token|consumer_?"
+    r"(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization"
+)
+DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
+    r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)"
+    r"key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)"
+    r'(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}'
+    r"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
+    r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
+)
+
 
 log = get_logger(__name__)
 
@@ -56,6 +69,20 @@ def _transform_headers(data):
 def get_rules():
     # type: () -> str
     return os.getenv("DD_APPSEC_RULES", default=DEFAULT_RULES)
+
+
+def get_appsec_obfuscation_parameter_key_regexp():
+    # type: () -> bytes
+    return ensure_binary(
+        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
+    )
+
+
+def get_appsec_obfuscation_parameter_value_regexp():
+    # type: () -> bytes
+    return ensure_binary(
+        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
+    )
 
 
 class _Addresses(object):
@@ -116,6 +143,8 @@ def _get_waf_timeout():
 class AppSecSpanProcessor(SpanProcessor):
 
     rules = attr.ib(type=str, factory=get_rules)
+    obfuscation_parameter_key_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_key_regexp)
+    obfuscation_parameter_value_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_value_regexp)
     _ddwaf = attr.ib(type=DDWaf, default=None)
     _addresses_to_keep = attr.ib(type=Set[str], factory=set)
     _rate_limiter = attr.ib(type=RateLimiter, factory=_get_rate_limiter)
@@ -150,7 +179,9 @@ class AppSecSpanProcessor(SpanProcessor):
                 log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
                 raise
             try:
-                self._ddwaf = DDWaf(rules)
+                self._ddwaf = DDWaf(
+                    rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
+                )
             except ValueError:
                 # Partial of DDAS-0005-00
                 log.warning("[DDAS-0005-00] WAF initialization failed")
@@ -221,6 +252,11 @@ class AppSecSpanProcessor(SpanProcessor):
             response_headers = _context.get_item("http.response.headers", span=span)
             if response_headers is not None:
                 data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES] = _transform_headers(response_headers)
+
+        if self._is_needed(_Addresses.SERVER_REQUEST_BODY):
+            body = _context.get_item("http.request.body", span=span)
+            if body is not None:
+                data[_Addresses.SERVER_REQUEST_BODY] = body
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json

@@ -219,6 +219,12 @@ setup(
         "Changelog": "https://ddtrace.readthedocs.io/en/stable/release_notes.html",
         "Documentation": "https://ddtrace.readthedocs.io/en/stable/",
     },
+    project_urls={
+        "Bug Tracker": "https://github.com/DataDog/dd-trace-py/issues",
+        "Source Code": "https://github.com/DataDog/dd-trace-py/",
+        "Changelog": "https://ddtrace.readthedocs.io/en/stable/release_notes.html",
+        "Documentation": "https://ddtrace.readthedocs.io/en/stable/",
+    },
     author="Datadog, Inc.",
     author_email="dev@datadoghq.com",
     long_description=long_description,
@@ -246,9 +252,11 @@ setup(
         "tenacity>=5",
         "attrs>=19.2.0",
         "six>=1.12.0",
-        "typing_extensions; python_version<'3.8'",
+        "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
         "pathlib2; python_version<'3.5'",
+        "jsonschema",
+        "xmltodict>=0.12",
     ]
     + bytecode,
     extras_require={

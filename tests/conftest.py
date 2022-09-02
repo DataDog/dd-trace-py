@@ -10,6 +10,7 @@ import time
 
 from _pytest.runner import CallInfo
 from _pytest.runner import TestReport
+from _pytest.runner import call_and_report
 import pytest
 from six import PY2
 
@@ -17,6 +18,7 @@ import ddtrace
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
+from tests.utils import request_token
 from tests.utils import snapshot_context as _snapshot_context
 
 
@@ -66,14 +68,6 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
     yield _run
 
 
-def _request_token(request):
-    token = ""
-    token += request.module.__name__
-    token += ".%s" % request.cls.__name__ if request.cls else ""
-    token += ".%s" % request.node.name
-    return token
-
-
 @pytest.fixture(autouse=True)
 def snapshot(request):
     marks = [m for m in request.node.iter_markers(name="snapshot")]
@@ -84,7 +78,7 @@ def snapshot(request):
         if token:
             del snap.kwargs["token"]
         else:
-            token = _request_token(request).replace(" ", "_").replace(os.path.sep, "_")
+            token = request_token(request).replace(" ", "_").replace(os.path.sep, "_")
 
         with _snapshot_context(token, *snap.args, **snap.kwargs) as snapshot:
             yield snapshot
@@ -102,7 +96,7 @@ def snapshot_context(request):
         with snapshot_context():
             # my code
     """
-    token = _request_token(request)
+    token = request_token(request)
 
     @contextlib.contextmanager
     def _snapshot(**kwargs):
@@ -222,8 +216,10 @@ def run_function_from_file(item, params=None):
 
             if status != expected_status:
                 raise AssertionError(
-                    "Expected status %s, got %s.\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                    % (expected_status, status, err.decode("utf-8"))
+                    "Expected status %s, got %s."
+                    "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                    "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
+                    % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
                 )
             elif expected_out is not None and out != expected_out:
                 raise AssertionError("STDOUT: Expected [%s] got [%s]" % (expected_out, out))
@@ -244,12 +240,25 @@ def pytest_runtest_protocol(item):
         for ps in unwind_params(params):
             nodeid = (base_name + str(ps)) if ps is not None else base_name
 
+            # Start
             ihook.pytest_runtest_logstart(nodeid=nodeid, location=item.location)
 
+            # Setup
+            report = call_and_report(item, "setup", log=False)
+            report.nodeid = nodeid
+            ihook.pytest_runtest_logreport(report=report)
+
+            # Call
             report = run_function_from_file(item, ps)
             report.nodeid = nodeid
             ihook.pytest_runtest_logreport(report=report)
 
+            # Teardown
+            report = call_and_report(item, "teardown", log=False, nextitem=None)
+            report.nodeid = nodeid
+            ihook.pytest_runtest_logreport(report=report)
+
+            # Finish
             ihook.pytest_runtest_logfinish(nodeid=nodeid, location=item.location)
 
         return True

@@ -97,6 +97,10 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`grpc`                                      | >= 1.12.0     | Yes [5]_       |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`graphene <graphql>`                        | >= 2.0.0      | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`graphql-core <graphql>`                    | >= 2.0.0      | Yes            |
++--------------------------------------------------+---------------+----------------+
 | :ref:`httplib`                                   | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`httpx`                                     | >= 0.14.0     | Yes            |
@@ -180,6 +184,21 @@ contacting support.
        :ref:`asyncio` for more details.
 
 .. [5] ``grpc.aio`` is automatically instrumented starting with ``grpcio>=1.32.0``.
+
+
+.. _`Instrumentation Telemetry`:
+
+Instrumentation Telemetry
+-------------------------
+
+Datadog may gather environmental and diagnostic information about instrumentation libraries; this includes information
+about the host running an application, operating system, programming language and runtime, APM integrations used,
+and application dependencies. Additionally, Datadog may collect information such as diagnostic logs, crash dumps
+with obfuscated stack traces, and various system performance metrics.
+
+To disable set ``DD_INSTRUMENTATION_TELEMETRY_ENABLED=false`` environment variable.
+
+See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>` _ for more details.
 
 Indices and tables
 ==================
