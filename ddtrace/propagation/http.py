@@ -21,6 +21,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import PROPAGATION_STYLE_W3C
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
 from ..span import _MetaDictType
@@ -41,6 +42,8 @@ _HTTP_HEADER_B3_SPAN_ID = "x-b3-spanid"
 _HTTP_HEADER_B3_SAMPLED = "x-b3-sampled"
 _HTTP_HEADER_B3_FLAGS = "x-b3-flags"
 _HTTP_HEADER_TAGS = "x-datadog-tags"
+_HTTP_HEADER_W3C_TRACEPARENT = "traceparent"
+_HTTP_HEADER_W3C_TRACESTATE = "tracestate"
 
 
 def _possible_header(header):
@@ -483,6 +486,58 @@ class _B3SingleHeader:
         return None
 
 
+class _W3CTraceContext:
+    """Helper class to inject/extract W3C Trace Context
+
+    https://www.w3.org/TR/trace-context/
+
+    Overview:
+
+      - ``traceparent`` describes the position of the incoming request in its
+        trace graph in a portable, fixed-length format. Its design focuses on
+        fast parsing. Every tracing tool MUST properly set traceparent even when
+        it only relies on vendor-specific information in tracestate
+      - ``tracestate`` extends traceparent with vendor-specific data represented
+        by a set of name/value pairs. Storing information in tracestate is
+        optional.
+
+    The format for ``traceparent`` is::
+
+      HEXDIGLC        = DIGIT / "a" / "b" / "c" / "d" / "e" / "f"
+      value           = version "-" version-format
+      version         = 2HEXDIGLC
+      version-format  = trace-id "-" parent-id "-" trace-flags
+      trace-id        = 32HEXDIGLC
+      parent-id       = 16HEXDIGLC
+      trace-flags     = 2HEXDIGLC
+
+    Example value of HTTP ``traceparent`` header::
+
+        value = 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+        base16(version) = 00
+        base16(trace-id) = 4bf92f3577b34da6a3ce929d0e0e4736
+        base16(parent-id) = 00f067aa0ba902b7
+        base16(trace-flags) = 01  // sampled
+
+    Implementation details:
+
+      - Datadog Trace and Span IDs are 64-bit unsigned integers.
+      - The W3C Trace Context Trace ID is a 32-byte hexademical string. This is
+        transformed for propagation between Datadog by taking the lower
+        16-bytes.
+    """
+
+    @staticmethod
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
+        pass
+
+    @staticmethod
+    def _extract(headers):
+        # type: (Dict[str, str]) -> Optional[Context]
+        pass
+
+
 class HTTPPropagator(object):
     """A HTTP Propagator using HTTP headers as carrier."""
 
@@ -517,6 +572,8 @@ class HTTPPropagator(object):
             _B3MultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_inject:
             _B3SingleHeader._inject(span_context, headers)
+        if PROPAGATION_STYLE_W3C in config._propagation_style_inject:
+            _W3CTraceContext._inject(span_context, headers)
 
     @staticmethod
     def extract(headers):

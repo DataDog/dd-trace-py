@@ -9,6 +9,7 @@ from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import PROPAGATION_STYLE_W3C
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
@@ -21,6 +22,8 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SPAN_ID
 from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
+from ddtrace.propagation.http import _HTTP_HEADER_W3C_TRACEPARENT
+from ddtrace.propagation.http import _HTTP_HEADER_W3C_TRACESTATE
 
 from ..utils import override_global_config
 
@@ -402,12 +405,21 @@ B3_SINGLE_HEADERS_VALID = {
 B3_SINGLE_HEADERS_INVALID = {
     _HTTP_HEADER_B3_SINGLE: "NON_HEX_VALUE-e457b5a2e4d86bd1-1",
 }
+W3C_HEADERS_VALID = {
+    _HTTP_HEADER_W3C_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    _HTTP_HEADER_W3C_TRACESTATE: "",
+}
+W3C_HEADERS_INVALID = {
+    _HTTP_HEADER_W3C_TRACEPARENT: "00-a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    _HTTP_HEADER_W3C_TRACESTATE: "",
+}
 
 
 ALL_HEADERS = {}
 ALL_HEADERS.update(DATADOG_HEADERS_VALID)
 ALL_HEADERS.update(B3_HEADERS_VALID)
 ALL_HEADERS.update(B3_SINGLE_HEADERS_VALID)
+ALL_HEADERS.update(W3C_HEADERS_VALID)
 
 EXTRACT_FIXTURES = [
     # Datadog headers
@@ -690,6 +702,22 @@ EXTRACT_FIXTURES = [
         "valid_b3_single_header_no_b3_single_header_style",
         [PROPAGATION_STYLE_B3],
         B3_SINGLE_HEADERS_VALID,
+        CONTEXT_EMPTY,
+    ),
+    # W3C headers
+    (
+        "valid_w3c_simple",
+        [PROPAGATION_STYLE_W3C],
+        W3C_HEADERS_VALID,
+        {
+            "trace_id": 16467743005527383142,
+            "span_id": 67667974448284343,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+        "invalid_w3c",
+        [PROPAGATION_STYLE_W3C],
+        W3C_HEADERS_INVALID,
         CONTEXT_EMPTY,
     ),
     # All valid headers
