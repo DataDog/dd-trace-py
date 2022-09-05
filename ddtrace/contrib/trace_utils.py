@@ -179,14 +179,14 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
     # type: (Span, Mapping[str, str], Optional[str], bool) -> str
     global _USED_IP_HEADER
 
+    if asbool(os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=False)):
+        return ""
+
     def get_header_value(key):  # type: (str) -> Optional[str]
         if not headers_are_case_sensitive:
             return headers.get(key)
 
         return _get_header_value_case_insensitive(headers, key)
-
-    if asbool(os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=False)):
-        return ""
 
     ip_header_value = ""
     user_configured_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER", None)
