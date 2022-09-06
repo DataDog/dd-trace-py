@@ -37,8 +37,7 @@ start_new_thread = get_original(six.moves._thread.__name__, "start_new_thread")
 thread_get_ident = get_original(six.moves._thread.__name__, "get_ident")
 Thread = get_original("threading", "Thread")
 Lock = get_original("threading", "Lock")
-<<<<<<< HEAD
-=======
+
 
 if six.PY2 and is_module_patched("threading"):
     _allocate_lock = get_original("threading", "_allocate_lock")
@@ -64,7 +63,6 @@ if six.PY2 and is_module_patched("threading"):
     def RLock(*args, **kwargs):
         return _RLock(*args, **kwargs)
 
-
 else:
     # We do not patch RLock in Python 3 however for < 3.7 the C implementation of
     # RLock might not be available as the _thread module is optional.  In that
@@ -76,7 +74,6 @@ else:
     # https://github.com/python/cpython/blob/c19983125a42a4b4958b11a26ab5e03752c956fc/Doc/library/_thread.rst#L26-L27
     RLock = get_original("threading", "RLock")
 
->>>>>>> b0d8765c (fix(profiling): ensure RLock uses original allocate_lock (#4131))
 
 is_threading_patched = is_module_patched("threading")
 
