@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Type
 from typing import Union
+from typing import cast
 from uuid import uuid4
 
 import six
@@ -29,7 +30,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import BUILTIN_CONTAINER_TYPES
 from ddtrace.internal.compat import BUILTIN_SIMPLE_TYPES
-from ddtrace.internal.compat import BUILTIN_TYPES
 from ddtrace.internal.compat import CALLABLE_TYPES
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.compat import stringify
@@ -200,17 +200,12 @@ def _qualname(_type):
     try:
         return stringify(_type.__qualname__)
     except AttributeError:
-        if _type.__module__ == "__builtin__":
-            try:
-                return _type.__name__
-            except AttributeError:
-                return repr(_type)
+        # The logic for implementing qualname in Python 2 is complex, so if we
+        # don't have it, we just return the name of the type.
         try:
-            return "%s.%s" % (_type.__module__, _type.__name__)
+            return _type.__name__
         except AttributeError:
-            if _type.__module__ == "__builtin__":
-                return repr(_type)
-            return "%s.%s" % (_type.__module__, _type)
+            return repr(_type)
 
 
 def _serialize_collection(value, brackets, level, max_len):
@@ -289,17 +284,82 @@ def _get_fields(obj):
         return {s: _safe_getattr(obj, s) for s in get_slots(obj)}
 
 
-def _captured_value_v2(value, level=1):
-    # type: (Any, int) -> Dict[str, Any]
+def _captured_value_v2(value, level=0, maxlen=1024, maxsize=10, maxfields=10):
+    # type: (Any, int, int, int, int) -> Dict[str, Any]
     _type = type(value)
+
+    if _type in BUILTIN_SIMPLE_TYPES:
+        value_repr = repr(value)
+        return (
+            {
+                "type": _qualname(_type),
+                "value": value_repr,
+            }
+            if len(value_repr) <= maxlen
+            else {
+                "type": _qualname(_type),
+                "value": value_repr[:maxlen],
+                "truncated": True,
+                "size": len(value_repr),
+            }
+        )
+
+    if _type in BUILTIN_CONTAINER_TYPES:
+        if level < 0:
+            return {
+                "type": _qualname(_type),
+                "notCapturedReason": "depth",
+                "size": len(value),
+            }
+
+        if _type is dict:
+            # Mapping
+            data = {
+                "type": "dict",
+                "entries": [
+                    (
+                        _captured_value_v2(k, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields),
+                        _captured_value_v2(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields),
+                    )
+                    for _, (k, v) in zip(range(maxsize), value.items())
+                ],
+                "size": len(value),
+            }
+
+        else:
+            # Sequence
+            data = {
+                "type": _qualname(_type),
+                "elements": [
+                    _captured_value_v2(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields)
+                    for _, v in zip(range(maxsize), value)
+                ],
+                "size": len(value),
+            }
+
+        if len(value) > maxsize:
+            data["notCapturedReason"] = "collectionSize"
+
+        return data
+
+    # Arbitrary object
+    if level < 0:
+        return {
+            "type": _qualname(_type),
+            "notCapturedReason": "depth",
+        }
+
+    fields = _get_fields(value)
     data = {
         "type": _qualname(_type),
-        "value": _serialize(value, level),
-    }  # type: Dict[str, Any]
-    if _type not in BUILTIN_TYPES:
-        data["fields"] = (
-            {n: _captured_value_v2(v, level - 1) for n, v in _get_fields(value).items()} if level > 0 else None
-        )
+        "fields": {
+            n: _captured_value_v2(v, level=level - 1, maxlen=maxlen, maxsize=maxsize, maxfields=maxfields)
+            for _, (n, v) in zip(range(maxfields), fields.items())
+        },
+    }
+
+    if len(fields) > maxfields:
+        data["notCapturedReason"] = "fieldCount"
 
     return data
 
@@ -308,17 +368,10 @@ def _captured_context(
     arguments,  # type: List[Tuple[str, Any]]
     _locals,  # type: List[Tuple[str, Any]]
     throwable,  # type: ExcInfoType
-    level=1,  # type: int
+    level=0,  # type: int
 ):
     # type: (...) -> Dict[str, Any]
-    try:
-        arg, argval = arguments[0]
-        fields = _get_fields(argval) if arg == "self" else {}
-    except IndexError:
-        fields = {}
-
     return {
-        "fields": {n: _captured_value_v2(v, level) for n, v in fields.items()},
         "arguments": {n: _captured_value_v2(v, level) for n, v in arguments} if arguments is not None else {},
         "locals": {n: _captured_value_v2(v, level) for n, v in _locals} if _locals is not None else {},
         "throwable": _serialize_exc_info(throwable),
@@ -386,6 +439,35 @@ def add_tags(payload):
         payload["ddtags"] = config.tags
 
 
+def format_captured_value(value):
+    # type: (Any) -> str
+    v = value.get("value")
+    if v is not None:
+        return v
+
+    es = value.get("elements")
+    if es is not None:
+        return "%s(%s)" % (value["type"], ", ".join(format_captured_value(e) for e in es))
+
+    es = value.get("entries")
+    if es is not None:
+        return "{%s}" % ", ".join(format_captured_value(k) + ": " + format_captured_value(v) for k, v in es)
+
+    fs = value.get("fields")
+    if fs is not None:
+        return "%s(%s)" % (value["type"], ", ".join("%s=%s" % (k, format_captured_value(v)) for k, v in fs.items()))
+
+    return "%s()" % value["type"]
+
+
+def format_message(function, args):
+    # type: (str, Dict[str, Any]) -> str
+    return "%s(%s)" % (
+        function,
+        ", ".join(("=".join((n, format_captured_value(a))) for n, a in args.items())),
+    )
+
+
 def logs_track_upload_request_v2(
     service,  # type: str
     snapshot,  # type: Snapshot
@@ -396,16 +478,10 @@ def logs_track_upload_request_v2(
     top_frame = snapshot_data["stack"][0]
     if isinstance(snapshot.probe, LineProbe):
         arguments = list(snapshot_data["captures"]["lines"].values())[0]["arguments"]
-        message = "%s(%s)" % (
-            top_frame["function"],
-            ", ".join(("=".join((n, a["value"])) for n, a in arguments.items())),
-        )
+        message = format_message(top_frame["function"], arguments)
     elif isinstance(snapshot.probe, FunctionProbe):
         arguments = snapshot_data["captures"]["entry"]["arguments"]
-        message = "%s(%s)" % (
-            snapshot.probe.func_qname,
-            ", ".join(("=".join((n, a["value"])) for n, a in arguments.items())),
-        )
+        message = format_message(cast(str, snapshot.probe.func_qname), arguments)
     context = snapshot.context
     payload = {
         "service": service,

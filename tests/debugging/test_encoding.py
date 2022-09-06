@@ -10,11 +10,13 @@ import pytest
 from ddtrace.debugging._encoding import BatchJsonEncoder
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._encoding import _captured_context
+from ddtrace.debugging._encoding import _captured_value_v2
 from ddtrace.debugging._encoding import _get_args
 from ddtrace.debugging._encoding import _get_fields
 from ddtrace.debugging._encoding import _get_locals
 from ddtrace.debugging._encoding import _serialize
 from ddtrace.debugging._encoding import _serialize_exc_info
+from ddtrace.debugging._encoding import format_message
 from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.internal._encoding import BufferFull
@@ -171,24 +173,32 @@ def test_serialize_exc_info():
 
 def test_captured_context_default_level():
     context = _captured_context([("self", tree)], [], (None, None, None))
-    assert context["fields"]["root"]["fields"]["left"]["value"] == repr(Node)
-    assert context["fields"]["root"]["fields"]["left"]["fields"] is None
+    self = context["arguments"]["self"]
+    assert self["fields"]["root"]["notCapturedReason"] == "depth"
 
-    assert context["fields"]["root"]["fields"]["name"]["value"] == "'0'"
-    assert "fields" not in context["fields"]["root"]["fields"]["name"]
+
+def test_captured_context_one_level():
+    context = _captured_context([("self", tree)], [], (None, None, None), 1)
+    self = context["arguments"]["self"]
+
+    assert self["fields"]["root"]["fields"]["left"] == {"notCapturedReason": "depth", "type": "Node"}
+
+    assert self["fields"]["root"]["fields"]["name"]["value"] == "'0'"
+    assert "fields" not in self["fields"]["root"]["fields"]["name"]
 
 
 def test_captured_context_two_level():
     context = _captured_context([("self", tree)], [], (None, None, None), 2)
-    assert context["fields"]["root"]["fields"]["left"]["fields"]["right"]["value"] == repr(Node)
-    assert context["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"] is None
+    self = context["arguments"]["self"]
+    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"] == {"notCapturedReason": "depth", "type": "Node"}
 
 
 def test_captured_context_three_level():
     context = _captured_context([("self", tree)], [], (None, None, None), 3)
-    assert context["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"]["value"] == "None", context
-    assert context["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["left"]["value"] == "None", context
-    assert "fields" not in context["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"], context
+    self = context["arguments"]["self"]
+    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"]["value"] == "None", context
+    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["left"]["value"] == "None", context
+    assert "fields" not in self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"], context
 
 
 def test_captured_context_exc():
@@ -198,7 +208,6 @@ def test_captured_context_exc():
         context = _captured_context([], [], sys.exc_info())
         exc = context.pop("throwable")
         assert context == {
-            "fields": {},
             "arguments": {},
             "locals": {},
         }
@@ -306,3 +315,17 @@ def test_get_fields_slots():
 
     assert _get_fields(A()) == {"a": "a"}
     assert _get_fields(B()) == {"a": "a", "b": "b"}
+
+
+@pytest.mark.parametrize(
+    "args,expected",
+    [
+        ({"bar": 42}, "bar=42"),
+        ({"bar": [42, 43]}, "bar=list(42, 43)"),
+        ({"bar": (42, None)}, "bar=tuple(42, None)"),
+        ({"bar": {42, 43}}, "bar=set(42, 43)"),
+        ({"bar": {"b": [43, 44]}}, "bar={'b': list()}"),
+    ],
+)
+def test_format_message(args, expected):
+    assert format_message("foo", {k: _captured_value_v2(v) for k, v in args.items()}) == "foo(%s)" % expected

@@ -63,11 +63,14 @@ def test_debugger_line_probe_on_instance_method():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] in ("instancestuff(self=Stuff(), bar=None)", "instancestuff(bar=None, self=Stuff())")
+    assert snapshot["message"] in (
+        "instancestuff(self=Stuff(), bar=None)",
+        "instancestuff(bar=None, self=Stuff())",
+    ), snapshot["message"]
+
     captures = snapshot["debugger.snapshot"]["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
-    assert captures["fields"] == {}
     assert snapshot["debugger.snapshot"]["duration"] is None
 
 
@@ -88,7 +91,6 @@ def test_debugger_line_probe_on_imported_module_function():
     captures = snapshot["debugger.snapshot"]["captures"]["lines"][str(lineno)]
     assert set(captures["arguments"].keys()) == {"snafu"}
     assert captures["locals"] == {}
-    assert captures["fields"] == {}
 
 
 @pytest.mark.parametrize(
@@ -237,13 +239,11 @@ def test_debugger_function_probe_on_instance_method():
     entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
     assert set(entry_capture["arguments"].keys()) == {"self", "bar"}
     assert entry_capture["locals"] == {}
-    assert entry_capture["fields"] == {}
     assert entry_capture["throwable"] is None
 
     return_capture = snapshot["debugger.snapshot"]["captures"]["return"]
     assert set(return_capture["arguments"].keys()) == {"self", "bar"}
     assert set(return_capture["locals"].keys()) == {"@return"}
-    assert return_capture["fields"] == {}
     assert return_capture["throwable"] is None
 
 
@@ -266,13 +266,11 @@ def test_debugger_function_probe_on_function_with_exception():
     entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
     assert entry_capture["arguments"] == {}
     assert entry_capture["locals"] == {}
-    assert entry_capture["fields"] == {}
     assert entry_capture["throwable"] is None
 
     return_capture = snapshot["debugger.snapshot"]["captures"]["return"]
     assert return_capture["arguments"] == {}
     assert return_capture["locals"] == {}
-    assert return_capture["fields"] == {}
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"
 
@@ -314,7 +312,6 @@ def test_debugger_conditional_line_probe_on_instance_method():
     captures = snapshot["debugger.snapshot"]["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
-    assert captures["fields"] == {}
 
 
 def test_debugger_invalid_line():
