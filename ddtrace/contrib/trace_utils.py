@@ -34,8 +34,6 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 
-# from ddtrace import constants
-
 if TYPE_CHECKING:
     from ddtrace import Span
     from ddtrace import Tracer
@@ -86,7 +84,7 @@ def _get_header_value_case_insensitive(headers, keyname):
     """
     # just in case we are lucky
     shortcut_value = headers.get(keyname)
-    if shortcut_value:
+    if shortcut_value is not None:
         return shortcut_value
 
     for key, value in six.iteritems(headers):
@@ -217,7 +215,6 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
                     ip_header_value = tmp_ip_header_value
                     _USED_IP_HEADER = ip_header
                     break
-            # ip_header_value = ""
 
     # At this point, we have one IP header, check its value and retrieve the first public IP
     private_ip = ""
