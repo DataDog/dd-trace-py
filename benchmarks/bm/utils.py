@@ -1,5 +1,7 @@
+import contextlib
 from functools import partial
 import json
+import os
 import random
 import string
 
@@ -82,3 +84,24 @@ def random_w_n_digits(lmetrics):
 
 def rands(size=6, chars=string.ascii_uppercase + string.digits):
     return "".join(random.choice(chars) for _ in range(size))
+
+
+@contextlib.contextmanager
+def override_env(env):
+    """
+    Temporarily override ``os.environ`` with provided values::
+
+        >>> with self.override_env(dict(DD_TRACE_DEBUG=True)):
+            # Your test
+    """
+    # Copy the full original environment
+    original = dict(os.environ)
+
+    # Update based on the passed in arguments
+    os.environ.update(env)
+    try:
+        yield
+    finally:
+        # Full clear the environment out and reset back to the original
+        os.environ.clear()
+        os.environ.update(original)
