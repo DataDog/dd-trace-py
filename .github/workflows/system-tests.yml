@@ -74,7 +74,6 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
-          ref: 'injection-tests'  # TODO: update when merged
 
       - name: Build
         run: ./lib-injection/build.sh
