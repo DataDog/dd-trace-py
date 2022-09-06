@@ -455,14 +455,14 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
-        ("http_user_agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
-        ("http_user_agent", None, ["runtime-id"], None),
-        ("http_user_agent", 101234, ["runtime-id"], None),
+        ("http-user-agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("http-user-agent", None, ["runtime-id"], None),
+        ("http-user-agent", 101234, ["runtime-id"], None),
         ("useragent", True, ["runtime-id"], None),
-        ("http_user_agent", False, ["runtime-id"], None),
-        ("http_user_agent", [], ["runtime-id"], None),
-        ("http_user_agent", {}, ["runtime-id"], None),
-        ("user_agent", ["test1", "test2"], ["runtime-id"], None),
+        ("http-user-agent", False, ["runtime-id"], None),
+        ("http-user-agent", [], ["runtime-id"], None),
+        ("http-user-agent", {}, ["runtime-id"], None),
+        ("user-agent", ["test1", "test2"], ["runtime-id", http.USER_AGENT], "['test1', 'test2']"),
         ("user-agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
     ],
 )
