@@ -51,6 +51,8 @@ class SetHttpMeta(bm.Scenario):
     send_querystring_enabled = bm.var_bool()
     url = bm.var(type=str)
     querystring = bm.var(type=str)
+    ip_header = bm.var(type=str)
+    ip_disabled = bm.var_bool()
 
     def run(self):
         # run scenario to also set tags on spans
@@ -74,11 +76,20 @@ class SetHttpMeta(bm.Scenario):
                 "(KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36"
             )
 
+        if self.ip_header:
+            data["request_headers"][self.ip_header] = "8.8.8.8"
+
         span = utils.gen_span(str("test"))
         span._local_root = utils.gen_span(str("root"))
 
         def bm(loops):
-            for _ in range(loops):
-                set_http_meta(span, config, **data)
+            with utils.override_env(
+                dict(
+                    DD_TRACE_CLIENT_IP_HEADER_DISABLED=str(self.ip_disabled),
+                    DD_TRACE_CLIENT_IP_HEADER=self.ip_header,
+                )
+            ):
+                for _ in range(loops):
+                    set_http_meta(span, config, **data)
 
         yield bm
