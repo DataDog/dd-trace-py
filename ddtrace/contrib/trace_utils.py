@@ -20,7 +20,6 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace import constants
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
@@ -56,7 +55,19 @@ RESPONSE = "response"
 NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
 # Possible User Agent header.
-USER_AGENT_PATTERNS = {"HTTP_USER_AGENT", "User-Agent", "user-agent", "Http-User-Agent"}
+USER_AGENT_PATTERNS = ("http_user_agent", "user-agent")
+
+IP_PATTERNS = (
+    "x-forwarded-for",
+    "x-real-ip",
+    "client-ip",
+    "x-forwarded",
+    "x-cluster-client-ip",
+    "forwarded-for",
+    "forwarded",
+    "via",
+    "true-client-ip",
+)
 
 IP_PATTERNS = (
     "x-forwarded-for",
@@ -75,6 +86,25 @@ IP_PATTERNS = (
 def _normalized_header_name(header_name):
     # type: (str) -> str
     return NORMALIZE_PATTERN.sub("_", normalize_header_name(header_name))
+
+
+def _get_header_value_case_insensitive(headers, keyname):
+    # type: (Mapping[str, str], str) -> Optional[str]
+    """
+    Get a header in a case insensitive way. This function is meant for frameworks
+    like Django < 2.2 that don't store the headers in a case insensitive mapping.
+    """
+    # just in case we are lucky
+    shortcut_value = headers.get(keyname)
+    if shortcut_value:
+        return shortcut_value
+
+    for key, value in six.iteritems(headers):
+        key = key.lower()
+        if key == keyname:
+            return value
+
+    return None
 
 
 def _normalize_tag_name(request_or_response, header_name):
@@ -132,80 +162,73 @@ def _store_headers(headers, span, integration_config, request_or_response):
         span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
-def _get_request_header_user_agent(headers):
-    # type: (Mapping[str, str]) -> str
+def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
+    # type: (Mapping[str, str], bool) -> str
     """Get user agent from request headers
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
     """
     for key_pattern in USER_AGENT_PATTERNS:
-        user_agent = headers.get(key_pattern)
+        if not headers_are_case_sensitive:
+            user_agent = headers.get(key_pattern)
+        else:
+            user_agent = _get_header_value_case_insensitive(headers, key_pattern)
+
         if user_agent:
             return user_agent
     return ""
 
 
-def _find_normalized_header(headers, header):
-    # type: (Mapping[str, str], str) -> Optional[str]
-    if not header or not headers:
-        return None
-
-    if header in headers:
-        return header
-
-    norm_header = header.lower().replace("-", "_").strip()
-
-    if norm_header in headers:
-        return norm_header
-
-    for header_key in dict(headers).keys():
-        if header_key.lower().replace("-", "_").strip() == norm_header:
-            return header_key
-
-    return None
+# Used to cache the last header used for the cache. From the same server/framework
+# usually the same header will be used on further requests, so we use this to check
+# only it.
+_USED_IP_HEADER = ""
 
 
-def _get_request_header_client_ip(span, headers, peer_ip=None):
-    # type: (Span, Mapping[str, str], Optional[str]) -> str
+def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_sensitive=False):
+    # type: (Span, Mapping[str, str], Optional[str], bool) -> str
+    global _USED_IP_HEADER
+
     if asbool(os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=False)):
         return ""
+
+    def get_header_value(key):  # type: (str) -> Optional[str]
+        if not headers_are_case_sensitive:
+            return headers.get(key)
+
+        return _get_header_value_case_insensitive(headers, key)
 
     ip_header_value = ""
     user_configured_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER", None)
     if user_configured_ip_header:
         # Used selected the header to use to get the IP
-        ip_header = _find_normalized_header(headers, user_configured_ip_header)
-        if ip_header:
-            ip_header_value = headers.get(ip_header)
-            if not ip_header_value:
-                log.debug("DD_TRACE_CLIENT_IP_HEADER configured but '%s' header missing", ip_header)
-                return ""
+        ip_header_value = headers.get(user_configured_ip_header)
+        if not ip_header_value:
+            log.debug("DD_TRACE_CLIENT_IP_HEADER configured but '%s' header missing", user_configured_ip_header)
+            return ""
 
-            try:
-                _ = ipaddress.ip_address(six.text_type(ip_header_value))
-            except ValueError:
-                log.debug(
-                    "Invalid IP address from configured %s header: %s", user_configured_ip_header, ip_header_value
-                )
-                return ""
+        try:
+            _ = ipaddress.ip_address(six.text_type(ip_header_value))
+        except ValueError:
+            log.debug("Invalid IP address from configured %s header: %s", user_configured_ip_header, ip_header_value)
+            return ""
+
     else:
         # No configured IP header, go through the list defined in:
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-        used_ip_headers = []
-        headers_count = 0
-        for ip_header in IP_PATTERNS:
-            norm_header = _find_normalized_header(headers, ip_header)
-            if not norm_header:
-                continue
-            tmp_ip_header_value = headers.get(norm_header)
-            if tmp_ip_header_value:
-                ip_header_value = tmp_ip_header_value
-                used_ip_headers.append(ip_header)
-                headers_count += 1
-                if headers_count > 1:
-                    log.debug("Multiple IP headers found: %s", used_ip_headers)
-                    span._set_str_tag(constants.MULTIPLE_IP_HEADERS, ",".join(used_ip_headers))
-                    return ""
+        if _USED_IP_HEADER:
+            ip_header_value = get_header_value(_USED_IP_HEADER)
+
+        # For some reason request uses other header or the specified header is empty, do the
+        # search
+        if not ip_header_value:
+            for ip_header in IP_PATTERNS:
+                tmp_ip_header_value = get_header_value(ip_header)
+                if tmp_ip_header_value:
+                    ip_header_value = tmp_ip_header_value
+                    _USED_IP_HEADER = ip_header
+                    break
+            # ip_header_value = ""
 
     # At this point, we have one IP header, check its value and retrieve the first public IP
     private_ip = ""
@@ -233,8 +256,12 @@ def _get_request_header_client_ip(span, headers, peer_ip=None):
     if peer_ip:
         try:
             peer_ip_obj = ipaddress.ip_address(six.text_type(peer_ip))
-            # "or" because if both are private we prefer the one from the headers
-            if not peer_ip_obj.is_private or not private_ip:
+            if not peer_ip_obj.is_loopback:
+                # If we have a private_ip and the peer_ip is not public, prefer the one we have
+                if private_ip:
+                    if peer_ip_obj.is_loopback or peer_ip_obj.is_private:
+                        return private_ip
+                # peer_ip is public or we dont have a private_ip to we return the private peer_ip
                 return peer_ip
         except ValueError:
             pass
@@ -383,6 +410,7 @@ def set_http_meta(
     request_path_params=None,  # type: Optional[Dict[str, str]]
     request_body=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
     peer_ip=None,  # type: Optional[str]
+    headers_are_case_sensitive=False,  # type: bool
 ):
     # type: (...) -> None
     """
@@ -423,8 +451,9 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span._set_str_tag(http.QUERY_STRING, query)
 
+    ip = None
     if request_headers:
-        user_agent = _get_request_header_user_agent(request_headers)
+        user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
             span.set_tag(http.USER_AGENT, user_agent)
 
@@ -433,9 +462,12 @@ def set_http_meta(
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
 
-        ip = _get_request_header_client_ip(span, request_headers, peer_ip)
+        ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
         if ip:
             span.set_tag(http.CLIENT_IP, ip)
+            if span._meta:
+                span._meta["network.client.ip"] = ip
+                span._meta["actor.ip"] = ip
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
@@ -459,6 +491,7 @@ def set_http_meta(
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
                     ("http.request.body", request_body),
+                    ("http.request.remote_ip", ip),
                 ]
                 if v is not None
             },

@@ -257,7 +257,7 @@ def test_django_client_ip_disabled(client, test_spans, tracer):
 
 def test_django_client_ip_header_set_by_env_var_empty(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="fooipheader")
+        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
     ):
         client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="", HTTP_X_REAL_IP="8.8.8.8")
         root_span = test_spans.spans[0]
@@ -267,7 +267,7 @@ def test_django_client_ip_header_set_by_env_var_empty(client, test_spans, tracer
 
 def test_django_client_ip_header_set_by_env_var_invalid(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="fooipheader")
+        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
     ):
         client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="foobar", HTTP_X_REAL_IP="8.8.8.8")
         root_span = test_spans.spans[0]
@@ -276,7 +276,7 @@ def test_django_client_ip_header_set_by_env_var_invalid(client, test_spans, trac
 
 
 def test_django_client_ip_header_set_by_env_var_valid(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_TRACE_CLIENT_IP_HEADER="X-USE-THIS")):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_TRACE_CLIENT_IP_HEADER="X-Use-This")):
         client.get("/?a=1&b&c=d", HTTP_CLIENT_IP="8.8.8.8", HTTP_X_USE_THIS="4.4.4.4")
         root_span = test_spans.spans[0]
         assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
@@ -315,7 +315,7 @@ def test_django_client_ip_headers(client, test_spans, tracer, kwargs, expected):
 
 def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="fooipheader")
+        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
     ):
         result = client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="", HTTP_X_REAL_IP="アスダス")
         assert result.status_code == 200

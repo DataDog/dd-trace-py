@@ -17,7 +17,6 @@ from ddtrace import Pin
 from ddtrace import Span
 from ddtrace import Tracer
 from ddtrace import config
-from ddtrace import constants
 from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
@@ -456,16 +455,15 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
-        ("HTTP_USER_AGENT", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
-        ("Http-User-Agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
-        ("HTTP_USER_AGENT", None, ["runtime-id"], None),
-        ("HTTP_USER_AGENT", 101234, ["runtime-id"], None),
-        ("UserAgent", True, ["runtime-id"], None),
-        ("HTTP_USER_AGENT", False, ["runtime-id"], None),
-        ("HTTP_USER_AGENT", [], ["runtime-id"], None),
-        ("HTTP_USER_AGENT", {}, ["runtime-id"], None),
-        ("User_Agent", ["test1", "test2"], ["runtime-id"], None),
-        ("User-Agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
+        ("http_user_agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("http_user_agent", None, ["runtime-id"], None),
+        ("http_user_agent", 101234, ["runtime-id"], None),
+        ("useragent", True, ["runtime-id"], None),
+        ("http_user_agent", False, ["runtime-id"], None),
+        ("http_user_agent", [], ["runtime-id"], None),
+        ("http_user_agent", {}, ["runtime-id"], None),
+        ("user_agent", ["test1", "test2"], ["runtime-id"], None),
+        ("user-agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
     ],
 )
 def test_set_http_meta_headers_useragent(
@@ -486,19 +484,68 @@ def test_set_http_meta_headers_useragent(
 
 
 @mock.patch("ddtrace.contrib.trace_utils._store_headers")
+def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_config):
+    int_config.myint.http._header_tags = {"enabled": True}
+    trace_utils.set_http_meta(
+        span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=True
+    )
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == ["runtime-id", http.USER_AGENT]
+    assert span.get_tag(http.USER_AGENT) == "dd-agent/1.0.0"
+    mock_store_headers.assert_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span, int_config):
+    int_config.myint.http._header_tags = {"enabled": True}
+    trace_utils.set_http_meta(
+        span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=False
+    )
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == ["runtime-id"]
+    assert not span.get_tag(http.USER_AGENT)
+    mock_store_headers.assert_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
 @pytest.mark.parametrize(
     "header_env_var,headers_dict,expected_keys,expected",
     [
-        ("", {"X-FORWARDED-FOR": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
-        ("", {"X_FoRwArDeD-for": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
-        ("", {"X-FORWARDED-FOR": "8.8.8.8,127.0.0.1"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
-        ("", {"X-FORWARDED-FOR": "192.168.1.14,8.8.8.8,127.0.0.1"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
-        ("", {"X-FORWARDED-FOR": "192.168.1.14,127.0.0.1"}, ["runtime-id", http.CLIENT_IP], "192.168.1.14"),
-        ("", {"X-FORWARDED-FOR": "foobar"}, ["runtime-id"], None),
-        ("", {"X-FORWARDED-FOR": "4.4.4.4", "via": "8.8.8.8"}, ["runtime-id", constants.MULTIPLE_IP_HEADERS], None),
-        ("via", {"X-FORWARDED-FOR": "4.4.4.4"}, ["runtime-id"], None),
-        ("via", {"VIA": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
-        ("via", {"X-FORWARDED-FOR": "4.4.4.4", "Via": "8.8.8.8"}, ["runtime-id", http.CLIENT_IP], "8.8.8.8"),
+        (
+            "",
+            {"x-forwarded-for": "8.8.8.8"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "8.8.8.8,127.0.0.1"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "192.168.1.14,8.8.8.8,127.0.0.1"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "192.168.1.14,127.0.0.1"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "192.168.1.14",
+        ),
+        ("", {"x-forwarded-for": "foobar"}, ["runtime-id"], None),
+        ("via", {"x-forwarded-for": "4.4.4.4"}, ["runtime-id"], None),
+        ("via", {"via": "8.8.8.8"}, ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"], "8.8.8.8"),
+        (
+            "via",
+            {"x-forwarded-for": "4.4.4.4", "via": "8.8.8.8"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
     ],
 )
 def test_set_http_meta_headers_ip(
