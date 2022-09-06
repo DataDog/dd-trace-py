@@ -57,7 +57,7 @@ RESPONSE = "response"
 NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
 # Possible User Agent header.
-USER_AGENT_PATTERNS = ("http_user_agent", "user-agent")
+USER_AGENT_PATTERNS = ("http-user-agent", "user-agent")
 
 IP_PATTERNS = (
     "x-forwarded-for",
@@ -90,8 +90,7 @@ def _get_header_value_case_insensitive(headers, keyname):
         return shortcut_value
 
     for key, value in six.iteritems(headers):
-        key = key.lower()
-        if key == keyname:
+        if key.lower().replace("_", "-") == keyname:
             return value
 
     return None
