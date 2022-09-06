@@ -63,6 +63,7 @@ _POSSIBLE_HTTP_HEADER_B3_TRACE_IDS = _possible_header(_HTTP_HEADER_B3_TRACE_ID)
 _POSSIBLE_HTTP_HEADER_B3_SPAN_IDS = _possible_header(_HTTP_HEADER_B3_SPAN_ID)
 _POSSIBLE_HTTP_HEADER_B3_SAMPLEDS = _possible_header(_HTTP_HEADER_B3_SAMPLED)
 _POSSIBLE_HTTP_HEADER_B3_FLAGS = _possible_header(_HTTP_HEADER_B3_FLAGS)
+_POSSIBLE_HTTP_HEADER_W3C_TRACEPARENT = _possible_header(_HTTP_HEADER_W3C_TRACEPARENT)
 
 
 def _extract_header_value(possible_header_names, headers, default=None):
@@ -522,7 +523,7 @@ class _W3CTraceContext:
     Implementation details:
 
       - Datadog Trace and Span IDs are 64-bit unsigned integers.
-      - The W3C Trace Context Trace ID is a 32-byte hexademical string. This is
+      - The W3C Trace Context Trace ID is a 32-byte hexadecimal string. This is
         transformed for propagation between Datadog by taking the lower
         16-bytes.
     """
@@ -530,12 +531,41 @@ class _W3CTraceContext:
     @staticmethod
     def _inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None
+        # use hex to convert back, the trace id will be pre-pended with a bunch of 0s to fill in for previous values
         pass
 
     @staticmethod
     def _extract(headers):
         # type: (Dict[str, str]) -> Optional[Context]
-        pass
+        tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_W3C_TRACEPARENT, headers)
+        if tp is None:
+            return None
+
+        try:
+            version, trace_id_hex, span_id_hex, trace_flags = tp.split("-")
+        except AttributeError:
+            log.warning(
+                "Trace context will not be propagated because Traceparent:%s is not a string, type:%s", (tp, type(tp))
+            )
+        try:
+            # currently 00 is the only version format, but if future versions come up we may need to add changes
+            if version == "00":
+                trace_id = int(trace_id_hex, 16 & 0xFFFFFFFFFFFF)
+                span_id = int(span_id_hex, 16 & 0xFFFFFFFFFFFF)
+                # there's only one trace flag, which denotes sampling priority was set to keep
+                sampling_priority = AUTO_KEEP if trace_flags == "00000001" else 0
+            else:
+                log.warning("unsupported traceparent version:%s", version)
+                return None
+
+            return Context(
+                trace_id=trace_id,
+                span_id=span_id,
+                sampling_priority=sampling_priority,
+            )
+        except (TypeError, ValueError):
+            log.debug("received invalid w3c traceparent: %s", tp)
+            return None
 
 
 class HTTPPropagator(object):
