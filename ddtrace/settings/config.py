@@ -281,6 +281,7 @@ class Config(object):
         """
         return self.http.header_is_traced(header_name)
 
+    @cachedmethod()
     def _header_tag_name(self, header_name):
         # type: (str) -> Optional[str]
         return self.http._header_tag_name(header_name)

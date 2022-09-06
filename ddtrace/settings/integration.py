@@ -4,7 +4,6 @@ from typing import Tuple
 
 from .._hooks import Hooks
 from ..internal.utils.attrdict import AttrDict
-from ..internal.utils.cache import cachedmethod
 from ..internal.utils.formats import asbool
 from .http import HttpConfig
 
@@ -103,7 +102,6 @@ class IntegrationConfig(AttrDict):
         """
         return self._header_tag_name(header_name) is not None
 
-    @cachedmethod()
     def _header_tag_name(self, header_name):
         # type: (str) -> Optional[str]
         tag_name = self.http._header_tag_name(header_name)
