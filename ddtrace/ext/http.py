@@ -15,6 +15,7 @@ STATUS_MSG = "http.status_msg"
 QUERY_STRING = "http.query.string"
 RETRIES_REMAIN = "http.retries_remain"
 VERSION = "http.version"
+CLIENT_IP = "http.client_ip"
 
 # template render span type
 TEMPLATE = "template"

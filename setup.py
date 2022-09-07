@@ -251,12 +251,14 @@ setup(
         "protobuf>=3,<3.18; python_version<'3.6'",
         "tenacity>=5",
         "attrs>=19.2.0",
+        "cattrs",
         "six>=1.12.0",
         "typing_extensions",
         "importlib_metadata; python_version<'3.8'",
         "pathlib2; python_version<'3.5'",
         "jsonschema",
         "xmltodict>=0.12",
+        "backport_ipaddress; python_version=='2.7'",
     ]
     + bytecode,
     extras_require={

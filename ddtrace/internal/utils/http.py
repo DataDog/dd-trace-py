@@ -9,11 +9,13 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace.internal import compat
+from ddtrace.internal.utils.cache import cached
 
 
 Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
 
 
+@cached()
 def normalize_header_name(header_name):
     # type: (Optional[str]) -> Optional[str]
     """

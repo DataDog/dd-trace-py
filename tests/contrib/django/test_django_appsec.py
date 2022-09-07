@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import logging
 
@@ -237,3 +238,72 @@ def test_django_useragent(client, test_spans, tracer):
     client.get("/?a=1&b&c=d", HTTP_USER_AGENT="test/1.2.3")
     root_span = test_spans.spans[0]
     assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
+
+
+def test_django_client_ip_disabled(client, test_spans, tracer):
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="True")):
+        client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
+        root_span = test_spans.spans[0]
+        assert not root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_client_ip_header_set_by_env_var_empty(client, test_spans, tracer):
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")):
+        client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="", HTTP_X_REAL_IP="8.8.8.8")
+        root_span = test_spans.spans[0]
+        # X_REAL_IP should be ignored since the client provided a header
+        assert not root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_client_ip_header_set_by_env_var_invalid(client, test_spans, tracer):
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")):
+        client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="foobar", HTTP_X_REAL_IP="8.8.8.8")
+        root_span = test_spans.spans[0]
+        # X_REAL_IP should be ignored since the client provided a header
+        assert not root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_client_ip_header_set_by_env_var_valid(client, test_spans, tracer):
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER="X-Use-This")):
+        client.get("/?a=1&b&c=d", HTTP_CLIENT_IP="8.8.8.8", HTTP_X_USE_THIS="4.4.4.4")
+        root_span = test_spans.spans[0]
+        assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
+
+
+def test_django_client_ip_headers_priority(client, test_spans, tracer):
+    client.get("/?a=1&b&c=d", HTTP_CLIENT_IP="", HTTP_X_FORWARDED_FOR="4.4.4.4")
+    root_span = test_spans.spans[0]
+    assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
+
+
+def test_django_client_ip_mixed_private_and_public_ip(client, test_spans, tracer):
+    client.get("/?a=1&b&c=d", HTTP_CLIENT_IP="192.168.1.3,4.4.4.4")
+    root_span = test_spans.spans[0]
+    assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
+
+
+def test_django_client_ip_first_public_ip(client, test_spans, tracer):
+    client.get("/?a=1&b&c=d", HTTP_CLIENT_IP="4.4.4.4,8.8.8.8")
+    root_span = test_spans.spans[0]
+    assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
+
+
+def test_django_client_ip_only_private_addresses_get_first(client, test_spans, tracer):
+    client.get("/?a=1&b&c=d", HTTP_CLIENT_IP="192.168.1.10,192.168.1.20")
+    root_span = test_spans.spans[0]
+    assert root_span.get_tag(http.CLIENT_IP) == "192.168.1.10"
+
+
+def test_django_client_ip_nothing(client, test_spans, tracer):
+    client.get("/?a=1&b&c=d")
+    root_span = test_spans.spans[0]
+    assert not root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tracer):
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")):
+        result = client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="", HTTP_X_REAL_IP="アスダス")
+        assert result.status_code == 200
+        root_span = test_spans.spans[0]
+        # X_REAL_IP should be ignored since the client provided a header
+        assert not root_span.get_tag(http.CLIENT_IP)

@@ -64,6 +64,12 @@ below:
      - Enable sending of spans to the Agent. Note that instrumentation will still be installed and spans will be
        generated. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_ENABLED``).
 
+       .. _dd-instrumentation-telemetry-enabled:
+   * - ``DD_INSTRUMENTATION_TELEMETRY_ENABLED``
+     - Boolean
+     - True
+     - Enables sending :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
+
        .. _dd-trace-debug:
    * - ``DD_TRACE_DEBUG``
      - Boolean
@@ -309,5 +315,35 @@ below:
      - Boolean
      - True
      - Whether to enable the endpoint data collection in profiles.
+
+       .. _dd-appsec-enabled:
+   * - ``DD_APPSEC_ENABLED``
+     - Boolean
+     - False
+     - Whether to enable AppSec monitoring.
+
+       .. _dd-appsec-rules:
+   * - ``DD_APPSEC_RULES``
+     - String
+     -
+     - Path to a json file containing AppSec rules.
+
+       .. _dd-compile-debug:
+   * - ``DD_COMPILE_DEBUG``
+     - Boolean
+     - False
+     - Compile Cython extensions in RelWithDebInfo mode (with debug info, but no debug code or asserts)
+
+       .. _dd-appsec-obfuscation-parameter-key-regexp:
+   * - ``DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP``
+     - String
+     - ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?)key)|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization``
+     - Sensitive parameter key regexp for obfuscation.
+
+       .. _dd-appsec-obfuscation-parameter-value-regexp:
+   * - ``DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP``
+     - String
+     - ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
+     - Sensitive parameter value regexp for obfuscation.
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/

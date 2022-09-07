@@ -1,0 +1,102 @@
+{
+  "version": "2.2",
+  "metadata": {
+    "rules_version": "5.5.5"
+  },
+  "rules": [
+    {
+      "id": "crs-913-110",
+      "tags": {
+        "type": "security_scanner",
+        "crs_id": "913110",
+        "category": "attack_attempt"
+      },
+      "transformers": [
+        "lowercase"
+      ]
+    },
+    {
+      "id": "crs-942-100",
+      "name": "SQL Injection Attack Detected via libinjection",
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "grpc.server.request.message"
+              },
+              {
+                "address": "server.request.cookies"
+              }
+            ]
+          },
+          "operator": "is_sqli"
+        }
+      ],
+      "transformers": [
+        "removeNulls"
+      ]
+    },
+    {
+      "id": "crs-913-120",
+      "name": "Known security scanner filename/argument",
+      "tags": {
+        "type": "security_scanner",
+        "crs_id": "913120",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.request.query"
+              },
+              {
+                "address": "server.request.body"
+              },
+              {
+                "address": "server.request.path_params"
+              },
+              {
+                "address": "server.request.cookies"
+              }
+            ],
+            "list": [
+              "/.adsensepostnottherenonobook",
+              "/<invalid>hello.html",
+              "/actsensepostnottherenonotive",
+              "/acunetix-wvs-test-for-some-inexistent-file",
+              "/antidisestablishmentarianism",
+              "/appscan_fingerprint/mac_address",
+              "/arachni-",
+              "/cybercop",
+              "/nessus_is_probing_you_",
+              "/nessustest",
+              "/netsparker-",
+              "/rfiinc.txt",
+              "/thereisnowaythat-you-canbethere",
+              "/w3af/remotefileinclude.html",
+              "appscan_fingerprint",
+              "w00tw00t.at.isc.sans.dfind",
+              "w00tw00t.at.blackhats.romanian.anti-sec"
+            ]
+          },
+          "operator": "phrase_match"
+        }
+      ],
+      "transformers": [
+        "lowercase"
+      ]
+    }
+  ]
+}
