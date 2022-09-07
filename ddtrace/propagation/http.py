@@ -532,7 +532,20 @@ class _W3CTraceContext:
     def _inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None
         # use hex to convert back, the trace id will be pre-pended with a bunch of 0s to fill in for previous values
-        pass
+        if span_context.trace_id is None or span_context.span_id is None:
+            log.debug("tried to inject invalid context %r", span_context)
+            return
+
+        sampling_priority = span_context.sampling_priority
+        sampling_priority_hex = "00000001" if sampling_priority and sampling_priority >= 1 else "00000000"
+        # There is currently only a single version so we always start with 00
+        traceparent = "{}-{}-{}-{}".format(
+            "00",
+            "0000000000000000" + hex(span_context.trace_id)[2:],
+            hex(span_context.span_id)[2:],
+            sampling_priority_hex,
+        )
+        headers[_HTTP_HEADER_W3C_TRACEPARENT] = traceparent
 
     @staticmethod
     def _extract(headers):
@@ -550,7 +563,7 @@ class _W3CTraceContext:
         try:
             # currently 00 is the only version format, but if future versions come up we may need to add changes
             if version == "00":
-                trace_id = int(trace_id_hex, 16 & 0xFFFFFFFFFFFF)
+                trace_id = int(trace_id_hex[-16], 16 & 0xFFFFFFFFFFFF)
                 span_id = int(span_id_hex, 16 & 0xFFFFFFFFFFFF)
                 # there's only one trace flag, which denotes sampling priority was set to keep
                 sampling_priority = AUTO_KEEP if trace_flags == "00000001" else 0
