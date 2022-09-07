@@ -206,27 +206,10 @@ def test_appsec_span_tags_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.event_rules.errors",
     ],
 )
-def test_appsec_span_tags_snapshot_with_errors_py2(tracer):
-    with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))):
-        _enable_appsec(tracer)
-        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-            span.set_tag("http.url", "http://example.com/.git")
-            set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
-
-    assert span.get_tag(APPSEC_JSON) is None
-
-
-@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python 3 test")
-@snapshot(
-    include_tracer=True,
-    ignores=[
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-    ],
-)
-def test_appsec_span_tags_snapshot_with_errors_py3(tracer):
+def test_appsec_span_tags_snapshot_with_errors(tracer):
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))):
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
