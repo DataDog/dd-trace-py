@@ -4,6 +4,7 @@ import logging
 
 import pytest
 
+from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
@@ -29,7 +30,7 @@ def test_django_simple_attack(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         root_span, response = _aux_appsec_get_root_span(client, test_spans, tracer, url="/.git?q=1")
         assert response.status_code == 404
-        assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+        assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
         assert _context.get_item("http.request.uri", span=root_span) == "http://testserver/.git?q=1"
         assert _context.get_item("http.request.headers", span=root_span) is not None
         query = dict(_context.get_item("http.request.query", span=root_span))
@@ -55,7 +56,7 @@ def test_django_request_cookies(client, test_spans, tracer):
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer)
         query = dict(_context.get_item("http.request.cookies", span=root_span))
 
-        assert root_span.get_tag("_dd.appsec.json") is None
+        assert root_span.get_tag(APPSEC_JSON) is None
         assert query == {"mytestingcookie_key": "mytestingcookie_value"}
 
 
@@ -65,7 +66,7 @@ def test_django_request_cookies_attack(client, test_spans, tracer):
             client.cookies.load({"attack": "1' or '1' = '1'"})
             root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer)
             query = dict(_context.get_item("http.request.cookies", span=root_span))
-            assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+            assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
 
@@ -79,7 +80,7 @@ def test_django_request_body_urlencoded(client, test_spans, tracer):
         assert response.status_code == 200
         query = dict(_context.get_item("http.request.body", span=root_span))
 
-        assert root_span.get_tag("_dd.appsec.json") is None
+        assert root_span.get_tag(APPSEC_JSON) is None
         assert query == {"mytestingbody_key": "mytestingbody_value"}
 
 
@@ -110,7 +111,7 @@ def test_django_request_body_urlencoded_attack(client, test_spans, tracer):
             content_type="application/x-www-form-urlencoded",
         )
         query = dict(_context.get_item("http.request.body", span=root_span))
-        assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+        assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
         assert query == {"attack": "1' or '1' = '1'"}
 
 
@@ -129,7 +130,7 @@ def test_django_request_body_json(client, test_spans, tracer):
         assert response.status_code == 200
         assert response.content == b'{"mytestingbody_key": "mytestingbody_value"}'
 
-        assert root_span.get_tag("_dd.appsec.json") is None
+        assert root_span.get_tag(APPSEC_JSON) is None
         assert query == {"mytestingbody_key": "mytestingbody_value"}
 
 
@@ -145,7 +146,7 @@ def test_django_request_body_json_attack(client, test_spans, tracer):
                 content_type="application/json",
             )
             query = dict(_context.get_item("http.request.body", span=root_span))
-            assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+            assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
 
@@ -166,7 +167,7 @@ def test_django_request_body_xml(client, test_spans, tracer):
             query = dict(_context.get_item("http.request.body", span=root_span))
             assert response.status_code == 200
             assert response.content == b"<mytestingbody_key>mytestingbody_value</mytestingbody_key>"
-            assert root_span.get_tag("_dd.appsec.json") is None
+            assert root_span.get_tag(APPSEC_JSON) is None
             assert query == {"mytestingbody_key": "mytestingbody_value"}
 
 
@@ -183,7 +184,7 @@ def test_django_request_body_xml_attack(client, test_spans, tracer):
                 content_type=content_type,
             )
             query = dict(_context.get_item("http.request.body", span=root_span))
-            assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+            assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
             assert query == {"attack": "1' or '1' = '1'"}
 
 
@@ -192,7 +193,7 @@ def test_django_request_body_plain(client, test_spans, tracer):
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, payload="foo=bar")
         query = _context.get_item("http.request.body", span=root_span)
 
-        assert root_span.get_tag("_dd.appsec.json") is None
+        assert root_span.get_tag(APPSEC_JSON) is None
         assert query == "foo=bar"
 
 
@@ -202,7 +203,7 @@ def test_django_request_body_plain_attack(client, test_spans, tracer):
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, payload="1' or '1' = '1'")
 
         query = _context.get_item("http.request.body", span=root_span)
-        assert "triggers" in json.loads(root_span.get_tag("_dd.appsec.json"))
+        assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
         assert query == "1' or '1' = '1'"
 
 
