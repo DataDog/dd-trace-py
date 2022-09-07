@@ -15,7 +15,6 @@ from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from tests.appsec.test_utils import _enable_appsec
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -25,6 +24,19 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 RULES_GOOD_PATH = os.path.join(ROOT_DIR, "rules-good.json")
 RULES_BAD_PATH = os.path.join(ROOT_DIR, "rules-bad.json")
 RULES_MISSING_PATH = os.path.join(ROOT_DIR, "nonexistent")
+
+
+@pytest.fixture
+def tracer_appsec(tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        yield _enable_appsec(tracer)
+
+
+def _enable_appsec(tracer):
+    tracer._appsec_enabled = True
+    # Hack: need to pass an argument to configure so that the processors are recreated
+    tracer.configure(api_version="v0.4")
+    return tracer
 
 
 class Config(object):
