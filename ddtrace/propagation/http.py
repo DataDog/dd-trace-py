@@ -537,11 +537,11 @@ class _W3CTraceContext:
             return
 
         sampling_priority = span_context.sampling_priority
-        sampling_priority_hex = "00000001" if sampling_priority and sampling_priority >= 1 else "00000000"
+        sampling_priority_hex = "01" if sampling_priority and sampling_priority >= AUTO_KEEP else "00"
         # There is currently only a single version so we always start with 00
         traceparent = "{}-{}-{}-{}".format(
             "00",
-            "0000000000000000" + hex(span_context.trace_id)[2:],
+            "0000000000000000" + hex(span_context.trace_id)[2:],  # we slice off the "0x" that hex() prepends
             hex(span_context.span_id)[2:],
             sampling_priority_hex,
         )
@@ -566,7 +566,7 @@ class _W3CTraceContext:
                 trace_id = int(trace_id_hex[-16], 16 & 0xFFFFFFFFFFFF)
                 span_id = int(span_id_hex, 16 & 0xFFFFFFFFFFFF)
                 # there's only one trace flag, which denotes sampling priority was set to keep
-                sampling_priority = AUTO_KEEP if trace_flags == "00000001" else 0
+                sampling_priority = AUTO_KEEP if trace_flags == "01" else AUTO_REJECT
             else:
                 log.warning("unsupported traceparent version:%s", version)
                 return None
@@ -655,6 +655,10 @@ class HTTPPropagator(object):
                     return context
             if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_extract:
                 context = _B3SingleHeader._extract(normalized_headers)
+                if context is not None:
+                    return context
+            if PROPAGATION_STYLE_W3C in config._propagation_style_extract:
+                context = _W3CTraceContext._extract(normalized_headers)
                 if context is not None:
                     return context
         except Exception:
