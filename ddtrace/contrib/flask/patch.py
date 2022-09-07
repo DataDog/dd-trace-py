@@ -183,6 +183,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             request_headers=request.headers,
             request_cookies=request.cookies,
             request_body=req_body,
+            peer_ip=request.remote_addr,
         )
 
 
