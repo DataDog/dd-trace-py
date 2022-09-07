@@ -7,6 +7,7 @@ from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Set
@@ -30,12 +31,11 @@ from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import MetricProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.poller import ProbePoller
-from ddtrace.debugging._probe.poller import ProbePollerEvent
-from ddtrace.debugging._probe.poller import ProbePollerEventType
 from ddtrace.debugging._probe.registry import ProbeRegistry
+from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
+from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
+from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.debugging._remoteconfig import DebuggingRCV07
 from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
@@ -49,6 +49,7 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping import Wrapper
@@ -140,8 +141,7 @@ class Debugger(Service):
     _instance = None  # type: Optional[Debugger]
     _probe_meter = _probe_metrics.get_meter("probe")
 
-    __rc__ = DebuggingRCV07
-    __poller__ = ProbePoller
+    __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
     __collector__ = SnapshotCollector
     __watchdog__ = DebuggerModuleWatchdog
@@ -210,8 +210,7 @@ class Debugger(Service):
         self._probe_registry = ProbeRegistry(self.__logger__(service_name, self._encoder))
         self._uploader = self.__uploader__(self._encoder)
         self._collector = self.__collector__(self._encoder)
-        self._probe_poller = self.__poller__(self.__rc__(service_name), self._on_poller_event)
-        self._services = [self._uploader, self._probe_poller]
+        self._services = [self._uploader]
 
         self._function_store = FunctionStore(extra_attrs=["__dd_wrappers__"])
 
@@ -222,6 +221,9 @@ class Debugger(Service):
             call_once=True,
             raise_on_exceed=False,
         )
+
+        # Register the debugger with the RCM client.
+        RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
@@ -547,10 +549,10 @@ class Debugger(Service):
                 except ValueError:
                     log.error("Cannot unregister wrapping import hook for module %r", module_name, exc_info=True)
 
-    def _on_poller_event(self, event, probes):
-        # type: (ProbePollerEventType, List[Probe]) -> None
+    def _on_configuration(self, event, probes):
+        # type: (ProbePollerEventType, Iterable[Probe]) -> None
         log.debug("Received poller event %r with probes %r", event, probes)
-        if len(probes) + len(self._probe_registry) > config.max_probes:
+        if len(list(probes)) + len(self._probe_registry) > config.max_probes:
             log.warning("Too many active probes. Ignoring new ones.")
             return
 
