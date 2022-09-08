@@ -410,7 +410,7 @@ def test_info_no_configs():
     Log injection enabled: False
     Health metrics enabled: False
     Priority sampling enabled: True
-    Partial flushing enabled: False
+    Partial flushing enabled: True
     Partial flush minimum number of spans: 500
     \x1b[92m\x1b[1mTagging:\x1b[0m
     DD Service: None

@@ -233,6 +233,12 @@ below:
      - 512
      - The maximum length of ``x-datadog-tags`` header allowed in the Datadog propagation style. Must be a value between 0 to 512. If 0, propagation of ``x-datadog-tags`` is disabled.
 
+       .. _dd-trace-partial-flush-enabled:
+   * - ``DD_TRACE_PARTIAL_FLUSH_ENABLED``
+     - Boolean
+     - True
+     - Prevents large payloads being sent to APM.
+
        .. _dd-profiling-enabled:
    * - ``DD_PROFILING_ENABLED``
      - Boolean
