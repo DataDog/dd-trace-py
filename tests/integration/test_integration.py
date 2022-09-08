@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import itertools
 import logging
 import os
@@ -219,6 +220,47 @@ def test_metrics(encoding, monkeypatch):
 
     with override_global_config(dict(health_metrics_enabled=True)):
         t = Tracer()
+        assert t._partial_flush_min_spans == 500
+        statsd_mock = mock.Mock()
+        t._writer.dogstatsd = statsd_mock
+        assert t._writer._report_metrics
+        with mock.patch("ddtrace.internal.writer.log") as log:
+            for _ in range(5):
+                spans = []
+                for i in range(3000):
+                    spans.append(t.trace("op"))
+                # Since _partial_flush_min_spans is set to 500 we will flush spans in 6 batches
+                # each batch will contain 500 spans
+                for s in spans:
+                    s.finish()
+
+            t.shutdown()
+            log.warning.assert_not_called()
+            log.error.assert_not_called()
+
+        statsd_mock.distribution.assert_has_calls(
+            [
+                mock.call("datadog.tracer.http.sent.bytes", AnyInt()),
+                mock.call("datadog.tracer.http.sent.traces", 30),
+                mock.call("datadog.tracer.writer.accepted.traces", 30, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.traces", 30, tags=[]),
+                mock.call("datadog.tracer.buffer.accepted.spans", 15000, tags=[]),
+                mock.call("datadog.tracer.http.requests", 1, tags=[]),
+                mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=[]),
+            ],
+            any_order=True,
+        )
+
+
+@allencodings
+def test_metrics_partial_flush_disabled(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+
+    with override_global_config(dict(health_metrics_enabled=True)):
+        t = Tracer()
+        t.configure(
+            partial_flush_enabled=False,
+        )
         statsd_mock = mock.Mock()
         t._writer.dogstatsd = statsd_mock
         assert t._writer._report_metrics
@@ -248,8 +290,37 @@ def test_metrics(encoding, monkeypatch):
 @allencodings
 def test_single_trace_too_large(encoding, monkeypatch):
     monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+    # setting writer interval to 5 seconds so that buffer can fit larger traces
+    monkeypatch.setenv("DD_TRACE_WRITER_INTERVAL_SECONDS", "5.0")
 
     t = Tracer()
+    assert t._partial_flush_enabled is True
+    with mock.patch("ddtrace.internal.writer.log") as log:
+        key = "a" * 250
+        with t.trace("huge"):
+            for i in range(200000):
+                with t.trace("operation") as s:
+                    # Need to make the strings unique so that the v0.5 encoding doesn’t compress the data
+                    s.set_tag(key + str(i), key + str(i))
+        t.shutdown()
+        log.warning.assert_any_call(
+            "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping",
+            AnyInt(),
+            AnyInt(),
+            AnyInt(),
+            AnyInt(),
+        )
+        log.error.assert_not_called()
+
+
+@allencodings
+def test_single_trace_too_large_partial_flush_disabled(encoding, monkeypatch):
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+
+    t = Tracer()
+    t.configure(
+        partial_flush_enabled=False,
+    )
     with mock.patch("ddtrace.internal.writer.log") as log:
         with t.trace("huge"):
             for i in range(200000):
@@ -717,7 +788,6 @@ def test_partial_flush_log(run_python_code_in_subprocess, encoding, monkeypatch)
     t = Tracer()
 
     t.configure(
-        partial_flush_enabled=True,
         partial_flush_min_spans=partial_flush_min_spans,
     )
 
