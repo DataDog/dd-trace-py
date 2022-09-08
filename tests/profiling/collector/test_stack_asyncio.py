@@ -51,7 +51,8 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
     t2_name = _asyncio._task_get_name(t2)
 
     cpu_time_found = False
-    for event in events[stack_event.StackSampleEvent]:
+    stack_sample_events = events[stack_event.StackSampleEvent]
+    for event in stack_sample_events:
 
         wall_time_ns[event.task_name] += event.wall_time_ns
 
@@ -87,7 +88,7 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
 
     if _asyncio_compat.PY38_AND_LATER:
         # We don't know the name of this task for Python < 3.8
-        assert wall_time_ns["main"] > 0
+        assert wall_time_ns["main"] > 0, (wall_time_ns, stack_sample_events)
 
     assert wall_time_ns[t1_name] > 0
     assert wall_time_ns[t2_name] > 0

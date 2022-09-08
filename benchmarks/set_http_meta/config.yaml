@@ -1,13 +1,19 @@
-no-useragentvariant: &all-enabled
+all-enabled: &all-enabled
   allenabled: true
-  useragentvariant: ""
+  useragentvariant: "user-agent"
   send_querystring_enabled: false
   obfuscation_disabled: false
+  ip_header: ""
+  ip_disabled: true
   querystring: ''
   url: 'http://localhost:8888/index'
+no-useragentvariant:
+  <<: *all-enabled
+  useragentvariant: ""
 all-disabled:
   <<: *all-enabled
   allenabled: false
+  ip_disabled: true
 useragentvariant_exists_1:
   <<: *all-enabled
   useragentvariant: "HTTP_USER_AGENT"
@@ -23,7 +29,14 @@ useragentvariant_not_exists_1:
 useragentvariant_not_exists_2:
   <<: *all-enabled
   useragentvariant: "UserAgent"
-
+no-collectipvariant:
+  <<: *all-enabled
+  ip_header: ""
+  ip_disabled: true
+collectipvariant_exists:
+  <<: *all-enabled
+  ip_disabled: false
+  ip_header: "x-forwarded-for"
 obfuscation-worst-case-implicit-query:
   <<: *all-enabled
   send_querystring_enabled: true

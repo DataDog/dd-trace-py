@@ -206,27 +206,10 @@ def test_appsec_span_tags_snapshot(tracer):
     ignores=[
         "metrics._dd.appsec.waf.duration",
         "metrics._dd.appsec.waf.duration_ext",
+        "meta._dd.appsec.event_rules.errors",
     ],
 )
-def test_appsec_span_tags_snapshot_with_errors_py2(tracer):
-    with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))):
-        _enable_appsec(tracer)
-        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-            span.set_tag("http.url", "http://example.com/.git")
-            set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
-
-    assert span.get_tag(APPSEC_JSON) is None
-
-
-@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python 3 test")
-@snapshot(
-    include_tracer=True,
-    ignores=[
-        "metrics._dd.appsec.waf.duration",
-        "metrics._dd.appsec.waf.duration_ext",
-    ],
-)
-def test_appsec_span_tags_snapshot_with_errors_py3(tracer):
+def test_appsec_span_tags_snapshot_with_errors(tracer):
     with override_env(dict(DD_APPSEC_RULES=os.path.join(ROOT_DIR, "rules-with-2-errors.json"))):
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -411,7 +394,11 @@ def test_ddwaf_info_with_2_errors():
         info = _ddwaf.info
         assert info["loaded"] == 1
         assert info["failed"] == 2
-        assert info["errors"] == {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}
+        # Compare dict contents insensitive to ordering
+        expected_dict = sorted(
+            {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}.items()
+        )
+        assert sorted(info["errors"].items()) == expected_dict
         assert info["version"] == "5.5.5"
 
 
