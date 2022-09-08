@@ -125,3 +125,6 @@ ddtrace/_version.py
 
 # Benchmarks
 artifacts/
+# Profiling
+/profiling/app/profiles/
+/profiling/results/

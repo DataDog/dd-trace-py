@@ -1,0 +1,26 @@
+version: "3"
+# remember to use this compose file __ONLY__ for development/testing purposes
+
+services:
+    real_world_app:
+        build:
+            context: .
+            args:
+                - DD_API_KEY=${DD_API_KEY}
+                - DD_SITE=${DD_SITE}
+                - DD_SERVICE=alberto.vara.realworld
+                - DDTRACE_INSTALL_VERSION=${DDTRACE_INSTALL_VERSION}
+        ports:
+            - "127.0.0.1:3000:3000"
+        network_mode: host
+        volumes:
+            - ./profiles:/profiles
+        cap_add:
+            - SYS_PTRACE
+    speedscope:
+        build:
+            context: .
+            dockerfile: Dockerfile.speedscope
+        ports:
+            - "127.0.0.1:8080:80"
+        network_mode: host
