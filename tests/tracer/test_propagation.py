@@ -704,17 +704,19 @@ EXTRACT_FIXTURES = [
         B3_SINGLE_HEADERS_VALID,
         CONTEXT_EMPTY,
     ),
-    # W3C headers
+    # w3c headers
     (
         "valid_w3c_simple",
         [PROPAGATION_STYLE_W3C],
         W3C_HEADERS_VALID,
         {
-            "trace_id": 16467743005527383142,
+            "trace_id": 11803532876627986230,
             "span_id": 67667974448284343,
             "sampling_priority": 1,
             "dd_origin": None,
         },
+    ),
+    (
         "invalid_w3c",
         [PROPAGATION_STYLE_W3C],
         W3C_HEADERS_INVALID,
@@ -1093,6 +1095,19 @@ INJECT_FIXTURES = [
         },
         {_HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370"},
     ),
+    # w3c only
+    (
+        "valid_w3c_simple",
+        [PROPAGATION_STYLE_W3C],
+        VALID_DATADOG_CONTEXT,
+        {_HTTP_HEADER_W3C_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01"},
+    ),
+    (
+        "invalid_w3c_style",
+        [PROPAGATION_STYLE_W3C],
+        {},
+        {},
+    ),
     # All styles
     (
         "valid_all_styles",
@@ -1107,6 +1122,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
             _HTTP_HEADER_B3_SAMPLED: "1",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1",
+            _HTTP_HEADER_W3C_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
         },
     ),
     (
@@ -1121,6 +1137,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
             _HTTP_HEADER_B3_FLAGS: "1",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-d",
+            _HTTP_HEADER_W3C_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
         },
     ),
     (
@@ -1135,6 +1152,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
             _HTTP_HEADER_B3_SAMPLED: "0",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-0",
+            _HTTP_HEADER_W3C_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
         },
     ),
     (
@@ -1150,6 +1168,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_TRACE_ID: "b5a2814f70060771",
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370",
+            _HTTP_HEADER_W3C_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
         },
     ),
 ]

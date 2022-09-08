@@ -532,17 +532,20 @@ class _W3CTraceContext:
     def _inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None
         # use hex to convert back, the trace id will be pre-pended with a bunch of 0s to fill in for previous values
-        if span_context.trace_id is None or span_context.span_id is None:
+        trace_id = span_context.trace_id
+        span_id = span_context.span_id
+        if trace_id is None or span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
         sampling_priority = span_context.sampling_priority
         sampling_priority_hex = "01" if sampling_priority and sampling_priority >= AUTO_KEEP else "00"
+
         # There is currently only a single version so we always start with 00
         traceparent = "{}-{}-{}-{}".format(
             "00",
-            "0000000000000000" + hex(span_context.trace_id)[2:],  # we slice off the "0x" that hex() prepends
-            hex(span_context.span_id)[2:],
+            "0000000000000000" + hex(trace_id)[2:],  # we slice off the "0x" that hex() prepends
+            hex(span_id)[2:],
             sampling_priority_hex,
         )
         headers[_HTTP_HEADER_W3C_TRACEPARENT] = traceparent
@@ -562,22 +565,21 @@ class _W3CTraceContext:
             )
         try:
             # currently 00 is the only version format, but if future versions come up we may need to add changes
-            if version == "00":
-                trace_id = int(trace_id_hex[-16], 16 & 0xFFFFFFFFFFFF)
+            if version == "00" and len(trace_id_hex) == 32 and len(span_id_hex) == 16 and len(trace_flags) == 2:
+                trace_id = int(trace_id_hex[-16:], 16 & 0xFFFFFFFFFFFF)
                 span_id = int(span_id_hex, 16 & 0xFFFFFFFFFFFF)
                 # there's only one trace flag, which denotes sampling priority was set to keep
                 sampling_priority = AUTO_KEEP if trace_flags == "01" else AUTO_REJECT
             else:
-                log.warning("unsupported traceparent version:%s", version)
-                return None
+                raise ValueError("version or length of hex incorrect")
 
             return Context(
                 trace_id=trace_id,
                 span_id=span_id,
                 sampling_priority=sampling_priority,
             )
-        except (TypeError, ValueError):
-            log.debug("received invalid w3c traceparent: %s", tp)
+        except (TypeError, ValueError) as e:
+            log.debug("received invalid w3c traceparent: %s. Error: %s", (tp, e))
             return None
 
 
