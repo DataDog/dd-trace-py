@@ -544,7 +544,7 @@ class _W3CTraceContext:
         # There is currently only a single version so we always start with 00
         traceparent = "{}-{}-{}-{}".format(
             "00",
-            "0000000000000000" + hex(trace_id)[2:],  # we slice off the "0x" that hex() prepends
+            "0000000000000000" + "%x" % trace_id,  # we use %x to avoid hex() prepend and append
             hex(span_id)[2:],
             sampling_priority_hex,
         )
