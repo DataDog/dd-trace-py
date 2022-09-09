@@ -152,16 +152,17 @@ def test_headers_collection(tracer_appsec):
         "metrics._dd.appsec.waf.duration_ext",
     ],
 )
-def test_appsec_cookies_no_collection_snapshot(tracer_appsec):
-    tracer = tracer_appsec
-    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(
-            span,
-            {},
-            raw_uri="http://example.com/.git",
-            status_code="404",
-            request_cookies={"cookie1": "im the cookie1"},
-        )
+def test_appsec_cookies_no_collection_snapshot(tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        _enable_appsec(tracer)
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(
+                span,
+                {},
+                raw_uri="http://example.com/.git",
+                status_code="404",
+                request_cookies={"cookie1": "im the cookie1"},
+            )
 
         assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
 
