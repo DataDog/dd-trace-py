@@ -153,6 +153,8 @@ def test_headers_collection(tracer_appsec):
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
+    # We use tracer instead of tracer_appsec because snapshot is looking for tracer fixture and not understands
+    # other fixtures
     with override_global_config(dict(_appsec_enabled=True)):
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
