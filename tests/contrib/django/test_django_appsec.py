@@ -61,7 +61,7 @@ def test_django_request_cookies(client, test_spans, tracer):
 
 
 def test_django_request_cookies_attack(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=False)):
+    with override_global_config(dict(_appsec_enabled=True)):
         with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
             client.cookies.load({"attack": "1' or '1' = '1'"})
             root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer)

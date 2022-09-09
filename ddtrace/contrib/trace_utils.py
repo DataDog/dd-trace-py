@@ -461,7 +461,7 @@ def set_http_meta(
     if retries_remain is not None:
         span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
 
-    if config._appsec:
+    if config._appsec_enabled:
         status_code = str(status_code) if status_code is not None else None
 
         _context.set_items(
