@@ -40,3 +40,39 @@ trigger_microbenchmarking_platform:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
+
+deploy_to_docker_registries:
+  stage: deploy
+  rules:
+    - if: '$POPULATE_CACHE'
+      when: never
+    - if: '$CI_COMMIT_TAG =~ /^v.*/'
+      when: on_success
+    - when: manual
+      allow_failure: true
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  variables:
+    IMG_SOURCES: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:$CI_COMMIT_SHA
+    IMG_DESTINATIONS: dd-lib-python-init:$CI_COMMIT_TAG
+    IMG_SIGNING: "false"
+
+deploy_latest_tag_to_docker_registries:
+  stage: deploy
+  rules:
+    - if: '$POPULATE_CACHE'
+      when: never
+    - if: '$CI_COMMIT_TAG =~ /^v.*/'
+      when: on_success
+    - when: manual
+      allow_failure: true
+  trigger:
+    project: DataDog/public-images
+    branch: main
+    strategy: depend
+  variables:
+    IMG_SOURCES: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:$CI_COMMIT_SHA
+    IMG_DESTINATIONS: dd-lib-python-init:latest
+    IMG_SIGNING: "false"
