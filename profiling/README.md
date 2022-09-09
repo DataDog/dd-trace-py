@@ -38,7 +38,7 @@ py-spy record --native --format speedscope --rate 300 -o /profiles/profile_app.p
 docker-compose run speedscope
 
 sudo apt-get install -y apache2-utils
-ab -n 2000 -c 50 http://127.0.0.1:3000/api/articles 
+ab -n 2000 -c 50 http://127.0.0.1:3000/api/articles?token=secret
 ```
 ```
 docker-compose run speedscope

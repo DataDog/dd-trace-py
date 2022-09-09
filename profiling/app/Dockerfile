@@ -12,6 +12,7 @@ ENV DD_API_KEY $DD_API_KEY
 ENV DD_API_KEY $DD_SITE
 ENV DD_SERVICE $DD_SERVICE
 ENV DDTRACE_INSTALL_VERSION $DDTRACE_INSTALL_VERSION
+ENV DD_TRACE_QUERY_STRING $DD_TRACE_QUERY_STRING
 
 WORKDIR /app
 
@@ -25,7 +26,7 @@ COPY ./install-datadog-agent.sh /app/
 
 RUN ./install-datadog-agent.sh
 
-RUN git clone https://github.com/Kyle-Verhoog/flask-realworld-example-app flask-realworld-example-app
+RUN git clone https://github.com/gnufede/flask-realworld-example-app flask-realworld-example-app
 RUN cp -r flask-realworld-example-app/* /app
 
 COPY ./install-app-deps.sh /app/
