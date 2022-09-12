@@ -545,7 +545,7 @@ class _W3CTraceContext:
         traceparent = "{}-{}-{}-{}".format(
             "00",
             "0000000000000000" + "%x" % trace_id,  # we use %x to avoid hex() prepend and append
-            hex(span_id)[2:],
+            "%x" % span_id,
             sampling_priority_hex,
         )
         headers[_HTTP_HEADER_W3C_TRACEPARENT] = traceparent
