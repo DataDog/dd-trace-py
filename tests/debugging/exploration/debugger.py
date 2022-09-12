@@ -13,7 +13,7 @@ from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import ConditionalProbe
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.poller import ProbePollerEvent
+from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._snapshot.collector import SnapshotContext
 from ddtrace.debugging._snapshot.model import Snapshot
@@ -232,17 +232,17 @@ class ExplorationDebugger(Debugger):
     @classmethod
     def add_probe(cls, probe):
         # type: (Probe) -> None
-        cls._instance._on_poller_event(ProbePollerEvent.NEW_PROBES, [probe])
+        cls._instance._on_configuration(ProbePollerEvent.NEW_PROBES, [probe])
 
     @classmethod
     def add_probes(cls, probes):
         # type: (t.List[Probe]) -> None
-        cls._instance._on_poller_event(ProbePollerEvent.NEW_PROBES, probes)
+        cls._instance._on_configuration(ProbePollerEvent.NEW_PROBES, probes)
 
     @classmethod
     def delete_probe(cls, probe):
         # type: (Probe) -> None
-        cls._instance._on_poller_event(ProbePollerEvent.DELETED_PROBES, [probe])
+        cls._instance._on_configuration(ProbePollerEvent.DELETED_PROBES, [probe])
 
 
 if asbool(os.getenv("DD_DEBUGGER_EXPL_STATUS_MESSAGES", False)):
