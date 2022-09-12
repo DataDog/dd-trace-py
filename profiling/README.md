@@ -1,22 +1,39 @@
-## Profiling
+## `ddtrace` profiling tools
 
-# Profile function
+This folder contains scripts and tools to profile `ddtrace`, see flamegraphs and found bottlenecks.
 
+The main tools are:
+- [py-spy](https://github.com/benfred/py-spy): a sampling profiler for Python programs
+- [apache benchmark](https://httpd.apache.org/docs/2.4/programs/ab.html): ab is a tool for benchmarking http servers
+- [speedscope](https://github.com/jlfwong/speedscope): interactive flamegraph visualizer
+
+
+# How to profile function
+
+Create a file in script folder profiling/scripts/prof_[scenario].py
+
+Execute:
 ```
 ./run [scenario]
-
-profiling/appsec/prof_[scenario].py
 ```
 
-Results:
+The results will store in:
+```
+profiling/results/prof_[scenario].svg
+```
+
+You should see the results with `speedscope`:
 
 ```
-profiling/results/prof_set_http_meta_enabled.svg
+docker-compose up speedscope
+http://localhost:8080/
 ```
+
 # Profile Application
 
-```              
-cd app/         
+To profile a real application with dd-trace, execute the below script:
+
+```                  
 export DD_SITE=[SITE]
 export DD_API_KEY=[APIKEY]
 export DD_SERVICE=alberto.vara.realworld
@@ -29,21 +46,23 @@ docker-compose build
 docker-compose run real_world_app
 ```
 
+Then, generate traffic in the app:
+
+```
+sudo apt-get install -y apache2-utils
+ab -n 2000 -c 50 http://127.0.0.1:3000/api/articles?token=secret
+```
+
+profile application with:
+
 ```
 docker exec -it $(docker ps -f name=app_real_world --format "table {{.Names}}" | tail -1) /bin/bash
 export VENV_DDTRACE=/app/.venv_ddtrace/
 source ${VENV_DDTRACE}/bin/activate
 
 py-spy record --native --format speedscope --rate 300 -o /profiles/profile_app.prof --pid $(ps -ef | awk '/uwsgi/{print $2}' | head -1)
-docker-compose run speedscope
+```
 
-sudo apt-get install -y apache2-utils
-ab -n 2000 -c 50 http://127.0.0.1:3000/api/articles?token=secret
-```
-```
-docker-compose run speedscope
-http://localhost:8080/
-```
 Results:
 
 ```

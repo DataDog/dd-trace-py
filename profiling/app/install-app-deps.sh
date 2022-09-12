@@ -7,7 +7,6 @@ export PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
 export VENV_DDTRACE=/app/.venv_ddtrace/
 export PG_RETRIES=5
 
-export DDTRACE_INSTALL_VERSION="git+https://github.com/Datadog/dd-trace-py@1.x"
 export CONDUIT_SECRET="something-really-secret"
 export FLASK_APP=./autoapp.py
 export DATABASE_URL="postgresql://postgres:password@localhost"

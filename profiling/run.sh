@@ -10,11 +10,9 @@ else
       echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 fi
 
+mkdir -p results
+
 export PATH=$PATH:../
 export PYTHONPATH=$PYTHONPATH:../
-export ENABLED=true
-py-spy record --native --format speedscope --rate 300 -o results/prof_$1_enabled.prof -- python appsec/prof_$1.py
 
-
-export ENABLED=""
-py-spy record --native --format speedscope --rate 300 -o results/prof_$1_disabled.prof -- python appsec/prof_$1.py
+py-spy record --native --format speedscope --rate 300 -o results/prof_$1.prof -- python scripts/prof_$1.py
