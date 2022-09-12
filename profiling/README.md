@@ -22,7 +22,7 @@ The results will store in:
 profiling/results/prof_[scenario].svg
 ```
 
-You should see the results with `speedscope`:
+You can see the results with `speedscope`:
 
 ```
 docker-compose up speedscope
@@ -51,6 +51,7 @@ Then, generate traffic in the app:
 ```
 sudo apt-get install -y apache2-utils
 ab -n 2000 -c 50 http://127.0.0.1:3000/api/articles?token=secret
+ab -n 2000 -c 50 http://127.0.0.1:3000/api/tags 
 ```
 
 profile application with:
