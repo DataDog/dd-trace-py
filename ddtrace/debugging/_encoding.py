@@ -460,12 +460,17 @@ def format_captured_value(value):
     return "%s()" % value["type"]
 
 
-def format_message(function, args):
-    # type: (str, Dict[str, Any]) -> str
-    return "%s(%s)" % (
+def format_message(function, args, retval=None):
+    # type: (str, Dict[str, Any], Optional[Any]) -> str
+    message = "%s(%s)" % (
         function,
         ", ".join(("=".join((n, format_captured_value(a))) for n, a in args.items())),
     )
+
+    if retval is not None:
+        return "\n".join((message, "=".join(("@return", format_captured_value(retval)))))
+
+    return message
 
 
 def logs_track_upload_request_v2(
@@ -481,7 +486,8 @@ def logs_track_upload_request_v2(
         message = format_message(top_frame["function"], arguments)
     elif isinstance(snapshot.probe, FunctionProbe):
         arguments = snapshot_data["captures"]["entry"]["arguments"]
-        message = format_message(cast(str, snapshot.probe.func_qname), arguments)
+        retval = snapshot.return_capture["locals"].get("@return") if snapshot.return_capture else None
+        message = format_message(cast(str, snapshot.probe.func_qname), arguments, retval)
     context = snapshot.context
     payload = {
         "service": service,

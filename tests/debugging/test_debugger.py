@@ -232,8 +232,8 @@ def test_debugger_function_probe_on_instance_method():
 
     (snapshot,) = snapshots
     assert snapshot["message"] in (
-        "Stuff.instancestuff(self=Stuff(), bar=42)",
-        "Stuff.instancestuff(bar=42, self=Stuff())",
+        "Stuff.instancestuff(self=Stuff(), bar=42)\n@return=42",
+        "Stuff.instancestuff(bar=42, self=Stuff())\n@return=42",
     )
 
     entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
