@@ -160,7 +160,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         assert span.get_tag("http.method") == "GET"
-        assert span.get_tag("http.url") == URL_200
+        assert span.get_tag("http.url") == URL_200 + fqs
         assert_span_http_status_code(span, 200)
         if config.httplib.trace_query_string:
             assert span.get_tag(http.QUERY_STRING) == query_string

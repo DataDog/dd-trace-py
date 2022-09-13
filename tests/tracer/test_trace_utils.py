@@ -374,7 +374,10 @@ def test_set_http_meta(
         assert http.METHOD not in span.get_tags()
 
     if url is not None:
-        assert span.get_tag(http.URL) == stringify(url)
+        if query and int_config.trace_query_string:
+            assert span.get_tag(http.URL) == stringify(url + "?" + query)
+        else:
+            assert span.get_tag(http.URL) == stringify(url)
     else:
         assert http.URL not in span.get_tags()
 
@@ -820,6 +823,120 @@ def test_sanitized_url_in_http_meta(span, int_config):
         status_code=200,
     )
     assert span.get_tag(http.URL) == FULL_URL
+
+
+def test_stripped_url_in_http_meta_if_trace_query_string_disabled_globally(span, int_config):
+    SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
+    STRIPPED_URL = "http://example.com/search#frag?ment"
+
+    int_config.trace_query_string = True
+    with override_global_config({"global_trace_query_string_disabled": True}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method="GET",
+            url=SENSITIVE_QS_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == STRIPPED_URL
+
+
+def test_redacted_url_in_http_meta(span, int_config):
+    SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
+    STRIPPED_URL = "http://example.com/search#frag?ment"
+    REDACTED_QS_URL = "http://example.com/search?<redacted>&q=query#frag?ment"
+
+    int_config.trace_query_string = False
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_QS_URL,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == STRIPPED_URL
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_QS_URL,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == REDACTED_QS_URL
+
+
+def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
+    BASE_URL = "http://example.com/search"
+    SENSITIVE_QS = "token=03cb9f67dbbc4cb8b963629951e10934&q=query"
+    REDACTED_QS = "<redacted>&q=query"
+    FRAGMENT = "frag?ment"
+    SENSITIVE_URL = BASE_URL + "?" + SENSITIVE_QS + "#" + FRAGMENT
+    REDACTED_URL = BASE_URL + "?" + REDACTED_QS + "#" + FRAGMENT
+    STRIPPED_URL = BASE_URL + "#" + FRAGMENT
+
+    int_config.trace_query_string = False
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_URL,
+        query=SENSITIVE_QS,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == STRIPPED_URL
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_URL,
+        query=SENSITIVE_QS,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == REDACTED_URL
+
+
+@mock.patch("ddtrace.internal.utils.http.redact_query_string")
+def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_redact_query_string, span, int_config):
+    URL = "http://example.com/search#frag?ment"
+    EMPTY_QS = ""
+    NONE_QS = None
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
+
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        query=EMPTY_QS,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
+
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        query=NONE_QS,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
 
 
 # This generates a list of (key, value) tuples, with values given by nested
