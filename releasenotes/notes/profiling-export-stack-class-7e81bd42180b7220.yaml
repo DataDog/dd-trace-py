@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    profiler: collect and export the class name for the wall time, CPU
+    time and lock profiles, when available.

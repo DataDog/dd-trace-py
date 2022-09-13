@@ -24,7 +24,7 @@ async def test_lock_acquire_events():
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 16, "test_lock_acquire_events")
+    assert event.frames[0] == (__file__, 16, "test_lock_acquire_events", "")
     assert event.sampling_pct == 100
 
 
@@ -45,7 +45,7 @@ async def test_asyncio_lock_release_events():
     # It's called through pytest so I'm sure it's gonna be that long, right?
     assert len(event.frames) > 3
     assert event.nframes > 3
-    assert event.frames[0] == (__file__, 38, "test_asyncio_lock_release_events")
+    assert event.frames[0] == (__file__, 38, "test_asyncio_lock_release_events", "")
     assert event.sampling_pct == 100
 
 
