@@ -67,10 +67,11 @@ class TraceBottleTest(TracerTestCase):
         assert s.resource == "GET /hi/<name>"
         assert_span_http_status_code(s, 200)
         assert s.get_tag("http.method") == "GET"
-        assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie"
         if ddtrace.config.bottle.trace_query_string:
+            assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie" + fqs
             assert s.get_tag(http.QUERY_STRING) == query_string
         else:
+            assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie"
             assert http.QUERY_STRING not in s.get_tags()
 
     def test_query_string(self):

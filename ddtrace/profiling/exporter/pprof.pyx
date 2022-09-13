@@ -195,7 +195,7 @@ class _PprofConverter(object):
     _functions = attr.ib(
         init=False, factory=dict, type=typing.Dict[typing.Tuple[str, typing.Optional[str]], pprof_FunctionType]
     )
-    _locations = attr.ib(init=False, factory=dict, type=typing.Dict[event.FrameType, pprof_LocationType])
+    _locations = attr.ib(init=False, factory=dict, type=typing.Dict[typing.Tuple[str, int, str], pprof_LocationType])
     _string_table = attr.ib(init=False, factory=_StringTable)
 
     _last_location_id = attr.ib(init=False, factory=_Sequence)
@@ -257,7 +257,9 @@ class _PprofConverter(object):
         nframes,  # type: int
     ):
         # type: (...) -> typing.Tuple[int, ...]
-        locations = [self._to_Location(filename, lineno, funcname).id for filename, lineno, funcname in frames]
+        locations = [
+            self._to_Location(filename, lineno, funcname).id for filename, lineno, funcname, class_name in frames
+        ]
 
         omitted = nframes - len(frames)
         if omitted:
@@ -295,6 +297,7 @@ class _PprofConverter(object):
                 ("span id", span_id),
                 ("trace endpoint", trace_resource),
                 ("trace type", trace_type),
+                ("class name", frames[0][3]),
             ),
         )
 
@@ -369,6 +372,7 @@ class _PprofConverter(object):
                 ("trace endpoint", trace_resource),
                 ("trace type", trace_type),
                 ("lock name", lock_name),
+                ("class name", frames[0][3]),
             ),
         )
 
@@ -406,6 +410,7 @@ class _PprofConverter(object):
                 ("trace endpoint", trace_resource),
                 ("trace type", trace_type),
                 ("lock name", lock_name),
+                ("class name", frames[0][3]),
             ),
         )
 
@@ -439,6 +444,7 @@ class _PprofConverter(object):
                 ("trace endpoint", trace_resource),
                 ("trace type", trace_type),
                 ("exception type", exc_type_name),
+                ("class name", frames[0][3]),
             ),
         )
 
