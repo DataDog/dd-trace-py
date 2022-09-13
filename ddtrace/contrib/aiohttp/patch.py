@@ -77,7 +77,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             span,
             config.aiohttp_client,
             method=method,
-            url=url_str,
+            url=str(url),
             query=parsed_url.query,
             request_headers=headers,
         )
