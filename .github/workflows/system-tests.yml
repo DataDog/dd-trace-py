@@ -87,6 +87,7 @@ jobs:
       fail-fast: false
     env:
       CLIENTS_ENABLED: python
+      PYTHON_DDTRACE_PACKAGE: git+https://github.com/Datadog/dd-trace-py.git@${{ github.sha }}
     steps:
       - name: Checkout system tests
         uses: actions/checkout@v3
