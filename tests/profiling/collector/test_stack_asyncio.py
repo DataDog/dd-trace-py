@@ -60,15 +60,15 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
         if _asyncio_compat.PY37_AND_LATER:
             if event.task_name == "main":
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, 30, "hello")]
+                assert event.frames == [(__file__, 30, "hello", "")]
                 assert event.nframes == 1
             elif event.task_name == t1_name:
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, 24, "stuff")]
+                assert event.frames == [(__file__, 24, "stuff", "")]
                 assert event.nframes == 1
             elif event.task_name == t2_name:
                 assert event.thread_name == "MainThread"
-                assert event.frames == [(__file__, 24, "stuff")]
+                assert event.frames == [(__file__, 24, "stuff", "")]
                 assert event.nframes == 1
 
         if event.thread_name == "MainThread" and (

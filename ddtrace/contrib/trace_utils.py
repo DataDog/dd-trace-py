@@ -28,6 +28,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import normalize_header_name
+from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
@@ -419,7 +420,10 @@ def set_http_meta(
         span._set_str_tag(http.METHOD, method)
 
     if url is not None:
-        span._set_str_tag(http.URL, url if integration_config.trace_query_string else strip_query_string(url))
+        if integration_config.trace_query_string and not config.global_trace_query_string_disabled:
+            span._set_str_tag(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
+        else:
+            span._set_str_tag(http.URL, strip_query_string(url))
 
     if status_code is not None:
         try:
