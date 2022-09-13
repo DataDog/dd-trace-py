@@ -1118,7 +1118,9 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={"botocore": latest},
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": latest}),
+                # moto release v4.0.3 enforces api limits causing error in boto integration tests
+                # https://github.com/spulec/moto/issues/5249
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": "<4.0.3"}),
                 Venv(pys=["2.7"], pkgs={"moto": ["~=1.0"], "rsa": ["<4.7.1"]}),
             ],
         ),
