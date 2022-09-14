@@ -569,21 +569,21 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
     span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
-        span.set_tag(user.ID, user_id)
+        span._set_str_tag(user.ID, user_id)
         if propagate:
             span.context.dd_user_id = user_id
 
         # All other fields are optional
         if name:
-            span.set_tag(user.NAME, name)
+            span._set_str_tag(user.NAME, name)
         if email:
-            span.set_tag(user.EMAIL, email)
+            span._set_str_tag(user.EMAIL, email)
         if scope:
-            span.set_tag(user.SCOPE, scope)
+            span._set_str_tag(user.SCOPE, scope)
         if role:
-            span.set_tag(user.ROLE, role)
+            span._set_str_tag(user.ROLE, role)
         if session_id:
-            span.set_tag(user.SESSION_ID, session_id)
+            span._set_str_tag(user.SESSION_ID, session_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "
