@@ -228,16 +228,18 @@ class Config(object):
         dd_trace_obfuscation_query_string_pattern = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT
         )
-        self.global_trace_query_string_disabled = False
+        self.global_query_string_obfuscation_disabled = True
         self._obfuscation_query_string_pattern = None
+        self.http_tag_query_string = True
         if dd_trace_obfuscation_query_string_pattern != "":
+            self.global_query_string_obfuscation_disabled = False
             try:
                 self._obfuscation_query_string_pattern = re.compile(
                     dd_trace_obfuscation_query_string_pattern.encode("ascii")
                 )
             except Exception:
                 log.warning("Invalid obfuscation pattern, disabling query string tracing")
-                self.global_trace_query_string_disabled = True
+                self.http_tag_query_string = False
 
     def __getattr__(self, name):
         if name not in self._config:
