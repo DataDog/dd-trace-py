@@ -17,6 +17,6 @@ def test_check_traceback_to_frames():
 
     this_file = __file__.replace(".pyc", ".py")
     assert frames == [
-        (this_file, 7, "_x"),
-        (this_file, 15, "test_check_traceback_to_frames"),
+        (this_file, 7, "_x", ""),
+        (this_file, 15, "test_check_traceback_to_frames", ""),
     ]

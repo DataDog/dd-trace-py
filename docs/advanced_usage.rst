@@ -373,6 +373,14 @@ Examples::
     # Integration level config, e.g. 'falcon'
     config.falcon.http.trace_query_string = True
 
+The sensitive query strings (e.g: token, password) are obfuscated by default.
+
+It is possible to configure the obfuscation regexp by setting the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable.
+
+To disable query string obfuscation, set the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable to empty string ("")
+
+If the ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` environment variable is set to an invalid regexp, the query strings will not be traced.
+
 ..  _http-headers-tracing:
 
 Headers tracing

@@ -11,7 +11,7 @@ DEFAULT_MAX_PROBES = 100
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 
-def derive_tags(c):
+def _derive_tags(c):
     # type: (En) -> str
     _tags = dict(env=config.env, version=config.version, debugger_version=get_version())
     _tags.update(config.tags)
@@ -28,7 +28,7 @@ class DynamicInstrumentationConfig(En):
     global_rate_limit = En.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
     _tags_in_qs = En.d(bool, lambda _: True)
     _snapshot_intake_endpoint = En.d(str, lambda _: "/debugger/v1/input")
-    tags = En.d(str, derive_tags)
+    tags = En.d(str, _derive_tags)
 
     enabled = En.v(
         bool,

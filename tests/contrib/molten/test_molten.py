@@ -87,7 +87,7 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.resource, "GET /hello/{name}/{age}")
         self.assertEqual(span.get_tag("http.method"), "GET")
-        self.assertEqual(span.get_tag(http.URL), "http://127.0.0.1:8000/hello/Jim/24")
+        self.assertEqual(span.get_tag(http.URL), "http://127.0.0.1:8000/hello/Jim/24?foo=bar")
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.QUERY_STRING), "foo=bar")
 
