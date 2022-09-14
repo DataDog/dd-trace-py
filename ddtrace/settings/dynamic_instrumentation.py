@@ -19,8 +19,8 @@ def derive_tags(c):
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
 
 
-class DebuggerConfig(En):
-    __prefix__ = "dd.debugger"
+class DynamicInstrumentationConfig(En):
+    __prefix__ = "dd.dynamic_instrumentation"
 
     service_name = En.d(str, lambda _: config.service or get_application_name() or DEFAULT_SERVICE_NAME)
     _snapshot_intake_url = En.d(str, lambda _: get_trace_url())

@@ -349,7 +349,7 @@ below:
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 
-Dynamic instrumentation configuration
--------------------------------------
+Dynamic Instrumentation
+-----------------------
 
-.. envier:: ddtrace.settings.debugger:DebuggerConfig
+.. envier:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig

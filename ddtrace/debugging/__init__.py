@@ -1,25 +1,25 @@
 """
-DD Debugger
-===========
+Dynamic Instrumentation
+=======================
 
 Configuration
 -------------
 
-When using ``ddtrace-run``, the debugger can be enabled by setting the
-``DD_DEBUGGER_ENABLED`` variable, or programmatically with::
+When using ``ddtrace-run``, dynamic instrumentation can be enabled by setting
+the ``DD_DYNAMIC_INSTRUMENTATION_ENABLED`` variable, or programmatically with::
 
-    from ddtrace.debugging import Debugger
+    from ddtrace.debugging import DynamicInstrumentation
 
-    # Enable the debugger
-    Debugger.enable()
+    # Enable dynamic instrumentation
+    DynamicInstrumentation.enable()
 
     ...
 
     # Disable the debugger
-    Debugger.disable()
+    DynamicInstrumentation.disable()
 """
 
-from ddtrace.debugging._debugger import Debugger
+from ddtrace.debugging._debugger import Debugger as DynamicInstrumentation
 
 
-__all__ = ["Debugger"]
+__all__ = ["DynamicInstrumentation"]

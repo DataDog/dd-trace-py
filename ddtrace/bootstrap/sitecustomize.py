@@ -86,9 +86,9 @@ try:
         import ddtrace.profiling.auto  # noqa: F401
 
     if debugger_config.enabled:
-        from ddtrace.debugging import Debugger
+        from ddtrace.debugging import DynamicInstrumentation
 
-        Debugger.enable()
+        DynamicInstrumentation.enable()
 
     if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
         RuntimeWorker.enable()
