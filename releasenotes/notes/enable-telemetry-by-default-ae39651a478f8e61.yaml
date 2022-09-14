@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Enable :ref:`telemetry <Instrumentation Telemetry>` collection when tracing is enabled.
