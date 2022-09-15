@@ -172,7 +172,7 @@ def test_read_item_query_string(client, tracer, test_spans):
     assert request_span.resource == "GET /items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/items/foo"
+    assert request_span.get_tag("http.url") == "http://testserver/items/foo?q=query"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "q=query"
 
@@ -195,7 +195,7 @@ def test_200_multi_query_string(client, tracer, test_spans):
     assert request_span.resource == "GET /items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/items/foo"
+    assert request_span.get_tag("http.url") == "http://testserver/items/foo?name=Foo&q=query"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "name=Foo&q=query"
 

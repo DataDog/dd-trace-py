@@ -1,17 +1,21 @@
 from contextlib import contextmanager
+import re
 from typing import Any
 from typing import Callable
 from typing import ContextManager
 from typing import Generator
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace.internal import compat
+from ddtrace.internal.utils.cache import cached
 
 
 Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
 
 
+@cached()
 def normalize_header_name(header_name):
     # type: (Optional[str]) -> Optional[str]
     """
@@ -36,6 +40,60 @@ def strip_query_string(url):
     if not f:
         return h
     return h + fs + f
+
+
+def redact_query_string(query_string, query_string_obfuscation_pattern):
+    # type: (str, Optional[re.Pattern]) -> Union[bytes, str]
+    if query_string_obfuscation_pattern is None:
+        return query_string
+
+    bytes_query = query_string if isinstance(query_string, bytes) else query_string.encode("utf-8")
+    return query_string_obfuscation_pattern.sub(b"<redacted>", bytes_query)
+
+
+def redact_url(url, query_string_obfuscation_pattern, query_string=None):
+    # type: (str, re.Pattern, Optional[str]) -> Union[str,bytes]
+
+    # Avoid further processing if obfuscation is disabled
+    if query_string_obfuscation_pattern is None:
+        return url
+
+    parts = compat.parse.urlparse(url)
+    redacted_query = None
+
+    if query_string:
+        redacted_query = redact_query_string(query_string, query_string_obfuscation_pattern)
+    elif parts.query:
+        redacted_query = redact_query_string(parts.query, query_string_obfuscation_pattern)
+
+    if redacted_query is not None and len(parts) >= 5:
+        redacted_parts = parts[:4] + (redacted_query,) + parts[5:]  # type: Tuple[Union[str, bytes], ...]
+        bytes_redacted_parts = tuple(x if isinstance(x, bytes) else x.encode("utf-8") for x in redacted_parts)
+        return urlunsplit(bytes_redacted_parts, url)
+
+    # If no obfuscation is performed, return original url
+    return url
+
+
+def urlunsplit(components, original_url):
+    # type: (Tuple[bytes, ...], str) -> bytes
+    """
+    Adaptation from urlunsplit and urlunparse, using bytes components
+    """
+    scheme, netloc, url, params, query, fragment = components
+    if params:
+        url = b"%s;%s" % (url, params)
+    if netloc or (scheme and url[:2] != b"//"):
+        if url and url[:1] != b"/":
+            url = b"/" + url
+        url = b"//%s%s" % ((netloc or b""), url)
+    if scheme:
+        url = b"%s:%s" % (scheme, url)
+    if query or (original_url and original_url[-1] in ("?", b"?")):
+        url = b"%s?%s" % (url, query)
+    if fragment or (original_url and original_url[-1] in ("#", b"#")):
+        url = b"%s#%s" % (url, fragment)
+    return url
 
 
 def connector(url, **kwargs):

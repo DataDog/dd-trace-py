@@ -88,6 +88,71 @@ def test_collect_once():
         pytest.fail("Unable to find MainThread")
 
 
+def _find_sleep_event(events, class_name):
+    class_method_found = False
+    class_classmethod_found = False
+
+    for e in events:
+        for frame in e.frames:
+            if frame[0] == __file__.replace(".pyc", ".py") and frame[2] == "sleep_class" and frame[3] == class_name:
+                class_method_found = True
+            elif (
+                frame[0] == __file__.replace(".pyc", ".py") and frame[2] == "sleep_instance" and frame[3] == class_name
+            ):
+                class_classmethod_found = True
+
+        if class_method_found and class_classmethod_found:
+            return True
+
+    return False
+
+
+def test_collect_once_with_class():
+    class SomeClass(object):
+        @classmethod
+        def sleep_class(cls):
+            # type: (...) -> bool
+            return cls().sleep_instance()
+
+        def sleep_instance(self):
+            # type: (...) -> bool
+            for _ in range(5):
+                if _find_sleep_event(r.events[stack_event.StackSampleEvent], "SomeClass"):
+                    return True
+                nogevent.sleep(1)
+            return False
+
+    r = recorder.Recorder()
+    s = stack.StackCollector(r)
+
+    with s:
+        assert SomeClass.sleep_class()
+
+
+def test_collect_once_with_class_not_right_type():
+    # type: (...) -> None
+    r = recorder.Recorder()
+
+    class SomeClass(object):
+        @classmethod
+        def sleep_class(foobar, cls):
+            # type: (...) -> bool
+            return foobar().sleep_instance(cls)
+
+        def sleep_instance(foobar, self):
+            # type: (...) -> bool
+            for _ in range(5):
+                if _find_sleep_event(r.events[stack_event.StackSampleEvent], ""):
+                    return True
+                nogevent.sleep(1)
+            return False
+
+    s = stack.StackCollector(r)
+
+    with s:
+        assert SomeClass.sleep_class(123)
+
+
 def _fib(n):
     if n == 1:
         return 1
@@ -309,7 +374,7 @@ def test_exception_collection_threads():
     assert e.sampling_period > 0
     assert e.thread_id in {t.ident for t in threads}
     assert isinstance(e.thread_name, str)
-    assert e.frames == [("<string>", 5, "_f30")]
+    assert e.frames == [("<string>", 5, "_f30", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     for t in threads:
@@ -333,7 +398,7 @@ def test_exception_collection():
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 327, "test_exception_collection")]
+    assert e.frames == [(__file__, 392, "test_exception_collection", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
 
@@ -365,7 +430,7 @@ def test_exception_collection_trace(
     assert e.sampling_period > 0
     assert e.thread_id == nogevent.thread_get_ident()
     assert e.thread_name == "MainThread"
-    assert e.frames == [(__file__, 354, "test_exception_collection_trace")]
+    assert e.frames == [(__file__, 419, "test_exception_collection_trace", "")]
     assert e.nframes == 1
     assert e.exc_type == ValueError
     assert e.span_id == span.span_id
@@ -647,7 +712,7 @@ def test_collect_gevent_threads():
             else:
                 main_thread_found = True
         elif event.task_id in {t.ident for t in threads}:
-            for filename, lineno, funcname in event.frames:
+            for filename, lineno, funcname, classname in event.frames:
                 if funcname in (
                     "_nothing",
                     "sleep",

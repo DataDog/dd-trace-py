@@ -13,6 +13,7 @@ from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import MetricProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.registry import _get_probe_location
+from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
 from tests.submod.stuff import Stuff
@@ -30,10 +31,10 @@ def good_probe():
 
 
 def simple_debugger_test(probe, func):
-    with debugger(poll_interval=0.1) as d:
+    with debugger() as d:
         probe_id = probe.probe_id
 
-        d.rc.add_probes([probe])
+        d.add_probes(probe)
         sleep(0.5)
         try:
             func()
@@ -68,6 +69,7 @@ def test_debugger_line_probe_on_instance_method():
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
     assert captures["fields"] == {}
+    assert snapshot["debugger.snapshot"]["duration"] is None
 
 
 def test_debugger_line_probe_on_imported_module_function():
@@ -98,6 +100,7 @@ def test_debugger_line_probe_on_imported_module_function():
                 probe_id="probe-instance-method",
                 module="tests.submod.stuff",
                 func_qname="Stuff.instancestuff",
+                rate=1000,
             ),
             lambda: getattr(Stuff(), "instancestuff")(42),
         ),
@@ -106,6 +109,7 @@ def test_debugger_line_probe_on_imported_module_function():
                 probe_id="probe-instance-method",
                 source_file="tests/submod/stuff.py",
                 line=36,
+                rate=1000,
             ),
             lambda: getattr(Stuff(), "instancestuff")(42),
         ),
@@ -114,9 +118,9 @@ def test_debugger_line_probe_on_imported_module_function():
 def test_debugger_probe_new_delete(probe, trigger):
     global Stuff
 
-    with debugger(poll_interval=0.1) as d:
+    with debugger() as d:
         probe_id = probe.probe_id
-        d.rc.add_probes([probe])
+        d.add_probes(probe)
         sleep(0.5)
 
         assert probe in d._probe_registry
@@ -124,7 +128,7 @@ def test_debugger_probe_new_delete(probe, trigger):
 
         trigger()
 
-        d.rc.remove_probes(probe.probe_id)
+        d.remove_probes(probe)
 
         sleep(0.5)
 
@@ -149,7 +153,7 @@ def test_debugger_probe_new_delete(probe, trigger):
 
         assert d.uploader.queue
 
-        payload = d.uploader.payloads[-1]
+        (payload,) = d.uploader.payloads
         assert payload
 
         (snapshot,) = payload
@@ -165,6 +169,7 @@ def test_debugger_probe_new_delete(probe, trigger):
                 probe_id="probe-instance-method",
                 module="tests.submod.stuff",
                 func_qname="Stuff.instancestuff",
+                rate=1000.0,
             ),
             lambda: Stuff().instancestuff(42),
         ),
@@ -173,6 +178,7 @@ def test_debugger_probe_new_delete(probe, trigger):
                 probe_id="probe-instance-method",
                 source_file="tests/submod/stuff.py",
                 line=36,
+                rate=1000.0,
             ),
             lambda: Stuff().instancestuff(42),
         ),
@@ -181,10 +187,10 @@ def test_debugger_probe_new_delete(probe, trigger):
 def test_debugger_probe_active_inactive(probe, trigger):
     global Stuff
 
-    with debugger(poll_interval=0.1) as d:
+    with debugger() as d:
         probe_id = probe.probe_id
 
-        d.rc.add_probes([probe])
+        d.add_probes(probe)
         sleep(0.5)
 
         assert probe in d._probe_registry
@@ -273,7 +279,7 @@ def test_debugger_function_probe_on_function_with_exception():
 
 
 def test_debugger_invalid_condition():
-    with debugger(poll_interval=0.1) as d:
+    with debugger() as d:
         d.add_probes(
             LineProbe(
                 probe_id="foo",
@@ -313,7 +319,7 @@ def test_debugger_conditional_line_probe_on_instance_method():
 
 
 def test_debugger_invalid_line():
-    with debugger(poll_interval=0.1) as d:
+    with debugger() as d:
         d.add_probes(
             LineProbe(
                 probe_id="invalidline",
@@ -334,7 +340,7 @@ def test_debugger_invalid_line():
 
 @mock.patch("ddtrace.debugging._debugger.log")
 def test_debugger_invalid_source_file(log):
-    with debugger(poll_interval=0.1) as d:
+    with debugger() as d:
         d.add_probes(
             LineProbe(
                 probe_id="invalidsource",
@@ -371,7 +377,7 @@ def test_debugger_decorated_method():
 
 @mock.patch("ddtrace.debugging._debugger.log")
 def test_debugger_max_probes(mock_log):
-    with debugger(poll_interval=0.1, max_probes=1) as d:
+    with debugger(max_probes=1) as d:
         d.add_probes(
             good_probe(),
         )
@@ -389,16 +395,14 @@ def test_debugger_max_probes(mock_log):
 
 
 def test_debugger_tracer_correlation():
-    with debugger(poll_interval=0.1) as d:
-        d.rc.add_probes(
-            [
-                LineProbe(
-                    probe_id="probe-instance-method",
-                    source_file="tests/submod/stuff.py",
-                    line=36,
-                    condition=None,
-                )
-            ]
+    with debugger() as d:
+        d.add_probes(
+            LineProbe(
+                probe_id="probe-instance-method",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                condition=None,
+            )
         )
         sleep(1)
 
@@ -438,7 +442,7 @@ def test_debugger_captured_exception():
 
 
 def test_debugger_multiple_threads():
-    with debugger(poll_interval=0.1) as d:
+    with debugger() as d:
         d.add_probes(
             good_probe(),
             LineProbe(probe_id="thread-test", source_file="tests/submod/stuff.py", line=40),
@@ -481,7 +485,7 @@ def mock_metrics():
 
 
 def test_debugger_metric_probe(mock_metrics):
-    with debugger(poll_interval=0.1) as d:
+    with debugger() as d:
         d.add_probes(
             MetricProbe(
                 probe_id="metric-probe-test",
@@ -511,14 +515,14 @@ def test_debugger_multiple_function_probes_on_same_function():
         for i in range(3)
     ]
 
-    with debugger(poll_interval=0.1) as d:
-        d.rc.add_probes(probes)
+    with debugger() as d:
+        d.add_probes(*probes)
         sleep(0.5)
 
         assert Stuff.instancestuff.__dd_wrappers__ == {probe.probe_id: probe for probe in probes}
         Stuff().instancestuff(42)
 
-        d.rc.remove_probes("probe-instance-method-1")
+        d.remove_probes(probes[1])
 
         sleep(2.5)
 
@@ -532,7 +536,7 @@ def test_debugger_multiple_function_probes_on_same_function():
             "probe-instance-method-1": 1,
         }
 
-        d.rc.remove_probes("probe-instance-method-0", "probe-instance-method-2")
+        d.remove_probes(probes[0], probes[2])
 
         sleep(2.1)
 
@@ -567,8 +571,8 @@ def test_debugger_function_probe_on_wrapped_function(stuff):
 
     wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
 
-    with debugger(poll_interval=0.1) as d:
-        d.rc.add_probes(probes)
+    with debugger() as d:
+        d.add_probes(*probes)
         sleep(0.5)
 
         stuff.Stuff().instancestuff(42)
@@ -588,8 +592,8 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
     f = stuff.Stuff.instancestuff
     code = f.__code__
 
-    with debugger(poll_interval=0.1) as d:
-        d.rc.add_probes(probes)
+    with debugger() as d:
+        d.add_probes(*probes)
         sleep(0.5)
 
         wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
@@ -613,16 +617,14 @@ def test_debugger_wrapped_function_on_function_probe(stuff):
 def test_debugger_line_probe_on_wrapped_function(stuff):
     wrapt.wrap_function_wrapper(stuff, "Stuff.instancestuff", wrapper)
 
-    with debugger(poll_interval=0.1) as d:
-        d.rc.add_probes(
-            [
-                LineProbe(
-                    probe_id="line-probe-wrapped-method",
-                    source_file="tests/submod/stuff.py",
-                    line=36,
-                    condition=None,
-                )
-            ]
+    with debugger() as d:
+        d.add_probes(
+            LineProbe(
+                probe_id="line-probe-wrapped-method",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                condition=None,
+            )
         )
         sleep(0.5)
 
@@ -632,10 +634,23 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
         assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
-def test_probe_status_logging():
-    with debugger(diagnostic_interval=0.5, poll_interval=0.1) as d:
-        d.rc.add_probes(
-            [
+def test_probe_status_logging(monkeypatch):
+    monkeypatch.setenv("DD_REMOTECONFIG_POLL_SECONDS", "0.1")
+    RemoteConfig.disable()
+
+    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+
+    old_request = RemoteConfigClient.request
+
+    def request(self, *args, **kwargs):
+        for cb in self._products.values():
+            cb(None, None)
+
+    RemoteConfigClient.request = request
+
+    try:
+        with debugger(diagnostics_interval=0.5) as d:
+            d.add_probes(
                 LineProbe(
                     probe_id="line-probe-ok",
                     source_file="tests/submod/stuff.py",
@@ -648,19 +663,39 @@ def test_probe_status_logging():
                     func_qname="foo",
                     condition=None,
                 ),
-            ]
+            )
+
+            queue = d.probe_status_logger.queue
+
+            def count_status(queue):
+                return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
+
+            sleep(0.2)
+            assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
+
+            sleep(0.5)
+            assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
+
+            sleep(0.5)
+            assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
+    finally:
+        RemoteConfigClient.request = old_request
+
+
+@pytest.mark.parametrize("duration", [1e5, 1e6, 1e7])
+def test_debugger_function_probe_duration(duration):
+    from tests.submod.stuff import durationstuff
+
+    with debugger(poll_interval=0.1) as d:
+        d.add_probes(
+            FunctionProbe(
+                probe_id="duration-probe",
+                module="tests.submod.stuff",
+                func_qname="durationstuff",
+            )
         )
 
-        queue = d.probe_status_logger.queue
+        durationstuff(duration)
 
-        def count_status(queue):
-            return Counter(_["debugger"]["diagnostics"]["status"] for _ in queue)
-
-        sleep(0.2)
-        assert count_status(queue) == {"INSTALLED": 1, "RECEIVED": 2, "ERROR": 1}
-
-        sleep(0.5)
-        assert count_status(queue) == {"INSTALLED": 2, "RECEIVED": 2, "ERROR": 2}
-
-        sleep(0.5)
-        assert count_status(queue) == {"INSTALLED": 3, "RECEIVED": 2, "ERROR": 3}
+        (snapshot,) = d.test_queue
+        assert 0.9 * duration <= snapshot.duration <= 2.5 * duration, snapshot

@@ -144,6 +144,7 @@ venv = Venv(
             create=True,
             pkgs={
                 "mypy": latest,
+                "envier": latest,
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -255,7 +256,6 @@ venv = Venv(
                         "structlog": latest,
                         # httpretty v1.0 drops python 2.7 support
                         "httpretty": "==0.9.7",
-                        "gevent": latest,
                     },
                 )
             ],
@@ -306,7 +306,10 @@ venv = Venv(
                     pkgs={"pytest-asyncio": latest},
                 ),
             ],
-            pkgs={"httpretty": "==0.9.7"},
+            pkgs={
+                "httpretty": "==0.9.7",
+                "gevent": latest,
+            },
         ),
         Venv(
             name="runtime",
@@ -325,10 +328,7 @@ venv = Venv(
         Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
-            pkgs={
-                "msgpack": latest,
-                "httpretty": "==0.9.7",
-            },
+            pkgs={"msgpack": latest},
             venvs=[
                 Venv(pys="2.7"),
                 Venv(

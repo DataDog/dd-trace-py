@@ -19,9 +19,9 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
 
 from ddtrace import config  # noqa
 from ddtrace import constants
+from ddtrace.debugging._config import config as debugger_config
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
@@ -85,6 +85,11 @@ try:
         log.debug("profiler enabled via environment variable")
         import ddtrace.profiling.auto  # noqa: F401
 
+    if debugger_config.enabled:
+        from ddtrace.debugging import DynamicInstrumentation
+
+        DynamicInstrumentation.enable()
+
     if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
         RuntimeWorker.enable()
 
@@ -116,11 +121,6 @@ try:
     if "DD_TRACE_GLOBAL_TAGS" in os.environ:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
         tracer.set_tags(parse_tags_str(env_tags))
-
-    # instrumentation telemetry writer should be enabled/started after the global tracer and configs
-    # are initialized
-    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED")):
-        telemetry_writer.enable()
 
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.

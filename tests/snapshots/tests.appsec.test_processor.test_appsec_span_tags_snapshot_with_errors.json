@@ -1,0 +1,34 @@
+[[
+  {
+    "name": "test",
+    "service": null,
+    "resource": "test",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.appsec.event_rules.errors": "{\"missing key 'conditions'\": [\"crs-913-110\"], \"missing key 'tags'\": [\"crs-942-100\"]}",
+      "_dd.appsec.event_rules.version": "5.5.5",
+      "_dd.appsec.waf.version": "1.4.1",
+      "_dd.p.dm": "-0",
+      "_dd.runtime_family": "python",
+      "http.status_code": "404",
+      "http.url": "http://example.com/.git",
+      "runtime-id": "12c7df166fe343f3a0f1f0bafcac14e8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.appsec.enabled": 1.0,
+      "_dd.appsec.event_rules.error_count": 2,
+      "_dd.appsec.event_rules.loaded": 1,
+      "_dd.appsec.waf.duration": 2.017,
+      "_dd.appsec.waf.duration_ext": 16.450881958007812,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 109516
+    },
+    "duration": 294745,
+    "start": 1662538894151236322
+  }]]

@@ -1,0 +1,22 @@
+[[
+  {
+    "name": "test-telemetry",
+    "service": null,
+    "resource": "test-telemetry",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "e5cf6155c18e4846a318aab0dae87c41"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 9305
+    },
+    "duration": 99000,
+    "start": 1661979669017355000
+  }]]

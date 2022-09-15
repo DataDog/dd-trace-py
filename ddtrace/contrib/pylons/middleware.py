@@ -121,6 +121,7 @@ class PylonsTraceMiddleware(object):
                 request_headers=dict(request.headers),
                 request_cookies=dict(request.cookies),
                 request_body=req_body,
+                headers_are_case_sensitive=True,
             )
 
             if not span.sampled:
@@ -140,6 +141,7 @@ class PylonsTraceMiddleware(object):
                     method=request.method,
                     status_code=http_code,
                     response_headers=response_headers,
+                    headers_are_case_sensitive=True,
                 )
                 return start_response(status, *args, **kwargs)
 
