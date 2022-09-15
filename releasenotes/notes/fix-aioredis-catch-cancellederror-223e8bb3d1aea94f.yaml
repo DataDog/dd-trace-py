@@ -1,6 +1,4 @@
 ---
 fixes:
   - |
-    aioredis: Added exception handling for `CancelledError` in the aioredis integration as they 
-    now extend `BaseException` and not `Exception`. The aioredis integration now catches all
-    exceptions that extend from `BaseException`. 
+    aioredis: added exception handling for `CancelledError` in the aioredis integration.

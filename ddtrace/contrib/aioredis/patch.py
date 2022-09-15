@@ -140,10 +140,11 @@ def traced_13_execute_command(func, instance, args, kwargs):
     def _finish_span(future):
         try:
             # Accessing the result will raise an exception if:
-            #   - The future was cancelled
+            #   - The future was cancelled (CancelledError)
             #   - There was an error executing the future (`future.exception()`)
             #   - The future is in an invalid state
             future.result()
+        # CancelledError exceptions extend from BaseException as of Python 3.8, instead of usual Exception
         except BaseException:
             span.set_exc_info(*sys.exc_info())
         finally:
