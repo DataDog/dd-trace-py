@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    Add support for W3C Trace Context propagation.
+    Add support for W3C traceparent propagation.
 
     See :ref:`DD_TRACE_PROPAGATION_STYLE_EXTRACT <dd-trace-propagation-style-extract>` and
     :ref:`DD_TRACE_PROPAGATION_STYLE_INJECT <dd-trace-propagation-style-inject>`
