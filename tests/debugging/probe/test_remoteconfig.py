@@ -135,8 +135,8 @@ def test_poller_events(mock_config):
         ]
     )
 
-    old_interval = config.diagnostic_interval
-    config.diagnostic_interval = 0.5
+    old_interval = config.diagnostics_interval
+    config.diagnostics_interval = 0.5
     try:
         adapter = ProbeRCAdapter(cb)
 
@@ -176,4 +176,4 @@ def test_poller_events(mock_config):
             (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe4", "probe2", "probe3", "probe5"])),
         }
     finally:
-        config.diagnostic_interval = old_interval
+        config.diagnostics_interval = old_interval
