@@ -361,7 +361,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return "Hello Flask", 200
 
-        res = self.client.get("/", query_string=dict(hello="flask"))
+        res = self.client.get("/", query_string=dict(token="flask"))
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data, b"Hello Flask")
 
@@ -419,8 +419,8 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Note: contains no query string
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/")
         self.assertEqual(req_span.get_tag("http.method"), "GET")
-        # Note: contains no query string
-        self.assertEqual(req_span.get_tag(http.URL), "http://localhost/")
+        # Note: contains query string (possibly redacted)
+        self.assertEqual(req_span.get_tag(http.URL), "http://localhost/?<redacted>")
         assert_span_http_status_code(req_span, 200)
 
         # Handler span
