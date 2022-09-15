@@ -144,7 +144,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
             #   - There was an error executing the future (`future.exception()`)
             #   - The future is in an invalid state
             future.result()
-        except Exception:
+        except BaseException:
             span.set_exc_info(*sys.exc_info())
         finally:
             span.finish()
