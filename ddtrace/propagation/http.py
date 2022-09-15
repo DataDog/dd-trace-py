@@ -43,7 +43,6 @@ _HTTP_HEADER_B3_SAMPLED = "x-b3-sampled"
 _HTTP_HEADER_B3_FLAGS = "x-b3-flags"
 _HTTP_HEADER_TAGS = "x-datadog-tags"
 _HTTP_HEADER_W3C_TRACEPARENT = "traceparent"
-_HTTP_HEADER_W3C_TRACESTATE = "tracestate"
 
 
 def _possible_header(header):
@@ -75,20 +74,20 @@ def _extract_header_value(possible_header_names, headers, default=None):
     return default
 
 
-def _b3_id_to_dd_id(b3_id):
+def _hexadec_id_to_dd_id(hexadec_id):
     # type: (str) -> int
-    """Helper to convert B3 trace/span hex ids into Datadog compatible ints
+    """Helper to convert hexadecimal trace/span hex ids into Datadog compatible ints
 
     If the id is > 64 bit then truncate the trailing 64 bit.
 
     "463ac35c9f6413ad48485a3953bb6124" -> "48485a3953bb6124" -> 5208512171318403364
     """
-    return int(b3_id[-16:], 16)
+    return int(hexadec_id[-16:], 16)
 
 
-def _dd_id_to_b3_id(dd_id):
+def _dd_id_to_hexadec_id(dd_id):
     # type: (int) -> str
-    """Helper to convert Datadog trace/span int ids into B3 compatible hex ids"""
+    """Helper to convert Datadog trace/span int ids into hexadecimal compatible ids"""
     # DEV: `hex(dd_id)` will give us `0xDEADBEEF`
     # DEV: this gives us lowercase hex, which is what we want
     return "{:x}".format(dd_id)
@@ -301,8 +300,8 @@ class _B3MultiHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        headers[_HTTP_HEADER_B3_TRACE_ID] = _dd_id_to_b3_id(span_context.trace_id)
-        headers[_HTTP_HEADER_B3_SPAN_ID] = _dd_id_to_b3_id(span_context.span_id)
+        headers[_HTTP_HEADER_B3_TRACE_ID] = _dd_id_to_hexadec_id(span_context.trace_id)
+        headers[_HTTP_HEADER_B3_SPAN_ID] = _dd_id_to_hexadec_id(span_context.span_id)
         sampling_priority = span_context.sampling_priority
         # Propagate priority only if defined
         if sampling_priority is not None:
@@ -343,9 +342,9 @@ class _B3MultiHeader:
             trace_id = None
             span_id = None
             if trace_id_val is not None:
-                trace_id = _b3_id_to_dd_id(trace_id_val) or None
+                trace_id = _hexadec_id_to_dd_id(trace_id_val) or None
             if span_id_val is not None:
-                span_id = _b3_id_to_dd_id(span_id_val) or None
+                span_id = _hexadec_id_to_dd_id(span_id_val) or None
 
             sampling_priority = None
             if sampled is not None:
@@ -418,7 +417,9 @@ class _B3SingleHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        single_header = "{}-{}".format(_dd_id_to_b3_id(span_context.trace_id), _dd_id_to_b3_id(span_context.span_id))
+        single_header = "{}-{}".format(
+            _dd_id_to_hexadec_id(span_context.trace_id), _dd_id_to_hexadec_id(span_context.span_id)
+        )
         sampling_priority = span_context.sampling_priority
         if sampling_priority is not None:
             if sampling_priority <= 0:
@@ -461,9 +462,9 @@ class _B3SingleHeader:
             # DEV: We are allowed to have only x-b3-sampled/flags
             # DEV: Do not allow `0` for trace id or span id, use None instead
             if trace_id_val is not None:
-                trace_id = _b3_id_to_dd_id(trace_id_val) or None
+                trace_id = _hexadec_id_to_dd_id(trace_id_val) or None
             if span_id_val is not None:
-                span_id = _b3_id_to_dd_id(span_id_val) or None
+                span_id = _hexadec_id_to_dd_id(span_id_val) or None
 
             sampling_priority = None
             if sampled is not None:
@@ -523,9 +524,9 @@ class _W3CTraceContext:
     Implementation details:
 
       - Datadog Trace and Span IDs are 64-bit unsigned integers.
-      - The W3C Trace Context Trace ID is a 32-byte hexadecimal string. This is
+      - The W3C Trace Context Trace ID is a 16-byte hexadecimal string. This is
         transformed for propagation between Datadog by taking the lower
-        16-bytes.
+        8-bytes.
     """
 
     @staticmethod
@@ -539,15 +540,10 @@ class _W3CTraceContext:
             return
 
         sampling_priority = span_context.sampling_priority
-        sampling_priority_hex = "01" if sampling_priority and sampling_priority >= AUTO_KEEP else "00"
+        trace_flags = 1 if sampling_priority and sampling_priority >= AUTO_KEEP else 0
 
         # There is currently only a single version so we always start with 00
-        traceparent = "{}-{}-{}-{}".format(
-            "00",
-            "0000000000000000" + "%x" % trace_id,  # we use %x to avoid hex() prepend and append
-            "%x" % span_id,
-            sampling_priority_hex,
-        )
+        traceparent = "00-{:032x}-{:016x}-{:02x}".format(trace_id, span_id, trace_flags)
         headers[_HTTP_HEADER_W3C_TRACEPARENT] = traceparent
 
     @staticmethod
@@ -557,29 +553,35 @@ class _W3CTraceContext:
         if tp is None:
             return None
 
-        try:
-            version, trace_id_hex, span_id_hex, trace_flags = tp.split("-")
-        except AttributeError:
-            log.warning(
-                "Trace context will not be propagated because Traceparent:%s is not a string, type:%s", (tp, type(tp))
-            )
+        version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
+
         try:
             # currently 00 is the only version format, but if future versions come up we may need to add changes
-            if version == "00" and len(trace_id_hex) == 32 and len(span_id_hex) == 16 and len(trace_flags) == 2:
-                trace_id = int(trace_id_hex[-16:], 16 & 0xFFFFFFFFFFFF)
-                span_id = int(span_id_hex, 16 & 0xFFFFFFFFFFFF)
-                # there's only one trace flag, which denotes sampling priority was set to keep
-                sampling_priority = AUTO_KEEP if trace_flags == "01" else AUTO_REJECT
+            if version != "00":
+                log.warning("unsupported traceparent version:%s . Will still attempt to parse.", (version))
+
+            if len(trace_id_hex) == 32 and len(span_id_hex) == 16 and len(trace_flags_hex) >= 2:
+                trace_id = _hexadec_id_to_dd_id(trace_id_hex)
+                span_id = _hexadec_id_to_dd_id(span_id_hex)
+
+                # All 0s are invalid values
+                assert trace_id != 0
+                assert span_id != 0
+
+                trace_flags = _hexadec_id_to_dd_id(trace_flags_hex)
+                # there's currently only one trace flag, which denotes sampling priority was set to keep
+                sampling_priority = float(trace_flags & 0x1)
+
             else:
-                raise ValueError("version or length of hex incorrect")
+                log.debug("W3C traceparent hex length incorrect%s", (tp))
 
             return Context(
                 trace_id=trace_id,
                 span_id=span_id,
                 sampling_priority=sampling_priority,
             )
-        except (TypeError, ValueError) as e:
-            log.debug("received invalid w3c traceparent: %s. Error: %s", (tp, e))
+        except (ValueError, AssertionError) as e:
+            log.warning("received invalid w3c traceparent: %s. Error: %s", (tp, e))
             return None
 
 

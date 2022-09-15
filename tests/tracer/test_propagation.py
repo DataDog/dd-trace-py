@@ -23,7 +23,6 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_SPAN_ID
 from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
 from ddtrace.propagation.http import _HTTP_HEADER_W3C_TRACEPARENT
-from ddtrace.propagation.http import _HTTP_HEADER_W3C_TRACESTATE
 
 from ..utils import override_global_config
 
@@ -407,11 +406,9 @@ B3_SINGLE_HEADERS_INVALID = {
 }
 W3C_HEADERS_VALID = {
     _HTTP_HEADER_W3C_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-    _HTTP_HEADER_W3C_TRACESTATE: "",
 }
 W3C_HEADERS_INVALID = {
     _HTTP_HEADER_W3C_TRACEPARENT: "00-a3ce929d0e0e4736-00f067aa0ba902b7-01",
-    _HTTP_HEADER_W3C_TRACESTATE: "",
 }
 
 
@@ -879,6 +876,7 @@ else:
         env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = ",".join(styles)
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
+    print(stderr)
     assert stderr == b"", (stdout, stderr)
 
     result = json.loads(stdout.decode())
