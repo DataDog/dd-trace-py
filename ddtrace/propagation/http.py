@@ -573,7 +573,7 @@ class _W3CTraceContext:
                 sampling_priority = float(trace_flags & 0x1)
 
             else:
-                log.debug("W3C traceparent hex length incorrect%s", (tp))
+                log.debug("W3C traceparent hex length incorrect: %s", tp)
 
             return Context(
                 trace_id=trace_id,
