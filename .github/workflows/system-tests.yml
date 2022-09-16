@@ -83,8 +83,6 @@ jobs:
 
   parametric:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
     env:
       CLIENTS_ENABLED: python
       PYTHON_DDTRACE_PACKAGE: git+https://github.com/Datadog/dd-trace-py.git@${{ github.sha }}
@@ -95,13 +93,10 @@ jobs:
           repository: 'DataDog/system-tests'
       - uses: actions/setup-python@v4
         with:
-          # FIXME: pytest==5.4.3 does not support Python 3.10
           python-version: '3.9'
-      - name: Install
-        run: |
-          pip install wheel
-          pip install -r requirements.txt
       - name: Run
         run: |
           cd parametric
+          pip install wheel
+          pip install -r requirements.txt
           ./run.sh
