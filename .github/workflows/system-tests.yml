@@ -81,7 +81,7 @@ jobs:
       - name: Run
         run: ./lib-injection/run-lib-injection.sh
 
-  integration_unit:
+  parametric:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
