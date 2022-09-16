@@ -575,15 +575,15 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
 
         # All other fields are optional
         if name:
-            span._set_str_tag(user.NAME, name)
+            span.set_tag(user.NAME, name)
         if email:
-            span._set_str_tag(user.EMAIL, email)
+            span.set_tag(user.EMAIL, email)
         if scope:
-            span._set_str_tag(user.SCOPE, scope)
+            span.set_tag(user.SCOPE, scope)
         if role:
-            span._set_str_tag(user.ROLE, role)
+            span.set_tag(user.ROLE, role)
         if session_id:
-            span._set_str_tag(user.SESSION_ID, session_id)
+            span.set_tag(user.SESSION_ID, session_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "
