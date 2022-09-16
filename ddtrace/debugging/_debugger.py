@@ -7,6 +7,7 @@ from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import Dict
+from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Set
@@ -30,16 +31,16 @@ from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import MetricProbe
 from ddtrace.debugging._probe.model import MetricProbeKind
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.poller import ProbePoller
-from ddtrace.debugging._probe.poller import ProbePollerEvent
-from ddtrace.debugging._probe.poller import ProbePollerEventType
 from ddtrace.debugging._probe.registry import ProbeRegistry
+from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
+from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
+from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.debugging._remoteconfig import DebuggingRCV07
 from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.internal import atexit
+from ddtrace.internal import compat
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
@@ -48,6 +49,7 @@ from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
+from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping import Wrapper
@@ -139,8 +141,7 @@ class Debugger(Service):
     _instance = None  # type: Optional[Debugger]
     _probe_meter = _probe_metrics.get_meter("probe")
 
-    __rc__ = DebuggingRCV07
-    __poller__ = ProbePoller
+    __rc_adapter__ = ProbeRCAdapter
     __uploader__ = LogsIntakeUploaderV1
     __collector__ = SnapshotCollector
     __watchdog__ = DebuggerModuleWatchdog
@@ -209,8 +210,7 @@ class Debugger(Service):
         self._probe_registry = ProbeRegistry(self.__logger__(service_name, self._encoder))
         self._uploader = self.__uploader__(self._encoder)
         self._collector = self.__collector__(self._encoder)
-        self._probe_poller = self.__poller__(self.__rc__(service_name), self._on_poller_event)
-        self._services = [self._uploader, self._probe_poller]
+        self._services = [self._uploader]
 
         self._function_store = FunctionStore(extra_attrs=["__dd_wrappers__"])
 
@@ -221,6 +221,9 @@ class Debugger(Service):
             call_once=True,
             raise_on_exceed=False,
         )
+
+        # Register the debugger with the RCM client.
+        RemoteConfig.register("LIVE_DEBUGGING", self.__rc_adapter__(self._on_configuration))
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
@@ -311,10 +314,13 @@ class Debugger(Service):
             if not open_contexts:
                 return wrapped(*args, **kwargs)
 
+            start_time = compat.monotonic_ns()
             try:
                 retval = wrapped(*args, **kwargs)
+                end_time = compat.monotonic_ns()
                 exc_info = (None, None, None)
             except Exception:
+                end_time = compat.monotonic_ns()
                 retval = None
                 exc_info = sys.exc_info()  # type: ignore[assignment]
             else:
@@ -325,7 +331,7 @@ class Debugger(Service):
                     return dd_coroutine_wrapper(retval, open_contexts)
 
             for context in open_contexts:
-                context.exit(retval, exc_info)
+                context.exit(retval, exc_info, end_time - start_time)
 
             exc = exc_info[1]
             if exc is not None:
@@ -405,12 +411,12 @@ class Debugger(Service):
                     self._probe_registry.set_exc_info(probe, exc_info)
                 log.error("Cannot register probe injection hook on source '%s'", source, exc_info=True)
 
-    def _eject_probes(self, probes):
+    def _eject_probes(self, probes_to_eject):
         # type: (List[LineProbe]) -> None
         # TODO[perf]: Bulk-collect probes as for injection. This is lower
         # priority as probes are normally removed manually by users.
         unregistered_probes = []  # type: List[LineProbe]
-        for probe in probes:
+        for probe in probes_to_eject:
             if probe not in self._probe_registry:
                 log.error("Attempted to eject unregistered probe %r", probe)
                 continue
@@ -438,12 +444,12 @@ class Debugger(Service):
                     for function in (cast(FullyNamedWrappedFunction, _) for _ in functions):
                         probes_for_function[function].append(probe)
 
-                for function, probes in probes_for_function.items():
+                for function, ps in probes_for_function.items():
                     failed = self._function_store.eject_hooks(
                         cast(FunctionType, function),
-                        [(self._dd_debugger_hook, probe.line, probe) for probe in probes if probe.line is not None],
+                        [(self._dd_debugger_hook, probe.line, probe) for probe in ps if probe.line is not None],
                     )
-                    for probe in probes:
+                    for probe in ps:
                         if probe.probe_id in failed:
                             log.error("Failed to eject %r from %r", probe, function)
                         else:
@@ -543,10 +549,10 @@ class Debugger(Service):
                 except ValueError:
                     log.error("Cannot unregister wrapping import hook for module %r", module_name, exc_info=True)
 
-    def _on_poller_event(self, event, probes):
-        # type: (ProbePollerEventType, List[Probe]) -> None
+    def _on_configuration(self, event, probes):
+        # type: (ProbePollerEventType, Iterable[Probe]) -> None
         log.debug("Received poller event %r with probes %r", event, probes)
-        if len(probes) + len(self._probe_registry) > config.max_probes:
+        if len(list(probes)) + len(self._probe_registry) > config.max_probes:
             log.warning("Too many active probes. Ignoring new ones.")
             return
 

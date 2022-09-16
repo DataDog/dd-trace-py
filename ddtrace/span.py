@@ -164,6 +164,12 @@ class Span(object):
             self._store = {}
         self._store[key] = val
 
+    def _set_ctx_items(self, items):
+        # type: (Dict[str, Any]) -> None
+        if not self._store:
+            self._store = {}
+        self._store.update(items)
+
     def _get_ctx_item(self, key):
         # type: (str) -> Optional[Any]
         if not self._store:

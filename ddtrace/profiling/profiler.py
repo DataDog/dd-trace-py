@@ -8,6 +8,7 @@ from typing import Optional
 import attr
 
 import ddtrace
+from ddtrace.internal import agent
 from ddtrace.internal import atexit
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
@@ -156,12 +157,12 @@ class _ProfilerInstance(service.Service):
                 "Agentless uploading is currently for internal usage only and not officially supported. "
                 "You should not enable it unless somebody at Datadog instructed you to do so."
             )
-            endpoint = self.ENDPOINT_TEMPLATE.format(ddtrace.config.site)
+            endpoint = self.ENDPOINT_TEMPLATE.format(os.environ.get("DD_SITE", "datadoghq.com"))
         else:
             if isinstance(self.tracer._writer, writer.AgentWriter):
                 endpoint = self.tracer._writer.agent_url
             else:
-                endpoint = ddtrace.config.trace_agent_url
+                endpoint = agent.get_trace_url()
 
         if self.agentless:
             endpoint_path = "/v1/input"

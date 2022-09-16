@@ -3,16 +3,19 @@ import glob
 import importlib
 import json
 import os
+import re
 import sys
 from textwrap import dedent
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 
 from envier import En
 from envier import validators as v
 
 from ddtrace.internal import forksafe
+from ddtrace.internal.compat import Pattern
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
@@ -27,8 +30,30 @@ from .integration import IntegrationConfig
 log = get_logger(__name__)
 
 
+DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT = re.compile(
+    (
+        r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|"
+        r"private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|"
+        r'sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)'
+        r'(?:\s|%20)*(?::|%3A)(?:\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|bearer(?:\s|%20)'
+        r"+[a-z0-9\._\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L]"
+        r"(?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+"
+        r"PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|"
+        r"ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}"
+    ).encode("ascii")
+)
+
+
+def _parse_query_string_pattern(value):
+    # type: (str) -> Optional[Pattern]
+    try:
+        return re.compile(value.encode("ascii"))
+    except Exception:
+        return None
+
+
 def _parse_propagation_styles(envvar):
-    # type: (str) -> set[str]
+    # type: (str) -> Set[str]
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -537,6 +562,18 @@ class Config(En):
         default=100,
     )
 
+    dd_trace_obfuscation_query_string_pattern = En.v(
+        Optional[Pattern],
+        "trace.obfuscation.query_string_pattern",
+        parser=_parse_query_string_pattern,
+        default=DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT,
+        help_type="String",
+        help="",  # TODO: Add help
+    )
+
+    _obfuscation_query_string_pattern = En.d(Optional[Pattern], lambda c: c.dd_trace_obfuscation_query_string_pattern)
+    global_trace_query_string_disabled = En.d(bool, lambda c: c._obfuscation_query_string_pattern is None)
+
     def __getattr__(self, name):
         with self._int_config_lock:
             # Some other thread might have created it while we were waiting to
@@ -612,6 +649,7 @@ class Config(En):
         """
         return self.http.header_is_traced(header_name)
 
+    @cachedmethod()
     def _header_tag_name(self, header_name):
         # type: (str) -> Optional[str]
         return self.http._header_tag_name(header_name)

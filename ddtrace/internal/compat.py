@@ -288,3 +288,10 @@ except ImportError:
     Collection = Union[List, Set, Tuple]  # type: ignore[misc,assignment]
 
 ExcInfoType = Union[Tuple[Type[BaseException], BaseException, Optional[TracebackType]], Tuple[None, None, None]]
+
+try:
+    Pattern = re.Pattern
+except AttributeError:
+    import _sre
+
+    Pattern = _sre.SRE_Pattern  # type: ignore[misc]

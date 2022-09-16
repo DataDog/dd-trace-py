@@ -84,7 +84,7 @@ class RuntimeWorker(periodic.PeriodicService):
 
     def __attrs_post_init__(self):
         # type: () -> None
-        self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.config.agent.stats_url)
+        self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
         self.tracer = self.tracer or ddtrace.tracer
         self.tracer.on_start_span(self._set_language_on_span)
 

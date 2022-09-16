@@ -11,6 +11,7 @@ def create_routes():
     controller_dir = os.path.join(app_dir, "controllers")
     routes = Mapper(directory=controller_dir)
     routes.connect("/", controller="root", action="index")
+    routes.connect("/body", controller="root", action="body")
     routes.connect("/raise_exception", controller="root", action="raise_exception")
     routes.connect("/raise_wrong_code", controller="root", action="raise_wrong_code")
     routes.connect("/raise_custom_code", controller="root", action="raise_custom_code")
@@ -19,4 +20,5 @@ def create_routes():
     routes.connect("/path-params/{year:\d+}/{month}/", controller="root", action="path_params")  # noqa: W605
     routes.connect("/render_exception", controller="root", action="render_exception")
     routes.connect("/response_headers", controller="root", action="response_headers")
+    routes.connect("/identify", controller="root", action="identify")
     return routes

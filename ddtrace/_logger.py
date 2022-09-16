@@ -2,7 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
-from ddtrace import config
+from ddtrace.internal.utils.formats import asbool
 
 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
@@ -38,13 +38,14 @@ def configure_ddtrace_logger():
 
 
 def _configure_ddtrace_debug_logger(logger):
-    if config.debug_enabled:
+    debug_enabled = asbool(os.environ.get("DD_TRACE_DEBUG", "false"))
+    if debug_enabled:
         logger.setLevel(logging.DEBUG)
         logger.debug("debug mode has been enabled for the ddtrace logger")
 
 
 def _configure_ddtrace_file_logger(logger):
-    log_file_level = config.log_file_level
+    log_file_level = os.environ.get("DD_TRACE_LOG_FILE_LEVEL", "DEBUG").upper()
     try:
         file_log_level_value = getattr(logging, log_file_level)
     except AttributeError:
@@ -53,7 +54,7 @@ def _configure_ddtrace_file_logger(logger):
             log_file_level,
         )
 
-    log_path = config.log_file
+    log_path = os.environ.get("DD_TRACE_LOG_FILE")
     if log_path is not None:
         log_path = os.path.abspath(log_path)
         max_file_bytes = int(os.environ.get("DD_TRACE_LOG_FILE_SIZE_BYTES", DEFAULT_FILE_SIZE_BYTES))

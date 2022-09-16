@@ -8,6 +8,7 @@ import logging
 import multiprocessing
 import os
 from os import getpid
+import sys
 import threading
 from unittest.case import SkipTest
 import weakref
@@ -30,6 +31,8 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.context import Context
+from ddtrace.contrib.trace_utils import set_user
+from ddtrace.ext import user
 from ddtrace.internal._encoding import MsgpackEncoderV03
 from ddtrace.internal._encoding import MsgpackEncoderV05
 from ddtrace.internal.writer import AgentWriter
@@ -47,6 +50,10 @@ from ..utils import override_env
 
 
 class TracerTestCases(TracerTestCase):
+    @pytest.fixture(autouse=True)
+    def inject_fixtures(self, caplog):
+        self._caplog = caplog
+
     def test_tracer_vars(self):
         span = self.trace("a", service="s", resource="r", span_type="t")
         span.assert_matches(name="a", service="s", resource="r", span_type="t")
@@ -491,6 +498,128 @@ class TracerTestCases(TracerTestCase):
         assert tracer._writer.dogstatsd.host is None
         assert tracer._writer.dogstatsd.port is None
         assert tracer._writer.dogstatsd.socket_path == "/foo.sock"
+
+    def test_tracer_set_user(self):
+        span = self.trace("fake_span")
+        set_user(
+            self.tracer,
+            user_id="usr.id",
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+        )
+        assert span.get_tag(user.ID)
+        assert span.get_tag(user.EMAIL)
+        assert span.get_tag(user.SESSION_ID)
+        assert span.get_tag(user.NAME)
+        assert span.get_tag(user.ROLE)
+        assert span.get_tag(user.SCOPE)
+        assert span.context.dd_user_id is None
+
+    def test_tracer_set_user_mandatory(self):
+        span = self.trace("fake_span")
+        set_user(
+            self.tracer,
+            user_id="usr.id",
+        )
+        span_keys = list(span.get_tags().keys())
+        span_keys.sort()
+        assert span_keys == ["runtime-id", "usr.id"]
+        assert span.get_tag(user.ID)
+        assert span.get_tag(user.EMAIL) is None
+        assert span.get_tag(user.SESSION_ID) is None
+        assert span.get_tag(user.NAME) is None
+        assert span.get_tag(user.ROLE) is None
+        assert span.get_tag(user.SCOPE) is None
+        assert span.context.dd_user_id is None
+
+    def test_tracer_set_user_warning_no_span(self):
+        with self._caplog.at_level(logging.WARNING):
+            set_user(
+                self.tracer,
+                user_id="usr.id",
+            )
+            assert "No root span in the current execution. Skipping set_user tags" in self._caplog.records[0].message
+
+    def test_tracer_set_user_propagation(self):
+        span = self.trace("fake_span")
+        user_id_string = "usr.id"
+        set_user(
+            self.tracer,
+            user_id=user_id_string,
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) == user_id_string
+        assert span.context.dd_user_id == user_id_string
+        assert user_id == "dXNyLmlk"
+
+    def test_tracer_set_user_propagation_empty(self):
+        span = self.trace("fake_span")
+        user_id_string = ""
+        set_user(
+            self.tracer,
+            user_id=user_id_string,
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) == user_id_string
+        assert span.context.dd_user_id is None
+        assert user_id == user_id_string
+
+    @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python3 tests")
+    def test_tracer_set_user_propagation_string_error_py3(self):
+        span = self.trace("fake_span")
+        user_id_string = "ユーザーID"
+        set_user(
+            self.tracer,
+            user_id=user_id_string,
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) == user_id_string
+        assert span.context.dd_user_id == user_id_string
+        assert user_id == "44Om44O844K244O8SUQ="
+
+    @pytest.mark.skipif(sys.version_info >= (3, 0, 0), reason="Python tests")
+    def test_tracer_set_user_propagation_string_error_py2(self):
+        span = self.trace("fake_span")
+        user_id_string = "ユーザーID"
+        set_user(
+            self.tracer,
+            user_id="ユーザーID",
+            email="usr.email",
+            name="usr.name",
+            session_id="usr.session_id",
+            role="usr.role",
+            scope="usr.scope",
+            propagate=True,
+        )
+        user_id = span.context._meta.get("_dd.p.usr.id")
+
+        assert span.get_tag(user.ID) is None
+        assert span.context.dd_user_id == user_id_string
+        assert user_id == "44Om44O844K244O8SUQ="
 
 
 def test_tracer_url():

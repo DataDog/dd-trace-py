@@ -3,6 +3,8 @@
 Any `sampled = False` trace won't be written, and can be ignored by the instrumentation.
 """
 import abc
+import json
+import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -12,8 +14,6 @@ from typing import Tuple
 from typing import Union
 
 import six
-
-from ddtrace import config
 
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
@@ -214,7 +214,7 @@ class DatadogSampler(RateByServiceSampler):
     provided. It is not used when the agent supplied sample rates are used.
     """
 
-    __slots__ = ("limiter", "rules", "_default_sampler")
+    __slots__ = ("limiter", "rules")
 
     NO_RATE_LIMIT = -1
     DEFAULT_RATE_LIMIT = 100
@@ -242,18 +242,22 @@ class DatadogSampler(RateByServiceSampler):
         super(DatadogSampler, self).__init__()
 
         if default_sample_rate is None:
-            sample_rate = config.trace_sample_rate
+            sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
 
             if sample_rate is not None:
                 default_sample_rate = float(sample_rate)
 
         if rate_limit is None:
-            rate_limit = config.trace_rate_limit
+            rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
 
         # Ensure rules is a list
         self.rules = []  # type: List[SamplingRule]
         if rules is None:
-            rules = config.trace_sampling_rules
+            env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
+            if env_sampling_rules:
+                rules = self._parse_rules_from_env_variable(env_sampling_rules)
+            else:
+                rules = []
 
         # Validate that the rules is a list of SampleRules
         for rule in rules:
@@ -276,6 +280,27 @@ class DatadogSampler(RateByServiceSampler):
         )
 
     __repr__ = __str__
+
+    def _parse_rules_from_env_variable(self, rules):
+        sampling_rules = []
+        if rules is not None:
+            json_rules = []
+            try:
+                json_rules = json.loads(rules)
+            except JSONDecodeError:
+                raise ValueError("Unable to parse DD_TRACE_SAMPLING_RULES={}".format(rules))
+            for rule in json_rules:
+                if "sample_rate" not in rule:
+                    raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
+                sample_rate = float(rule["sample_rate"])
+                service = rule.get("service", SamplingRule.NO_RULE)
+                name = rule.get("name", SamplingRule.NO_RULE)
+                try:
+                    sampling_rule = SamplingRule(sample_rate=sample_rate, service=service, name=name)
+                except ValueError as e:
+                    raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
+                sampling_rules.append(sampling_rule)
+        return sampling_rules
 
     def _set_priority(self, span, priority):
         # type: (Span, int) -> None

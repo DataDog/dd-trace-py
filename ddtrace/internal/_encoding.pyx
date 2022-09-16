@@ -2,10 +2,22 @@ from cpython cimport *
 from cpython.bytearray cimport PyByteArray_CheckExact
 from libc cimport stdint
 from libc.string cimport strlen
+
 import threading
+
 from ._utils cimport PyBytesLike_Check
 
-from ddtrace.constants import ORIGIN_KEY
+
+# Do not use an absolute import here Cython<3.0.0 will
+#   import `ddtrace.internal.constants` instead when this
+#   package is installed in editable mode
+# See the following for more details
+#   https://github.com/DataDog/dd-trace-py/pull/4085
+#   https://github.com/brettlangdon/shadow-import-issue
+# DEV: This only occurs because there is a `constants.py` module
+#   in both `ddtrace` and `ddtrace.internal`
+
+from ..constants import ORIGIN_KEY
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5

@@ -20,7 +20,10 @@ def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
     # render_template(template_name, request, context, *, app_key=APP_KEY, encoding='utf-8')
     template_name = get_argument_value(args, kwargs, 0, "template_name")
     request = get_argument_value(args, kwargs, 1, "request")
-    env = aiohttp_jinja2.get_env(request.app)
+    get_env_kwargs = {}
+    if "app_key" in kwargs:
+        get_env_kwargs["app_key"] = kwargs["app_key"]
+    env = aiohttp_jinja2.get_env(request.app, **get_env_kwargs)
 
     # the prefix is available only on PackageLoader
     template_prefix = getattr(env.loader, "package_path", "")

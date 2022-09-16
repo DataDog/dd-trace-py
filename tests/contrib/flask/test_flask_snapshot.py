@@ -108,3 +108,12 @@ def test_flask_200(flask_client):
 def test_flask_stream(flask_client):
     # type: (Client) -> None
     assert flask_client.get("/stream", headers=DEFAULT_HEADERS, stream=True).status_code == 200
+
+
+@pytest.mark.snapshot(
+    ignores=["meta.flask.version", "meta.http.useragent"],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
+)
+def test_flask_get_user(flask_client):
+    # type: (Client) -> None
+    assert flask_client.get("/identify").status_code == 200

@@ -26,6 +26,7 @@ from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.settings import Config
 from ddtrace.settings import IntegrationConfig
+from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -373,7 +374,10 @@ def test_set_http_meta(
         assert http.METHOD not in span.get_tags()
 
     if url is not None:
-        assert span.get_tag(http.URL) == stringify(url)
+        if query and int_config.trace_query_string:
+            assert span.get_tag(http.URL) == stringify(url + "?" + query)
+        else:
+            assert span.get_tag(http.URL) == stringify(url)
     else:
         assert http.URL not in span.get_tags()
 
@@ -454,16 +458,15 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
-        ("HTTP_USER_AGENT", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
-        ("Http-User-Agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
-        ("HTTP_USER_AGENT", None, ["runtime-id"], None),
-        ("HTTP_USER_AGENT", 101234, ["runtime-id"], None),
-        ("UserAgent", True, ["runtime-id"], None),
-        ("HTTP_USER_AGENT", False, ["runtime-id"], None),
-        ("HTTP_USER_AGENT", [], ["runtime-id"], None),
-        ("HTTP_USER_AGENT", {}, ["runtime-id"], None),
-        ("User_Agent", ["test1", "test2"], ["runtime-id"], None),
-        ("User-Agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
+        ("http-user-agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("http-user-agent", None, ["runtime-id"], None),
+        ("http-user-agent", 101234, ["runtime-id"], None),
+        ("useragent", True, ["runtime-id"], None),
+        ("http-user-agent", False, ["runtime-id"], None),
+        ("http-user-agent", [], ["runtime-id"], None),
+        ("http-user-agent", {}, ["runtime-id"], None),
+        ("user-agent", ["test1", "test2"], ["runtime-id", http.USER_AGENT], "['test1', 'test2']"),
+        ("user-agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
     ],
 )
 def test_set_http_meta_headers_useragent(
@@ -481,6 +484,90 @@ def test_set_http_meta_headers_useragent(
     assert result_keys == expected_keys
     assert span.get_tag(http.USER_AGENT) == expected
     mock_store_headers.assert_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_config):
+    int_config.myint.http._header_tags = {"enabled": True}
+    trace_utils.set_http_meta(
+        span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=True
+    )
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == ["runtime-id", http.USER_AGENT]
+    assert span.get_tag(http.USER_AGENT) == "dd-agent/1.0.0"
+    mock_store_headers.assert_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span, int_config):
+    int_config.myint.http._header_tags = {"enabled": True}
+    trace_utils.set_http_meta(
+        span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=False
+    )
+    result_keys = list(span.get_tags().keys())
+    result_keys.sort(reverse=True)
+    assert result_keys == ["runtime-id"]
+    assert not span.get_tag(http.USER_AGENT)
+    mock_store_headers.assert_called()
+
+
+@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+@pytest.mark.parametrize(
+    "header_env_var,headers_dict,expected_keys,expected",
+    [
+        (
+            "",
+            {"x-forwarded-for": "8.8.8.8"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "8.8.8.8,127.0.0.1"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "192.168.1.14,8.8.8.8,127.0.0.1"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+        (
+            "",
+            {"x-forwarded-for": "192.168.1.14,127.0.0.1"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "192.168.1.14",
+        ),
+        ("", {"x-forwarded-for": "foobar"}, ["runtime-id"], None),
+        ("via", {"x-forwarded-for": "4.4.4.4"}, ["runtime-id"], None),
+        ("via", {"via": "8.8.8.8"}, ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"], "8.8.8.8"),
+        (
+            "via",
+            {"x-forwarded-for": "4.4.4.4", "via": "8.8.8.8"},
+            ["runtime-id", "network.client.ip", http.CLIENT_IP, "actor.ip"],
+            "8.8.8.8",
+        ),
+    ],
+)
+def test_set_http_meta_headers_ip(
+    mock_store_headers, header_env_var, headers_dict, expected_keys, expected, span, int_config
+):
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+        with override_env(dict(DD_TRACE_CLIENT_IP_HEADER=header_env_var)):
+            int_config.myint.http._header_tags = {"enabled": True}
+            assert int_config.myint.is_header_tracing_configured is True
+            trace_utils.set_http_meta(
+                span,
+                int_config.myint,
+                request_headers=headers_dict,
+            )
+            result_keys = list(span.get_tags().keys())
+            result_keys.sort(reverse=True)
+            assert result_keys == expected_keys
+            assert span.get_tag(http.CLIENT_IP) == expected
+            mock_store_headers.assert_called()
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python2 tests")
@@ -736,6 +823,120 @@ def test_sanitized_url_in_http_meta(span, int_config):
         status_code=200,
     )
     assert span.get_tag(http.URL) == FULL_URL
+
+
+def test_stripped_url_in_http_meta_if_trace_query_string_disabled_globally(span, int_config):
+    SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
+    STRIPPED_URL = "http://example.com/search#frag?ment"
+
+    int_config.trace_query_string = True
+    with override_global_config({"global_trace_query_string_disabled": True}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method="GET",
+            url=SENSITIVE_QS_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == STRIPPED_URL
+
+
+def test_redacted_url_in_http_meta(span, int_config):
+    SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
+    STRIPPED_URL = "http://example.com/search#frag?ment"
+    REDACTED_QS_URL = "http://example.com/search?<redacted>&q=query#frag?ment"
+
+    int_config.trace_query_string = False
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_QS_URL,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == STRIPPED_URL
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_QS_URL,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == REDACTED_QS_URL
+
+
+def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
+    BASE_URL = "http://example.com/search"
+    SENSITIVE_QS = "token=03cb9f67dbbc4cb8b963629951e10934&q=query"
+    REDACTED_QS = "<redacted>&q=query"
+    FRAGMENT = "frag?ment"
+    SENSITIVE_URL = BASE_URL + "?" + SENSITIVE_QS + "#" + FRAGMENT
+    REDACTED_URL = BASE_URL + "?" + REDACTED_QS + "#" + FRAGMENT
+    STRIPPED_URL = BASE_URL + "#" + FRAGMENT
+
+    int_config.trace_query_string = False
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_URL,
+        query=SENSITIVE_QS,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == STRIPPED_URL
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=SENSITIVE_URL,
+        query=SENSITIVE_QS,
+        status_code=200,
+    )
+    assert span.get_tag(http.URL) == REDACTED_URL
+
+
+@mock.patch("ddtrace.internal.utils.http.redact_query_string")
+def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_redact_query_string, span, int_config):
+    URL = "http://example.com/search#frag?ment"
+    EMPTY_QS = ""
+    NONE_QS = None
+
+    int_config.trace_query_string = True
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
+
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        query=EMPTY_QS,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
+
+    trace_utils.set_http_meta(
+        span,
+        int_config,
+        method="GET",
+        url=URL,
+        query=NONE_QS,
+        status_code=200,
+    )
+    mock_redact_query_string.assert_not_called()
+    assert span.get_tag(http.URL) == URL
 
 
 # This generates a list of (key, value) tuples, with values given by nested

@@ -29,4 +29,6 @@ urlpatterns = [
     url(r"^composed-get-view/$", views.ComposedGetView.as_view(), name="composed-get-view"),
     url(r"^composed-view/$", views.ComposedView.as_view(), name="composed-view"),
     url(r"^alter-resource/$", views.alter_resource, name="alter-resource"),
+    url(r"^identify/$", views.identify, name="identify"),
+    url(r"^body/$", views.body_view, name="body_view"),
 ]

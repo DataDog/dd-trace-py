@@ -13,6 +13,8 @@ static traceback_t* traceback_buffer = NULL;
 /* A string containing "<unknown>" just in case we can't store the real function
  * or file name. */
 static PyObject* unknown_name = NULL;
+/* A string containing "" */
+static PyObject* empty_string = NULL;
 
 #define TRACEBACK_SIZE(NFRAME) (sizeof(traceback_t) + sizeof(frame_t) * (NFRAME - 1))
 
@@ -24,6 +26,13 @@ memalloc_tb_init(uint16_t max_nframe)
         if (unknown_name == NULL)
             return -1;
         PyUnicode_InternInPlace(&unknown_name);
+    }
+
+    if (empty_string == NULL) {
+        empty_string = PyUnicode_FromString("");
+        if (empty_string == NULL)
+            return -1;
+        PyUnicode_InternInPlace(&empty_string);
     }
 
     /* Allocate a buffer that can handle the largest traceback possible.
@@ -78,10 +87,6 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
         name = code->co_name;
     }
 
-#ifdef _PY39_AND_LATER
-    Py_DECREF(code);
-#endif
-
     if (name)
         frame->name = name;
     else
@@ -95,6 +100,10 @@ memalloc_convert_frame(PyFrameObject* pyframe, frame_t* frame)
         frame->filename = unknown_name;
 
     Py_INCREF(frame->filename);
+
+#ifdef _PY39_AND_LATER
+    Py_XDECREF(code);
+#endif
 }
 
 static traceback_t*
@@ -171,7 +180,7 @@ traceback_to_tuple(traceback_t* tb)
     PyObject* stack = PyTuple_New(tb->nframe);
 
     for (uint16_t nframe = 0; nframe < tb->nframe; nframe++) {
-        PyObject* frame_tuple = PyTuple_New(3);
+        PyObject* frame_tuple = PyTuple_New(4);
 
         frame_t* frame = &tb->frames[nframe];
 
@@ -180,6 +189,9 @@ traceback_to_tuple(traceback_t* tb)
         PyTuple_SET_ITEM(frame_tuple, 1, PyLong_FromUnsignedLong(frame->lineno));
         PyTuple_SET_ITEM(frame_tuple, 2, frame->name);
         Py_INCREF(frame->name);
+        /* Class name */
+        PyTuple_SET_ITEM(frame_tuple, 3, empty_string);
+        Py_INCREF(empty_string);
 
         PyTuple_SET_ITEM(stack, nframe, frame_tuple);
     }

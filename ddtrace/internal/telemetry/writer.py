@@ -8,6 +8,7 @@ from ...internal import atexit
 from ...internal import forksafe
 from ...settings import _config as config
 from ..agent import get_connection
+from ..agent import get_trace_url
 from ..compat import get_connection_response
 from ..compat import httplib
 from ..encoding import JSONEncoderV2
@@ -46,7 +47,7 @@ class TelemetryWriter(PeriodicService):
         # _enabled is None at startup, and is only set to true or false
         # after the config has been processed
         self._enabled = None  # type: Optional[bool]
-        self._agent_url = agent_url or config.trace_agent_url
+        self._agent_url = agent_url or get_trace_url()
 
         self._encoder = JSONEncoderV2()
         self._events_queue = []  # type: List[Dict]
@@ -109,18 +110,20 @@ class TelemetryWriter(PeriodicService):
             self._events_queue = []
         return requests
 
-    def _reset_queues(self):
+    def reset_queues(self):
         # type: () -> None
         with self._lock:
             self._integrations_queue = []
             self._events_queue = []
 
     def periodic(self):
-        self.app_heartbeat_event()
-
         integrations = self._flush_integrations_queue()
         if integrations:
             self._app_integrations_changed_event(integrations)
+
+        if not self._events_queue:
+            # Optimization: only queue heartbeat if no other events are queued
+            self.app_heartbeat_event()
 
         telemetry_requests = self._flush_events_queue()
 
@@ -273,7 +276,7 @@ class TelemetryWriter(PeriodicService):
         self._forked = True
         # Avoid sending duplicate events.
         # Queued events should be sent in the main process.
-        self._reset_queues()
+        self.reset_queues()
 
     def disable(self):
         # type: () -> None
@@ -283,7 +286,7 @@ class TelemetryWriter(PeriodicService):
         """
         with self._lock:
             self._enabled = False
-        self._reset_queues()
+        self.reset_queues()
         if self.status == ServiceStatus.STOPPED:
             return
 

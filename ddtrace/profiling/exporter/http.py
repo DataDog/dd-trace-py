@@ -43,7 +43,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
     # repeat this to please mypy
     enable_code_provenance = attr.ib(default=True, type=bool)
 
-    endpoint = attr.ib(type=str, default=ddtrace.config.trace_agent_url)
+    endpoint = attr.ib(type=str, factory=agent.get_trace_url)
     api_key = attr.ib(default=None, type=typing.Optional[str])
     # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
     # backend is not as fast as the tracer one.

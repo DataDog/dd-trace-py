@@ -24,6 +24,12 @@ from .constants import CONFIG_MIDDLEWARE
 from .renderer import trace_rendering
 
 
+try:
+    from json import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
+
 log = get_logger(__name__)
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
@@ -104,7 +110,7 @@ class PylonsTraceMiddleware(object):
                     else:  # text/plain, xml, others: take them as strings
                         req_body = request.body.decode("UTF-8")
 
-                except (AttributeError, OSError):
+                except (AttributeError, OSError, ValueError, JSONDecodeError):
                     log.warning("Failed to parse request body", exc_info=True)
                     # req_body is None
 
@@ -115,6 +121,7 @@ class PylonsTraceMiddleware(object):
                 request_headers=dict(request.headers),
                 request_cookies=dict(request.cookies),
                 request_body=req_body,
+                headers_are_case_sensitive=True,
             )
 
             if not span.sampled:
@@ -134,6 +141,7 @@ class PylonsTraceMiddleware(object):
                     method=request.method,
                     status_code=http_code,
                     response_headers=response_headers,
+                    headers_are_case_sensitive=True,
                 )
                 return start_response(status, *args, **kwargs)
 

@@ -5,6 +5,7 @@ from typing import List
 from typing import Text
 from typing import Union
 
+import django
 from django.http import RawPostDataException
 from django.http import UnreadablePostError
 from django.utils.functional import SimpleLazyObject
@@ -24,6 +25,13 @@ from ...internal.utils.formats import stringify_cache_args
 from ...vendor.wrapt import FunctionWrapper
 from .compat import get_resolver
 from .compat import user_is_authenticated
+
+
+try:
+    from json import JSONDecodeError
+except ImportError:
+    # handling python 2.X import error
+    JSONDecodeError = ValueError  # type: ignore
 
 
 log = get_logger(__name__)
@@ -237,7 +245,7 @@ def _extract_body(request):
     req_body = None
 
     if config._appsec_enabled and request.method in _BODY_METHODS:
-        content_type = request.content_type if hasattr(request, "content_type") else request.META["CONTENT_TYPE"]
+        content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
 
         rest_framework = hasattr(request, "data")
 
@@ -258,8 +266,15 @@ def _extract_body(request):
                 )
             else:  # text/plain, xml, others: take them as strings
                 req_body = request.data.decode("UTF-8") if rest_framework else request.body.decode("UTF-8")
-        except (AttributeError, RawPostDataException, UnreadablePostError, OSError):
-            log.warning("Failed to parse request body", exc_info=True)
+        except (
+            AttributeError,
+            RawPostDataException,
+            UnreadablePostError,
+            OSError,
+            ValueError,
+            JSONDecodeError,
+        ):
+            log.warning("Failed to parse request body")
             # req_body is None
 
         return req_body
@@ -341,6 +356,8 @@ def _after_request_tags(pin, span, request, response):
             if raw_uri and request.META.get("QUERY_STRING"):
                 raw_uri += "?" + request.META["QUERY_STRING"]
 
+            headers_case_sensitive = django.VERSION < (2, 2)
+
             trace_utils.set_http_meta(
                 span,
                 config.django,
@@ -355,6 +372,8 @@ def _after_request_tags(pin, span, request, response):
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
                 request_body=_extract_body(request),
+                peer_ip=request.META.get("REMOTE_ADDR"),
+                headers_are_case_sensitive=headers_case_sensitive,
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
