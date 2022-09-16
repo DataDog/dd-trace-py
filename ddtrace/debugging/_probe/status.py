@@ -20,8 +20,6 @@ meter = metrics.get_meter("probe.status")
 
 
 class ProbeStatusLogger(object):
-    ENDPOINT = config.snapshot_intake_url
-
     def __init__(self, service, encoder):
         # type: (str, BufferedEncoder) -> None
         self._service = service
@@ -65,7 +63,7 @@ class ProbeStatusLogger(object):
 
             while self._retry_queue:
                 item, ts = self._retry_queue.popleft()
-                if now - ts > config.diagnostic_interval:
+                if now - ts > config.diagnostics_interval:
                     # We discard the expired items as they wouldn't be picked
                     # up by the backend anyway.
                     continue

@@ -163,7 +163,7 @@ class ProbeRCAdapter(object):
 
     def _next_status_update_timestamp(self):
         # type: () -> None
-        self._status_timestamp = time.time() + config.diagnostic_interval
+        self._status_timestamp = time.time() + config.diagnostics_interval
 
     def __call__(self, metadata, config):
         # type: (Any, Any) -> None

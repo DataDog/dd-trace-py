@@ -649,7 +649,7 @@ def test_probe_status_logging(monkeypatch):
     RemoteConfigClient.request = request
 
     try:
-        with debugger(diagnostic_interval=0.5) as d:
+        with debugger(diagnostics_interval=0.5) as d:
             d.add_probes(
                 LineProbe(
                     probe_id="line-probe-ok",
