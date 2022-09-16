@@ -353,3 +353,9 @@ below:
      - Sensitive parameter value regexp for obfuscation.
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+
+
+Dynamic Instrumentation
+-----------------------
+
+.. envier:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig
