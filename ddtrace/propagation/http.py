@@ -581,7 +581,7 @@ class _W3CTraceContext:
                 sampling_priority=sampling_priority,
             )
         except (ValueError, AssertionError) as e:
-            log.warning("received invalid w3c traceparent: %s. Error: %s", (tp, e))
+            log.warning("received invalid w3c traceparent: %s. Error: %s", tp, e)
             return None
 
 
