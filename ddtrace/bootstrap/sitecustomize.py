@@ -19,6 +19,7 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
 
 from ddtrace import config  # noqa
 from ddtrace import constants
+from ddtrace.debugging._config import config as debugger_config
 from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.utils.formats import asbool  # noqa
@@ -83,6 +84,11 @@ try:
     if profiling:
         log.debug("profiler enabled via environment variable")
         import ddtrace.profiling.auto  # noqa: F401
+
+    if debugger_config.enabled:
+        from ddtrace.debugging import DynamicInstrumentation
+
+        DynamicInstrumentation.enable()
 
     if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
         RuntimeWorker.enable()

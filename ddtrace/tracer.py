@@ -215,7 +215,7 @@ class Tracer(object):
             )
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
-        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=False))
+        self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
         self._appsec_enabled = config._appsec_enabled
 

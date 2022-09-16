@@ -135,6 +135,7 @@ venv = Venv(
             create=True,
             pkgs={
                 "mypy": latest,
+                "envier": latest,
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -318,10 +319,7 @@ venv = Venv(
         Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
-            pkgs={
-                "msgpack": latest,
-                "httpretty": "==0.9.7",
-            },
+            pkgs={"msgpack": latest},
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
