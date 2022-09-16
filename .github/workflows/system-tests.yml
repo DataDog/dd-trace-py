@@ -103,5 +103,5 @@ jobs:
           pip install -r requirements.txt
       - name: Run
         run: |
-          cd integration_unit
+          cd parametric
           ./run.sh
