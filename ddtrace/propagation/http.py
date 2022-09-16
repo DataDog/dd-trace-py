@@ -417,9 +417,7 @@ class _B3SingleHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        single_header = "-".join((
-            _dd_id_to_hexadec_id(span_context.trace_id), _dd_id_to_hexadec_id(span_context.span_id)
-        ))
+        single_header = "-".join((_dd_id_to_hex_id(span_context.trace_id), _dd_id_to_hex_id(span_context.span_id)))
         sampling_priority = span_context.sampling_priority
         if sampling_priority is not None:
             if sampling_priority <= 0:
@@ -580,8 +578,8 @@ class _W3CTraceContext:
                 span_id=span_id,
                 sampling_priority=sampling_priority,
             )
-        except (ValueError, AssertionError) as e:
-            log.warning("received invalid w3c traceparent: %s. Error: %s", tp, e)
+        except (ValueError, AssertionError):
+            log.exception("received invalid w3c traceparent: %s.", tp)
             return None
 
 
