@@ -417,9 +417,9 @@ class _B3SingleHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        single_header = "{}-{}".format(
+        single_header = "-".join((
             _dd_id_to_hexadec_id(span_context.trace_id), _dd_id_to_hexadec_id(span_context.span_id)
-        )
+        ))
         sampling_priority = span_context.sampling_priority
         if sampling_priority is not None:
             if sampling_priority <= 0:
