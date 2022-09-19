@@ -110,7 +110,7 @@ def pytest_sessionstart(session):
         tracer_filters = pin.tracer._filters
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter()]
-            pin.tracer.configure(settings={"FILTERS": tracer_filters})
+            pin.tracer.configure(settings={"FILTERS": tracer_filters}, enabled=ddtrace.config.pytest.trace_enabled)
 
 
 def pytest_sessionfinish(session, exitstatus):
