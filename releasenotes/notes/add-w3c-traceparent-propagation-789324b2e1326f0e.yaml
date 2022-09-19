@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    Add support trace propagation using W3C Trace Context.  with HTTP header ``traceparent``.
+    Add support trace propagation using W3C Trace Context  with HTTP header ``traceparent``.
     
     Note: ``tracestate`` HTTP header is not yet supported.
 
