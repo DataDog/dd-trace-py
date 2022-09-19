@@ -525,6 +525,7 @@ class _W3CTraceContext:
       - The W3C Trace Context Trace ID is a 16-byte hexadecimal string. This is
         transformed for propagation between Datadog by taking the lower
         8-bytes.
+       - The tracestate header will be supported in a future release.
     """
 
     @staticmethod
