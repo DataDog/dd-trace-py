@@ -499,7 +499,7 @@ class _W3CTraceContext:
         it only relies on vendor-specific information in tracestate
       - ``tracestate`` extends traceparent with vendor-specific data represented
         by a set of name/value pairs. Storing information in tracestate is
-        optional.
+        optional. [Unsupported]
 
     The format for ``traceparent`` is::
 
