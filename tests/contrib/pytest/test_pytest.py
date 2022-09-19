@@ -12,6 +12,7 @@ from ddtrace.contrib.pytest.plugin import _extract_repository_name
 from ddtrace.ext import ci
 from ddtrace.ext import test
 from tests.utils import TracerTestCase
+from tests.conftest import call_program
 
 
 class TestPytest(TracerTestCase):
@@ -757,3 +758,39 @@ def test_repository_name_not_extracted_warning():
         extracted_repository_name = _extract_repository_name(repository_url)
         assert extracted_repository_name == repository_url
     mock_log.warning.assert_called_once_with("Repository name cannot be parsed from repository_url: %s", repository_url)
+
+def test_tracer_disabled_when_env_var_set_to_false(tmpdir):
+    """Test with DD_TRACE_ENABLED=false, plugin should not reactivate global tracer"""
+    code = """
+import pytest
+import ddtrace
+
+def test_tracer_disabled():
+    assert ddtrace.tracer.enabled == False
+    """
+    pyfile = tmpdir.join("test.py")
+    pyfile.write(code)
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "False"})
+
+    _, _, returncode, _ = call_program(sys.executable, "-m", "pytest", pyfile, env=env)
+    assert returncode == 0
+
+
+def test_tracer_enabled_by_default(tmpdir):
+    """Test with DD_TRACE_ENABLED is not set or True, plugin should activate global tracer"""
+    code = """
+import pytest
+import ddtrace
+
+def test_tracer_enabled():
+    assert ddtrace.tracer.enabled == True
+    """
+    pyfile = tmpdir.join("test.py")
+    pyfile.write(code)
+    env = os.environ.copy()
+    _, _, returncode, _ = call_program(sys.executable, "-m", "pytest", pyfile, env=env)
+    assert returncode == 0
+    env.update({"DD_TRACE_ENABLED": "True"})
+    _, _, returncode, _ = call_program(sys.executable, "-m", "pytest", pyfile, env=env)
+    assert returncode == 0
