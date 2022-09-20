@@ -140,6 +140,12 @@ def extract_appveyor(env):
     else:
         repository = commit = branch = tag = None
 
+    commit_message = env.get("APPVEYOR_REPO_COMMIT_MESSAGE")
+    if commit_message:
+        extended = env.get("APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED")
+        if extended:
+            commit_message += "\n" + extended
+
     return {
         PROVIDER_NAME: "appveyor",
         git.REPOSITORY_URL: repository,
@@ -152,7 +158,7 @@ def extract_appveyor(env):
         JOB_URL: url,
         git.BRANCH: branch,
         git.TAG: tag,
-        git.COMMIT_MESSAGE: env.get("APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED"),
+        git.COMMIT_MESSAGE: commit_message,
         git.COMMIT_AUTHOR_NAME: env.get("APPVEYOR_REPO_COMMIT_AUTHOR"),
         git.COMMIT_AUTHOR_EMAIL: env.get("APPVEYOR_REPO_COMMIT_AUTHOR_EMAIL"),
     }
