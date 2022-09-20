@@ -569,7 +569,7 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
     span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
-        span.set_tag(user.ID, user_id)
+        span._set_str_tag(user.ID, user_id)
         if propagate:
             span.context.dd_user_id = user_id
 
