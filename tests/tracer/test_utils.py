@@ -52,26 +52,15 @@ _LOG_ERROR_FAIL_SEPARATOR = (
         ("key: val", dict(key=" val"), None),
         ("key key: val", {"key key": " val"}, None),
         ("key: val,key2:val2", dict(key=" val", key2="val2"), None),
-        (" key: val,key2:val2", {" key": " val", "key2": "val2"}, None),
+        (" key: val,key2:val2", {"key": " val", "key2": "val2"}, None),
         ("key key2:val1", {"key key2": "val1"}, None),
-        (
-            "key:val key2:val:2",
-            dict(),
-            [mock.call(_LOG_ERROR_MALFORMED_TAG_STRING, "key:val key2:val:2")],
-        ),
+        ("key:val key2:val:2", {"key": "val", "key2": "val:2"}, None),
         (
             "key:val,key2:val2 key3:1234.23",
             dict(),
             [mock.call(_LOG_ERROR_FAIL_SEPARATOR, "key:val,key2:val2 key3:1234.23")],
         ),
-        (
-            "key:val key2:val2 key3: ",
-            dict(key="val", key2="val2"),
-            [
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "key3:", "key:val key2:val2 key3: "),
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "", "key:val key2:val2 key3: "),
-            ],
-        ),
+        ("key:val key2:val2 key3: ", dict(key="val", key2="val2", key3=""), None),
         (
             "key:val key2:val 2",
             dict(key="val", key2="val"),
@@ -79,51 +68,17 @@ _LOG_ERROR_FAIL_SEPARATOR = (
         ),
         (
             "key: val key2:val2 key3:val3",
-            {"key2": "val2", "key3": "val3"},
-            [
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key: val key2:val2 key3:val3"),
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "val", "key: val key2:val2 key3:val3"),
-            ],
+            {"key": "", "key2": "val2", "key3": "val3"},
+            [mock.call(_LOG_ERROR_MALFORMED_TAG, "val", "key: val key2:val2 key3:val3")],
         ),
-        (
-            "key:,key3:val1,",
-            dict(key3="val1"),
-            [
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "key:", "key:,key3:val1,"),
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "", "key:,key3:val1,"),
-            ],
-        ),
-        (
-            ",",
-            dict(),
-            [
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "", ","),
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "", ","),
-            ],
-        ),
-        (
-            ":,:",
-            dict(),
-            [
-                mock.call(_LOG_ERROR_MALFORMED_TAG, ":", ":,:"),
-                mock.call(_LOG_ERROR_MALFORMED_TAG, ":", ":,:"),
-            ],
-        ),
-        (
-            "key,key2:val1",
-            dict(key2="val1"),
-            [mock.call(_LOG_ERROR_MALFORMED_TAG, "key", "key,key2:val1")],
-        ),
-        ("key2:val1:", dict(), [mock.call(_LOG_ERROR_MALFORMED_TAG_STRING, "key2:val1:")]),
-        (
-            "key,key2,key3",
-            dict(),
-            [
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "key", "key,key2,key3"),
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "key2", "key,key2,key3"),
-                mock.call(_LOG_ERROR_MALFORMED_TAG, "key3", "key,key2,key3"),
-            ],
-        ),
+        ("key:,key3:val1,", dict(key3="val1", key=""), None),
+        (",", dict(), [mock.call(_LOG_ERROR_FAIL_SEPARATOR, "")]),
+        (":,:", dict(), [mock.call(_LOG_ERROR_FAIL_SEPARATOR, ":,:")]),
+        ("key,key2:val1", {"key2": "val1"}, [mock.call(_LOG_ERROR_MALFORMED_TAG, "key", "key,key2:val1")]),
+        ("key2:val1:", {"key2": "val1:"}, None),
+        ("key,key2,key3", dict(), [mock.call(_LOG_ERROR_FAIL_SEPARATOR, "key,key2,key3")]),
+        ("foo:bar,foo:baz", dict(foo="baz"), None),
+        ("hash:asd url:https://github.com/foo/bar", dict(hash="asd", url="https://github.com/foo/bar"), None),
     ],
 )
 def test_parse_env_tags(tag_str, expected_tags, error_calls):
@@ -131,10 +86,10 @@ def test_parse_env_tags(tag_str, expected_tags, error_calls):
         tags = parse_tags_str(tag_str)
         assert tags == expected_tags
         if error_calls:
-            assert log.error.call_count == len(error_calls)
+            assert log.error.call_count == len(error_calls), log.error.call_args_list
             log.error.assert_has_calls(error_calls)
         else:
-            assert log.error.call_count == 0
+            assert log.error.call_count == 0, log.error.call_args_list
 
 
 def test_no_states():
