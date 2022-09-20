@@ -11,12 +11,10 @@ import six
 from ddtrace import context
 from ddtrace import span as ddspan
 from ddtrace.internal import compat
-from ddtrace.internal import nogevent
 from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
-from ddtrace.profiling import event
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import _traceback
 from ddtrace.profiling.collector import stack_event
