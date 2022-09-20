@@ -604,7 +604,6 @@ class TracerTestCases(TracerTestCase):
     @pytest.mark.skipif(sys.version_info >= (3, 0, 0), reason="Python tests")
     def test_tracer_set_user_propagation_string_error_py2(self):
         span = self.trace("fake_span")
-        user_id_string = "ユーザーID"
         set_user(
             self.tracer,
             user_id="ユーザーID",
@@ -616,9 +615,8 @@ class TracerTestCases(TracerTestCase):
             propagate=True,
         )
         user_id = span.context._meta.get("_dd.p.usr.id")
-
-        assert span.get_tag(user.ID) is None
-        assert span.context.dd_user_id == user_id_string
+        assert span.get_tag(user.ID) == u"ユーザーID"
+        assert span.context.dd_user_id == "ユーザーID"
         assert user_id == "44Om44O844K244O8SUQ="
 
 

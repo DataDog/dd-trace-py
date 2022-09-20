@@ -1526,6 +1526,7 @@ def test_user_name_included(client, test_spans):
     root = test_spans.get_root_span()
     assert root.get_tag("django.user.name") == "Jane Doe"
     assert root.get_tag("django.user.is_authenticated") == "True"
+    assert root.get_tag(user.ID) == "1"
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")
@@ -1543,6 +1544,7 @@ def test_user_name_excluded(client, test_spans):
     root = test_spans.get_root_span()
     assert "django.user.name" not in root.get_tags()
     assert root.get_tag("django.user.is_authenticated") == "True"
+    assert root.get_tag(user.ID) == "1"
 
 
 def test_django_use_handler_resource_format(client, test_spans):
