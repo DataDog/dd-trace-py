@@ -23,8 +23,8 @@ alongside ``--ddtrace`` or by adding this to your configuration::
    The ddtrace plugin for pytest has the side effect of importing the ddtrace
    package and starting a global tracer.
 
-   While you can avoid this by setting ``DD_TRACE_ENABLED=False``, if this is still causing issues for your pytest
-   runs where traced execution of tests is not enabled, you can deactivate the pytest plugin entirely::
+   Generating traces can be avoided by setting ``DD_TRACE_ENABLED=False``.
+   If other issues occur then the pytest plugin can be disabled entirely::
 
      [pytest]
      addopts = -p no:ddtrace

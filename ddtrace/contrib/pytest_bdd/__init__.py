@@ -10,9 +10,8 @@ Please follow the instructions for enabling `pytest` integration.
    The ddtrace.pytest_bdd plugin for pytest-bdd has the side effect of importing
    the ddtrace package and starting a global tracer.
 
-   While you can avoid this by setting ``DD_TRACE_ENABLED=False``, if this is still causing issues
-   for your pytest-bdd runs where traced execution of tests is not enabled,
-   you can deactivate the pytest plugins entirely::
+   Generating traces can be avoided by setting ``DD_TRACE_ENABLED=False``.
+   If other issues occur then the pytest-bdd plugin can be disabled entirely::
 
      [pytest]
      addopts = -p no:ddtrace -p no:ddtrace.pytest_bdd
