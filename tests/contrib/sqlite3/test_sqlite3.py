@@ -1,5 +1,6 @@
 import sqlite3
 import time
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -16,6 +17,19 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
+
+
+if TYPE_CHECKING:
+    from typing import Generator
+
+
+@pytest.fixture
+def patched_conn():
+    # type: () -> Generator[sqlite3.Cursor, None, None]
+    patch()
+    conn = sqlite3.connect(":memory:")
+    yield conn
+    unpatch()
 
 
 class TestSQLite(TracerTestCase):
@@ -351,3 +365,9 @@ class TestSQLite(TracerTestCase):
             cursor.fetchall()
             spans = self.get_spans()
             assert len(spans) == 1
+
+
+def test_iterator_usage(patched_conn):
+    """Ensure sqlite3 patched cursors can be used as iterators."""
+    rows = next(patched_conn.execute("select 1"))
+    assert len(rows) == 1
