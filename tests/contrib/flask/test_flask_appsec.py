@@ -67,8 +67,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/params/w00tw00t.at.isc.sans.dfind")
             assert resp.status_code == 200
-            # Read response data from the test client to close flask.request and flask.response spans
-            assert resp.data is not None
 
             root_span = self.pop_spans()[0]
 
@@ -94,8 +92,6 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             self.client.set_cookie("localhost", "attack", "1' or '1' = '1'")
             resp = self.client.get("/")
-            # Read response data from the test client to close flask.request and flask.response spans
-            assert resp.data is not None
             assert resp.status_code == 404
             root_span = self.pop_spans()[0]
 
