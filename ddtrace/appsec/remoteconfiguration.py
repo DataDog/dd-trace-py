@@ -1,4 +1,3 @@
-import logging
 import os
 
 from ddtrace.constants import APPSEC_ENV
@@ -10,7 +9,6 @@ from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
 
 def _rc_features_is_enabled():
@@ -21,7 +19,6 @@ def _rc_features_is_enabled():
 
 def appsec_enable_rc(tracer):
     if _rc_features_is_enabled():
-        print("Activating Remote Configuration for %s. %s", (ASM_FEATURES_PRODUCT, os.environ.get(RC_ENV)))
         if not hasattr(tracer, "_rc"):
             tracer._rc = RemoteConfig()
         tracer._rc.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
