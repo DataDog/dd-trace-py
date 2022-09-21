@@ -93,6 +93,7 @@ initializer
 integration
 integrations
 ip
+iterable
 JSON
 jinja
 js
@@ -167,6 +168,7 @@ subdomains
 submodule
 submodules
 timestamp
+traceparent
 tweens
 uWSGI
 unbuffered

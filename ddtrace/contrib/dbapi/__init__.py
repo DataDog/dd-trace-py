@@ -9,6 +9,7 @@ from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import sql
+from ...internal.compat import PY2
 from ...internal.logger import get_logger
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
@@ -46,6 +47,18 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_datadog_name = "{}.query".format(span_name_prefix)
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
+
+    def __iter__(self):
+        return self.__wrapped__.__iter__()
+
+    def __next__(self):
+        return self.__wrapped__.__next__()
+
+    if PY2:
+
+        # Python 2 iterators use `next`
+        def next(self):  # noqa: A001
+            return self.__wrapped__.next()
 
     def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
         """
