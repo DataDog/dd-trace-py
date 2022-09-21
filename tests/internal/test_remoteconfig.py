@@ -1,6 +1,73 @@
+import base64
+import datetime
+import hashlib
+import json
+from time import sleep
+
+import mock
 import pytest
 
 from ddtrace.internal.remoteconfig import RemoteConfig
+from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+
+
+def get_mock_encoded_msg(msg):
+    expires_date = datetime.datetime.strftime(
+        datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
+    )
+    path = "datadog/2/%s/asm_features_activation/config" % ASM_FEATURES_PRODUCT
+    data = {
+        "signatures": [{"keyid": "", "sig": ""}],
+        "signed": {
+            "_type": "targets",
+            "custom": {"opaque_backend_state": ""},
+            "expires": expires_date,
+            "spec_version": "1.0.0",
+            "targets": {
+                path: {
+                    "custom": {"c": [""], "v": 0},
+                    "hashes": {"sha256": hashlib.sha256(msg).hexdigest()},
+                    "length": 24,
+                }
+            },
+            "version": 0,
+        },
+    }
+    return {
+        "roots": [
+            str(
+                base64.b64encode(
+                    bytes(
+                        json.dumps(
+                            {
+                                "signatures": [],
+                                "signed": {
+                                    "_type": "root",
+                                    "consistent_snapshot": True,
+                                    "expires": "1986-12-11T00:00:00Z",
+                                    "keys": {},
+                                    "roles": {},
+                                    "spec_version": "1.0",
+                                    "version": 2,
+                                },
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                ),
+                encoding="utf-8",
+            )
+        ],
+        "targets": str(base64.b64encode(bytes(json.dumps(data), encoding="utf-8")), encoding="utf-8"),
+        "target_files": [
+            {
+                "path": path,
+                "raw": str(base64.b64encode(msg), encoding="utf-8"),
+            }
+        ],
+        "client_configs": [path],
+    }
 
 
 def test_remote_config_register_auto_enable():
@@ -30,3 +97,21 @@ def test_remote_config_forksafe():
         assert RemoteConfig._worker is not None
         assert RemoteConfig._worker is not parent_worker
         exit(0)
+
+
+@mock.patch.object(RemoteConfigClient, "_send_request")
+def test_remote_configuration(mock_send_request):
+    class Callback:
+        features = {}
+
+        def _reload_features(self, metadata, features):
+            self.features = features
+
+    callback = Callback()
+
+    mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
+    rc = RemoteConfig()
+    rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
+    sleep(3)
+    mock_send_request.assert_called_once()
+    assert callback.features == {"asm": {"enabled": True}}

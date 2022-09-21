@@ -1,0 +1,3 @@
+ASM_FEATURES_PRODUCT = "FEATURES"
+# TODO(alberto.vara) [2022-09-21] in few weeks `FEATURES` will be renamed to `ASM_FEATURES`
+# ASM_FEATURES_PRODUCT = "ASM_FEATURES"
