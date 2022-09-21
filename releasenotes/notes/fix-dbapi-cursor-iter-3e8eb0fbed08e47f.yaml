@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Add iterable methods on TracedCursor. Previously these were not present and would cause iterable usage of
+    cursors in DB API integrations to fail.
