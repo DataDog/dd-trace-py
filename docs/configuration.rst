@@ -70,6 +70,12 @@ below:
      - True
      - Enables sending :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
 
+       .. _dd-telemetry-heartbeat-rate:
+   * - ``DD_TELEMETRY_HEARTBEAT_RATE``
+     - Int
+     - 60
+     - The time between each flush of :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
+
        .. _dd-trace-debug:
    * - ``DD_TRACE_DEBUG``
      - Boolean

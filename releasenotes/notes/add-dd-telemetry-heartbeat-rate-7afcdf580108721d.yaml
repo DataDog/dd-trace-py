@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add `DD_TELEMETRY_HEARTBEAT_RATE` configuration. This environment variable updates the time between each flush of telemetry events to the agent.

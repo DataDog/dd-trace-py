@@ -27,7 +27,7 @@ log = get_logger(__name__)
 
 
 def _get_interval_or_default():
-    return float(os.getenv("DD_INSTRUMENTATION_TELEMETRY_INTERVAL_SECONDS", default=60))
+    return float(os.getenv("DD_TELEMETRY_HEARTBEAT_RATE", default=60))
 
 
 class TelemetryWriter(PeriodicService):
@@ -38,7 +38,6 @@ class TelemetryWriter(PeriodicService):
 
     # telemetry endpoint uses events platform v2 api
     ENDPOINT = "telemetry/proxy/api/v2/apmtelemetry"
-    HEARTBEAT_MIN_INTERVAL = 60  # type: int
 
     def __init__(self, agent_url=None):
         # type: (Optional[str]) -> None
@@ -54,8 +53,6 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
-        # Set initial heartbeat time to now since we'll be sending an app-started event
-        self._last_heartbeat = time.time()  # type: float
 
         self._headers = {
             "Content-type": "application/json",
@@ -121,9 +118,7 @@ class TelemetryWriter(PeriodicService):
         if integrations:
             self._app_integrations_changed_event(integrations)
 
-        if not self._events_queue:
-            # Optimization: only queue heartbeat if no other events are queued
-            self.app_heartbeat_event()
+        self.app_heartbeat_event()
 
         telemetry_requests = self._flush_events_queue()
 
@@ -221,17 +216,11 @@ class TelemetryWriter(PeriodicService):
             #   add much value today.
             return
 
-        # DEV: Although the default flush interval is 60 seconds,
-        #   we want to explicitly control the flow here in case
-        #   the flush interval ever changes.
-        #
-        #   If the flush interval ever exceeds 60 seconds, then we
-        #   will queue a heartbeat event every flush:
-        #   60 <= X <= flush interval.
-        now = time.time()
-        if now - self._last_heartbeat >= TelemetryWriter.HEARTBEAT_MIN_INTERVAL:
-            self.add_event({}, "app-heartbeat")
-            self._last_heartbeat = now
+        if self._events_queue:
+            # Optimization: only queue heartbeat if no other events are queued
+            return
+
+        self.add_event({}, "app-heartbeat")
 
     def _app_closing_event(self):
         # type: () -> None

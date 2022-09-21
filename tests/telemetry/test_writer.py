@@ -191,44 +191,13 @@ def test_telemetry_graceful_shutdown(telemetry_writer, test_agent_session):
 
 def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
     # type: (mock.Mock, Any, TelemetryWriter) -> None
-    """asserts that we queue/send app-heartbeat event every 60 seconds when periodc() is called"""
+    """asserts that we queue/send app-heartbeat when periodc() is called"""
 
-    # Assert clean slate
-    events = test_agent_session.get_events()
-    assert len(events) == 0
-
-    # Assert first flush does not queue any events
-    events = test_agent_session.get_events()
-    assert len(events) == 0
-
-    # Advance time 60 seconds
-    mock_time.return_value += 60
-
+    # Assert default hearbeat interval is 60 seconds
+    assert telemetry_writer._interval == 60
     # Assert next flush contains app-heartbeat event
     telemetry_writer.periodic()
     _assert_app_heartbeat_event(1, test_agent_session)
-
-    # Advance time 59 seconds
-    mock_time.return_value += 59
-
-    # Assert next flush does not contain an app-heartbeat event
-    telemetry_writer.periodic()
-    events = test_agent_session.get_events()
-    assert len(events) == 1
-
-    # Advance time 1 second
-    mock_time.return_value += 1
-
-    # Assert next flush contains app-heartbeat event
-    telemetry_writer.periodic()
-    _assert_app_heartbeat_event(2, test_agent_session)
-
-    # Advance time 120 seconds (2 intervals)
-    mock_time.return_value += 120
-
-    # Assert next flush contains only one app-heartbeat event
-    telemetry_writer.periodic()
-    _assert_app_heartbeat_event(3, test_agent_session)
 
 
 def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
@@ -239,30 +208,13 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     events = test_agent_session.get_events()
     assert len(events) == 0
 
-    # Within 60 seconds of telemetry writer creation, no event is queued
+    # Assert a maximum of one heartbeat is queued per flush
+    telemetry_writer.app_heartbeat_event()
+    telemetry_writer.app_heartbeat_event()
     telemetry_writer.app_heartbeat_event()
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
-    assert len(events) == 0
-
-    # Advance time 60 seconds
-    mock_time.return_value += 60
-
-    # Manual queueing and calling periodic will only queue and flush 1 event
-    telemetry_writer.app_heartbeat_event()
-    telemetry_writer.periodic()
-    _assert_app_heartbeat_event(1, test_agent_session)
-
-    # Advance time 120 seconds (2 intervals)
-    mock_time.return_value += 120
-
-    # Calling multiple times will only enqueue one event
-    telemetry_writer.app_heartbeat_event()
-    telemetry_writer.app_heartbeat_event()
-    telemetry_writer.app_heartbeat_event()
-    telemetry_writer.app_heartbeat_event()
-    telemetry_writer.periodic()
-    _assert_app_heartbeat_event(2, test_agent_session)
+    assert len(events) == 1
 
 
 def _assert_app_heartbeat_event(seq_id, test_agent_session):

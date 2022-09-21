@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 
@@ -48,20 +50,12 @@ def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
     """assert app-started/app-closing events are only sent in parent process"""
     code = """
 import os
-import mock
-import time
 
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
 
-
 # We have to start before forking since fork hooks are not enabled until after enabling
 telemetry_writer.enable()
-
-# Update time to generate a heartbeat event when the writer is flushed
-now = time.time()
-time_skip_for_heartbeat = 2*telemetry_writer.HEARTBEAT_MIN_INTERVAL
-time.time = mock.Mock(return_value= now + time_skip_for_heartbeat)
 
 if os.fork() == 0:
     # Send multiple started events to confirm none get sent
@@ -94,8 +88,6 @@ def test_enable_fork_heartbeat(test_agent_session, run_python_code_in_subprocess
     """assert app-heartbeat events are only sent in parent process when no other events are queued"""
     code = """
 import os
-import mock
-import time
 
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.telemetry import telemetry_writer
@@ -103,11 +95,6 @@ from ddtrace.internal.telemetry import telemetry_writer
 telemetry_writer.enable()
 # Reset queue to avoid sending app-started event
 telemetry_writer.reset_queues()
-
-# Update time to generate a heartbeat event when the writer is flushed
-now = time.time()
-time_skip_for_heartbeat = 2*telemetry_writer.HEARTBEAT_MIN_INTERVAL
-time.time = mock.Mock(return_value= now + time_skip_for_heartbeat)
 
 if os.fork() > 0:
     # Print the parent process runtime id for validation
@@ -132,6 +119,23 @@ telemetry_writer.disable()
     # Validate that the runtime id sent for every event is the parent processes runtime id
     assert requests[0]["body"]["runtime_id"] == runtime_id
     assert requests[0]["body"]["request_type"] == "app-heartbeat"
+
+
+def test_heartbeat_rate_configuration(run_python_code_in_subprocess):
+    """assert that DD_TELEMETRY_HEARTBEAT_RATE config sets the telemetry writer interval"""
+    heartbeat_rate = "0.666"
+    env = os.environ.copy()
+    env["DD_TELEMETRY_HEARTBEAT_RATE"] = heartbeat_rate
+    code = """
+from ddtrace.internal.telemetry import telemetry_writer
+assert telemetry_writer.interval == {}
+    """.format(
+        heartbeat_rate
+    )
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+    assert stderr == b""
 
 
 def test_logs_after_fork(run_python_code_in_subprocess):
