@@ -4,7 +4,6 @@ import mock
 import opentracing
 from opentracing import Format
 from opentracing import InvalidCarrierException
-from opentracing import SpanContextCorruptedException
 from opentracing import UnsupportedFormatException
 from opentracing import child_of
 import pytest
@@ -500,12 +499,11 @@ class TestTracerSpanContextPropagation(object):
         assert ext_span_ctx.baggage == span_ctx.baggage
 
     def test_empty_propagated_context(self, ot_tracer):
-        """An empty propagated context should raise a
+        """An empty propagated context should not raise a
         SpanContextCorruptedException when extracted.
         """
         carrier = {}
-        with pytest.raises(SpanContextCorruptedException):
-            ot_tracer.extract(Format.HTTP_HEADERS, carrier)
+        ot_tracer.extract(Format.HTTP_HEADERS, carrier)
 
     def test_text(self, ot_tracer):
         """extract should undo inject for http headers"""
@@ -533,8 +531,7 @@ class TestTracerSpanContextPropagation(object):
         corrupted_key = HTTP_HEADER_TRACE_ID[2:]
         carrier[corrupted_key] = 123
 
-        with pytest.raises(SpanContextCorruptedException):
-            ot_tracer.extract(Format.TEXT_MAP, carrier)
+        ot_tracer.extract(Format.TEXT_MAP, carrier)
 
     def test_immutable_span_context(self, ot_tracer):
         """Span contexts should be immutable."""
