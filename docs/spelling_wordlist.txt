@@ -33,6 +33,7 @@ autodetected
 autopatching
 backend
 backends
+backport
 bdd
 bikeshedding
 booleans
