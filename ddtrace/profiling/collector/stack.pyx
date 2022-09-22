@@ -164,10 +164,15 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
             PyObject* frame
 
         _PyErr_StackItem * _PyErr_GetTopmostException(PyThreadState *tstate)
-        ctypedef struct _PyErr_StackItem:
-            PyObject* exc_type
-            PyObject* exc_value
-            PyObject* exc_traceback
+
+        IF PY_MINOR_VERSION < 11:
+            ctypedef struct _PyErr_StackItem:
+                PyObject* exc_type
+                PyObject* exc_value
+                PyObject* exc_traceback
+        ELSE:
+            ctypedef struct _PyErr_StackItem:
+                PyObject* exc_value
 
         PyObject* PyException_GetTraceback(PyObject* exc)
         PyObject* Py_TYPE(PyObject* ob)
@@ -244,13 +249,13 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
                         if frame:
                             running_threads[tstate.thread_id] = <object>frame
                         exc_info = _PyErr_GetTopmostException(tstate)
-                        # Python 3.11 removed exc_type, exc_traceback from exception representations, can instead
-                        # derive exc_type and exc_traceback from remaining exc_value field
-                        exc_type = Py_TYPE(exc_info.exc_value)
-                        exc_tb = PyException_GetTraceback(exc_info.exc_value)
-                        if exc_info.exc_value and exc_type and exc_tb:
-                            current_exceptions[tstate.thread_id] = (<object>exc_type, <object>exc_tb)
-
+                        if exc_info and exc_info.exc_value:
+                            # Python 3.11 removed exc_type, exc_traceback from exception representations, can instead
+                            # derive exc_type and exc_traceback from remaining exc_value field
+                            exc_type = Py_TYPE(exc_info.exc_value)
+                            exc_tb = PyException_GetTraceback(exc_info.exc_value)
+                            if exc_type and exc_tb:
+                                current_exceptions[tstate.thread_id] = (<object>exc_type, <object>exc_tb)
                         tstate = PyThreadState_Next(tstate)
 
                     interp = PyInterpreterState_Next(interp)
