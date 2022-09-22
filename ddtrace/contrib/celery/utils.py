@@ -9,6 +9,8 @@ from .constants import CTX_KEY
 
 TAG_KEYS = frozenset(
     [
+        ("args", "celery.task_args"),
+        ("kwargs", "celery.task_kwargs"),
         ("compression", "celery.compression"),
         ("correlation_id", "celery.correlation_id"),
         ("countdown", "celery.countdown"),

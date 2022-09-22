@@ -185,6 +185,8 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_span.service == "celery-worker"
         assert run_span.get_tag("celery.id") == t.task_id
         assert run_span.get_tag("celery.action") == "run"
+        assert run_span.get_tag("celery.task_args") == ["user"]
+        assert run_span.get_tag("celery.task_kwargs") == {"force_logout": True}
 
     def test_fn_task_delay(self):
         # using delay shorthand must preserve arguments
