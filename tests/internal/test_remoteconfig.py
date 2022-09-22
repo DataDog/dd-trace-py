@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import base64
 import datetime
 import hashlib
@@ -7,9 +8,24 @@ from time import sleep
 import mock
 import pytest
 
+from ddtrace.internal.compat import PY2
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+
+
+def to_bytes(string):
+    if PY2:
+        return bytes(string)
+    else:
+        return bytes(string, encoding="utf-8")
+
+
+def to_str(bytes_string):
+    if PY2:
+        return str(bytes_string)
+    else:
+        return str(bytes_string, encoding="utf-8")
 
 
 def get_mock_encoded_msg(msg):
@@ -36,9 +52,9 @@ def get_mock_encoded_msg(msg):
     }
     return {
         "roots": [
-            str(
+            to_str(
                 base64.b64encode(
-                    bytes(
+                    to_bytes(
                         json.dumps(
                             {
                                 "signatures": [],
@@ -53,17 +69,15 @@ def get_mock_encoded_msg(msg):
                                 },
                             }
                         ),
-                        encoding="utf-8",
                     )
-                ),
-                encoding="utf-8",
+                )
             )
         ],
-        "targets": str(base64.b64encode(bytes(json.dumps(data), encoding="utf-8")), encoding="utf-8"),
+        "targets": to_str(base64.b64encode(to_bytes(json.dumps(data)))),
         "target_files": [
             {
                 "path": path,
-                "raw": str(base64.b64encode(msg), encoding="utf-8"),
+                "raw": to_str(base64.b64encode(msg)),
             }
         ],
         "client_configs": [path],
@@ -114,4 +128,5 @@ def test_remote_configuration(mock_send_request):
     rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
     sleep(3)
     mock_send_request.assert_called_once()
+    print(callback.features)
     assert callback.features == {"asm": {"enabled": True}}

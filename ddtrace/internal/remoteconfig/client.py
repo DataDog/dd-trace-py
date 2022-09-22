@@ -188,6 +188,12 @@ class RemoteConfigClient(object):
 
         self.converter = cattr.Converter()
 
+        # cattrs doesn't implement datetime converter in Py27, we should register
+        def date_to_fromisoformat(val, cls):
+            return val
+
+        self.converter.register_structure_hook(datetime, date_to_fromisoformat)
+
         def base64_to_struct(val, cls):
             raw = base64.b64decode(val)
             obj = json.loads(raw)
