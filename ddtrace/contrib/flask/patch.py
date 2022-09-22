@@ -350,7 +350,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
-        span._set_str_tag(FLASK_VERSION, flask_version_str)
+        span.set_str_tag(FLASK_VERSION, flask_version_str)
         start_response = _wrap_start_response(start_response, span, request)
 
         req_body = None
@@ -508,7 +508,7 @@ def traced_render(wrapped, instance, args, kwargs):
         name = maybe_stringify(getattr(template, "name", None) or config.flask.get("template_default_name"))
         if name is not None:
             span.resource = name
-            span._set_str_tag("flask.template_name", name)
+            span.set_str_tag("flask.template_name", name)
         return wrapped(*args, **kwargs)
 
     return _wrap(*args, **kwargs)
@@ -589,15 +589,15 @@ def _set_request_tags(span):
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
             span.resource = u" ".join((request.method, request.endpoint))
-            span._set_str_tag(FLASK_ENDPOINT, request.endpoint)
+            span.set_str_tag(FLASK_ENDPOINT, request.endpoint)
 
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
             span.resource = u" ".join((request.method, request.url_rule.rule))
-            span._set_str_tag(FLASK_URL_RULE, request.url_rule.rule)
+            span.set_str_tag(FLASK_URL_RULE, request.url_rule.rule)
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and config.flask.get("collect_view_args"):
             for k, v in request.view_args.items():
-                # DEV: Do not use `_set_str_tag` here since view args can be string/int/float/path/uuid/etc
+                # DEV: Do not use `set_str_tag` here since view args can be string/int/float/path/uuid/etc
                 #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
                 span.set_tag(u".".join((FLASK_VIEW_ARGS, k)), v)
             trace_utils.set_http_meta(span, config.flask, request_path_params=request.view_args)

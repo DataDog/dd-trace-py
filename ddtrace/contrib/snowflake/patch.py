@@ -30,7 +30,7 @@ config._add(
 class _SFTracedCursor(TracedCursor):
     def _set_post_execute_tags(self, span):
         super(_SFTracedCursor, self)._set_post_execute_tags(span)
-        span._set_str_tag("sfqid", self.__wrapped__.sfqid)
+        span.set_str_tag("sfqid", self.__wrapped__.sfqid)
 
 
 def patch():
