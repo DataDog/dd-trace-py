@@ -445,7 +445,7 @@ def set_http_meta(
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
-            span.set_str_tag(http.USER_AGENT, user_agent)
+            span.set_tag(http.USER_AGENT, user_agent)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and http.<key>. The last one
