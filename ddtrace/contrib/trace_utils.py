@@ -557,7 +557,7 @@ def set_flattened_tags(
     # type: (...) -> None
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
-            span.set_str_tag(tag, processor(v) if processor is not None else v)
+            span.set_tag(tag, processor(v) if processor is not None else v)
 
 
 def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, session_id=None, propagate=False):
