@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import re
+import sys
 from typing import Any
 from typing import List
 from typing import Mapping
@@ -14,6 +15,7 @@ import uuid
 
 import attr
 import cattr
+import six
 
 import ddtrace
 from ddtrace.internal import agent
@@ -127,6 +129,12 @@ class AgentPayload(object):
     client_configs = attr.ib(type=Set[str], default={})
 
 
+def _load_json(data):
+    if (3, 6) > sys.version_info > (3,) and isinstance(data, six.binary_type):
+        data = str(data, encoding="utf-8")
+    return json.loads(data)
+
+
 def _extract_target_file(payload, target, config):
     # type: (AgentPayload, str, ConfigMetadata) -> Optional[Mapping[str, Any]]
     candidates = [item.raw for item in payload.target_files if item.path == target]
@@ -146,7 +154,7 @@ def _extract_target_file(payload, target, config):
         )
 
     try:
-        return json.loads(raw)
+        return _load_json(raw)
     except Exception:
         raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
 
@@ -196,7 +204,7 @@ class RemoteConfigClient(object):
 
         def base64_to_struct(val, cls):
             raw = base64.b64decode(val)
-            obj = json.loads(raw)
+            obj = _load_json(raw)
             return self.converter.structure_attrs_fromdict(obj, cls)
 
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)
