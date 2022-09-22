@@ -116,7 +116,7 @@ def _traced_parse(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span.set_str_tag(_GRAPHQL_SOURCE, source_str)
+        span.set_tag_str(_GRAPHQL_SOURCE, source_str)
         return func(*args, **kwargs)
 
 
@@ -134,7 +134,7 @@ def _traced_validate(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
-        span.set_str_tag(_GRAPHQL_SOURCE, source_str)
+        span.set_tag_str(_GRAPHQL_SOURCE, source_str)
         errors = func(*args, **kwargs)
         _set_span_errors(errors, span)
         return errors
@@ -163,7 +163,7 @@ def _traced_execute(func, args, kwargs):
         span_type=SpanTypes.GRAPHQL,
     ) as span:
         _set_span_operation_tags(span, document)
-        span.set_str_tag(_GRAPHQL_SOURCE, source_str)
+        span.set_tag_str(_GRAPHQL_SOURCE, source_str)
 
         result = func(*args, **kwargs)
         if isinstance(result, ExecutionResult):
@@ -276,12 +276,12 @@ def _set_span_errors(errors, span):
 
     span.error = 1
     exc_type_str = "%s.%s" % (GraphQLError.__module__, GraphQLError.__name__)
-    span.set_str_tag(ERROR_TYPE, exc_type_str)
+    span.set_tag_str(ERROR_TYPE, exc_type_str)
     error_msgs = "\n".join([stringify(error) for error in errors])
     # Since we do not support adding and visualizing multiple tracebacks to one span
     # we will not set the error.stack tag on graphql spans. Setting only one traceback
     # could be misleading and might obfuscate errors.
-    span.set_str_tag(ERROR_MSG, error_msgs)
+    span.set_tag_str(ERROR_MSG, error_msgs)
 
 
 def _set_span_operation_tags(span, document):
@@ -291,10 +291,10 @@ def _set_span_operation_tags(span, document):
 
     # operation_def.operation should never be None
     if _graphql_version < (3, 0):
-        span.set_str_tag(_GRAPHQL_OPERATION_TYPE, operation_def.operation)
+        span.set_tag_str(_GRAPHQL_OPERATION_TYPE, operation_def.operation)
     else:
         # OperationDefinition.operation is an Enum in graphql-core>=3
-        span.set_str_tag(_GRAPHQL_OPERATION_TYPE, operation_def.operation.value)
+        span.set_tag_str(_GRAPHQL_OPERATION_TYPE, operation_def.operation.value)
 
     if operation_def.name:
-        span.set_str_tag(_GRAPHQL_OPERATION_NAME, operation_def.name.value)
+        span.set_tag_str(_GRAPHQL_OPERATION_NAME, operation_def.name.value)

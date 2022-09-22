@@ -212,4 +212,4 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         if hasattr(response, "__class__"):
             resp_class = getattr(getattr(response, "__class__"), "__name__", None)
             if resp_class:
-                resp_span.set_str_tag("result_class", resp_class)
+                resp_span.set_tag_str("result_class", resp_class)

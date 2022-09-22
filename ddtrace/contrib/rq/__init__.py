@@ -130,9 +130,9 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         resource=resource,
         span_type=SpanTypes.WORKER,
     ) as span:
-        span.set_str_tag("queue.name", instance.name)
+        span.set_tag_str("queue.name", instance.name)
         span.set_tag("job.id", job.get_id())
-        span.set_str_tag("job.func_name", job.func_name)
+        span.set_tag_str("job.func_name", job.func_name)
 
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async and config.rq.distributed_tracing_enabled:

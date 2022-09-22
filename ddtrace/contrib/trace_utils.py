@@ -147,7 +147,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         if tag_name is None:
             continue
         # An empty tag defaults to a http.<request or response>.headers.<header name> tag
-        span.set_str_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
+        span.set_tag_str(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
 def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
@@ -417,13 +417,13 @@ def set_http_meta(
          { "id": <int_value> }
     """
     if method is not None:
-        span.set_str_tag(http.METHOD, method)
+        span.set_tag_str(http.METHOD, method)
 
     if url is not None:
         if integration_config.trace_query_string and not config.global_trace_query_string_disabled:
-            span.set_str_tag(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
+            span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
         else:
-            span.set_str_tag(http.URL, strip_query_string(url))
+            span.set_tag_str(http.URL, strip_query_string(url))
 
     if status_code is not None:
         try:
@@ -431,15 +431,15 @@ def set_http_meta(
         except (TypeError, ValueError):
             log.debug("failed to convert http status code %r to int", status_code)
         else:
-            span.set_str_tag(http.STATUS_CODE, str(status_code))
+            span.set_tag_str(http.STATUS_CODE, str(status_code))
             if config.http_server.is_error_code(int_status_code):
                 span.error = 1
 
     if status_msg is not None:
-        span.set_str_tag(http.STATUS_MSG, status_msg)
+        span.set_tag_str(http.STATUS_MSG, status_msg)
 
     if query is not None and integration_config.trace_query_string:
-        span.set_str_tag(http.QUERY_STRING, query)
+        span.set_tag_str(http.QUERY_STRING, query)
 
     ip = None
     if request_headers:
@@ -454,7 +454,7 @@ def set_http_meta(
 
         ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
         if ip:
-            span.set_str_tag(http.CLIENT_IP, ip)
+            span.set_tag_str(http.CLIENT_IP, ip)
             if span._meta:
                 span._meta["network.client.ip"] = ip
                 span._meta["actor.ip"] = ip
@@ -463,7 +463,7 @@ def set_http_meta(
         _store_response_headers(dict(response_headers), span, integration_config)
 
     if retries_remain is not None:
-        span.set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
+        span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
         status_code = str(status_code) if status_code is not None else None
@@ -569,21 +569,21 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
     span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
-        span.set_str_tag(user.ID, user_id)
+        span.set_tag_str(user.ID, user_id)
         if propagate:
             span.context.dd_user_id = user_id
 
         # All other fields are optional
         if name:
-            span.set_str_tag(user.NAME, name)
+            span.set_tag_str(user.NAME, name)
         if email:
-            span.set_str_tag(user.EMAIL, email)
+            span.set_tag_str(user.EMAIL, email)
         if scope:
-            span.set_str_tag(user.SCOPE, scope)
+            span.set_tag_str(user.SCOPE, scope)
         if role:
-            span.set_str_tag(user.ROLE, role)
+            span.set_tag_str(user.ROLE, role)
         if session_id:
-            span.set_str_tag(user.SESSION_ID, session_id)
+            span.set_tag_str(user.SESSION_ID, session_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "

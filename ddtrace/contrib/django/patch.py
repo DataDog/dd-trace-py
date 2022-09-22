@@ -133,13 +133,13 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
         cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
-        span.set_str_tag("django.cache.backend", cache_backend)
+        span.set_tag_str("django.cache.backend", cache_backend)
 
         if args:
             # Key can be a list of strings, an individual string, or a dict
             # Quantize will ensure we have a space separated list of keys
             keys = utils.quantize_key_values(args[0])
-            span.set_str_tag("django.cache.key", keys)
+            span.set_tag_str("django.cache.key", keys)
 
         return func(*args, **kwargs)
 
@@ -361,10 +361,10 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
 
     with pin.tracer.trace("django.template.render", resource=resource, span_type=http.TEMPLATE) as span:
         if template_name:
-            span.set_str_tag("django.template.name", template_name)
+            span.set_tag_str("django.template.name", template_name)
         engine = getattr(instance, "engine", None)
         if engine:
-            span.set_str_tag("django.template.engine.class", func_name(engine))
+            span.set_tag_str("django.template.engine.class", func_name(engine))
 
         return wrapped(*args, **kwargs)
 
