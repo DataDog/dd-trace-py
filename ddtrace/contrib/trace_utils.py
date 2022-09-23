@@ -147,7 +147,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         if tag_name is None:
             continue
         # An empty tag defaults to a http.<request or response>.headers.<header name> tag
-        span.set_tag_str(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
+        span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
 def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
@@ -454,7 +454,7 @@ def set_http_meta(
 
         ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
         if ip:
-            span.set_tag_str(http.CLIENT_IP, ip)
+            span.set_tag(http.CLIENT_IP, ip)
             if span._meta:
                 span._meta["network.client.ip"] = ip
                 span._meta["actor.ip"] = ip
@@ -575,15 +575,15 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
 
         # All other fields are optional
         if name:
-            span.set_tag_str(user.NAME, name)
+            span.set_tag(user.NAME, name)
         if email:
-            span.set_tag_str(user.EMAIL, email)
+            span.set_tag(user.EMAIL, email)
         if scope:
-            span.set_tag_str(user.SCOPE, scope)
+            span.set_tag(user.SCOPE, scope)
         if role:
-            span.set_tag_str(user.ROLE, role)
+            span.set_tag(user.ROLE, role)
         if session_id:
-            span.set_tag_str(user.SESSION_ID, session_id)
+            span.set_tag(user.SESSION_ID, session_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "
