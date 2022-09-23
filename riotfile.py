@@ -476,7 +476,7 @@ venv = Venv(
             command="python -m pytest {cmdargs} tests/contrib/cherrypy",
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.10"),
                     pkgs={
                         "cherrypy": [
                             ">=11,<12",
@@ -560,6 +560,7 @@ venv = Venv(
         # 3.0     3.6, 3.7, 3.8
         # 3.1     3.6, 3.7, 3.8
         # 4.0     3.8, 3.9, 3.10
+        # 4.1     3.8, 3.9, 3.10, 3.11
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
         Venv(
             name="django",
@@ -593,16 +594,15 @@ venv = Venv(
                     pkgs={"django": [">=2.0,<2.1"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6"),
-                    pkgs={
-                        "django": [
-                            ">=2.1,<2.2",
-                            ">=2.2,<2.3",
-                        ],
-                    },
+                    pys=select_pys(min_version="3.6", max_version="3.7"),
+                    pkgs={"django": ">=2.1,<2.2"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    pys=select_pys(min_version="3.6", max_version="3.8"),
+                    pkgs={"django": ">=2.2,<2.3"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.8"),
                     pkgs={
                         "django": [
                             "~=3.0",
@@ -614,10 +614,20 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    pys=select_pys(min_version="3.8", max_version="3.10"),
                     pkgs={
                         "django": [
                             "~=4.0.0",
+                            latest,
+                        ],
+                        "channels": ["~=3.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
+                    pkgs={
+                        "django": [
+                            "~=4.1.0",
                             latest,
                         ],
                         "channels": ["~=3.0", latest],
@@ -1007,16 +1017,27 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest {cmdargs} tests/contrib/pynamodb",
-            pkgs={
-                "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
-            },
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": ">=1.0,<2.0"}),
                 Venv(
                     pys=["2.7"],
                     pkgs={
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
                         "moto": ">=1.0,<2.0",
                         "rsa": "<4.7.1",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.10"),
+                    pkgs={
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
+                        "moto": ">=1.0,<2.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "pynamodb": [">=4.1,<4.2", latest],
+                        "moto": ">=1.0,<2.0",
                     },
                 ),
             ],
@@ -1171,7 +1192,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/mariadb",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    pys=select_pys(min_version="3.6", max_version="3.10"),
                     pkgs={
                         "mariadb": [
                             "~=1.0.0",
@@ -1180,6 +1201,7 @@ venv = Venv(
                         ],
                     },
                 ),
+                Venv(pys=select_pys(min_version="3.11"), pkgs={"mariadb": [">=1.1.2", latest]}),
             ],
         ),
         Venv(
