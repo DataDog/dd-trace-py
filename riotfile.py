@@ -1947,7 +1947,7 @@ venv = Venv(
         ),
         Venv(
             name="aioredis",
-            pys=select_pys(min_version="3.6"),
+            pys=select_pys(min_version="3.6", max_version="3.10"),
             command="pytest {cmdargs} tests/contrib/aioredis",
             pkgs={
                 "pytest-asyncio": latest,
