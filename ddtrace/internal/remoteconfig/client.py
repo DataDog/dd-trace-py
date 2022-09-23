@@ -25,8 +25,10 @@ from ddtrace.internal.utils.time import parse_isoformat
 
 if TYPE_CHECKING:
     from typing import Callable
+    from typing import Dict
     from typing import MutableMapping
     from typing import Tuple
+    from typing import Union
 
     ProductCallback = Callable[[Optional["ConfigMetadata"], Optional[Mapping[str, Any]]], None]
 
@@ -130,6 +132,7 @@ class AgentPayload(object):
 
 
 def _load_json(data):
+    # type: (Union[str, bytes]) -> Dict[str, Any]
     if (3, 6) > sys.version_info > (3,) and isinstance(data, six.binary_type):
         data = str(data, encoding="utf-8")
     return json.loads(data)

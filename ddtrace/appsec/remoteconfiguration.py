@@ -19,9 +19,7 @@ def _rc_features_is_enabled():
 
 def appsec_enable_rc(tracer):
     if _rc_features_is_enabled():
-        if not hasattr(tracer, "_rc"):
-            tracer._rc = RemoteConfig()
-        tracer._rc.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
+        RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
 
 
 def appsec_rc_reload_features(tracer):
