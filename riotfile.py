@@ -987,10 +987,15 @@ venv = Venv(
                     pkgs={"psycopg2-binary": ["~=2.7.0", "~=2.8.0"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    pys=select_pys(min_version="3.6", max_version="3.10"),
                     # 2.7.x should also work, but it is from 2019
                     # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
                     pkgs={"psycopg2-binary": ["~=2.8.0", "~=2.9.0", latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
+                    pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
                 ),
             ],
         ),
