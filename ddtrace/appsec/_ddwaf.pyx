@@ -26,7 +26,6 @@ from _libddwaf cimport ddwaf_result
 from _libddwaf cimport ddwaf_result_free
 from _libddwaf cimport ddwaf_ruleset_info
 from _libddwaf cimport ddwaf_run
-from _libddwaf cimport ddwaf_version
 from cpython.bytes cimport PyBytes_AsString
 from cpython.bytes cimport PyBytes_Size
 from cpython.exc cimport PyErr_Clear
@@ -47,11 +46,8 @@ cdef extern from "Python.h":
 
 
 def version():
-    # type: () -> Tuple[int, int, int]
     """Get the version of libddwaf."""
-    cdef ddwaf_version version
-    ddwaf_get_version(&version)
-    return (version.major, version.minor, version.patch)
+    return ddwaf_get_version()
 
 
 cdef inline object _string_to_bytes(object string, const char **ptr, ssize_t *length):
@@ -299,6 +295,7 @@ cdef class DDWaf(object):
                 "key_regex": obfuscation_parameter_key_regexp,
                 "value_regex": obfuscation_parameter_value_regexp
             },
+            'free_fn': NULL,
         }
 
         self._rules = _Wrapper(rules, max_objects=None)
@@ -353,7 +350,7 @@ cdef class DDWaf(object):
         cdef ddwaf_context ctx
         cdef ddwaf_result result
 
-        ctx = ddwaf_context_init(self._handle, NULL)
+        ctx = ddwaf_context_init(self._handle)
         if <void *> ctx == NULL:
             raise RuntimeError
         try:
