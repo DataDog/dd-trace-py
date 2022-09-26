@@ -27,6 +27,7 @@ log = get_logger(__name__)
 
 
 def _get_interval_or_default():
+    # type: () -> float
     return float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", default=60))
 
 

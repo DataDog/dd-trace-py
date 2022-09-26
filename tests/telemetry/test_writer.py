@@ -194,7 +194,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     """asserts that we queue/send app-heartbeat when periodc() is called"""
 
     # Assert default hearbeat interval is 60 seconds
-    assert telemetry_writer._interval == 60
+    assert telemetry_writer.interval == 60
     # Assert next flush contains app-heartbeat event
     telemetry_writer.periodic()
     _assert_app_heartbeat_event(1, test_agent_session)

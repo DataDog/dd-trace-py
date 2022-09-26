@@ -123,7 +123,7 @@ telemetry_writer.disable()
 
 def test_heartbeat_interval_configuration(run_python_code_in_subprocess):
     """assert that DD_TELEMETRY_HEARTBEAT_INTERVAL config sets the telemetry writer interval"""
-    heartbeat_interval = "0.666"
+    heartbeat_interval = "1.5"
     env = os.environ.copy()
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = heartbeat_interval
     code = """
