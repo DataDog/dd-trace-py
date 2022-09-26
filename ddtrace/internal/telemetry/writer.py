@@ -119,7 +119,9 @@ class TelemetryWriter(PeriodicService):
         if integrations:
             self._app_integrations_changed_event(integrations)
 
-        self.app_heartbeat_event()
+        if not self._events_queue:
+            # Optimization: only queue heartbeat if no other events are queued
+            self.app_heartbeat_event()
 
         telemetry_requests = self._flush_events_queue()
 
@@ -215,10 +217,6 @@ class TelemetryWriter(PeriodicService):
             #   any forked processes won't be able to access the list of
             #   dependencies for this app, and therefore app-heartbeat won't
             #   add much value today.
-            return
-
-        if self._events_queue:
-            # Optimization: only queue heartbeat if no other events are queued
             return
 
         self.add_event({}, "app-heartbeat")

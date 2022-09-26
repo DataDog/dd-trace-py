@@ -210,8 +210,6 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
 
     # Assert a maximum of one heartbeat is queued per flush
     telemetry_writer.app_heartbeat_event()
-    telemetry_writer.app_heartbeat_event()
-    telemetry_writer.app_heartbeat_event()
     telemetry_writer.periodic()
     events = test_agent_session.get_events()
     assert len(events) == 1
