@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    ``Span._set_str_tag()`` is replaced by ``Span.set_tag_str()``.
