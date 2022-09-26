@@ -3,6 +3,7 @@ import subprocess
 import sys
 import tempfile
 
+import pytest
 import six
 
 import ddtrace
@@ -271,6 +272,7 @@ class DdtraceRunTest(BaseTestCase):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
             assert out.startswith(b"Test success")
 
+    @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Gevent 1.2.2 is not compatible with Python 3.11")
     def test_gevent_patch_all(self):
         with self.override_env(dict(DD_GEVENT_PATCH_ALL="true")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])

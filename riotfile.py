@@ -320,10 +320,21 @@ venv = Venv(
         Venv(
             name="ddtracerun",
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
-            pys=select_pys(),
-            pkgs={
-                "redis": latest,
-            },
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.10"),
+                    pkgs={
+                        "redis": latest,
+                        "gevent": latest,
+                    },
+                ),
+                Venv(
+                    pys="3.11",
+                    pkgs={
+                        "redis": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="debugger",
