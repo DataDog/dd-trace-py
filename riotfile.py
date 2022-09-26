@@ -323,7 +323,6 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "redis": latest,
-                "gevent": latest,
             },
         ),
         Venv(
