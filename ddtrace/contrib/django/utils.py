@@ -185,12 +185,13 @@ def _set_resolver_tags(pin, span, request):
             resolver_match = resolver.resolve(request.path_info)
         handler = func_name(resolver_match[0])
 
-        # Append url name in order to distinguish different routes of the same ViewSet
-        url_name = resolver_match.url_name
-        if url_name:
-            handler = ".".join([handler, url_name])
-
-        if config.django.use_handler_resource_format:
+        if config.django_use_handler_with_url_name_resource_format:
+            # Append url name in order to distinguish different routes of the same ViewSet
+            url_name = resolver_match.url_name
+            if url_name:
+                handler = ".".join([handler, url_name])
+            resource = " ".join((request.method, handler))
+        elif config.django.use_handler_resource_format:
             resource = " ".join((request.method, handler))
         elif config.django.use_legacy_resource_format:
             resource = handler
