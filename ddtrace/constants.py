@@ -34,7 +34,7 @@ APPSEC_WAF_DURATION_EXT = "_dd.appsec.waf.duration_ext"
 APPSEC_WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
 APPSEC_WAF_VERSION = "_dd.appsec.waf.version"
 
-RC_ENV = "DD_REMOTE_CONFIGURATION_ENABLED"
+APPSEC_RC_ENABLED_ENV = "DD_APPSEC_RC_ENABLED"
 
 MANUAL_DROP_KEY = "manual.drop"
 MANUAL_KEEP_KEY = "manual.keep"

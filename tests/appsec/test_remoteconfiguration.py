@@ -2,11 +2,11 @@ import os
 
 import pytest
 
-from ddtrace.appsec.remoteconfiguration import _rc_features_is_enabled
+from ddtrace.appsec.remoteconfiguration import _appsec_rc_features_is_enabled
 from ddtrace.appsec.remoteconfiguration import appsec_rc_reload_features
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import APPSEC_JSON
-from ddtrace.constants import RC_ENV
+from ddtrace.constants import APPSEC_RC_ENABLED_ENV
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from tests.utils import override_env
@@ -27,7 +27,7 @@ def _set_and_get_appsec_tags(tracer):
 def test_rc_disabled(tracer):
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
-    assert not _rc_features_is_enabled()
+    assert not _appsec_rc_features_is_enabled()
 
 
 def test_rc_activate_is_active_and_get_processor_tags(tracer):
@@ -53,11 +53,11 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer):
     ],
 )
 def test_rc_activation_states(tracer, appsec_enabled, rc_enabled, rc_value, expected):
-    with override_env({APPSEC_ENV: appsec_enabled, RC_ENV: rc_enabled}):
+    with override_env({APPSEC_ENV: appsec_enabled, APPSEC_RC_ENABLED_ENV: rc_enabled}):
         if appsec_enabled == "":
             del os.environ[APPSEC_ENV]
         if rc_enabled == "":
-            del os.environ[RC_ENV]
+            del os.environ[APPSEC_RC_ENABLED_ENV]
 
         appsec_rc_reload_features(tracer)(None, {"asm": {"enabled": rc_value}})
         result = _set_and_get_appsec_tags(tracer)

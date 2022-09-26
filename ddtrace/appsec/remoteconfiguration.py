@@ -1,7 +1,7 @@
 import os
 
 from ddtrace.constants import APPSEC_ENV
-from ddtrace.constants import RC_ENV
+from ddtrace.constants import APPSEC_RC_ENABLED_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
@@ -11,14 +11,14 @@ from ddtrace.internal.utils.formats import asbool
 log = get_logger(__name__)
 
 
-def _rc_features_is_enabled():
-    return asbool(os.environ.get(RC_ENV)) and (
+def _appsec_rc_features_is_enabled():
+    return asbool(os.environ.get(APPSEC_RC_ENABLED_ENV)) and (
         APPSEC_ENV not in os.environ or asbool(os.environ.get(APPSEC_ENV)) is True
     )
 
 
-def appsec_enable_rc(tracer):
-    if _rc_features_is_enabled():
+def enable_appsec_rc(tracer):
+    if _appsec_rc_features_is_enabled():
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
 
 
