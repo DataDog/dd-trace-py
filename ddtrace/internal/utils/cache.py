@@ -29,7 +29,7 @@ class LFUCache(dict):
         self.lock = RLock()
 
     def get(self, key, f):  # type: ignore[override]
-        # type: (T, F) -> S
+        # type: (T, Callable[[T], S]) -> S
         """Get a value from the cache.
 
         If the value with the given key is not in the cache, the expensive
@@ -69,7 +69,7 @@ def cached(maxsize=256):
         cache = LFUCache(maxsize)
 
         def cached_f(key):
-            # type: (T) -> S
+            # type: (Callable[[T], S]) -> S
             return cache.get(key, f)
 
         cached_f.invalidate = cache.clear  # type: ignore[attr-defined]
