@@ -17,6 +17,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
+from ddtrace.ext import user as _user
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
@@ -304,7 +305,7 @@ def _after_request_tags(pin, span, request, response):
                 uid = getattr(user, "pk", None)
                 if uid:
                     span._set_str_tag("django.user.id", str(uid))
-
+                    span._set_str_tag(_user.ID, str(uid))
                 if config.django.include_user_name:
                     username = getattr(user, "username", None)
                     if username:

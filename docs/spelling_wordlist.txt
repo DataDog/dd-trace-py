@@ -33,6 +33,7 @@ autodetected
 autopatching
 backend
 backends
+backport
 bdd
 bikeshedding
 booleans
@@ -93,6 +94,7 @@ initializer
 integration
 integrations
 ip
+iterable
 JSON
 jinja
 js
@@ -167,6 +169,7 @@ subdomains
 submodule
 submodules
 timestamp
+traceparent
 tweens
 uWSGI
 unbuffered

@@ -29,6 +29,13 @@ To have Django capture the tracer logs, ensure the ``LOGGING`` variable in
 
 Configuration
 ~~~~~~~~~~~~~
+
+.. important::
+
+    Note that the in-code configuration must be run before Django is instrumented. This means that in-code configuration
+    will not work with ``ddtrace-run`` and before a call to ``patch`` or ``patch_all``.
+
+
 .. py:data:: ddtrace.config.django['distributed_tracing_enabled']
 
    Whether or not to parse distributed tracing headers from requests received by your Django app.

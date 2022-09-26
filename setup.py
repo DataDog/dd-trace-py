@@ -160,7 +160,7 @@ if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
     debug_compile_args = []
-    ddwaf_libraries = ["ddwaf_static"]
+    ddwaf_libraries = ["ddwaf_static", "ws2_32"]
 else:
     linux = platform.system() == "Linux"
     encoding_libraries = []
@@ -258,7 +258,7 @@ setup(
         "pathlib2; python_version<'3.5'",
         "jsonschema",
         "xmltodict>=0.12",
-        "backport_ipaddress; python_version=='2.7'",
+        "ipaddress",
         "envier",
     ]
     + bytecode,
