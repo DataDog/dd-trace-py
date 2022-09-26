@@ -122,10 +122,10 @@ telemetry_writer.disable()
 
 
 def test_heartbeat_rate_configuration(run_python_code_in_subprocess):
-    """assert that DD_TELEMETRY_HEARTBEAT_RATE config sets the telemetry writer interval"""
+    """assert that DD_TELEMETRY_HEARTBEAT_INTERVAL config sets the telemetry writer interval"""
     heartbeat_rate = "0.666"
     env = os.environ.copy()
-    env["DD_TELEMETRY_HEARTBEAT_RATE"] = heartbeat_rate
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = heartbeat_rate
     code = """
 from ddtrace.internal.telemetry import telemetry_writer
 assert telemetry_writer.interval == {}
