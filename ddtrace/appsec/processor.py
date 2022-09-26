@@ -277,7 +277,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if info["errors"]:
                 span._set_str_tag(APPSEC_EVENT_RULE_ERRORS, json.dumps(info["errors"]))
             span._set_str_tag(APPSEC_EVENT_RULE_VERSION, info["version"])
-            span._set_str_tag(APPSEC_WAF_VERSION, "%s.%s.%s" % version())
+            span._set_str_tag(APPSEC_WAF_VERSION, version())
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info["loaded"])
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info["failed"])
