@@ -252,7 +252,7 @@ class _ProfilerInstance(service.Service):
             }
         )
 
-    def _start_service(self):  # type: ignore[override]
+    def _start_service(self):
         # type: (...) -> None
         """Start the profiler."""
         collectors = []
@@ -270,7 +270,7 @@ class _ProfilerInstance(service.Service):
         if self._scheduler is not None:
             self._scheduler.start()
 
-    def _stop_service(  # type: ignore[override]
+    def _stop_service(
         self, flush=True  # type: bool
     ):
         # type: (...) -> None
