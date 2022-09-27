@@ -160,7 +160,7 @@ if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
     debug_compile_args = []
-    ddwaf_libraries = ["ddwaf_static", "ws2_32"]
+    ddwaf_libraries = ["ddwaf_static"]
 else:
     linux = platform.system() == "Linux"
     encoding_libraries = []
