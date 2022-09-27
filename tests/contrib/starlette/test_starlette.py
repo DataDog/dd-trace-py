@@ -4,6 +4,7 @@ import sys
 import httpx
 import pytest
 import sqlalchemy
+import starlette
 from starlette.testclient import TestClient
 
 import ddtrace
@@ -19,6 +20,10 @@ from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_http_config
 from tests.utils import snapshot
+
+
+starlette_version_str = getattr(starlette, "__version__", "0.0.0")
+starlette_version = tuple([int(i) for i in starlette_version_str.split(".")])
 
 
 @pytest.fixture
@@ -435,6 +440,7 @@ def test_table_query_snapshot(snapshot_client):
     assert r_get.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
 
 
+@pytest.mark.skipif(starlette_version >= (0, 21, 0), reason="Starlette>=0.21.0 replaced requests with httpx in TestClient")
 @snapshot()
 def test_incorrect_patching(run_python_code_in_subprocess):
     """
@@ -450,6 +456,8 @@ from starlette.testclient import TestClient
 import sqlalchemy
 
 from ddtrace import patch_all
+
+
 from tests.contrib.starlette.app import get_app
 
 engine = sqlalchemy.create_engine("sqlite:///test.db")
@@ -457,8 +465,7 @@ app = get_app(engine)
 
 # Calling patch_all late
 # DEV: The test client uses `requests` so we want to ignore them for this scenario
-patch_all(requests=False)
-
+patch_all(requests=False, http=False)
 with TestClient(app) as test_client:
     r = test_client.get("/200")
 
