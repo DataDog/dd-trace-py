@@ -12,6 +12,7 @@ from ddtrace.internal.compat import PY2
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+from tests.utils import override_env
 
 
 def to_bytes(string):
@@ -122,10 +123,10 @@ def test_remote_configuration(mock_send_request):
             self.features = features
 
     callback = Callback()
-
-    mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
-    rc = RemoteConfig()
-    rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
-    sleep(3)
-    mock_send_request.assert_called_once()
-    assert callback.features == {"asm": {"enabled": True}}
+    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
+        mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
+        rc = RemoteConfig()
+        rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
+        sleep(0.2)
+        mock_send_request.assert_called_once()
+        assert callback.features == {"asm": {"enabled": True}}
