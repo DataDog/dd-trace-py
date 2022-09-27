@@ -15,21 +15,22 @@ cdef extern from "include/ddwaf.h" namespace "_ddwaf_config":
         const char *key_regex
         const char *value_regex
 
-cdef extern from "include/ddwaf.h" namespace "_ddwaf_result":
-    ctypedef struct _ddwaf_result_actions:
-        char **array
-        uint32_t size
 
 cdef extern from "include/ddwaf.h":
-    ctypedef void (*ddwaf_object_free_fn)(ddwaf_object *object);
+    ctypedef struct ddwaf_version:
+        uint16_t major
+        uint16_t minor
+        uint16_t patch
+
+    void ddwaf_get_version(ddwaf_version *version)
+
     ctypedef enum DDWAF_OBJ_TYPE:
-        DDWAF_OBJ_INVALID
-        DDWAF_OBJ_SIGNED
-        DDWAF_OBJ_UNSIGNED
-        DDWAF_OBJ_STRING
         DDWAF_OBJ_ARRAY
         DDWAF_OBJ_MAP
-        DDWAF_OBJ_BOOL
+        DDWAF_OBJ_STRING
+        DDWAF_OBJ_SIGNED
+        DDWAF_OBJ_UNSIGNED
+        DDWAF_OBJ_INVALID
 
     ctypedef struct ddwaf_object:
         const char* parameterName
@@ -41,12 +42,6 @@ cdef extern from "include/ddwaf.h":
         uint64_t nbEntries
         DDWAF_OBJ_TYPE type
 
-    ctypedef struct ddwaf_result:
-        bool timeout
-        const char* data
-        _ddwaf_result_actions actions
-        uint64_t total_runtime
-
     ctypedef struct ddwaf_ruleset_info:
         uint16_t loaded
         uint16_t failed
@@ -56,7 +51,6 @@ cdef extern from "include/ddwaf.h":
     ctypedef struct ddwaf_config:
         _ddwaf_config_limits limits
         _ddwaf_config_obfuscator obfuscator
-        ddwaf_object_free_fn free_fn
 
     ctypedef struct ddwaf_handle:
         pass
@@ -67,9 +61,15 @@ cdef extern from "include/ddwaf.h":
     ctypedef enum DDWAF_RET_CODE:
         pass
 
-    char* ddwaf_get_version();
+    ctypedef struct ddwaf_result:
+        DDWAF_RET_CODE action
+        uint64_t total_runtime
+        const char* data
+
+    ctypedef void (*ddwaf_object_free_fn)(ddwaf_object *object);
+
     ddwaf_handle ddwaf_init(const ddwaf_object* rules, const ddwaf_config* config, ddwaf_ruleset_info *info);
-    ddwaf_context ddwaf_context_init(const ddwaf_handle handle);
+    ddwaf_context ddwaf_context_init(const ddwaf_handle handle, ddwaf_object_free_fn obj_free);
     DDWAF_RET_CODE ddwaf_run(ddwaf_context context, ddwaf_object* data, ddwaf_result* result, uint64_t timeout);
     void ddwaf_context_destroy(ddwaf_context context);
     void ddwaf_result_free(ddwaf_result* result);
