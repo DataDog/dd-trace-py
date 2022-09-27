@@ -41,7 +41,7 @@ Support levels
 
        .. _versioning_support_maintenace:
    * - Maintenance
-     - Does not receive new features. Support for critical bug fixes and security fixes only. Applicable bug and security fixes are backport to the latest minor release branch.
+     - Does not receive new features. Support for critical bug fixes and security fixes only. Applicable bug and security fixes are backported to the latest minor release branch.
    * - End-of-life
      - No support.
 
