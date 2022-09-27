@@ -77,5 +77,9 @@ def _create_capture_sampler(collector):
 
 @attr.s
 class CaptureSamplerCollector(Collector):
+<<<<<<< HEAD
     capture_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_CAPTURE_PCT", 2.0, float))
+=======
+    capture_pct = attr.ib(factory=attr_utils.from_env("DD_PROFILING_CAPTURE_PCT", 1.0, float))  # type: ignore[arg-type]
+>>>>>>> 5140de46 (fix(typing): update types to be compatible with latest mypy (#4234))
     _capture_sampler = attr.ib(default=attr.Factory(_create_capture_sampler, takes_self=True), init=False, repr=False)
