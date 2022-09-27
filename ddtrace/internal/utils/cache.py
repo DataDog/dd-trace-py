@@ -28,7 +28,7 @@ class LFUCache(dict):
         self.lock = RLock()
 
     def get(self, key, f):  # type: ignore[override]
-        # type: (T, Callable[[T], Any]) -> Any
+        # type: (T, F) -> Any
         """Get a value from the cache.
 
         If the value with the given key is not in the cache, the expensive
