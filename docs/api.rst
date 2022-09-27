@@ -39,3 +39,10 @@ Runtime Metrics
 
 .. autoclass:: ddtrace.runtime.RuntimeMetrics
     :members:
+
+
+Dynamic Instrumentation
+=======================
+
+.. automodule:: ddtrace.debugging
+    :members:
