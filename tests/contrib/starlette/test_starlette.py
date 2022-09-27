@@ -440,7 +440,9 @@ def test_table_query_snapshot(snapshot_client):
     assert r_get.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
 
 
-@pytest.mark.skipif(starlette_version >= (0, 21, 0), reason="Starlette>=0.21.0 replaced requests with httpx in TestClient")
+@pytest.mark.skipif(
+    starlette_version >= (0, 21, 0), reason="Starlette>=0.21.0 replaced requests with httpx in TestClient"
+)
 @snapshot()
 def test_incorrect_patching(run_python_code_in_subprocess):
     """
