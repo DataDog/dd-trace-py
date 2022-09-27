@@ -20,7 +20,9 @@ class Scheduler(periodic.PeriodicService):
     recorder = attr.ib()
     exporters = attr.ib()
     before_flush = attr.ib(default=None, eq=False)
-    _interval = attr.ib(factory=attr_utils.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60.0, float))
+    _interval = attr.ib(
+        factory=attr_utils.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60.0, float)  # type: ignore[arg-type]
+    )
     _configured_interval = attr.ib(init=False)
     _last_export = attr.ib(init=False, default=None, eq=False)
 
@@ -28,7 +30,7 @@ class Scheduler(periodic.PeriodicService):
         # Copy the value to use it later since we're going to adjust the real interval
         self._configured_interval = self.interval
 
-    def _start_service(self):  # type: ignore[override]
+    def _start_service(self):
         # type: (...) -> None
         """Start the scheduler."""
         LOG.debug("Starting scheduler")
