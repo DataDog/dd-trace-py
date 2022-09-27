@@ -596,14 +596,14 @@ class Debugger(Service):
         else:
             raise ValueError("Unknown probe poller event %r" % event)
 
-    def _stop_service(self):  # type: ignore[override]
+    def _stop_service(self):
         # type: () -> None
         self._function_store.restore_all()
         for service in self._services:
             service.stop()
             service.join()
 
-    def _start_service(self):  # type: ignore[override]
+    def _start_service(self):
         # type: () -> None
         for service in self._services:
             service.start()
