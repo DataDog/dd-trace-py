@@ -128,5 +128,4 @@ def test_remote_configuration(mock_send_request):
     rc.register(ASM_FEATURES_PRODUCT, callback._reload_features)
     sleep(3)
     mock_send_request.assert_called_once()
-    print(callback.features)
     assert callback.features == {"asm": {"enabled": True}}
