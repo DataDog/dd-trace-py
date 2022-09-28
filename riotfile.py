@@ -343,8 +343,7 @@ venv = Venv(
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
-                    pys=select_pys(min_version="3.5", max_version="3.10"),
-                    # depends on bytecode module, which doesn't yet support Python 3.11
+                    pys=select_pys(min_version="3.5"),
                     pkgs={"pytest-asyncio": latest},
                 ),
             ],
@@ -1998,7 +1997,8 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    # asyncpg does not yet support Python 3.11
+                    pys=["3.10"],
                     pkgs={
                         "asyncpg": [
                             "~=0.24.0",
