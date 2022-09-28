@@ -65,3 +65,57 @@ assert config.http_tag_query_string == %s
         env=env,
     )
     assert b"AssertionError" not in out
+
+
+@pytest.mark.parametrize(
+    "server_tag_query_string,client_tag_query_string,"
+    "django_expected_http_tag_query_string,requests_expected_http_tag_query_string",
+    [
+        ("True", "true", True, True),
+        (None, None, True, True),
+        ("", None, True, True),
+        (None, "", True, True),
+        ("invalid", None, True, True),
+        (None, "invalid", True, True),
+        ("1", None, True, True),
+        ("True", None, True, True),
+        ("0", None, False, True),
+        ("False", None, False, True),
+        (None, "0", True, False),
+        (None, "FALSE", True, False),
+    ],
+)
+def test_tag_querystring_env_var(
+    server_tag_query_string,
+    client_tag_query_string,
+    django_expected_http_tag_query_string,
+    requests_expected_http_tag_query_string,
+):
+    """
+    Test that query string tagging config is properly configured from env vars
+    """
+    env = os.environ.copy()
+    if server_tag_query_string is not None:
+        env["DD_HTTP_SERVER_TAG_QUERY_STRING"] = server_tag_query_string
+    if client_tag_query_string is not None:
+        env["DD_HTTP_CLIENT_TAG_QUERY_STRING"] = client_tag_query_string
+    out = subprocess.check_output(
+        [
+            "python",
+            "-c",
+            (
+                """from ddtrace import config;
+from ddtrace.contrib.django import patch;
+from ddtrace.contrib.requests import patch;
+assert config.django.http_tag_query_string == %s;
+assert config.requests.http_tag_query_string == %s
+"""
+                % (
+                    django_expected_http_tag_query_string,
+                    requests_expected_http_tag_query_string,
+                )
+            ),
+        ],
+        env=env,
+    )
+    assert b"AssertionError" not in out
