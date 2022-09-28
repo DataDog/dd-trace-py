@@ -242,7 +242,7 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "msgpack": latest,
-                        "attrs": ["==19.2.0", latest],
+                        "attrs": ">=21.4.0",
                         "packaging": ["==17.1", latest],
                         "structlog": latest,
                         # httpretty v1.0 drops python 2.7 support

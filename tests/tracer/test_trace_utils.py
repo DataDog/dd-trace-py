@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from ipaddress import ip_network
 import sys
 
 from hypothesis import given
@@ -21,6 +22,7 @@ from ddtrace.context import Context
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import http
 from ddtrace.internal import _context
+from ddtrace.internal.compat import six
 from ddtrace.internal.compat import stringify
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
@@ -568,6 +570,16 @@ def test_set_http_meta_headers_ip(
             assert result_keys == expected_keys
             assert span.get_tag(http.CLIENT_IP) == expected
             mock_store_headers.assert_called()
+
+
+def test_ip_subnet_regression():
+    del_ip = "1.2.3.4/32"
+    req_ip = "10.2.3.4"
+
+    del_ip = six.ensure_text(del_ip)
+    req_ip = six.ensure_text(req_ip)
+
+    assert not ip_network(req_ip).subnet_of(ip_network(del_ip))
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Python2 tests")
