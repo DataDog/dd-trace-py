@@ -420,12 +420,12 @@ def set_http_meta(
         span._set_str_tag(http.METHOD, method)
 
     if url is not None:
-        if integration_config.http_tag_query_string:
-            if config.global_query_string_obfuscation_disabled:
+        if integration_config.http_tag_query_string:  # Tagging query string in http.url
+            if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
                 span._set_str_tag(http.URL, url)
-            else:
+            else:  # Redact query strings
                 span._set_str_tag(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
-        else:
+        else:  # Not tagging query string in http.url
             span._set_str_tag(http.URL, strip_query_string(url))
 
     if status_code is not None:
