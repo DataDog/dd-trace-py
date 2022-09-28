@@ -104,9 +104,15 @@ def test_tag_querystring_env_var(
             "python",
             "-c",
             (
-                """from ddtrace import config;
-from ddtrace.contrib.django import patch;
-from ddtrace.contrib.requests import patch;
+                """
+import os;
+from ddtrace import config;
+config._add(
+    "requests",
+    {
+        "default_http_tag_query_string": os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
+    },
+);
 assert config.django.http_tag_query_string == %s;
 assert config.requests.http_tag_query_string == %s
 """
