@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    tracing: fix error when using ``sqlite3`` ``backup`` method.
+    sqlite3: fix error when using ``connection.backup`` method.
