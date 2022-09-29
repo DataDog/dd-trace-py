@@ -61,7 +61,7 @@ def _future_done_callback(span):
             response_code = response.code()
             # cast code to unicode for tags
             status_code = to_unicode(response_code)
-            span._set_str_tag(constants.GRPC_STATUS_CODE_KEY, status_code)
+            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, status_code)
 
             if response_code != grpc.StatusCode.OK:
                 _handle_error(span, response, status_code)
@@ -94,8 +94,8 @@ def _handle_error(span, response_error, status_code):
         # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
         span.error = 1
         exc_val = to_unicode(response_error.details())
-        span._set_str_tag(ERROR_MSG, exc_val)
-        span._set_str_tag(ERROR_TYPE, status_code)
+        span.set_tag_str(ERROR_MSG, exc_val)
+        span.set_tag_str(ERROR_TYPE, status_code)
         return
 
     exception = response_error.exception()
@@ -107,9 +107,9 @@ def _handle_error(span, response_error, status_code):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
             exc_val = to_unicode(response_error.details())
-            span._set_str_tag(ERROR_MSG, exc_val)
-            span._set_str_tag(ERROR_TYPE, status_code)
-            span._set_str_tag(ERROR_STACK, stringify(traceback))
+            span.set_tag_str(ERROR_MSG, exc_val)
+            span.set_tag_str(ERROR_TYPE, status_code)
+            span.set_tag_str(ERROR_STACK, stringify(traceback))
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)
@@ -183,7 +183,7 @@ class _ClientInterceptor(
 
         utils.set_grpc_method_meta(span, client_call_details.method, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)
-        span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
+        span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
         sample_rate = config.grpc.get_analytics_sample_rate()
         if sample_rate is not None:
