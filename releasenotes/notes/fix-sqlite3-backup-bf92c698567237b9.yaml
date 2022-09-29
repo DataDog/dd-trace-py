@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: fix error when using ``sqlite3`` ``backup`` method.
