@@ -2,8 +2,8 @@ import os
 
 import pytest
 
-from ddtrace.appsec.remoteconfiguration import _appsec_rc_features_is_enabled
-from ddtrace.appsec.remoteconfiguration import appsec_rc_reload_features
+from ddtrace.appsec._remoteconfiguration import _appsec_rc_features_is_enabled
+from ddtrace.appsec._remoteconfiguration import appsec_rc_reload_features
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import APPSEC_RC_ENABLED_ENV
