@@ -1833,9 +1833,9 @@ venv = Venv(
                         "sanic": [
                             "~=21.9.0",
                             "~=21.12.0",
-                            latest,
+                            "==22.6.2",
                         ],
-                        "sanic-testing": latest,
+                        "sanic-testing": ["<=22.6.0"],
                     },
                 ),
             ],
