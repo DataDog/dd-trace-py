@@ -1567,7 +1567,7 @@ def test_django_use_handler_with_url_name_resource_format(client, test_spans):
     """
     Test that the specified format is used over the default.
     """
-    with override_config("django", dict(use_handler_resource_format=True)):
+    with override_config("django", dict(use_handler_with_url_name_resource_format=True)):
         resp = client.get("/fail-view/")
         assert resp.status_code == 403
 
