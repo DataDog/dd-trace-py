@@ -1,4 +1,7 @@
 ---
 feature:
   - |
-    ``Span._set_str_tag()`` is replaced by ``Span.set_tag_str()``.
+    Add ``Span.set_tag_str()`` as an alternative to the overloaded functionality of ``Span.set_tag()` when the value can be coerced to unicode text. 
+upgrade: 
+  - |
+    Use ``Span.set_tag_str()`` instead of ``Span.set_tag()`` when the tag value is a text type as a performance optimizations in manual instrumentation.
