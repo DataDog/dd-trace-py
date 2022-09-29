@@ -16,6 +16,7 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
+from ddtrace.appsec.remoteconfiguration import enable_appsec_rc
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
@@ -229,6 +230,7 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
         )
+        enable_appsec_rc(self)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -332,6 +334,7 @@ class Tracer(object):
         partial_flush_min_spans=None,  # type: Optional[int]
         api_version=None,  # type: Optional[str]
         compute_stats_enabled=None,  # type: Optional[bool]
+        appsec_enabled=None,  # type: Optional[bool]
     ):
         # type: (...) -> None
         """Configure a Tracer.
@@ -363,6 +366,9 @@ class Tracer(object):
 
         if partial_flush_min_spans is not None:
             self._partial_flush_min_spans = partial_flush_min_spans
+
+        if appsec_enabled is not None:
+            self._appsec_enabled = config._appsec_enabled = appsec_enabled
 
         # If priority sampling is not set or is True and no priority sampler is set yet
         if priority_sampling in (None, True) and not self._priority_sampler:
@@ -442,6 +448,7 @@ class Tracer(object):
                 sampler,
                 settings.get("FILTERS") if settings is not None else None,
                 compute_stats_enabled,
+                appsec_enabled,
             ]
         ):
             self._span_processors = _default_span_processors_factory(
@@ -498,6 +505,8 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
         )
+        enable_appsec_rc(self)
+
         self._new_process = True
 
     def _start_span_after_shutdown(
