@@ -16,7 +16,7 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
-from ddtrace.appsec.remoteconfiguration import enable_appsec_rc
+from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
