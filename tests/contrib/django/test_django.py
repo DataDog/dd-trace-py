@@ -1562,6 +1562,7 @@ def test_django_use_handler_resource_format(client, test_spans):
 
         root.assert_matches(resource=resource, parent_id=None, span_type="web")
 
+
 def test_django_use_handler_with_url_name_resource_format(client, test_spans):
     """
     Test that the specified format is used over the default.
