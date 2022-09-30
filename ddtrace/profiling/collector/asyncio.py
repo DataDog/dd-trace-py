@@ -29,7 +29,7 @@ class AsyncioLockCollector(_lock.LockCollector):
 
     PROFILED_LOCK_CLASS = _ProfiledAsyncioLock
 
-    def _start_service(self):  # type: ignore[override]
+    def _start_service(self):
         # type: (...) -> None
         """Start collecting lock usage."""
         try:

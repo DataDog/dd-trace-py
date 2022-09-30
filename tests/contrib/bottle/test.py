@@ -68,11 +68,14 @@ class TraceBottleTest(TracerTestCase):
         assert_span_http_status_code(s, 200)
         assert s.get_tag("http.method") == "GET"
         if ddtrace.config.bottle.trace_query_string:
-            assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie" + fqs
             assert s.get_tag(http.QUERY_STRING) == query_string
         else:
-            assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie"
             assert http.QUERY_STRING not in s.get_tags()
+
+        if ddtrace.config.bottle.http_tag_query_string:
+            assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie" + fqs
+        else:
+            assert s.get_tag(http.URL) == "http://localhost:80/hi/dougie"
 
     def test_query_string(self):
         return self.test_200("foo=bar")
@@ -82,6 +85,10 @@ class TraceBottleTest(TracerTestCase):
 
     def test_query_string_trace(self):
         with self.override_http_config("bottle", dict(trace_query_string=True)):
+            return self.test_200("foo=bar")
+
+    def test_disabled_http_tag_query_string(self):
+        with self.override_config("bottle", dict(http_tag_query_string=False)):
             return self.test_200("foo=bar")
 
     def test_query_string_multi_keys_trace(self):

@@ -332,11 +332,11 @@ def patched_api_call(original_func, instance, args, kwargs):
 
         region_name = deep_getattr(instance, "meta.region_name")
 
-        span._set_str_tag("aws.agent", "botocore")
+        span.set_tag_str("aws.agent", "botocore")
         if operation is not None:
-            span._set_str_tag("aws.operation", operation)
+            span.set_tag_str("aws.operation", operation)
         if region_name is not None:
-            span._set_str_tag("aws.region", region_name)
+            span.set_tag_str("aws.region", region_name)
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.botocore.get_analytics_sample_rate())
