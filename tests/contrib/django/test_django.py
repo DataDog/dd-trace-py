@@ -1574,7 +1574,7 @@ def test_django_use_handler_with_url_name_resource_format(client, test_spans):
         # Assert the structure of the root `django.request` span
         root = test_spans.get_root_span()
         resource = "GET tests.contrib.django.views.ForbiddenView.forbidden-view"
-        if django.VERSION >= (2, 0, 0):
+        if django.VERSION >= (2, 2, 0):
             resource = "GET ^fail-view/$"
 
         root.assert_matches(resource=resource, parent_id=None, span_type="web")
