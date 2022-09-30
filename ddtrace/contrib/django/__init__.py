@@ -147,7 +147,7 @@ Configuration
    variable.
 
    This configuration applies only for Django <= 2.2.0.
-   
+
    Default: ``False``
 
 .. py:data:: ddtrace.config.django['use_legacy_resource_format']
