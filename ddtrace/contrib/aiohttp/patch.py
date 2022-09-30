@@ -33,6 +33,7 @@ config._add(
     "aiohttp_client",
     dict(
         distributed_tracing=asbool(os.getenv("DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING", True)),
+        default_http_tag_query_string=os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
     ),
 )
 

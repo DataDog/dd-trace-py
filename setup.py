@@ -160,7 +160,7 @@ if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
     debug_compile_args = []
-    ddwaf_libraries = ["ddwaf_static", "ws2_32"]
+    ddwaf_libraries = ["ddwaf_static"]
 else:
     linux = platform.system() == "Linux"
     encoding_libraries = []
@@ -250,7 +250,7 @@ setup(
         "protobuf>=3,<4.0; python_version=='3.6'",
         "protobuf>=3,<3.18; python_version<'3.6'",
         "tenacity>=5",
-        "attrs>=19.2.0",
+        "attrs>=20",
         "cattrs",
         "six>=1.12.0",
         "typing_extensions",

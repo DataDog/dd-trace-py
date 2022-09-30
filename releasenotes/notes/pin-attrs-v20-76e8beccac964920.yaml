@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    Pin [attrs](https://pypi.org/project/attrs/) dependency to version ``>=20`` due to incompatibility with 
+    [cattrs](https://pypi.org/project/cattrs/) version ``22.1.0``.
