@@ -352,6 +352,18 @@ below:
      - ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
      - Sensitive parameter value regexp for obfuscation.
 
+       .. _dd-http-client-tag-query-string:
+   * - ``DD_HTTP_CLIENT_TAG_QUERY_STRING``
+     - Boolean
+     - True
+     - Send query strings in http.url tag in http client integrations.
+
+       .. _dd-http-server-tag-query-string:
+   * - ``DD_HTTP_SERVER_TAG_QUERY_STRING``
+     - Boolean
+     - True
+     - Send query strings in http.url tag in http server integrations.
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 

@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
@@ -223,21 +224,23 @@ class Config(object):
         self._trace_compute_stats = asbool(
             os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
         )
-        self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", False))
+        self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
 
         dd_trace_obfuscation_query_string_pattern = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT
         )
-        self.global_trace_query_string_disabled = False
+        self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
         self._obfuscation_query_string_pattern = None
+        self.http_tag_query_string = True  # Default behaviour of query string tagging in http.url
         if dd_trace_obfuscation_query_string_pattern != "":
+            self.global_query_string_obfuscation_disabled = False  # Not empty obfuscation pattern
             try:
                 self._obfuscation_query_string_pattern = re.compile(
                     dd_trace_obfuscation_query_string_pattern.encode("ascii")
                 )
             except Exception:
                 log.warning("Invalid obfuscation pattern, disabling query string tracing")
-                self.global_trace_query_string_disabled = True
+                self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
     def __getattr__(self, name):
         if name not in self._config:

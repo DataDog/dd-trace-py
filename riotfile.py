@@ -242,7 +242,7 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "msgpack": latest,
-                        "attrs": ["==19.2.0", latest],
+                        "attrs": ["==20.1.0", latest],
                         "packaging": ["==17.1", latest],
                         "structlog": latest,
                         # httpretty v1.0 drops python 2.7 support
@@ -1833,9 +1833,9 @@ venv = Venv(
                         "sanic": [
                             "~=21.9.0",
                             "~=21.12.0",
-                            latest,
+                            "==22.6.2",
                         ],
-                        "sanic-testing": latest,
+                        "sanic-testing": ["<=22.6.0"],
                     },
                 ),
             ],

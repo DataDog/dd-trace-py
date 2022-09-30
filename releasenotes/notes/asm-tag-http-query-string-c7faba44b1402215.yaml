@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    HTTP query string tagged by default in http.url (sensitive query strings obfuscated).
