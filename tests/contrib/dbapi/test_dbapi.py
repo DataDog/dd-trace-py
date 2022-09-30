@@ -6,6 +6,7 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
+from ddtrace.settings import Config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.span import Span
 from tests.utils import TracerTestCase
@@ -160,7 +161,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin(None, tracer=tracer, tags={"pin1": "value_pin1"})
-        cfg = IntegrationConfig(None, "db-test", service="cfg-service")
+        cfg = IntegrationConfig(Config(), "db-test", service="cfg-service")
         traced_cursor = TracedCursor(cursor, pin, cfg)
 
         def method():
@@ -190,7 +191,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin(None, tracer=tracer, tags={"pin1": "value_pin1"})
-        cfg = IntegrationConfig(None, "db-test", _default_service="default-svc")
+        cfg = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
         traced_cursor = TracedCursor(cursor, pin, cfg)
 
         def method():
@@ -205,7 +206,7 @@ class TestTracedCursor(TracerTestCase):
         tracer = self.tracer
         cursor.rowcount = 123
         pin = Pin("pin-svc", tracer=tracer, tags={"pin1": "value_pin1"})
-        cfg = IntegrationConfig(None, "db-test", _default_service="default-svc")
+        cfg = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
         traced_cursor = TracedCursor(cursor, pin, cfg)
 
         def method():
@@ -223,7 +224,7 @@ class TestTracedCursor(TracerTestCase):
         # set by the legacy replaced implementation.
         cursor.rowcount = 123
         pin = Pin("my_service", tracer=tracer, tags={"pin1": "value_pin1"})
-        cfg = IntegrationConfig(None, "db-test")
+        cfg = IntegrationConfig(Config(), "db-test")
         traced_cursor = TracedCursor(cursor, pin, cfg)
 
         def method():
@@ -253,7 +254,7 @@ class TestFetchTracedCursor(TracerTestCase):
     def setUp(self):
         super(TestFetchTracedCursor, self).setUp()
         self.cursor = mock.Mock()
-        self.config = IntegrationConfig(None, "db-test", _default_service="default-svc")
+        self.config = IntegrationConfig(Config(), "db-test", _default_service="default-svc")
 
     def test_execute_wrapped_is_called_and_returned(self):
         cursor = self.cursor

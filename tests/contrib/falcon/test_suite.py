@@ -81,7 +81,7 @@ class FalconTestCase(FalconTestMixin):
         assert span.service == self._service
         assert span.resource == "GET tests.contrib.falcon.app.resources.Resource200"
         assert_span_http_status_code(span, 200)
-        fqs = ("?" + query_string) if query_string and trace_query_string else ""
+        fqs = ("?" + query_string) if query_string else ""
         assert span.get_tag(httpx.URL) == "http://falconframework.org/200" + fqs
         if config.falcon.trace_query_string:
             assert span.get_tag(httpx.QUERY_STRING) == query_string

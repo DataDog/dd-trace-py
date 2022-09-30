@@ -71,7 +71,7 @@ async def test_param_handler(app_tracer, aiohttp_client, loop, query_string, tra
     span = traces[0][0]
     # with the right fields
     assert "GET /echo/{name}" == span.resource
-    assert str(client.make_url("/echo/team")) == span.get_tag(http.URL)
+    assert str(client.make_url("/echo/team" + fqs)) == span.get_tag(http.URL)
     assert_span_http_status_code(span, 200)
     if app[CONFIG_KEY].get("trace_query_string"):
         assert query_string == span.get_tag(http.QUERY_STRING)
