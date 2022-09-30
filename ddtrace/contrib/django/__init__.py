@@ -146,9 +146,8 @@ Configuration
    enabled with the ``DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT`` environment
    variable.
 
-   The default resource format for:
-   * Django >= 2.2.0 : `"{method} {urlpattern}"`.
-   * Django <2.2.0 : `"{method} {handler}"`
+   This configuration applies only for Django <= 2.2.0.
+   
    Default: ``False``
 
 .. py:data:: ddtrace.config.django['use_legacy_resource_format']
