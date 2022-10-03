@@ -40,7 +40,7 @@ def patch_gevent_hub_reinit(module):
     wrap(module.reinit, wrapped_reinit)
 
 
-if asbool(os.getenv("DD_TRACE_GEVENT_HUB_PATCHED", default=False)):
+if asbool(os.getenv("_DD_TRACE_GEVENT_HUB_PATCHED", default=False)):
     ModuleWatchdog.register_module_hook("gevent.hub", patch_gevent_hub_reinit)
 
 

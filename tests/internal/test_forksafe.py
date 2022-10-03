@@ -291,7 +291,7 @@ def test_double_fork():
 @pytest.mark.subprocess(
     out="" if (3,) < sys.version_info < (3, 7) else ("CTCTCT" if sys.platform == "darwin" else "CCCTTT"),
     err=None,
-    env=dict(DD_TRACE_GEVENT_HUB_PATCHED="true"),
+    env=dict(_DD_TRACE_GEVENT_HUB_PATCHED="true"),
 )
 def test_gevent_reinit_patch():
     import os
