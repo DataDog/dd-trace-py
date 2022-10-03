@@ -8,6 +8,7 @@ import typing
 import weakref
 
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor import wrapt
 
 
@@ -39,7 +40,8 @@ def patch_gevent_hub_reinit(module):
     wrap(module.reinit, wrapped_reinit)
 
 
-ModuleWatchdog.register_module_hook("gevent.hub", patch_gevent_hub_reinit)
+if asbool(os.getenv("DD_TRACE_GEVENT_HUB_PATCHED", default=False)):
+    ModuleWatchdog.register_module_hook("gevent.hub", patch_gevent_hub_reinit)
 
 
 def ddtrace_after_in_child():
