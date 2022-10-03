@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    gevent: revert performance regression introduced in v1.5.0
