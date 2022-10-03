@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    gevent: disable gevent after fork hook which could result in a performance regression.
