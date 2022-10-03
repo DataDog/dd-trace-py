@@ -183,7 +183,7 @@ class FunctionWrapper(wrapt.FunctionWrapper):
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))  # type: ignore[arg-type]
+    nframes = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     endpoint_collection_enabled = attr.ib(
         factory=attr_utils.from_env("DD_PROFILING_ENDPOINT_COLLECTION_ENABLED", True, formats.asbool)
     )
