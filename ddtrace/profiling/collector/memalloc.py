@@ -92,10 +92,10 @@ class MemoryCollector(collector.PeriodicCollector):
         factory=attr_utils.from_env(
             "_DD_PROFILING_MEMORY_EVENTS_BUFFER",
             _DEFAULT_MAX_EVENTS,
-            int,  # type: ignore[arg-type]
+            int,
         )
     )
-    max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))  # type: ignore[arg-type]
+    max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     heap_sample_size = attr.ib(type=int, factory=_get_default_heap_sample_size)
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
 
