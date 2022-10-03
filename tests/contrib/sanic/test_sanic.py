@@ -157,6 +157,8 @@ else:
         dict(analytics_enabled=True, analytics_sample_rate=0.5),
         dict(analytics_enabled=False, analytics_sample_rate=0.5),
         dict(distributed_tracing=False),
+        dict(http_tag_query_string=True),
+        dict(http_tag_query_string=False),
     ],
     ids=[
         "default",
@@ -166,6 +168,8 @@ else:
         "enable_analytics_custom_sample_rate",
         "disable_analytics_custom_sample_rate",
         "disable_distributed_tracing",
+        "http_tag_query_string_enabled",
+        "http_tag_query_string_disabled",
     ],
 )
 def integration_config(request):
@@ -221,11 +225,15 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
         assert request_span.service == "sanic"
 
     if integration_http_config.get("trace_query_string"):
-        assert re.search(r"/hello\?foo\=bar$", request_span.get_tag("http.url"))
         assert request_span.get_tag("http.query.string") == "foo=bar"
     else:
-        assert re.search("/hello$", request_span.get_tag("http.url"))
         assert request_span.get_tag("http.query.string") is None
+
+    if integration_config.get("http_tag_query_string_enabled"):
+        assert re.search(r"/hello\?foo\=bar$", request_span.get_tag("http.url"))
+
+    if integration_config.get("http_tag_query_string_disabled"):
+        assert re.search(r"/hello$", request_span.get_tag("http.url"))
 
     if integration_config.get("analytics_enabled"):
         analytics_sample_rate = integration_config.get("analytics_sample_rate") or 1.0

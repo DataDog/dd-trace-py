@@ -816,7 +816,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
     FULL_URL = "http://example.com/search?q=test+query#frag?ment"
     STRIPPED_URL = "http://example.com/search#frag?ment"
 
-    int_config.trace_query_string = False
+    int_config.http_tag_query_string = False
     trace_utils.set_http_meta(
         span,
         int_config,
@@ -826,7 +826,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
     )
     assert span.get_tag(http.URL) == STRIPPED_URL
 
-    int_config.trace_query_string = True
+    int_config.http_tag_query_string = True
     trace_utils.set_http_meta(
         span,
         int_config,
@@ -837,12 +837,42 @@ def test_sanitized_url_in_http_meta(span, int_config):
     assert span.get_tag(http.URL) == FULL_URL
 
 
-def test_stripped_url_in_http_meta_if_trace_query_string_disabled_globally(span, int_config):
+def test_url_in_http_meta(span, int_config):
     SENSITIVE_QS_URL = "http://example.com/search?token=03cb9f67dbbc4cb8b963629951e10934&q=query#frag?ment"
+    REDACTED_URL = "http://example.com/search?<redacted>&q=query#frag?ment"
     STRIPPED_URL = "http://example.com/search#frag?ment"
 
-    int_config.trace_query_string = True
-    with override_global_config({"global_trace_query_string_disabled": True}):
+    int_config.http_tag_query_string = True
+    with override_global_config({"global_query_string_obfuscation_disabled": False}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method="GET",
+            url=SENSITIVE_QS_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == REDACTED_URL
+    with override_global_config({"global_query_string_obfuscation_disabled": True}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method="GET",
+            url=SENSITIVE_QS_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == SENSITIVE_QS_URL
+
+    int_config.http_tag_query_string = False
+    with override_global_config({"global_query_string_obfuscation_disabled": False}):
+        trace_utils.set_http_meta(
+            span,
+            int_config,
+            method="GET",
+            url=SENSITIVE_QS_URL,
+            status_code=200,
+        )
+        assert span.get_tag(http.URL) == STRIPPED_URL
+    with override_global_config({"global_query_string_obfuscation_disabled": True}):
         trace_utils.set_http_meta(
             span,
             int_config,
@@ -858,7 +888,7 @@ def test_redacted_url_in_http_meta(span, int_config):
     STRIPPED_URL = "http://example.com/search#frag?ment"
     REDACTED_QS_URL = "http://example.com/search?<redacted>&q=query#frag?ment"
 
-    int_config.trace_query_string = False
+    int_config.http_tag_query_string = False
     trace_utils.set_http_meta(
         span,
         int_config,
@@ -868,7 +898,7 @@ def test_redacted_url_in_http_meta(span, int_config):
     )
     assert span.get_tag(http.URL) == STRIPPED_URL
 
-    int_config.trace_query_string = True
+    int_config.http_tag_query_string = True
     trace_utils.set_http_meta(
         span,
         int_config,
@@ -888,7 +918,7 @@ def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
     REDACTED_URL = BASE_URL + "?" + REDACTED_QS + "#" + FRAGMENT
     STRIPPED_URL = BASE_URL + "#" + FRAGMENT
 
-    int_config.trace_query_string = False
+    int_config.http_tag_query_string = False
     trace_utils.set_http_meta(
         span,
         int_config,
@@ -899,7 +929,7 @@ def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
     )
     assert span.get_tag(http.URL) == STRIPPED_URL
 
-    int_config.trace_query_string = True
+    int_config.http_tag_query_string = True
     trace_utils.set_http_meta(
         span,
         int_config,
@@ -917,7 +947,7 @@ def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_re
     EMPTY_QS = ""
     NONE_QS = None
 
-    int_config.trace_query_string = True
+    int_config.http_tag_query_string = True
     trace_utils.set_http_meta(
         span,
         int_config,
