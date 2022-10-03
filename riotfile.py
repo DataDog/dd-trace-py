@@ -89,7 +89,7 @@ venv = Venv(
         "coverage": latest,
         "pytest-cov": latest,
         "opentracing": latest,
-        "hypothesis": "~=6.55.0",
+        "hypothesis": latest,
     },
     env={
         "DD_TESTING_RAISE": "1",
