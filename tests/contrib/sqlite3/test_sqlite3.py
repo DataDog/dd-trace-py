@@ -367,4 +367,3 @@ def test_backup(patched_conn):
 
     with destination:
         patched_conn.backup(destination, pages=1)
->>>>>>> 82b15216 (fix(tracing): fix error when using sqlite3 backup method (#4246))
