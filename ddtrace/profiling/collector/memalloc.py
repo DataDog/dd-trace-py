@@ -88,7 +88,17 @@ class MemoryCollector(collector.PeriodicCollector):
     _interval = attr.ib(default=_DEFAULT_INTERVAL, repr=False)
 
     # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
+<<<<<<< HEAD
     _max_events = attr.ib(factory=attr_utils.from_env("_DD_PROFILING_MEMORY_EVENTS_BUFFER", _DEFAULT_MAX_EVENTS, int))
+=======
+    _max_events = attr.ib(
+        factory=attr_utils.from_env(
+            "_DD_PROFILING_MEMORY_EVENTS_BUFFER",
+            _DEFAULT_MAX_EVENTS,
+            int,
+        )
+    )
+>>>>>>> 0ba3e299 (Remove ignores for updated mypy (#4253))
     max_nframe = attr.ib(factory=attr_utils.from_env("DD_PROFILING_MAX_FRAMES", 64, int))
     heap_sample_size = attr.ib(type=int, factory=_get_default_heap_sample_size)
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
