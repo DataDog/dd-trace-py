@@ -352,8 +352,6 @@ class TestSQLite(TracerTestCase):
             cursor.fetchall()
             spans = self.get_spans()
             assert len(spans) == 1
-<<<<<<< HEAD
-=======
 
 
 def test_iterator_usage(patched_conn):
