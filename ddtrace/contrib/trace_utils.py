@@ -417,13 +417,16 @@ def set_http_meta(
          { "id": <int_value> }
     """
     if method is not None:
-        span._set_str_tag(http.METHOD, method)
+        span.set_tag_str(http.METHOD, method)
 
     if url is not None:
-        if integration_config.trace_query_string and not config.global_trace_query_string_disabled:
-            span._set_str_tag(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
-        else:
-            span._set_str_tag(http.URL, strip_query_string(url))
+        if integration_config.http_tag_query_string:  # Tagging query string in http.url
+            if config.global_query_string_obfuscation_disabled:  # No redacting of query strings
+                span.set_tag_str(http.URL, url)
+            else:  # Redact query strings
+                span.set_tag_str(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
+        else:  # Not tagging query string in http.url
+            span.set_tag_str(http.URL, strip_query_string(url))
 
     if status_code is not None:
         try:
@@ -431,15 +434,15 @@ def set_http_meta(
         except (TypeError, ValueError):
             log.debug("failed to convert http status code %r to int", status_code)
         else:
-            span._set_str_tag(http.STATUS_CODE, str(status_code))
+            span.set_tag_str(http.STATUS_CODE, str(status_code))
             if config.http_server.is_error_code(int_status_code):
                 span.error = 1
 
     if status_msg is not None:
-        span._set_str_tag(http.STATUS_MSG, status_msg)
+        span.set_tag_str(http.STATUS_MSG, status_msg)
 
     if query is not None and integration_config.trace_query_string:
-        span._set_str_tag(http.QUERY_STRING, query)
+        span.set_tag_str(http.QUERY_STRING, query)
 
     ip = None
     if request_headers:
@@ -463,7 +466,7 @@ def set_http_meta(
         _store_response_headers(dict(response_headers), span, integration_config)
 
     if retries_remain is not None:
-        span._set_str_tag(http.RETRIES_REMAIN, str(retries_remain))
+        span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
         status_code = str(status_code) if status_code is not None else None
@@ -569,7 +572,7 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
     span = tracer.current_root_span()
     if span:
         # Required unique identifier of the user
-        span._set_str_tag(user.ID, user_id)
+        span.set_tag_str(user.ID, user_id)
         if propagate:
             span.context.dd_user_id = user_id
 

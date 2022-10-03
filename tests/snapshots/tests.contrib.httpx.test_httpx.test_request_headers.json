@@ -13,7 +13,7 @@
       "http.request.headers.some-request-header": "Request-Value",
       "http.response.headers.some-response-header": "Response-Value",
       "http.status_code": "200",
-      "http.url": "http://localhost:8001/response-headers",
+      "http.url": "http://localhost:8001/response-headers?Some-Response-Header=Response-Value",
       "http.useragent": "python-httpx/x.xx.x",
       "runtime-id": "0c15188ec3454af48be672464b951d64"
     },

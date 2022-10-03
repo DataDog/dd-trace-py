@@ -38,8 +38,8 @@ def _handle_server_exception(server_context, span):
         code = to_unicode(server_context._state.code)
         details = to_unicode(server_context._state.details)
         span.error = 1
-        span._set_str_tag(ERROR_MSG, details)
-        span._set_str_tag(ERROR_TYPE, code)
+        span.set_tag_str(ERROR_MSG, details)
+        span.set_tag_str(ERROR_TYPE, code)
 
 
 def _wrap_response_iterator(response_iterator, server_context, span):
@@ -75,7 +75,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         span.set_tag(SPAN_MEASURED_KEY)
 
         set_grpc_method_meta(span, self._handler_call_details.method, method_kind)
-        span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
+        span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
 
         sample_rate = config.grpc_server.get_analytics_sample_rate()
         if sample_rate is not None:
