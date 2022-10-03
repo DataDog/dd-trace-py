@@ -47,7 +47,14 @@ class PprofHTTPExporter(pprof.PprofExporter):
     api_key = attr.ib(default=None, type=typing.Optional[str])
     # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
     # backend is not as fast as the tracer one.
+<<<<<<< HEAD
     timeout = attr.ib(factory=attr_utils.from_env("DD_PROFILING_API_TIMEOUT", 10.0, float), type=float)
+=======
+    timeout = attr.ib(
+        factory=attr_utils.from_env("DD_PROFILING_API_TIMEOUT", 10.0, float),
+        type=float,
+    )
+>>>>>>> 0ba3e299 (Remove ignores for updated mypy (#4253))
     service = attr.ib(default=None, type=typing.Optional[str])
     env = attr.ib(default=None, type=typing.Optional[str])
     version = attr.ib(default=None, type=typing.Optional[str])
