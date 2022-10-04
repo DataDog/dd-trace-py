@@ -203,13 +203,13 @@ class LockCollector(collector.CaptureSamplerCollector):
         # type: (...) -> None
         pass
 
-    def _start_service(self):  # type: ignore[override]
+    def _start_service(self):
         # type: (...) -> None
         """Start collecting lock usage."""
         self.patch()
         super(LockCollector, self)._start_service()
 
-    def _stop_service(self):  # type: ignore[override]
+    def _stop_service(self):
         # type: (...) -> None
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()
