@@ -19,6 +19,9 @@ tracer.configure(
 app = Sanic("test_sanic_server")
 
 
+# Depending on the version of sanic the application can be run in a child process.
+# This can alter the name of the function and the default span name. Setting the span name to
+# `random_sleep` ensures the snapshot tests produce consistent spans across sanic versions.
 @tracer.wrap("random_sleep")
 async def random_sleep():
     await asyncio.sleep(random.random() * 0.1)
