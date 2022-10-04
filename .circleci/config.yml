@@ -398,7 +398,7 @@ jobs:
       - run_test:
           pattern: "tracer"
       - run_tox_scenario:
-          pattern: '^py..-tracer_test_http$'
+          pattern: '^py..-tracer_test_http'
 
   telemetry:
     <<: *machine_executor
