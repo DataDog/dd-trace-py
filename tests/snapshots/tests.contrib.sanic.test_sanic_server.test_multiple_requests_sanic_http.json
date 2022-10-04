@@ -27,9 +27,9 @@
     "start": 1643465627712966000
   },
      {
-       "name": "__mp_main__.random_sleep",
+       "name": "random_sleep",
        "service": "sanic",
-       "resource": "__mp_main__.random_sleep",
+       "resource": "random_sleep",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -65,9 +65,9 @@
     "start": 1643465627811584000
   },
      {
-       "name": "__mp_main__.random_sleep",
+       "name": "random_sleep",
        "service": "sanic",
-       "resource": "__mp_main__.random_sleep",
+       "resource": "random_sleep",
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,

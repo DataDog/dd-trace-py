@@ -19,7 +19,7 @@ tracer.configure(
 app = Sanic("test_sanic_server")
 
 
-@tracer.wrap()
+@tracer.wrap("random_sleep")
 async def random_sleep():
     await asyncio.sleep(random.random() * 0.1)
 
