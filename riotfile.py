@@ -1847,6 +1847,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
+                        "sanic": "~=22.9.0",
+                        "sanic-testing": "~=22.9.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
                         "sanic": latest,
                         "sanic-testing": latest,
                     },
