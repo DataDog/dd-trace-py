@@ -549,7 +549,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     def periodic(self):
         self.flush_queue(raise_exc=False)
 
-    def _stop_service(  # type: ignore[override]
+    def _stop_service(
         self,
         timeout=None,  # type: Optional[float]
     ):
