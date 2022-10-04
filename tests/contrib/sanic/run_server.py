@@ -41,4 +41,5 @@ async def shutdown_tracer(request):
     return json({"success": True})
 
 
-app.run(host="0.0.0.0", port=os.environ["SANIC_PORT"], access_log=False)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ["SANIC_PORT"]), access_log=False)

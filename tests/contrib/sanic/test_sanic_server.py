@@ -38,7 +38,8 @@ def sanic_client():
 
 @pytest.mark.snapshot(
     variants={
-        "": sanic_version >= (21, 9, 0),
+        "": sanic_version >= (22, 9, 0),
+        "21.9_to_22.9": (21, 9, 0) <= sanic_version < (22, 9, 0),
         "pre_21.9": sanic_version < (21, 9, 0),
     },
 )
