@@ -93,7 +93,7 @@ class MemoryCollector(collector.PeriodicCollector):
     heap_sample_size = attr.ib(type=int, factory=_get_default_heap_sample_size)
     ignore_profiler = attr.ib(factory=attr_utils.from_env("DD_PROFILING_IGNORE_PROFILER", False, formats.asbool))
 
-    def _start_service(self):  # type: ignore[override]
+    def _start_service(self):
         # type: (...) -> None
         """Start collecting memory profiles."""
         if _memalloc is None:
@@ -103,7 +103,7 @@ class MemoryCollector(collector.PeriodicCollector):
 
         super(MemoryCollector, self)._start_service()
 
-    def _stop_service(self):  # type: ignore[override]
+    def _stop_service(self):
         # type: (...) -> None
         super(MemoryCollector, self)._stop_service()
 
