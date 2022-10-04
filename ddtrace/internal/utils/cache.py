@@ -11,9 +11,8 @@ from typing import TypeVar
 miss = object()
 
 T = TypeVar("T")
-S = TypeVar("S")
-F = Callable[[T], S]
-M = Callable[[Any, T], S]
+F = Callable[[T], Any]
+M = Callable[[Any, T], Any]
 
 
 def cached(maxsize=256):
@@ -32,7 +31,7 @@ def cached(maxsize=256):
         lock = RLock()
 
         def cached_f(key):
-            # type: (T) -> S
+            # type: (T) -> Any
             if len(cache) >= maxsize:
                 for _, h in zip(range(maxsize >> 1), sorted(cache, key=lambda h: cache[h][1])):
                     del cache[h]
