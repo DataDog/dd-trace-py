@@ -11,9 +11,8 @@ from typing import TypeVar
 miss = object()
 
 T = TypeVar("T")
-S = TypeVar("S")
-F = Callable[[T], S]
-M = Callable[[Any, T], S]
+F = Callable[[T], Any]
+M = Callable[[Any, T], Any]
 
 
 def cached(maxsize=256):
@@ -26,6 +25,7 @@ def cached(maxsize=256):
     the requested size is O(log(size)).
     """
 
+<<<<<<< HEAD
     def cached_wrapper(f):
         # type: (F) -> F
         cache = {}  # type: Dict[Any, Tuple[Any, int]]
@@ -38,6 +38,33 @@ def cached(maxsize=256):
                     del cache[h]
 
             _ = cache.get(key, miss)
+=======
+    def __init__(self, maxsize=256):
+        # type: (int) -> None
+        self.maxsize = maxsize
+        self.lock = RLock()
+
+    def get(self, key, f):  # type: ignore[override]
+        # type: (T, F) -> Any
+        """Get a value from the cache.
+
+        If the value with the given key is not in the cache, the expensive
+        function ``f`` is called on the key to generate it. The return value is
+        then stored in the cache and returned to the caller.
+        """
+        if len(self) >= self.maxsize:
+            for _, h in zip(range(self.maxsize >> 1), sorted(self, key=lambda h: self[h][1])):
+                del self[h]
+
+        _ = super(LFUCache, self).get(key, miss)
+        if _ is not miss:
+            value, count = _
+            self[key] = (value, count + 1)
+            return value
+
+        with self.lock:
+            _ = super(LFUCache, self).get(key, miss)
+>>>>>>> 026d6144 (fix(typing): update types to be compatible with latest mypy (backport #4234) (#4263))
             if _ is not miss:
                 value, count = _
                 cache[key] = (value, count + 1)
@@ -54,7 +81,22 @@ def cached(maxsize=256):
 
                 cache[key] = (result, 1)
 
+<<<<<<< HEAD
                 return result
+=======
+
+def cached(maxsize=256):
+    # type: (int) -> Callable[[F], F]
+    """Decorator for memoizing functions of a single argument (LFU policy)."""
+
+    def cached_wrapper(f):
+        # type: (F) -> F
+        cache = LFUCache(maxsize)
+
+        def cached_f(key):
+            # type: (T) -> Any
+            return cache.get(key, f)
+>>>>>>> 026d6144 (fix(typing): update types to be compatible with latest mypy (backport #4234) (#4263))
 
         cached_f.invalidate = cache.clear  # type: ignore[attr-defined]
 
