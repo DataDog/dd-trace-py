@@ -245,19 +245,26 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest {cmdargs} tests/tracer/",
+            pkgs={
+                "msgpack": latest,
+                "attrs": ["==20.1.0", latest],
+                "packaging": ["==17.1", latest],
+                "structlog": latest,
+                # httpretty v1.0 drops python 2.7 support
+                "httpretty": "==0.9.7",
+            },
             venvs=[
                 Venv(
-                    pys=select_pys(),
-                    pkgs={
-                        "msgpack": latest,
-                        "attrs": ["==20.1.0", latest],
-                        "packaging": ["==17.1", latest],
-                        "structlog": latest,
-                        # httpretty v1.0 drops python 2.7 support
-                        "httpretty": "==0.9.7",
-                    },
-                )
+                    name="tracer",
+                    pys=select_pys(max_version="3.10"),
+                    command="pytest {cmdargs} tests/tracer/",
+                ),
+                # Riot venvs break with Py 3.11 importlib file reading, specifically with hypothesis.
+                Venv(
+                    name="tracer-py311",
+                    pys=["3.11"],
+                    command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
+                ),
             ],
         ),
         Venv(
