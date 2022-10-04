@@ -150,7 +150,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="codespell",
-                    command="codespell ddtrace/ tests/",
+                    command='codespell --skip="ddwaf.h" ddtrace/ tests/',
                 ),
                 Venv(
                     name="hook-codespell",
