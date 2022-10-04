@@ -228,7 +228,7 @@ class Tracer(object):
     def debug_logging(self):
         return log.isEnabledFor(logging.DEBUG)
 
-    @debug_logging.setter  # type: ignore[misc]
+    @debug_logging.setter
     @removals.remove(
         message="Use logging.setLevel instead", category=DDTraceDeprecationWarning, removal_version="1.0.0"
     )
