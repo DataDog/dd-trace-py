@@ -9,9 +9,8 @@ from typing import TypeVar
 miss = object()
 
 T = TypeVar("T")
-S = TypeVar("S")
-F = Callable[[T], S]
-M = Callable[[Any, T], S]
+F = Callable[[T], Any]
+M = Callable[[Any, T], Any]
 
 
 class LFUCache(dict):
@@ -29,7 +28,7 @@ class LFUCache(dict):
         self.lock = RLock()
 
     def get(self, key, f):  # type: ignore[override]
-        # type: (T, F) -> S
+        # type: (T, F) -> Any
         """Get a value from the cache.
 
         If the value with the given key is not in the cache, the expensive
@@ -69,7 +68,7 @@ def cached(maxsize=256):
         cache = LFUCache(maxsize)
 
         def cached_f(key):
-            # type: (T) -> S
+            # type: (T) -> Any
             return cache.get(key, f)
 
         cached_f.invalidate = cache.clear  # type: ignore[attr-defined]
