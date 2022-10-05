@@ -254,7 +254,7 @@ setup(
         "cattrs",
         "six>=1.12.0",
         "typing_extensions",
-        "importlib_metadata<5.0.0; python_version<'3.8'",
+        "importlib_metadata<5.0; python_version<'3.8'",
         "pathlib2; python_version<'3.5'",
         "jsonschema",
         "xmltodict>=0.12",
