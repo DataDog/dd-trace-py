@@ -490,7 +490,6 @@ jobs:
       shell: bash.exe
     steps:
       # circleci/windows@5.0 orb includes python 3.10.6
-      # - run: choco install python --version=3.10.4
       - run_tox_scenario:
           store_coverage: false
           pattern: '^py310-profile'
