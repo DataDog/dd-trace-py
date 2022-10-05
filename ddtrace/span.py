@@ -164,6 +164,12 @@ class Span(object):
             self._store = {}
         self._store[key] = val
 
+    def _set_ctx_items(self, items):
+        # type: (Dict[str, Any]) -> None
+        if not self._store:
+            self._store = {}
+        self._store.update(items)
+
     def _get_ctx_item(self, key):
         # type: (str) -> Optional[Any]
         if not self._store:
@@ -326,7 +332,7 @@ class Span(object):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def _set_str_tag(self, key, value):
+    def set_tag_str(self, key, value):
         # type: (_TagNameType, Text) -> None
         """Set a value for a tag. Values are coerced to unicode in Python 2 and
         str in Python 3, with decoding errors in conversion being replaced with

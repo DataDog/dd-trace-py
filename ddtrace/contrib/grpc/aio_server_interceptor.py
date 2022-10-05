@@ -94,9 +94,9 @@ def _handle_server_exception(
     if servicer_context is None:
         return
     if hasattr(servicer_context, "details"):
-        span._set_str_tag(ERROR_MSG, to_unicode(servicer_context.details()))
+        span.set_tag_str(ERROR_MSG, to_unicode(servicer_context.details()))
     if hasattr(servicer_context, "code") and servicer_context.code() != 0 and servicer_context.code() in _INT2CODE:
-        span._set_str_tag(ERROR_TYPE, to_unicode(_INT2CODE[servicer_context.code()]))
+        span.set_tag_str(ERROR_TYPE, to_unicode(_INT2CODE[servicer_context.code()]))
 
 
 async def _wrap_aio_stream_response(
@@ -186,7 +186,7 @@ def _create_span(pin, handler_call_details, method_kind):
     span.set_tag(SPAN_MEASURED_KEY)
 
     set_grpc_method_meta(span, handler_call_details.method, method_kind)
-    span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
+    span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)
 
     sample_rate = config.grpc_aio_server.get_analytics_sample_rate()
     if sample_rate is not None:

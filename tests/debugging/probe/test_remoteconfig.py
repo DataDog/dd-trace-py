@@ -5,19 +5,19 @@ import pytest
 from ddtrace.debugging._config import config
 from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import Probe
-from ddtrace.debugging._probe.poller import ProbePoller
-from ddtrace.debugging._probe.poller import ProbePollerEvent
-from ddtrace.debugging._remoteconfig import _filter_by_env_and_version
+from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
+from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
+from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
 from ddtrace.internal.compat import PY2
 from tests.utils import override_global_config
 
 
-class MockDebuggerRC(object):
+class MockConfig(object):
     def __init__(self, *args, **kwargs):
         self.probes = {}
 
     @_filter_by_env_and_version
-    def get_probes(self):
+    def get_probes(self, _):
         return list(self.probes.values())
 
     def add_probes(self, probes):
@@ -32,6 +32,20 @@ class MockDebuggerRC(object):
                 pass
 
 
+@pytest.fixture
+def mock_config():
+    import ddtrace.debugging._probe.remoteconfig as rc
+
+    original_get_probes = rc.get_probes
+    mock_config = MockConfig()
+    try:
+        rc.get_probes = mock_config.get_probes
+
+        yield mock_config
+    finally:
+        rc.get_probes = original_get_probes
+
+
 @pytest.mark.parametrize(
     "env,version,expected",
     [
@@ -41,15 +55,14 @@ class MockDebuggerRC(object):
         ("prod", "dev", set(["probe1", "probe2", "probe3", "probe4"])),
     ],
 )
-def test_poller_env_version(env, version, expected):
+def test_poller_env_version(env, version, expected, mock_config):
     probes = []
 
     def cb(e, ps):
         probes.extend(ps)
 
     with override_global_config(dict(env=env, version=version)):
-        api = MockDebuggerRC()
-        api.add_probes(
+        mock_config.add_probes(
             [
                 LineProbe(
                     probe_id="probe1",
@@ -80,22 +93,20 @@ def test_poller_env_version(env, version, expected):
                 ),
             ]
         )
-        poller = ProbePoller(api, cb, interval=0.1)
-        poller.start()
-        sleep(0.2)
-        poller.stop()
+
+        ProbeRCAdapter(cb)(None, {})
+
         assert set(_.probe_id for _ in probes) == expected
 
 
 @pytest.mark.xfail(PY2, reason="occasionally fails on Python 2")
-def test_poller_events():
+def test_poller_events(mock_config):
     events = set()
 
     def cb(e, ps):
         events.add((e, frozenset([p.probe_id if isinstance(p, Probe) else p for p in ps])))
 
-    api = MockDebuggerRC()
-    api.add_probes(
+    mock_config.add_probes(
         [
             LineProbe(
                 probe_id="probe1",
@@ -124,14 +135,14 @@ def test_poller_events():
         ]
     )
 
-    old_interval = config.diagnostic_interval
-    config.diagnostic_interval = 0.5
+    old_interval = config.diagnostics_interval
+    config.diagnostics_interval = 0.5
     try:
-        poller = ProbePoller(api, cb, interval=0.1)
-        poller.start()
-        sleep(0.2)
-        api.remove_probes("probe1", "probe2")
-        api.add_probes(
+        adapter = ProbeRCAdapter(cb)
+
+        adapter(None, {})
+        mock_config.remove_probes("probe1", "probe2")
+        mock_config.add_probes(
             [
                 # Modified
                 LineProbe(
@@ -151,8 +162,11 @@ def test_poller_events():
                 ),
             ]
         )
-        sleep(0.4)
-        poller.stop()
+        adapter(None, {})
+
+        # Wait to allow the next call to the adapter to generate a status event
+        sleep(0.5)
+        adapter(None, {})
 
         assert events == {
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
@@ -162,4 +176,4 @@ def test_poller_events():
             (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe4", "probe2", "probe3", "probe5"])),
         }
     finally:
-        config.diagnostic_interval = old_interval
+        config.diagnostics_interval = old_interval

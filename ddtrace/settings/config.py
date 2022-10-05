@@ -1,9 +1,11 @@
 from copy import deepcopy
 import os
+import re
 from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
@@ -17,6 +19,18 @@ from .integration import IntegrationConfig
 
 
 log = get_logger(__name__)
+
+
+DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT = (
+    r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|"
+    r"private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|"
+    r'sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)'
+    r'(?:\s|%20)*(?::|%3A)(?:\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|bearer(?:\s|%20)'
+    r"+[a-z0-9\._\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L]"
+    r"(?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+"
+    r"PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|"
+    r"ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}"
+)
 
 
 def _parse_propagation_styles(name, default):
@@ -210,7 +224,23 @@ class Config(object):
         self._trace_compute_stats = asbool(
             os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
         )
-        self._appsec_enabled = asbool(os.getenv("DD_APPSEC_ENABLED", False))
+        self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
+
+        dd_trace_obfuscation_query_string_pattern = os.getenv(
+            "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT
+        )
+        self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern
+        self._obfuscation_query_string_pattern = None
+        self.http_tag_query_string = True  # Default behaviour of query string tagging in http.url
+        if dd_trace_obfuscation_query_string_pattern != "":
+            self.global_query_string_obfuscation_disabled = False  # Not empty obfuscation pattern
+            try:
+                self._obfuscation_query_string_pattern = re.compile(
+                    dd_trace_obfuscation_query_string_pattern.encode("ascii")
+                )
+            except Exception:
+                log.warning("Invalid obfuscation pattern, disabling query string tracing")
+                self.http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
     def __getattr__(self, name):
         if name not in self._config:
@@ -281,6 +311,7 @@ class Config(object):
         """
         return self.http.header_is_traced(header_name)
 
+    @cachedmethod()
     def _header_tag_name(self, header_name):
         # type: (str) -> Optional[str]
         return self.http._header_tag_name(header_name)

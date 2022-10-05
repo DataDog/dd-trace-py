@@ -135,6 +135,7 @@ venv = Venv(
             create=True,
             pkgs={
                 "mypy": latest,
+                "envier": latest,
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -149,7 +150,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="codespell",
-                    command="codespell ddtrace/ tests/",
+                    command='codespell --skip="ddwaf.h" ddtrace/ tests/',
                 ),
                 Venv(
                     name="hook-codespell",
@@ -241,12 +242,11 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "msgpack": latest,
-                        "attrs": ["==19.2.0", latest],
+                        "attrs": ["==20.1.0", latest],
                         "packaging": ["==17.1", latest],
                         "structlog": latest,
                         # httpretty v1.0 drops python 2.7 support
                         "httpretty": "==0.9.7",
-                        "gevent": latest,
                     },
                 )
             ],
@@ -297,7 +297,10 @@ venv = Venv(
                     pkgs={"pytest-asyncio": latest},
                 ),
             ],
-            pkgs={"httpretty": "==0.9.7"},
+            pkgs={
+                "httpretty": "==0.9.7",
+                "gevent": latest,
+            },
         ),
         Venv(
             name="runtime",
@@ -316,10 +319,7 @@ venv = Venv(
         Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
-            pkgs={
-                "msgpack": latest,
-                "httpretty": "==0.9.7",
-            },
+            pkgs={"msgpack": latest},
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
@@ -1833,9 +1833,9 @@ venv = Venv(
                         "sanic": [
                             "~=21.9.0",
                             "~=21.12.0",
-                            latest,
+                            "==22.6.2",
                         ],
-                        "sanic-testing": latest,
+                        "sanic-testing": ["<=22.6.0"],
                     },
                 ),
             ],

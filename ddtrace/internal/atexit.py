@@ -45,7 +45,7 @@ else:
         return func
 
     def unregister(func):
-        # type: (typing.Callable[..., None]) -> None
+        # type: (typing.Callable[..., typing.Any]) -> None
         """
         Unregister an exit function which was previously registered using
         atexit.register.

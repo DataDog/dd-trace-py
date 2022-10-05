@@ -42,12 +42,11 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(res.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 10 - REMOVED_SPANS_2_2_0)
+        self.assertEqual(len(spans), 8 - REMOVED_SPANS_2_2_0)
 
         # Assert the order of the spans created
         expected_spans = [
             "flask.request",
-            "flask.application",
             "flask.try_trigger_before_first_request_functions",
             "flask.preprocess_request",
             "flask.dispatch_request",
@@ -55,19 +54,16 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.process_response",
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
-            "flask.response",
         ]
         if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
-                "flask.application",
                 "flask.preprocess_request",
                 "flask.dispatch_request",
                 "tests.contrib.flask.test_request.index",
                 "flask.process_response",
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
-                "flask.response",
             ]
         self.assertListEqual(
             expected_spans,
@@ -97,7 +93,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         assert http.QUERY_STRING not in req_span.get_tags()
 
         # Handler span
-        handler_span = spans[5 - REMOVED_SPANS_2_2_0]
+        handler_span = spans[4 - REMOVED_SPANS_2_2_0]
         self.assertEqual(handler_span.service, "flask")
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.index")
         self.assertEqual(handler_span.resource, "/")
@@ -135,7 +131,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         }
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 10 - REMOVED_SPANS_2_2_0)
+        self.assertEqual(len(spans), 8 - REMOVED_SPANS_2_2_0)
 
         root = spans[0]
         assert root.name == "flask.request"
@@ -361,17 +357,16 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         def index():
             return "Hello Flask", 200
 
-        res = self.client.get("/", query_string=dict(hello="flask"))
+        res = self.client.get("/", query_string=dict(token="flask"))
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.data, b"Hello Flask")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 10 - REMOVED_SPANS_2_2_0)
+        self.assertEqual(len(spans), 8 - REMOVED_SPANS_2_2_0)
 
         # Assert the order of the spans created
         expected_spans = [
             "flask.request",
-            "flask.application",
             "flask.try_trigger_before_first_request_functions",
             "flask.preprocess_request",
             "flask.dispatch_request",
@@ -379,19 +374,16 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.process_response",
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
-            "flask.response",
         ]
         if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
-                "flask.application",
                 "flask.preprocess_request",
                 "flask.dispatch_request",
                 "tests.contrib.flask.test_request.index",
                 "flask.process_response",
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
-                "flask.response",
             ]
         self.assertListEqual(
             expected_spans,
@@ -419,12 +411,12 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         # Note: contains no query string
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/")
         self.assertEqual(req_span.get_tag("http.method"), "GET")
-        # Note: contains no query string
-        self.assertEqual(req_span.get_tag(http.URL), "http://localhost/")
+        # Note: contains query string (possibly redacted)
+        self.assertEqual(req_span.get_tag(http.URL), "http://localhost/?<redacted>")
         assert_span_http_status_code(req_span, 200)
 
         # Handler span
-        handler_span = spans[5 - REMOVED_SPANS_2_2_0]
+        handler_span = spans[4 - REMOVED_SPANS_2_2_0]
         self.assertEqual(handler_span.service, "flask")
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.index")
         # Note: contains no query string
@@ -447,12 +439,11 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(res.data, b"\xc3\xbc\xc5\x8b\xc3\xaf\xc4\x89\xc3\xb3\xc4\x91\xc4\x93")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 10 - REMOVED_SPANS_2_2_0)
+        self.assertEqual(len(spans), 8 - REMOVED_SPANS_2_2_0)
 
         # Assert the order of the spans created
         expected_spans = [
             "flask.request",
-            "flask.application",
             "flask.try_trigger_before_first_request_functions",
             "flask.preprocess_request",
             "flask.dispatch_request",
@@ -460,19 +451,16 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.process_response",
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
-            "flask.response",
         ]
         if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
-                "flask.application",
                 "flask.preprocess_request",
                 "flask.dispatch_request",
                 "tests.contrib.flask.test_request.unicode",
                 "flask.process_response",
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
-                "flask.response",
             ]
         self.assertListEqual(
             expected_spans,
@@ -500,7 +488,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         assert_span_http_status_code(req_span, 200)
 
         # Handler span
-        handler_span = spans[5 - REMOVED_SPANS_2_2_0]
+        handler_span = spans[4 - REMOVED_SPANS_2_2_0]
         self.assertEqual(handler_span.service, "flask")
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.unicode")
         self.assertEqual(handler_span.resource, u"/üŋïĉóđē")
@@ -514,16 +502,13 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         """
         res = self.client.get("/not-found")
         self.assertEqual(res.status_code, 404)
-        # Read response data from the test client to close flask.request and flask.response spans
-        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
+        self.assertEqual(len(spans), 9 - REMOVED_SPANS_2_2_0)
 
         # Assert the order of the spans created
         expected_spans = [
             "flask.request",
-            "flask.application",
             "flask.try_trigger_before_first_request_functions",
             "flask.preprocess_request",
             "flask.dispatch_request",
@@ -532,12 +517,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.process_response",
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
-            "flask.response",
         ]
         if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
-                "flask.application",
                 "flask.preprocess_request",
                 "flask.dispatch_request",
                 "flask.handle_user_exception",
@@ -545,7 +528,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 "flask.process_response",
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
-                "flask.response",
             ]
         self.assertListEqual(
             expected_spans,
@@ -572,7 +554,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         assert_span_http_status_code(req_span, 404)
 
         # Dispatch span
-        dispatch_span = spans[4 - REMOVED_SPANS_2_2_0]
+        dispatch_span = spans[3 - REMOVED_SPANS_2_2_0]
         self.assertEqual(dispatch_span.service, "flask")
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
@@ -594,16 +576,13 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         res = self.client.get("/not-found")
         self.assertEqual(res.status_code, 404)
-        # Read response data from the test client to close flask.request and flask.response spans
-        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 12 - REMOVED_SPANS_2_2_0)
+        self.assertEqual(len(spans), 10 - REMOVED_SPANS_2_2_0)
 
         # Assert the order of the spans created
         expected_spans = [
             "flask.request",
-            "flask.application",
             "flask.try_trigger_before_first_request_functions",
             "flask.preprocess_request",
             "flask.dispatch_request",
@@ -613,12 +592,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.process_response",
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
-            "flask.response",
         ]
         if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
-                "flask.application",
                 "flask.preprocess_request",
                 "flask.dispatch_request",
                 "tests.contrib.flask.test_request.not_found",
@@ -627,7 +604,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 "flask.process_response",
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
-                "flask.response",
             ]
         self.assertListEqual(
             expected_spans,
@@ -657,7 +633,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/not-found")
 
         # Dispatch span
-        dispatch_span = spans[4 - REMOVED_SPANS_2_2_0]
+        dispatch_span = spans[3 - REMOVED_SPANS_2_2_0]
         self.assertEqual(dispatch_span.service, "flask")
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
@@ -667,7 +643,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertIsNone(dispatch_span.get_tag("error.type"))
 
         # Handler span
-        handler_span = spans[5 - REMOVED_SPANS_2_2_0]
+        handler_span = spans[4 - REMOVED_SPANS_2_2_0]
         self.assertEqual(handler_span.service, "flask")
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.not_found")
         self.assertEqual(handler_span.resource, "/not-found")
@@ -689,14 +665,11 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         res = self.client.get("/500")
         self.assertEqual(res.status_code, 500)
-        # Read response data from the test client to close flask.request and flask.response spans
-        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
 
         expected_spans = [
             "flask.request",
-            "flask.application",
             "flask.try_trigger_before_first_request_functions",
             "flask.preprocess_request",
             "flask.dispatch_request",
@@ -707,7 +680,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
-                "flask.application",
                 "flask.preprocess_request",
                 "flask.dispatch_request",
                 "tests.contrib.flask.test_request.fivehundred",
@@ -721,7 +693,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         expected_spans += [
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
-            "flask.response",
         ]
 
         # Assert the order of the spans created
@@ -749,7 +720,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/500")
 
         # Dispatch span
-        dispatch_span = spans[4 - REMOVED_SPANS_2_2_0]
+        dispatch_span = spans[3 - REMOVED_SPANS_2_2_0]
         self.assertEqual(dispatch_span.service, "flask")
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
@@ -759,7 +730,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(dispatch_span.get_tag("error.type"), base_exception_name)
 
         # Handler span
-        handler_span = spans[5 - REMOVED_SPANS_2_2_0]
+        handler_span = spans[4 - REMOVED_SPANS_2_2_0]
         self.assertEqual(handler_span.service, "flask")
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.fivehundred")
         self.assertEqual(handler_span.resource, "/500")
@@ -769,7 +740,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.get_tag("error.type"), base_exception_name)
 
         # User exception span
-        user_ex_span = spans[6 - REMOVED_SPANS_2_2_0]
+        user_ex_span = spans[5 - REMOVED_SPANS_2_2_0]
         self.assertEqual(user_ex_span.service, "flask")
         self.assertEqual(user_ex_span.name, "flask.handle_user_exception")
         self.assertEqual(user_ex_span.resource, "flask.handle_user_exception")
@@ -791,16 +762,13 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         res = self.client.get("/501")
         self.assertEqual(res.status_code, 501)
-        # Read response data from the test client to close flask.request and flask.response spans
-        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 12 - REMOVED_SPANS_2_2_0)
+        self.assertEqual(len(spans), 10 - REMOVED_SPANS_2_2_0)
 
         # Assert the order of the spans created
         expected_spans = [
             "flask.request",
-            "flask.application",
             "flask.try_trigger_before_first_request_functions",
             "flask.preprocess_request",
             "flask.dispatch_request",
@@ -810,12 +778,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             "flask.process_response",
             "flask.do_teardown_request",
             "flask.do_teardown_appcontext",
-            "flask.response",
         ]
         if flask_version >= (2, 2, 0):
             expected_spans = [
                 "flask.request",
-                "flask.application",
                 "flask.preprocess_request",
                 "flask.dispatch_request",
                 "tests.contrib.flask.test_request.fivehundredone",
@@ -824,7 +790,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 "flask.process_response",
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
-                "flask.response",
             ]
         self.assertListEqual(
             expected_spans,
@@ -853,7 +818,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/501")
 
         # Dispatch span
-        dispatch_span = spans[4 - REMOVED_SPANS_2_2_0]
+        dispatch_span = spans[3 - REMOVED_SPANS_2_2_0]
         self.assertEqual(dispatch_span.service, "flask")
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
@@ -863,7 +828,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(dispatch_span.get_tag("error.type"), "werkzeug.exceptions.NotImplemented")
 
         # Handler span
-        handler_span = spans[5 - REMOVED_SPANS_2_2_0]
+        handler_span = spans[4 - REMOVED_SPANS_2_2_0]
         self.assertEqual(handler_span.service, "flask")
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.fivehundredone")
         self.assertEqual(handler_span.resource, "/501")
@@ -873,7 +838,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.get_tag("error.type"), "werkzeug.exceptions.NotImplemented")
 
         # User exception span
-        user_ex_span = spans[6 - REMOVED_SPANS_2_2_0]
+        user_ex_span = spans[5 - REMOVED_SPANS_2_2_0]
         self.assertEqual(user_ex_span.service, "flask")
         self.assertEqual(user_ex_span.name, "flask.handle_user_exception")
         self.assertEqual(user_ex_span.resource, "flask.handle_user_exception")
@@ -901,12 +866,11 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         spans = self.get_spans()
 
         if flask_version >= (0, 12):
-            self.assertEqual(len(spans), 13 - REMOVED_SPANS_2_2_0)
+            self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
             # Assert the order of the spans created
             expected_spans = [
                 "flask.request",
-                "flask.application",
                 "flask.try_trigger_before_first_request_functions",
                 "flask.preprocess_request",
                 "flask.dispatch_request",
@@ -917,12 +881,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                 "flask.process_response",
                 "flask.do_teardown_request",
                 "flask.do_teardown_appcontext",
-                "flask.response",
             ]
             if flask_version >= (2, 2, 0):
                 expected_spans = [
                     "flask.request",
-                    "flask.application",
                     "flask.preprocess_request",
                     "flask.dispatch_request",
                     "tests.contrib.flask.test_request.fivehundred",
@@ -932,7 +894,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                     "flask.process_response",
                     "flask.do_teardown_request",
                     "flask.do_teardown_appcontext",
-                    "flask.response",
                 ]
             self.assertListEqual(
                 expected_spans,
@@ -944,7 +905,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
             self.assertListEqual(
                 [
                     "flask.request",
-                    "flask.application",
                     "flask.try_trigger_before_first_request_functions",
                     "flask.preprocess_request",
                     "flask.dispatch_request",
@@ -954,7 +914,6 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
                     "tests.contrib.flask.test_request.error_handler",
                     "flask.do_teardown_request",
                     "flask.do_teardown_appcontext",
-                    "flask.response",
                 ],
                 [s.name for s in spans],
             )
@@ -981,7 +940,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/500")
 
         # Dispatch span
-        dispatch_span = spans[4 - REMOVED_SPANS_2_2_0]
+        dispatch_span = spans[3 - REMOVED_SPANS_2_2_0]
         self.assertEqual(dispatch_span.service, "flask")
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
@@ -991,7 +950,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(dispatch_span.get_tag("error.type"), base_exception_name)
 
         # Handler span
-        handler_span = spans[5 - REMOVED_SPANS_2_2_0]
+        handler_span = spans[4 - REMOVED_SPANS_2_2_0]
         self.assertEqual(handler_span.service, "flask")
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.fivehundred")
         self.assertEqual(handler_span.resource, "/500")
@@ -1001,7 +960,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.get_tag("error.type"), base_exception_name)
 
         # User exception span
-        user_ex_span = spans[6 - REMOVED_SPANS_2_2_0]
+        user_ex_span = spans[5 - REMOVED_SPANS_2_2_0]
         self.assertEqual(user_ex_span.service, "flask")
         self.assertEqual(user_ex_span.name, "flask.handle_user_exception")
         self.assertEqual(user_ex_span.resource, "flask.handle_user_exception")
@@ -1052,27 +1011,3 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
 
         span = traces[0][0]
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
-
-    def test_request_streaming(self):
-        def traced_func(i):
-            with self.tracer.trace("hello_%d" % (i,)):
-                return "Hello From Flask!"
-
-        @self.app.route("/streamed_hello")
-        def hello():
-            generator = (traced_func(i) for i in range(3))
-            return self.app.response_class(generator)
-
-        streamed_resp = self.client.get("/streamed_hello", buffered=True)
-        assert streamed_resp.data == b"Hello From Flask!Hello From Flask!Hello From Flask!"
-        assert streamed_resp.status_code == 200
-
-        traces = self.pop_traces()
-        assert traces[0][0].name == "flask.request"
-        assert traces[0][1].name == "flask.application"
-        assert traces[0][-4].name == "flask.response"
-
-        # Ensure streamed response are included in the trace
-        assert traces[0][-3].name == "hello_0"
-        assert traces[0][-2].name == "hello_1"
-        assert traces[0][-1].name == "hello_2"

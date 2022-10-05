@@ -4,6 +4,7 @@ import sys
 import httpx
 import pytest
 import sqlalchemy
+import starlette
 from starlette.testclient import TestClient
 
 import ddtrace
@@ -19,6 +20,10 @@ from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 from tests.utils import override_http_config
 from tests.utils import snapshot
+
+
+starlette_version_str = getattr(starlette, "__version__", "0.0.0")
+starlette_version = tuple([int(i) for i in starlette_version_str.split(".")])
 
 
 @pytest.fixture
@@ -110,7 +115,7 @@ def test_200_query_string(client, tracer, test_spans):
     assert request_span.resource == "GET /"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/"
+    assert request_span.get_tag("http.url") == "http://testserver/?foo=bar"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "foo=bar"
 
@@ -128,7 +133,7 @@ def test_200_multi_query_string(client, tracer, test_spans):
     assert request_span.resource == "GET /"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("http.url") == "http://testserver/"
+    assert request_span.get_tag("http.url") == "http://testserver/?foo=bar&x=y"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "foo=bar&x=y"
 
@@ -223,14 +228,14 @@ async def test_multiple_requests(app, tracer, test_spans):
     assert r1_span.name == "starlette.request"
     assert r1_span.resource == "GET /"
     assert r1_span.get_tag("http.method") == "GET"
-    assert r1_span.get_tag("http.url") == "http://testserver/"
+    assert r1_span.get_tag("http.url") == "http://testserver/?sleep=true"
     assert r1_span.get_tag("http.query.string") == "sleep=true"
 
     assert r2_span.service == "starlette"
     assert r2_span.name == "starlette.request"
     assert r2_span.resource == "GET /"
     assert r2_span.get_tag("http.method") == "GET"
-    assert r2_span.get_tag("http.url") == "http://testserver/"
+    assert r2_span.get_tag("http.url") == "http://testserver/?sleep=true"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
 
 
@@ -435,6 +440,9 @@ def test_table_query_snapshot(snapshot_client):
     assert r_get.text == "[{'id': 1, 'text': 'test', 'completed': 1}]"
 
 
+@pytest.mark.skipif(
+    starlette_version >= (0, 21, 0), reason="Starlette>=0.21.0 replaced requests with httpx in TestClient"
+)
 @snapshot()
 def test_incorrect_patching(run_python_code_in_subprocess):
     """
@@ -450,6 +458,8 @@ from starlette.testclient import TestClient
 import sqlalchemy
 
 from ddtrace import patch_all
+
+
 from tests.contrib.starlette.app import get_app
 
 engine = sqlalchemy.create_engine("sqlite:///test.db")
@@ -457,8 +467,7 @@ app = get_app(engine)
 
 # Calling patch_all late
 # DEV: The test client uses `requests` so we want to ignore them for this scenario
-patch_all(requests=False)
-
+patch_all(requests=False, http=False)
 with TestClient(app) as test_client:
     r = test_client.get("/200")
 
