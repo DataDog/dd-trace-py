@@ -254,15 +254,10 @@ venv = Venv(
                 "httpretty": "==0.9.7",
             },
             venvs=[
+                # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
                 Venv(
                     name="tracer",
-                    pys=select_pys(max_version="3.10"),
-                    command="pytest {cmdargs} tests/tracer/",
-                ),
-                # Riot venvs break with Py 3.11 importlib file reading, specifically with hypothesis.
-                Venv(
-                    name="tracer-py311",
-                    pys=["3.11"],
+                    pys=select_pys(),
                     command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
                 ),
             ],
