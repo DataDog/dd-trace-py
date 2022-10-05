@@ -150,7 +150,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="codespell",
-                    command="codespell ddtrace/ tests/",
+                    command='codespell --skip="ddwaf.h" ddtrace/ tests/',
                 ),
                 Venv(
                     name="hook-codespell",
@@ -1833,9 +1833,29 @@ venv = Venv(
                         "sanic": [
                             "~=21.9.0",
                             "~=21.12.0",
-                            "==22.6.2",
                         ],
-                        "sanic-testing": ["<=22.6.0"],
+                        "sanic-testing": "~=0.8.3",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": "~=22.3.0",
+                        "sanic-testing": "~=22.3.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": "~=22.9.0",
+                        "sanic-testing": "~=22.9.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": latest,
+                        "sanic-testing": latest,
                     },
                 ),
             ],
