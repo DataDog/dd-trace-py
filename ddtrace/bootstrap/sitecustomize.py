@@ -8,15 +8,6 @@ import sys
 from typing import Any
 from typing import Dict
 
-
-# Perform gevent patching as early as possible in the application before
-# importing more of the library internals.
-if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
-    import gevent.monkey
-
-    gevent.monkey.patch_all()
-
-
 from ddtrace import config  # noqa
 from ddtrace import constants
 from ddtrace.debugging._config import config as debugger_config

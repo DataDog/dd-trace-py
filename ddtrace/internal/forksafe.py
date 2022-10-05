@@ -3,12 +3,13 @@ An API to provide fork-safe functions.
 """
 import logging
 import os
+import sys
 import threading
 import typing
 import weakref
 
 from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.vendor import wrapt
 
 
@@ -24,24 +25,27 @@ _registry = []  # type: typing.List[typing.Callable[[], None]]
 _soft = False
 
 
-def patch_gevent_hub_reinit(module):
+def patch_gevent_monkey_patch_module(module):
     # The gevent hub is re-initialized *after* the after-in-child fork hooks are
     # called, so we patch the gevent.hub.reinit function to ensure that the
     # fork hooks run again after this further re-initialisation, if it is ever
     # called.
     from ddtrace.internal.wrapping import wrap
 
-    def wrapped_reinit(f, args, kwargs):
-        try:
-            return f(*args, **kwargs)
-        finally:
-            ddtrace_after_in_child()
+    def wrapped_patch_module(f, args, kwargs):
+        name = get_argument_value(args, kwargs, 0, "name")
+        # Clone the module before patching if it was already loaded
+        if name in sys.modules:
+            del sys.modules[name]
+        return f(*args, **kwargs)
 
-    wrap(module.reinit, wrapped_reinit)
+    try:
+        wrap(module._patch_module, wrapped_patch_module)
+    except AttributeError:
+        wrap(module.patch_module, wrapped_patch_module)
 
 
-if asbool(os.getenv("_DD_TRACE_GEVENT_HUB_PATCHED", default=False)):
-    ModuleWatchdog.register_module_hook("gevent.hub", patch_gevent_hub_reinit)
+ModuleWatchdog.register_module_hook("gevent.monkey", patch_gevent_monkey_patch_module)
 
 
 def ddtrace_after_in_child():

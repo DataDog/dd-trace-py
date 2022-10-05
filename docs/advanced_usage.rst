@@ -690,9 +690,6 @@ However, if you are using the ``gevent`` worker class, you have to make sure
 
 There are different options to make that happen:
 
-- If you rely on ``ddtrace-run``, you must set ``DD_GEVENT_PATCH_ALL=1`` in
-  your environment to have gevent patched first-thing.
-
 - Replace ``ddtrace-run`` by using ``import ddtrace.bootstrap.sitecustomize``
   as the first import of your application.
 
