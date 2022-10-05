@@ -1796,8 +1796,33 @@ venv = Venv(
                         "sanic": [
                             "~=21.9.0",
                             "~=21.12.0",
+<<<<<<< HEAD
                             latest,
                         ],
+=======
+                        ],
+                        "sanic-testing": "~=0.8.3",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": "~=22.3.0",
+                        "sanic-testing": "~=22.3.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": "~=22.9.0",
+                        "sanic-testing": "~=22.9.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": latest,
+>>>>>>> 91c42783 (ci(sanic): update test suite to run with sanic v22.9 (#4262))
                         "sanic-testing": latest,
                     },
                 ),
