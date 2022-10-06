@@ -404,6 +404,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
             request_cookies=request.cookies,
             request_body=req_body,
             peer_ip=request.remote_addr,
+            route=request.path,
         )
 
         return wrapped(environ, start_response)

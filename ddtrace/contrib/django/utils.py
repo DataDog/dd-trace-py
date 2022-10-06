@@ -116,7 +116,7 @@ def set_tag_array(span, prefix, value):
                 span.set_tag_str("".join((prefix, ".", str(i))), v)
 
 
-def get_request_uri(request):
+def get_request_uri_and_route(request):
     """
     Helper to rebuild the original request url
 
@@ -170,7 +170,8 @@ def get_request_uri(request):
                 return None
         urlparts[k] = six.ensure_text(v)
 
-    return "".join((urlparts["scheme"], "://", urlparts["netloc"], urlparts["path"]))
+    route = urlparts["path"]
+    return "".join((urlparts["scheme"], "://", urlparts["netloc"], route)), route
 
 
 def _set_resolver_tags(pin, span, request):
@@ -337,7 +338,7 @@ def _after_request_tags(pin, span, request, response):
 
                 set_tag_array(span, "django.response.template", template_names)
 
-            url = get_request_uri(request)
+            url, route = get_request_uri_and_route(request)
 
             if DJANGO22:
                 request_headers = request.headers
@@ -375,6 +376,7 @@ def _after_request_tags(pin, span, request, response):
                 request_body=_extract_body(request),
                 peer_ip=request.META.get("REMOTE_ADDR"),
                 headers_are_case_sensitive=headers_case_sensitive,
+                route=route,
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
