@@ -17,7 +17,7 @@ vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
 orbs:
-  win: circleci/windows@4.1
+  win: circleci/windows@5.0
 
 machine_executor: &machine_executor
   machine:
@@ -438,7 +438,7 @@ jobs:
       name: win/default
       shell: bash.exe
     steps:
-      - run: choco install python --version=3.5.4
+      - run: choco install -y python --version=3.5.4 --side-by-side
       - run_tox_scenario:
           store_coverage: false
           pattern: '^py35-profile'
@@ -448,7 +448,7 @@ jobs:
       name: win/default
       shell: bash.exe
     steps:
-      - run: choco install python --version=3.6.8
+      - run: choco install -y python --version=3.6.8 --side-by-side
       - run_tox_scenario:
           store_coverage: false
           pattern: '^py36-profile'
@@ -469,7 +469,7 @@ jobs:
       name: win/default
       shell: bash.exe
     steps:
-      - run: choco install python --version=3.8.10
+      - run: choco install -y python --version=3.8.10 --side-by-side
       - run_tox_scenario:
           store_coverage: false
           pattern: '^py38-profile'
@@ -479,7 +479,7 @@ jobs:
       name: win/default
       shell: bash.exe
     steps:
-      - run: choco install python --version=3.9.12
+      - run: choco install -y python --version=3.9.12 --side-by-side
       - run_tox_scenario:
           store_coverage: false
           pattern: '^py39-profile'
@@ -489,7 +489,7 @@ jobs:
       name: win/default
       shell: bash.exe
     steps:
-      - run: choco install python --version=3.10.4
+      # circleci/windows@5.0 orb includes python 3.10.6
       - run_tox_scenario:
           store_coverage: false
           pattern: '^py310-profile'
