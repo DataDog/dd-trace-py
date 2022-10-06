@@ -1,6 +1,7 @@
 import sqlite3
 import sys
 import time
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -17,6 +18,19 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
+
+
+if TYPE_CHECKING:
+    from typing import Generator
+
+
+@pytest.fixture
+def patched_conn():
+    # type: () -> Generator[sqlite3.Cursor, None, None]
+    patch()
+    conn = sqlite3.connect(":memory:")
+    yield conn
+    unpatch()
 
 
 class TestSQLite(TracerTestCase):
