@@ -8,20 +8,17 @@ from debugger import COLS
 from debugger import CWD
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector
+from debugger import config
 from debugger import status
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.internal.module import origin
-from ddtrace.internal.utils.formats import asbool
 
 
 # Track all the covered modules and its lines. Indexed by module origin.
 _tracked_modules = {}  # type: t.Dict[str, t.Tuple[ModuleType, t.Set[int]]]
-
-ENABLED = asbool(os.getenv("DD_DEBUGGER_EXPL_COVERAGE_ENABLED", True))
-DELETE_LINE_PROBE = asbool(os.getenv("DD_DEBUGGER_EXPL_DELETE_LINE_PROBE", False))
 
 
 class LineCollector(ModuleCollector):
@@ -92,9 +89,9 @@ class LineCoverage(ExplorationDebugger):
     @classmethod
     def on_snapshot(cls, snapshot):
         # type: (Snapshot) -> None
-        if DELETE_LINE_PROBE:
+        if config.coverage.delete_probes:
             cls.delete_probe(snapshot.probe)
 
 
-if ENABLED:
+if config.coverage.enabled:
     LineCoverage.enable()
