@@ -851,25 +851,6 @@ def test_ddtrace_run_startup_logging_injection(ddtrace_run_python_code_in_subpro
     assert b"ValueError: Formatting field not found in record: 'dd.service'" not in err
 
 
-def test_no_module_debug_log(ddtrace_run_python_code_in_subprocess):
-    env = os.environ.copy()
-    env.update(
-        dict(
-            DD_TRACE_DEBUG="1",
-        )
-    )
-    out, err, _, _ = ddtrace_run_python_code_in_subprocess(
-        """
-import logging
-from ddtrace import patch_all
-logging.basicConfig(level=logging.DEBUG)
-patch_all()
-        """,
-        env=env,
-    )
-    assert b"DEBUG:ddtrace._monkey:integration starlette not enabled (missing required module: starlette)" in err
-
-
 def test_no_warnings():
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown

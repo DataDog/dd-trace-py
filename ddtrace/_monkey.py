@@ -89,19 +89,10 @@ PATCH_MODULES = {
 _LOCK = threading.Lock()
 _PATCHED_MODULES = set()
 
-# Modules which are patched on first use
-# DEV: These modules are patched when the user first imports them, rather than
-#      explicitly importing and patching them on application startup `ddtrace.patch_all(module=True)`
-# DEV: This ensures we do not patch a module until it is needed
-# DEV: <contrib name> => <list of module names that trigger a patch>
-_PATCH_ON_IMPORT = {
-    "aiohttp": ("aiohttp",),
-    "aiobotocore": ("aiobotocore",),
-    "celery": ("celery",),
-    "flask": ("flask",),
-    "gevent": ("gevent",),
-    "requests": ("requests",),
-    "botocore": ("botocore",),
+# Module names that need to be patched for a given integration. If the module
+# name coincides with the integration name, then there is no need to add an
+# entry here.
+_MODULES_FOR_CONTRIB = {
     "elasticsearch": (
         "elasticsearch",
         "elasticsearch2",
@@ -110,8 +101,7 @@ _PATCH_ON_IMPORT = {
         "elasticsearch7",
         "opensearchpy",
     ),
-    "pynamodb": ("pynamodb",),
-    "rq": ("rq",),
+    "psycopg": ("psycopg2",),
 }
 
 IAST_PATCH = {
@@ -141,13 +131,13 @@ class IntegrationNotAvailableException(PatchException):
     pass
 
 
-def _on_import_factory(module, raise_errors=True):
-    # type: (str, bool) -> Callable[[Any], None]
+def _on_import_factory(module, prefix="ddtrace.contrib", raise_errors=True):
+    # type: (str, str, bool) -> Callable[[Any], None]
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
         # Import and patch module
-        path = "ddtrace.contrib.%s" % module
+        path = "%s.%s" % (prefix, module)
         try:
             imported_module = importlib.import_module(path)
         except ImportError:
@@ -200,7 +190,11 @@ def patch_iast(**patch_modules):
     """
     iast_enabled = formats.asbool(os.environ.get(IAST_ENV, "false"))
     if iast_enabled:
-        patch(raise_errors=False, patch_modules_prefix="ddtrace.appsec.iast.taint_sinks", **patch_modules)
+        # TODO: Devise the correct patching strategy for IAST
+        for module in (m for m, e in patch_modules.items() if e):
+            when_imported("hashlib")(
+                _on_import_factory(module, prefix="ddtrace.appsec.iast.taint_sinks", raise_errors=False)
+            )
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
@@ -212,31 +206,35 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
 
         >>> patch(psycopg=True, elasticsearch=True)
     """
-    modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
-    for module in modules:
-        if module in _PATCH_ON_IMPORT:
-            modules_to_poi = _PATCH_ON_IMPORT[module]
-            for m in modules_to_poi:
-                # If the module has already been imported then patch immediately
-                if m in sys.modules:
-                    _patch_module(module, patch_modules_prefix=patch_modules_prefix, raise_errors=raise_errors)
-                    break
-                # Otherwise, add a hook to patch when it is imported for the first time
-                else:
-                    # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-                    when_imported(m)(_on_import_factory(module, raise_errors))
+    contribs = [c for c, should_patch in patch_modules.items() if should_patch]
+    for contrib in contribs:
+        # Check if we have the requested contrib.
+        if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", contrib, "__init__.py")):
+            if raise_errors:
+                raise ModuleNotFoundException(
+                    "integration module ddtrace.contrib.%s does not exist, "
+                    "module will not have tracing available" % contrib
+                )
+        modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
+        for module in modules_to_patch:
+            # If the module has already been imported then patch immediately
+            if module in sys.modules:
+                _patch_module(contrib, patch_modules_prefix=patch_modules_prefix, raise_errors=raise_errors)
+                break
+            # Otherwise, add a hook to patch when it is imported for the first time
+            else:
+                # Use factory to create handler to close over `module` and `raise_errors` values from this loop
+                when_imported(module)(_on_import_factory(contrib, raise_errors=False))
 
-            # manually add module to patched modules
-            with _LOCK:
-                _PATCHED_MODULES.add(module)
-        else:
-            _patch_module(module, patch_modules_prefix=patch_modules_prefix, raise_errors=raise_errors)
+        # manually add module to patched modules
+        with _LOCK:
+            _PATCHED_MODULES.add(contrib)
 
     patched_modules = _get_patched_modules()
     log.info(
         "patched %s/%s modules (%s)",
         len(patched_modules),
-        len(modules),
+        len(contribs),
         ",".join(patched_modules),
     )
 
@@ -281,7 +279,7 @@ def _attempt_patch_module(module, patch_modules_prefix=DEFAULT_MODULES_PREFIX):
     """
     path = "%s.%s" % (patch_modules_prefix, module)
     with _LOCK:
-        if module in _PATCHED_MODULES and module not in _PATCH_ON_IMPORT:
+        if module in _PATCHED_MODULES and module not in _MODULES_FOR_CONTRIB:
             log.debug("already patched: %s", path)
             return False
 
@@ -292,18 +290,18 @@ def _attempt_patch_module(module, patch_modules_prefix=DEFAULT_MODULES_PREFIX):
             raise ModuleNotFoundException(
                 "integration module %s does not exist, module will not have tracing available" % path
             )
-        else:
-            # if patch() is not available in the module, it means
-            # that the library is not installed in the environment
-            if not hasattr(imported_module, "patch"):
-                required_mods = getattr(imported_module, "required_modules", [])
-                with require_modules(required_mods) as not_avail_mods:
-                    pass
-                raise IntegrationNotAvailableException(
-                    "missing required module%s: %s" % ("s" if len(not_avail_mods) > 1 else "", ",".join(not_avail_mods))
-                )
 
-            imported_module.patch()
-            _PATCHED_MODULES.add(module)
-            telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
-            return True
+        # if patch() is not available in the module, it means
+        # that the library is not installed in the environment
+        if not hasattr(imported_module, "patch"):
+            required_mods = getattr(imported_module, "required_modules", [])
+            with require_modules(required_mods) as not_avail_mods:
+                pass
+            raise IntegrationNotAvailableException(
+                "missing required module%s: %s" % ("s" if len(not_avail_mods) > 1 else "", ",".join(not_avail_mods))
+            )
+
+        imported_module.patch()
+        _PATCHED_MODULES.add(module)
+        telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
+        return True
