@@ -8,6 +8,7 @@ from ddtrace.debugging._metrics import metrics
 from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import AwakeablePeriodicService
+from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.http import connector
 
 
@@ -34,6 +35,13 @@ class LogsIntakeUploaderV1(AwakeablePeriodicService):
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
         }
+
+        container_info = container.get_container_info()
+        if container_info is not None:
+            container_id = container_info.container_id
+            if container_id is not None:
+                self._headers["Datadog-Container-Id"] = container_id
+
         if config._tags_in_qs and config.tags:
             self.ENDPOINT += "?ddtags=" + config.tags
         self._connect = connector(config._snapshot_intake_url, timeout=config.upload_timeout)
