@@ -94,6 +94,7 @@ initializer
 integration
 integrations
 ip
+iterable
 JSON
 jinja
 js
