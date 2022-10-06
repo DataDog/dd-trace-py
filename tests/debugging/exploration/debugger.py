@@ -9,6 +9,7 @@ from _config import config
 
 from ddtrace.context import Context
 from ddtrace.debugging._config import config as debugger_config
+import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._debugger import DebuggerModuleWatchdog
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
@@ -22,7 +23,17 @@ from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import origin
+from ddtrace.internal.remoteconfig import RemoteConfig
 
+
+class NoopRemoteConfig(RemoteConfig):
+    @classmethod
+    def register(cls, product, handler):
+        pass
+
+
+# Disable remote config as we don't need it for exploration tests
+_debugger.RemoteConfig = NoopRemoteConfig
 
 try:
     COLS, _ = os.get_terminal_size()

@@ -20,6 +20,7 @@ import six
 import ddtrace
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.internal import agent
+from ddtrace.internal import compat
 from ddtrace.internal import runtime
 from ddtrace.internal.utils.time import parse_isoformat
 
@@ -385,7 +386,9 @@ class RemoteConfigClient(object):
         except RemoteConfigError as e:
             self._last_error = str(e)
             log.warning("remote configuration client reported an error", exc_info=True)
+        except (compat.httplib.HTTPException, OSError, IOError):
+            log.warning("Remote configuration not available (quite likely because no agent is running)")
         except Exception:
-            log.warning("Unexpected error", exc_info=True)
+            log.error("Unexpected error", exc_info=True)
         else:
             self._last_error = None
