@@ -17,7 +17,11 @@ vertica_image: &vertica_image sumitchawla/vertica:latest
 rabbitmq_image: &rabbitmq_image rabbitmq:3.7-alpine
 
 orbs:
+<<<<<<< HEAD
   win: circleci/windows@2.2.0
+=======
+  win: circleci/windows@5.0
+>>>>>>> c2b416e7 (fix(ci): pin importlib_metadata<5.0.0 (#4257))
 
 machine_executor: &machine_executor
   machine:
@@ -376,6 +380,83 @@ jobs:
       - run_tox_scenario:
           pattern: '^py..-opentracer'
 
+<<<<<<< HEAD
+=======
+  # Building gevent (for which we never want wheels because they crash)
+  # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
+  # which is not installed.
+  # profile-windows-27:
+  #   executor:
+  #     name: win/default
+  #     shell: bash.exe
+  #   steps:
+  #     - run: choco install python2
+  #     - run_tox_scenario:
+  #         store_coverage: false
+  #         pattern: '^py27-profile'
+
+  profile-windows-35:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install -y python --version=3.5.4 --side-by-side
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py35-profile'
+
+  profile-windows-36:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install -y python --version=3.6.8 --side-by-side
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py36-profile'
+
+  # For whatever reason, choco does not install Python 3.7 correctly on Windows
+  # profile-windows-37:
+  #   executor:
+  #     name: win/default
+  #     shell: bash.exe
+  #   steps:
+  #     - run: choco install python --version=3.7.9
+  #     - run_tox_scenario:
+  #         store_coverage: false
+  #         pattern: '^py37-profile'
+
+  profile-windows-38:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install -y python --version=3.8.10 --side-by-side
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py38-profile'
+
+  profile-windows-39:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install -y python --version=3.9.12 --side-by-side
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py39-profile'
+
+  profile-windows-310:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      # circleci/windows@5.0 orb includes python 3.10.6
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py310-profile'
+
+>>>>>>> c2b416e7 (fix(ci): pin importlib_metadata<5.0.0 (#4257))
   profile:
     <<: *contrib_job
     parallelism: 6
