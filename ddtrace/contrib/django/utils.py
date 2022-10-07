@@ -375,7 +375,7 @@ def _after_request_tags(pin, span, request, response):
                 request_body=_extract_body(request),
                 peer_ip=request.META.get("REMOTE_ADDR"),
                 headers_are_case_sensitive=headers_case_sensitive,
-                route=request.resolver_match.route if request is not None and django.VERSION >= (2, 2) else None,
+                route=request.resolver_match.route if django.VERSION >= (2, 2) and request is not None and request.resolver_match is not None else None,
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
