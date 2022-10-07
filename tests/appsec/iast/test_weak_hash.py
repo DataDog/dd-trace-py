@@ -1,0 +1,114 @@
+import sys
+
+import pytest
+
+from ddtrace._monkey import patch_iast
+from ddtrace.appsec.iast.constants import VULN_INSECURE_HASHING_TYPE
+from ddtrace.constants import IAST_CONTEXT_KEY
+from ddtrace.internal import _context
+from tests.utils import override_env
+
+
+@pytest.fixture
+def iast_span(tracer):
+    with override_env(dict(DD_IAST_ENABLED="true")):
+        with tracer.trace("test") as span:
+            patch_iast()
+
+            yield span
+
+
+@pytest.mark.parametrize(
+    "hash,method", [("md5", "digest"), ("md5", "hexdigest"), ("sha1", "digest"), ("sha1", "hexdigest")]
+)
+def test_weak_hash_hashlib(iast_span, hash, method):
+    import hashlib
+
+    m = getattr(hashlib, hash)()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    getattr(m, method)()
+    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+    assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
+
+
+@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Digest is wrapped in Python 3")
+@pytest.mark.parametrize("hash", ["md5", "sha1"])
+def test_weak_hash_hashlib_no_digest(iast_span, hash):
+    import hashlib
+
+    m = getattr(hashlib, hash)()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+
+    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+    assert span_report is None
+
+
+@pytest.mark.parametrize("hash,method", [("sha256", "digest"), ("sha256", "hexdigest")])
+def test_weak_hash_secure_hash(iast_span, hash, method):
+    import hashlib
+
+    m = getattr(hashlib, hash)()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    getattr(m, method)()
+    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+    assert span_report is None
+
+
+def test_weak_hash_new(iast_span):
+    import hashlib
+
+    m = hashlib.new("md5")
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    m.digest()
+    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+    assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
+
+
+@pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="_md5 works only in Python 3")
+def test_weak_hash_md5_builtin_py3(iast_span):
+    import _md5
+
+    m = _md5.md5()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    m.digest()
+    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+    assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
+
+
+@pytest.mark.skipif(sys.version_info > (3, 0, 0), reason="md5 works only in Python 2")
+def test_weak_hash_md5_builtin_py2(iast_span):
+    import md5
+
+    m = md5.md5()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    m.digest()
+    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+    assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
+
+
+def test_weak_hash_pycryptodome_hashes_md5(iast_span):
+    from Crypto.Hash import MD5
+
+    m = MD5.new()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    m.digest()
+    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+    assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
+
+
+def test_weak_hash_pycryptodome_hashes_sha1(iast_span):
+    from Crypto.Hash import SHA1
+
+    m = SHA1.new()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    m.digest()
+    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+    assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE

@@ -8,6 +8,7 @@ from typing import List
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
+from .constants import IAST_ENV
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
@@ -107,6 +108,8 @@ _PATCH_ON_IMPORT = {
     "pynamodb": ("pynamodb",),
 }
 
+DEFAULT_PATH_MODULES = "ddtrace.contrib"
+
 
 class PatchException(Exception):
     """Wraps regular `Exception` class when patching modules"""
@@ -175,10 +178,26 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
+    patch_iast()
 
 
-def patch(raise_errors=True, **patch_modules):
-    # type: (bool, bool) -> None
+def patch_iast():
+    # type: () -> None
+    """Load IAST vulnerabilities sink points.
+
+    IAST_PATCH: list of implemented vulnerabilities
+    """
+    IAST_PATCH = {
+        "weak_hash": True,
+        "weak_cipher": False,
+    }
+    iast_enabled = formats.asbool(os.environ.get(IAST_ENV, "false"))
+    if iast_enabled:
+        patch(raise_errors=False, path_modules="ddtrace.appsec.iast.taint_sinks", **IAST_PATCH)
+
+
+def patch(raise_errors=True, path_modules=DEFAULT_PATH_MODULES, **patch_modules):
+    # type: (bool, str, bool) -> None
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -193,7 +212,7 @@ def patch(raise_errors=True, **patch_modules):
             for m in modules_to_poi:
                 # If the module has already been imported then patch immediately
                 if m in sys.modules:
-                    _patch_module(module, raise_errors=raise_errors)
+                    _patch_module(module, path_modules=path_modules, raise_errors=raise_errors)
                     break
                 # Otherwise, add a hook to patch when it is imported for the first time
                 else:
@@ -204,7 +223,7 @@ def patch(raise_errors=True, **patch_modules):
             with _LOCK:
                 _PATCHED_MODULES.add(module)
         else:
-            _patch_module(module, raise_errors=raise_errors)
+            _patch_module(module, path_modules=path_modules, raise_errors=raise_errors)
 
     patched_modules = _get_patched_modules()
     log.info(
@@ -215,14 +234,14 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-def _patch_module(module, raise_errors=True):
-    # type: (str, bool) -> bool
+def _patch_module(module, path_modules=DEFAULT_PATH_MODULES, raise_errors=True):
+    # type: (str, str, bool) -> bool
     """Patch a single module
 
     Returns if the module got properly patched.
     """
     try:
-        return _attempt_patch_module(module)
+        return _attempt_patch_module(module, path_modules=path_modules)
     except ModuleNotFoundException:
         if raise_errors:
             raise
@@ -246,14 +265,14 @@ def _get_patched_modules():
         return sorted(_PATCHED_MODULES)
 
 
-def _attempt_patch_module(module):
-    # type: (str) -> bool
+def _attempt_patch_module(module, path_modules=DEFAULT_PATH_MODULES):
+    # type: (str, str) -> bool
     """_patch_module will attempt to monkey patch the module.
 
     Returns if the module got patched.
     Can also raise errors if it fails.
     """
-    path = "ddtrace.contrib.%s" % module
+    path = path_modules + ".%s" % module
     with _LOCK:
         if module in _PATCHED_MODULES and module not in _PATCH_ON_IMPORT:
             log.debug("already patched: %s", path)
