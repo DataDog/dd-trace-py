@@ -328,6 +328,6 @@ def test_django_weak_hash(client, test_spans, tracer):
 
         root_span = test_spans.spans[0]
         root_span.get_tag(IAST_JSON)
-        assert json.loads(root_span.get_tag(IAST_JSON))["vulnerabilities"][0]["location"]["fileName"].endswith(
-            "tests/contrib/django/views.py"
-        )
+        vulnerability = json.loads(root_span.get_tag(IAST_JSON))["vulnerabilities"][0]
+        assert vulnerability["location"]["path"].endswith("tests/contrib/django/views.py")
+        assert vulnerability["evidence"]["value"] == "md5"

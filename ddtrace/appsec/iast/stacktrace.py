@@ -16,7 +16,16 @@ def get_info_frame():
     import inspect
 
     stack = inspect.stack()
-    frame = stack[4]
-    if sys.version_info < (3, 0, 0):
-        return str(frame[0]), int(frame[1])
-    return str(frame.filename), frame.lineno
+    for frame in stack[4:]:
+        if sys.version_info < (3, 0, 0):
+            filename = frame[1]
+            lineno = frame[2]
+        else:
+            filename = frame.filename
+            lineno = frame.lineno
+        if "ddtrace" in filename and "tests" not in filename:
+            continue
+
+        return filename, lineno
+
+    return "", 0

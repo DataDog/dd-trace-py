@@ -8,11 +8,14 @@ from ddtrace.constants import IAST_ENABLED
 from ddtrace.constants import IAST_JSON
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
 
 if TYPE_CHECKING:
     from ddtrace.span import Span
+
+log = get_logger(__name__)
 
 
 @attr.s(eq=False)
@@ -32,10 +35,9 @@ class AppSecIastSpanProcessor(SpanProcessor):
         """
         if span.span_type != SpanTypes.WEB:
             return
+        span.set_metric(IAST_ENABLED, 1.0)
 
         data = _context.get_item(IAST_CONTEXT_KEY, span=span)
 
-        span.set_tag(IAST_ENABLED, 1)
-
         if data:
-            span.set_tag(IAST_JSON, json.dumps(attr.asdict(data)))
+            span.set_tag_str(IAST_JSON, json.dumps(attr.asdict(data)))

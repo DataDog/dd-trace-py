@@ -39,20 +39,20 @@ def patch():
     if sys.version_info >= (3, 0, 0):
         wrap_function_wrapper_exception("_hashlib", "HASH.digest", wrapped_digest_function)
         wrap_function_wrapper_exception("_hashlib", "HASH.hexdigest", wrapped_digest_function)
-        wrap_function_wrapper_exception("_md5", "MD5Type.digest", wrapped_function)
-        wrap_function_wrapper_exception("_md5", "MD5Type.hexdigest", wrapped_function)
-        wrap_function_wrapper_exception("_sha1", "SHA1Type.digest", wrapped_function)
-        wrap_function_wrapper_exception("_sha1", "SHA1Type.hexdigest", wrapped_function)
+        wrap_function_wrapper_exception("_md5", "MD5Type.digest", wrapped_md5_function)
+        wrap_function_wrapper_exception("_md5", "MD5Type.hexdigest", wrapped_md5_function)
+        wrap_function_wrapper_exception("_sha1", "SHA1Type.digest", wrapped_sha1_function)
+        wrap_function_wrapper_exception("_sha1", "SHA1Type.hexdigest", wrapped_sha1_function)
     else:
-        wrap_function_wrapper_exception("hashlib", "md5", wrapped_function)
-        wrap_function_wrapper_exception("hashlib", "sha1", wrapped_function)
+        wrap_function_wrapper_exception("hashlib", "md5", wrapped_md5_function)
+        wrap_function_wrapper_exception("hashlib", "sha1", wrapped_sha1_function)
         wrap_function_wrapper_exception("hashlib", "new", wrapped_new_function)
 
     # pycryptodome methods
-    wrap_function_wrapper_exception("Crypto.Hash.MD5", "MD5Hash.digest", wrapped_function)
-    wrap_function_wrapper_exception("Crypto.Hash.MD5", "MD5Hash.hexdigest", wrapped_function)
-    wrap_function_wrapper_exception("Crypto.Hash.SHA1", "SHA1Hash.digest", wrapped_function)
-    wrap_function_wrapper_exception("Crypto.Hash.SHA1", "SHA1Hash.hexdigest", wrapped_function)
+    wrap_function_wrapper_exception("Crypto.Hash.MD5", "MD5Hash.digest", wrapped_md5_function)
+    wrap_function_wrapper_exception("Crypto.Hash.MD5", "MD5Hash.hexdigest", wrapped_md5_function)
+    wrap_function_wrapper_exception("Crypto.Hash.SHA1", "SHA1Hash.digest", wrapped_sha1_function)
+    wrap_function_wrapper_exception("Crypto.Hash.SHA1", "SHA1Hash.hexdigest", wrapped_sha1_function)
 
 
 @inject_span
@@ -61,18 +61,34 @@ def wrapped_digest_function(wrapped, span, instance, args, kwargs):
     """ """
     if instance.name.lower() in ["md5", "sha1"]:
         report_vulnerability(
-            span=span, vulnerability_type=VULN_INSECURE_HASHING_TYPE, evidence_type=EVIDENCE_ALGORITHM_TYPE
+            span=span,
+            vulnerability_type=VULN_INSECURE_HASHING_TYPE,
+            evidence_type=EVIDENCE_ALGORITHM_TYPE,
+            evidence_value=instance.name,
         )
 
     return wrapped(*args, **kwargs)
 
 
 @inject_span
-def wrapped_function(wrapped, span, instance, args, kwargs):
+def wrapped_md5_function(wrapped, span, instance, args, kwargs):
     # type: (Callable, Span, Any, Any, Any) -> Any
-    """ """
+    return wrapped_function(wrapped, span, "md5", instance, args, kwargs)
+
+
+@inject_span
+def wrapped_sha1_function(wrapped, span, instance, args, kwargs):
+    # type: (Callable, Span, Any, Any, Any) -> Any
+    return wrapped_function(wrapped, span, "sha1", instance, args, kwargs)
+
+
+def wrapped_function(wrapped, span, evidence, instance, args, kwargs):
+    # type: (Callable, Span, str, Any, Any, Any) -> Any
     report_vulnerability(
-        span=span, vulnerability_type=VULN_INSECURE_HASHING_TYPE, evidence_type=EVIDENCE_ALGORITHM_TYPE
+        span=span,
+        vulnerability_type=VULN_INSECURE_HASHING_TYPE,
+        evidence_type=EVIDENCE_ALGORITHM_TYPE,
+        evidence_value=evidence,
     )
 
     return wrapped(*args, **kwargs)
@@ -81,10 +97,12 @@ def wrapped_function(wrapped, span, instance, args, kwargs):
 @inject_span
 def wrapped_new_function(wrapped, span, instance, args, kwargs):
     # type: (Callable, Span, Any, Any, Any) -> Any
-    """ """
     if args[0].lower() in ["md5", "sha1"]:
         report_vulnerability(
-            span=span, vulnerability_type=VULN_INSECURE_HASHING_TYPE, evidence_type=EVIDENCE_ALGORITHM_TYPE
+            span=span,
+            vulnerability_type=VULN_INSECURE_HASHING_TYPE,
+            evidence_type=EVIDENCE_ALGORITHM_TYPE,
+            evidence_value=args[0].lower(),
         )
 
     return wrapped(*args, **kwargs)

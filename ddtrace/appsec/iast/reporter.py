@@ -1,3 +1,4 @@
+from typing import Set
 from typing import TYPE_CHECKING
 
 import attr
@@ -8,7 +9,7 @@ from ddtrace.internal import _context
 
 
 if TYPE_CHECKING:
-    from typing import Set
+
     from typing import Text
 
     from ddtrace.span import Span
@@ -30,8 +31,8 @@ class Evidence(object):
 
 @attr.s(eq=False)
 class Location(object):
-    fileName = attr.ib(type=str)
-    lineNumber = attr.ib(type=int)
+    path = attr.ib(type=str)
+    line = attr.ib(type=int)
 
 
 @attr.s(eq=False)
@@ -54,8 +55,8 @@ class IastSpanReporter(object):
     vulnerabilities = attr.ib(type=Set[Vulnerability], factory=set)
 
 
-def report_vulnerability(span, vulnerability_type, evidence_type):
-    # type: (Span, Text, Text) -> None
+def report_vulnerability(span, vulnerability_type, evidence_type, evidence_value=""):
+    # type: (Span, Text, Text, Text) -> None
     """ """
     report = _context.get_item(IAST_CONTEXT_KEY, span=span)
     file_name, line_number = get_info_frame()
@@ -63,8 +64,8 @@ def report_vulnerability(span, vulnerability_type, evidence_type):
         report.vulnerabilities.add(
             Vulnerability(
                 type=vulnerability_type,
-                evidence=Evidence(type=evidence_type),
-                location=Location(fileName=file_name, lineNumber=line_number),
+                evidence=Evidence(type=evidence_type, value=evidence_value),
+                location=Location(path=file_name, line=line_number),
             )
         )
 
@@ -73,8 +74,8 @@ def report_vulnerability(span, vulnerability_type, evidence_type):
             vulnerabilities={
                 Vulnerability(
                     type=vulnerability_type,
-                    evidence=Evidence(type=evidence_type),
-                    location=Location(fileName=file_name, lineNumber=line_number),
+                    evidence=Evidence(type=evidence_type, value=evidence_value),
+                    location=Location(path=file_name, line=line_number),
                 )
             }
         )
