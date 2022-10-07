@@ -26,9 +26,9 @@ class AppSecIastSpanProcessor(SpanProcessor):
         """Report reported vulnerabilities.
 
         Span Tags:
-          - `_dd.iast.json: Only when one or more vulnerabilities have been detected will we include the custom tag
-          - `_dd.iast.enabled`: Set to 1 when IAST is enabled in a request. If a request is disabled (e.g. by sampling),
-            then it is not set.
+            - `_dd.iast.json`: Only when one or more vulnerabilities have been detected will we include the custom tag.
+            - `_dd.iast.enabled`: Set to 1 when IAST is enabled in a request. If a request is disabled
+              (e.g. by sampling), then it is not set.
         """
         if span.span_type != SpanTypes.WEB:
             return

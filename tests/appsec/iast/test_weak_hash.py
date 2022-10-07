@@ -19,12 +19,12 @@ def iast_span(tracer):
 
 
 @pytest.mark.parametrize(
-    "hash,method", [("md5", "digest"), ("md5", "hexdigest"), ("sha1", "digest"), ("sha1", "hexdigest")]
+    "hash_func,method", [("md5", "digest"), ("md5", "hexdigest"), ("sha1", "digest"), ("sha1", "hexdigest")]
 )
-def test_weak_hash_hashlib(iast_span, hash, method):
+def test_weak_hash_hashlib(iast_span, hash_func, method):
     import hashlib
 
-    m = getattr(hashlib, hash)()
+    m = getattr(hashlib, hash_func)()
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     getattr(m, method)()
@@ -33,11 +33,11 @@ def test_weak_hash_hashlib(iast_span, hash, method):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="Digest is wrapped in Python 3")
-@pytest.mark.parametrize("hash", ["md5", "sha1"])
-def test_weak_hash_hashlib_no_digest(iast_span, hash):
+@pytest.mark.parametrize("hash_func", ["md5", "sha1"])
+def test_weak_hash_hashlib_no_digest(iast_span, hash_func):
     import hashlib
 
-    m = getattr(hashlib, hash)()
+    m = getattr(hashlib, hash_func)()
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
 
@@ -45,11 +45,11 @@ def test_weak_hash_hashlib_no_digest(iast_span, hash):
     assert span_report is None
 
 
-@pytest.mark.parametrize("hash,method", [("sha256", "digest"), ("sha256", "hexdigest")])
-def test_weak_hash_secure_hash(iast_span, hash, method):
+@pytest.mark.parametrize("hash_func,method", [("sha256", "digest"), ("sha256", "hexdigest")])
+def test_weak_hash_secure_hash(iast_span, hash_func, method):
     import hashlib
 
-    m = getattr(hashlib, hash)()
+    m = getattr(hashlib, hash_func)()
     m.update(b"Nobody inspects")
     m.update(b" the spammish repetition")
     getattr(m, method)()

@@ -28,8 +28,10 @@ def wrap_function_wrapper_exception(module, name, wrapper):
 
 def patch():
     # type: () -> None
-    """Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
-    and thus are not fit for use."""
+    """Wrap hashing functions.
+    Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
+    and thus are not fit for use.
+    """
     if getattr(hashlib, "_datadog_patch", False):
         return
     setattr(hashlib, "_datadog_patch", True)
