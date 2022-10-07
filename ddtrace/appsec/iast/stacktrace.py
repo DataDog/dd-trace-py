@@ -11,7 +11,7 @@ def get_info_frame():
     # type: () -> Tuple[Text, int]
     """Get the filename (path + filename) and line number of the original wrapped function to report it.
 
-    CEVEAT: We should migrate this function to native code to improve the performance.
+    CAVEAT: We should migrate this function to native code to improve the performance.
     """
     import inspect
 
