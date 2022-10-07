@@ -1,21 +1,17 @@
-import os
 import typing as t
 
 from debugger import COLS
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector
+from debugger import config
 from debugger import status
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import FunctionProbe
-from ddtrace.internal.utils.formats import asbool
 
 
 # Track all instrumented functions and their call count.
 _tracked_funcs = {}  # type: t.Dict[str, int]
-
-
-ENABLED = asbool(os.getenv("DD_DEBUGGER_EXPL_PROFILER_ENABLED", True))
 
 
 class FunctionCollector(ModuleCollector):
@@ -65,5 +61,5 @@ class DeterministicProfiler(ExplorationDebugger):
         cls.report_func_calls()
 
 
-if ENABLED:
+if config.profiler.enabled:
     DeterministicProfiler.enable()

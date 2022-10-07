@@ -170,7 +170,6 @@ subdomains
 submodule
 submodules
 timestamp
-traceparent
 tweens
 uWSGI
 unbuffered
