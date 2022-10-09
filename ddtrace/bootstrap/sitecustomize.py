@@ -26,7 +26,10 @@ from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode
+from ddtrace import tracer
 from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal import atexit
+from ddtrace.context import Context
 
 
 if config.logs_injection:
@@ -160,6 +163,16 @@ try:
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.
+    start_trace_on_startup = os.getenv("DD_START_TRACE_ON_STARTUP", False)
+    if start_trace_on_startup:
+        trace_name = os.getenv("DD_TRACE_NAME", "global-trace")
+        if (trace_id := os.getenv("DD_TRACE_ID", None)) and (span_id := os.getenv("DD_SPAN_ID", None)):
+            trace_ctx = Context(trace_id=int(trace_id), span_id=int(span_id))
+            tracer.context_provider.activate(trace_ctx)
+        global_trace = tracer.trace(trace_name)
+        def end_trace():
+            global_trace.finish()
+        atexit.register(end_trace)
     loaded = True
 except Exception:
     loaded = False
