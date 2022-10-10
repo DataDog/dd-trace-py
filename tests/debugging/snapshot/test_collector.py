@@ -14,10 +14,16 @@ from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._snapshot.model import Snapshot
 
 
+class MockLimiter:
+    def limit(self):
+        return
+
+
 @attr.s
 class MockProbe(object):
     probe_id = attr.ib(type=str)
     condition = attr.ib(type=Callable[[Dict[str, Any]], Any])
+    limiter = attr.ib(factory=MockLimiter)
 
 
 @attr.s

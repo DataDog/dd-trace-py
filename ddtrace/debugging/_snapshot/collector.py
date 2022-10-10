@@ -52,10 +52,6 @@ class SnapshotContext(object):
         self.duration = None
         self._snapshot_encoder = collector._encoder._encoders[Snapshot]  # type: ignore[attr-defined]
 
-        # TODO: Put rate limiting after condition evaluation
-        if probe.limiter.limit() is RateLimitExceeded:
-            return
-
         snapshot = Snapshot(
             probe=probe,
             frame=frame,
@@ -66,6 +62,9 @@ class SnapshotContext(object):
         )
 
         if snapshot.evaluate(dict(args)):
+            if probe.limiter.limit() is RateLimitExceeded:
+                return
+
             self.snapshot = snapshot
             self.snapshot.entry_capture = self._snapshot_encoder.capture_context(
                 args,
@@ -160,6 +159,9 @@ class SnapshotCollector(object):
                 # modified in other threads. One option is to acquire and hold
                 # the GIL until we are done snapshotting, but this is not
                 # possible from Python.
+                if probe.limiter.limit() is RateLimitExceeded:
+                    return
+
                 self._enqueue(snapshot)
                 meter.increment("encoded", tags={"probe_id": probe.probe_id})
                 log.debug("Encoded %r", snapshot)
