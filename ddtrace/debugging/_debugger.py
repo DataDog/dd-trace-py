@@ -3,6 +3,7 @@ from inspect import currentframe
 from itertools import chain
 import sys
 import threading
+from types import FrameType
 from types import FunctionType
 from types import ModuleType
 from typing import Any
@@ -255,15 +256,14 @@ class Debugger(Service):
 
                 return
 
+            # TODO: Global limit evaluated before probe conditions
             if self._global_rate_limiter.limit() is RateLimitExceeded:
                 return
 
-            # TODO: Put rate limiting after condition evaluation
-            probe.limiter.limit(
-                self._collector.push,
-                probe,
+            self._collector.push(
+                cast(ConditionalProbe, probe),
                 # skip the current frame
-                currentframe().f_back,  # type: ignore[union-attr]
+                cast(FrameType, currentframe().f_back),  # type: ignore[union-attr]
                 threading.current_thread(),
                 sys.exc_info(),
                 self._tracer.current_trace_context(),
