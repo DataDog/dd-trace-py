@@ -8,6 +8,7 @@ import threading
 import pytest
 
 from ddtrace.debugging._encoding import BatchJsonEncoder
+from ddtrace.debugging._encoding import MAXSIZE
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._encoding import _captured_context
 from ddtrace.debugging._encoding import _captured_value_v2
@@ -122,7 +123,7 @@ def test_serialize_custom_object():
     )
 
     q = "class" if PY3 else "type"
-    assert _serialize(Custom()) == "Custom(some_arg=<%s 'tuple'>)" % q
+    assert _serialize(Custom(), 1) == "Custom(some_arg=<%s 'tuple'>)" % q
     assert _serialize(Custom(), 2) == "Custom(some_arg=(<%s 'dict'>))" % q
     assert _serialize(Custom(), 3) == "Custom(some_arg=({'Hello': <%s 'list'>}))" % q
     assert _serialize(Custom(), 4) == "Custom(some_arg=({'Hello': [None, 42, True, None, <%s 'set'>, 0.07]}))" % q
@@ -133,12 +134,12 @@ def test_serialize_custom_object():
 @pytest.mark.parametrize(
     "value,serialized",
     [
-        (list(range(20)), "[" + ", ".join(map(str, range(10))) + ", ...]"),
-        (tuple(range(20)), "(" + ", ".join(map(str, range(10))) + ", ...)"),
-        (set(range(20)), "{" + ", ".join(map(str, range(10))) + ", ...}"),
-        (list(range(10)), "[" + ", ".join(map(str, range(10))) + "]"),
-        (tuple(range(10)), "(" + ", ".join(map(str, range(10))) + ")"),
-        (set(range(10)), "{" + ", ".join(map(str, range(10))) + "}"),
+        (list(range(MAXSIZE << 1)), "[" + ", ".join(map(str, range(MAXSIZE))) + ", ...]"),
+        (tuple(range(MAXSIZE << 1)), "(" + ", ".join(map(str, range(MAXSIZE))) + ", ...)"),
+        (set(range(MAXSIZE << 1)), "{" + ", ".join(map(str, range(MAXSIZE))) + ", ...}"),
+        (list(range(MAXSIZE)), "[" + ", ".join(map(str, range(MAXSIZE))) + "]"),
+        (tuple(range(MAXSIZE)), "(" + ", ".join(map(str, range(MAXSIZE))) + ")"),
+        (set(range(MAXSIZE)), "{" + ", ".join(map(str, range(MAXSIZE))) + "}"),
     ],
 )
 def test_serialize_collection_max_size(value, serialized):
@@ -146,7 +147,7 @@ def test_serialize_collection_max_size(value, serialized):
 
 
 def test_serialize_long_string():
-    assert _serialize("x" * 11, max_str_len=10) == repr("x" * 9 + "...")
+    assert _serialize("x" * 11, maxlen=10) == repr("x" * 9 + "...")
 
 
 def test_serialize_exc_info():
@@ -172,7 +173,7 @@ def test_serialize_exc_info():
 
 
 def test_captured_context_default_level():
-    context = _captured_context([("self", tree)], [], (None, None, None))
+    context = _captured_context([("self", tree)], [], (None, None, None), level=0)
     self = context["arguments"]["self"]
     assert self["fields"]["root"]["notCapturedReason"] == "depth"
 
@@ -328,4 +329,4 @@ def test_get_fields_slots():
     ],
 )
 def test_format_message(args, expected):
-    assert format_message("foo", {k: _captured_value_v2(v) for k, v in args.items()}) == "foo(%s)" % expected
+    assert format_message("foo", {k: _captured_value_v2(v, level=0) for k, v in args.items()}) == "foo(%s)" % expected

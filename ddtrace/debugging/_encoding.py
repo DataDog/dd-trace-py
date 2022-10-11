@@ -50,6 +50,12 @@ EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", 
 log = get_logger(__name__)
 
 
+MAXLEVEL = 2
+MAXSIZE = 100
+MAXLEN = 255
+MAXFIELDS = 20
+
+
 class JsonBuffer(object):
     def __init__(self, max_size=None):
         self.max_size = max_size
@@ -103,7 +109,7 @@ class SnapshotEncoder(Encoder):
         arguments,  # type: List[Tuple[str, Any]]
         _locals,  # type: List[Tuple[str, Any]]
         throwable,  # type: ExcInfoType
-        level=1,  # type: int
+        level=MAXLEVEL,  # type: int
     ):
         # type: (...) -> Dict[str, Any]
         """Capture context on the spot."""
@@ -215,7 +221,7 @@ def _serialize_collection(value, brackets, level, max_len):
     return "".join((o, ", ".join(_serialize(_, level - 1) for _ in islice(value, max_len)), ellipsis, c))
 
 
-def _serialize(value, level=1, max_len=10, max_str_len=1024):
+def _serialize(value, level=MAXLEVEL, maxsize=MAXSIZE, maxlen=MAXLEN):
     # type: (Any, int, int, int) -> str
     """Python object serializer.
 
@@ -228,7 +234,7 @@ def _serialize(value, level=1, max_len=10, max_str_len=1024):
 
     if type(value) in BUILTIN_SIMPLE_TYPES:
         r = repr(value)
-        return "".join((r[:max_str_len], "..." + ("'" if r[0] == "'" else "") if len(r) > max_str_len else ""))
+        return "".join((r[:maxlen], "..." + ("'" if r[0] == "'" else "") if len(r) > maxlen else ""))
 
     if not level:
         return repr(type(value))
@@ -248,11 +254,11 @@ def _serialize(value, level=1, max_len=10, max_str_len=1024):
             + "}"
         )
     elif type(value) is list:
-        return _serialize_collection(value, "[]", level, max_len)
+        return _serialize_collection(value, "[]", level, maxsize)
     elif type(value) is tuple:
-        return _serialize_collection(value, "()", level, max_len)
+        return _serialize_collection(value, "()", level, maxsize)
     elif type(value) is set:
-        return _serialize_collection(value, r"{}", level, max_len) if value else "set()"
+        return _serialize_collection(value, r"{}", level, maxsize) if value else "set()"
 
     raise TypeError("Unhandled type: %s", type(value))
 
@@ -284,7 +290,7 @@ def _get_fields(obj):
         return {s: _safe_getattr(obj, s) for s in get_slots(obj)}
 
 
-def _captured_value_v2(value, level=0, maxlen=1024, maxsize=10, maxfields=10):
+def _captured_value_v2(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, maxfields=MAXFIELDS):
     # type: (Any, int, int, int, int) -> Dict[str, Any]
     _type = type(value)
 
@@ -368,7 +374,7 @@ def _captured_context(
     arguments,  # type: List[Tuple[str, Any]]
     _locals,  # type: List[Tuple[str, Any]]
     throwable,  # type: ExcInfoType
-    level=0,  # type: int
+    level=MAXLEVEL,  # type: int
 ):
     # type: (...) -> Dict[str, Any]
     return {
