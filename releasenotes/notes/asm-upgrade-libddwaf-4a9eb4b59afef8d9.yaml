@@ -1,4 +1,4 @@
 ---
 upgrade:
   - |
-    ASM: upgrade libddwaf to version 1.5.0.
+    ASM: upgrade libddwaf to version 1.5.1.
