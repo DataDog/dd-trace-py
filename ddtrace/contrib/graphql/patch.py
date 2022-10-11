@@ -4,7 +4,7 @@ import sys
 from typing import TYPE_CHECKING
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
     from typing import Dict
     from typing import Iterable

@@ -20,7 +20,7 @@ from .span_context import SpanContext
 from .tags import Tags
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from .tracer import Tracer
 
 

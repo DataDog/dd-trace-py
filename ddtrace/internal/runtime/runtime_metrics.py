@@ -6,7 +6,7 @@ from typing import Set
 from typing import TYPE_CHECKING
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
 
 import attr
