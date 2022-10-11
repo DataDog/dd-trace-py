@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    wsgi: when tracing more than one wsgi app within the same process ensure wsgi spans have the correct parenting.
