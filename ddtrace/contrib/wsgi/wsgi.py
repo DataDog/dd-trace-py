@@ -87,12 +87,14 @@ class _DDWSGIMiddlewareBase(object):
             req_span._ignore_exception(GeneratorExit)
             self._request_span_modifier(req_span, environ)
 
-            with self.tracer.trace(self._application_span_name) as app_span:
-                intercept_start_response = functools.partial(self._traced_start_response, start_response, req_span)
+            with self.tracer.start_span(self._application_span_name, child_of=req_span, activate=True) as app_span:
+                intercept_start_response = functools.partial(
+                    self._traced_start_response, start_response, req_span, app_span
+                )
                 result = self.app(environ, intercept_start_response)
                 self._application_span_modifier(app_span, environ, result)
 
-            with self.tracer.trace(self._response_span_name) as resp_span:
+            with self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True) as resp_span:
                 # This prevents GeneratorExit exceptions from being set on the response span.
                 # This can occur if a streaming response exits abruptly leading to a broken pipe.
                 resp_span._ignore_exception(GeneratorExit)
@@ -103,8 +105,8 @@ class _DDWSGIMiddlewareBase(object):
             if hasattr(result, "close"):
                 result.close()
 
-    def _traced_start_response(self, start_response, request_span, status, environ, exc_info=None):
-        # type: (Callable, Span, str, Dict, Any) -> None
+    def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
+        # type: (Callable, Span, Span, str, Dict, Any) -> None
         """sets the status code on a request span when start_response is called"""
         status_code, _ = status.split(" ", 1)
         trace_utils.set_http_meta(request_span, self._config, status_code=status_code)
@@ -185,15 +187,17 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         super(DDWSGIMiddleware, self).__init__(application, tracer or ddtrace.tracer, config.wsgi, None)
         self.span_modifier = span_modifier
 
-    def _traced_start_response(self, start_response, request_span, status, environ, exc_info=None):
+    def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         status_code, status_msg = status.split(" ", 1)
         request_span.set_tag("http.status_msg", status_msg)
         trace_utils.set_http_meta(request_span, self._config, status_code=status_code, response_headers=environ)
 
-        with self.tracer.trace(
+        with self.tracer.start_span(
             "wsgi.start_response",
+            child_of=app_span,
             service=trace_utils.int_service(None, self._config),
             span_type=SpanTypes.WEB,
+            activate=True,
         ):
             return start_response(status, environ, exc_info)
 
