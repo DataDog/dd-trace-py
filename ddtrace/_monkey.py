@@ -2,9 +2,7 @@ import importlib
 import os
 import sys
 import threading
-from typing import Any
-from typing import Callable
-from typing import List
+from typing import TYPE_CHECKING
 
 from ddtrace.vendor.wrapt.importer import when_imported
 
@@ -14,6 +12,12 @@ from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
 from .internal.utils.importlib import require_modules
 from .settings import _config as config
+
+
+if TYPE_CHECKING:
+    from typing import Any
+    from typing import Callable
+    from typing import List
 
 
 log = get_logger(__name__)
@@ -108,7 +112,12 @@ _PATCH_ON_IMPORT = {
     "pynamodb": ("pynamodb",),
 }
 
-DEFAULT_PATH_MODULES = "ddtrace.contrib"
+IAST_PATCH = {
+    "weak_hash": True,
+    "weak_cipher": False,
+}
+
+DEFAULT_MODULES_PREFIX = "ddtrace.contrib"
 
 
 class PatchException(Exception):
@@ -178,25 +187,21 @@ def patch_all(**patch_modules):
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    patch_iast()
+    patch_iast(**IAST_PATCH)
 
 
-def patch_iast():
-    # type: () -> None
+def patch_iast(**patch_modules):
+    # type: (bool) -> None
     """Load IAST vulnerabilities sink points.
 
     IAST_PATCH: list of implemented vulnerabilities
     """
-    IAST_PATCH = {
-        "weak_hash": True,
-        "weak_cipher": False,
-    }
     iast_enabled = formats.asbool(os.environ.get(IAST_ENV, "false"))
     if iast_enabled:
-        patch(raise_errors=False, path_modules="ddtrace.appsec.iast.taint_sinks", **IAST_PATCH)
+        patch(raise_errors=True, patch_modules_prefix="ddtrace.appsec.iast.taint_sinks", **patch_modules)
 
 
-def patch(raise_errors=True, path_modules=DEFAULT_PATH_MODULES, **patch_modules):
+def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):
     # type: (bool, str, bool) -> None
     """Patch only a set of given modules.
 
@@ -212,7 +217,7 @@ def patch(raise_errors=True, path_modules=DEFAULT_PATH_MODULES, **patch_modules)
             for m in modules_to_poi:
                 # If the module has already been imported then patch immediately
                 if m in sys.modules:
-                    _patch_module(module, path_modules=path_modules, raise_errors=raise_errors)
+                    _patch_module(module, patch_modules_prefix=patch_modules_prefix, raise_errors=raise_errors)
                     break
                 # Otherwise, add a hook to patch when it is imported for the first time
                 else:
@@ -223,7 +228,7 @@ def patch(raise_errors=True, path_modules=DEFAULT_PATH_MODULES, **patch_modules)
             with _LOCK:
                 _PATCHED_MODULES.add(module)
         else:
-            _patch_module(module, path_modules=path_modules, raise_errors=raise_errors)
+            _patch_module(module, patch_modules_prefix=patch_modules_prefix, raise_errors=raise_errors)
 
     patched_modules = _get_patched_modules()
     log.info(
@@ -234,14 +239,14 @@ def patch(raise_errors=True, path_modules=DEFAULT_PATH_MODULES, **patch_modules)
     )
 
 
-def _patch_module(module, path_modules=DEFAULT_PATH_MODULES, raise_errors=True):
+def _patch_module(module, patch_modules_prefix=DEFAULT_MODULES_PREFIX, raise_errors=True):
     # type: (str, str, bool) -> bool
     """Patch a single module
 
     Returns if the module got properly patched.
     """
     try:
-        return _attempt_patch_module(module, path_modules=path_modules)
+        return _attempt_patch_module(module, patch_modules_prefix=patch_modules_prefix)
     except ModuleNotFoundException:
         if raise_errors:
             raise
@@ -265,14 +270,14 @@ def _get_patched_modules():
         return sorted(_PATCHED_MODULES)
 
 
-def _attempt_patch_module(module, path_modules=DEFAULT_PATH_MODULES):
+def _attempt_patch_module(module, patch_modules_prefix=DEFAULT_MODULES_PREFIX):
     # type: (str, str) -> bool
     """_patch_module will attempt to monkey patch the module.
 
     Returns if the module got patched.
     Can also raise errors if it fails.
     """
-    path = path_modules + ".%s" % module
+    path = "%s.%s" % (patch_modules_prefix, module)
     with _LOCK:
         if module in _PATCHED_MODULES and module not in _PATCH_ON_IMPORT:
             log.debug("already patched: %s", path)

@@ -8,7 +8,7 @@ from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.internal import _context
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
 
     from typing import Text
 
@@ -16,17 +16,9 @@ if TYPE_CHECKING:
 
 
 @attr.s(eq=False)
-class Range(object):
-    sourcesIndex = attr.ib(type=int)
-    start = attr.ib(type=int)
-    length = attr.ib(type=int)
-
-
-@attr.s(eq=False)
 class Evidence(object):
     type = attr.ib(type=str)
     value = attr.ib(type=str, default="")
-    ranges = attr.ib(type=Set[Range], factory=set)
 
 
 @attr.s(eq=False)

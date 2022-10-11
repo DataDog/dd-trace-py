@@ -2,6 +2,7 @@ import sys
 
 import pytest
 
+from ddtrace._monkey import IAST_PATCH
 from ddtrace._monkey import patch_iast
 from ddtrace.appsec.iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.constants import IAST_CONTEXT_KEY
@@ -13,7 +14,7 @@ from tests.utils import override_env
 def iast_span(tracer):
     with override_env(dict(DD_IAST_ENABLED="true")):
         with tracer.trace("test") as span:
-            patch_iast()
+            patch_iast(**IAST_PATCH)
 
             yield span
 
