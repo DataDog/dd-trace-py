@@ -200,6 +200,12 @@ below:
      - The trace API version to use when sending traces to the Datadog agent.
        Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
 
+       .. _dd-trace-obfuscation-query-string-pattern:
+   * - ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN``
+     - String
+     - ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:(?:\s|%20)*(?:=|%3D)[^&]+|(?:"|%22)(?:\s|%20)*(?::|%3A)(?:\s|%20)*(?:"|%22)(?:%2[^2]|%[^2]|[^"%])+(?:"|%22))|bearer(?:\s|%20)+[a-z0-9\._\-]|token(?::|%3A)[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L](?:[\w=-]|%3D)+\.ey[I-L](?:[\w=-]|%3D)+(?:\.(?:[\w.+\/=-]|%3D|%2F|%2B)+)?|[\-]{5}BEGIN(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY[\-]{5}[^\-]+[\-]{5}END(?:[a-z\s]|%20)+PRIVATE(?:\s|%20)KEY|ssh-rsa(?:\s|%20)*(?:[a-z0-9\/\.+]|%2F|%5C|%2B){100,}.``
+     - A regexp to redact sensitive query strings. Obfuscation disabled if set to empty string
+
        .. _dd-trace-propagation-style-extract:
    * - ``DD_TRACE_PROPAGATION_STYLE_EXTRACT``
      - String
@@ -232,6 +238,12 @@ below:
      - Integer
      - 512
      - The maximum length of ``x-datadog-tags`` header allowed in the Datadog propagation style. Must be a value between 0 to 512. If 0, propagation of ``x-datadog-tags`` is disabled.
+
+       .. _dd-trace-partial-flush-enabled:
+   * - ``DD_TRACE_PARTIAL_FLUSH_ENABLED``
+     - Boolean
+     - True
+     - Prevents large payloads being sent to APM.
 
        .. _dd-profiling-enabled:
    * - ``DD_PROFILING_ENABLED``
@@ -340,4 +352,22 @@ below:
      - ``(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?|access_?|secret_?)key(?:_?id)?|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)?|auth(?:entication|orization)?)(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}``
      - Sensitive parameter value regexp for obfuscation.
 
+       .. _dd-http-client-tag-query-string:
+   * - ``DD_HTTP_CLIENT_TAG_QUERY_STRING``
+     - Boolean
+     - True
+     - Send query strings in http.url tag in http client integrations.
+
+       .. _dd-http-server-tag-query-string:
+   * - ``DD_HTTP_SERVER_TAG_QUERY_STRING``
+     - Boolean
+     - True
+     - Send query strings in http.url tag in http server integrations.
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+
+
+Dynamic Instrumentation
+-----------------------
+
+.. envier:: ddtrace.settings.dynamic_instrumentation:DynamicInstrumentationConfig

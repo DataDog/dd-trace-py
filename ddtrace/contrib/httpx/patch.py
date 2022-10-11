@@ -20,7 +20,7 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
     from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
@@ -29,6 +29,7 @@ config._add(
     {
         "distributed_tracing": asbool(os.getenv("DD_HTTPX_DISTRIBUTED_TRACING", default=True)),
         "split_by_domain": asbool(os.getenv("DD_HTTPX_SPLIT_BY_DOMAIN", default=False)),
+        "default_http_tag_query_string": os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
     },
 )
 

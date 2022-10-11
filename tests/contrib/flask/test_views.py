@@ -68,8 +68,6 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         res = self.client.get("/hello/flask")
         self.assertEqual(res.status_code, 500)
-        # Read response data from the test client to close flask.request and flask.response spans
-        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
 
@@ -149,8 +147,6 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         res = self.client.get("/hello/flask")
         self.assertEqual(res.status_code, 500)
-        # Read response data from the test client to close flask.request and flask.response spans
-        self.assertIsNotNone(res.data)
 
         spans = self.get_spans()
 

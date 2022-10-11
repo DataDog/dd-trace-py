@@ -6,7 +6,7 @@ from typing import Set
 from typing import TYPE_CHECKING
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
 
 import attr
@@ -96,7 +96,7 @@ class RuntimeWorker(periodic.PeriodicService):
         # add tags to root span to correlate trace with runtime metrics
         # only applied to spans with types that are internal to applications
         if span.parent_id is None and self.tracer._is_span_internal(span):
-            span._set_str_tag("language", "python")
+            span.set_tag_str("language", "python")
 
     @classmethod
     def disable(cls):
@@ -148,7 +148,7 @@ class RuntimeWorker(periodic.PeriodicService):
                 log.debug("Writing metric %s:%s", key, value)
                 self._dogstatsd_client.distribution(key, value)
 
-    def _stop_service(self):  # type: ignore[override]
+    def _stop_service(self):
         # type: (...) -> None
         # De-register span hook
         super(RuntimeWorker, self)._stop_service()

@@ -39,7 +39,7 @@ from ddtrace.internal.safety import get_slots
 from ddtrace.internal.utils.cache import cached
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.internal.compat import Collection
 
 

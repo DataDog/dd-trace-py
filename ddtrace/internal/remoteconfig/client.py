@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import re
+import sys
 from typing import Any
 from typing import List
 from typing import Mapping
@@ -14,6 +15,7 @@ import uuid
 
 import attr
 import cattr
+import six
 
 import ddtrace
 from ddtrace.internal import agent
@@ -21,10 +23,12 @@ from ddtrace.internal import runtime
 from ddtrace.internal.utils.time import parse_isoformat
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
+    from typing import Dict
     from typing import MutableMapping
     from typing import Tuple
+    from typing import Union
 
     ProductCallback = Callable[[Optional["ConfigMetadata"], Optional[Mapping[str, Any]]], None]
 
@@ -127,6 +131,13 @@ class AgentPayload(object):
     client_configs = attr.ib(type=Set[str], default={})
 
 
+def _load_json(data):
+    # type: (Union[str, bytes]) -> Dict[str, Any]
+    if (3, 6) > sys.version_info > (3,) and isinstance(data, six.binary_type):
+        data = str(data, encoding="utf-8")
+    return json.loads(data)
+
+
 def _extract_target_file(payload, target, config):
     # type: (AgentPayload, str, ConfigMetadata) -> Optional[Mapping[str, Any]]
     candidates = [item.raw for item in payload.target_files if item.path == target]
@@ -146,7 +157,7 @@ def _extract_target_file(payload, target, config):
         )
 
     try:
-        return json.loads(raw)
+        return _load_json(raw)
     except Exception:
         raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
 
@@ -188,9 +199,15 @@ class RemoteConfigClient(object):
 
         self.converter = cattr.Converter()
 
+        # cattrs doesn't implement datetime converter in Py27, we should register
+        def date_to_fromisoformat(val, cls):
+            return val
+
+        self.converter.register_structure_hook(datetime, date_to_fromisoformat)
+
         def base64_to_struct(val, cls):
             raw = base64.b64decode(val)
-            obj = json.loads(raw)
+            obj = _load_json(raw)
             return self.converter.structure_attrs_fromdict(obj, cls)
 
         self.converter.register_structure_hook(SignedRoot, base64_to_struct)

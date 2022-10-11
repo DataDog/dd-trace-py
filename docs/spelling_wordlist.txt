@@ -33,6 +33,8 @@ autodetected
 autopatching
 backend
 backends
+backport
+backported
 bdd
 bikeshedding
 booleans
@@ -43,7 +45,9 @@ cassandra
 cgroups
 cherrypy
 ciapp
+client_ip
 codepath
+collect
 committer
 compat
 composable
@@ -90,6 +94,8 @@ ini
 initializer
 integration
 integrations
+ip
+iterable
 JSON
 jinja
 js
@@ -191,3 +197,4 @@ AppSec
 libddwaf
 Serverless
 serverless
+cattrs

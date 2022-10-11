@@ -39,7 +39,7 @@ from .runtime import container
 from .sma import SimpleMovingAverage
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
 
     from .agent import ConnectionType
@@ -587,7 +587,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     def periodic(self):
         self.flush_queue(raise_exc=False)
 
-    def _stop_service(  # type: ignore[override]
+    def _stop_service(
         self,
         timeout=None,  # type: Optional[float]
     ):

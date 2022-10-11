@@ -33,7 +33,7 @@ from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict
 
     from ddtrace.span import Span
@@ -221,7 +221,7 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
         span.set_metric(APPSEC_ENABLED, 1.0)
-        span._set_str_tag(RUNTIME_FAMILY, "python")
+        span.set_tag_str(RUNTIME_FAMILY, "python")
 
         data = {}
         if self._is_needed(_Addresses.SERVER_REQUEST_QUERY):
@@ -275,9 +275,9 @@ class AppSecSpanProcessor(SpanProcessor):
         try:
             info = self._ddwaf.info
             if info["errors"]:
-                span._set_str_tag(APPSEC_EVENT_RULE_ERRORS, json.dumps(info["errors"]))
-            span._set_str_tag(APPSEC_EVENT_RULE_VERSION, info["version"])
-            span._set_str_tag(APPSEC_WAF_VERSION, "%s.%s.%s" % version())
+                span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info["errors"]))
+            span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info["version"])
+            span.set_tag_str(APPSEC_WAF_VERSION, "%s.%s.%s" % version())
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info["loaded"])
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info["failed"])
@@ -301,10 +301,10 @@ class AppSecSpanProcessor(SpanProcessor):
                 _set_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES], kind="response")
             # Partial DDAS-011-00
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
-            span._set_str_tag("appsec.event", "true")
-            span._set_str_tag(APPSEC_JSON, '{"triggers":%s}' % (res,))
+            span.set_tag_str("appsec.event", "true")
+            span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (res,))
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
-                span._set_str_tag(ORIGIN_KEY, "appsec")
+                span.set_tag_str(ORIGIN_KEY, "appsec")

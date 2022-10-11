@@ -160,7 +160,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.name, self.SPAN_NAME)
         self.assertEqual(span.error, 0)
         assert span.get_tag("http.method") == "GET"
-        assert span.get_tag("http.url") == URL_200
+        assert span.get_tag("http.url") == URL_200 + fqs
         assert_span_http_status_code(span, 200)
         if config.httplib.trace_query_string:
             assert span.get_tag(http.QUERY_STRING) == query_string
@@ -232,9 +232,10 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         When making a GET request with a query string via httplib.HTTPConnection.request
             we capture the all of the url in the span except for the query string
         """
+        qs = "?key=value&key2=value2"
         conn = self.get_http_connection(SOCKET)
         with contextlib.closing(conn):
-            conn.request("GET", "/status/200?key=value&key2=value2")
+            conn.request("GET", "/status/200" + qs)
             resp = conn.getresponse()
             self.assertEqual(self.to_str(resp.read()), "")
             self.assertEqual(resp.status, 200)
@@ -249,7 +250,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(span.error, 0)
         assert span.get_tag("http.method") == "GET"
         assert_span_http_status_code(span, 200)
-        assert span.get_tag("http.url") == URL_200
+        assert span.get_tag("http.url") == URL_200 + qs
 
     def test_httplib_request_500_request(self):
         """

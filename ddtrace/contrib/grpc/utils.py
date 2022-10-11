@@ -26,23 +26,23 @@ def set_grpc_method_meta(span, method, method_kind):
     method_path = method
     method_package, method_service, method_name = parse_method_path(method_path)
     if method_path is not None:
-        span._set_str_tag(constants.GRPC_METHOD_PATH_KEY, method_path)
+        span.set_tag_str(constants.GRPC_METHOD_PATH_KEY, method_path)
     if method_package is not None:
-        span._set_str_tag(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
+        span.set_tag_str(constants.GRPC_METHOD_PACKAGE_KEY, method_package)
     if method_service is not None:
-        span._set_str_tag(constants.GRPC_METHOD_SERVICE_KEY, method_service)
+        span.set_tag_str(constants.GRPC_METHOD_SERVICE_KEY, method_service)
     if method_name is not None:
-        span._set_str_tag(constants.GRPC_METHOD_NAME_KEY, method_name)
+        span.set_tag_str(constants.GRPC_METHOD_NAME_KEY, method_name)
     if method_kind is not None:
-        span._set_str_tag(constants.GRPC_METHOD_KIND_KEY, method_kind)
+        span.set_tag_str(constants.GRPC_METHOD_KIND_KEY, method_kind)
 
 
 def set_grpc_client_meta(span, host, port):
     if host:
-        span._set_str_tag(constants.GRPC_HOST_KEY, host)
+        span.set_tag_str(constants.GRPC_HOST_KEY, host)
     if port:
-        span._set_str_tag(constants.GRPC_PORT_KEY, str(port))
-    span._set_str_tag(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
+        span.set_tag_str(constants.GRPC_PORT_KEY, str(port))
+    span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_CLIENT)
 
 
 def _parse_target_from_args(args, kwargs):

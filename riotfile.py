@@ -135,6 +135,7 @@ venv = Venv(
             create=True,
             pkgs={
                 "mypy": latest,
+                "envier": latest,
                 "types-attrs": latest,
                 "types-docutils": latest,
                 "types-protobuf": latest,
@@ -149,7 +150,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="codespell",
-                    command="codespell ddtrace/ tests/",
+                    command='codespell --skip="ddwaf.h" ddtrace/ tests/',
                 ),
                 Venv(
                     name="hook-codespell",
@@ -241,7 +242,7 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "msgpack": latest,
-                        "attrs": ["==19.2.0", latest],
+                        "attrs": ["==20.1.0", latest],
                         "packaging": ["==17.1", latest],
                         "structlog": latest,
                         # httpretty v1.0 drops python 2.7 support
@@ -318,10 +319,7 @@ venv = Venv(
         Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
-            pkgs={
-                "msgpack": latest,
-                "httpretty": "==0.9.7",
-            },
+            pkgs={"msgpack": latest},
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
@@ -417,6 +415,7 @@ venv = Venv(
                         ],
                         "redis": "~=2.10.6",
                         "kombu": "~=4.3.0",
+                        "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib-metadata>=5.0
                     },
                 ),
                 # Celery 4.2 is now limited to Kombu 4.3
@@ -428,11 +427,27 @@ venv = Venv(
                         "celery": "~=4.2.2",
                         "redis": "~=2.10.6",
                         "kombu": "~=4.3.0",
+                        "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib_metadata 5.0
                     },
                 ),
                 # Celery 4.3 wants Kombu >= 4.4 and Redis >= 3.2
+                # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
-                    pys=select_pys(max_version="3.9"),
+                    pys=select_pys(max_version="3.7"),
+                    pkgs={
+                        "pytest": "~=3.10",
+                        "celery": [
+                            "~=4.3.1",
+                            "~=4.4.7",
+                            "~=4.4",  # most recent 4.x
+                        ],
+                        "redis": "~=3.5",
+                        "kombu": "~=4.4",
+                        "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib_metadata 5.0
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
                         "pytest": "~=3.10",
                         "celery": [
@@ -445,8 +460,25 @@ venv = Venv(
                     },
                 ),
                 # Celery 5.x wants Python 3.6+
+                # Split into <3.8 and >=3.8 to pin importlib_metadata dependency for kombu
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    pys=select_pys(min_version="3.6", max_version="3.7"),
+                    env={
+                        # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
+                        "PYTEST_PLUGINS": "celery.contrib.pytest",
+                    },
+                    pkgs={
+                        "celery": [
+                            "~=5.0.5",
+                            "~=5.0",  # most recent 5.x
+                            latest,
+                        ],
+                        "redis": "~=3.5",
+                        "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib_metadata 5.0
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8"),
                     env={
                         # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
@@ -1835,8 +1867,28 @@ venv = Venv(
                         "sanic": [
                             "~=21.9.0",
                             "~=21.12.0",
-                            latest,
                         ],
+                        "sanic-testing": "~=0.8.3",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": "~=22.3.0",
+                        "sanic-testing": "~=22.3.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": "~=22.9.0",
+                        "sanic-testing": "~=22.9.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "sanic": latest,
                         "sanic-testing": latest,
                     },
                 ),

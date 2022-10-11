@@ -41,11 +41,16 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tests.contrib.tornado.web.app.SuccessHandler" == request_span.resource
         assert "GET" == request_span.get_tag("http.method")
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/success/") == request_span.get_tag(http.URL)
         if config.tornado.trace_query_string:
             assert query_string == request_span.get_tag(http.QUERY_STRING)
         else:
             assert http.QUERY_STRING not in request_span.get_tags()
+
+        if config.tornado.http_tag_query_string:
+            assert self.get_url("/success/") + fqs == request_span.get_tag(http.URL)
+        else:
+            assert self.get_url("/success/") == request_span.get_tag(http.URL)
+
         assert 0 == request_span.error
 
     def test_success_handler_query_string(self):
