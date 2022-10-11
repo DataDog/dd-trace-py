@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    flask: add support for streamed responses
