@@ -136,6 +136,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         root = spans[0]
         assert root.name == "flask.request"
         assert root.get_tag(http.URL) == "http://localhost/route_params/test/100/5.5/some/sub/path"
+        assert root.get_tag(http.ROUTE) == "/route_params/<first>/<int:second>/<float:third>/<path:fourth>"
         assert root.get_tag("flask.endpoint") == "route_params"
         assert root.get_tag("flask.url_rule") == "/route_params/<first>/<int:second>/<float:third>/<path:fourth>"
         assert root.get_tag("flask.view_args.first") == "test"
