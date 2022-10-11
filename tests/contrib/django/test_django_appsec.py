@@ -320,7 +320,7 @@ def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tr
 
 def test_django_weak_hash(client, test_spans, tracer):
     with override_env(dict(DD_IAST_ENABLED="true")):
-        patch_iast()
+        patch_iast(weak_hash=True)
         tracer._iast_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
