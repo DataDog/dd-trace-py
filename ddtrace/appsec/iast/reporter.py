@@ -49,7 +49,7 @@ class IastSpanReporter(object):
 
 def report_vulnerability(span, vulnerability_type, evidence_type, evidence_value=""):
     # type: (Span, Text, Text, Text) -> None
-    """ """
+    """ Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
     report = _context.get_item(IAST_CONTEXT_KEY, span=span)
     file_name, line_number = get_info_frame()
     if report:
