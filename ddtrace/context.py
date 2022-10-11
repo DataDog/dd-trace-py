@@ -13,7 +13,7 @@ from .internal.compat import PY2
 from .internal.logger import get_logger
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from .span import Span
     from .span import _MetaDictType
     from .span import _MetricDictType

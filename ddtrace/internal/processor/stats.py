@@ -25,7 +25,7 @@ from ..periodic import PeriodicService
 from ..writer import _human_size
 
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from typing import DefaultDict
     from typing import Dict
     from typing import List
