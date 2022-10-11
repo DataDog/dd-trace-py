@@ -198,7 +198,7 @@ def patch_iast(**patch_modules):
     """
     iast_enabled = formats.asbool(os.environ.get(IAST_ENV, "false"))
     if iast_enabled:
-        patch(raise_errors=True, patch_modules_prefix="ddtrace.appsec.iast.taint_sinks", **patch_modules)
+        patch(raise_errors=False, patch_modules_prefix="ddtrace.appsec.iast.taint_sinks", **patch_modules)
 
 
 def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patch_modules):

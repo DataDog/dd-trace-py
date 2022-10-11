@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 MD5_DEF = "md5"
-SHA1_DEF = "md5"
+SHA1_DEF = "sha1"
 
 
 def _wrap_function_wrapper_exception(module, name, wrapper):
