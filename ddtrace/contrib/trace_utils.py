@@ -35,7 +35,7 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
     from ddtrace import Tracer
     from ddtrace.settings import IntegrationConfig
