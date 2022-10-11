@@ -14,7 +14,7 @@ from .internal.utils.importlib import require_modules
 from .settings import _config as config
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
     from typing import List

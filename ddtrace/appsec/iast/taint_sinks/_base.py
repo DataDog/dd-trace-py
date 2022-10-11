@@ -4,7 +4,7 @@ from ddtrace import tracer
 from ddtrace.internal.logger import get_logger
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
 

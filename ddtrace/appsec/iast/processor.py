@@ -12,7 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.span import Span
 
 log = get_logger(__name__)
