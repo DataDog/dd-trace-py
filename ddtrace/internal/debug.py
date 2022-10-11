@@ -17,7 +17,7 @@ from ddtrace.sampler import DatadogSampler
 from .logger import get_logger
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Tracer
 
 

@@ -309,7 +309,10 @@ def _wrap_start_response(func, span, request):
         if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
             span.resource = u" ".join((request.method, code))
 
-        trace_utils.set_http_meta(span, config.flask, status_code=code, response_headers=headers)
+        trace_utils.set_http_meta(
+            span, config.flask, status_code=code, response_headers=headers, route=span.get_tag(FLASK_URL_RULE)
+        )
+
         return func(status_code, headers)
 
     return traced_start_response

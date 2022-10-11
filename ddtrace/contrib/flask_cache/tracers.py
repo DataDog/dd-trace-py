@@ -15,7 +15,7 @@ from .utils import _extract_conn_tags
 from .utils import _resource_from_cache_prefix
 
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
 
 

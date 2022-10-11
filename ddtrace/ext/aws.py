@@ -7,7 +7,7 @@ from typing import Tuple
 from ddtrace.contrib.trace_utils import set_flattened_tags
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.span import Span
 
 

@@ -35,7 +35,7 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
     from ddtrace import Tracer
     from ddtrace.settings import IntegrationConfig
@@ -398,6 +398,7 @@ def set_http_meta(
     request_body=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
     peer_ip=None,  # type: Optional[str]
     headers_are_case_sensitive=False,  # type: bool
+    route=None,  # type: Optional[str]
 ):
     # type: (...) -> None
     """
@@ -490,6 +491,9 @@ def set_http_meta(
             },
             span=span,
         )
+
+    if route is not None:
+        span.set_tag_str(http.ROUTE, route)
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):

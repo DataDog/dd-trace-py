@@ -38,7 +38,7 @@ except ImportError:
     # handling python 2.X import error
     JSONDecodeError = ValueError  # type: ignore
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from .span import Span
 
 

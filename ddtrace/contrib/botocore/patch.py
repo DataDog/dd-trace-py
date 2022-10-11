@@ -32,7 +32,7 @@ from ...propagation.http import HTTPPropagator
 from ..trace_utils import unwrap
 
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
 
 # Original botocore client class

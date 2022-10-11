@@ -12,7 +12,7 @@ from ddtrace.internal.processor.trace import TraceProcessor
 from .ext import http
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
 
 
