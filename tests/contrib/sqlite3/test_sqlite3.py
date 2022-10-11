@@ -20,7 +20,7 @@ from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from typing import Generator
 
 

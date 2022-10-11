@@ -23,7 +23,7 @@ from ddtrace.internal import runtime
 from ddtrace.internal.utils.time import parse_isoformat
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from typing import Callable
     from typing import Dict
     from typing import MutableMapping
