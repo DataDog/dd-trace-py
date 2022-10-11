@@ -16,6 +16,7 @@ QUERY_STRING = "http.query.string"
 RETRIES_REMAIN = "http.retries_remain"
 VERSION = "http.version"
 CLIENT_IP = "http.client_ip"
+ROUTE = "http.route"
 
 # template render span type
 TEMPLATE = "template"
