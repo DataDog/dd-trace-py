@@ -16,7 +16,7 @@ from ..trace_utils import wrap
 from ..trace_utils_async import with_traced_module
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from types import ModuleType
     from typing import Dict
     from typing import Union
