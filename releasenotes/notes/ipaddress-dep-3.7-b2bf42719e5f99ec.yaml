@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Only install ``ipaddress`` dependency for Python < 3.7
