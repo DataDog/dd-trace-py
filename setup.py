@@ -258,8 +258,9 @@ setup(
         "pathlib2; python_version<'3.5'",
         "jsonschema",
         "xmltodict>=0.12",
-        "ipaddress",
+        "ipaddress; python_version<'3.7'",
         "envier",
+        "forbiddenfruit>=0.1.4",
     ]
     + bytecode,
     extras_require={
