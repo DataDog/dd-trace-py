@@ -1,3 +1,5 @@
+from inspect import getargspec
+from inspect import isgeneratorfunction
 from threading import RLock
 from typing import Any
 from typing import Callable
@@ -100,3 +102,32 @@ def cachedmethod(maxsize=256):
         return CachedMethodDescriptor(f, maxsize)
 
     return cached_wrapper
+
+
+def callonce(f):
+    # type: (Callable[[], Any]) -> Callable[[], Any]
+    """Decorator for executing a function only the first time."""
+
+    argspec = getargspec(f)
+    if argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f):
+        raise ValueError("The callonce decorator can only be applied to functions with no arguments")
+
+    def _():
+        # type: () -> Any
+        try:
+            retval, exc = f.__callonce_result__  # type: ignore[attr-defined]
+        except AttributeError:
+            try:
+                retval = f()
+                exc = None
+            except Exception as e:
+                retval = None
+                exc = e
+            f.__callonce_result__ = retval, exc  # type: ignore[attr-defined]
+
+        if exc is not None:
+            raise exc
+
+        return retval
+
+    return _
