@@ -12,6 +12,7 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils import time
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.importlib import func_name
@@ -345,3 +346,81 @@ def test_parse_version(version_str, expected):
     # type: (str, typing.Tuple[int, int, int]) -> None
     """Ensure parse_version helper properly parses versions"""
     assert parse_version(version_str) == expected
+
+
+i = 0
+
+
+def test_callonce():
+    global i
+    i = 0
+
+    @callonce
+    def callmeonce():
+        global i
+        i += 1
+        return i
+
+    @callonce
+    def the_answer():
+        return 42
+
+    assert all(callmeonce() == 1 for _ in range(10))
+    assert the_answer() == 42
+
+
+def test_callonce_exc():
+    global i
+    i = 0
+
+    @callonce
+    def callmeonce():
+        global i
+        i += 1
+        raise ValueError(i)
+
+    def unwrap_exc():
+        try:
+            callmeonce()
+        except ValueError as exc:
+            return str(exc)
+
+    assert all(unwrap_exc() == "1" for _ in range(10))
+
+
+def test_callonce_signature():
+    with pytest.raises(ValueError):
+
+        @callonce
+        def _(a):
+            pass
+
+    with pytest.raises(ValueError):
+
+        @callonce
+        def _(b=None):
+            pass
+
+    with pytest.raises(ValueError):
+
+        @callonce
+        def _(*args, **kwargs):
+            pass
+
+    with pytest.raises(ValueError):
+
+        @callonce
+        def _(**kwargs):
+            pass
+
+    with pytest.raises(ValueError):
+
+        @callonce
+        def _(a, b=None, *args, **kwargs):
+            pass
+
+    with pytest.raises(ValueError):
+
+        @callonce
+        def _():
+            yield 42

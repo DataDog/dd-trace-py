@@ -210,6 +210,9 @@ venv = Venv(
             name="appsec",
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
+            pkgs={
+                "pycryptodome": latest,
+            },
         ),
         Venv(
             pys=select_pys(),
