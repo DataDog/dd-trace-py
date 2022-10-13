@@ -5,7 +5,6 @@ __pycache__/
 
 # C extensions
 ddtrace/appsec/_ddwaf.cpp
-ddtrace/appsec/include
 ddtrace/appsec/share
 ddtrace/profiling/collector/_task.c
 ddtrace/profiling/_threading.c
@@ -17,7 +16,6 @@ ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
 *.so
-*.a
 
 # Cython annotate HTML files
 ddtrace/**/*.html
