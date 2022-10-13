@@ -3,6 +3,7 @@ Class based views used for Django tests.
 """
 
 from functools import partial
+import hashlib
 
 from django.contrib.auth.models import User
 from django.contrib.syndication.views import Feed
@@ -211,3 +212,11 @@ def body_view(request):
     else:
         data = request.POST
         return HttpResponse(str(dict(data)), status=200)
+
+
+def weak_hash_view(request):
+    m = hashlib.md5()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    m.digest()
+    return HttpResponse("OK", status=200)
