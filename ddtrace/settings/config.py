@@ -6,6 +6,7 @@ from typing import Optional
 from typing import Tuple
 
 from ddtrace.constants import APPSEC_ENV
+from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
@@ -225,6 +226,7 @@ class Config(object):
             os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
         )
         self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
+        self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
 
         dd_trace_obfuscation_query_string_pattern = os.getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT

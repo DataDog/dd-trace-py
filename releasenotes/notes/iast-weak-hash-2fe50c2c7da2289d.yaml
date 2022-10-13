@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add new env var ``DD_IAST_ENABLED``.
+  - |
+    IAST: detect and report weak hash vulnerabilities.
