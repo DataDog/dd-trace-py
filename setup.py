@@ -181,9 +181,9 @@ else:
     else:
         debug_compile_args = []
     if linux:
-        ddwaf_libraries = ["ddwaf", "rt", "m", "dl", "pthread"]
+        ddwaf_libraries = ["rt", "m", "dl", "pthread"]
     else:
-        ddwaf_libraries = ["ddwaf"]
+        ddwaf_libraries = []
 
 
 if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
@@ -348,9 +348,10 @@ setup(
             Cython.Distutils.Extension(
                 "ddtrace.appsec._ddwaf",
                 sources=["ddtrace/appsec/_ddwaf.pyx"],
-                include_dirs=["ddtrace/appsec/include"],
-                library_dirs=["ddtrace/appsec/lib", "ddtrace/appsec"],
+                include_dirs=["ddtrace/appsec/libddwaf/include"],
+                library_dirs=["ddtrace/appsec/libddwaf/lib"],
                 include_path=["ddtrace/appsec"],
+                extra_objects=["ddtrace/appsec/libddwaf/lib/libddwaf.a"],
                 libraries=ddwaf_libraries,
                 language="c++",
             ),
