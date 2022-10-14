@@ -95,6 +95,15 @@ class Context(object):
             self._metrics[SAMPLING_PRIORITY_KEY] = value
 
     @property
+    def traceparent(self):
+        # type: () -> str
+        if self.trace_id is None or self.span_id is None:
+            return ""
+
+        sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
+        return "00-{:032x}-{:016x}-{:02x}".format(self.trace_id, self.span_id, sampled)
+
+    @property
     def dd_origin(self):
         # type: () -> Optional[Text]
         """Get the origin of the trace."""
