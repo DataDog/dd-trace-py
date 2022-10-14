@@ -4,7 +4,7 @@ from ddtrace.provider import _DD_CONTEXTVAR
 from ddtrace.span import Span
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Dict
     from typing import List
