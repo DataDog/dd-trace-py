@@ -364,6 +364,12 @@ below:
      - True
      - Send query strings in http.url tag in http server integrations.
 
+       .. _dd-iast-enabled:
+   * - ``DD_IAST_ENABLED``
+     - Boolean
+     - False
+     - Whether to enable IAST.
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 
