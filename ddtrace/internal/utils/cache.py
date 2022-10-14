@@ -1,17 +1,12 @@
-from ddtrace.internal.compat import PY2
-
-
-if PY2:
-    from inspect import getargspec
-else:
-    from inspect import getfullargspec
-from inspect import isgeneratorfunction
 from threading import RLock
 from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Type
 from typing import TypeVar
+
+from ddtrace.internal.compat import args_provided
+from ddtrace.internal.compat import getfullargspec
 
 
 miss = object()
@@ -113,22 +108,9 @@ def cachedmethod(maxsize=256):
 def callonce(f):
     # type: (Callable[[], Any]) -> Callable[[], Any]
     """Decorator for executing a function only the first time."""
-    if PY2:
-        argspec = getargspec(f)
-        if argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f):
-            raise ValueError("The callonce decorator can only be applied to functions with no arguments")
-    else:
-        argspec = getfullargspec(f)
-        if (
-            argspec.args
-            or argspec.varargs
-            or argspec.varkw
-            or argspec.defaults
-            or argspec.kwonlyargs
-            or argspec.kwonlydefaults
-            or isgeneratorfunction(f)
-        ):
-            raise ValueError("The callonce decorator can only be applied to functions with no arguments")
+    argspec = getfullargspec(f)
+    if args_provided(f, argspec):
+        raise ValueError("The callonce decorator can only be applied to functions with no arguments")
 
     def _():
         # type: () -> Any
