@@ -503,7 +503,8 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.8"),
+                    # Billiard dependency is incompatible with Python 3.11
+                    pys=select_pys(min_version="3.8", max_version="3.10"),
                     env={
                         # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
