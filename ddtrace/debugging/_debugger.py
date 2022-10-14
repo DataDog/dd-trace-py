@@ -56,7 +56,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.wrapping import Wrapper
 
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.tracer import Tracer
 
 

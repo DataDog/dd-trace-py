@@ -31,4 +31,5 @@ urlpatterns = [
     url(r"^alter-resource/$", views.alter_resource, name="alter-resource"),
     url(r"^identify/$", views.identify, name="identify"),
     url(r"^body/$", views.body_view, name="body_view"),
+    url(r"^weak-hash/$", views.weak_hash_view, name="weak_hash"),
 ]

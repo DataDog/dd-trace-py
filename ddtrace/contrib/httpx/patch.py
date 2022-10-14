@@ -20,7 +20,7 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING:  # pragma: no cover
     from ddtrace import Span
     from ddtrace.vendor.wrapt import BoundFunctionWrapper
 

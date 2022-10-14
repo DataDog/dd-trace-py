@@ -98,6 +98,7 @@ def _default_span_processors_factory(
     partial_flush_enabled,  # type: bool
     partial_flush_min_spans,  # type: int
     appsec_enabled,  # type: bool
+    iast_enabled,  # type: bool
     compute_stats_enabled,  # type: bool
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
@@ -128,6 +129,11 @@ def _default_span_processors_factory(
             )
             if config._raise:
                 raise
+
+    if iast_enabled:
+        from .appsec.iast.processor import AppSecIastSpanProcessor
+
+        span_processors.append(AppSecIastSpanProcessor())
 
     if compute_stats_enabled:
         # Inline the import to avoid pulling in ddsketch or protobuf
@@ -219,6 +225,7 @@ class Tracer(object):
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
         self._appsec_enabled = config._appsec_enabled
+        self._iast_enabled = config._iast_enabled
 
         self._span_processors = _default_span_processors_factory(
             self._filters,
@@ -226,6 +233,7 @@ class Tracer(object):
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
+            self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
@@ -335,6 +343,7 @@ class Tracer(object):
         api_version=None,  # type: Optional[str]
         compute_stats_enabled=None,  # type: Optional[bool]
         appsec_enabled=None,  # type: Optional[bool]
+        iast_enabled=None,  # type: Optional[bool]
     ):
         # type: (...) -> None
         """Configure a Tracer.
@@ -369,6 +378,9 @@ class Tracer(object):
 
         if appsec_enabled is not None:
             self._appsec_enabled = config._appsec_enabled = appsec_enabled
+
+        if iast_enabled is not None:
+            self._iast_enabled = config._iast_enabled = iast_enabled
 
         # If priority sampling is not set or is True and no priority sampler is set yet
         if priority_sampling in (None, True) and not self._priority_sampler:
@@ -449,6 +461,7 @@ class Tracer(object):
                 settings.get("FILTERS") if settings is not None else None,
                 compute_stats_enabled,
                 appsec_enabled,
+                iast_enabled,
             ]
         ):
             self._span_processors = _default_span_processors_factory(
@@ -457,6 +470,7 @@ class Tracer(object):
                 self._partial_flush_enabled,
                 self._partial_flush_min_spans,
                 self._appsec_enabled,
+                self._iast_enabled,
                 self._compute_stats,
                 self._single_span_sampling_rules,
                 self._agent_url,
@@ -501,6 +515,7 @@ class Tracer(object):
             self._partial_flush_enabled,
             self._partial_flush_min_spans,
             self._appsec_enabled,
+            self._iast_enabled,
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
