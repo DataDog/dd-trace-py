@@ -351,7 +351,11 @@ setup(
                 include_dirs=["ddtrace/appsec/libddwaf/include"],
                 library_dirs=["ddtrace/appsec/libddwaf/lib"],
                 include_path=["ddtrace/appsec"],
-                extra_objects=["ddtrace/appsec/libddwaf/lib/libddwaf.a"],
+                extra_objects=[
+                    "ddtrace/appsec/libcpp/libc++abi.a",
+                    "ddtrace/appsec/libcpp/libc++.a",
+                    "ddtrace/appsec/libddwaf/lib/libddwaf.a",
+                ],
                 libraries=ddwaf_libraries,
                 language="c++",
             ),
