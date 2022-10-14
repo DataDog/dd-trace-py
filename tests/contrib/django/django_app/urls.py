@@ -79,4 +79,5 @@ urlpatterns = [
     handler(r"^alter-resource/$", views.alter_resource),
     handler(r"^identify/$", views.identify, name="identify"),
     handler(r"^body/$", views.body_view, name="body_view"),
+    handler(r"^weak-hash/$", views.weak_hash_view, name="weak_hash"),
 ]

@@ -277,14 +277,15 @@ def test_wsgi_base_middleware_500(use_global_tracer, tracer):
         app.get("/error")
 
 
-@snapshot()
+@pytest.mark.snapshot(ignores=["meta.result_class"])
 def test_distributed_tracing_nested():
     app = TestApp(
         wsgi.DDWSGIMiddleware(
             wsgi.DDWSGIMiddleware(application),
         )
     )
-
+    # meta.result_class is listiterator in PY2 and list_iterator in PY3. Ignore this field to
+    # simplify this test. Otherwise we'd need different snapshots for PY2 and PY3.
     resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
 
     assert config.wsgi.distributed_tracing is True
