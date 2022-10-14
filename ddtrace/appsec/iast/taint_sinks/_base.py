@@ -37,8 +37,7 @@ class VulnerabilityBase(Operation):
             if oce.request_has_quota and cls.has_quota():
                 return func(wrapped, instance, args, kwargs)
             else:
-                # log.warning("IAST no quota")
-                print("IAST no quota")
+                log.debug("IAST: no vulnerability quota to analyze more sink points")
             return wrapped(*args, **kwargs)
 
         return wrapper
@@ -53,7 +52,7 @@ class VulnerabilityBase(Operation):
         if cls.has_quota():
             span = tracer.current_root_span()
             if not span:
-                log.warning("No root span in the current execution. Skipping IAST Taint sink.")
+                log.debug("No root span in the current execution. Skipping IAST taint sink.")
                 return None
 
             report = _context.get_item(IAST_CONTEXT_KEY, span=span)

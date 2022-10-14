@@ -62,6 +62,27 @@ def test_weak_hash_new(iast_span):
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
 
 
+def test_weak_hash_new_with_child_span(tracer, iast_span):
+    import hashlib
+
+    with tracer.trace("test_child") as span:
+        m = hashlib.new("md5")
+        m.update(b"Nobody inspects")
+        m.update(b" the spammish repetition")
+        m.digest()
+        span_report1 = _context.get_item(IAST_CONTEXT_KEY, span=span)
+
+    span_report2 = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+
+    assert list(span_report1.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
+    assert list(span_report1.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/test_weak_hash.py")
+    assert list(span_report1.vulnerabilities)[0].evidence.value == "md5"
+
+    assert list(span_report2.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
+    assert list(span_report2.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/test_weak_hash.py")
+    assert list(span_report2.vulnerabilities)[0].evidence.value == "md5"
+
+
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="_md5 works only in Python 3")
 def test_weak_hash_md5_builtin_py3(iast_span):
     import _md5

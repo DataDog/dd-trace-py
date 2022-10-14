@@ -17,7 +17,7 @@ MAX_VULNERABILITIES_PER_REQUEST = int(os.environ.get("DD_IAST_VULNERABILITIES_PE
 
 class Operation(object):
     """Common operation related to Overhead Control Engine (OCE). Every vulnerabilities/taint_sinks should inherit
-    from this class. OCE instance request for these methods to control the overhead in each request.
+    from this class. OCE instance requests for these methods to control the overhead in each request.
     """
 
     _quota = MAX_VULNERABILITIES_PER_REQUEST
