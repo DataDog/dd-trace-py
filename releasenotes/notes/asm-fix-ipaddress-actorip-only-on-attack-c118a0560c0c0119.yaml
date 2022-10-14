@@ -1,0 +1,3 @@
+fixes:
+  - |
+    ASM: only report actor.ip on attack.
