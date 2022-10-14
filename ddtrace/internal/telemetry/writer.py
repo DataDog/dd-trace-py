@@ -67,6 +67,9 @@ class TelemetryWriter(PeriodicService):
         # _sequence is a counter representing the number of requests sent by the writer
         self._sequence = 1  # type: int
 
+    def __del__(self):
+        forksafe.unregister(self._fork_writer)
+
     @property
     def url(self):
         return "%s/%s" % (self._agent_url, self.ENDPOINT)
@@ -279,7 +282,6 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        forksafe.unregister(self._fork_writer)
         atexit.unregister(self.stop)
 
         self.stop()
