@@ -1,4 +1,4 @@
-from inspect import getargspec
+from inspect import getfullargspec
 from inspect import isgeneratorfunction
 from threading import RLock
 from typing import Any
@@ -108,8 +108,16 @@ def callonce(f):
     # type: (Callable[[], Any]) -> Callable[[], Any]
     """Decorator for executing a function only the first time."""
 
-    argspec = getargspec(f)
-    if argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f):
+    argspec = getfullargspec(f)
+    if (
+        argspec.args
+        or argspec.varargs
+        or argspec.varkw
+        or argspec.defaults
+        or argspec.kwonlyargs
+        or argspec.kwonlydefaults
+        or isgeneratorfunction(f)
+    ):
         raise ValueError("The callonce decorator can only be applied to functions with no arguments")
 
     def _():
