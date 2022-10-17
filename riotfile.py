@@ -1099,19 +1099,28 @@ venv = Venv(
         Venv(
             name="starlette",
             command="pytest {cmdargs} tests/contrib/starlette",
+            pkgs={
+                "httpx": latest,
+                "pytest-asyncio": latest,
+                "requests": latest,
+                "aiofiles": latest,
+                # Pinned until https://github.com/encode/databases/issues/298 is resolved.
+                "sqlalchemy": "~=1.3.0",
+                "aiosqlite": latest,
+                "databases": latest,
+            },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    pys=select_pys(min_version="3.6", max_version="3.10"),
                     pkgs={
                         "starlette": [">=0.13,<0.14", ">=0.14,<0.15", latest],
-                        "httpx": latest,
-                        "pytest-asyncio": latest,
-                        "requests": latest,
-                        "aiofiles": latest,
-                        # Pinned until https://github.com/encode/databases/issues/298 is resolved.
-                        "sqlalchemy": "~=1.3.0",
-                        "aiosqlite": latest,
-                        "databases": latest,
+                    },
+                ),
+                Venv(
+                    # Python 3.11 only compatible with Starlette >=0.21.
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "starlette": latest,
                     },
                 ),
             ],
@@ -1355,15 +1364,25 @@ venv = Venv(
         Venv(
             name="fastapi",
             command="pytest {cmdargs} tests/contrib/fastapi",
+            pkgs={
+                "httpx": latest,
+                "pytest-asyncio": latest,
+                "requests": latest,
+                "aiofiles": latest,
+            },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.6"),
+                    pys=select_pys(min_version="3.6", max_version="3.10"),
                     pkgs={
                         "fastapi": [">=0.51,<0.52", ">=0.55,<0.56", ">=0.60,<0.61", latest],
-                        "httpx": latest,
-                        "pytest-asyncio": latest,
-                        "requests": latest,
-                        "aiofiles": latest,
+                    },
+                ),
+                Venv(
+                    # Python 3.11 only compatible with Starlette >=0.21 onwards.
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "fastapi": [latest],
+                        "starlette": latest,
                     },
                 ),
             ],
