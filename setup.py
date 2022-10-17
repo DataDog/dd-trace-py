@@ -354,8 +354,8 @@ setup(
                 extra_objects=[
                     "ddtrace/appsec/libddwaf/lib/libddwaf.a",
                     "ddtrace/appsec/libcpp/libunwind.a",
-                    "ddtrace/appsec/libcpp/libc++abi.a",
                     "ddtrace/appsec/libcpp/libc++.a",
+                    "ddtrace/appsec/libcpp/libc++abi.a",
                 ],
                 extra_compile_args=["-fPIC"],
                 libraries=ddwaf_libraries,
