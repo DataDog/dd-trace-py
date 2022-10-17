@@ -421,7 +421,7 @@ jobs:
     parallelism: 7
     steps:
       - run_tox_scenario:
-          pattern: '^py..-opentracer'
+          pattern: '^py.\+-opentracer'
 
   # Building gevent (for which we never want wheels because they crash)
   # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
