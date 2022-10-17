@@ -5,8 +5,8 @@ from typing import Optional
 from typing import Type
 from typing import TypeVar
 
-from ddtrace.internal.compat import args_provided
 from ddtrace.internal.compat import getfullargspec
+from ddtrace.internal.compat import is_not_void_function
 
 
 miss = object()
@@ -109,7 +109,7 @@ def callonce(f):
     # type: (Callable[[], Any]) -> Callable[[], Any]
     """Decorator for executing a function only the first time."""
     argspec = getfullargspec(f)
-    if args_provided(f, argspec):
+    if is_not_void_function(f, argspec):
         raise ValueError("The callonce decorator can only be applied to functions with no arguments")
 
     def _():

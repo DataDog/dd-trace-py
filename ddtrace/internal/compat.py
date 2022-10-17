@@ -88,14 +88,14 @@ else:
 try:
     from inspect import getargspec as getfullargspec
 
-    def args_provided(f, argspec):
+    def is_not_void_function(f, argspec):
         return argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f)
 
 
 except ImportError:
     from inspect import getfullargspec  # type: ignore[misc]  # noqa: F401
 
-    def args_provided(f, argspec):
+    def is_not_void_function(f, argspec):
         return (
             argspec.args
             or argspec.varargs
