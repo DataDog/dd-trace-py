@@ -357,6 +357,7 @@ setup(
                     "ddtrace/appsec/libcpp/libc++abi.a",
                     "ddtrace/appsec/libcpp/libc++.a",
                 ],
+                extra_compile_args=["-fPIC"],
                 libraries=ddwaf_libraries,
                 language="c++",
             ),
