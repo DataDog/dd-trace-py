@@ -14,7 +14,6 @@ class DDWaf(object):
             key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
         )
         self._info = ddwaf_ruleset_info()
-        # import pdb; pdb.set_trace()
         self._rules = ddwaf_object(rules)
         self._handle = ddwaf_init(self._rules, ctypes.byref(config), ctypes.byref(self._info))
         if not self._handle:
@@ -52,9 +51,7 @@ class DDWaf(object):
         try:
             wrapper = ddwaf_object(data)
             error, result = py_ddwaf_run(ctx, wrapper, timeout_ms * 1000)
-            if result.data:
-                return result.data, result.total_runtime / 1e3, (time.time() - start) * 1e6
-            return None, result.total_runtime / 1e3, (time.time() - start) * 1e6
+            return result.data.decode('UTF-8') if result.data else None, result.total_runtime / 1e3, (time.time() - start) * 1e6            
         finally:
             ddwaf_result_free(ctypes.byref(result))
             ddwaf_context_destroy(ctx)
