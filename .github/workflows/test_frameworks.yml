@@ -156,7 +156,7 @@ jobs:
           repository: tiangolo/fastapi
           ref: 0.75.0
           path: fastapi
-      - uses: actions/cache@v3.0.10
+      - uses: actions/cache@v3.0.11
         id: cache
         with:
           path: ${{ env.pythonLocation }}
@@ -397,6 +397,8 @@ jobs:
         run: pip install ../ddtrace
       - name: Install test dependencies
         run: pip install -e .[test]
+      - name: Pin PasteDeploy to Python 2.7 compatible version
+        run: pip install pastedeploy==2.1.1
       - name: MarkupSafe fix
         run: pip install --upgrade MarkupSafe==0.18 pip setuptools --force
       - name: Disable failing tests
