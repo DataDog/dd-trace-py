@@ -11,8 +11,8 @@ from typing import Union
 import attr
 from six import ensure_binary
 
-from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf import version
+from ddtrace.appsec.ddwaf import DDWaf
+from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
 from ddtrace.constants import APPSEC_EVENT_RULE_ERRORS
 from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
@@ -277,7 +277,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if info["errors"]:
                 span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info["errors"]))
             span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info["version"])
-            span.set_tag_str(APPSEC_WAF_VERSION, "%s.%s.%s" % version())
+            span.set_tag_str(APPSEC_WAF_VERSION, version())
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info["loaded"])
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info["failed"])
