@@ -35,7 +35,7 @@ def test_get_dbm_comment_disabled_mode():
     from ddtrace.settings import database_monitoring
 
     dbspan = tracer.trace("dbspan", service="orders-db")
-    sqlcomment = database_monitoring.get_dbm_comment(dbspan)
+    sqlcomment = database_monitoring._get_dbm_comment(dbspan)
     assert sqlcomment == ""
 
 
@@ -53,7 +53,7 @@ def test_get_dbm_comment_service_mode():
 
     dbspan = tracer.trace("dbname", service="orders-db")
 
-    sqlcomment = database_monitoring.get_dbm_comment(dbspan)
+    sqlcomment = database_monitoring._get_dbm_comment(dbspan)
     # tags in sqlcomments are comma delimited
     # assert 4 tags are present in the sqlcomment
     assert len(sqlcomment.split(",")) == 4
@@ -78,7 +78,7 @@ def test_get_dbm_comment_full_mode():
 
     dbspan = tracer.trace("dbname", service="orders-db")
 
-    sqlcomment = database_monitoring.get_dbm_comment(dbspan)
+    sqlcomment = database_monitoring._get_dbm_comment(dbspan)
     # tags in sqlcomments are comma delimited
     # assert 4 tags are present in the sqlcomment
     assert len(sqlcomment.split(",")) == 5

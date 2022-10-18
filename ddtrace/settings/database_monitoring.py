@@ -33,7 +33,7 @@ class DatabaseMonitoringConfig(En):
 dbm_config = DatabaseMonitoringConfig()
 
 
-def get_dbm_comment(db_span):
+def _get_dbm_comment(db_span):
     # type: (Span) -> str
     if dbm_config.injection_mode == "disabled":
         return ""
