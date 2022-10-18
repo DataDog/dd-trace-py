@@ -16,7 +16,7 @@ library.
 
 _ddtrace requires pip>=18 to install one of our pre-built wheels_
 
-### Which supported libraries and their versions are you using?
+### Which libraries and their versions are you using?
 
 <details>
   <summary>`pip freeze`</summary>
