@@ -4,7 +4,7 @@ import os.path
 import pytest
 from six import ensure_binary
 
-from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.processor import AppSecSpanProcessor
 from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP
 from ddtrace.appsec.processor import DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP
