@@ -52,7 +52,7 @@ def test_not_eq(ctx1, ctx2):
 
 def test_traceparent():
     def validate_traceparent(context, sampled_expected):
-        version_hex, traceid_hex, spanid_hex, sampled_hex = context.traceparent.split("-")
+        version_hex, traceid_hex, spanid_hex, sampled_hex = context._traceparent.split("-")
         assert version_hex == "00"
 
         assert len(traceid_hex) == 32

@@ -95,7 +95,7 @@ class Context(object):
             self._metrics[SAMPLING_PRIORITY_KEY] = value
 
     @property
-    def traceparent(self):
+    def _traceparent(self):
         # type: () -> str
         if self.trace_id is None or self.span_id is None:
             return ""

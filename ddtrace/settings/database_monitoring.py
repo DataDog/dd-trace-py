@@ -47,6 +47,6 @@ def _get_dbm_comment(db_span):
 
     if dbm_config.injection_mode == "full":
         # TODO: add _dd.dbm_trace_injected tag to db_span
-        dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context.traceparent
+        dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
     return _generate_sql_comment(**dbm_tags)

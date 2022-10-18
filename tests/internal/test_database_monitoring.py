@@ -87,4 +87,4 @@ def test_get_dbm_comment_full_mode():
     assert "dde='staging'" in sqlcomment
     assert "ddps='orders-app'" in sqlcomment
     assert "ddpv='v7343437-d7ac743'" in sqlcomment
-    assert "traceparent='%s'" % (dbspan.context.traceparent,) in sqlcomment
+    assert "traceparent='%s'" % (dbspan.context._traceparent,) in sqlcomment
