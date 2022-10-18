@@ -14,7 +14,7 @@ and register with `ddtrace.appsec.iast.oce`.
 @oce.register
 class MyVulnerability(VulnerabilityBase):
     vulnerability_type = "MyVulnerability"
-    evicence_type = "kind_of_Vulnerability"
+    evidence_type = "kind_of_Vulnerability"
 
 Before that, we should decorate our wrappers with `wrap` method and
 report the vulnerabilities with `report` method. OCE will manage the number of requests, number of vulnerabilities

@@ -49,14 +49,12 @@ class VulnerabilityBase(Operation):
 
         TODO: check deduplications if DD_IAST_DEDUPLICATION_ENABLED is true
         """
-        if cls.has_quota():
-
+        if cls.acquire_quota():
             span = tracer.current_root_span()
             if not span:
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
                 return None
 
-            cls.decrement_quota()
             report = _context.get_item(IAST_CONTEXT_KEY, span=span)
             file_name, line_number = get_info_frame()
             if report:

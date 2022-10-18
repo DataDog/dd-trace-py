@@ -18,25 +18,30 @@ MAX_VULNERABILITIES_PER_REQUEST = int(os.environ.get("DD_IAST_VULNERABILITIES_PE
 
 class Operation(object):
     """Common operation related to Overhead Control Engine (OCE). Every vulnerabilities/taint_sinks should inherit
-    from this class. OCE instance requests for these methods to control the overhead in each request.
+    from this class. OCE instance calls these methods to control the overhead produced in each request.
     """
 
     _lock = threading.Lock()
-    _quota = MAX_VULNERABILITIES_PER_REQUEST
+    _vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
 
     @classmethod
     def reset(cls):
-        cls._quota = MAX_VULNERABILITIES_PER_REQUEST
+        cls._vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
 
     @classmethod
-    def decrement_quota(cls):
-        if cls._quota > 0:
-            cls._quota -= 1
+    def acquire_quota(cls):
+        cls._lock.acquire()
+        result = False
+        if cls._vulnerability_quota > 0:
+            cls._vulnerability_quota -= 1
+            result = True
+        cls._lock.release()
+        return result
 
     @classmethod
     def has_quota(cls):
         cls._lock.acquire()
-        result = cls._quota > 0
+        result = cls._vulnerability_quota > 0
         cls._lock.release()
         return result
 
