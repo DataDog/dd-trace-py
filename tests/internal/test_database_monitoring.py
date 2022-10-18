@@ -54,14 +54,8 @@ def test_get_dbm_comment_service_mode():
     dbspan = tracer.trace("dbname", service="orders-db")
 
     sqlcomment = database_monitoring._get_dbm_comment(dbspan)
-    # tags in sqlcomments are comma delimited
-    # assert 4 tags are present in the sqlcomment
-    assert len(sqlcomment.split(",")) == 4
     # assert tags sqlcomment contains the correct value
-    assert "dddbs='orders-db'" in sqlcomment
-    assert "dde='staging'" in sqlcomment
-    assert "ddps='orders-app'" in sqlcomment
-    assert "ddpv='v7343437-d7ac743'" in sqlcomment
+    assert sqlcomment == " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
 
 
 @pytest.mark.subprocess(
@@ -79,12 +73,9 @@ def test_get_dbm_comment_full_mode():
     dbspan = tracer.trace("dbname", service="orders-db")
 
     sqlcomment = database_monitoring._get_dbm_comment(dbspan)
-    # tags in sqlcomments are comma delimited
-    # assert 4 tags are present in the sqlcomment
-    assert len(sqlcomment.split(",")) == 5
     # assert tags sqlcomment contains the correct value
-    assert "dddbs='orders-db'" in sqlcomment
-    assert "dde='staging'" in sqlcomment
-    assert "ddps='orders-app'" in sqlcomment
-    assert "ddpv='v7343437-d7ac743'" in sqlcomment
-    assert "traceparent='%s'" % (dbspan.context._traceparent,) in sqlcomment
+    assert (
+        sqlcomment
+        == " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743',traceparent='%s'*/"
+        % (dbspan.context._traceparent,)
+    )
