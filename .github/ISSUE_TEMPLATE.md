@@ -14,7 +14,6 @@ library.
 
 ### Which version of pip are you using?
 
-_ddtrace requires pip>=18 to install one of our pre-built wheels_
 
 ### Which libraries and their versions are you using?
 
