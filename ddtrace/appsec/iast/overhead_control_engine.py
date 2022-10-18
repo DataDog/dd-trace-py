@@ -4,6 +4,7 @@ limit. It will measure operations being executed in a request and it will deacti
 (and therefore reduce the overhead to nearly 0) if a certain threshold is reached.
 """
 import os
+import threading
 from typing import TYPE_CHECKING
 
 
@@ -20,6 +21,7 @@ class Operation(object):
     from this class. OCE instance requests for these methods to control the overhead in each request.
     """
 
+    _lock = threading.Lock()
     _quota = MAX_VULNERABILITIES_PER_REQUEST
 
     @classmethod
@@ -33,7 +35,10 @@ class Operation(object):
 
     @classmethod
     def has_quota(cls):
-        return cls._quota > 0
+        cls._lock.acquire()
+        result = cls._quota > 0
+        cls._lock.release()
+        return result
 
 
 class OverheadControl(object):
