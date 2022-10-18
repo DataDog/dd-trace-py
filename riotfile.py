@@ -1577,8 +1577,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.11"),
                     pkgs={
-                        # 3.10 wheels were started to be provided in 1.41
-                        # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
+                        # 3.11 compatible with grpcio>=1.49 onward
                         "grpcio": ["~=1.49.0", latest],
                     },
                 ),
