@@ -27,11 +27,6 @@ class Operation(object):
         cls._quota = MAX_VULNERABILITIES_PER_REQUEST
 
     @classmethod
-    def increment(cls):
-        if cls._quota < MAX_VULNERABILITIES_PER_REQUEST:
-            cls._quota += 1
-
-    @classmethod
     def decrement_quota(cls):
         if cls._quota > 0:
             cls._quota -= 1
@@ -42,7 +37,7 @@ class Operation(object):
 
 
 class OverheadControl(object):
-    _available_requests = MAX_REQUESTS
+    _request_quota = MAX_REQUESTS
     _enabled = False
     _vulnerabilities = set()  # type: Set[Type[Operation]]
 
@@ -51,8 +46,8 @@ class OverheadControl(object):
 
         TODO: Implement sampling request in this method
         """
-        if self._available_requests > 0:
-            self._available_requests -= 1
+        if self._request_quota > 0:
+            self._request_quota -= 1
             self._enabled = True
 
     def release_request(self):
@@ -60,8 +55,8 @@ class OverheadControl(object):
 
         TODO: figure out how to check maximum requests per thread
         """
-        if self._available_requests < MAX_REQUESTS:
-            self._available_requests += 1
+        if self._request_quota < MAX_REQUESTS:
+            self._request_quota += 1
             self._enabled = False
         self.vulnerabilities_reset_quota()
 
