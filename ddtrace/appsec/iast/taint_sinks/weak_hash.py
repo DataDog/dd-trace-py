@@ -2,19 +2,17 @@ import hashlib
 import sys
 from typing import TYPE_CHECKING
 
+from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast.constants import EVIDENCE_ALGORITHM_TYPE
 from ddtrace.appsec.iast.constants import VULN_INSECURE_HASHING_TYPE
-from ddtrace.appsec.iast.reporter import report_vulnerability
-from ddtrace.appsec.iast.taint_sinks._base import inject_span
+from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
+from ddtrace.appsec.iast.taint_sinks._base import _wrap_function_wrapper_exception
 from ddtrace.internal.logger import get_logger
-from ddtrace.vendor.wrapt import wrap_function_wrapper
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
-
-    from ddtrace.span import Span
 
 log = get_logger(__name__)
 
@@ -22,11 +20,10 @@ MD5_DEF = "md5"
 SHA1_DEF = "sha1"
 
 
-def _wrap_function_wrapper_exception(module, name, wrapper):
-    try:
-        wrap_function_wrapper(module, name, wrapper)
-    except (ImportError, AttributeError):
-        log.debug("IAST patching. Module %s.%s not exists", module, name)
+@oce.register
+class WeakHash(VulnerabilityBase):
+    vulnerability_type = VULN_INSECURE_HASHING_TYPE
+    evicence_type = EVIDENCE_ALGORITHM_TYPE
 
 
 def patch():
@@ -58,53 +55,42 @@ def patch():
     _wrap_function_wrapper_exception("Crypto.Hash.SHA1", "SHA1Hash.hexdigest", wrapped_sha1_function)
 
 
-@inject_span
-def wrapped_digest_function(wrapped, span, instance, args, kwargs):
-    # type: (Callable, Span, Any, Any, Any) -> Any
+@WeakHash.wrap
+def wrapped_digest_function(wrapped, instance, args, kwargs):
+    # type: (Callable, Any, Any, Any) -> Any
     if instance.name.lower() in [MD5_DEF, SHA1_DEF]:
-        report_vulnerability(
-            span=span,
-            vulnerability_type=VULN_INSECURE_HASHING_TYPE,
-            evidence_type=EVIDENCE_ALGORITHM_TYPE,
+        WeakHash.report(
             evidence_value=instance.name,
         )
 
     return wrapped(*args, **kwargs)
 
 
-@inject_span
-def wrapped_md5_function(wrapped, span, instance, args, kwargs):
-    # type: (Callable, Span, Any, Any, Any) -> Any
-    return wrapped_function(wrapped, span, MD5_DEF, instance, args, kwargs)
+@WeakHash.wrap
+def wrapped_md5_function(wrapped, instance, args, kwargs):
+    # type: (Callable, Any, Any, Any) -> Any
+    return wrapped_function(wrapped, MD5_DEF, instance, args, kwargs)
 
 
-@inject_span
-def wrapped_sha1_function(wrapped, span, instance, args, kwargs):
-    # type: (Callable, Span, Any, Any, Any) -> Any
-    return wrapped_function(wrapped, span, SHA1_DEF, instance, args, kwargs)
+@WeakHash.wrap
+def wrapped_sha1_function(wrapped, instance, args, kwargs):
+    # type: (Callable, Any, Any, Any) -> Any
+    return wrapped_function(wrapped, SHA1_DEF, instance, args, kwargs)
 
 
-def wrapped_function(wrapped, span, evidence, instance, args, kwargs):
-    # type: (Callable, Span, str, Any, Any, Any) -> Any
-    report_vulnerability(
-        span=span,
-        vulnerability_type=VULN_INSECURE_HASHING_TYPE,
-        evidence_type=EVIDENCE_ALGORITHM_TYPE,
-        evidence_value=evidence,
-    )
-
+@WeakHash.wrap
+def wrapped_new_function(wrapped, instance, args, kwargs):
+    # type: (Callable, Any, Any, Any) -> Any
+    if args[0].lower() in [MD5_DEF, SHA1_DEF]:
+        WeakHash.report(
+            evidence_value=args[0].lower(),
+        )
     return wrapped(*args, **kwargs)
 
 
-@inject_span
-def wrapped_new_function(wrapped, span, instance, args, kwargs):
-    # type: (Callable, Span, Any, Any, Any) -> Any
-    if args[0].lower() in [MD5_DEF, SHA1_DEF]:
-        report_vulnerability(
-            span=span,
-            vulnerability_type=VULN_INSECURE_HASHING_TYPE,
-            evidence_type=EVIDENCE_ALGORITHM_TYPE,
-            evidence_value=args[0].lower(),
-        )
-
+def wrapped_function(wrapped, evidence, instance, args, kwargs):
+    # type: (Callable, str, Any, Any, Any) -> Any
+    WeakHash.report(
+        evidence_value=evidence,
+    )
     return wrapped(*args, **kwargs)
