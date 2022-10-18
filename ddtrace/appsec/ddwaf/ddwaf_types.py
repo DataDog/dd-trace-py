@@ -74,7 +74,7 @@ class ddwaf_object(ctypes.Structure):
         elif isinstance(struct, int):
             res = ddwaf_object_signed(self, struct)
         elif isinstance(struct, str):
-            res = ddwaf_object_string(self, struct.encode("UTF-8"))
+            res = ddwaf_object_string(self, struct.encode('UTF-8'))
         elif isinstance(struct, list):
             l_res = list(map(ddwaf_object, struct))
             array = ddwaf_object_array(self)
@@ -84,7 +84,7 @@ class ddwaf_object(ctypes.Structure):
             assert array.nbEntries == len(l_res)
             res = array
         elif isinstance(struct, dict):
-            d_res = {key.encode("UTF-8"): ddwaf_object(val) for key, val in struct.items()}
+            d_res = {key.encode('UTF-8'): ddwaf_object(val) for key, val in struct.items()}
             map_o = ddwaf_object_map(self)
             assert map_o
             for key, elt in d_res.items():
@@ -205,7 +205,7 @@ class ddwaf_config(ctypes.Structure):
         ("obfuscator", ddwaf_config_obfuscator),
         ("free_fn", ddwaf_object_free_fn),
     ]
-    # TODO : initial vqlue of free_fn
+    # TODO : initial value of free_fn
     def __init__(
         self,
         max_container_size=0,
@@ -290,7 +290,7 @@ ddwaf_required_addresses = ctypes.CFUNCTYPE(
 def py_ddwaf_required_addresses(handle):
     size = ctypes.c_uint32()
     obj = ddwaf_required_addresses(handle, ctypes.byref(size))
-    return [obj[i] for i in range(size.value)]
+    return [obj[i].decode('UTF-8') for i in range(size.value)]
 
 
 ddwaf_required_rule_data_ids = ctypes.CFUNCTYPE(
