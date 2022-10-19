@@ -1,13 +1,15 @@
 import ctypes
+import os
 from enum import IntEnum
 
+
+_DIRNAME = os.path.dirname(__file__)
 
 #
 # Dynamic loading of libddwaf. For now it requires the file or a link to be in current directory
 #
 
-
-ddwaf = ctypes.CDLL("libddwaf/lib/libddwaf.so")
+ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf/lib/libddwaf.so"))
 
 
 #
