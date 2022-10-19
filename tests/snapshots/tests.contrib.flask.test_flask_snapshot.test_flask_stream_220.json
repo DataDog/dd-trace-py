@@ -15,7 +15,6 @@
       "flask.url_rule": "/stream",
       "flask.version": "2.2.2",
       "http.method": "GET",
-      "http.route": "/stream",
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/stream",
       "http.useragent": "python-httpx/x.xx.x",
