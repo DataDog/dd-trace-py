@@ -63,7 +63,7 @@
              "service": "wsgi",
              "resource": "wsgi.application",
              "trace_id": 0,
-             "span_id": 5,
+             "span_id": 6,
              "parent_id": 4,
              "type": "",
              "error": 0,
