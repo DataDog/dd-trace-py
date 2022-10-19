@@ -1,6 +1,7 @@
 import ctypes
 from enum import IntEnum
 import os
+
 from ddtrace.internal.compat import PY3
 
 
