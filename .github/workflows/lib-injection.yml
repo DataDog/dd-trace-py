@@ -37,8 +37,11 @@ jobs:
         platforms: "linux/amd64,linux/arm64/v8"
         context: ./lib-injection
 
-  build-and-publish-sample-app-image:
+  build-and-publish-sample-app-images:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image-name: ["dd-lib-python-init-test-django", "dd-lib-python-init-test-django-uwsgi"]
     steps:
       - uses: actions/checkout@v3
 
@@ -56,7 +59,7 @@ jobs:
         id: set_names
         run: |
           DOCKER_IMAGE_TAG=${{ github.sha }}
-          DOCKER_IMAGE_NAME=dd-lib-python-init-test-app
+          DOCKER_IMAGE_NAME=${{ matrix.image-name }}
           DOCKER_IMAGE_NAME=$(echo ghcr.io/${GITHUB_REPOSITORY}/${DOCKER_IMAGE_NAME} | tr '[:upper:]' '[:lower:]')
           DOCKER_IMAGE_NAME_WITH_TAG=$(echo ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} | tr '[:upper:]' '[:lower:]')
           echo "Using image name '$DOCKER_IMAGE_NAME_WITH_TAG'"
@@ -68,5 +71,5 @@ jobs:
         with:
           push: true
           tags: ${{ steps.set_names.outputs.image_name }}
-          platforms: "linux/amd64,linux/arm64/v8"
-          context: ./tests/lib-injection
+          platforms: "linux/amd64"
+          context: ./tests/lib-injection/${{ matrix.image-name }}
