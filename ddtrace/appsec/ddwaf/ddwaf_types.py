@@ -2,7 +2,6 @@ import ctypes
 from enum import IntEnum
 import os
 import pathlib
-import sys
 
 
 _DIRNAME = os.path.dirname(__file__)
@@ -19,7 +18,6 @@ for name in ["libddwaf/lib/libddwaf.so", "libddwaf/lib/libddwaf.dylib", "libddwa
         lib_path = path / name
         if lib_path.exists() and lib_path.is_file():
             ddwaf = ctypes.CDLL(str(lib_path))
-            print("ddwaf loaded at " + str(lib_path), file=sys.stderr)
             break
         else:
             if path == path.parent:
@@ -29,7 +27,7 @@ for name in ["libddwaf/lib/libddwaf.so", "libddwaf/lib/libddwaf.dylib", "libddwa
         break
 
 if ddwaf is None:
-    raise FileNotFoundError
+    raise FileNotFoundError("ddwaf dynamic loading failed")
 
 #
 # Constants
