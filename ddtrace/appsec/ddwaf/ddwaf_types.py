@@ -7,7 +7,7 @@ from enum import IntEnum
 #
 
 
-ddwaf = ctypes.CDLL("libddwaf.dylib")
+ddwaf = ctypes.CDLL("ddtrace/appsec/libddwaf/lib/libddwaf.so")
 
 
 #
