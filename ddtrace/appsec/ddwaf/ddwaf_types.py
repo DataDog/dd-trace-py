@@ -1,17 +1,18 @@
 import ctypes
 from enum import IntEnum
 
-##
-## Dynamic loading of libddwaf. For now it requires the file or a link to be in current directory
-##
+
+#
+# Dynamic loading of libddwaf. For now it requires the file or a link to be in current directory
+#
 
 
 ddwaf = ctypes.CDLL("libddwaf.dylib")
 
 
-##
-## Constants
-##
+#
+# Constants
+#
 
 DDWAF_MAX_STRING_LENGTH = 4096
 DDWAF_MAX_CONTAINER_DEPTH = 20
@@ -52,9 +53,9 @@ class DDWAF_LOG_LEVEL(IntEnum):
     DDWAF_LOG_OFF = 5
 
 
-##
-## Objects Definitions
-##
+#
+# Objects Definitions
+#
 
 # to allow cyclic references, ddwaf_object fields are defined later
 class ddwaf_object(ctypes.Structure):
@@ -64,17 +65,17 @@ class ddwaf_object(ctypes.Structure):
     #  1 is intValue
     #  2 is uintValue
     #  4 is stringValue as UTF-8 encoded
-    #  8 is array of lenth "nbEntries" without parameterName
-    # 16 is a map : array of lenth "nbEntries" with parameterName
+    #  8 is array of length "nbEntries" without parameterName
+    # 16 is a map : array of length "nbEntries" with parameterName
     # 32 is boolean
 
     def __init__(self, struct=None):
         if struct is None:
             ddwaf_object_invalid(self)
         elif isinstance(struct, int):
-            res = ddwaf_object_signed(self, struct)
+            ddwaf_object_signed(self, struct)
         elif isinstance(struct, str):
-            res = ddwaf_object_string(self, struct.encode('UTF-8'))
+            ddwaf_object_string(self, struct.encode("UTF-8"))
         elif isinstance(struct, list):
             l_res = list(map(ddwaf_object, struct))
             array = ddwaf_object_array(self)
@@ -82,15 +83,13 @@ class ddwaf_object(ctypes.Structure):
             for elt in l_res:
                 assert ddwaf_object_array_add(array, elt)
             assert array.nbEntries == len(l_res)
-            res = array
         elif isinstance(struct, dict):
-            d_res = {key.encode('UTF-8'): ddwaf_object(val) for key, val in struct.items()}
+            d_res = {key.encode("UTF-8"): ddwaf_object(val) for key, val in struct.items()}
             map_o = ddwaf_object_map(self)
             assert map_o
             for key, elt in d_res.items():
                 assert ddwaf_object_map_add(map_o, key, elt)
             assert map_o.nbEntries == len(d_res)
-            res = map_o
         else:
             raise TypeError("ddwaf_object : unknown type in structure. " + repr(type(struct)))
 
@@ -206,6 +205,7 @@ class ddwaf_config(ctypes.Structure):
         ("free_fn", ddwaf_object_free_fn),
     ]
     # TODO : initial value of free_fn
+
     def __init__(
         self,
         max_container_size=0,
@@ -237,9 +237,9 @@ ddwaf_log_cb = ctypes.POINTER(
 )
 
 
-##
-## Functions Prototypes (creating python counterpart function from C function with )
-##
+#
+# Functions Prototypes (creating python counterpart function from C function with )
+#
 
 ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwaf_ruleset_info_p)(
     ("ddwaf_init", ddwaf),
@@ -290,7 +290,7 @@ ddwaf_required_addresses = ctypes.CFUNCTYPE(
 def py_ddwaf_required_addresses(handle):
     size = ctypes.c_uint32()
     obj = ddwaf_required_addresses(handle, ctypes.byref(size))
-    return [obj[i].decode('UTF-8') for i in range(size.value)]
+    return [obj[i].decode("UTF-8") for i in range(size.value)]
 
 
 ddwaf_required_rule_data_ids = ctypes.CFUNCTYPE(
