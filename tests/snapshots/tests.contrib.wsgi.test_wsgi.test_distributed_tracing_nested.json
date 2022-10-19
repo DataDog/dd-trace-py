@@ -45,7 +45,7 @@
           "resource": "GET /",
           "trace_id": 0,
           "span_id": 4,
-          "parent_id": 2,
+          "parent_id": 3,
           "type": "web",
           "error": 0,
           "meta": {
@@ -63,7 +63,7 @@
              "service": "wsgi",
              "resource": "wsgi.application",
              "trace_id": 0,
-             "span_id": 6,
+             "span_id": 5,
              "parent_id": 4,
              "type": "",
              "error": 0,
