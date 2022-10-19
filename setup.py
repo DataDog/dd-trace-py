@@ -180,9 +180,9 @@ else:
     else:
         debug_compile_args = []
     if linux:
-        ddwaf_libraries = ["ddwaf", "rt", "m", "dl", "pthread"]
+        ddwaf_libraries = ["rt", "m", "dl", "pthread"]
     else:
-        ddwaf_libraries = ["ddwaf"]
+        ddwaf_libraries = []
 
 if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     ext_modules = [
