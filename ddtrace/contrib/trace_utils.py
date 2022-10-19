@@ -177,7 +177,10 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
     # type: (Span, Mapping[str, str], Optional[str], bool) -> str
     global _USED_IP_HEADER
 
-    if asbool(os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=False)):
+    ip_collection_disabled = os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=None)
+    if (ip_collection_disabled is None and not config._appsec_enabled) or asbool(ip_collection_disabled):
+        # IP Collection will honor the environment var is set. Otherwise it will be enabled
+        # only if appsec is enabled
         return ""
 
     def get_header_value(key):  # type: (str) -> Optional[str]
