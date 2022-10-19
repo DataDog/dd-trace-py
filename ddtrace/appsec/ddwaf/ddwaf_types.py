@@ -1,8 +1,12 @@
 import ctypes
 from enum import IntEnum
 import os
-import sys
+from ddtrace.internal.compat import PY3
 
+
+# Python 2/3 unicode str compatibility
+if PY3:
+    unicode = str
 
 _DIRNAME = os.path.dirname(__file__)
 
@@ -63,9 +67,6 @@ class DDWAF_LOG_LEVEL(IntEnum):
 # Objects Definitions
 #
 
-# Python 2/3 unicode str compatibility
-_unicode_str = str if sys.hexversion > 0x03000000 else unicode  # type: ignore # noqa : F821
-
 
 # to allow cyclic references, ddwaf_object fields are defined later
 class ddwaf_object(ctypes.Structure):
@@ -84,7 +85,7 @@ class ddwaf_object(ctypes.Structure):
             ddwaf_object_invalid(self)
         elif isinstance(struct, int):
             ddwaf_object_signed(self, struct)
-        elif isinstance(struct, _unicode_str):
+        elif isinstance(struct, unicode):
             ddwaf_object_string(self, struct.encode("UTF-8"))
         elif isinstance(struct, list):
             l_res = list(map(ddwaf_object, struct))
