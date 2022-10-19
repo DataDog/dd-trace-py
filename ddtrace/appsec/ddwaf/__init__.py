@@ -1,9 +1,22 @@
-from .ddwaf_types import *
+import ctypes
 import time
 
-###
-### Interface as Cython
-###
+from .ddwaf_types import ddwaf_config
+from .ddwaf_types import ddwaf_context_destroy
+from .ddwaf_types import ddwaf_context_init
+from .ddwaf_types import ddwaf_destroy
+from .ddwaf_types import ddwaf_get_version
+from .ddwaf_types import ddwaf_init
+from .ddwaf_types import ddwaf_object
+from .ddwaf_types import ddwaf_result_free
+from .ddwaf_types import ddwaf_ruleset_info
+from .ddwaf_types import py_ddwaf_required_addresses
+from .ddwaf_types import py_ddwaf_run
+
+
+#
+# Interface as Cython
+#
 
 DEFAULT_DDWAF_TIMEOUT_MS = 20
 
@@ -51,7 +64,11 @@ class DDWaf(object):
         try:
             wrapper = ddwaf_object(data)
             error, result = py_ddwaf_run(ctx, wrapper, timeout_ms * 1000)
-            return result.data.decode('UTF-8') if result.data else None, result.total_runtime / 1e3, (time.time() - start) * 1e6            
+            return (
+                result.data.decode("UTF-8") if result.data else None,
+                result.total_runtime / 1e3,
+                (time.time() - start) * 1e6,
+            )
         finally:
             ddwaf_result_free(ctypes.byref(result))
             ddwaf_context_destroy(ctx)
