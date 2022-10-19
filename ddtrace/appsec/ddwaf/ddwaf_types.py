@@ -1,6 +1,6 @@
 import ctypes
-import os
 from enum import IntEnum
+import os
 
 
 _DIRNAME = os.path.dirname(__file__)
