@@ -423,6 +423,14 @@ setup(
                 sources=["ddtrace/profiling/_build.pyx"],
                 language="c",
             ),
+            Cython.Distutils.Extension(
+                "ddtrace.appsec._ddwaf",
+                sources=["ddtrace/appsec/_ddwaf.pyx"],
+                include_dirs=["ddtrace/appsec/include"],
+                library_dirs=["ddtrace/appsec/lib"],
+                libraries=ddwaf_libraries,
+                language="c++",
+            ),
         ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
