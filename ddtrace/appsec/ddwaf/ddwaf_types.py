@@ -1,6 +1,9 @@
 import ctypes
 from enum import IntEnum
 import os
+from typing import Any
+from typing import Optional
+from typing import Union
 
 from ddtrace.internal.compat import PY3
 
@@ -68,6 +71,8 @@ class DDWAF_LOG_LEVEL(IntEnum):
 # Objects Definitions
 #
 
+obj_struct = Union[None, int, unicode, list[Any], dict[unicode, Any]]
+
 
 # to allow cyclic references, ddwaf_object fields are defined later
 class ddwaf_object(ctypes.Structure):
@@ -82,6 +87,7 @@ class ddwaf_object(ctypes.Structure):
     # 32 is boolean
 
     def __init__(self, struct=None):
+        # type: (ddwaf_object, obj_struct) -> None
         if struct is None:
             ddwaf_object_invalid(self)
         elif isinstance(struct, int):
@@ -107,6 +113,7 @@ class ddwaf_object(ctypes.Structure):
 
     @property
     def struct(self):
+        # type: (ddwaf_object) -> obj_struct
         """pretty printing of the python ddwaf_object"""
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_INVALID:
             return None
@@ -227,6 +234,7 @@ class ddwaf_config(ctypes.Structure):
         value_regex="",
         free_fn=None,
     ):
+        # type: (ddwaf_config, int, int, int, unicode, unicode, Optional[Any]) -> None
         self.limits.max_container_size = max_container_size
         self.limits.max_container_depth = max_container_depth
         self.limits.max_string_length = max_string_length
@@ -300,6 +308,7 @@ ddwaf_required_addresses = ctypes.CFUNCTYPE(
 
 
 def py_ddwaf_required_addresses(handle):
+    # type: (ctypes.c_void_p) -> list[unicode]
     size = ctypes.c_uint32()
     obj = ddwaf_required_addresses(handle, ctypes.byref(size))
     return [obj[i].decode("UTF-8") for i in range(size.value)]
@@ -317,6 +326,7 @@ ddwaf_required_rule_data_ids = ctypes.CFUNCTYPE(
 
 
 def py_ddwaf_required_rule_data_ids(handle):
+    # type: (ctypes.c_void_p) -> list[ddwaf_object]
     size = ctypes.c_uint32()
     obj = ddwaf_required_rule_data_ids(handle, ctypes.byref(size))
     return [obj[i] for i in range(size.value)]
@@ -333,6 +343,7 @@ ddwaf_run = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_
 
 
 def py_ddwaf_run(context, object_p, timeout):
+    # type : (...) -> tuple[int, ddwaf_result]
     res = ddwaf_result()
     err = ddwaf_run(context, object_p, ctypes.byref(res), timeout)
     return err, res
