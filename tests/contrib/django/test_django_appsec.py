@@ -4,7 +4,9 @@ import logging
 
 import pytest
 
+from ddtrace._monkey import patch_iast
 from ddtrace.constants import APPSEC_JSON
+from ddtrace.constants import IAST_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
@@ -246,10 +248,33 @@ def test_django_useragent(client, test_spans, tracer):
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
 
 
-def test_django_client_ip_disabled(client, test_spans, tracer):
+def test_django_client_ip_env_var_disabled_appsec_enabled_must_be_disabled(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="True")
     ):
+        client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
+        root_span = test_spans.spans[0]
+        assert not root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_client_ip_env_var_not_disabled_appsec_disabled_must_be_enabled(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=False)), override_env(
+        dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")
+    ):
+        client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
+        root_span = test_spans.spans[0]
+        assert root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_client_ip_env_var_missing_appsec_enabled_must_be_enabled(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
+        root_span = test_spans.spans[0]
+        assert root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_client_ip_env_var_missing_appsec_disabled_must_be_disabled(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=False)):
         client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
         root_span = test_spans.spans[0]
         assert not root_span.get_tag(http.CLIENT_IP)
@@ -314,3 +339,18 @@ def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tr
         root_span = test_spans.spans[0]
         # X_REAL_IP should be ignored since the client provided a header
         assert not root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_weak_hash(client, test_spans, tracer):
+    with override_env(dict(DD_IAST_ENABLED="true")):
+        patch_iast(weak_hash=True)
+        tracer._iast_enabled = True
+        # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+        client.get("/weak-hash/")
+
+        root_span = test_spans.spans[0]
+        root_span.get_tag(IAST_JSON)
+        vulnerability = json.loads(root_span.get_tag(IAST_JSON))["vulnerabilities"][0]
+        assert vulnerability["location"]["path"].endswith("tests/contrib/django/views.py")
+        assert vulnerability["evidence"]["value"] == "md5"

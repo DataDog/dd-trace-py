@@ -364,6 +364,24 @@ below:
      - True
      - Send query strings in http.url tag in http server integrations.
 
+       .. _dd-iast-enabled:
+   * - ``DD_IAST_ENABLED``
+     - Boolean
+     - False
+     - Whether to enable IAST.
+
+       .. _dd-iast-max-concurrent-requests:
+   * - ``DD_IAST_MAX_CONCURRENT_REQUESTS``
+     - Integer
+     - 2
+     - Number of requests analyzed at the same time.
+
+       .. _dd-iast-vulnerability-per-request:
+   * - ``DD_IAST_VULNERABILITIES_PER_REQUEST``
+     - Integer
+     - 2
+     - Number of vulnerabilities reported in each request.
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 

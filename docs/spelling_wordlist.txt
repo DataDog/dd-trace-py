@@ -22,6 +22,7 @@ agentless
 analytics
 api
 app
+appsec
 aredis
 args
 asgi
@@ -198,3 +199,4 @@ libddwaf
 Serverless
 serverless
 cattrs
+IAST
