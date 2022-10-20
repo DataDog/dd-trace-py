@@ -3,6 +3,8 @@ import time
 from typing import Any
 from typing import Union
 
+from ddtrace.internal.compat import PY3
+
 from .ddwaf_types import ddwaf_config
 from .ddwaf_types import ddwaf_context_destroy
 from .ddwaf_types import ddwaf_context_init
@@ -14,7 +16,11 @@ from .ddwaf_types import ddwaf_result_free
 from .ddwaf_types import ddwaf_ruleset_info
 from .ddwaf_types import py_ddwaf_required_addresses
 from .ddwaf_types import py_ddwaf_run
-from .ddwaf_types import unicode
+
+
+# Python 2/3 unicode str compatibility
+if PY3:
+    unicode = str
 
 
 #
