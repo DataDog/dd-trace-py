@@ -11,6 +11,7 @@ from ddtrace.internal.compat import PY3
 # Python 2/3 unicode str compatibility
 if PY3:
     unicode = str
+    long = int
 
 
 _DIRNAME = os.path.dirname(__file__)
@@ -87,33 +88,45 @@ class ddwaf_object(ctypes.Structure):
     # 16 is a map : array of length "nbEntries" with parameterName
     # 32 is boolean
 
-    def __init__(self, struct=None, max_objects=5000):
-        # type: (ddwaf_object, Union[None, int, unicode, list[Any], dict[unicode, Any]], int) -> None
-        if struct is None:
+    def __init__(self, struct=None, max_objects=DDWAF_MAX_CONTAINER_SIZE, max_depth=DDWAF_MAX_CONTAINER_DEPTH):
+        # type: (ddwaf_object, Union[None, int, unicode, list[Any], dict[unicode, Any]], int, int) -> None
+        if struct is None or max_objects == 0:
             ddwaf_object_invalid(self)
-        elif isinstance(struct, int):
+        elif isinstance(struct, (int, long)):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
-            ddwaf_object_string(self, struct.encode("UTF-8"))
+            ddwaf_object_string(self, struct.encode("UTF-8")[: DDWAF_MAX_STRING_LENGTH - 1])
         elif isinstance(struct, bytes):
-            ddwaf_object_string(self, struct)
+            ddwaf_object_string(self, struct[: DDWAF_MAX_STRING_LENGTH - 1])
+        elif isinstance(struct, float):
+            res = unicode(struct).encode("UTF-8")
+            ddwaf_object_string(self, res)
         elif isinstance(struct, list):
-            l_res = list(map(ddwaf_object, struct))
+            if max_depth <= 0:
+                max_objects = 0
             array = ddwaf_object_array(self)
             assert array
-            for elt in l_res:
-                assert ddwaf_object_array_add(array, elt)
-            assert array.nbEntries == len(l_res)
+            for counter_object, elt in enumerate(struct):
+                if counter_object >= max_objects:
+                    break
+                obj = ddwaf_object(elt, max_depth=max_depth - 1)
+                if obj.type:  # discards invalid objects
+                    assert ddwaf_object_array_add(array, obj)
         elif isinstance(struct, dict):
-            d_res = {
-                (key.encode("UTF-8") if isinstance(key, unicode) else key): ddwaf_object(val)
-                for key, val in struct.items()
-            }
+            if max_depth <= 0:
+                max_objects = 0
             map_o = ddwaf_object_map(self)
             assert map_o
-            for key, elt in d_res.items():
-                assert ddwaf_object_map_add(map_o, key, elt)
-            assert map_o.nbEntries == len(d_res)
+            # order is unspecified and could lead to problems if max_objects is reached
+            for counter_object, (key, val) in enumerate(struct.items()):
+                if not isinstance(key, (bytes, unicode)):  # discards non string keys
+                    continue
+                if counter_object >= max_objects:
+                    break
+                res_key = (key.encode("UTF-8") if isinstance(key, unicode) else key)[: DDWAF_MAX_STRING_LENGTH - 1]
+                obj = ddwaf_object(val, max_depth=max_depth - 1)
+                if obj.type:  # discards invalid objects
+                    assert ddwaf_object_map_add(map_o, res_key, obj)
         else:
             raise TypeError("ddwaf_object : unknown type in structure. " + repr(type(struct)))
 
