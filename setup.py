@@ -8,7 +8,9 @@ from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 
-from ddtrace.internal.compat import PY3
+import sys
+
+PY3 = sys.version_info[0] == 3
 
 if PY3:
     from urllib.request import urlretrieve
@@ -82,51 +84,6 @@ class Tox(TestCommand):
         sys.exit(errno)
 
 
-class CMake(BuildExtCommand):
-    def build_extension(self, ext):
-        import shutil
-        import subprocess
-        import tempfile
-
-        to_build = set()
-        # Detect if any source file sits next to a CMakeLists.txt file
-        for source in ext.sources:
-            source_dir = os.path.dirname(os.path.realpath(source))
-            if os.path.exists(os.path.join(source_dir, "CMakeLists.txt")):
-                to_build.add(source_dir)
-
-        if not to_build:
-            # Build the extension as usual
-            BuildExtCommand.build_extension(self, ext)
-            return
-
-        try:
-            cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-            build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
-            opts = ["-DCMAKE_BUILD_TYPE={}".format(build_type)]
-            if platform.system() == "Windows":
-                opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-            else:
-                opts.extend(["-G", "Ninja"])
-                ninja_command = os.environ.get("NINJA_COMMAND", "")
-                if ninja_command:
-                    opts.append("-DCMAKE_MAKE_PROGRAM={}".format(ninja_command))
-
-            for source_dir in to_build:
-                try:
-                    build_dir = tempfile.mkdtemp()
-                    subprocess.check_call([cmake_command, "-S", source_dir, "-B", build_dir] + opts)
-                    subprocess.check_call([cmake_command, "--build", build_dir, "--config", build_type])
-                finally:
-                    if not DEBUG_COMPILE:
-                        shutil.rmtree(build_dir, ignore_errors=True)
-
-            BuildExtCommand.build_extension(self, ext)
-        except Exception as e:
-            print('WARNING: building extension "%s" failed: %s' % (ext.name, e))
-            raise
-
-
 long_description = """
 # dd-trace-py
 
@@ -182,14 +139,13 @@ except HTTPError as e:
 with tarfile.open(filename, "r|gz") as tar:
     tar.extractall()
     shutil.rmtree("libddwaf", True)
-    os.rename(ddwaf_archive_dir, "libddwaf")
+    os.rename(ddwaf_archive_dir, os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf")))
     tar.close()
 
 if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
     debug_compile_args = []
-    ddwaf_libraries = ["ddwaf_static"]
 else:
     linux = platform.system() == "Linux"
     encoding_libraries = []
@@ -209,10 +165,6 @@ else:
             ]
     else:
         debug_compile_args = []
-    if linux:
-        ddwaf_libraries = ["rt", "m", "dl", "pthread"]
-    else:
-        ddwaf_libraries = []
 
 
 if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
@@ -299,7 +251,7 @@ setup(
     },
     # plugin tox
     tests_require=["tox", "flake8"],
-    cmdclass={"build_ext": CMake, "test": Tox},
+    cmdclass={"test": Tox},
     entry_points={
         "console_scripts": [
             "ddtrace-run = ddtrace.commands.ddtrace_run:main",
@@ -374,14 +326,6 @@ setup(
                 "ddtrace.profiling._build",
                 sources=["ddtrace/profiling/_build.pyx"],
                 language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.appsec._ddwaf",
-                sources=["ddtrace/appsec/_ddwaf.pyx"],
-                include_dirs=["ddtrace/appsec/include"],
-                library_dirs=["ddtrace/appsec/lib"],
-                libraries=ddwaf_libraries,
-                language="c++",
             ),
         ],
         compile_time_env={
