@@ -1574,13 +1574,6 @@ venv = Venv(
                         "grpcio": ["~=1.42.0", latest],
                     },
                 ),
-                Venv(
-                    pys=select_pys(min_version="3.11"),
-                    pkgs={
-                        # 3.11 compatible with grpcio>=1.49 onward
-                        "grpcio": ["~=1.49.0", latest],
-                    },
-                ),
             ],
         ),
         Venv(
