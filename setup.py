@@ -161,10 +161,10 @@ else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
-ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s"%(platform.system().lower(), platform.machine().lower())
+ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), platform.machine().lower())
 ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
 
-ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s"%ddwaf_archive_name
+ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
 
 try:
     filename, http_response = urllib.request.urlretrieve(ddwaf_download_address, ddwaf_archive_name)
