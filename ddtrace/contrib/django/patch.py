@@ -17,18 +17,6 @@ from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
-
-from ...internal.utils import get_argument_value
-
-
-try:
-    from psycopg2._psycopg import cursor as psycopg_cursor_cls
-
-    from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
-except ImportError:
-    psycopg_cursor_cls = None
-    Psycopg2TracedCursor = None
-
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
@@ -40,6 +28,7 @@ from ddtrace.vendor import wrapt
 
 from . import utils
 from .. import trace_utils
+from ...internal.utils import get_argument_value
 
 
 log = get_logger(__name__)
@@ -86,12 +75,15 @@ def patch_conn(django, conn):
         pin = Pin(service, tags=tags, tracer=pin.tracer)
         cursor = func(*args, **kwargs)
         traced_cursor_cls = dbapi.TracedCursor
-        if (
-            Psycopg2TracedCursor is not None
-            and hasattr(cursor, "cursor")
-            and isinstance(cursor.cursor, psycopg_cursor_cls)
-        ):
-            traced_cursor_cls = Psycopg2TracedCursor
+        try:
+            if cursor.cursor.__class__.__module__.startswith("psycopg2."):
+                # Import lazily to avoid importing psycopg2 if not already imported.
+                from ddtrace.contrib.psycopg.patch import Psycopg2TracedCursor
+
+                traced_cursor_cls = Psycopg2TracedCursor
+        except AttributeError:
+            pass
+
         # Each db alias will need its own config for dbapi
         cfg = IntegrationConfig(
             config.django.global_config,  # global_config needed for analytics sample rate
