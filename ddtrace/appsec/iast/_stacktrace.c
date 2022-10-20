@@ -40,11 +40,11 @@ static PyObject* get_file_and_line(PyObject* self, PyObject* const* args, Py_ssi
     return PyTuple_Pack(2, Py_None, Py_None);
 }
 
-static PyMethodDef HelloMethods[] = {{"get_info_frame", ((PyCFunction) get_file_and_line), METH_FASTCALL, "stacktrace module"},
-                                     {nullptr, nullptr, 0, nullptr}};
+static PyMethodDef StacktraceMethods[] = {{"get_info_frame", ((PyCFunction) get_file_and_line), METH_FASTCALL, "stacktrace functions"},
+                                     {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef stacktrace = {PyModuleDef_HEAD_INIT, "ddtrace.appsec.iast._stacktrace", "stacktrace module", -1,
-                                         HelloMethods};
+                                         StacktraceMethods};
 
 PyMODINIT_FUNC
 PyInit__stacktrace(void)
