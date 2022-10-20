@@ -86,4 +86,4 @@ class DDWaf(object):
 
 def version():
     # type: () -> unicode
-    return ddwaf_get_version().decode('UTF-8')
+    return ddwaf_get_version().decode("UTF-8")
