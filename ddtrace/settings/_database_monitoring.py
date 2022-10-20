@@ -36,6 +36,7 @@ dbm_config = DatabaseMonitoringConfig()
 
 def _get_dbm_comment(db_span):
     # type: (Span) -> str
+    """Generate DBM trace injection comment and updates span tags"""
     if dbm_config.injection_mode == "disabled":
         return ""
 
