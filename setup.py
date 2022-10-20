@@ -122,8 +122,12 @@ if sys.byteorder == "big":
 else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
+architecture = platform.machine().lower()
 
-ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), platform.machine().lower())
+if architecture == "amd64":
+    architecture = "x86_64"
+
+ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), architecture)
 ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
 
 ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
