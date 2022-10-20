@@ -22,7 +22,6 @@ agentless
 analytics
 api
 app
-appsec
 aredis
 args
 asgi
