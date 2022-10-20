@@ -17,7 +17,7 @@
  * @return Tuple, string and integer.
  **/
 static PyObject*
-get_file_and_line(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
+get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
     PyThreadState* tstate = PyThreadState_GET();
     PyFrameObject* frame;
@@ -42,15 +42,13 @@ get_file_and_line(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
 }
 
 static PyMethodDef StacktraceMethods[] = {
-    { "get_info_frame", ((PyCFunction)get_file_and_line), METH_FASTCALL, "stacktrace functions" },
+    { "get_info_frame", (PyCFunction)get_file_and_line, METH_VARARGS, "stacktrace functions" },
     { NULL, NULL, 0, NULL }
 };
 
-static struct PyModuleDef stacktrace = { PyModuleDef_HEAD_INIT,
-                                         "ddtrace.appsec.iast._stacktrace",
-                                         "stacktrace module",
-                                         -1,
-                                         StacktraceMethods };
+static struct PyModuleDef stacktrace = {
+    PyModuleDef_HEAD_INIT, "ddtrace.appsec.iast._stacktrace", "stacktrace module", -1, StacktraceMethods
+};
 
 PyMODINIT_FUNC
 PyInit__stacktrace(void)
