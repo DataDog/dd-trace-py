@@ -7,3 +7,5 @@ ddtrace/ext/test.py             @DataDog/apm-python @DataDog/ci-app-libraries
 ddtrace/internal/codeowners.py  @DataDog/apm-python @datadog/ci-app-libraries
 tests/contrib/pytest/           @DataDog/apm-python @DataDog/ci-app-libraries
 tests/contrib/pytest-bdd/       @DataDog/apm-python @DataDog/ci-app-libraries
+ddtrace/debugging/              @DataDog/debugger-python
+tests/debugging/                @DataDog/debugger-python
