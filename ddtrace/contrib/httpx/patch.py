@@ -14,6 +14,7 @@ from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin
 from ddtrace.propagation.http import HTTPPropagator
@@ -139,12 +140,17 @@ def patch():
 
     setattr(httpx, "_datadog_patch", True)
 
-    _w(httpx.AsyncClient, "send", _wrapped_async_send)
+    version = parse_version(httpx.__version__)
     _w(httpx.Client, "send", _wrapped_sync_send)
 
     pin = Pin()
-    pin.onto(httpx.AsyncClient)
     pin.onto(httpx.Client)
+
+    if version >= (0, 11):
+        # httpx==0.10.0 added AsyncClient as a synonym for Client for backwards compatibility
+        # httpx==0.11.0 broke backwards compatibility and added a synchronous Client
+        _w(httpx.AsyncClient, "send", _wrapped_async_send)
+        pin.onto(httpx.AsyncClient)
 
 
 def unpatch():
@@ -154,5 +160,9 @@ def unpatch():
 
     setattr(httpx, "_datadog_patch", False)
 
-    _u(httpx.AsyncClient, "send")
+    version = parse_version(httpx.__version__)
+    if version >= (0, 11):
+        # See above patching code for when this patching occurred
+        _u(httpx.AsyncClient, "send")
+
     _u(httpx.Client, "send")
