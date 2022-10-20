@@ -12,6 +12,7 @@ from ddtrace.internal.compat import PY3
 if PY3:
     unicode = str
 
+
 _DIRNAME = os.path.dirname(__file__)
 
 #
@@ -94,6 +95,8 @@ class ddwaf_object(ctypes.Structure):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
             ddwaf_object_string(self, struct.encode("UTF-8"))
+        elif isinstance(struct, bytes):
+            ddwaf_object_string(self, struct)
         elif isinstance(struct, list):
             l_res = list(map(ddwaf_object, struct))
             array = ddwaf_object_array(self)
@@ -102,7 +105,10 @@ class ddwaf_object(ctypes.Structure):
                 assert ddwaf_object_array_add(array, elt)
             assert array.nbEntries == len(l_res)
         elif isinstance(struct, dict):
-            d_res = {key.encode("UTF-8"): ddwaf_object(val) for key, val in struct.items()}
+            d_res = {
+                (key.encode("UTF-8") if isinstance(key, unicode) else key): ddwaf_object(val)
+                for key, val in struct.items()
+            }
             map_o = ddwaf_object_map(self)
             assert map_o
             for key, elt in d_res.items():
