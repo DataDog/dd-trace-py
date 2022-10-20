@@ -51,14 +51,7 @@ class DDWaf(object):
     def info(self):
         # type: (DDWaf) -> dict[unicode, Any]
         if self._info.loaded > 0:
-            errors_result = (
-                {
-                    k.decode("UTF-8"): ([i.decode("UTF-8") for i in v] if isinstance(v, list) else v.decode("UTF-8"))
-                    for k, v in self._info.errors.struct.items()
-                }
-                if self._info.failed > 0
-                else {}
-            )
+            errors_result = self._info.errors.struct if self._info.failed > 0 else {}
             version = self._info.version
             version = "" if version is None else version.decode("UTF-8")
             return {
