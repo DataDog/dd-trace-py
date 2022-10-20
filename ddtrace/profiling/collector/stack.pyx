@@ -165,17 +165,10 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
 
         _PyErr_StackItem * _PyErr_GetTopmostException(PyThreadState *tstate)
 
-        IF PY_MINOR_VERSION < 11:
-            ctypedef struct _PyErr_StackItem:
-                PyObject* exc_type
-                PyObject* exc_value
-                PyObject* exc_traceback
-        ELSE:
-            ctypedef struct _PyErr_StackItem:
-                PyObject* exc_value
-
-        PyObject* PyException_GetTraceback(PyObject* exc)
-        PyObject* Py_TYPE(PyObject* ob)
+        ctypedef struct _PyErr_StackItem:
+            PyObject* exc_type
+            PyObject* exc_value
+            PyObject* exc_traceback
 
     IF PY_MINOR_VERSION == 7:
         # Python 3.7
@@ -205,8 +198,6 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
             # Needed for accessing _PyGC_FINALIZED when we build with -DPy_BUILD_CORE
             cdef extern from "<internal/pycore_gc.h>":
                 pass
-            cdef extern from "<Python.h>":
-                PyObject* PyThreadState_GetFrame(PyThreadState* tstate)
 ELSE:
     from cpython.ref cimport Py_DECREF
 
@@ -223,8 +214,6 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
         cdef PyThreadState* tstate
         cdef _PyErr_StackItem* exc_info
         cdef PyThread_type_lock lmutex = _PyRuntime.interpreters.mutex
-        cdef PyObject* exc_type
-        cdef PyObject* exc_tb
         cdef dict running_threads = {}
 
         # This is an internal lock but we do need it.
@@ -240,22 +229,12 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
                     tstate = PyInterpreterState_ThreadHead(interp)
                     while tstate:
                         # The frame can be NULL
-                        # Python 3.9 added helper function to public C API to access PyFrameObject from tstate,
-                        # Python 3.11 moved PyFrameObject to internal C API and cannot be directly accessed from tstate
-                        IF PY_MINOR_VERSION >= 9:
-                            frame = PyThreadState_GetFrame(tstate)
-                        ELSE:
-                            frame = tstate.frame
-                        if frame:
-                            running_threads[tstate.thread_id] = <object>frame
+                        if tstate.frame:
+                            running_threads[tstate.thread_id] = <object>tstate.frame
+
                         exc_info = _PyErr_GetTopmostException(tstate)
-                        if exc_info and exc_info.exc_value:
-                            # Python 3.11 removed exc_type, exc_traceback from exception representations, can instead
-                            # derive exc_type and exc_traceback from remaining exc_value field
-                            exc_type = Py_TYPE(exc_info.exc_value)
-                            exc_tb = PyException_GetTraceback(exc_info.exc_value)
-                            if exc_type and exc_tb:
-                                current_exceptions[tstate.thread_id] = (<object>exc_type, <object>exc_tb)
+                        if exc_info and exc_info.exc_type and exc_info.exc_traceback:
+                            current_exceptions[tstate.thread_id] = (<object>exc_info.exc_type, <object>exc_info.exc_traceback)
                         tstate = PyThreadState_Next(tstate)
 
                     interp = PyInterpreterState_Next(interp)
