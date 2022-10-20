@@ -89,7 +89,7 @@ venv = Venv(
         "coverage": latest,
         "pytest-cov": latest,
         "opentracing": latest,
-        "hypothesis": latest,
+        "hypothesis": "<6.45.1",
     },
     env={
         "DD_TESTING_RAISE": "1",
@@ -248,19 +248,19 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            pkgs={
-                "msgpack": latest,
-                "attrs": ["==20.1.0", latest],
-                "packaging": ["==17.1", latest],
-                "structlog": latest,
-                # httpretty v1.0 drops python 2.7 support
-                "httpretty": "==0.9.7",
-            },
             venvs=[
-                # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
                 Venv(
-                    name="tracer",
                     pys=select_pys(),
+                    pkgs={
+                        "msgpack": latest,
+                        "attrs": ["==20.1.0", latest],
+                        "packaging": ["==17.1", latest],
+                        "structlog": latest,
+                        # httpretty v1.0 drops python 2.7 support
+                        "httpretty": "==0.9.7",
+                    },
+                    # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
+                    # We'll skip the test_http.py tests in riot and run them separately through tox in CI.
                     command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
                 ),
             ],
@@ -304,18 +304,29 @@ venv = Venv(
         Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
+            pkgs={"httpretty": "==0.9.7"},
             venvs=[
-                Venv(pys="2.7"),
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "gevent": latest,
+                    },
+                ),
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.10"),
-                    # depends on bytecode module, which doesn't yet support Python 3.11
-                    pkgs={"pytest-asyncio": latest},
+                    pkgs={
+                        "pytest-asyncio": latest,
+                        "gevent": latest,
+                    },
+                ),
+                Venv(
+                    # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
+                    pys="3.11",
+                    pkgs={
+                        "pytest-asyncio": latest,
+                    },
                 ),
             ],
-            pkgs={
-                "httpretty": "==0.9.7",
-                "gevent": latest,
-            },
         ),
         Venv(
             name="runtime",
@@ -333,6 +344,7 @@ venv = Venv(
                         "gevent": latest,
                     },
                 ),
+                # FIXME[gevent-3.11]: gevent fails to build in Python 3.11, so skip the gevent tests in ddtracerun
                 Venv(
                     pys=select_pys(min_version="3.11"),
                     pkgs={
@@ -348,6 +360,7 @@ venv = Venv(
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
+                    # FIXME[bytecode-3.11]: debugger depends on bytecode, which doesn't yet have 3.11 support
                     pys=select_pys(min_version="3.5", max_version="3.10"),
                     pkgs={"pytest-asyncio": latest},
                 ),
@@ -504,6 +517,7 @@ venv = Venv(
                 ),
                 Venv(
                     # Billiard dependency is incompatible with Python 3.11
+                    # https://github.com/celery/billiard/issues/377
                     pys=select_pys(min_version="3.8", max_version="3.10"),
                     env={
                         # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
@@ -609,7 +623,8 @@ venv = Venv(
         # 3.0     3.6, 3.7, 3.8
         # 3.1     3.6, 3.7, 3.8
         # 4.0     3.8, 3.9, 3.10
-        # 4.1     3.8, 3.9, 3.10, 3.11
+        # 4.1     3.8, 3.9, 3.10
+        # 4.2     3.8, 3.9, 3.10, 3.11
         # Source: https://docs.djangoproject.com/en/dev/faq/install/#what-python-version-can-i-use-with-django
         Venv(
             name="django",
@@ -643,12 +658,8 @@ venv = Venv(
                     pkgs={"django": [">=2.0,<2.1"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.7"),
-                    pkgs={"django": ">=2.1,<2.2"},
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.6", max_version="3.8"),
-                    pkgs={"django": ">=2.2,<2.3"},
+                    pys=select_pys(min_version="3.6", max_version="3.9"),
+                    pkgs={"django": [">=2.1,<2.2", ">=2.2,<2.3"]},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.8"),
@@ -1043,7 +1054,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.11"),
-                    # DEV: Use `psycopg2-binary` so we don't need PostgreSQL dev headers
+                    # psycopg2>=2.9.2 supports Python 3.11
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
                 ),
             ],
@@ -1120,7 +1131,7 @@ venv = Venv(
                     # Python 3.11 only compatible with Starlette >=0.21.
                     pys=select_pys(min_version="3.11"),
                     pkgs={
-                        "starlette": latest,
+                        "starlette": ["~=0.21", latest],
                     },
                 ),
             ],
@@ -1394,7 +1405,8 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # Python 3.11 only compatible with Starlette >=0.21 onwards.
+                    # Python 3.11 only compatible with starlette >=0.21 onwards.
+                    # Since fastapi internally pins starlette~=0.20.4, we'll override the starlette version to latest.
                     pys=select_pys(min_version="3.11"),
                     pkgs={
                         "fastapi": [latest],
@@ -1567,7 +1579,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys="3.10",
+                    pys=select_pys(min_version="3.10"),
                     pkgs={
                         # 3.10 wheels were started to be provided in 1.41
                         # but the version contains some bugs resolved by https://github.com/grpc/grpc/pull/27635.
@@ -1590,7 +1602,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.10"),
-                    # depends on bytecode module which doesn't yet support Python 3.11
+                    # FIXME[bytecode-3.11]: depends on bytecode module which doesn't yet support Python 3.11
                     pkgs={
                         "graphene": ["~=2.1.9", "~=3.0.0", latest],
                     },
@@ -1611,7 +1623,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.10"),
-                    # depends on bytecode module which doesn't yet support Python 3.11
+                    # FIXME[bytecode-3.11]: depends on bytecode module which doesn't yet support Python 3.11
                     pkgs={
                         "graphql-core": ["~=2.2.0", "~=2.3.0", "~=3.0.0", "~=3.1.0", "~=3.2.0", latest],
                     },
@@ -2043,6 +2055,7 @@ venv = Venv(
         ),
         Venv(
             name="aioredis",
+            # aioredis was merged into redis as of v2.0.1, no longer maintained and does not support Python 3.11 onward
             pys=select_pys(min_version="3.6", max_version="3.10"),
             command="pytest {cmdargs} tests/contrib/aioredis",
             pkgs={

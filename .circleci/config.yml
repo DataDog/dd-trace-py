@@ -399,6 +399,8 @@ jobs:
       - run_test:
           pattern: "tracer"
       - run_tox_scenario:
+          # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
+          # We skip the test_http.py tests in riot and run the test_http.py tests through tox.
           pattern: '^py.\+-tracer_test_http'
 
   telemetry:

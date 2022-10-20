@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    tracer: added official support for Python 3.11.
+    tracer: added support for Python 3.11.

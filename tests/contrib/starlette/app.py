@@ -60,12 +60,8 @@ async def server_error(request, exc):
     return PlainTextResponse(response)
 
 
-async def stream_response():
-    yield "Start streaming"
-    for i in range(1, 4):
-        yield "... %d ..." % i
-        await asyncio.sleep(0.5)
-    yield "End streaming"
+def stream_response():
+    yield b"streaming"
 
 
 async def stream(request):
