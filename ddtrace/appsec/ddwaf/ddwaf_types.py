@@ -1,6 +1,7 @@
 import ctypes
 from enum import IntEnum
 import os
+from platform import system
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -16,15 +17,13 @@ if PY3:
 
 _DIRNAME = os.path.dirname(__file__)
 
+FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
+
 #
 # Dynamic loading of libddwaf. For now it requires the file or a link to be in current directory
 #
 
-try:
-    ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf/lib/libddwaf.so"))
-except OSError:
-    ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf.dylib"))
-
+ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf/lib/libddwaf." + FILE_EXTENSION))
 
 #
 # Constants
