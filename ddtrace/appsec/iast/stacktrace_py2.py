@@ -29,6 +29,7 @@ def get_info_frame():
         else:
             filename = frame.filename
             lineno = frame.lineno
+
         if DD_TRACE_INSTALLED_PREFIX in filename and TESTS_PREFIX not in filename:
             continue
 

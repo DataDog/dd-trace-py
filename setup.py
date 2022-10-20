@@ -1,7 +1,6 @@
 import os
 import platform
 import sys
-
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
@@ -185,7 +184,6 @@ else:
     else:
         ddwaf_libraries = ["ddwaf"]
 
-
 if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     ext_modules = [
         Extension(
@@ -194,6 +192,14 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
                 "ddtrace/profiling/collector/_memalloc.c",
                 "ddtrace/profiling/collector/_memalloc_tb.c",
                 "ddtrace/profiling/collector/_memalloc_heap.c",
+            ],
+            extra_compile_args=debug_compile_args,
+        ),
+        Extension(
+            "ddtrace.appsec.iast._stacktrace",
+            # Sort source files for reproducibility
+            sources=[
+                "ddtrace/appsec/iast/_stacktrace.cpp",
             ],
             extra_compile_args=debug_compile_args,
         ),
