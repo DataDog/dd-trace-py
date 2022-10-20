@@ -1,14 +1,21 @@
 import os
 import platform
 import sys
-from urllib.error import HTTPError
-import urllib.request
 import tarfile
 import shutil
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
+
+from ddtrace.internal.compat import PY3
+
+if PY3:
+    from urllib.request import urlretrieve
+    from urllib.error import HTTPError
+else:
+    from urllib import urlretrieve
+    from urllib2 import HTTPError
 
 # ORDER MATTERS
 # Import this after setuptools or it will fail
@@ -167,7 +174,7 @@ ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
 ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
 
 try:
-    filename, http_response = urllib.request.urlretrieve(ddwaf_download_address, ddwaf_archive_name)
+    filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
 except HTTPError as e:
     print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
     raise e
