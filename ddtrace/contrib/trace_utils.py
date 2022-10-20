@@ -26,7 +26,6 @@ from ddtrace.internal import _context
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
@@ -176,12 +175,6 @@ _USED_IP_HEADER = ""
 def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_sensitive=False):
     # type: (Span, Mapping[str, str], Optional[str], bool) -> str
     global _USED_IP_HEADER
-
-    ip_collection_disabled = os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=None)
-    if (ip_collection_disabled is None and not config._appsec_enabled) or asbool(ip_collection_disabled):
-        # IP Collection will honor the environment var is set. Otherwise it will be enabled
-        # only if appsec is enabled
-        return ""
 
     def get_header_value(key):  # type: (str) -> Optional[str]
         if not headers_are_case_sensitive:
@@ -449,26 +442,41 @@ def set_http_meta(
         span.set_tag_str(http.QUERY_STRING, query)
 
     ip = None
+    headers_copy = None
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
             span.set_tag(http.USER_AGENT, user_agent)
 
-        if integration_config.is_header_tracing_configured:
-            """We should store both http.<request_or_response>.headers.<header_name> and http.<key>. The last one
-            is the DD standardized tag for user-agent"""
-            _store_request_headers(dict(request_headers), span, integration_config)
-
-        ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
-        if ip:
+        # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+        if config._appsec_enabled:
+            ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
             span.set_tag(http.CLIENT_IP, ip)
             span.set_tag("network.client.ip", ip)
+        else:
+            # If appsec is not enabled, remove all the IP headers
+            headers_copy = {}
+            # We copy the headers object because it could be a reference to the framework
+            # headers one and thus we should not change it
+            for header_name, header_value in request_headers.items():
+                if header_name.lower() not in IP_PATTERNS:
+                    headers_copy[header_name] = header_value
+
+        if integration_config.is_header_tracing_configured:
+            """We should store both http.<request_or_response>.headers.<header_name> and
+            http.<key>. The last one
+            is the DD standardized tag for user-agent"""
+            _store_request_headers(dict(request_headers), span, integration_config)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
 
     if retries_remain is not None:
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
+
+    if not headers_copy:
+        headers_copy = request_headers
 
     if config._appsec_enabled:
         status_code = str(status_code) if status_code is not None else None
@@ -481,7 +489,7 @@ def set_http_meta(
                     ("http.request.method", method),
                     ("http.request.cookies", request_cookies),
                     ("http.request.query", parsed_query),
-                    ("http.request.headers", request_headers),
+                    ("http.request.headers", headers_copy),
                     ("http.response.headers", response_headers),
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),

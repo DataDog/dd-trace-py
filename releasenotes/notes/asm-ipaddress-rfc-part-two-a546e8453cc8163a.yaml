@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: now IP address will only be collected if ASM is enabled.
