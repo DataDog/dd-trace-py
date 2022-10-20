@@ -23,10 +23,13 @@ _DD_PIN_PROXY_NAME = "_self_" + _DD_PIN_NAME
 
 
 class Pin(object):
-    """Pin (a.k.a Patch INfo) is a small class which is used to
-    set tracing metadata on a particular traced connection.
-    This is useful if you wanted to, say, trace two different
-    database clusters.
+    """
+    Pin (a.k.a Patch INfo) is a small class which is used to control tracing of
+    execution contexts for a particular object instance of an instrumented class
+    or for a loaded module that is instrumented.
+
+    One use case is to configure span metadata for two different database
+    connections:
 
         >>> conn = sqlite.connect('/tmp/user.db')
         >>> # Override a pin for a specific connection
