@@ -1,6 +1,10 @@
 import os
 import platform
 import sys
+from urllib.error import HTTPError
+import urllib.request
+import tarfile
+import shutil
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
@@ -156,6 +160,24 @@ if sys.byteorder == "big":
 else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
+
+ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s"%(platform.system().lower(), platform.machine().lower())
+ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
+
+ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s"%ddwaf_archive_name
+
+try:
+    filename, http_response = urllib.request.urlretrieve(ddwaf_download_address, ddwaf_archive_name)
+except HTTPError as e:
+    print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
+    raise e
+
+with tarfile.open(filename, "r|gz") as tar:
+    tar.extractall()
+    shutil.rmtree("libddwaf", True)
+    os.rename(ddwaf_archive_dir, "libddwaf")
+    tar.close()
+
 if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
@@ -184,6 +206,8 @@ else:
         ddwaf_libraries = ["rt", "m", "dl", "pthread"]
     else:
         ddwaf_libraries = []
+
+
 
 
 if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
