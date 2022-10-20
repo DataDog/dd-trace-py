@@ -6,9 +6,12 @@ import shutil
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
-from setuptools.command.build_ext import build_ext as BuildExtCommand
 
-import sys
+# ORDER MATTERS
+# Import this after setuptools or it will fail
+from Cython.Build import cythonize  # noqa: I100
+import Cython.Distutils
+
 
 PY3 = sys.version_info[0] == 3
 
@@ -18,11 +21,6 @@ if PY3:
 else:
     from urllib import urlretrieve
     from urllib2 import HTTPError
-
-# ORDER MATTERS
-# Import this after setuptools or it will fail
-from Cython.Build import cythonize  # noqa: I100
-import Cython.Distutils
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -138,9 +136,12 @@ except HTTPError as e:
 
 with tarfile.open(filename, "r|gz") as tar:
     tar.extractall()
-    shutil.rmtree("libddwaf", True)
-    os.rename(ddwaf_archive_dir, os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf")))
+    dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
+    shutil.rmtree(dst, True)
+    os.rename(ddwaf_archive_dir, dst)
     tar.close()
+
+os.remove(filename)
 
 if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
