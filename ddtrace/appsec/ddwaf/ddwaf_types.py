@@ -71,7 +71,7 @@ class DDWAF_LOG_LEVEL(IntEnum):
 # Objects Definitions
 #
 
-obj_struct = Union[None, int, unicode, list[Any], dict[unicode, Any]]
+# obj_struct = Union[None, int, unicode, list[Any], dict[unicode, Any]]
 
 
 # to allow cyclic references, ddwaf_object fields are defined later
@@ -87,7 +87,7 @@ class ddwaf_object(ctypes.Structure):
     # 32 is boolean
 
     def __init__(self, struct=None):
-        # type: (ddwaf_object, obj_struct) -> None
+        # type: (ddwaf_object, Union[None, int, unicode, list[Any], dict[unicode, Any]]) -> None
         if struct is None:
             ddwaf_object_invalid(self)
         elif isinstance(struct, int):
@@ -113,7 +113,7 @@ class ddwaf_object(ctypes.Structure):
 
     @property
     def struct(self):
-        # type: (ddwaf_object) -> obj_struct
+        # type: (ddwaf_object) -> Union[None, int, unicode, list[Any], dict[unicode, Any]]
         """pretty printing of the python ddwaf_object"""
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_INVALID:
             return None

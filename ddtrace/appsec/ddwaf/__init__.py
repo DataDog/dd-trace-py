@@ -1,6 +1,7 @@
 import ctypes
 import time
 from typing import Any
+from typing import Union
 
 from .ddwaf_types import ddwaf_config
 from .ddwaf_types import ddwaf_context_destroy
@@ -11,7 +12,6 @@ from .ddwaf_types import ddwaf_init
 from .ddwaf_types import ddwaf_object
 from .ddwaf_types import ddwaf_result_free
 from .ddwaf_types import ddwaf_ruleset_info
-from .ddwaf_types import obj_struct
 from .ddwaf_types import py_ddwaf_required_addresses
 from .ddwaf_types import py_ddwaf_run
 from .ddwaf_types import unicode
@@ -26,7 +26,7 @@ DEFAULT_DDWAF_TIMEOUT_MS = 20
 
 class DDWaf(object):
     def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
-        # type: (DDWaf, obj_struct, unicode, unicode) -> None
+        # type: (DDWaf, Union[None, int, unicode, list[Any], dict[unicode, Any]], unicode, unicode) -> None
         config = ddwaf_config(
             key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
         )
@@ -62,7 +62,7 @@ class DDWaf(object):
         }
 
     def run(self, data, timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS):
-        # type: (DDWaf, obj_struct, int) -> tuple[unicode, float, float]
+        # type: (DDWaf, Union[None, int, unicode, list[Any], dict[unicode, Any]], int) -> tuple[unicode, float, float]
         start = time.time()
 
         ctx = ddwaf_context_init(self._handle)
