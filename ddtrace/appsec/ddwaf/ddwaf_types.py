@@ -87,8 +87,8 @@ class ddwaf_object(ctypes.Structure):
     # 16 is a map : array of length "nbEntries" with parameterName
     # 32 is boolean
 
-    def __init__(self, struct=None):
-        # type: (ddwaf_object, Union[None, int, unicode, list[Any], dict[unicode, Any]]) -> None
+    def __init__(self, struct=None, max_objects=5000):
+        # type: (ddwaf_object, Union[None, int, unicode, list[Any], dict[unicode, Any]], int) -> None
         if struct is None:
             ddwaf_object_invalid(self)
         elif isinstance(struct, int):
@@ -128,11 +128,14 @@ class ddwaf_object(ctypes.Structure):
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_UNSIGNED:
             return self.value.uintValue
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING:
-            return self.value.stringValue
+            return self.value.stringValue.decode("UTF-8")
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY:
             return [self.value.array[i].struct for i in range(self.nbEntries)]
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP:
-            return {self.value.array[i].parameterName: self.value.array[i].struct for i in range(self.nbEntries)}
+            return {
+                self.value.array[i].parameterName.decode("UTF-8"): self.value.array[i].struct
+                for i in range(self.nbEntries)
+            }
         if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_BOOL:
             return self.value.boolean
         raise ValueError("ddwaf_object: unknown object")
