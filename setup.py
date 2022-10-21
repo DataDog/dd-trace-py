@@ -142,7 +142,11 @@ def load_dynamic_library():
         tar.extractall(members=(tarinfo for tarinfo in tar if tarinfo.name.endswith(".dylib")))
         dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
         shutil.rmtree(dst, True)
-        os.rename(ddwaf_archive_dir, dst)
+        try:
+            os.rename(ddwaf_archive_dir, dst)
+        except OSError:
+            for sc in os.scandir():
+                print(">", sc.name)
         # cleaning unwanted files
         os.remove(filename)
         tar.close()
