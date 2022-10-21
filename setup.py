@@ -125,6 +125,8 @@ def load_dynamic_library():
     ARCHI = platform.machine().lower()
     TRANSLATE_ARCH = {"amd64": "x86_64"}
     ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
+    TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
+    SUFFIX = TRANSLATE_SUFFIX[platform.system()]
 
     ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), ARCHITECTURE)
     ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
@@ -139,7 +141,7 @@ def load_dynamic_library():
         raise e
 
     with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-        dynfiles = [c for c in tar.getmembers() if c.name.endswith(".dylib") or c.name.endswith(".so")]
+        dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
 
     with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
         print("extracting dylib:", [c.name for c in dynfiles])
