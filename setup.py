@@ -138,7 +138,7 @@ def load_dynamic_library():
         print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
         raise e
 
-    with tarfile.open(filename, "r|gz") as tar:
+    with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
         tar.extractall(members=(tarinfo for tarinfo in tar if tarinfo.name.endswith(".dylib")))
         dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
         shutil.rmtree(dst, True)
