@@ -143,7 +143,7 @@ def load_dynamic_library():
         dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
         shutil.rmtree(dst, True)
         try:
-            os.rename(ddwaf_archive_dir, dst)
+            os.rename(os.path.join(HERE, ddwaf_archive_dir), dst)
         except OSError as e:
             for sc in os.scandir():
                 print(">", sc.name)
