@@ -139,7 +139,11 @@ def load_dynamic_library():
         raise e
 
     with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-        tar.extractall(members=(tarinfo for tarinfo in tar if tarinfo.name.endswith(".dylib")), path=HERE)
+        dynfiles = [c for c in tar.getmembers() if c.name.endswith(".dylib")]
+
+    with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+        print("extracting dylib:", [c.name for c in dynfiles])
+        tar.extractall(members=dynfiles, path=HERE)
         dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
         shutil.rmtree(dst, True)
         try:
