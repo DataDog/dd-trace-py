@@ -452,14 +452,15 @@ def set_http_meta(
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled:
             ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
-            span.set_tag(http.CLIENT_IP, ip)
-            span.set_tag("network.client.ip", ip)
+            if ip:
+                span.set_tag(http.CLIENT_IP, ip)
+                span.set_tag("network.client.ip", ip)
         else:
             # If appsec is not enabled, remove all the IP headers
             headers_copy = {}
             # We copy the headers object because it could be a reference to the framework
             # headers one and thus we should not change it
-            for header_name, header_value in request_headers.items():
+            for header_name, header_value in dict(request_headers).items():
                 if header_name.lower() not in IP_PATTERNS:
                     headers_copy[header_name] = header_value
 
