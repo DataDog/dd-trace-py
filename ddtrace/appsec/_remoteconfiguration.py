@@ -14,7 +14,6 @@ def _appsec_rc_features_is_enabled():
     return APPSEC_ENV not in os.environ
 
 
-
 def enable_appsec_rc(tracer):
     if _appsec_rc_features_is_enabled():
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
