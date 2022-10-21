@@ -139,19 +139,14 @@ def load_dynamic_library():
         raise e
 
     with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-        dynfiles = [c for c in tar.getmembers() if c.name.endswith(".dylib")]
+        dynfiles = [c for c in tar.getmembers() if c.name.endswith(".dylib") or c.name.endswith(".so")]
 
     with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
         print("extracting dylib:", [c.name for c in dynfiles])
         tar.extractall(members=dynfiles, path=HERE)
         dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
         shutil.rmtree(dst, True)
-        try:
-            os.rename(os.path.join(HERE, ddwaf_archive_dir), dst)
-        except OSError as e:
-            for sc in os.scandir():
-                print(">", sc.name)
-            raise e
+        os.rename(os.path.join(HERE, ddwaf_archive_dir), dst)
         # cleaning unwanted files
         os.remove(filename)
         tar.close()
