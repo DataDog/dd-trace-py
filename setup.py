@@ -144,9 +144,10 @@ def load_dynamic_library():
         shutil.rmtree(dst, True)
         try:
             os.rename(ddwaf_archive_dir, dst)
-        except OSError:
+        except OSError as e:
             for sc in os.scandir():
                 print(">", sc.name)
+            raise e
         # cleaning unwanted files
         os.remove(filename)
         tar.close()
