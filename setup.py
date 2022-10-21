@@ -150,8 +150,8 @@ def load_dynamic_library():
         shutil.rmtree(dst, True)
         os.rename(os.path.join(HERE, ddwaf_archive_dir), dst)
         # cleaning unwanted files
-        os.remove(filename)
         tar.close()
+    os.remove(filename)
 
 
 load_dynamic_library()
