@@ -94,11 +94,11 @@ class ddwaf_object(ctypes.Structure):
         elif isinstance(struct, (int, long)):
             ddwaf_object_signed(self, struct)
         elif isinstance(struct, unicode):
-            ddwaf_object_string(self, struct.encode("UTF-8")[: DDWAF_MAX_STRING_LENGTH - 1])
+            ddwaf_object_string(self, struct.encode("UTF-8", errors="ignore")[: DDWAF_MAX_STRING_LENGTH - 1])
         elif isinstance(struct, bytes):
             ddwaf_object_string(self, struct[: DDWAF_MAX_STRING_LENGTH - 1])
         elif isinstance(struct, float):
-            res = unicode(struct).encode("UTF-8")
+            res = unicode(struct).encode("UTF-8", errors="ignore")
             ddwaf_object_string(self, res)
         elif isinstance(struct, list):
             if max_depth <= 0:
@@ -122,7 +122,9 @@ class ddwaf_object(ctypes.Structure):
                     continue
                 if counter_object >= max_objects:
                     break
-                res_key = (key.encode("UTF-8") if isinstance(key, unicode) else key)[: DDWAF_MAX_STRING_LENGTH - 1]
+                res_key = (key.encode("UTF-8", errors="ignore") if isinstance(key, unicode) else key)[
+                    : DDWAF_MAX_STRING_LENGTH - 1
+                ]
                 obj = ddwaf_object(val, max_depth=max_depth - 1)
                 if obj.type:  # discards invalid objects
                     assert ddwaf_object_map_add(map_o, res_key, obj)
