@@ -13,9 +13,7 @@ from Cython.Build import cythonize  # noqa: I100
 import Cython.Distutils
 
 
-PY3 = sys.version_info[0] == 3
-
-if PY3:
+if sys.version_info >= (3, 0):
     from urllib.request import urlretrieve
     from urllib.error import HTTPError
 else:
@@ -122,30 +120,35 @@ if sys.byteorder == "big":
 else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
-architecture = platform.machine().lower()
 
-if architecture == "amd64":
-    architecture = "x86_64"
+def load_dynamic_library():
+    ARCHI = platform.machine().lower()
+    TRANSLATE_ARCH = {"amd64": "x86_64"}
+    ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
 
-ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), architecture)
-ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
+    ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), ARCHITECTURE)
+    ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
 
-ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
+    ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
 
-try:
-    filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
-except HTTPError as e:
-    print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
-    raise e
+    try:
+        filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
+        print(filename)
+    except HTTPError as e:
+        print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
+        raise e
 
-with tarfile.open(filename, "r|gz") as tar:
-    tar.extractall()
-    dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
-    shutil.rmtree(dst, True)
-    os.rename(ddwaf_archive_dir, dst)
-    tar.close()
+    with tarfile.open(filename, "r|gz") as tar:
+        tar.extractall(members=(tarinfo for tarinfo in tar if tarinfo.name.endswith(".dylib")))
+        dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
+        shutil.rmtree(dst, True)
+        os.rename(ddwaf_archive_dir, dst)
+        # cleaning unwanted files
+        os.remove(filename)
+        tar.close()
 
-os.remove(filename)
+
+load_dynamic_library()
 
 if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
