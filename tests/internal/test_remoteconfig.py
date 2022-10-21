@@ -86,11 +86,12 @@ def get_mock_encoded_msg(msg):
 
 
 def test_remote_config_register_auto_enable():
-    assert RemoteConfig._worker is None
+    # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
+    assert RemoteConfig._worker._client._products.get("LIVE_DEBUGGER") is None
 
     RemoteConfig.register("LIVE_DEBUGGER", lambda m, c: None)
 
-    assert RemoteConfig._worker is not None
+    assert RemoteConfig._worker._client._products["LIVE_DEBUGGER"] is not None
 
     RemoteConfig.disable()
 
@@ -123,6 +124,10 @@ def test_remote_configuration(mock_send_request):
             self.features = features
 
     callback = Callback()
+
+    # Stop the default RemoteConfig in tracer
+    RemoteConfig.disable()
+
     with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
         mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
         rc = RemoteConfig()
