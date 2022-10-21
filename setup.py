@@ -6,6 +6,9 @@ import shutil
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
+from setuptools.command.build_ext import build_ext as BuildExtCommand
+from setuptools.command.build_py import build_py as BuildPyCommand
+from distutils.command.clean import clean as CleanCommand
 
 # ORDER MATTERS
 # Import this after setuptools or it will fail
@@ -80,6 +83,56 @@ class Tox(TestCommand):
         sys.exit(errno)
 
 
+class LibDDWaf_Download(BuildPyCommand):
+    @staticmethod
+    def download_dynamic_library():
+        ARCHI = platform.machine().lower()
+        TRANSLATE_ARCH = {"amd64": "x86_64"}
+        ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
+        TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
+        SUFFIX = TRANSLATE_SUFFIX[platform.system()]
+
+        ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), ARCHITECTURE)
+        ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
+
+        ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
+
+        try:
+            filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
+            print(filename)
+        except HTTPError as e:
+            print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
+            raise e
+
+        with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+            dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
+
+        with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+            print("extracting dylib:", [c.name for c in dynfiles])
+            tar.extractall(members=dynfiles, path=HERE)
+            dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
+            shutil.rmtree(dst, True)
+            os.rename(os.path.join(HERE, ddwaf_archive_dir), dst)
+            # cleaning unwanted files
+            tar.close()
+        os.remove(filename)
+
+    def run(self):
+        LibDDWaf_Download.download_dynamic_library()
+        BuildPyCommand.run(self)
+
+
+class CleanLibraries(CleanCommand):
+    @staticmethod
+    def remove_dynamic_library():
+        dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
+        shutil.rmtree(dst, True)
+
+    def run(self):
+        CleanLibraries.remove_dynamic_library()
+        CleanCommand.run(self)
+
+
 long_description = """
 # dd-trace-py
 
@@ -120,41 +173,6 @@ if sys.byteorder == "big":
 else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
-
-def load_dynamic_library():
-    ARCHI = platform.machine().lower()
-    TRANSLATE_ARCH = {"amd64": "x86_64"}
-    ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
-    TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
-    SUFFIX = TRANSLATE_SUFFIX[platform.system()]
-
-    ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), ARCHITECTURE)
-    ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
-
-    ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
-
-    try:
-        filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
-        print(filename)
-    except HTTPError as e:
-        print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
-        raise e
-
-    with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-        dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
-
-    with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-        print("extracting dylib:", [c.name for c in dynfiles])
-        tar.extractall(members=dynfiles, path=HERE)
-        dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
-        shutil.rmtree(dst, True)
-        os.rename(os.path.join(HERE, ddwaf_archive_dir), dst)
-        # cleaning unwanted files
-        tar.close()
-    os.remove(filename)
-
-
-load_dynamic_library()
 
 if platform.system() == "Windows":
     encoding_libraries = ["ws2_32"]
@@ -229,7 +247,9 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
+        "ddtrace.appsec.ddwaf": ["libddwaf/lib/libddwaf.*"],
     },
+    include_package_data=True,
     py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     zip_safe=False,
@@ -265,7 +285,7 @@ setup(
     },
     # plugin tox
     tests_require=["tox", "flake8"],
-    cmdclass={"test": Tox},
+    cmdclass={"test": Tox, "build_ext": BuildExtCommand, "build_py": LibDDWaf_Download, "clean": CleanLibraries},
     entry_points={
         "console_scripts": [
             "ddtrace-run = ddtrace.commands.ddtrace_run:main",
@@ -289,7 +309,7 @@ setup(
         "Programming Language :: Python :: 3.10",
     ],
     use_scm_version={"write_to": "ddtrace/_version.py"},
-    setup_requires=["setuptools_scm[toml]>=4,<6.1", "cython", "cmake", "ninja"],
+    setup_requires=["setuptools_scm[toml]>=4,<6.0", "cython", "cmake", "ninja"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -347,8 +367,9 @@ setup(
             "PY_MINOR_VERSION": sys.version_info.minor,
             "PY_MICRO_VERSION": sys.version_info.micro,
         },
-        force=True,
+        # force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+        compiler_directives={"language_level": "2"},
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil"),
