@@ -2,7 +2,7 @@ version: 2.1
 
 default_resource_class: &default_resource_class medium
 cimg_base_image: &cimg_base_image cimg/base:stable
-python39_image: &python39_image cimg/python:3.9
+python310_image: &python310_image cimg/python:3.10
 ddtrace_dev_image: &ddtrace_dev_image datadog/dd-trace-py:buster
 redis_image: &redis_image redis:4.0-alpine
 memcached_image: &memcached_image memcached:1.5-alpine
@@ -255,9 +255,9 @@ executors:
     docker:
       - image: *cimg_base_image
     resource_class: medium
-  python39:
+  python310:
     docker:
-      - image: *python39_image
+      - image: *python310_image
     resource_class: large
   ddtrace_dev:
     docker:
@@ -291,7 +291,7 @@ postgres_server: &postgres_server
 
 jobs:
   pre_check:
-    executor: python39
+    executor: python310
     steps:
       - checkout
       - setup_riot
@@ -325,7 +325,7 @@ jobs:
       - run: DD_COMPILE_DEBUG=1 DD_TESTING_RAISE=1 CC=gcc-10 CXX=g++-10 pip -vvv install .
 
   coverage_report:
-    executor: python39
+    executor: python310
     steps:
       - checkout
       - attach_workspace:
