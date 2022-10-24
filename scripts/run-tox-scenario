@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+python3 setup.py build_py
+
 set -e
 PATTERN="$1"
 shift
@@ -14,5 +16,3 @@ if [[ -z "${CIRCLE_NODE_TOTAL}" && -z "${CIRCLE_NODE_INDEX}" ]]; then
 else
     exec echo "$ENVLIST" | sort | python -c "import os, sys; t, i = int(os.getenv('CIRCLE_NODE_TOTAL')), int(os.getenv('CIRCLE_NODE_INDEX')); inp = sys.stdin.readlines(); s = len(inp)//t; print(''.join(inp[i*s:(i+1)*s] if i+1<t else inp[i*s:]).strip())" | tr '\n' ',' | xargs -I ARGS tox -e ARGS -- $@
 fi
-
-python3 setup.py build_py
