@@ -23,7 +23,7 @@
       "db.rowcount": 0,
       "out.port": 3306,
       "sql.rows": 0,
-      "system.process_id": 9600
+      "process_id": 9600
     },
     "duration": 996000,
     "start": 1656521180755302000

@@ -20,7 +20,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.process_id": 811
+      "process_id": 811
     },
     "duration": 4652701,
     "start": 1647032618018379324
@@ -48,7 +48,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.process_id": 811
+      "process_id": 811
     },
     "duration": 379825,
     "start": 1647032618023475066

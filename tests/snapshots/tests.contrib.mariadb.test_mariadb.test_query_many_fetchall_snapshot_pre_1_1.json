@@ -24,7 +24,7 @@
       "db.rowcount": 2,
       "out.port": 3306,
       "sql.rows": 2,
-      "system.process_id": 9600
+      "process_id": 9600
     },
     "duration": 4039000,
     "start": 1656521180702582000
@@ -54,7 +54,7 @@
       "db.rowcount": 0,
       "out.port": 3306,
       "sql.rows": 0,
-      "system.process_id": 9600
+      "process_id": 9600
     },
     "duration": 909000,
     "start": 1656521180707416000
@@ -83,7 +83,7 @@
       "db.rowcount": 2,
       "out.port": 3306,
       "sql.rows": 2,
-      "system.process_id": 9600
+      "process_id": 9600
     },
     "duration": 175000,
     "start": 1656521180708509000

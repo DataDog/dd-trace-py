@@ -20,7 +20,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.process_id": 55611
+      "process_id": 55611
     },
     "duration": 438000,
     "start": 1631829206143672000

@@ -27,7 +27,7 @@
       "db.rowcount": 1,
       "out.port": 443,
       "sql.rows": 1,
-      "system.process_id": 88705
+      "process_id": 88705
     },
     "duration": 3723000,
     "start": 1660069779876100000

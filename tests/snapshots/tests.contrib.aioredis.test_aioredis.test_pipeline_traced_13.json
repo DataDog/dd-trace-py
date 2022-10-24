@@ -22,7 +22,7 @@
       "out.port": 6379,
       "out.redis_db": 0,
       "redis.pipeline_length": 4,
-      "system.process_id": 245
+      "process_id": 245
     },
     "duration": 5134000,
     "start": 1638998846633476000

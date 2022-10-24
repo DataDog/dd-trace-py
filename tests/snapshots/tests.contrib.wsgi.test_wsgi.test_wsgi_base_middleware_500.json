@@ -22,7 +22,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "request_metric": 1,
-      "system.process_id": 81171
+      "process_id": 81171
     },
     "duration": 423000,
     "start": 1657661056800602000

@@ -24,7 +24,7 @@
       "db.rowcount": 1,
       "db.rownumber": 0,
       "out.port": 3306,
-      "system.process_id": 51883
+      "process_id": 51883
     },
     "duration": 2268000,
     "start": 1651818987387319000
@@ -59,7 +59,7 @@
       "db.rowcount": 0,
       "db.rownumber": 0,
       "out.port": 3306,
-      "system.process_id": 51883
+      "process_id": 51883
     },
     "duration": 3759000,
     "start": 1651818987389794000

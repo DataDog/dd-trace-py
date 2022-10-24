@@ -22,7 +22,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 443,
-      "system.process_id": 79541
+      "process_id": 79541
     },
     "duration": 3395000,
     "start": 1634218666469654000
