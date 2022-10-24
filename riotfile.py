@@ -261,6 +261,7 @@ venv = Venv(
                     },
                     # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
                     # We'll skip the test_http.py tests in riot and run them separately through tox in CI.
+                    # See linked riot issue: https://github.com/DataDog/riot/issues/192
                     command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
                 ),
             ],
