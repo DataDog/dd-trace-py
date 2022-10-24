@@ -79,6 +79,7 @@ class Tox(TestCommand):
         args = self.tox_args
         if args:
             args = shlex.split(self.tox_args)
+        LibDDWaf_Download.download_dynamic_library()
         errno = tox.cmdline(args=args)
         sys.exit(errno)
 
