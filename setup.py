@@ -30,6 +30,8 @@ DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
 
+LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
+
 
 def load_module_from_project_file(mod_name, fname):
     """
@@ -79,7 +81,8 @@ class Tox(TestCommand):
         args = self.tox_args
         if args:
             args = shlex.split(self.tox_args)
-        LibDDWaf_Download.download_dynamic_library()
+        if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
+            LibDDWaf_Download.download_dynamic_library()
         errno = tox.cmdline(args=args)
         sys.exit(errno)
 
@@ -111,9 +114,8 @@ class LibDDWaf_Download(BuildPyCommand):
         with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
             print("extracting dylib:", [c.name for c in dynfiles])
             tar.extractall(members=dynfiles, path=HERE)
-            dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
-            shutil.rmtree(dst, True)
-            os.rename(os.path.join(HERE, ddwaf_archive_dir), dst)
+            shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
+            os.rename(os.path.join(HERE, ddwaf_archive_dir), LIBDDWAF_DOWNLOAD_DIR)
             # cleaning unwanted files
             tar.close()
         os.remove(filename)
