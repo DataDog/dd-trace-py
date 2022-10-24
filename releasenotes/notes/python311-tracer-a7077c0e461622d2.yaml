@@ -1,7 +1,7 @@
 ---
 prelude:
   - |
-    Initial tracer support has been added for Python 3.11. Profiling and dynamic instrumentation are
+    Initial library support has been added for Python 3.11. Profiling and Dynamic Instrumentation are
     not yet compatible and will be added in a subsequent release.
     For full Python 3.11 support status please see: https://github.com/DataDog/dd-trace-py/issues/4149
 features:
