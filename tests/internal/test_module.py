@@ -7,6 +7,7 @@ import pytest
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
+from tests.utils import override_env
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -37,11 +38,12 @@ def module_watchdog():
 
 
 def test_watchdog_install_uninstall():
-    assert not isinstance(sys.modules, ModuleWatchdog)
-    ModuleWatchdog.install()
-    assert isinstance(sys.modules, ModuleWatchdog)
-    ModuleWatchdog.uninstall()
-    assert not isinstance(sys.modules, ModuleWatchdog)
+    with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="40")):
+        assert not isinstance(sys.modules, ModuleWatchdog)
+        ModuleWatchdog.install()
+        assert isinstance(sys.modules, ModuleWatchdog)
+        ModuleWatchdog.uninstall()
+        assert not isinstance(sys.modules, ModuleWatchdog)
 
 
 def test_import_origin_hook_for_imported_module(module_watchdog):
