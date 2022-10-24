@@ -10,7 +10,7 @@ from ddtrace.internal.utils.time import StopWatch
 log = get_logger(__name__)
 
 
-DEFAULT_REMOTECONFIG_POLL_SECONDS = 2.0  # seconds
+DEFAULT_REMOTECONFIG_POLL_SECONDS = 5.0  # seconds
 
 
 def get_poll_interval_seconds():
