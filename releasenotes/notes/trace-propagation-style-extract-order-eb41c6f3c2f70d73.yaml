@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The propagation style values provided in ``DD_TRACE_PROPAGATION_STYLE_EXTRACT`` are evaluated in the order that they are provided. Previously the order was hardcoded.
