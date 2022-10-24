@@ -23,8 +23,18 @@ FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
 # Dynamic loading of libddwaf. For now it requires the file or a link to be in current directory
 #
 
-ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf/lib/libddwaf." + FILE_EXTENSION))
-
+try:
+    ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", "lib", "libddwaf." + FILE_EXTENSION))
+except OSError as e:
+    error = "libddwaf exists: " + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf"))) + "\n"
+    error = "libddwaf/lib exists: " + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf", "lib"))) + "\n"
+    error = (
+        "libddwaf/lib/libddwaf.%s exists: " % FILE_EXTENSION
+        + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf", "lib", "libddwaf." + FILE_EXTENSION)))
+        + "\n"
+    )
+    e.args = (e.args[0] + "\n" + error,) + e.args[1:]
+    raise e
 #
 # Constants
 #
