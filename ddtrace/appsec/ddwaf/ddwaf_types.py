@@ -27,8 +27,8 @@ try:
     ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", "lib", "libddwaf." + FILE_EXTENSION))
 except OSError as e:
     error = "libddwaf exists: " + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf"))) + "\n"
-    error = "libddwaf/lib exists: " + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf", "lib"))) + "\n"
-    error = (
+    error += "libddwaf/lib exists: " + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf", "lib"))) + "\n"
+    error += (
         "libddwaf/lib/libddwaf.%s exists: " % FILE_EXTENSION
         + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf", "lib", "libddwaf." + FILE_EXTENSION)))
         + "\n"
