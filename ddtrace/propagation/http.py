@@ -544,19 +544,22 @@ class HTTPPropagator(object):
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
             # Check all styles until we find the first valid match
-            # DEV: We want to check them in this specific priority order
-            if PROPAGATION_STYLE_DATADOG in config._propagation_style_extract:
-                context = _DatadogMultiHeader._extract(normalized_headers)
-                if context is not None:
-                    return context
-            if PROPAGATION_STYLE_B3 in config._propagation_style_extract:
-                context = _B3MultiHeader._extract(normalized_headers)
-                if context is not None:
-                    return context
-            if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_extract:
-                context = _B3SingleHeader._extract(normalized_headers)
-                if context is not None:
-                    return context
+            # DEV: We want to check them in the order that they're specified.
+            for style in config._propagation_style_extract:
+                if style == PROPAGATION_STYLE_DATADOG:
+                    context = _DatadogMultiHeader._extract(normalized_headers)
+                    if context is not None:
+                        return context
+
+                if style == PROPAGATION_STYLE_B3:
+                    context = _B3MultiHeader._extract(normalized_headers)
+                    if context is not None:
+                        return context
+
+                if style == PROPAGATION_STYLE_B3_SINGLE_HEADER:
+                    context = _B3SingleHeader._extract(normalized_headers)
+                    if context is not None:
+                        return context
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)
         return Context()
