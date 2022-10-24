@@ -600,7 +600,7 @@ jobs:
           docker_services: 'postgres'
 
   pylons:
-    <<: *contrib_job
+    <<: *contrib_job_small
     steps:
       - run_test:
           pattern: 'pylons'
