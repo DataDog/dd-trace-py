@@ -119,6 +119,7 @@ venv = Venv(
                 "flake8-logging-format": latest,
                 "flake8-rst-docstrings": latest,
                 "flake8-isort": latest,
+                "importlib-metadata": "<5",
                 "pygments": latest,
             },
             venvs=[
@@ -160,7 +161,7 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            pkgs={"slotscheck": latest},
+            pkgs={"slotscheck": latest, "forbiddenfruit": latest, "riot": latest},
             venvs=[
                 Venv(
                     name="slotscheck",
