@@ -11,7 +11,9 @@ log = get_logger(__name__)
 
 
 def _appsec_rc_features_is_enabled():
-    return APPSEC_ENV not in os.environ
+    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
+        return APPSEC_ENV not in os.environ
+    return False
 
 
 def enable_appsec_rc(tracer):

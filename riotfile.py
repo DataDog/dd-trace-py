@@ -300,6 +300,9 @@ venv = Venv(
                     pkgs={"pytest-asyncio": latest},
                 ),
             ],
+            env={
+                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+            },
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
