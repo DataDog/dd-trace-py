@@ -23,7 +23,7 @@ def _set_and_get_appsec_tags(tracer):
     return span.get_tag(APPSEC_JSON)
 
 
-def test_rc_disabled(tracer):
+def test_rc_enabled_by_default(tracer):
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
     assert _appsec_rc_features_is_enabled()
