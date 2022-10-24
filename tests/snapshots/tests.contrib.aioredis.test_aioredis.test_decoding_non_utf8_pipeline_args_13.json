@@ -22,7 +22,7 @@
       "out.port": 6379,
       "out.redis_db": 0,
       "redis.pipeline_length": 4,
-      "system.pid": 60927
+      "system.process_id": 60927
     },
     "duration": 982000,
     "start": 1640911730323059000

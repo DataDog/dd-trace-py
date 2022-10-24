@@ -19,7 +19,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "request_metric": 1,
-      "system.pid": 71585
+      "system.process_id": 71585
     },
     "duration": 345000,
     "start": 1657200588963520000

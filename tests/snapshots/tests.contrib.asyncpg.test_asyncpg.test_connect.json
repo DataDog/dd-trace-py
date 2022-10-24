@@ -20,7 +20,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 95613
+      "system.process_id": 95613
     },
     "duration": 7226000,
     "start": 1646890621099055000

@@ -17,7 +17,7 @@
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "system.pid": 44623
+      "system.process_id": 44623
     },
     "duration": 367000,
     "start": 1665504040160945000

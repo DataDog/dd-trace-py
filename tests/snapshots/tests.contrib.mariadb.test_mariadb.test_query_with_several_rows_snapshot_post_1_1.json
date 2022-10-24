@@ -23,7 +23,7 @@
       "db.rowcount": 3,
       "out.port": 3306,
       "sql.rows": 3,
-      "system.pid": 9677
+      "system.process_id": 9677
     },
     "duration": 569600,
     "start": 1656521264363662100
