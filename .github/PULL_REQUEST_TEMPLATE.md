@@ -44,4 +44,3 @@
 - [ ] Release note has been added for fixes and features, or else `changelog/no-changelog` label added.
 - [ ] All relevant GitHub issues are correctly linked.
 - [ ] Backports are identified and tagged with Mergifyio.
-- [ ] Add to milestone.
