@@ -14,3 +14,5 @@ if [[ -z "${CIRCLE_NODE_TOTAL}" && -z "${CIRCLE_NODE_INDEX}" ]]; then
 else
     exec echo "$ENVLIST" | sort | python -c "import os, sys; t, i = int(os.getenv('CIRCLE_NODE_TOTAL')), int(os.getenv('CIRCLE_NODE_INDEX')); inp = sys.stdin.readlines(); base = len(inp) // t; remainder = len(inp) % t; start_index = (i * base) + (i if i < remainder else remainder); end_index = start_index + base + (1 if i < remainder else 0); print(''.join(inp[start_index:end_index]).strip())" | tr '\n' ',' | xargs -I ARGS tox -e ARGS -- $@
 fi
+
+python3 setup.py build_py
