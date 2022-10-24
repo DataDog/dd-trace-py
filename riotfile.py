@@ -264,6 +264,9 @@ venv = Venv(
                     command="pytest {cmdargs} tests/tracer/ --ignore=tests/tracer/test_http.py",
                 ),
             ],
+            env={
+                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+            },
         ),
         Venv(
             name="telemetry",
@@ -305,6 +308,9 @@ venv = Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
             pkgs={"httpretty": "==0.9.7"},
+            env={
+                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+            },
             venvs=[
                 Venv(
                     pys="2.7",
