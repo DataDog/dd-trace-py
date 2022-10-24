@@ -105,14 +105,7 @@ class LibDDWaf_Download(BuildPyCommand):
             raise e
 
         with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-            all_members = tar.getmembers()
-            dynfiles = [c for c in all_members if c.name.endswith(SUFFIX)]
-
-        if len(dynfiles) != 1:
-            raise ValueError(
-                "Error with dynamic library loading: searching for %s file but found :\n %s"
-                % (SUFFIX, "\n".join(all_members))
-            )
+            dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
 
         with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
             print("extracting dylib:", [c.name for c in dynfiles])
