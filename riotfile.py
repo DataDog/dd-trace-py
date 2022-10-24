@@ -253,6 +253,9 @@ venv = Venv(
                     },
                 )
             ],
+            env={
+                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+            },
         ),
         Venv(
             name="telemetry",
