@@ -21,6 +21,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import PROPAGATION_STYLE_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
 from ..span import _MetaDictType
@@ -41,6 +42,8 @@ _HTTP_HEADER_B3_SPAN_ID = "x-b3-spanid"
 _HTTP_HEADER_B3_SAMPLED = "x-b3-sampled"
 _HTTP_HEADER_B3_FLAGS = "x-b3-flags"
 _HTTP_HEADER_TAGS = "x-datadog-tags"
+_HTTP_HEADER_TRACEPARENT = "traceparent"
+_HTTP_HEADER_TRACESTATE = "tracestate"
 
 
 def _possible_header(header):
@@ -60,6 +63,8 @@ _POSSIBLE_HTTP_HEADER_B3_TRACE_IDS = _possible_header(_HTTP_HEADER_B3_TRACE_ID)
 _POSSIBLE_HTTP_HEADER_B3_SPAN_IDS = _possible_header(_HTTP_HEADER_B3_SPAN_ID)
 _POSSIBLE_HTTP_HEADER_B3_SAMPLEDS = _possible_header(_HTTP_HEADER_B3_SAMPLED)
 _POSSIBLE_HTTP_HEADER_B3_FLAGS = _possible_header(_HTTP_HEADER_B3_FLAGS)
+_POSSIBLE_HTTP_HEADER_TRACEPARENT = _possible_header(_HTTP_HEADER_TRACEPARENT)
+_POSSIBLE_HTTP_HEADER_TRACEPARENT = _possible_header(_HTTP_HEADER_TRACESTATE)
 
 
 def _extract_header_value(possible_header_names, headers, default=None):
