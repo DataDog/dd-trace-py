@@ -191,7 +191,8 @@ below:
      - String
      -
      - A map of case-insensitive header keys to tag names. Automatically applies matching header values as tags on root spans.
-       For example, ``User-Agent:http.useragent,content-type:http.content_type``.
+       For example, ``User-Agent:http.useragent,content-type:http.content_type``. Please note that configuring IP storing headers like
+       ``X-Forwarded-For`` or ``X-Real-IP`` is not allowed without enabling ``DD_APPSEC_ENABLED`` and will raise an exception.
 
        .. _dd-trace-api-version:
    * - ``DD_TRACE_API_VERSION``
