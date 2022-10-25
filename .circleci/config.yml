@@ -590,10 +590,10 @@ jobs:
           docker_services: 'postgres'
 
   pylons:
-    <<: *contrib_job_small
+    <<: *contrib_job
     steps:
-      - run_test:
-          pattern: 'pylons'
+      - run_tox_scenario:
+          pattern: '^pylons_contrib-'
 
   aiohttp:
     <<: *machine_executor
