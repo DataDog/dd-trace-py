@@ -216,7 +216,11 @@ venv = Venv(
         ),
         Venv(
             pys=select_pys(),
-            pkgs={"pytest-benchmark": latest, "msgpack": latest},
+            pkgs={
+                "pytest-benchmark": latest,
+                "msgpack": latest,
+                "py": latest,
+            },
             venvs=[
                 Venv(
                     name="benchmarks",
