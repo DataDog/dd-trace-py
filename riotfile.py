@@ -129,7 +129,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            pys=["3.9"],
+            pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
@@ -253,6 +253,9 @@ venv = Venv(
                     },
                 )
             ],
+            env={
+                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+            },
         ),
         Venv(
             name="telemetry",
@@ -300,6 +303,9 @@ venv = Venv(
                     pkgs={"pytest-asyncio": latest},
                 ),
             ],
+            env={
+                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+            },
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
