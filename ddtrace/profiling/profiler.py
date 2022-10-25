@@ -60,7 +60,7 @@ class Profiler(object):
 
         if sys.version_info >= (3, 11, 0):
             raise RuntimeError(
-                "Profiling is not yet compatible with Python 3.11."
+                "Profiling is not yet compatible with Python 3.11. "
                 "See tracking issue for more details: https://github.com/DataDog/dd-trace-py/issues/4149"
             )
         if profile_children:
