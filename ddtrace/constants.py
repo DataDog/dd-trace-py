@@ -58,16 +58,3 @@ AUTO_REJECT = 0
 AUTO_KEEP = 1
 # Use this to explicitly inform the backend that a trace should be kept and stored.
 USER_KEEP = 2
-
-# Used to check when a header can have an IP (in this order)
-IP_HEADERS = (
-    "x-forwarded-for",
-    "x-real-ip",
-    "client-ip",
-    "x-forwarded",
-    "x-cluster-client-ip",
-    "forwarded-for",
-    "forwarded",
-    "via",
-    "true-client-ip",
-)

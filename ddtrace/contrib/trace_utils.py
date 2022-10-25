@@ -20,7 +20,6 @@ from typing import cast
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import IP_HEADERS
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import _context
@@ -57,6 +56,18 @@ NORMALIZE_PATTERN = re.compile(r"([^a-z0-9_\-:/]){1}")
 
 # Possible User Agent header.
 USER_AGENT_PATTERNS = ("http-user-agent", "user-agent")
+
+IP_PATTERNS = (
+    "x-forwarded-for",
+    "x-real-ip",
+    "client-ip",
+    "x-forwarded",
+    "x-cluster-client-ip",
+    "forwarded-for",
+    "forwarded",
+    "via",
+    "true-client-ip",
+)
 
 
 @cached()
@@ -195,7 +206,7 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
         # For some reason request uses other header or the specified header is empty, do the
         # search
         if not ip_header_value:
-            for ip_header in IP_HEADERS:
+            for ip_header in IP_PATTERNS:
                 tmp_ip_header_value = get_header_value(ip_header)
                 if tmp_ip_header_value:
                     ip_header_value = tmp_ip_header_value
