@@ -7,6 +7,7 @@ from typing import Tuple
 
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
+from ddtrace.constants import IP_HEADERS
 from ddtrace.internal.utils.cache import cachedmethod
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
@@ -168,6 +169,19 @@ class Config(object):
 
         header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
+        self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
+        if not self._appsec_enabled:
+            # Check if the user has configured to store some IP header which is only
+            # allowed when appsec is enabled
+            for ip_header in IP_HEADERS:
+                if self._header_tag_name(ip_header):
+                    raise ValueError(
+                        (
+                            "Configuring IP-storing headers in DD_TRACE_HEADER_TAGS is not "
+                            "allowed if appsec is not enabled. Please remove {!r} from "
+                            "DD_TRACE_HEADER_TAGS or enable appsec with {!r}=True"
+                        ).format(ip_header, APPSEC_ENV)
+                    )
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
@@ -225,7 +239,6 @@ class Config(object):
         self._trace_compute_stats = asbool(
             os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
         )
-        self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
         self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
 
         dd_trace_obfuscation_query_string_pattern = os.getenv(
