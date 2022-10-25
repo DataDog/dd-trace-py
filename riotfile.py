@@ -216,7 +216,9 @@ venv = Venv(
         ),
         Venv(
             pys=select_pys(),
-            pkgs={"pytest-benchmark": latest, "msgpack": latest},
+            # pytest-benchmark>=4.x dropped support for Python<=3.6, keep pinned to 3.4.1
+            # See https://pytest-benchmark.readthedocs.io/en/latest/changelog.html#id1
+            pkgs={"pytest-benchmark": "~=3.4.1", "msgpack": latest},
             venvs=[
                 Venv(
                     name="benchmarks",
