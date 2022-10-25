@@ -272,7 +272,6 @@ class DdtraceRunTest(BaseTestCase):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_logs_injection.py"])
             assert out.startswith(b"Test success")
 
-    @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Gevent 1.2.2 is not compatible with Python 3.11")
     def test_gevent_patch_all(self):
         with self.override_env(dict(DD_GEVENT_PATCH_ALL="true")):
             out = subprocess.check_output(["ddtrace-run", "python", "tests/commands/ddtrace_run_gevent.py"])
@@ -296,7 +295,6 @@ class DdtraceRunTest(BaseTestCase):
             assert six.b("ddtrace.sampler") in p.stderr.read()
 
 
-# FIXME[gevent-3.11]: remove skip once gevent releases version compatible with Python 3.11
 @pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="Profiler not yet compatible with Python 3.11")
 def test_env_profiling_enabled(monkeypatch):
     """DD_PROFILING_ENABLED allows enabling the global profiler."""

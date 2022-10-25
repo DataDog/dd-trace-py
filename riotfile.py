@@ -308,30 +308,19 @@ venv = Venv(
         Venv(
             name="internal",
             command="pytest {cmdargs} tests/internal/",
-            pkgs={"httpretty": "==0.9.7"},
+            pkgs={
+                "httpretty": "==0.9.7",
+                "gevent": latest,
+            },
             env={
                 "DD_REMOTE_CONFIGURATION_ENABLED": "false",
             },
             venvs=[
-                Venv(
-                    pys="2.7",
-                    pkgs={
-                        "gevent": latest,
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.5", max_version="3.10"),
-                    pkgs={
-                        "pytest-asyncio": latest,
-                        "gevent": latest,
-                    },
-                ),
+                Venv(pys="2.7"),
                 Venv(
                     # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
-                    pys="3.11",
-                    pkgs={
-                        "pytest-asyncio": latest,
-                    },
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={"pytest-asyncio": latest},
                 ),
             ],
         ),
@@ -345,17 +334,10 @@ venv = Venv(
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.10"),
+                    pys=select_pys(),
                     pkgs={
                         "redis": latest,
                         "gevent": latest,
-                    },
-                ),
-                # FIXME[gevent-3.11]: gevent fails to build in Python 3.11, so skip the gevent tests in ddtracerun
-                Venv(
-                    pys=select_pys(min_version="3.11"),
-                    pkgs={
-                        "redis": latest,
                     },
                 ),
             ],
