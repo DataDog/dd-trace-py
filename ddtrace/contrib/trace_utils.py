@@ -455,9 +455,7 @@ def set_http_meta(
         ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
         if ip:
             span.set_tag(http.CLIENT_IP, ip)
-            if span._meta:
-                span._meta["network.client.ip"] = ip
-                span._meta["actor.ip"] = ip
+            span.set_tag("network.client.ip", ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)
