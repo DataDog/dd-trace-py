@@ -431,7 +431,6 @@ def set_http_meta(
         span.set_tag_str(http.QUERY_STRING, query)
 
     ip = None
-    headers_copy = None
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
@@ -457,9 +456,6 @@ def set_http_meta(
     if retries_remain is not None:
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
-    if not headers_copy:
-        headers_copy = request_headers
-
     if config._appsec_enabled:
         status_code = str(status_code) if status_code is not None else None
 
@@ -471,7 +467,7 @@ def set_http_meta(
                     ("http.request.method", method),
                     ("http.request.cookies", request_cookies),
                     ("http.request.query", parsed_query),
-                    ("http.request.headers", headers_copy),
+                    ("http.request.headers", request_headers),
                     ("http.response.headers", response_headers),
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),

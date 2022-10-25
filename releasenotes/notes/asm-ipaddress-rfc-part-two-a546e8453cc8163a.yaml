@@ -1,5 +1,4 @@
 ---
 features:
   - |
-    ASM: now IP address will only be collected if ASM is enabled. Please note that now a ValueError be raised at startup if an IP header is configured in 
-         DD_TRACE_HEADER_TAGS but DD_APPSEC_ENABLED is disabled.
+    ASM: now http.client_ip and network.client.ip will only be collected if ASM is enabled.

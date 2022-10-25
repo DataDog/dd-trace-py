@@ -416,11 +416,6 @@ The following rules apply:
     configuration, only for the specific integration.
   - if you do not configure a specific integration, then the default global configuration applies, if any.
   - if no configuration is provided (neither global nor integration-specific), then headers are not traced.
-  - if ``DD_APPSEC_ENABLED`` is disabled or missing (meaning appsec will be disabled) configuring IP-storing 
-    headers like ``X-Forwarded-For`` is not allowed and will raise a ``ValueError``.
-  - if you want to specify which of potentially multiple headers is actually used to store the request IP your
-    can set the ``DD_TRACE_CLIENT_IP_HEADER`` environment variable to the name of the header. If not used, 
-    the library will try to find the best header for IP collection. Also, please take note of the previous point.
 
 
 Once you configure your application for tracing, you will have the headers attached to the trace as tags, with a
