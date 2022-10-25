@@ -1073,14 +1073,34 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest {cmdargs} tests/contrib/pynamodb",
-            pkgs={
-                "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
-            },
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": ">=1.0,<2.0"}),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        # pynamodb==4.x breaks with botocore>=1.28 and python>=3.7
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4"],
+                        "moto": ">=1.0,<2.0",
+                        "botocore": "==1.27.96",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "pynamodb": [latest],
+                        "moto": ">=1.0,<2.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    pkgs={
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
+                        "moto": ">=1.0,<2.0",
+                    },
+                ),
                 Venv(
                     pys=["2.7"],
                     pkgs={
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
                         "moto": ">=1.0,<2.0",
                         "rsa": "<4.7.1",
                     },
