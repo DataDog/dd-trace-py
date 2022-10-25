@@ -6,6 +6,7 @@ from typing import Callable
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import cast
 
 from ddtrace.context import Context
 from ddtrace.debugging._encoding import BufferedEncoder
@@ -47,7 +48,6 @@ class SnapshotContext(object):
         # type: (...) -> None
         self.collector = collector
         self.args = args
-        self.snapshot = None
         self.return_value = NO_RETURN_VALUE
         self.duration = None
         self._snapshot_encoder = collector._encoder._encoders[Snapshot]  # type: ignore[attr-defined]
@@ -61,17 +61,12 @@ class SnapshotContext(object):
             timestamp=time.time(),
         )
 
-        if snapshot.evaluate(dict(args)):
-            if probe.limiter.limit() is RateLimitExceeded:
-                return
-
-            self.snapshot = snapshot
-            self.snapshot.entry_capture = self._snapshot_encoder.capture_context(
-                args,
-                [],
-                (None, None, None),
-                level=1,  # TODO: Retrieve from probe
-            )
+        snapshot.entry_capture = self._snapshot_encoder.capture_context(
+            args,
+            [],
+            (None, None, None),
+            level=1,  # TODO: Retrieve from probe
+        )
 
         self.snapshot = snapshot
 
@@ -82,9 +77,6 @@ class SnapshotContext(object):
         The arguments can be used to record a return value or an exception, and
         the duration of the wrapped call.
         """
-        if self.snapshot is None:
-            return
-
         self.return_value = retval
         self.duration = duration_ns
 
@@ -95,7 +87,13 @@ class SnapshotContext(object):
 
     def __exit__(self, *exc_info):
         # type: (ExcInfoType) -> None
-        if self.snapshot is None:
+        try:
+            if not self.snapshot.evaluate(dict(self.args)):
+                return
+        except ConditionEvaluationError:
+            probe_id = cast(Snapshot, self.snapshot).probe.probe_id
+            log.error("Failed to evaluate condition for probe %s", probe_id, exc_info=True)
+            meter.increment("skip", tags={"cause": "cond_exc", "probe_id": probe_id})
             return
 
         # If we get here it is because we're within the rate limits and the

@@ -216,7 +216,12 @@ venv = Venv(
         ),
         Venv(
             pys=select_pys(),
-            pkgs={"pytest-benchmark": latest, "msgpack": latest},
+            pkgs={
+                "pytest-benchmark": latest,
+                "msgpack": latest,
+                # TODO: remove py dependency once https://github.com/ionelmc/pytest-benchmark/pull/227 is released
+                "py": latest,
+            },
             venvs=[
                 Venv(
                     name="benchmarks",
@@ -499,6 +504,35 @@ venv = Venv(
                             latest,
                         ],
                         "redis": "~=3.5",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="pylons",
+            command="python -m pytest {cmdargs} tests/contrib/pylons",
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "pylons": [
+                            ">=0.9.6,<0.9.7",
+                            ">=0.9.7,<0.9.8",
+                            ">=0.10,<0.11",
+                        ],
+                        "decorator": "<5",
+                        "pastedeploy": "<3",
+                        "webob": "<1.1",
+                    },
+                ),
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "pylons": [
+                            ">=1.0,<1.1",
+                        ],
+                        "decorator": "<5",
+                        "pastedeploy": "<3",
                     },
                 ),
             ],
