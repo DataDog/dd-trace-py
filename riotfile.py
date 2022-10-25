@@ -1040,10 +1040,15 @@ venv = Venv(
             name="pynamodb",
             command="pytest {cmdargs} tests/contrib/pynamodb",
             pkgs={
-                "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
+                # pynamodb==4.x breaks with boto3 and python>=3.7, only works with 5.x
+                "pynamodb": [latest],
             },
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": ">=1.0,<2.0"}),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={"moto": ">=1.0,<2.0"},
+                ),
+                Venv(pys=select_pys(min_version="3.5", max_version="3.6"), pkgs={"moto": ">=1.0,<2.0"}),
                 Venv(
                     pys=["2.7"],
                     pkgs={
