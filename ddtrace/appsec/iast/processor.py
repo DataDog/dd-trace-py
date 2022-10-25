@@ -7,6 +7,8 @@ from ddtrace.appsec.iast import oce
 from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.constants import IAST_ENABLED
 from ddtrace.constants import IAST_JSON
+from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
@@ -45,5 +47,9 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
         if data:
             span.set_tag_str(IAST_JSON, json.dumps(attr.asdict(data)))
+
+            span.set_tag(MANUAL_KEEP_KEY)
+            if span.get_tag(ORIGIN_KEY) is None:
+                span.set_tag_str(ORIGIN_KEY, "appsec")
 
         oce.release_request()
