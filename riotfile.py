@@ -219,6 +219,7 @@ venv = Venv(
             pkgs={
                 "pytest-benchmark": latest,
                 "msgpack": latest,
+                # TODO: remove py dependency once https://github.com/ionelmc/pytest-benchmark/pull/227 is released
                 "py": latest,
             },
             venvs=[
