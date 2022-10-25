@@ -131,3 +131,7 @@ from time import sleep  # noqa
 def durationstuff(ns):
 
     sleep(ns / 1e9)
+
+
+def mutator(arg):
+    arg.append(42)
