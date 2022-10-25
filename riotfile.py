@@ -1107,10 +1107,20 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pynamodb",
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.7"),
+                    pys=select_pys(min_version="3.7", max_version="3.10"),
                     pkgs={
                         # pynamodb==4.x breaks with botocore>=1.28 and python>=3.7
                         "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4"],
+                        "moto": ">=1.0,<2.0",
+                        "botocore": "==1.27.96",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        # Pynamodb<=4.0 not compatible with Python 3.11
+                        # (see https://github.com/pynamodb/PynamoDB/pull/703)
+                        "pynamodb": [">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4"],
                         "moto": ">=1.0,<2.0",
                         "botocore": "==1.27.96",
                     },
@@ -1125,14 +1135,16 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
                     pkgs={
-                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
+                        # Pynamodb>=5.x dropped support for Python 3.5 & 3.6
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4"],
                         "moto": ">=1.0,<2.0",
                     },
                 ),
                 Venv(
                     pys=["2.7"],
                     pkgs={
-                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
+                        # Pynamodb>=5.x dropped support for Python 2
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4"],
                         "moto": ">=1.0,<2.0",
                         "rsa": "<4.7.1",
                     },
