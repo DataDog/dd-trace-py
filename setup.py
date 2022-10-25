@@ -370,7 +370,7 @@ setup(
             "PY_MINOR_VERSION": sys.version_info.minor,
             "PY_MICRO_VERSION": sys.version_info.micro,
         },
-        # force=True,
+        force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "2"},
     )
