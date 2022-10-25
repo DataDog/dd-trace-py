@@ -24,7 +24,7 @@ class Operation(object):
 
     _lock = threading.Lock()
     _vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
-    _reported_vulnerabilities = set()
+    _reported_vulnerabilities = set()  # type: Set[Tuple[str, int]]
 
     @classmethod
     def reset(cls):
