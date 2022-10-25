@@ -216,9 +216,14 @@ venv = Venv(
         ),
         Venv(
             pys=select_pys(),
-            # pytest-benchmark>=4.x dropped support for Python<=3.6, keep pinned to 3.4.1
-            # See https://pytest-benchmark.readthedocs.io/en/latest/changelog.html#id1
-            pkgs={"pytest-benchmark": "~=3.4.1", "msgpack": latest},
+            pkgs={
+                # pytest-benchmark>=4.x dropped support for Python<=3.6, keep pinned to 3.4.1
+                # See https://pytest-benchmark.readthedocs.io/en/latest/changelog.html#id1
+                "pytest-benchmark": "~=3.4.1",
+                "msgpack": latest,
+                # TODO: remove py dependency once https://github.com/ionelmc/pytest-benchmark/pull/227 is released
+                "py": latest,
+            },
             venvs=[
                 Venv(
                     name="benchmarks",
@@ -501,6 +506,35 @@ venv = Venv(
                             latest,
                         ],
                         "redis": "~=3.5",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="pylons",
+            command="python -m pytest {cmdargs} tests/contrib/pylons",
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "pylons": [
+                            ">=0.9.6,<0.9.7",
+                            ">=0.9.7,<0.9.8",
+                            ">=0.10,<0.11",
+                        ],
+                        "decorator": "<5",
+                        "pastedeploy": "<3",
+                        "webob": "<1.1",
+                    },
+                ),
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "pylons": [
+                            ">=1.0,<1.1",
+                        ],
+                        "decorator": "<5",
+                        "pastedeploy": "<3",
                     },
                 ),
             ],
@@ -1041,14 +1075,34 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest {cmdargs} tests/contrib/pynamodb",
-            pkgs={
-                "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
-            },
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": ">=1.0,<2.0"}),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        # pynamodb==4.x breaks with botocore>=1.28 and python>=3.7
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4"],
+                        "moto": ">=1.0,<2.0",
+                        "botocore": "==1.27.96",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "pynamodb": [latest],
+                        "moto": ">=1.0,<2.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    pkgs={
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
+                        "moto": ">=1.0,<2.0",
+                    },
+                ),
                 Venv(
                     pys=["2.7"],
                     pkgs={
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
                         "moto": ">=1.0,<2.0",
                         "rsa": "<4.7.1",
                     },
