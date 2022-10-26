@@ -250,7 +250,13 @@ setup(
         "protobuf>=3,<4.0; python_version=='3.6'",
         "protobuf>=3,<3.18; python_version<'3.6'",
         "tenacity>=5",
+<<<<<<< HEAD
         "attrs>=19.2.0",
+=======
+        "attrs>=20; python_version>'2.7'",
+        "attrs>=20,<22; python_version=='2.7'",
+        "contextlib2<1.0; python_version=='2.7'",
+>>>>>>> 8bdafe55 (fix(deps): fix issue with attrs and contextlib2 version constraints for Python 2.7 (#4357))
         "cattrs",
         "six>=1.12.0",
         "typing_extensions",
