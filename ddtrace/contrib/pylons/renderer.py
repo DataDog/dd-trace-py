@@ -1,7 +1,7 @@
 import pylons
 from pylons import config
 
-from ddtrace import config
+from ddtrace import config as ddconfig
 from ddtrace.constants import COMPONENT
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
@@ -35,7 +35,7 @@ def _traced_renderer(wrapped, instance, args, kwargs):
     tracer = config[CONFIG_MIDDLEWARE]._tracer
     with tracer.trace("pylons.render") as span:
         # set component tag equal to name of integration
-        span.set_tag(COMPONENT, config.pylons.integration_name)
+        span.set_tag(COMPONENT, ddconfig.pylons.integration_name)
 
         template_name = get_argument_value(args, kwargs, 0, "template_name")
         span.set_tag("template.name", template_name)

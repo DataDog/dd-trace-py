@@ -1,5 +1,3 @@
-from telnetlib import COM_PORT_OPTION
-
 from pyramid.httpexceptions import HTTPException
 import pyramid.renderers
 from pyramid.settings import asbool
