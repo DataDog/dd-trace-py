@@ -9,6 +9,7 @@
     "type": "graphql",
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "graphql",
       "runtime-id": "bc0efee142884beb96fdb35ca56aa3dc"
     },
     "metrics": {
@@ -17,7 +18,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "component": "graphql",
       "process_id": 76591
     },
     "duration": 2409000,

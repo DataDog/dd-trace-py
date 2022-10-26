@@ -9,6 +9,7 @@
     "type": "graphql",
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "graphql",
       "runtime-id": "9203e2a344a64d8da2a34d37d8fe3900"
     },
     "metrics": {
@@ -17,7 +18,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "component": "graphene",
+      "component": "graphql",
       "process_id": 80357
     },
     "duration": 2818000,
@@ -32,7 +33,7 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-         "component": "graphene",
+         "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
        "duration": 319000,
@@ -47,7 +48,7 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-         "component": "graphene",
+         "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
        "duration": 1043000,
@@ -62,7 +63,7 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-         "component": "graphene",
+         "component": "graphql",
          "graphql.operation.type": "query",
          "graphql.source": "{ patron { id name age } }"
        },
@@ -77,6 +78,9 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
+          "meta": {
+            "component": "graphql"
+          },
           "duration": 60000,
           "start": 1659643443278923000
         },
@@ -88,6 +92,9 @@
           "span_id": 6,
           "parent_id": 4,
           "type": "graphql",
+          "meta": {
+            "component": "graphql"
+          },
           "duration": 33000,
           "start": 1659643443279216000
         },
@@ -99,6 +106,9 @@
           "span_id": 7,
           "parent_id": 4,
           "type": "graphql",
+          "meta": {
+            "component": "graphql"
+          },
           "duration": 27000,
           "start": 1659643443279338000
         },
@@ -110,6 +120,9 @@
           "span_id": 8,
           "parent_id": 4,
           "type": "graphql",
+          "meta": {
+            "component": "graphql"
+          },
           "duration": 27000,
           "start": 1659643443279449000
         }]]

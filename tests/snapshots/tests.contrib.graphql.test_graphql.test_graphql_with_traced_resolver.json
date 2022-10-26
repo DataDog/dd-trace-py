@@ -78,6 +78,9 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
+          "meta": {
+            "component": "graphql"
+          },
           "duration": 33000,
           "start": 1658848788503087000
         }]]

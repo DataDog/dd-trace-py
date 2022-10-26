@@ -40,7 +40,7 @@
        "parent_id": 1,
        "type": "grpc",
        "meta": {
-         "component": "grpc",
+         "component": "grpc_server",
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
          "grpc.method.path": "/Servicer/Handler",
@@ -99,7 +99,7 @@
        "parent_id": 1,
        "type": "grpc",
        "meta": {
-         "component": "grpc",
+         "component": "grpc_server",
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
          "grpc.method.package": "pkg",
