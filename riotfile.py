@@ -217,7 +217,10 @@ venv = Venv(
         Venv(
             pys=select_pys(),
             pkgs={
+                # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
+                # See https://github.com/workhorsy/py-cpuinfo/issues/177
                 "pytest-benchmark": latest,
+                "py-cpuinfo": "~=8.0.0",
                 "msgpack": latest,
                 # TODO: remove py dependency once https://github.com/ionelmc/pytest-benchmark/pull/227 is released
                 "py": latest,
