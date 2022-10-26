@@ -140,6 +140,9 @@ commands:
       store_coverage:
         type: boolean
         default: true
+      riotfile:
+        type: string
+        default: "riotfile.py"
     steps:
       - attach_workspace:
           at: .
@@ -159,7 +162,7 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY ./scripts/ddtest riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'
+                  riot -f '<<parameters.riotfile>>' list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY ./scripts/ddtest riot -f '<<parameters.riotfile>>' -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'
       - unless:
           condition:
               << parameters.snapshot >>
