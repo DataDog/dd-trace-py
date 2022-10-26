@@ -382,6 +382,29 @@ jobs:
           paths:
             - "."
 
+  build_latest_venvs:
+    resource_class: large
+    docker:
+      - image: *ddtrace_dev_image
+    parallelism: 7
+    steps:
+      - checkout
+      - setup_riot
+      - run:
+          name: "Run riotfile.py tests"
+          command: riot -f riotfile-latest.py run -s riot-helpers
+      - run:
+          name: "Run scripts/*.py tests"
+          command: riot -f riotfile-latest.py run -s scripts
+      - run:
+          name: "Generate base virtual environments."
+          # DEV: riot list -i tracer lists all supported Python versions
+          command: "riot -f riotfile-latest.py list -i tracer | circleci tests split | xargs -I PY riot -f riotfile-latest.py -v generate --python=PY"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "."
+
   appsec:
     <<: *machine_executor
     steps:
@@ -1161,6 +1184,10 @@ requires_base_venvs: &requires_base_venvs
     - ccheck
     - build_base_venvs
 
+requires_latest_venvs: &requires_latest_venvs
+  requires:
+    - build_latest_venvs
+
 requires_tests: &requires_tests
   requires:
     - aiobotocore
@@ -1357,8 +1384,9 @@ workflows:
     #   - test
     jobs:
       # Integration test suites
-      - aiobotocore_latest
-      - aiohttp_latest
+      - build_latest_venvs
+      - aiobotocore_latest: *requires_latest_venvs
+      - aiohttp_latest: *requires_latest_venvs
       # - aiomysql_latest
       # - aiopg_latest
       # - aioredis_latest
