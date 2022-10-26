@@ -617,6 +617,16 @@ jobs:
           snapshot: true
           docker_services: 'httpbin_local'
 
+  aiohttp_latest:
+    <<: *machine_executor
+    parallelism: 6
+    steps:
+      - run_test:
+          pattern: 'aiohttp'  # includes aiohttp_jinja2
+          riotfile: 'riotfile-latest.py'
+          snapshot: true
+          docker_services: 'httpbin_local'
+
   asgi:
     <<: *contrib_job_small
     steps:
@@ -971,6 +981,16 @@ jobs:
       - image: *moto_image
     steps:
        - run_test:
+          pattern: 'aiobotocore'
+
+  aiobotocore_latest:
+    <<: *contrib_job
+    docker:
+      - image: *ddtrace_dev_image
+      - image: *moto_image
+    steps:
+       - run_test:
+          riotfile: 'riotfile-latest.py'
           pattern: 'aiobotocore'
 
   aiomysql:
@@ -1331,6 +1351,100 @@ workflows:
       - profile-windows-310: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
+
+  test_latest:
+    requires:
+      - test
+    jobs:
+      # Integration test suites
+      - aiobotocore_latest
+      - aiohttp_latest
+      # - aiomysql_latest
+      # - aiopg_latest
+      # - aioredis_latest
+      # - asyncio_latest
+      # - asyncpg_latest
+      # - algoliasearch_latest
+      # - asgi_latest
+      # - benchmarks_latest
+      # - boto_latest
+      # - bottle_latest
+      # - cassandra_latest
+      # - celery_latest
+      # - cherrypy_latest
+      # - consul_latest
+      # - dbapi_latest
+      # - ddtracerun_latest
+      # - django_latest
+      # - django_hosts_latest
+      # - djangorestframework_latest
+      # - dogpile_cache_latest
+      # - elasticsearch_latest
+      # - falcon_latest
+      # - fastapi_latest
+      # - flask_latest
+      # - futures_latest
+      # - gevent_latest
+      # - graphene_latest
+      # - graphql_latest
+      # - grpc_latest
+      # - httplib_latest
+      # - httpx_latest
+      # - integration_agent5_latest
+      # - integration_agent_latest
+      # - integration_testagent_latest
+      # - internal_latest
+      # - vendor_latest
+      # - profile_latest
+      # - jinja2_latest
+      # - kombu_latest
+      # - mako_latest
+      # - mariadb_latest
+      # - molten_latest
+      # - mongoengine_latest
+      # - mysqlconnector_latest
+      # - mysqlpython_latest
+      # - opentracer_latest
+      # - psycopg_latest
+      # - pylibmc_latest
+      # - pylons_latest
+      # - pymemcache_latest
+      # - pymongo_latest
+      # - pymysql_latest
+      # - pynamodb_latest
+      # - pyodbc_latest
+      # - pyramid_latest
+      # - pytest_latest
+      # - pytestbdd_latest
+      # - aredis_latest
+      # - yaaredis_latest
+      # - redis_latest
+      # - rediscluster_latest
+      # - requests_latest
+      # - rq_latest
+      # - sanic_latest
+      # - snowflake_latest
+      # - starlette_latest
+      # - sqlalchemy_latest
+      # - sqlite3_latest
+      # - test_logging_latest
+      # - tornado_latest
+      # - tracer_latest
+      # - telemetry_latest
+      # - debugger_latest
+      # - appsec_latest
+      # - urllib3_latest
+      # - vertica_latest
+      # - wsgi_latest
+      # # - profile-windows-27_latest
+      # - profile-windows-35_latest
+      # - profile-windows-36_latest
+      # # - profile-windows-37_latest
+      # - profile-windows-38_latest
+      # - profile-windows-39_latest
+      # - profile-windows-310_latest
+      # # Final reports
+      # - coverage_report_latest
 
   test_nightly:
     <<: *workflow_test
