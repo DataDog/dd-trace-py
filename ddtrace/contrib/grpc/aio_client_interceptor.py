@@ -16,6 +16,7 @@ from ... import Pin
 from ... import Span
 from ... import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import COMPONENT
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
@@ -97,6 +98,10 @@ class _ClientInterceptor:
             service=trace_utils.ext_service(self._pin, config.grpc_aio_client),
             resource=method_as_str,
         )
+
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.grpc_aio_client.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         utils.set_grpc_method_meta(span, method_as_str, method_kind)

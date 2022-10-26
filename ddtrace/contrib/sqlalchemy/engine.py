@@ -20,6 +20,7 @@ import ddtrace
 from ddtrace import config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import net as netx
@@ -87,6 +88,9 @@ class EngineTracer(object):
             span_type=SpanTypes.SQL,
             resource=statement,
         )
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.sqlalchemy.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         if not _set_tags_from_url(span, conn.engine.url):

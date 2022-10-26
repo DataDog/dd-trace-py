@@ -12,6 +12,7 @@ from . import constants
 from . import utils
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import COMPONENT
 from ...constants import ERROR_MSG
 from ...constants import ERROR_STACK
 from ...constants import ERROR_TYPE
@@ -179,6 +180,10 @@ class _ClientInterceptor(
             service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
         )
+
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.grpc.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         utils.set_grpc_method_meta(span, client_call_details.method, method_kind)

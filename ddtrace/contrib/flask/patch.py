@@ -21,6 +21,7 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.compat import maybe_stringify
@@ -350,6 +351,10 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
         sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
+
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.flask.integration_name)
+
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
@@ -479,7 +484,10 @@ def traced_render_template(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE):
+    with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE) as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.flask.integration_name)
+
         return wrapped(*args, **kwargs)
 
 
@@ -489,7 +497,10 @@ def traced_render_template_string(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE):
+    with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE) as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.flask.integration_name)
+
         return wrapped(*args, **kwargs)
 
 
@@ -555,6 +566,9 @@ def request_tracer(name):
         with pin.tracer.trace(
             ".".join(("flask", name)), service=trace_utils.int_service(pin, config.flask, pin)
         ) as request_span:
+            # set component tag equal to name of integration
+            request_span.set_tag(COMPONENT, config.flask.integration_name)
+
             request_span._ignore_exception(werkzeug.exceptions.NotFound)
             return wrapped(*args, **kwargs)
 
@@ -581,7 +595,10 @@ def traced_jsonify(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.jsonify"):
+    with pin.tracer.trace("flask.jsonify") as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.flask.integration_name)
+
         return wrapped(*args, **kwargs)
 
 

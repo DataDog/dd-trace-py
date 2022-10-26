@@ -9,6 +9,7 @@ from ddtrace.vendor import wrapt
 # project
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import kombu as kombux
@@ -93,6 +94,9 @@ def traced_receive(func, instance, args, kwargs):
     trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, override=True)
 
     with pin.tracer.trace(kombux.RECEIVE_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
+        # set component tag equal to name of integration
+        s.set_tag(COMPONENT, config.kombu.integration_name)
+
         s.set_tag(SPAN_MEASURED_KEY)
         # run the command
         exchange = message.delivery_info["exchange"]
@@ -112,6 +116,9 @@ def traced_publish(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     with pin.tracer.trace(kombux.PUBLISH_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
+        # set component tag equal to name of integration
+        s.set_tag(COMPONENT, config.kombu.integration_name)
+
         s.set_tag(SPAN_MEASURED_KEY)
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name

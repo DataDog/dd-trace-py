@@ -5,6 +5,7 @@ from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import elasticsearch as metadata
@@ -73,6 +74,9 @@ def _get_perform_request(elasticsearch):
         with pin.tracer.trace(
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
+            # set component tag equal to name of integration
+            span.set_tag(COMPONENT, config.elasticsearch.integration_name)
+
             span.set_tag(SPAN_MEASURED_KEY)
 
             # Don't instrument if the trace is not sampled

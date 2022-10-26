@@ -4,6 +4,7 @@ import boto.connection
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import COMPONENT
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import aws
@@ -67,6 +68,9 @@ def patched_query_request(original_func, instance, args, kwargs):
         service="{}.{}".format(pin.service, endpoint_name),
         span_type=SpanTypes.HTTP,
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.boto.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         operation_name = None
@@ -161,6 +165,9 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
+
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.boto.integration_name)
 
         return result
 

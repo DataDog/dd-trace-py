@@ -6,6 +6,7 @@ import six
 from ddtrace import config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import sql
@@ -85,6 +86,9 @@ class TracedCursor(wrapt.ObjectProxy):
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
+
+            # set component tag equal to name of integration
+            s.set_tag(COMPONENT, self._self_config.integration_name)
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
@@ -257,6 +261,9 @@ class TracedConnection(wrapt.ObjectProxy):
             return method(*args, **kwargs)
 
         with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
+            # set component tag equal to name of integration
+            s.set_tag(COMPONENT, self._self_config.integration_name)
+
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 

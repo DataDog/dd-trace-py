@@ -19,6 +19,7 @@ from ddtrace.settings.config import Config
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import aws
@@ -296,6 +297,9 @@ def patched_api_call(original_func, instance, args, kwargs):
     with pin.tracer.trace(
         "{}.command".format(endpoint_name), service="{}.{}".format(pin.service, endpoint_name), span_type=SpanTypes.HTTP
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.botocore.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
         operation = None
         if args:

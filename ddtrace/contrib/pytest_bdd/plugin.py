@@ -4,6 +4,7 @@ import sys
 
 import pytest
 
+from ddtrace.constants import COMPONENT
 from ddtrace.contrib.pytest.plugin import _extract_span as _extract_feature_span
 from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.pytest_bdd.constants import STEP_KIND
@@ -68,6 +69,9 @@ class _PytestBddPlugin:
                 child_of=feature_span,
                 activate=True,
             )
+            # set component tag equal to name of integration
+            span.set_tag(COMPONENT, "pytest_bdd")
+
             span.set_tag(test.FRAMEWORK, FRAMEWORK)
             span.set_tag(test.FRAMEWORK_VERSION, self.framework_version)
 

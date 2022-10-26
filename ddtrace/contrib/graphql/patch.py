@@ -22,6 +22,7 @@ from graphql.language.source import Source
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import COMPONENT
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_MEASURED_KEY
@@ -116,6 +117,9 @@ def _traced_parse(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.graphql.integration_name)
+
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
         return func(*args, **kwargs)
 
@@ -134,6 +138,9 @@ def _traced_validate(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.graphql.integration_name)
+
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
         errors = func(*args, **kwargs)
         _set_span_errors(errors, span)
@@ -162,6 +169,9 @@ def _traced_execute(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.graphql.integration_name)
+
         _set_span_operation_tags(span, document)
         span.set_tag_str(_GRAPHQL_SOURCE, source_str)
 
@@ -187,6 +197,9 @@ def _traced_query(func, args, kwargs):
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.graphql.integration_name)
+
         # mark span as measured and set sample rate
         span.set_tag(SPAN_MEASURED_KEY)
         sample_rate = config.graphql.get_analytics_sample_rate()
@@ -215,7 +228,10 @@ def _resolver_middleware(next_middleware, root, info, **args):
         name="graphql.resolve",
         resource=info.field_name,
         span_type=SpanTypes.GRAPHQL,
-    ):
+    ) as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.graphql.integration_name)
+
         return next_middleware(root, info, **args)
 
 

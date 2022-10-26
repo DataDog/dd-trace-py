@@ -5,6 +5,7 @@ from ddtrace import config
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.compat import parse
@@ -79,6 +80,9 @@ def _wrap_send(func, instance, args, kwargs):
         service = trace_utils.ext_service(None, config.requests)
 
     with tracer.trace("requests.request", service=service, span_type=SpanTypes.HTTP) as span:
+        # set component tag equal to name of integration
+        span.set_tag(COMPONENT, config.requests.integration_name)
+
         span.set_tag(SPAN_MEASURED_KEY)
 
         # Configure trace search sample rate
