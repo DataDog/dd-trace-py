@@ -482,7 +482,7 @@ venv = Venv(
                     pkgs={
                         "celery": [
                             "~=5.0.5",
-                            "~=5.2",  # most recent 5.x
+                            "<=5.2",  # most recent 5.x
                         ],
                         "redis": "~=3.5",
                         "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib_metadata 5.0
