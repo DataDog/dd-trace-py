@@ -808,7 +808,7 @@ venv = Venv(
                 Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.2"]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.17.6"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "<7.14.0"]}),
             ],
         ),
         Venv(
@@ -818,7 +818,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "elasticsearch": ["~=1.10.0"],
+                        "elasticsearch": ["~=1.6.0"],
                         "elasticsearch2": ["~=2.5.1"],
                         "elasticsearch5": ["~=5.5.6"],
                         "elasticsearch6": ["~=6.8.2"],
