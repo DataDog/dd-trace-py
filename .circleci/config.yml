@@ -162,7 +162,7 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  riot -f '<<parameters.riotfile>>' list '<<parameters.pattern>>' | circleci tests split | xargs -I PY ./scripts/ddtest riot -f '<<parameters.riotfile>>' -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'
+                  riot -f '<<parameters.riotfile>>' list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY ./scripts/ddtest riot -f '<<parameters.riotfile>>' -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'
       - unless:
           condition:
               << parameters.snapshot >>
@@ -177,7 +177,7 @@ commands:
                       command: tox -e 'wait' << parameters.wait >>
             - setup_riot
             - run:
-                command: "riot list '<<parameters.pattern>>' | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                command: "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - save_pip_cache
       - when:
           condition:
@@ -376,7 +376,7 @@ jobs:
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
-          command: "riot list tracer | circleci tests split | xargs -I PY riot -v generate --python=PY"
+          command: "riot list -i tracer | circleci tests split | xargs -I PY riot -v generate --python=PY"
       - persist_to_workspace:
           root: .
           paths:
@@ -399,7 +399,7 @@ jobs:
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
-          command: "riot -f riotfile-latest.py list tracer | circleci tests split | xargs -I PY riot -f riotfile-latest.py -v generate --python=PY"
+          command: "riot -f riotfile-latest.py list -i tracer | circleci tests split | xargs -I PY riot -f riotfile-latest.py -v generate --python=PY"
       - persist_to_workspace:
           root: .
           paths:
@@ -1186,6 +1186,7 @@ requires_base_venvs: &requires_base_venvs
 
 requires_latest_venvs: &requires_latest_venvs
   requires:
+    - ccheck
     - build_latest_venvs
 
 requires_tests: &requires_tests
@@ -1384,6 +1385,7 @@ workflows:
     #   - test
     jobs:
       # Integration test suites
+      - ccheck
       - build_latest_venvs
       - aiobotocore_latest: *requires_latest_venvs
       - aiohttp_latest: *requires_latest_venvs
