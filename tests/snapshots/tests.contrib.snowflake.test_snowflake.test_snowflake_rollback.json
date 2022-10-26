@@ -1,0 +1,30 @@
+[[
+  {
+    "name": "snowflake.connection.rollback",
+    "service": "snowflake",
+    "resource": "snowflake.connection.rollback",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "snowflake",
+      "db.application": "PythonConnector",
+      "db.name": "mock-db-name",
+      "db.schema": "mock-schema-name",
+      "db.user": "mock-user",
+      "db.warehouse": "mock-warehouse-name",
+      "out.host": "mock-account.snowflakecomputing.com",
+      "runtime-id": "4cb941099da74260bb83486ec1171294"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 443,
+      "process_id": 96820
+    },
+    "duration": 1253000,
+    "start": 1666810039072413000
+  }]]

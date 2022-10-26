@@ -1,0 +1,86 @@
+[[
+  {
+    "name": "graphql.request",
+    "service": "graphql",
+    "resource": "query HELLO { hello }",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "graphql",
+      "runtime-id": "f6fc7bc8689d49d29fc9ac51529b71dd"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 87990
+    },
+    "duration": 809000,
+    "start": 1666809038507058000
+  },
+     {
+       "name": "graphql.parse",
+       "service": "graphql",
+       "resource": "graphql.parse",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "graphql",
+       "meta": {
+         "component": "graphql",
+         "graphql.source": "query HELLO { hello }"
+       },
+       "duration": 79000,
+       "start": 1666809038507144000
+     },
+     {
+       "name": "graphql.validate",
+       "service": "graphql",
+       "resource": "graphql.validate",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "graphql",
+       "meta": {
+         "component": "graphql",
+         "graphql.source": "query HELLO { hello }"
+       },
+       "duration": 335000,
+       "start": 1666809038507255000
+     },
+     {
+       "name": "graphql.execute",
+       "service": "graphql",
+       "resource": "query HELLO { hello }",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "graphql",
+       "meta": {
+         "component": "graphql",
+         "graphql.operation.name": "HELLO",
+         "graphql.operation.type": "query",
+         "graphql.source": "query HELLO { hello }"
+       },
+       "duration": 229000,
+       "start": 1666809038507626000
+     },
+        {
+          "name": "graphql.resolve",
+          "service": "graphql",
+          "resource": "hello",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 4,
+          "type": "graphql",
+          "meta": {
+            "component": "graphql"
+          },
+          "duration": 18000,
+          "start": 1666809038507710000
+        }]]

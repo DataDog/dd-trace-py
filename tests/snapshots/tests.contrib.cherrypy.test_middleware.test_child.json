@@ -1,0 +1,41 @@
+[[
+  {
+    "name": "cherrypy.request",
+    "service": "test.cherrypy.service",
+    "resource": "GET /child",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "cherrypy",
+      "http.method": "GET",
+      "http.request.headers.host": "127.0.0.1:54583",
+      "http.status_code": "200",
+      "http.url": "http://127.0.0.1:54583/child",
+      "runtime-id": "37ec48c2f73448bf8f97e1ff289da866"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 90070
+    },
+    "duration": 739000,
+    "start": 1666809663616209000
+  },
+     {
+       "name": "child",
+       "service": "test.cherrypy.service",
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "meta": {
+         "a": "b"
+       },
+       "duration": 14000,
+       "start": 1666809663616406000
+     }]]

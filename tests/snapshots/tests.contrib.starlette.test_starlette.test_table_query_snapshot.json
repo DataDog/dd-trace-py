@@ -1,0 +1,97 @@
+[[
+  {
+    "name": "starlette.request",
+    "service": "starlette",
+    "resource": "POST /notes",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "asgi",
+      "http.method": "POST",
+      "http.status_code": "200",
+      "http.url": "http://testserver/notes",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "runtime-id": "e38ac9070812468faabc75e7388a6c5b"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 97217
+    },
+    "duration": 2153000,
+    "start": 1666810088262789000
+  },
+     {
+       "name": "sqlite.query",
+       "service": "sqlite",
+       "resource": "INSERT INTO notes (id, text, completed) VALUES (?, ?, ?)",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "sql",
+       "meta": {
+         "component": "sqlalchemy",
+         "sql.db": "test.db"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "sql.rows": 1
+       },
+       "duration": 512000,
+       "start": 1666810088263652000
+     }],
+[
+  {
+    "name": "starlette.request",
+    "service": "starlette",
+    "resource": "GET /notes",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "asgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://testserver/notes",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "runtime-id": "e38ac9070812468faabc75e7388a6c5b"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 97217
+    },
+    "duration": 586000,
+    "start": 1666810088266147000
+  },
+     {
+       "name": "sqlite.query",
+       "service": "sqlite",
+       "resource": "SELECT * FROM NOTES",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "sql",
+       "meta": {
+         "component": "sqlalchemy",
+         "sql.db": "test.db"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1
+       },
+       "duration": 150000,
+       "start": 1666810088266421000
+     }]]

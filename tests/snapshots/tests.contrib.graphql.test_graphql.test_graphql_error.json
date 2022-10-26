@@ -1,0 +1,61 @@
+[[
+  {
+    "name": "graphql.request",
+    "service": "graphql",
+    "resource": "{ invalid_schema }",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "graphql",
+      "error.msg": "Cannot query field \"invalid_schema\" on type \"RootQueryType\".",
+      "error.type": "graphql.error.base.GraphQLError",
+      "runtime-id": "f6fc7bc8689d49d29fc9ac51529b71dd"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 87990
+    },
+    "duration": 617000,
+    "start": 1666809038527740000
+  },
+     {
+       "name": "graphql.parse",
+       "service": "graphql",
+       "resource": "graphql.parse",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "graphql",
+       "meta": {
+         "component": "graphql",
+         "graphql.source": "{ invalid_schema }"
+       },
+       "duration": 74000,
+       "start": 1666809038527831000
+     },
+     {
+       "name": "graphql.validate",
+       "service": "graphql",
+       "resource": "graphql.validate",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 1,
+       "meta": {
+         "component": "graphql",
+         "error.msg": "Cannot query field \"invalid_schema\" on type \"RootQueryType\".",
+         "error.type": "graphql.error.base.GraphQLError",
+         "graphql.source": "{ invalid_schema }"
+       },
+       "duration": 401000,
+       "start": 1666809038527937000
+     }]]

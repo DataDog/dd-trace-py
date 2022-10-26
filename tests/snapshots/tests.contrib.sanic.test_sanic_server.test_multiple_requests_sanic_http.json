@@ -1,0 +1,78 @@
+[[
+  {
+    "name": "sanic.request",
+    "service": "sanic",
+    "resource": "GET /hello",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "sanic",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:8000/hello",
+      "http.useragent": "python-requests/2.28.1",
+      "runtime-id": "5e7edc094b1246e591877b51a0ce1171",
+      "sanic.route.name": "test_sanic_server.hello"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96111
+    },
+    "duration": 73278000,
+    "start": 1666809950609821000
+  },
+     {
+       "name": "random_sleep",
+       "service": "sanic",
+       "resource": "random_sleep",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 73060000,
+       "start": 1666809950609912000
+     }],
+[
+  {
+    "name": "sanic.request",
+    "service": "sanic",
+    "resource": "GET /hello",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "component": "sanic",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:8000/hello",
+      "http.useragent": "python-requests/2.28.1",
+      "runtime-id": "5e7edc094b1246e591877b51a0ce1171",
+      "sanic.route.name": "test_sanic_server.hello"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 96111
+    },
+    "duration": 45383000,
+    "start": 1666809950715761000
+  },
+     {
+       "name": "random_sleep",
+       "service": "sanic",
+       "resource": "random_sleep",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 45061000,
+       "start": 1666809950715948000
+     }]]
