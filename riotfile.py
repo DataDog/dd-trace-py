@@ -247,10 +247,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "msgpack": "~=1.0.4",
-                        "attrs": "~=20.1.0",
-                        "packaging": "~=17.1",
-                        "structlog": "~=22.1.0",
+                        "msgpack": "<=1.0.4",
+                        "attrs": "<=20.1.0",
+                        "packaging": "==17.1",
+                        "structlog": "<=22.1.0",
                         # httpretty v1.0 drops python 2.7 support
                         "httpretty": "==0.9.7",
                     },
@@ -303,7 +303,7 @@ venv = Venv(
                 Venv(pys="2.7"),
                 Venv(
                     pys=select_pys(min_version="3.5"),
-                    pkgs={"pytest-asyncio": "~=0.20.1"},
+                    pkgs={"pytest-asyncio": "<=0.20.1"},
                 ),
             ],
             env={
@@ -317,15 +317,15 @@ venv = Venv(
         Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
-            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": "~=1.0.4"})],
+            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": "<=1.0.4"})],
         ),
         Venv(
             name="ddtracerun",
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             pys=select_pys(),
             pkgs={
-                "redis": "~=3.5.2.3",
-                "gevent": "~=22.10.1",
+                "redis": "<=3.5.3",
+                "gevent": "<=22.10.1",
             },
         ),
         Venv(
@@ -336,7 +336,7 @@ venv = Venv(
                 Venv(pys="2.7"),
                 Venv(
                     pys=select_pys(min_version="3.5"),
-                    pkgs={"pytest-asyncio": "~=0.20.1"},
+                    pkgs={"pytest-asyncio": "<=0.20.1"},
                 ),
             ],
         ),
@@ -496,7 +496,7 @@ venv = Venv(
                     pkgs={
                         "celery": [
                             "~=5.0.5",
-                            "~=5.2",  # most recent 5.x
+                            "<=5.2",  # most recent 5.x
                         ],
                         "redis": "~=3.5",
                     },
@@ -554,7 +554,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.5"),
                     pkgs={
-                        "cherrypy": "~=18.8",
+                        "cherrypy": "<=18.8",
                         "more_itertools": "<8.11.0",
                     },
                 ),
@@ -808,7 +808,6 @@ venv = Venv(
                 Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.2"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.17.6"]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch8": ["~=8.4.3"]}),
             ],
         ),
         Venv(
@@ -823,7 +822,6 @@ venv = Venv(
                         "elasticsearch5": ["~=5.5.6"],
                         "elasticsearch6": ["~=6.8.2"],
                         "elasticsearch7": ["<7.14.0"],
-                        "elasticsearch8": ["~=8.4.3"],
                     },
                 ),
             ],
@@ -916,7 +914,7 @@ venv = Venv(
                         "flask": [
                             "~=2.0.0",
                             "~=2.0",  # latest 2.x
-                            "~=2.2.2",
+                            "<=2.2.2",
                         ],
                     },
                 ),
@@ -931,7 +929,7 @@ venv = Venv(
                         "flask": [
                             "~=2.0.0",
                             "~=2.0",  # latest 2.x
-                            "~=2.2.2",
+                            "<=2.2.2",
                         ],
                     },
                 ),
@@ -1139,7 +1137,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.6", max_version="3.9"),
                             pkgs={
                                 "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", "~=1.4.42"],
-                                "psycopg2-binary": "~=3.0.18",
+                                "psycopg2-binary": "<=3.0.18",
                                 "mysql-connector-python": "~=8.0.28",
                             },
                         ),
@@ -1147,7 +1145,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.10"),
                             pkgs={
                                 "sqlalchemy": ["~=1.2.0", "~=1.3.0", "~=1.4.42"],
-                                "psycopg2-binary": "~=3.1.3",
+                                "psycopg2-binary": "<=3.1.3",
                                 "mysql-connector-python": "~=8.0.31",
                             },
                         ),
@@ -1171,7 +1169,7 @@ venv = Venv(
                             ">=2.16,<2.17",
                             ">=2.18,<2.19",
                             ">=2.20,<2.21",
-                            "~=2.28.1",
+                            "<=2.28.1",
                         ],
                     },
                 ),
@@ -1181,7 +1179,7 @@ venv = Venv(
                         "requests-mock": ">=1.4",
                         "requests": [
                             ">=2.20,<2.21",
-                            "~=2.28.1",
+                            "<=2.28.1",
                         ],
                     },
                 ),
@@ -1194,7 +1192,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "WebTest": "~=3.0.0",
+                        "WebTest": "<=3.0.0",
                     },
                 ),
             ],
@@ -1202,14 +1200,14 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": "~=2.49.0", "moto": "<1.0.0"})],
+            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
         ),
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={"botocore": latest},
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": "~4.0.8"}),
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": "<=4.0.8"}),
                 Venv(pys=["2.7"], pkgs={"moto": ["~=1.0"], "rsa": ["<4.7.1"]}),
             ],
         ),
@@ -1231,7 +1229,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    pkgs={"mongoengine": [">=0.20,<0.21", ">=0.21,<0.22", ">=0.22,<0.23", "~=0.24.2"]},
+                    pkgs={"mongoengine": [">=0.20,<0.21", ">=0.21,<0.22", ">=0.22,<0.23", "<=0.24.2"]},
                 ),
             ],
         ),
@@ -1280,7 +1278,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "pymysql": [
-                            "~=1.0.2",
+                            "<=1.0.2",
                             "~=1.0",
                         ],
                     },
@@ -1318,7 +1316,7 @@ venv = Venv(
                             "~=1.8",
                             "~=1.9",
                             "~=1.10",
-                            "~=2.0",
+                            "<=2.0",
                         ],
                     },
                 ),
@@ -1327,7 +1325,7 @@ venv = Venv(
         Venv(
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
-            pkgs={"pytest-asyncio": "==0.20.1", "async_generator": ["~=1.10"]},
+            pkgs={"pytest-asyncio": "<=0.20.1", "async_generator": ["~=1.10"]},
             venvs=[
                 # async_generator 1.10 used because @asynccontextmanager was only available in Python 3.6+
                 # aiobotocore 1.x and higher require Python 3.6 or higher
@@ -1392,7 +1390,7 @@ venv = Venv(
             pys=select_pys(min_version="3.7"),
             command="pytest {cmdargs} tests/contrib/aiomysql",
             pkgs={
-                "pytest-asyncio": "==0.20.1",
+                "pytest-asyncio": "<=0.20.1",
                 "aiomysql": ["~=0.1.0", latest],
             },
         ),
@@ -1649,7 +1647,7 @@ venv = Venv(
                     "~=0.16.0",
                     "~=0.17.0",
                     "~=0.18.0",
-                    "~=0.23.0",
+                    "<=0.23.0",
                     "<1.0.0",
                 ],
             },
@@ -1919,42 +1917,42 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
-                        "sanic": ["~=21.3.0"],
-                        "pytest-sanic": "~=1.9.1",
-                        "httpx": ["~=0.15.4"],
+                        "sanic": ["<=21.3.0"],
+                        "pytest-sanic": "<=1.9.1",
+                        "httpx": ["<=0.15.4"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
                         "sanic": [
-                            "~=21.6.0",
+                            "<=21.6.0",
                         ],
-                        "pytest-sanic": "~=1.9.1",
+                        "pytest-sanic": "<=1.9.1",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
                         "sanic": [
-                            "~=21.9.0",
-                            "~=21.12.0",
+                            "<=21.9.0",
+                            "<=21.12.0",
                         ],
-                        "sanic-testing": "~=0.8.3",
+                        "sanic-testing": "<=0.8.3",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
-                        "sanic": "~=22.3.0",
-                        "sanic-testing": "~=22.3.0",
+                        "sanic": "<=22.3.0",
+                        "sanic-testing": "<=22.3.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
-                        "sanic": "~=22.9.0",
-                        "sanic-testing": "~=22.9.0",
+                        "sanic": "<=22.9.0",
+                        "sanic-testing": "<=22.9.0",
                     },
                 ),
             ],
@@ -2001,7 +1999,7 @@ venv = Venv(
                             "~=2.4.0",
                             "~=2.5.0",
                             "~=2.6.0",
-                            "~=2.8.0",
+                            "<=2.8.0",
                         ],
                     },
                 ),
@@ -2023,7 +2021,7 @@ venv = Venv(
                 "pytest-asyncio": "<=0.20.1",
                 "aioredis": [
                     "~=1.3.0",
-                    "~=2.1.0",
+                    "<=2.1.0",
                 ],
             },
         ),
@@ -2042,7 +2040,7 @@ venv = Venv(
                             "~=0.20.0",
                             "~=0.22.0",
                             "~=0.24.0",
-                            "~=0.26.0",
+                            "<=0.26.0",
                         ],
                     },
                 ),
@@ -2053,7 +2051,7 @@ venv = Venv(
                             "~=0.20.0",
                             "~=0.22.0",
                             "~=0.24.0",
-                            "~=0.26.0",
+                            "<=0.26.0",
                         ],
                     },
                 ),
@@ -2062,7 +2060,7 @@ venv = Venv(
                     pkgs={
                         "asyncpg": [
                             "~=0.24.0",
-                            "~=0.26.0",
+                            "<=0.26.0",
                         ],
                     },
                 ),
