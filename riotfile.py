@@ -129,7 +129,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            pys=["3.9"],
+            pys=["3"],
             name="mypy",
             command="mypy {cmdargs}",
             create=True,
@@ -216,7 +216,15 @@ venv = Venv(
         ),
         Venv(
             pys=select_pys(),
-            pkgs={"pytest-benchmark": latest, "msgpack": latest},
+            pkgs={
+                # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
+                # See https://github.com/workhorsy/py-cpuinfo/issues/177
+                "pytest-benchmark": latest,
+                "py-cpuinfo": "~=8.0.0",
+                "msgpack": latest,
+                # TODO: remove py dependency once https://github.com/ionelmc/pytest-benchmark/pull/227 is released
+                "py": latest,
+            },
             venvs=[
                 Venv(
                     name="benchmarks",
@@ -253,6 +261,9 @@ venv = Venv(
                     },
                 )
             ],
+            env={
+                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+            },
         ),
         Venv(
             name="telemetry",
@@ -300,6 +311,9 @@ venv = Venv(
                     pkgs={"pytest-asyncio": latest},
                 ),
             ],
+            env={
+                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+            },
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
@@ -493,6 +507,35 @@ venv = Venv(
                             latest,
                         ],
                         "redis": "~=3.5",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="pylons",
+            command="python -m pytest {cmdargs} tests/contrib/pylons",
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "pylons": [
+                            ">=0.9.6,<0.9.7",
+                            ">=0.9.7,<0.9.8",
+                            ">=0.10,<0.11",
+                        ],
+                        "decorator": "<5",
+                        "pastedeploy": "<3",
+                        "webob": "<1.1",
+                    },
+                ),
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "pylons": [
+                            ">=1.0,<1.1",
+                        ],
+                        "decorator": "<5",
+                        "pastedeploy": "<3",
                     },
                 ),
             ],
@@ -1033,14 +1076,34 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest {cmdargs} tests/contrib/pynamodb",
-            pkgs={
-                "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
-            },
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto": ">=1.0,<2.0"}),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        # pynamodb==4.x breaks with botocore>=1.28 and python>=3.7
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4"],
+                        "moto": ">=1.0,<2.0",
+                        "botocore": "==1.27.96",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={
+                        "pynamodb": [latest],
+                        "moto": ">=1.0,<2.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    pkgs={
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
+                        "moto": ">=1.0,<2.0",
+                    },
+                ),
                 Venv(
                     pys=["2.7"],
                     pkgs={
+                        "pynamodb": [">=4.0,<4.1", ">=4.1,<4.2", ">=4.2,<4.3", ">=4.3,<4.4", latest],
                         "moto": ">=1.0,<2.0",
                         "rsa": "<4.7.1",
                     },
