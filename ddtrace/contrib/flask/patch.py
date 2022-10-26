@@ -484,10 +484,7 @@ def traced_render_template(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE) as span:
-        # set component tag equal to name of integration
-        span.set_tag(COMPONENT, config.flask.integration_name)
-
+    with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE):
         return wrapped(*args, **kwargs)
 
 
@@ -497,10 +494,7 @@ def traced_render_template_string(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE) as span:
-        # set component tag equal to name of integration
-        span.set_tag(COMPONENT, config.flask.integration_name)
-
+    with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE):
         return wrapped(*args, **kwargs)
 
 
@@ -595,10 +589,7 @@ def traced_jsonify(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("flask.jsonify") as span:
-        # set component tag equal to name of integration
-        span.set_tag(COMPONENT, config.flask.integration_name)
-
+    with pin.tracer.trace("flask.jsonify"):
         return wrapped(*args, **kwargs)
 
 

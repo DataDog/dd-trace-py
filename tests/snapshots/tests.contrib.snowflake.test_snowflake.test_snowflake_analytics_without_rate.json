@@ -16,7 +16,7 @@
       "db.user": "mock-user",
       "db.warehouse": "mock-warehouse-name",
       "out.host": "mock-account.snowflakecomputing.com",
-      "runtime-id": "4cb941099da74260bb83486ec1171294",
+      "runtime-id": "1658e263f3084eaca410818e944d7d7e",
       "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
     },
     "metrics": {
@@ -28,9 +28,9 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "out.port": 443,
-      "process_id": 96820,
+      "process_id": 88705,
       "sql.rows": 1
     },
-    "duration": 1449000,
-    "start": 1666810034566304000
+    "duration": 3748000,
+    "start": 1660069783312709000
   }]]

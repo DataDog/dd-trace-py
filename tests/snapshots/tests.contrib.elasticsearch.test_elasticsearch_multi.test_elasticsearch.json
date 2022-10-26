@@ -9,6 +9,7 @@
     "type": "elasticsearch",
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "elasticsearch",
       "elasticsearch.method": "PUT",
       "elasticsearch.params": "ignore=400",
       "elasticsearch.url": "/ddtrace_index",
@@ -37,6 +38,7 @@
     "type": "elasticsearch",
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "elasticsearch",
       "elasticsearch.method": "DELETE",
       "elasticsearch.params": "ignore=%5B400%2C+404%5D",
       "elasticsearch.url": "/ddtrace_index",

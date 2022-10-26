@@ -8,17 +8,17 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "4cb941099da74260bb83486ec1171294"
+      "runtime-id": "1658e263f3084eaca410818e944d7d7e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 96820
+      "process_id": 88705
     },
-    "duration": 1390920,
-    "start": 1666810042489838080
+    "duration": 3998096,
+    "start": 1660069794946459904
   },
      {
        "name": "sql.query",
@@ -45,6 +45,6 @@
          "out.port": 443,
          "sql.rows": 1
        },
-       "duration": 1225000,
-       "start": 1666810042489967000
+       "duration": 3419000,
+       "start": 1660069794946932000
      }]]

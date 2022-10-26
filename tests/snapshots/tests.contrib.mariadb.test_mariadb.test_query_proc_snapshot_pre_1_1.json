@@ -9,6 +9,7 @@
     "type": "sql",
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",

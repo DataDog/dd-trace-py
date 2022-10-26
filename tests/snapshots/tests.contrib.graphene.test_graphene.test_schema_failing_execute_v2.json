@@ -10,10 +10,9 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "component": "graphql",
       "error.msg": "exception was raised in a graphene query",
       "error.type": "graphql.error.base.GraphQLError",
-      "runtime-id": "4c5580632aad4b8a9bb84bb0f179deaa"
+      "runtime-id": "9203e2a344a64d8da2a34d37d8fe3900"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -21,10 +20,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 88495
+      "component": "graphene",
+      "process_id": 80357
     },
-    "duration": 1744000,
-    "start": 1666809120634638000
+    "duration": 3562000,
+    "start": 1659643443310553000
   },
      {
        "name": "graphql.parse",
@@ -35,11 +35,11 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-         "component": "graphql",
+         "component": "graphene",
          "graphql.source": "{ patron { id name age } }"
        },
-       "duration": 114000,
-       "start": 1666809120634725000
+       "duration": 225000,
+       "start": 1659643443310716000
      },
      {
        "name": "graphql.validate",
@@ -50,11 +50,11 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-         "component": "graphql",
+         "component": "graphene",
          "graphql.source": "{ patron { id name age } }"
        },
-       "duration": 684000,
-       "start": 1666809120634876000
+       "duration": 1047000,
+       "start": 1659643443311052000
      },
      {
        "name": "graphql.execute",
@@ -66,14 +66,14 @@
        "type": "graphql",
        "error": 1,
        "meta": {
-         "component": "graphql",
+         "component": "graphene",
          "error.msg": "exception was raised in a graphene query",
          "error.type": "graphql.error.base.GraphQLError",
          "graphql.operation.type": "query",
          "graphql.source": "{ patron { id name age } }"
        },
-       "duration": 768000,
-       "start": 1666809120635598000
+       "duration": 1877000,
+       "start": 1659643443312186000
      },
         {
           "name": "graphql.resolve",
@@ -83,9 +83,6 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
-          "meta": {
-            "component": "graphql"
-          },
-          "duration": 24000,
-          "start": 1666809120635686000
+          "duration": 48000,
+          "start": 1659643443312350000
         }]]

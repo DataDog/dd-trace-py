@@ -10,10 +10,10 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "component": "graphql",
+      "component": "graphene",
       "error.msg": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
       "error.type": "graphql.error.graphql_error.GraphQLError",
-      "runtime-id": "97c6e1fa77284eb38d76b2057bc16732"
+      "runtime-id": "c1db560b55aa4f1284fbe0e80eaad453"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -21,10 +21,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 88578
+      "process_id": 80691
     },
-    "duration": 2553000,
-    "start": 1666809131041174000
+    "duration": 4849000,
+    "start": 1659643456601199000
   },
      {
        "name": "graphql.parse",
@@ -35,11 +35,11 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-         "component": "graphql",
+         "component": "graphene",
          "graphql.source": "{ patron { id name age } }"
        },
-       "duration": 132000,
-       "start": 1666809131041414000
+       "duration": 321000,
+       "start": 1659643456601818000
      },
      {
        "name": "graphql.validate",
@@ -50,11 +50,11 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-         "component": "graphql",
+         "component": "graphene",
          "graphql.source": "{ patron { id name age } }"
        },
-       "duration": 1119000,
-       "start": 1666809131041585000
+       "duration": 2488000,
+       "start": 1659643456602231000
      },
      {
        "name": "graphql.execute",
@@ -66,14 +66,14 @@
        "type": "graphql",
        "error": 1,
        "meta": {
-         "component": "graphql",
+         "component": "graphene",
          "error.msg": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
          "error.type": "graphql.error.graphql_error.GraphQLError",
          "graphql.operation.type": "query",
          "graphql.source": "{ patron { id name age } }"
        },
-       "duration": 922000,
-       "start": 1666809131042747000
+       "duration": 1104000,
+       "start": 1659643456604870000
      },
         {
           "name": "graphql.resolve",
@@ -85,11 +85,11 @@
           "type": "graphql",
           "error": 1,
           "meta": {
-            "component": "graphql",
+            "component": "graphene",
             "error.msg": "exception was raised in a graphene query",
-            "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/graphql/patch.py\", line 235, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\nException: exception was raised in a graphene query\n",
+            "error.stack": "Traceback (most recent call last):\n  File \"/Users/munir.abdinur/Documents/ApmPython/dd-trace-py/ddtrace/contrib/graphql/patch.py\", line 219, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/munir.abdinur/Documents/ApmPython/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\nException: exception was raised in a graphene query\n",
             "error.type": "builtins.Exception"
           },
-          "duration": 738000,
-          "start": 1666809131042818000
+          "duration": 757000,
+          "start": 1659643456605007000
         }]]

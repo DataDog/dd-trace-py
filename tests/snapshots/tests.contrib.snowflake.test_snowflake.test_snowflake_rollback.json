@@ -15,7 +15,7 @@
       "db.user": "mock-user",
       "db.warehouse": "mock-warehouse-name",
       "out.host": "mock-account.snowflakecomputing.com",
-      "runtime-id": "4cb941099da74260bb83486ec1171294"
+      "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -23,8 +23,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 443,
-      "process_id": 96820
+      "process_id": 79541
     },
-    "duration": 1253000,
-    "start": 1666810039072413000
+    "duration": 3044000,
+    "start": 1634218667477386000
   }]]

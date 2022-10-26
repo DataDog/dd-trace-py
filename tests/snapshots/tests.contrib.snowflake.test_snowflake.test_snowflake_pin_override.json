@@ -11,7 +11,7 @@
       "_dd.p.dm": "-0",
       "component": "snowflake",
       "custom": "tag",
-      "runtime-id": "4cb941099da74260bb83486ec1171294",
+      "runtime-id": "1658e263f3084eaca410818e944d7d7e",
       "sfqid": "mocksfqid-29244a72-90a0-4309-9168-9dcf67721f6d"
     },
     "metrics": {
@@ -21,9 +21,9 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
-      "process_id": 96820,
+      "process_id": 88705,
       "sql.rows": 1
     },
-    "duration": 1597000,
-    "start": 1666810037504661000
+    "duration": 3361000,
+    "start": 1660069787100011000
   }]]
