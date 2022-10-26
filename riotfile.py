@@ -219,6 +219,7 @@ venv = Venv(
             pkgs={
                 "pytest-benchmark": "<=4.0.0",
                 "msgpack": "<=1.0.4",
+                "py-cpuinfo": "~=8.0.0",
             },
             venvs=[
                 Venv(
