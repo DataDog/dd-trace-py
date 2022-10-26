@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -ex
+
+# Include step to install any additional packages for a scenario
+if [[ -f "/app/install.sh" ]]; then
+    /app/install.sh
+fi
+
+# Use separate venvs for the two versions of the library being compared
+export VENV_DDTRACE_V1=/app/.venv_ddtrace_v1/
+export VENV_DDTRACE_V2=/app/.venv_ddtrace_v2/
+
+python3 -m venv ${VENV_DDTRACE_V1}
+source ${VENV_DDTRACE_V1}/bin/activate
+pip install ${DDTRACE_INSTALL_V1}
+pip install -r requirements.txt
+export DDTRACE_V1=$(python -c "import ddtrace; print(ddtrace.__version__)")
+deactivate
+
+python3 -m venv ${VENV_DDTRACE_V2}
+source ${VENV_DDTRACE_V2}/bin/activate
+pip install ${DDTRACE_INSTALL_V2}
+pip install -r requirements.txt
+export DDTRACE_V2=$(python -c "import ddtrace; print(ddtrace.__version__)")
+deactivate
+
+exec "$@"

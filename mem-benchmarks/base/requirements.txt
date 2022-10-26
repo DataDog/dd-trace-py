@@ -1,0 +1,8 @@
+-r requirements_scenario.txt
+
+wheel
+memray
+pyperf
+pyyaml
+attrs
+httpretty==0.9.7

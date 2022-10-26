@@ -1,0 +1,34 @@
+baseline: &baseline
+  tracer_enabled: false
+  profiler_enabled: false
+  appsec_enabled: false
+  iast_enabled: false
+  post_request: false
+tracer:
+  <<: *baseline
+  tracer_enabled: true
+profiler:
+  <<: *baseline
+  profiler_enabled: true
+iast-get:
+  <<: *baseline
+  iast_enabled: true
+appsec-get: &appsec
+  <<: *baseline
+  tracer_enabled: true
+  appsec_enabled: true
+appsec-post:
+  <<: *appsec
+  tracer_enabled: true
+  appsec_enabled: true
+  post_request: true
+tracer-and-profiler:
+  <<: *baseline
+  tracer_enabled: true
+  profiler_enabled: true
+tracer-and-profiler-and-appsec:
+  <<: *baseline
+  tracer_enabled: true
+  profiler_enabled: true
+  appsec_enabled: true
+  post_request: true

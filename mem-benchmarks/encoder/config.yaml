@@ -1,0 +1,39 @@
+one-trace: &base_variant
+  ntraces: 1
+  nspans: 1000
+  ntags: 0
+  ltags: 0
+  nmetrics: 0
+  dd_origin: false
+  encoding: "v0.4"
+many-traces:
+  <<: *base_variant
+  ntraces: 100
+one-tag:
+  <<: *base_variant
+  ntags: 1
+  ltags: 16
+many-tags:
+  <<: *base_variant
+  ntags: 100
+  ltags: 16
+one-metric:
+  <<: *base_variant
+  nmetrics: 1
+many-metrics:
+  <<: *base_variant
+  nmetrics: 48
+one-trace-with-dd-origin:
+  <<: *base_variant
+  ntags: 10
+  ltags: 16
+  dd_origin: true
+one-trace-with-dd-origin-no-tags:
+  <<: *base_variant
+  dd_origin: true
+many-traces-with-dd-origin:
+  <<: *base_variant
+  ntraces: 100
+  ntags: 10
+  ltags: 16
+  dd_origin: true
