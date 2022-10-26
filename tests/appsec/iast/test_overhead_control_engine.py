@@ -20,6 +20,7 @@ def function_with_vulnerabilities_3(tracer):
         sleep(0.3)
     return 1
 
+
 def function_with_vulnerabilities_2(tracer):
     with tracer.trace("test_child"):
         import hashlib
@@ -30,6 +31,7 @@ def function_with_vulnerabilities_2(tracer):
         sleep(0.2)
     return 1
 
+
 def function_with_vulnerabilities_1(tracer):
     with tracer.trace("test_child"):
         import hashlib
@@ -39,6 +41,7 @@ def function_with_vulnerabilities_1(tracer):
         m.digest()
         sleep(0.1)
     return 1
+
 
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="digest works only in Python 3")
 def test_oce_max_vulnerabilities_per_request(iast_span):
