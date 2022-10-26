@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    tracer: the global tracer (``ddtrace.tracer``) is now lazily initialized.
