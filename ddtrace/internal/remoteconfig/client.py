@@ -3,6 +3,7 @@ from datetime import datetime
 import hashlib
 import json
 import logging
+import os
 import re
 import sys
 from typing import Any
@@ -18,6 +19,7 @@ import cattr
 import six
 
 import ddtrace
+from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.utils.time import parse_isoformat
@@ -245,6 +247,8 @@ class RemoteConfigClient(object):
 
         return json.loads(data)
 
+appsec_not_present = APPSEC_ENV not in os.environ
+
     def _build_payload(self, state):
         # type: (Mapping[str, Any]) -> Mapping[str, Any]
         return dict(
@@ -255,6 +259,7 @@ class RemoteConfigClient(object):
                 client_tracer=self._client_tracer,
                 state=state,
             ),
+            capabilities="Ag==" if appsec_not_present else None,
             cached_target_files=[],  # TODO
         )
 
