@@ -211,16 +211,14 @@ venv = Venv(
             pys=select_pys(),
             command="pytest {cmdargs} tests/appsec",
             pkgs={
-                "pycryptodome": latest,
+                "pycryptodome": "<=3.15.0",
             },
         ),
         Venv(
             pys=select_pys(),
             pkgs={
-                "pytest-benchmark": latest,
-                "msgpack": latest,
-                # TODO: remove py dependency once https://github.com/ionelmc/pytest-benchmark/pull/227 is released
-                "py": latest,
+                "pytest-benchmark": "<=4.0.0",
+                "msgpack": "<=1.0.4",
             },
             venvs=[
                 Venv(
@@ -239,7 +237,7 @@ venv = Venv(
             pys="3",
             pkgs={
                 "austin-python": "~=1.0",
-                "rich": latest,
+                "rich": "<=12.6.0",
             },
         ),
         Venv(
@@ -249,10 +247,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "msgpack": latest,
-                        "attrs": ["==20.1.0", latest],
-                        "packaging": ["==17.1", latest],
-                        "structlog": latest,
+                        "msgpack": "~=1.0.4",
+                        "attrs": "~=20.1.0",
+                        "packaging": "~=17.1",
+                        "structlog": "~=22.1.0",
                         # httpretty v1.0 drops python 2.7 support
                         "httpretty": "==0.9.7",
                     },
@@ -275,7 +273,7 @@ venv = Venv(
             name="integration",
             pys=select_pys(),
             command="pytest --no-cov {cmdargs} tests/integration/",
-            pkgs={"msgpack": [latest]},
+            pkgs={"msgpack": "<=1.0.4"},
             venvs=[
                 Venv(
                     name="integration-v5",
@@ -305,7 +303,7 @@ venv = Venv(
                 Venv(pys="2.7"),
                 Venv(
                     pys=select_pys(min_version="3.5"),
-                    pkgs={"pytest-asyncio": latest},
+                    pkgs={"pytest-asyncio": "~=0.20.1"},
                 ),
             ],
             env={
@@ -313,32 +311,32 @@ venv = Venv(
             },
             pkgs={
                 "httpretty": "==0.9.7",
-                "gevent": latest,
+                "gevent": "~=22.10.1",
             },
         ),
         Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
-            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
+            venvs=[Venv(pys=select_pys(), pkgs={"msgpack": "~=1.0.4"})],
         ),
         Venv(
             name="ddtracerun",
             command="pytest {cmdargs} --no-cov tests/commands/test_runner.py",
             pys=select_pys(),
             pkgs={
-                "redis": latest,
-                "gevent": latest,
+                "redis": "~=3.5.2.3",
+                "gevent": "~=22.10.1",
             },
         ),
         Venv(
             name="debugger",
             command="pytest {cmdargs} tests/debugging/",
-            pkgs={"msgpack": latest},
+            pkgs={"msgpack": "<=1.0.4"},
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
                     pys=select_pys(min_version="3.5"),
-                    pkgs={"pytest-asyncio": latest},
+                    pkgs={"pytest-asyncio": "~=0.20.1"},
                 ),
             ],
         ),
@@ -347,7 +345,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/vendor/",
             pys=select_pys(),
             pkgs={
-                "msgpack": ["~=1.0.0", latest],
+                "msgpack": "~=1.0.0",
             },
         ),
         Venv(
@@ -393,8 +391,7 @@ venv = Venv(
                     pkgs={
                         "falcon": [
                             "~=3.0.0",
-                            "~=3.0",  # latest 3.x
-                            latest,
+                            "~=3.1",  # latest 3.x
                         ]
                     },
                 ),
@@ -484,8 +481,7 @@ venv = Venv(
                     pkgs={
                         "celery": [
                             "~=5.0.5",
-                            "~=5.0",  # most recent 5.x
-                            latest,
+                            "~=5.2",  # most recent 5.x
                         ],
                         "redis": "~=3.5",
                         "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib_metadata 5.0
@@ -500,8 +496,7 @@ venv = Venv(
                     pkgs={
                         "celery": [
                             "~=5.0.5",
-                            "~=5.0",  # most recent 5.x
-                            latest,
+                            "~=5.2",  # most recent 5.x
                         ],
                         "redis": "~=3.5",
                     },
@@ -559,7 +554,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.5"),
                     pkgs={
-                        "cherrypy": [">=18.0,<19", latest],
+                        "cherrypy": "~=18.8",
                         "more_itertools": "<8.11.0",
                     },
                 ),
@@ -569,7 +564,7 @@ venv = Venv(
             name="pymongo",
             command="pytest {cmdargs} tests/contrib/pymongo",
             pkgs={
-                "mongoengine": latest,
+                "mongoengine": "<=0.24.2",
             },
             venvs=[
                 Venv(
@@ -612,7 +607,6 @@ venv = Venv(
                             ">=3.10,<3.11",
                             ">=3.12,<3.13",
                             ">=4.0,<4.1",
-                            latest,
                         ],
                     },
                 ),
@@ -633,13 +627,13 @@ venv = Venv(
             pkgs={
                 "django-redis": ">=4.5,<4.6",
                 "django-pylibmc": ">=0.6,<0.7",
-                "daphne": [latest],
-                "requests": [latest],
+                "daphne": "<=4.0.0",  # Python >= 3.7 supported
+                "requests": "<=2.28.1",
                 "redis": ">=2.10,<2.11",
-                "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
+                "psycopg2-binary": ">=2.8.6",  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django": "==3.10.0",
-                "pylibmc": latest,
-                "python-memcached": latest,
+                "pylibmc": "<=1.6.3",
+                "python-memcached": "<=1.59",
             },
             venvs=[
                 Venv(
@@ -676,17 +670,14 @@ venv = Venv(
                             "~=3.1.0",
                             "~=3.2.0",
                         ],
-                        "channels": ["~=3.0", latest],
+                        "channels": "~=3.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "django": [
-                            "~=4.0.0",
-                            latest,
-                        ],
-                        "channels": ["~=3.0", latest],
+                        "django": "~=4.0.0",
+                        "channels": ["~=3.0", "~=4.0.0"],
                     },
                 ),
             ],
@@ -720,7 +711,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "django_hosts": ["~=5.0", latest],
+                        "django_hosts": ["~=5.0", "~=5.1"],
                         "django": "~=4.0",
                     },
                 ),
@@ -742,7 +733,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.5", max_version="3.9"),
                     pkgs={
                         "django": ">=2.2,<2.3",
-                        "djangorestframework": [">=3.8,<3.9", ">=3.9,<3.10", latest],
+                        "djangorestframework": [">=3.8,<3.9", ">=3.9,<3.10", "~=3.12"],
                         "pytest-django": "==3.10.0",
                     },
                 ),
@@ -766,7 +757,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
                         "django": "~=4.0",
-                        "djangorestframework": ["~=3.13", latest],
+                        "djangorestframework": ["~=3.13", "~=3.14.0"],
                         "pytest-django": "==3.10.0",
                     },
                 ),
@@ -815,8 +806,9 @@ venv = Venv(
                 Venv(pys=select_pys(), pkgs={"elasticsearch1": ["~=1.10.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.0", latest]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.2"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.17.6"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch8": ["~=8.4.3"]}),
             ],
         ),
         Venv(
@@ -826,11 +818,12 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "elasticsearch": ["~=1.6.0"],
-                        "elasticsearch2": [latest],
-                        "elasticsearch5": [latest],
-                        "elasticsearch6": [latest],
+                        "elasticsearch": ["~=1.10.0"],
+                        "elasticsearch2": ["~=2.5.1"],
+                        "elasticsearch5": ["~=5.5.6"],
+                        "elasticsearch6": ["~=6.8.2"],
                         "elasticsearch7": ["<7.14.0"],
+                        "elasticsearch8": ["~=8.4.3"],
                     },
                 ),
             ],
@@ -838,7 +831,7 @@ venv = Venv(
         Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
-            pkgs={"blinker": latest, "requests": latest},
+            pkgs={"blinker": "<=1.5", "requests": "<=2.28.1"},
             venvs=[
                 # Flask == 0.12.0
                 Venv(
@@ -923,7 +916,7 @@ venv = Venv(
                         "flask": [
                             "~=2.0.0",
                             "~=2.0",  # latest 2.x
-                            latest,
+                            "~=2.2.2",
                         ],
                     },
                 ),
@@ -938,7 +931,7 @@ venv = Venv(
                         "flask": [
                             "~=2.0.0",
                             "~=2.0",  # latest 2.x
-                            latest,
+                            "~=2.2.2",
                         ],
                     },
                 ),
@@ -1115,9 +1108,9 @@ venv = Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "starlette": [">=0.13,<0.14", ">=0.14,<0.15", latest],
-                        "httpx": latest,
-                        "pytest-asyncio": latest,
-                        "requests": latest,
+                        "httpx": "<=0.23.0",
+                        "pytest-asyncio": "<=0.20.1",
+                        "requests": "<=2.28.1",
                         "aiofiles": latest,
                         # Pinned until https://github.com/encode/databases/issues/298 is resolved.
                         "sqlalchemy": "~=1.3.0",
@@ -1136,7 +1129,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(max_version="3.9"),
                             pkgs={
-                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
+                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", "~=1.4.42"],
                                 # 2.8.x is the last one support Python 2.7
                                 "psycopg2-binary": ["~=2.8.0"],
                                 "mysql-connector-python": ["<8.0.24"],
@@ -1145,17 +1138,17 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.6", max_version="3.9"),
                             pkgs={
-                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
+                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", "~=1.4.42"],
+                                "psycopg2-binary": "~=3.0.18",
+                                "mysql-connector-python": "~=8.0.28",
                             },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10"),
                             pkgs={
-                                "sqlalchemy": ["~=1.2.0", "~=1.3.0", latest],
-                                "psycopg2-binary": latest,
-                                "mysql-connector-python": latest,
+                                "sqlalchemy": ["~=1.2.0", "~=1.3.0", "~=1.4.42"],
+                                "psycopg2-binary": "~=3.1.3",
+                                "mysql-connector-python": "~=8.0.31",
                             },
                         ),
                     ],
@@ -1178,7 +1171,7 @@ venv = Venv(
                             ">=2.16,<2.17",
                             ">=2.18,<2.19",
                             ">=2.20,<2.21",
-                            latest,
+                            "~=2.28.1",
                         ],
                     },
                 ),
@@ -1188,7 +1181,7 @@ venv = Venv(
                         "requests-mock": ">=1.4",
                         "requests": [
                             ">=2.20,<2.21",
-                            latest,
+                            "~=2.28.1",
                         ],
                     },
                 ),
@@ -1201,7 +1194,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "WebTest": latest,
+                        "WebTest": "~=3.0.0",
                     },
                 ),
             ],
@@ -1209,14 +1202,14 @@ venv = Venv(
         Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
-            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
+            venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": "~=2.49.0", "moto": "<1.0.0"})],
         ),
         Venv(
             name="botocore",
             command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={"botocore": latest},
             venvs=[
-                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": latest}),
+                Venv(pys=select_pys(min_version="3.5"), pkgs={"moto[all]": "~4.0.8"}),
                 Venv(pys=["2.7"], pkgs={"moto": ["~=1.0"], "rsa": ["<4.7.1"]}),
             ],
         ),
@@ -1224,7 +1217,7 @@ venv = Venv(
             name="mongoengine",
             command="pytest {cmdargs} tests/contrib/mongoengine",
             pkgs={
-                "pymongo": latest,
+                "pymongo": "<=4.3.2",
             },
             venvs=[
                 Venv(
@@ -1238,15 +1231,15 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.6"),
-                    pkgs={"mongoengine": [">=0.20,<0.21", ">=0.21,<0.22", ">=0.22,<0.23", latest]},
+                    pkgs={"mongoengine": [">=0.20,<0.21", ">=0.21,<0.22", ">=0.22,<0.23", "~=0.24.2"]},
                 ),
             ],
         ),
         Venv(
             name="asgi",
             pkgs={
-                "pytest-asyncio": latest,
-                "httpx": latest,
+                "pytest-asyncio": "<=0.20.1",
+                "httpx": "<=0.23.0",
                 "asgiref": ["~=3.0.0", "~=3.0"],
             },
             pys=select_pys(min_version="3.6"),
@@ -1262,7 +1255,7 @@ venv = Venv(
                         "mariadb": [
                             "~=1.0.0",
                             "~=1.0",
-                            latest,
+                            "<=1.1.4",
                         ],
                     },
                 ),
@@ -1287,8 +1280,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "pymysql": [
+                            "~=1.0.2",
                             "~=1.0",
-                            latest,
                         ],
                     },
                 ),
@@ -1298,8 +1291,8 @@ venv = Venv(
             name="pyramid",
             command="pytest {cmdargs} tests/contrib/pyramid/test_pyramid.py",
             pkgs={
-                "requests": [latest],
-                "webtest": [latest],
+                "requests": "<=2.28.1",
+                "webtest": "<=3.0.0",
                 "tests/contrib/pyramid/pserve_app": [latest],
             },
             venvs=[
@@ -1325,7 +1318,7 @@ venv = Venv(
                             "~=1.8",
                             "~=1.9",
                             "~=1.10",
-                            latest,
+                            "~=2.0",
                         ],
                     },
                 ),
@@ -1334,7 +1327,7 @@ venv = Venv(
         Venv(
             name="aiobotocore",
             command="pytest {cmdargs} tests/contrib/aiobotocore",
-            pkgs={"pytest-asyncio": latest, "async_generator": ["~=1.10"]},
+            pkgs={"pytest-asyncio": "==0.20.1", "async_generator": ["~=1.10"]},
             venvs=[
                 # async_generator 1.10 used because @asynccontextmanager was only available in Python 3.6+
                 # aiobotocore 1.x and higher require Python 3.6 or higher
@@ -1386,9 +1379,9 @@ venv = Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "fastapi": [">=0.51,<0.52", ">=0.55,<0.56", ">=0.60,<0.61", latest],
-                        "httpx": latest,
-                        "pytest-asyncio": latest,
-                        "requests": latest,
+                        "httpx": "<=0.23.0",
+                        "pytest-asyncio": "<=0.20.1",
+                        "requests": "<=2.28.1",
                         "aiofiles": latest,
                     },
                 ),
@@ -1399,7 +1392,7 @@ venv = Venv(
             pys=select_pys(min_version="3.7"),
             command="pytest {cmdargs} tests/contrib/aiomysql",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "==0.20.1",
                 "aiomysql": ["~=0.1.0", latest],
             },
         ),
@@ -1410,7 +1403,7 @@ venv = Venv(
                 Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
-                    pkgs={"pytest": ">=4.0,<4.6", "msgpack": latest},
+                    pkgs={"pytest": ">=4.0,<4.6", "msgpack": "<=1.0.4"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.9"),
@@ -1422,7 +1415,7 @@ venv = Venv(
                             ">=6.0,<7.0",
                             latest,
                         ],
-                        "msgpack": latest,
+                        "msgpack": "<=1.0.4",
                         "more_itertools": "<8.11.0",
                     },
                 ),
@@ -1433,7 +1426,7 @@ venv = Venv(
                             ">=6.0,<7.0",
                             latest,
                         ],
-                        "msgpack": latest,
+                        "msgpack": "<=1.0.4",
                         "more_itertools": "<8.11.0",
                     },
                 ),
@@ -1442,7 +1435,7 @@ venv = Venv(
         Venv(
             name="pytest-bdd",
             command="pytest {cmdargs} tests/contrib/pytest_bdd/",
-            pkgs={"msgpack": latest},
+            pkgs={"msgpack": "<=1.0.4"},
             venvs=[
                 Venv(
                     pys=["2.7"],
@@ -1534,7 +1527,7 @@ venv = Venv(
             command="python -m pytest {cmdargs} tests/contrib/grpc_aio",
             pkgs={
                 "googleapis-common-protos": latest,
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "<=0.20.1",
             },
             venvs=[
                 Venv(
@@ -1569,7 +1562,7 @@ venv = Venv(
         Venv(
             name="graphene",
             command="pytest {cmdargs} tests/contrib/graphene",
-            pkgs={"pytest-asyncio": latest},
+            pkgs={"pytest-asyncio": "<=0.20.1"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.9"),
@@ -1589,7 +1582,7 @@ venv = Venv(
         Venv(
             name="graphql",
             command="pytest {cmdargs} tests/contrib/graphql",
-            pkgs={"pytest-asyncio": latest},
+            pkgs={"pytest-asyncio": "<=0.20.1"},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.9"),
@@ -1649,15 +1642,15 @@ venv = Venv(
             pys=select_pys(min_version="3.6"),
             command="pytest {cmdargs} tests/contrib/httpx",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "<=0.20.1",
                 "httpx": [
                     "~=0.14.0",
                     "~=0.15.0",
                     "~=0.16.0",
                     "~=0.17.0",
                     "~=0.18.0",
+                    "~=0.23.0",
                     "<1.0.0",
-                    latest,
                 ],
             },
         ),
@@ -1750,7 +1743,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
-                        "pytest-asyncio": [latest],
+                        "pytest-asyncio": ["<=0.20.1"],
                         "aiohttp": [
                             "~=3.0",
                             "~=3.2",
@@ -1789,7 +1782,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
-                        "pytest-asyncio": [latest],
+                        "pytest-asyncio": ["<=0.20.1"],
                         "aiohttp": [
                             "~=3.4",
                             "~=3.6",
@@ -1875,7 +1868,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.6"),
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
-                        "pytest-asyncio": latest,
+                        "pytest-asyncio": "<=0.20.1",
                         "redis": [
                             ">=4.2,<4.3",
                             latest,
@@ -1889,7 +1882,7 @@ venv = Venv(
             pys=select_pys(min_version="3.6", max_version="3.9"),
             command="pytest {cmdargs} tests/contrib/aredis",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "<=0.20.1",
                 "aredis": [
                     "~=1.1.0",
                     latest,
@@ -1901,7 +1894,7 @@ venv = Venv(
             pys=select_pys(min_version="3.6", max_version="3.9"),
             command="pytest {cmdargs} tests/contrib/yaaredis",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "<=0.20.1",
                 "yaaredis": [
                     "~=2.0.0",
                     latest,
@@ -1912,8 +1905,8 @@ venv = Venv(
             name="sanic",
             command="pytest {cmdargs} tests/contrib/sanic",
             pkgs={
-                "pytest-asyncio": latest,
-                "requests": latest,
+                "pytest-asyncio": "<=0.20.1",
+                "requests": "<=2.28.1",
             },
             venvs=[
                 Venv(
@@ -1927,7 +1920,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
                         "sanic": ["~=21.3.0"],
-                        "pytest-sanic": latest,
+                        "pytest-sanic": "~=1.9.1",
                         "httpx": ["~=0.15.4"],
                     },
                 ),
@@ -1937,7 +1930,7 @@ venv = Venv(
                         "sanic": [
                             "~=21.6.0",
                         ],
-                        "pytest-sanic": latest,
+                        "pytest-sanic": "~=1.9.1",
                     },
                 ),
                 Venv(
@@ -1962,13 +1955,6 @@ venv = Venv(
                     pkgs={
                         "sanic": "~=22.9.0",
                         "sanic-testing": "~=22.9.0",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.7"),
-                    pkgs={
-                        "sanic": latest,
-                        "sanic-testing": latest,
                     },
                 ),
             ],
@@ -2015,7 +2001,7 @@ venv = Venv(
                             "~=2.4.0",
                             "~=2.5.0",
                             "~=2.6.0",
-                            latest,
+                            "~=2.8.0",
                         ],
                     },
                 ),
@@ -2034,10 +2020,10 @@ venv = Venv(
             pys=select_pys(min_version="3.6"),
             command="pytest {cmdargs} tests/contrib/aioredis",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "<=0.20.1",
                 "aioredis": [
                     "~=1.3.0",
-                    latest,
+                    "~=2.1.0",
                 ],
             },
         ),
@@ -2045,7 +2031,7 @@ venv = Venv(
             name="asyncpg",
             command="pytest {cmdargs} tests/contrib/asyncpg",
             pkgs={
-                "pytest-asyncio": latest,
+                "pytest-asyncio": "<=0.20.1",
             },
             venvs=[
                 Venv(
@@ -2056,7 +2042,7 @@ venv = Venv(
                             "~=0.20.0",
                             "~=0.22.0",
                             "~=0.24.0",
-                            latest,
+                            "~=0.26.0",
                         ],
                     },
                 ),
@@ -2067,7 +2053,7 @@ venv = Venv(
                             "~=0.20.0",
                             "~=0.22.0",
                             "~=0.24.0",
-                            latest,
+                            "~=0.26.0",
                         ],
                     },
                 ),
@@ -2076,7 +2062,7 @@ venv = Venv(
                     pkgs={
                         "asyncpg": [
                             "~=0.24.0",
-                            latest,
+                            "~=0.26.0",
                         ],
                     },
                 ),
