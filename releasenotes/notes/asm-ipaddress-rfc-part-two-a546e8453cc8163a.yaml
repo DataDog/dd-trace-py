@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: now http.client_ip and network.client.ip will only be collected if ASM is enabled.
