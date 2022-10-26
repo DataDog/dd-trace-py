@@ -1,14 +1,10 @@
 name: System Tests
 
 on:
-  pull_request:
+  push:
   workflow_dispatch: {}
   schedule:
-    - cron:  '00 04 * * 2-6'
-  push:
-    branches:
-      - 0.x
-      - 1.x
+    - cron: '00 04 * * 2-6'
 
 jobs:
   system-tests:
@@ -60,6 +56,7 @@ jobs:
       matrix:
         lib-injection-connection: ['uds', 'network']
         lib-injection-use-admission-controller: ['', 'use-admission-controller']
+        lib-injection-test-app: ['dd-lib-python-init-test-django', 'dd-lib-python-init-test-django-gunicorn', 'dd-lib-python-init-test-django-uvicorn']
       fail-fast: false
     env:
       TEST_LIBRARY: python
@@ -68,7 +65,7 @@ jobs:
       LIBRARY_INJECTION_CONNECTION: ${{ matrix.lib-injection-connection }}
       LIBRARY_INJECTION_ADMISSION_CONTROLLER: ${{ matrix.lib-injection-admission-controller }}
       LIBRARY_INJECTION_INIT_IMAGE: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:${{ github.sha }}
-      LIBRARY_INJECTION_TEST_APP_IMAGE: ghcr.io/datadog/dd-trace-py/dd-lib-python-init-test-app:${{ github.sha }}
+      LIBRARY_INJECTION_TEST_APP_IMAGE: ghcr.io/datadog/dd-trace-py/${{ matrix.lib-injection-test-app }}:${{ github.sha }}
     steps:
       - name: Checkout system tests
         uses: actions/checkout@v3
