@@ -1,5 +1,6 @@
 import os
 
+from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RemoteConfig
@@ -8,12 +9,6 @@ from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
-
-
-def _appsec_rc_features_is_enabled():
-    if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
-        return APPSEC_ENV not in os.environ
-    return False
 
 
 def enable_appsec_rc(tracer):
