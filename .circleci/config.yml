@@ -1353,8 +1353,8 @@ workflows:
       - coverage_report: *requires_tests
 
   test_latest:
-    requires:
-      - test
+    # requires:
+    #   - test
     jobs:
       # Integration test suites
       - aiobotocore_latest
