@@ -26,7 +26,6 @@ from ddtrace.internal import _context
 from ddtrace.internal.compat import six
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
@@ -176,12 +175,6 @@ _USED_IP_HEADER = ""
 def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_sensitive=False):
     # type: (Span, Mapping[str, str], Optional[str], bool) -> str
     global _USED_IP_HEADER
-
-    ip_collection_disabled = os.getenv("DD_TRACE_CLIENT_IP_HEADER_DISABLED", default=None)
-    if (ip_collection_disabled is None and not config._appsec_enabled) or asbool(ip_collection_disabled):
-        # IP Collection will honor the environment var is set. Otherwise it will be enabled
-        # only if appsec is enabled
-        return ""
 
     def get_header_value(key):  # type: (str) -> Optional[str]
         if not headers_are_case_sensitive:
@@ -454,15 +447,19 @@ def set_http_meta(
         if user_agent:
             span.set_tag(http.USER_AGENT, user_agent)
 
+        # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+        # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+        if config._appsec_enabled:
+            ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
+            if ip:
+                span.set_tag(http.CLIENT_IP, ip)
+                span.set_tag("network.client.ip", ip)
+
         if integration_config.is_header_tracing_configured:
-            """We should store both http.<request_or_response>.headers.<header_name> and http.<key>. The last one
+            """We should store both http.<request_or_response>.headers.<header_name> and
+            http.<key>. The last one
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
-
-        ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
-        if ip:
-            span.set_tag(http.CLIENT_IP, ip)
-            span.set_tag("network.client.ip", ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(dict(response_headers), span, integration_config)

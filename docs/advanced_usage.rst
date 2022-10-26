@@ -417,6 +417,7 @@ The following rules apply:
   - if you do not configure a specific integration, then the default global configuration applies, if any.
   - if no configuration is provided (neither global nor integration-specific), then headers are not traced.
 
+
 Once you configure your application for tracing, you will have the headers attached to the trace as tags, with a
 structure like in the following example::
 
