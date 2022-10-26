@@ -934,6 +934,14 @@ jobs:
           pattern: 'pyramid'
           snapshot: true
 
+  pyramid_latest:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: 'pyramid'
+          riotfile: "riotfile-latest.py"
+          snapshot: true
+
   requests:
     <<: *contrib_job
     docker:
@@ -1443,7 +1451,7 @@ workflows:
       # - pymysql_latest
       # - pynamodb_latest
       # - pyodbc_latest
-      # - pyramid_latest
+      - pyramid_latest: *requires_latest_venvs
       # - pytest_latest
       # - pytestbdd_latest
       # - aredis_latest

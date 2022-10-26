@@ -887,20 +887,6 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    # pserve_app has PasteDeploy dependency, but PasteDeploy>=3.0 is incompatible with Python 2.7
-                    # pyramid>=2.0 no longer supports Python 2.7 and 3.5
-                    pys=select_pys(max_version="3.5"),
-                    pkgs={
-                        "pastedeploy": "<3.0",
-                        "pyramid": [
-                            "~=1.7",
-                            "~=1.8",
-                            "~=1.9",
-                            "~=1.10",
-                        ],
-                    },
-                ),
-                Venv(
                     pys=select_pys(min_version="3.6"),
                     pkgs={
                         "pyramid": [
