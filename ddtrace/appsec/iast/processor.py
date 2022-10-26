@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 import attr
 
 from ddtrace.appsec.iast import oce
+from ddtrace.constants import APPSEC_ORIGIN_VALUE
 from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.constants import IAST_ENABLED
 from ddtrace.constants import IAST_JSON
@@ -50,6 +51,6 @@ class AppSecIastSpanProcessor(SpanProcessor):
 
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
-                span.set_tag_str(ORIGIN_KEY, "appsec")
+                span.set_tag_str(ORIGIN_KEY, APPSEC_ORIGIN_VALUE)
 
         oce.release_request()
