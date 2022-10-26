@@ -1127,26 +1127,26 @@ venv = Venv(
                         Venv(
                             pys=select_pys(max_version="3.9"),
                             pkgs={
-                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", "~=1.4.42"],
+                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", "<=1.4.42"],
                                 # 2.8.x is the last one support Python 2.7
-                                "psycopg2-binary": ["~=2.8.0"],
+                                "psycopg2-binary": ["<=2.8.0"],
                                 "mysql-connector-python": ["<8.0.24"],
                             },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.6", max_version="3.9"),
                             pkgs={
-                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", "~=1.4.42"],
+                                "sqlalchemy": ["~=1.0.0", "~=1.1.0", "~=1.2.0", "~=1.3.0", "<=1.4.42"],
                                 "psycopg2-binary": "<=3.0.18",
-                                "mysql-connector-python": "~=8.0.28",
+                                "mysql-connector-python": "<=8.0.28",
                             },
                         ),
                         Venv(
                             pys=select_pys(min_version="3.10"),
                             pkgs={
-                                "sqlalchemy": ["~=1.2.0", "~=1.3.0", "~=1.4.42"],
+                                "sqlalchemy": ["~=1.2.0", "~=1.3.0", "<=1.4.42"],
                                 "psycopg2-binary": "<=3.1.3",
-                                "mysql-connector-python": "~=8.0.31",
+                                "mysql-connector-python": "<=8.0.31",
                             },
                         ),
                     ],
