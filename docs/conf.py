@@ -689,7 +689,7 @@ class DDTraceConfigurationOptionsDirective(rst.Directive):
 
         results = statemachine.ViewList()
         for var_name, value in options.items():
-            skip_label = value.get("skip_label") == True
+            skip_label = value.get("skip_label") == "true"
             var_label = var_name.lower().replace("_", "-")
             var_description = value["description"]
             var_type = value.get("type") or "String"
