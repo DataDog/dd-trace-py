@@ -7,6 +7,7 @@ from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.settings import Config
+from ddtrace.settings import _database_monitoring
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.span import Span
 from tests.utils import TracerTestCase
@@ -29,6 +30,24 @@ class TestTracedCursor(TracerTestCase):
         # DEV: We always pass through the result
         assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_TRACE_SQL_COMMENT_INJECTION_MODE="full",
+            DD_SERVICE="orders-app",
+            DD_ENV="staging",
+            DD_VERSION="v7343437-d7ac743",
+        )
+    )
+    def test_curser_execute_with_dbm_injection(self):
+        cursor = self.cursor
+        traced_cursor = TracedCursor(cursor, Pin("pin_name", tracer=self.tracer), {})
+        query = "SELECT * FROM db;"
+        traced_cursor.execute(query)
+        spans = self.tracer.pop()
+        assert len(spans) == 1
+        dbm_comment = _database_monitoring._get_dbm_comment(spans[0])
+        cursor.execute.assert_called_once_with(dbm_comment + query)
 
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
