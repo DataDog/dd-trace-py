@@ -14,6 +14,9 @@ from ddtrace.internal.injection import inject_hooks
 from ddtrace.internal.utils.inspection import linenos
 
 
+pytestmark = pytest.mark.skipif(sys.version_info >= (3, 11, 0), reason="FIXME[debugger-311]")
+
+
 @contextmanager
 def injected_hook(f, hook, arg):
     code = f.__code__
