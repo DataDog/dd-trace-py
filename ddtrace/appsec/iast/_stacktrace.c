@@ -1,5 +1,6 @@
 #include <Python.h>
 #include <frameobject.h>
+#include <patchlevel.h>
 
 #ifdef _WIN32
 #define DD_TRACE_INSTALLED_PREFIX "\\ddtrace\\"
@@ -9,6 +10,11 @@
 #define TESTS_PREFIX "/tests/"
 #endif
 
+#if PY_VERSION_HEX >= 0x30b00f0
+#include <internal/pycore_frame.h>
+#define PYTHON311
+#endif
+
 /**
  * get_file_and_line
  *
@@ -16,6 +22,35 @@
  *
  * @return Tuple, string and integer.
  **/
+#ifdef PYTHON311
+static PyObject*
+get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    PyThreadState* tstate = PyThreadState_GET();
+    _PyCFrame* frame;
+    _PyInterpreterFrame* current_frame;
+    if (NULL != tstate && NULL != tstate->cframe) {
+        frame = tstate->cframe;
+        while (NULL != frame) {
+            char* filename =
+              PyBytes_AsString(PyUnicode_AsEncodedString(frame->current_frame->f_code->co_filename, "utf-8", "surrogatepass"));
+            if (strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL) {
+                frame = frame->previous;
+                continue;
+            }
+            /*
+             frame->f_lineno will not always return the correct line number
+             you need to call PyCode_Addr2Line().
+            */
+
+            current_frame = frame->current_frame;
+            int line = frame->current_frame->frame_obj->f_lineno;
+            return PyTuple_Pack(2, frame->current_frame->f_code->co_filename, Py_BuildValue("i", line));
+        }
+    }
+    return PyTuple_Pack(2, Py_None, Py_None);
+}
+#else
 static PyObject*
 get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
@@ -25,7 +60,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         frame = tstate->frame;
         while (NULL != frame) {
             char* filename =
-              PyBytes_AsString(PyUnicode_AsEncodedString(frame->f_code->co_filename, "utf-8", "surrogatepass"));
+                    PyBytes_AsString(PyUnicode_AsEncodedString(frame->f_code->co_filename, "utf-8", "surrogatepass"));
             if (strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL) {
                 frame = frame->f_back;
                 continue;
@@ -40,6 +75,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     }
     return PyTuple_Pack(2, Py_None, Py_None);
 }
+#endif
 
 static PyMethodDef StacktraceMethods[] = {
     { "get_info_frame", (PyCFunction)get_file_and_line, METH_VARARGS, "stacktrace functions" },
