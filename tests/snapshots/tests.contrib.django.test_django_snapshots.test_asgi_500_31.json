@@ -44,7 +44,7 @@
        "parent_id": 1,
        "meta": {
          "component": "django"
-        },
+       },
        "duration": 790140000,
        "start": 1633585516925286000
      },
@@ -57,7 +57,7 @@
           "parent_id": 2,
           "meta": {
             "component": "django"
-           },
+          },
           "duration": 79000,
           "start": 1633585516925334000
         },
@@ -70,7 +70,7 @@
           "parent_id": 2,
           "meta": {
             "component": "django"
-           },
+          },
           "duration": 789794000,
           "start": 1633585516925468000
         },
@@ -83,7 +83,7 @@
              "parent_id": 4,
              "meta": {
                "component": "django"
-              },
+             },
              "duration": 60000,
              "start": 1633585516925512000
            },
@@ -96,7 +96,7 @@
              "parent_id": 4,
              "meta": {
                "component": "django"
-              },
+             },
              "duration": 789540000,
              "start": 1633585516925620000
            },
@@ -109,7 +109,7 @@
                 "parent_id": 7,
                 "meta": {
                   "component": "django"
-                 },
+                },
                 "duration": 27000,
                 "start": 1633585516925673000
               },
@@ -122,7 +122,7 @@
                 "parent_id": 7,
                 "meta": {
                   "component": "django"
-                 },
+                },
                 "duration": 789322000,
                 "start": 1633585516925748000
               },
@@ -135,7 +135,7 @@
                    "parent_id": 10,
                    "meta": {
                      "component": "django"
-                    },
+                   },
                    "duration": 28000,
                    "start": 1633585516925798000
                  },
@@ -148,7 +148,7 @@
                    "parent_id": 10,
                    "meta": {
                      "component": "django"
-                    },
+                   },
                    "duration": 789162000,
                    "start": 1633585516925883000
                  },
@@ -161,7 +161,7 @@
                       "parent_id": 13,
                       "meta": {
                         "component": "django"
-                       },
+                      },
                       "duration": 109000,
                       "start": 1633585516925932000
                     },
@@ -174,7 +174,7 @@
                       "parent_id": 13,
                       "meta": {
                         "component": "django"
-                       },
+                      },
                       "duration": 788868000,
                       "start": 1633585516926082000
                     },
@@ -187,7 +187,7 @@
                          "parent_id": 15,
                          "meta": {
                            "component": "django"
-                          },
+                         },
                          "duration": 788714000,
                          "start": 1633585516926137000
                        },
@@ -200,7 +200,7 @@
                             "parent_id": 17,
                             "meta": {
                               "component": "django"
-                             },
+                            },
                             "duration": 25000,
                             "start": 1633585516926186000
                           },
@@ -213,7 +213,7 @@
                             "parent_id": 17,
                             "meta": {
                               "component": "django"
-                             },
+                            },
                             "duration": 788402000,
                             "start": 1633585516926311000
                           },
@@ -226,7 +226,7 @@
                                "parent_id": 20,
                                "meta": {
                                  "component": "django"
-                                },
+                               },
                                "duration": 788327000,
                                "start": 1633585516926360000
                              },
@@ -239,7 +239,7 @@
                                   "parent_id": 22,
                                   "meta": {
                                     "component": "django"
-                                   },
+                                  },
                                   "duration": 788228000,
                                   "start": 1633585516926401000
                                 },
@@ -252,7 +252,7 @@
                                      "parent_id": 23,
                                      "meta": {
                                        "component": "django"
-                                      },
+                                     },
                                      "duration": 70000,
                                      "start": 1633585516928359000
                                    },
@@ -265,7 +265,7 @@
                                      "parent_id": 23,
                                      "meta": {
                                        "component": "django"
-                                      },
+                                     },
                                      "duration": 27000,
                                      "start": 1633585516928771000
                                    },
@@ -295,7 +295,7 @@
                                      "parent_id": 23,
                                      "meta": {
                                        "component": "django"
-                                      },
+                                     },
                                      "duration": 48000,
                                      "start": 1633585516934195000
                                    },
@@ -308,7 +308,7 @@
                                      "parent_id": 23,
                                      "meta": {
                                        "component": "django"
-                                      },
+                                     },
                                      "duration": 40000,
                                      "start": 1633585516934781000
                                    },
@@ -321,7 +321,7 @@
                                      "parent_id": 23,
                                      "meta": {
                                        "component": "django"
-                                      },
+                                     },
                                      "duration": 25000,
                                      "start": 1633585516934873000
                                    },
@@ -334,7 +334,7 @@
                                      "parent_id": 23,
                                      "meta": {
                                        "component": "django"
-                                      },
+                                     },
                                      "duration": 67000,
                                      "start": 1633585516972035000
                                    },
@@ -362,7 +362,7 @@
                             "parent_id": 17,
                             "meta": {
                               "component": "django"
-                             },
+                            },
                             "duration": 53000,
                             "start": 1633585517714772000
                           },
@@ -375,7 +375,7 @@
                          "parent_id": 15,
                          "meta": {
                            "component": "django"
-                          },
+                         },
                          "duration": 34000,
                          "start": 1633585517714892000
                        },
@@ -388,7 +388,7 @@
                       "parent_id": 13,
                       "meta": {
                         "component": "django"
-                       },
+                      },
                       "duration": 30000,
                       "start": 1633585517714991000
                     },
@@ -401,7 +401,7 @@
                 "parent_id": 7,
                 "meta": {
                   "component": "django"
-                 },
+                },
                 "duration": 28000,
                 "start": 1633585517715109000
               },
@@ -414,7 +414,7 @@
              "parent_id": 4,
              "meta": {
                "component": "django"
-              },
+             },
              "duration": 34000,
              "start": 1633585517715203000
            },
@@ -427,7 +427,7 @@
           "parent_id": 2,
           "meta": {
             "component": "django"
-           },
+          },
           "duration": 101000,
           "start": 1633585517715300000
         }]]
