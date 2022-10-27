@@ -13,15 +13,14 @@ jobs:
     executor: continuation/default
     steps:
       - checkout # checkout code
-      - run: pip3 install pyYAML
+      - run: sudo apt-get install python3-pip
+      - run: python3 -m pip install pyYAML
       - run: # run a command
           name: Generate config
           command: |
             ./scripts/generate-circleci-config.py > generated_config.yml
       - continuation/continue:
           configuration_path: generated_config.yml # use newly generated config to continue
-
-
 
 # our single workflow, that triggers the setup job defined above
 workflows:
