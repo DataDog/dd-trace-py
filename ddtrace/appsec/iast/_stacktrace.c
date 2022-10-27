@@ -42,7 +42,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     PyThreadState* tstate = PyThreadState_GET();
     FrameType* frame;
 
-    if (NULL != tstate && NULL != tstate->cframe) {
+    if (NULL != tstate && NULL != get_frame(tstate)) {
         frame = get_frame(tstate);
         while (NULL != frame) {
             char* filename = PyBytes_AsString(PyUnicode_AsEncodedString(get_filename(frame), "utf-8", "surrogatepass"));
