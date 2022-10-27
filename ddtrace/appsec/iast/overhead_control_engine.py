@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Set
+    from typing import Tuple
     from typing import Type
 
 MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
@@ -23,13 +24,16 @@ class Operation(object):
 
     _lock = threading.Lock()
     _vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
+    _reported_vulnerabilities = set()  # type: Set[Tuple[str, int]]
 
     @classmethod
     def reset(cls):
         cls._vulnerability_quota = MAX_VULNERABILITIES_PER_REQUEST
+        cls._reported_vulnerabilities = set()
 
     @classmethod
     def acquire_quota(cls):
+        # type: () -> bool
         cls._lock.acquire()
         result = False
         if cls._vulnerability_quota > 0:
@@ -40,10 +44,21 @@ class Operation(object):
 
     @classmethod
     def has_quota(cls):
+        # type: () -> bool
         cls._lock.acquire()
         result = cls._vulnerability_quota > 0
         cls._lock.release()
         return result
+
+    @classmethod
+    def is_not_reported(cls, filename, lineno):
+        # type: (str, int) -> bool
+        vulnerability_id = (filename, lineno)
+        if vulnerability_id in cls._reported_vulnerabilities:
+            return False
+
+        cls._reported_vulnerabilities.add(vulnerability_id)
+        return True
 
 
 class OverheadControl(object):
