@@ -653,47 +653,17 @@ def test_json_encoder_traces_bytes():
     import ddtrace.internal.encoding as encoding
     from ddtrace.span import Span
 
-<<<<<<< HEAD
-encoder = {0}()
-data = encoder.encode_traces(
-         [
-             [
-                 Span(name=b"\\x80span.a", tracer=None),
-                 Span(name=u"\\x80span.b", tracer=None),
-                 Span(name="\\x80span.b", tracer=None),
-             ]
-         ]
-    )
-traces = json.loads(data)
-if "{0}" == "JSONEncoderV2":
-    traces = traces["traces"]
-
-assert len(traces) == 1
-span_a, span_b, span_c = traces[0]
-
-if PY3:
-    assert "\\\\x80span.a" == span_a["name"]
-    assert u"\\x80span.b" == span_b["name"]
-    assert u"\\x80span.b" == span_c["name"]
-else:
-    assert u"\\ufffdspan.a" == span_a["name"]
-    assert u"\\x80span.b" == span_b["name"]
-    assert u"\\ufffdspan.b" == span_c["name"]
-""".format(
-        encoder_cls
-=======
     encoder_class_name = os.getenv("encoder_cls")
 
     encoder = getattr(encoding, encoder_class_name)()
     data = encoder.encode_traces(
         [
             [
-                Span(name=b"\x80span.a"),
-                Span(name=u"\x80span.b"),
-                Span(name="\x80span.b"),
+                Span(name=b"\x80span.a", tracer=None),
+                Span(name=u"\x80span.b", tracer=None),
+                Span(name="\x80span.b", tracer=None),
             ]
         ]
->>>>>>> c437ad25 (test: add marker for running tests in subprocess (#3383))
     )
     traces = json.loads(data)
     if encoder_class_name == "JSONEncoderV2":
