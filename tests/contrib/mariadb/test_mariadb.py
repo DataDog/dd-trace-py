@@ -1,8 +1,5 @@
-<<<<<<< HEAD
 import os
-=======
 from typing import Tuple
->>>>>>> 3db913e8 (chore(mariadb): update tests to support mariadb>=1.1.0 (backport #3883) (#3901))
 
 import mariadb
 import pytest
@@ -133,7 +130,6 @@ def test_analytics_default(connection, tracer):
     assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
 
 
-<<<<<<< HEAD
 test_user_specified_code = """
 from ddtrace import config
 from ddtrace import patch
@@ -150,13 +146,8 @@ tracer.shutdown()
 """
 
 
-@snapshot(async_mode=False)
-def test_user_specified_dd_service_snapshot(run_python_code_in_subprocess):
-=======
-@pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
 @snapshot(async_mode=False, variants=SNAPSHOT_VARIANTS)
-def test_user_specified_dd_service_snapshot():
->>>>>>> 3db913e8 (chore(mariadb): update tests to support mariadb>=1.1.0 (backport #3883) (#3901))
+def test_user_specified_dd_service_snapshot(run_python_code_in_subprocess):
     """
     When a user specifies a service for the app
         The mariadb integration should not use it.
@@ -170,14 +161,8 @@ def test_user_specified_dd_service_snapshot():
     assert status == 0, err
 
 
-<<<<<<< HEAD
-@snapshot(async_mode=False)
-def test_user_specified_dd_mariadb_service_snapshot(run_python_code_in_subprocess):
-=======
-@pytest.mark.subprocess(env=dict(DD_MARIADB_SERVICE="mysvc"))
 @snapshot(async_mode=False, variants=SNAPSHOT_VARIANTS)
-def test_user_specified_dd_mariadb_service_snapshot():
->>>>>>> 3db913e8 (chore(mariadb): update tests to support mariadb>=1.1.0 (backport #3883) (#3901))
+def test_user_specified_dd_mariadb_service_snapshot(run_python_code_in_subprocess):
     """
     When a user specifies a service for the app
         The mariadb integration should not use it.
