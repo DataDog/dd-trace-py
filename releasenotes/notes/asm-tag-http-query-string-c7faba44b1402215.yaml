@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    ASM: HTTP query string tagged by default in http.url tag (sensitive query strings will be obfuscated).
+    tracing: HTTP query string tagged by default in http.url tag (sensitive query strings will be obfuscated).
