@@ -12,6 +12,8 @@ base_exception_name = "builtins.Exception"
 if PY2:
     base_exception_name = "exceptions.Exception"
 
+EXPECTED_METADATA = {"component": "flask"}
+
 
 class FlaskViewTestCase(BaseFlaskTestCase):
     def test_view_handler(self):
@@ -49,7 +51,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
-        self.assertEqual(handler_span.get_tags(), dict())
+        self.assertEqual(handler_span.get_tags(), EXPECTED_METADATA)
 
     def test_view_handler_error(self):
         """
@@ -77,6 +79,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         # flask.request
         self.assertEqual(req_span.error, 1)
+        self.assertEqual(req_span.get_tag("component"), "flask")
         self.assertEqual(req_span.get_tag("flask.endpoint"), "hello")
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/hello/<name>")
         self.assertEqual(req_span.get_tag("flask.view_args.name"), "flask")
@@ -86,6 +89,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         # flask.dispatch_request
         self.assertEqual(dispatch_span.error, 1)
+        self.assertEqual(dispatch_span.get_tag("component"), "flask")
         self.assertEqual(dispatch_span.get_tag("error.msg"), "an error")
         self.assertTrue(dispatch_span.get_tag("error.stack").startswith("Traceback (most recent call last):"))
         self.assertEqual(dispatch_span.get_tag("error.type"), base_exception_name)
@@ -93,6 +97,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 1)
+        self.assertEqual(handler_span.get_tag("component"), "flask")
         self.assertEqual(handler_span.get_tag("error.msg"), "an error")
         self.assertTrue(handler_span.get_tag("error.stack").startswith("Traceback (most recent call last):"))
         self.assertEqual(handler_span.get_tag("error.type"), base_exception_name)
@@ -120,6 +125,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         # flask.request
         self.assertEqual(req_span.error, 0)
+        self.assertEqual(req_span.get_tag("component"), "flask")
         self.assertEqual(req_span.get_tag("flask.endpoint"), "hello")
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/hello/<name>")
         self.assertEqual(req_span.get_tag("flask.view_args.name"), "flask")
@@ -130,7 +136,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
-        self.assertEqual(handler_span.get_tags(), dict())
+        self.assertEqual(handler_span.get_tags(), EXPECTED_METADATA)
 
     def test_method_view_handler_error(self):
         """
@@ -156,6 +162,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         # flask.request
         self.assertEqual(req_span.error, 1)
+        self.assertEqual(req_span.get_tag("component"), "flask")
         self.assertEqual(req_span.get_tag("flask.endpoint"), "hello")
         self.assertEqual(req_span.get_tag("flask.url_rule"), "/hello/<name>")
         self.assertEqual(req_span.get_tag("flask.view_args.name"), "flask")
@@ -165,6 +172,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         # flask.dispatch_request
         self.assertEqual(dispatch_span.error, 1)
+        self.assertEqual(dispatch_span.get_tag("component"), "flask")
         self.assertEqual(dispatch_span.get_tag("error.msg"), "an error")
         self.assertTrue(dispatch_span.get_tag("error.stack").startswith("Traceback (most recent call last):"))
         self.assertEqual(dispatch_span.get_tag("error.type"), base_exception_name)
@@ -172,6 +180,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 1)
+        self.assertEqual(handler_span.get_tag("component"), "flask")
         self.assertEqual(handler_span.get_tag("error.msg"), "an error")
         self.assertTrue(handler_span.get_tag("error.stack").startswith("Traceback (most recent call last):"))
         self.assertEqual(handler_span.get_tag("error.type"), base_exception_name)

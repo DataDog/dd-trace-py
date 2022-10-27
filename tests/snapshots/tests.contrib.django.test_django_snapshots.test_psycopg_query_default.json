@@ -28,7 +28,7 @@
     "start": 1633584168859673000
   },
      {
-       "name": "postgres.query",
+       "name": "psycopg",
        "service": "postgres",
        "resource": "select 'one' as x",
        "trace_id": 0,

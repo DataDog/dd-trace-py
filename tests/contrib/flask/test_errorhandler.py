@@ -4,6 +4,7 @@ from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
 
+EXPECTED_METADATA = {"component": "flask"}
 
 class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
     def test_default_404_handler(self):
@@ -36,11 +37,11 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertIsNone(dispatch_span.get_tag("error.type"))
 
         # flask.handle_user_exception span
-        self.assertEqual(user_ex_span.get_tags(), dict())
+        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
-        self.assertEqual(http_ex_span.get_tags(), dict())
+        self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
     def test_abort_500(self):
@@ -92,11 +93,11 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertEqual(error_type, "werkzeug.exceptions.InternalServerError")
 
         # flask.handle_user_exception span
-        self.assertEqual(user_ex_span.get_tags(), dict())
+        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
-        self.assertEqual(http_ex_span.get_tags(), dict())
+        self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
     def test_abort_500_custom_handler(self):
@@ -159,11 +160,11 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertIsNone(handler_span.get_tag("error.type"))
 
         # flask.handle_user_exception span
-        self.assertEqual(user_ex_span.get_tags(), dict())
+        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
-        self.assertEqual(http_ex_span.get_tags(), dict())
+        self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
     def test_raise_user_exception(self):
@@ -289,7 +290,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.handle_user_exception span
         self.assertEqual(user_ex_span.error, 0)
-        self.assertEqual(user_ex_span.get_tags(), dict())
+        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
 
         # flask.handle_http_exception span
         self.assertIsNone(http_ex_span)

@@ -1114,6 +1114,7 @@ def test_cached_view(client, test_spans):
     }
 
     expected_meta_header = {
+        "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
     }
