@@ -9,6 +9,8 @@ from . import _config as dd_config
 
 
 if TYPE_CHECKING:
+    from typing import Optional
+
     from ddtrace import Span
 
 DBM_PARENT_SERVICE_NAME_KEY = "ddps"
@@ -35,13 +37,13 @@ dbm_config = DatabaseMonitoringConfig()
 
 
 def _get_dbm_comment(db_span):
-    # type: (Span) -> str
+    # type: (Span) -> Optional[str]
     """Generate DBM trace injection comment and updates span tags
     This method will set the ``_dd.dbm_trace_injected: "true"`` tag
     on ``db_span`` if the configured injection mode is ``"full"``.
     """
     if dbm_config.injection_mode == "disabled":
-        return ""
+        return None
 
     # set the following tags if DBM injection mode is full or service
     dbm_tags = {
