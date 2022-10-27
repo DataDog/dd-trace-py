@@ -132,3 +132,9 @@ def test_remote_configuration(mock_send_request):
         sleep(0.2)
         mock_send_request.assert_called_once()
         assert callback.features == {"asm": {"enabled": True}}
+
+
+def test_remoteconfig_semver():
+    version = RemoteConfigClient()._client_tracer["tracer_version"]
+    if "rc" in version:
+        assert "-rc" in version, version

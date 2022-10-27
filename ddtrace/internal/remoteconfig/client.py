@@ -191,7 +191,7 @@ class RemoteConfigClient(object):
         self._client_tracer = dict(
             runtime_id=runtime.get_runtime_id(),
             language="python",
-            tracer_version=ddtrace.__version__,
+            tracer_version=ddtrace.__version__.replace("rc", "-rc", 1),
             service=ddtrace.config.service,
             env=ddtrace.config.env,
             app_version=ddtrace.config.version,
