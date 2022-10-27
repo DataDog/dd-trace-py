@@ -2,6 +2,7 @@
 
 
 import logging
+
 logger = logging.getLogger()
 
 try:
@@ -9,8 +10,10 @@ try:
 except:
     logger.warning("Yaml not found")
 
+
 def main():
-    output = '''
+    # type (None) -> None
+    output = """
 version: 2.1
 
 default_resource_class: &default_resource_class medium
@@ -1318,8 +1321,9 @@ workflows:
                 - 0.x
                 - 1.x
 
-    '''
+    """
     print(output)
+
 
 if __name__ == "__main__":
     main()
