@@ -45,7 +45,7 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-        "component": "flask"
+         "component": "flask"
        },
        "duration": 29000,
        "start": 1663697769396144000
@@ -58,7 +58,7 @@
        "span_id": 3,
        "parent_id": 1,
        "meta": {
-        "component": "flask"
+         "component": "flask"
        },
        "duration": 27000,
        "start": 1663697769396267000
@@ -71,7 +71,7 @@
        "span_id": 4,
        "parent_id": 1,
        "meta": {
-        "component": "flask"
+         "component": "flask"
        },
        "duration": 112000,
        "start": 1663697769396347000
@@ -84,7 +84,7 @@
           "span_id": 8,
           "parent_id": 4,
           "meta": {
-           "component": "flask"
+            "component": "flask"
           },
           "duration": 43000,
           "start": 1663697769396399000
@@ -97,7 +97,7 @@
        "span_id": 5,
        "parent_id": 1,
        "meta": {
-        "component": "flask"
+         "component": "flask"
        },
        "duration": 24000,
        "start": 1663697769396567000
@@ -110,7 +110,7 @@
        "span_id": 6,
        "parent_id": 1,
        "meta": {
-        "component": "flask"
+         "component": "flask"
        },
        "duration": 25000,
        "start": 1663697769396712000
@@ -123,7 +123,7 @@
        "span_id": 7,
        "parent_id": 1,
        "meta": {
-        "component": "flask"
+         "component": "flask"
        },
        "duration": 18000,
        "start": 1663697769396796000

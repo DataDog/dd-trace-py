@@ -598,7 +598,7 @@ def traced_jsonify(wrapped, instance, args, kwargs):
     with pin.tracer.trace("flask.jsonify") as span:
         # set component tag equal to name of integration
         span.set_tag(COMPONENT, config.flask.integration_name)
-        
+
         return wrapped(*args, **kwargs)
 
 
