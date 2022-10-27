@@ -15,6 +15,20 @@
 #define PYTHON311
 #endif
 
+#ifdef PYTHON311
+#define FrameType _PyCFrame
+#define get_frame(tstate) tstate->cframe
+#define get_previous(frame) frame->previous
+#define get_filename(frame) frame->current_frame->f_code->co_filename
+#define get_lineno(frame) frame->current_frame->frame_obj->f_lineno
+#else
+#define FrameType PyFrameObject
+#define get_frame(tstate) tstate->frame
+#define get_previous(frame) frame->f_back
+#define get_filename(frame) frame->f_code->co_filename
+#define get_lineno(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
+#endif
+
 /**
  * get_file_and_line
  *
@@ -22,60 +36,30 @@
  *
  * @return Tuple, string and integer.
  **/
-#ifdef PYTHON311
 static PyObject*
 get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
     PyThreadState* tstate = PyThreadState_GET();
-    _PyCFrame* frame;
-    _PyInterpreterFrame* current_frame;
-    if (NULL != tstate && NULL != tstate->cframe) {
-        frame = tstate->cframe;
-        while (NULL != frame) {
-            char* filename = PyBytes_AsString(
-              PyUnicode_AsEncodedString(frame->current_frame->f_code->co_filename, "utf-8", "surrogatepass"));
-            if (strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL) {
-                frame = frame->previous;
-                continue;
-            }
-            /*
-             frame->f_lineno will not always return the correct line number
-             you need to call PyCode_Addr2Line().
-            */
+    FrameType* frame;
 
-            current_frame = frame->current_frame;
-            int line = frame->current_frame->frame_obj->f_lineno;
-            return PyTuple_Pack(2, frame->current_frame->f_code->co_filename, Py_BuildValue("i", line));
-        }
-    }
-    return PyTuple_Pack(2, Py_None, Py_None);
-}
-#else
-static PyObject*
-get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
-{
-    PyThreadState* tstate = PyThreadState_GET();
-    PyFrameObject* frame;
-    if (NULL != tstate && NULL != tstate->frame) {
-        frame = tstate->frame;
+    if (NULL != tstate && NULL != tstate->cframe) {
+        frame = get_frame(tstate);
         while (NULL != frame) {
-            char* filename =
-              PyBytes_AsString(PyUnicode_AsEncodedString(frame->f_code->co_filename, "utf-8", "surrogatepass"));
+            char* filename = PyBytes_AsString(PyUnicode_AsEncodedString(get_filename(frame), "utf-8", "surrogatepass"));
             if (strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL) {
-                frame = frame->f_back;
+                frame = get_previous(frame);
                 continue;
             }
             /*
              frame->f_lineno will not always return the correct line number
              you need to call PyCode_Addr2Line().
             */
-            int line = PyCode_Addr2Line(frame->f_code, frame->f_lasti);
-            return PyTuple_Pack(2, frame->f_code->co_filename, Py_BuildValue("i", line));
+            int line = get_lineno(frame);
+            return PyTuple_Pack(2, get_filename(frame), Py_BuildValue("i", line));
         }
     }
     return PyTuple_Pack(2, Py_None, Py_None);
 }
-#endif
 
 static PyMethodDef StacktraceMethods[] = {
     { "get_info_frame", (PyCFunction)get_file_and_line, METH_VARARGS, "stacktrace functions" },
