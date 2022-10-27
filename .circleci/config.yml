@@ -1236,6 +1236,11 @@ workflows:
       # Docs
       - build_docs: *requires_pre_check
 
+      - persist_to_workspace:
+        root: coverage
+        paths:
+          - "*.coverage"
+
       - run_test_job_contrib_job:
           requires:
             - pre_check
