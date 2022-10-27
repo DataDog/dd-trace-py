@@ -1070,6 +1070,67 @@ requires_latest_venvs: &requires_latest_venvs
     - ccheck
     - build_latest_venvs
 
+requires_tests: &requires_tests
+  requires:
+    - run_test_contrib_job
+    - run_test_contrib_job_small
+    - run_test_machine_executor
+    - run_tox_contrib_job
+    - run_tox_contrib_job_small
+    - aiopg
+    - aioredis
+    - asyncpg
+    - benchmarks
+    - boto
+    - cassandra
+    - celery
+    - cherrypy
+    - consul
+    - ddtracerun
+    - django
+    - djangorestframework
+    - elasticsearch
+    - flask
+    - gevent
+    - grpc
+    - httplib
+    - httpx
+    - integration_agent5
+    - integration_agent
+    - integration_testagent
+    - profile
+    - kombu
+    - mariadb
+    - mongoengine
+    - mysqlconnector
+    - mysqlpython
+    - opentracer
+    - psycopg
+    - pylibmc
+    - pymemcache
+    - pymongo
+    - pymysql
+    - aredis
+    - yaaredis
+    - redis
+    - rediscluster
+    - requests
+    - rq
+    - snowflake
+    - sqlalchemy
+    - tracer
+    - telemetry
+    - debugger
+    - appsec
+    - urllib3
+    - vertica
+    # - profile-windows-27
+    - profile-windows-35
+    - profile-windows-36
+    # - profile-windows-37
+    - profile-windows-38
+    - profile-windows-39
+    - profile-windows-310
 
 workflows:
   version: 2
@@ -1122,8 +1183,6 @@ workflows:
           matrix:
             parameters:
               pattern:
-                - "aiohttp"
-                - "aiomysql"
                 - "fastapi"
                 - "django_hosts$"
                 - "graphene"
@@ -1162,7 +1221,57 @@ workflows:
                 - '^futures_contrib-'
                 - '^asyncio_contrib-'
 
-      # Integration test suites
+       # Integration test suites
+      - aiobotocore: *requires_base_venvs
+      - aiohttp: *requires_base_venvs
+      - aiomysql: *requires_base_venvs
+      - aiopg: *requires_base_venvs
+      - aioredis: *requires_base_venvs
+      - asyncpg: *requires_base_venvs
+      - benchmarks: *requires_base_venvs
+      - boto: *requires_base_venvs
+      - cassandra: *requires_base_venvs
+      - celery: *requires_base_venvs
+      - cherrypy: *requires_base_venvs
+      - consul: *requires_base_venvs
+      - ddtracerun: *requires_base_venvs
+      - django: *requires_base_venvs
+      - djangorestframework: *requires_base_venvs
+      - elasticsearch: *requires_base_venvs
+      - flask: *requires_base_venvs
+      - gevent: *requires_base_venvs
+      - grpc: *requires_base_venvs
+      - httplib: *requires_base_venvs
+      - httpx: *requires_base_venvs
+      - integration_agent5: *requires_base_venvs
+      - integration_agent: *requires_base_venvs
+      - integration_testagent: *requires_base_venvs
+      - profile: *requires_base_venvs
+      - kombu: *requires_base_venvs
+      - mariadb: *requires_base_venvs
+      - mongoengine: *requires_base_venvs
+      - mysqlconnector: *requires_base_venvs
+      - mysqlpython: *requires_base_venvs
+      - opentracer: *requires_base_venvs
+      - psycopg: *requires_base_venvs
+      - pylibmc: *requires_base_venvs
+      - pymemcache: *requires_base_venvs
+      - pymongo: *requires_base_venvs
+      - pymysql: *requires_base_venvs
+      - aredis: *requires_base_venvs
+      - yaaredis: *requires_base_venvs
+      - redis: *requires_base_venvs
+      - rediscluster: *requires_base_venvs
+      - requests: *requires_base_venvs
+      - rq: *requires_base_venvs
+      - snowflake: *requires_base_venvs
+      - sqlalchemy: *requires_base_venvs
+      - tracer: *requires_base_venvs
+      - telemetry: *requires_base_venvs
+      - debugger: *requires_base_venvs
+      - appsec: *requires_base_venvs
+      - urllib3: *requires_base_venvs
+      - vertica: *requires_base_venvs
 
       # - profile-windows-27: *requires_pre_check
       - profile-windows-35: *requires_pre_check
@@ -1172,7 +1281,7 @@ workflows:
       - profile-windows-39: *requires_pre_check
       - profile-windows-310: *requires_pre_check
       # Final reports
-      - coverage_report
+      - coverage_report: *requires_tests
 
   test_latest:
     # requires:
