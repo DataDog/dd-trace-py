@@ -357,7 +357,7 @@ jobs:
       - checkout
       - attach_workspace:
           at: .
-      - run: pip install coverage==6.3.3 codecov diff_cover
+      - run: pip install coverage codecov diff_cover
       - run: ls -hal *.coverage
       # Combine all job coverage reports into one
       - run: coverage combine *.coverage
@@ -666,7 +666,7 @@ jobs:
 
   aiohttp_latest:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 5
     steps:
       - run_test:
           pattern: 'aiohttp'  # includes aiohttp_jinja2
