@@ -317,6 +317,7 @@ venv = Venv(
             venvs=[
                 Venv(pys="2.7"),
                 Venv(
+                    # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
                     pys=select_pys(min_version="3.5"),
                     pkgs={"pytest-asyncio": "<=0.20.1"},
                 ),
@@ -328,17 +329,6 @@ venv = Venv(
                 "httpretty": "==0.9.7",
                 "gevent": "~=22.10.1",
             },
-            env={
-                "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-            },
-            venvs=[
-                Venv(pys="2.7"),
-                Venv(
-                    # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
-                    pys=select_pys(min_version="3.5"),
-                    pkgs={"pytest-asyncio": latest},
-                ),
-            ],
         ),
         Venv(
             name="runtime",
