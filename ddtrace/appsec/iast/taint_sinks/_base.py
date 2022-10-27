@@ -61,28 +61,29 @@ class VulnerabilityBase(Operation):
                 log.debug("No root span in the current execution. Skipping IAST taint sink.")
                 return None
 
-            report = _context.get_item(IAST_CONTEXT_KEY, span=span)
             file_name, line_number = get_info_frame()
-            if report:
-                report.vulnerabilities.add(
-                    Vulnerability(
-                        type=cls.vulnerability_type,
-                        evidence=Evidence(type=cls.evidence_type, value=evidence_value),
-                        location=Location(path=file_name, line=line_number),
-                    )
-                )
-
-            else:
-                report = IastSpanReporter(
-                    vulnerabilities={
+            if cls.is_not_reported(file_name, line_number):
+                report = _context.get_item(IAST_CONTEXT_KEY, span=span)
+                if report:
+                    report.vulnerabilities.add(
                         Vulnerability(
                             type=cls.vulnerability_type,
                             evidence=Evidence(type=cls.evidence_type, value=evidence_value),
                             location=Location(path=file_name, line=line_number),
                         )
-                    }
-                )
-            _context.set_item(IAST_CONTEXT_KEY, report, span=span)
+                    )
+
+                else:
+                    report = IastSpanReporter(
+                        vulnerabilities={
+                            Vulnerability(
+                                type=cls.vulnerability_type,
+                                evidence=Evidence(type=cls.evidence_type, value=evidence_value),
+                                location=Location(path=file_name, line=line_number),
+                            )
+                        }
+                    )
+                _context.set_item(IAST_CONTEXT_KEY, report, span=span)
 
 
 def _wrap_function_wrapper_exception(module, name, wrapper):
