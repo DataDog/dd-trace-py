@@ -7,6 +7,7 @@ from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
 
+
 EXPECTED_METADATA = {"component": "flask"}
 REMOVED_SPANS_2_2_0 = 1 if flask_version >= (2, 2, 0) else 0
 

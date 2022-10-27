@@ -4,7 +4,9 @@ from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
 
+
 EXPECTED_METADATA = {"component": "flask"}
+
 
 class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
     def test_default_404_handler(self):
