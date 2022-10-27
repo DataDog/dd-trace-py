@@ -9,6 +9,7 @@
     "type": "web",
     "meta": {
       "_dd.p.dm": "-0",
+      "component": "django",
       "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
       "django.response.class": "django.http.response.HttpResponse",
       "django.user.is_authenticated": "False",
@@ -36,6 +37,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "component": "django"
+       },
        "duration": 3394000,
        "start": 1633584660974475000
      },
@@ -46,6 +50,9 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "meta": {
+            "component": "django"
+          },
           "duration": 93000,
           "start": 1633584660974545000
         },
@@ -56,6 +63,9 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
+          "meta": {
+            "component": "django"
+          },
           "duration": 3013000,
           "start": 1633584660974719000
         },
@@ -66,6 +76,9 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 4,
+             "meta": {
+               "component": "django"
+             },
              "duration": 87000,
              "start": 1633584660974785000
            },
@@ -76,6 +89,9 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 4,
+             "meta": {
+               "component": "django"
+             },
              "duration": 2650000,
              "start": 1633584660974939000
            },
@@ -86,6 +102,9 @@
                 "trace_id": 0,
                 "span_id": 9,
                 "parent_id": 7,
+                "meta": {
+                  "component": "django"
+                },
                 "duration": 41000,
                 "start": 1633584660975001000
               },
@@ -96,6 +115,9 @@
                 "trace_id": 0,
                 "span_id": 10,
                 "parent_id": 7,
+                "meta": {
+                  "component": "django"
+                },
                 "duration": 2357000,
                 "start": 1633584660975105000
               },
@@ -106,6 +128,9 @@
                    "trace_id": 0,
                    "span_id": 12,
                    "parent_id": 10,
+                   "meta": {
+                     "component": "django"
+                   },
                    "duration": 50000,
                    "start": 1633584660975224000
                  },
@@ -116,6 +141,9 @@
                    "trace_id": 0,
                    "span_id": 13,
                    "parent_id": 10,
+                   "meta": {
+                     "component": "django"
+                   },
                    "duration": 2087000,
                    "start": 1633584660975340000
                  },
@@ -126,6 +154,9 @@
                       "trace_id": 0,
                       "span_id": 14,
                       "parent_id": 13,
+                      "meta": {
+                        "component": "django"
+                      },
                       "duration": 89000,
                       "start": 1633584660975405000
                     },
@@ -136,6 +167,9 @@
                       "trace_id": 0,
                       "span_id": 15,
                       "parent_id": 13,
+                      "meta": {
+                        "component": "django"
+                      },
                       "duration": 1736000,
                       "start": 1633584660975557000
                     },
@@ -146,6 +180,9 @@
                          "trace_id": 0,
                          "span_id": 17,
                          "parent_id": 15,
+                         "meta": {
+                           "component": "django"
+                         },
                          "duration": 1537000,
                          "start": 1633584660975617000
                        },
@@ -156,6 +193,9 @@
                             "trace_id": 0,
                             "span_id": 19,
                             "parent_id": 17,
+                            "meta": {
+                              "component": "django"
+                            },
                             "duration": 36000,
                             "start": 1633584660975686000
                           },
@@ -166,6 +206,9 @@
                             "trace_id": 0,
                             "span_id": 20,
                             "parent_id": 17,
+                            "meta": {
+                              "component": "django"
+                            },
                             "duration": 1184000,
                             "start": 1633584660975782000
                           },
@@ -176,6 +219,9 @@
                                "trace_id": 0,
                                "span_id": 22,
                                "parent_id": 20,
+                               "meta": {
+                                 "component": "django"
+                               },
                                "duration": 1089000,
                                "start": 1633584660975844000
                              },
@@ -186,6 +232,9 @@
                                   "trace_id": 0,
                                   "span_id": 23,
                                   "parent_id": 22,
+                                  "meta": {
+                                    "component": "django"
+                                  },
                                   "duration": 940000,
                                   "start": 1633584660975958000
                                 },
@@ -196,6 +245,9 @@
                                      "trace_id": 0,
                                      "span_id": 24,
                                      "parent_id": 23,
+                                     "meta": {
+                                       "component": "django"
+                                     },
                                      "duration": 51000,
                                      "start": 1633584660976525000
                                    },
@@ -206,6 +258,9 @@
                                      "trace_id": 0,
                                      "span_id": 25,
                                      "parent_id": 23,
+                                     "meta": {
+                                       "component": "django"
+                                     },
                                      "duration": 39000,
                                      "start": 1633584660976641000
                                    },
@@ -216,6 +271,9 @@
                                      "trace_id": 0,
                                      "span_id": 26,
                                      "parent_id": 23,
+                                     "meta": {
+                                       "component": "django"
+                                     },
                                      "duration": 90000,
                                      "start": 1633584660976769000
                                    },
@@ -226,6 +284,9 @@
                             "trace_id": 0,
                             "span_id": 21,
                             "parent_id": 17,
+                            "meta": {
+                              "component": "django"
+                            },
                             "duration": 40000,
                             "start": 1633584660977080000
                           },
@@ -236,6 +297,9 @@
                          "trace_id": 0,
                          "span_id": 18,
                          "parent_id": 15,
+                         "meta": {
+                           "component": "django"
+                         },
                          "duration": 46000,
                          "start": 1633584660977213000
                        },
@@ -246,6 +310,9 @@
                       "trace_id": 0,
                       "span_id": 16,
                       "parent_id": 13,
+                      "meta": {
+                        "component": "django"
+                      },
                       "duration": 39000,
                       "start": 1633584660977354000
                     },
@@ -256,6 +323,9 @@
                 "trace_id": 0,
                 "span_id": 11,
                 "parent_id": 7,
+                "meta": {
+                  "component": "django"
+                },
                 "duration": 37000,
                 "start": 1633584660977519000
               },
@@ -266,6 +336,9 @@
              "trace_id": 0,
              "span_id": 8,
              "parent_id": 4,
+             "meta": {
+               "component": "django"
+             },
              "duration": 51000,
              "start": 1633584660977647000
            },
@@ -276,6 +349,9 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 2,
+          "meta": {
+            "component": "django"
+          },
           "duration": 46000,
           "start": 1633584660977789000
         }]]
