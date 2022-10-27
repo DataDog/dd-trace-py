@@ -17,16 +17,16 @@
 
 #ifdef PYTHON311
 #define FrameType _PyCFrame
-#define get_frame(tstate) tstate->cframe
-#define get_previous(frame) frame->previous
-#define get_filename(frame) frame->current_frame->f_code->co_filename
-#define get_lineno(frame) frame->current_frame->frame_obj->f_lineno
+#define GET_FRAME(tstate) tstate->cframe
+#define GET_PREVIOUS(frame) frame->previous
+#define GET_FILENAME(frame) frame->current_frame->f_code->co_filename
+#define GET_LINENO(frame) frame->current_frame->frame_obj->f_lineno
 #else
 #define FrameType PyFrameObject
-#define get_frame(tstate) tstate->frame
-#define get_previous(frame) frame->f_back
-#define get_filename(frame) frame->f_code->co_filename
-#define get_lineno(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
+#define GET_FRAME(tstate) tstate->frame
+#define GET_PREVIOUS(frame) frame->f_back
+#define GET_FILENAME(frame) frame->f_code->co_filename
+#define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
 #endif
 
 /**
@@ -42,20 +42,20 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     PyThreadState* tstate = PyThreadState_GET();
     FrameType* frame;
 
-    if (NULL != tstate && NULL != get_frame(tstate)) {
-        frame = get_frame(tstate);
+    if (NULL != tstate && NULL != GET_FRAME(tstate)) {
+        frame = GET_FRAME(tstate);
         while (NULL != frame) {
-            char* filename = PyBytes_AsString(PyUnicode_AsEncodedString(get_filename(frame), "utf-8", "surrogatepass"));
+            char* filename = PyBytes_AsString(PyUnicode_AsEncodedString(GET_FILENAME(frame), "utf-8", "surrogatepass"));
             if (strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL) {
-                frame = get_previous(frame);
+                frame = GET_PREVIOUS(frame);
                 continue;
             }
             /*
              frame->f_lineno will not always return the correct line number
              you need to call PyCode_Addr2Line().
             */
-            int line = get_lineno(frame);
-            return PyTuple_Pack(2, get_filename(frame), Py_BuildValue("i", line));
+            int line = GET_LINENO(frame);
+            return PyTuple_Pack(2, GET_FILENAME(frame), Py_BuildValue("i", line));
         }
     }
     return PyTuple_Pack(2, Py_None, Py_None);
