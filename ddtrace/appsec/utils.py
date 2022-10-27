@@ -5,12 +5,14 @@ from ddtrace.internal.utils.formats import asbool
 
 
 def _appsec_rc_features_is_enabled():
+    # type: () -> bool
     if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "true")):
         return APPSEC_ENV not in os.environ
     return False
 
 
 def _appsec_rc_capabilities():
+    # type: () -> str
     """return the bit of the composed capabilities in base64
     bit 0: Reserved
     bit 1: ASM Activation

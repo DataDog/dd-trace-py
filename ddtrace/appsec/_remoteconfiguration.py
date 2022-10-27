@@ -1,4 +1,5 @@
 import os
+from typing import TYPE_CHECKING
 
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
@@ -8,16 +9,28 @@ from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
 
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Callable
+    from typing import Mapping
+    from typing import Optional
+
+    from ddtrace import Tracer
+    from ddtrace.internal.remoteconfig.client import ConfigMetadata
+
 log = get_logger(__name__)
 
 
 def enable_appsec_rc(tracer):
+    # type: (Tracer) -> None
     if _appsec_rc_features_is_enabled():
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
 
 
 def appsec_rc_reload_features(tracer):
+    # type: (Tracer) -> Callable
     def _reload_features(metadata, features):
+        # type: (Optional[ConfigMetadata], Optional[Mapping[str, Any]]) -> None
         """This callback updates appsec enabled in tracer and config instances following this logic:
         ```
         | DD_APPSEC_ENABLED | RC Enabled | Result   |
