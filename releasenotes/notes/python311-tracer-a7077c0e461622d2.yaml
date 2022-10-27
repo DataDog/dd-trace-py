@@ -4,7 +4,7 @@ prelude: >
 
 
   .. note::
-    For a full status, see `Support Python 3.11 #4149<https://github.com/DataDog/dd-trace-py/issues/4149>`.
+    For a full status, see the `Support Python 3.11 #4149<https://github.com/DataDog/dd-trace-py/issues/4149>`_ issue on GitHub.
 
 
   .. note::
