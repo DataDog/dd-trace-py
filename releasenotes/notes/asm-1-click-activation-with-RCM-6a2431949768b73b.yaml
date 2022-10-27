@@ -1,4 +1,6 @@
 ---
 features:
   - |
-    ASM: 1-click activation ability through Remote Configuration Management.
+    ASM: 1-click activation ability through Remote Configuration Management. 
+    Set ``DD_REMOTE_CONFIGURATION_ENABLED`` to true to enable 1-click activation for ASM. 
+    Note that this feature is currently in beta.
