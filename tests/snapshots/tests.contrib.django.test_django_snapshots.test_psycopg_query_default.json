@@ -28,7 +28,7 @@
     "start": 1633584168859673000
   },
      {
-       "name": "psycopg",
+       "name": "postgres.query",
        "service": "postgres",
        "resource": "select 'one' as x",
        "trace_id": 0,
@@ -36,7 +36,7 @@
        "parent_id": 1,
        "type": "sql",
        "meta": {
-         "component": "django-postgres",
+         "component": "psycopg",
          "db.application": "None",
          "db.name": "test_postgres",
          "db.user": "postgres",
