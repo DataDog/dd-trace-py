@@ -32,8 +32,8 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     if (NULL != tstate && NULL != tstate->cframe) {
         frame = tstate->cframe;
         while (NULL != frame) {
-            char* filename =
-              PyBytes_AsString(PyUnicode_AsEncodedString(frame->current_frame->f_code->co_filename, "utf-8", "surrogatepass"));
+            char* filename = PyBytes_AsString(
+              PyUnicode_AsEncodedString(frame->current_frame->f_code->co_filename, "utf-8", "surrogatepass"));
             if (strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL) {
                 frame = frame->previous;
                 continue;
@@ -60,7 +60,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
         frame = tstate->frame;
         while (NULL != frame) {
             char* filename =
-                    PyBytes_AsString(PyUnicode_AsEncodedString(frame->f_code->co_filename, "utf-8", "surrogatepass"));
+              PyBytes_AsString(PyUnicode_AsEncodedString(frame->f_code->co_filename, "utf-8", "surrogatepass"));
             if (strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL) {
                 frame = frame->f_back;
                 continue;
