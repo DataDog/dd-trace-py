@@ -398,6 +398,10 @@ jobs:
     steps:
       - run_test:
           pattern: "tracer"
+      - run_tox_scenario:
+          # Riot venvs break with Py 3.11 importlib, specifically with hypothesis (test_http.py).
+          # We skip the test_http.py tests in riot and run the test_http.py tests through tox.
+          pattern: '^py.\+-tracer_test_http'
 
   telemetry:
     <<: *machine_executor
@@ -419,7 +423,7 @@ jobs:
     parallelism: 7
     steps:
       - run_tox_scenario:
-          pattern: '^py..-opentracer'
+          pattern: '^py.\+-opentracer'
 
   # Building gevent (for which we never want wheels because they crash)
   # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
