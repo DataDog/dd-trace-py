@@ -159,31 +159,14 @@ from tests.utils import snapshot_context
 patch()
 url = get_url("/status/200")
 
-<<<<<<< HEAD
 async def test():
     token = "tests.contrib.httpx.test_httpx.test_configure_service_name_env"
     with snapshot_context(token=token):
         httpx.get(url)
 
-    with snapshot_context(token=token):
+    with snapshot_context(wait_for_num_traces=1, token=token):
         async with httpx.AsyncClient() as client:
             await client.get(url)
-=======
-    async def test():
-        token = "tests.contrib.httpx.test_httpx.test_configure_service_name_env"
-        with snapshot_context(wait_for_num_traces=1, token=token):
-            DEFAULT_HEADERS = {
-                "User-Agent": "python-httpx/x.xx.x",
-            }
-            httpx.get(url, headers=DEFAULT_HEADERS)
-
-        with snapshot_context(wait_for_num_traces=1, token=token):
-            async with httpx.AsyncClient() as client:
-                DEFAULT_HEADERS = {
-                    "User-Agent": "python-httpx/x.xx.x",
-                }
-                await client.get(url, headers=DEFAULT_HEADERS)
->>>>>>> 4e710cae (fix(ci): wait for traces to be sent in snapshot tests (#4374))
 
 if sys.version_info >= (3, 7, 0):
     asyncio.run(test())
@@ -221,23 +204,9 @@ async def test():
     with snapshot_context(token=token):
         httpx.get(url)
 
-<<<<<<< HEAD
-    with snapshot_context(token=token):
+    with snapshot_context(wait_for_num_traces=1, token=token):
         async with httpx.AsyncClient() as client:
             await client.get(url)
-=======
-    async def test():
-        token = "tests.contrib.httpx.test_httpx.test_configure_global_service_name_env"
-        with snapshot_context(wait_for_num_traces=1, token=token):
-            DEFAULT_HEADERS = {
-                "User-Agent": "python-httpx/x.xx.x",
-            }
-            httpx.get(url, headers=DEFAULT_HEADERS)
-
-        with snapshot_context(wait_for_num_traces=1, token=token):
-            async with httpx.AsyncClient() as client:
-                await client.get(url, headers=DEFAULT_HEADERS)
->>>>>>> 4e710cae (fix(ci): wait for traces to be sent in snapshot tests (#4374))
 
 if sys.version_info >= (3, 7, 0):
     asyncio.run(test())
@@ -258,13 +227,8 @@ async def test_get_500(snapshot_context):
         We mark the span as an error
     """
     url = get_url("/status/500")
-<<<<<<< HEAD
-    with snapshot_context():
-        resp = httpx.get(url)
-=======
     with snapshot_context(wait_for_num_traces=1):
-        resp = httpx.get(url, headers=DEFAULT_HEADERS)
->>>>>>> 4e710cae (fix(ci): wait for traces to be sent in snapshot tests (#4374))
+        resp = httpx.get(url)
         assert resp.status_code == 500
 
     with snapshot_context(wait_for_num_traces=1):
@@ -276,19 +240,14 @@ async def test_get_500(snapshot_context):
 @pytest.mark.asyncio
 async def test_split_by_domain(snapshot_context):
     """
-    When split_by_domain is configured
+    When split_by_domain is configure
         We set the service name to the <host>:<port>
     """
     url = get_url("/status/200")
 
     with override_config("httpx", {"split_by_domain": True}):
-<<<<<<< HEAD
-        with snapshot_context():
-            resp = httpx.get(url)
-=======
         with snapshot_context(wait_for_num_traces=1):
-            resp = httpx.get(url, headers=DEFAULT_HEADERS)
->>>>>>> 4e710cae (fix(ci): wait for traces to be sent in snapshot tests (#4374))
+            resp = httpx.get(url)
             assert resp.status_code == 200
 
         with snapshot_context(wait_for_num_traces=1):
@@ -306,13 +265,8 @@ async def test_trace_query_string(snapshot_context):
     url = get_url("/status/200?some=query&string=args")
 
     with override_http_config("httpx", {"trace_query_string": True}):
-<<<<<<< HEAD
-        with snapshot_context():
-            resp = httpx.get(url)
-=======
         with snapshot_context(wait_for_num_traces=1):
-            resp = httpx.get(url, headers=headers)
->>>>>>> 4e710cae (fix(ci): wait for traces to be sent in snapshot tests (#4374))
+            resp = httpx.get(url)
             assert resp.status_code == 200
 
         with snapshot_context(wait_for_num_traces=1):
