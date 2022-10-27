@@ -1,11 +1,12 @@
 ---
 prelude: >
   Application Security Management (ASM) has added support for preventing attacks by blocking malicious IPs using one click within Datadog.
-  
+
+
   .. note::
     One click activation for ASM is currently in beta.
 
+
 features:
   - |
-    ASM: One click activation ability through Remote Configuration Management (RCM). 
-    Set ``DD_REMOTE_CONFIGURATION_ENABLED=true`` to enable this feature.
+    ASM: Added support for one click activation using Remote Configuration Management (RCM). Set ``DD_REMOTE_CONFIGURATION_ENABLED=true`` to enable this feature.
