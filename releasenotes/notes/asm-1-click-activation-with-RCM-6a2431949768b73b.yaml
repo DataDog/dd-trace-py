@@ -9,4 +9,4 @@ prelude: >
 
 features:
   - |
-    ASM: Added support for one click activation using Remote Configuration Management (RCM). Set ``DD_REMOTE_CONFIGURATION_ENABLED=true`` to enable this feature.
+    ASM: add support for one click activation using Remote Configuration Management (RCM). Set ``DD_REMOTE_CONFIGURATION_ENABLED=true`` to enable this feature.
