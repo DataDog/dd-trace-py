@@ -293,7 +293,29 @@ postgres_server: &postgres_server
     - POSTGRES_DB=postgres
 
 jobs:
-  run_test_job_machine_executor:
+  run_tox_contrib_job:
+    parameters:
+      pattern:
+        type: string
+        default: ""
+    executor: ddtrace_dev
+    parallelism: 4
+    steps:
+      - run_tox_scenario:
+          pattern: <<parameters.pattern>>
+
+  run_tox_contrib_job_small:
+    parameters:
+      pattern:
+        type: string
+        default: ""
+    executor: ddtrace_dev_small
+    parallelism: 1
+    steps:
+      - run_tox_scenario:
+          pattern: <<parameters.pattern>>
+
+  run_test_machine_executor:
     parameters:
       pattern:
         type: string
@@ -305,14 +327,26 @@ jobs:
     steps:
       - run_test:
           pattern: <<parameters.pattern>>
+          snapshot: true
 
-  run_test_job_contrib_job:
+  run_test_contrib_job:
     parameters:
       pattern:
         type: string
         default: ""
     executor: ddtrace_dev
     parallelism: 4
+    steps:
+      - run_test:
+          pattern: <<parameters.pattern>>
+
+  run_test_contrib_job_small:
+    parameters:
+      pattern:
+        type: string
+        default: ""
+    executor: ddtrace_dev_small
+    parallelism: 1
     steps:
       - run_test:
           pattern: <<parameters.pattern>>
@@ -435,12 +469,6 @@ jobs:
       - run_test:
           pattern: 'appsec'
           snapshot: true
-
-  internal:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: "internal"
 
   tracer:
     <<: *contrib_job
@@ -600,19 +628,6 @@ jobs:
             mv .riot .ddriot
             ./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'
 
-  vendor:
-    <<: *contrib_job_small
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_test:
-          pattern: 'vendor'
-
-  futures:
-    <<: *contrib_job_small
-    steps:
-      - run_tox_scenario:
-          pattern: '^futures_contrib-'
 
   boto:
     <<: *machine_executor
@@ -633,18 +648,6 @@ jobs:
           store_coverage: false
           pattern: 'ddtracerun'
 
-  test_logging:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: 'test_logging'
-
-  asyncio:
-    <<: *contrib_job_small
-    steps:
-      - run_tox_scenario:
-          pattern: '^asyncio_contrib-'
-
   asyncpg:
     <<: *machine_executor
     steps:
@@ -652,12 +655,6 @@ jobs:
           pattern: 'asyncpg'
           snapshot: true
           docker_services: 'postgres'
-
-  pylons:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: 'pylons'
 
   aiohttp:
     <<: *machine_executor
@@ -678,23 +675,6 @@ jobs:
           snapshot: true
           docker_services: 'httpbin_local'
 
-  asgi:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: 'asgi$'
-
-  tornado:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^tornado_contrib-'
-
-  bottle:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^bottle_contrib\(_autopatch\)\?-'
 
   cassandra:
     <<: *contrib_job
@@ -739,12 +719,6 @@ jobs:
       - run_tox_scenario:
           pattern: '^consul_contrib-'
 
-  dogpile_cache:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^dogpile_contrib-'
-
   elasticsearch:
     <<: *machine_executor
     parallelism: 4
@@ -753,12 +727,6 @@ jobs:
           pattern: 'elasticsearch'
           snapshot: true
           docker_services: 'elasticsearch'
-
-  falcon:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: 'falcon'
 
   django:
     <<: *machine_executor
@@ -769,13 +737,6 @@ jobs:
           snapshot: true
           docker_services: "memcached redis postgres"
 
-  django_hosts:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'django_hosts$'
-          snapshot: true
-
   djangorestframework:
     <<: *machine_executor
     parallelism: 6
@@ -785,12 +746,6 @@ jobs:
           snapshot: true
           docker_services: "memcached redis"
 
-  fastapi:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "fastapi"
-          snapshot: true
 
   flask:
     <<: *machine_executor
@@ -810,20 +765,6 @@ jobs:
     steps:
       - run_tox_scenario:
           pattern: '^gevent_contrib-'
-
-  graphene:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "graphene"
-          snapshot: true
-
-  graphql:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "graphql"
-          snapshot: true
 
   grpc:
     <<: *machine_executor
@@ -856,12 +797,6 @@ jobs:
           pattern: 'mariadb$'
           snapshot: true
           docker_services: "mariadb"
-
-  molten:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^molten_contrib-'
 
   mysqlconnector:
     <<: *contrib_job
@@ -902,18 +837,6 @@ jobs:
       - run_tox_scenario:
           pattern: '^pylibmc_contrib-'
 
-  pytest:
-    executor: ddtrace_dev
-    steps:
-      - run_test:
-          pattern: 'pytest$'
-
-  pytestbdd:
-    executor: ddtrace_dev
-    steps:
-      - run_test:
-          pattern: 'pytest-bdd'
-
   pymemcache:
     <<: *contrib_job
     docker:
@@ -941,27 +864,6 @@ jobs:
       - run_test:
           pattern: "pymongo"
 
-  pynamodb:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: "pynamodb"
-
-  pyodbc:
-    <<: *contrib_job
-    docker:
-      - image: *ddtrace_dev_image
-    steps:
-      - run_tox_scenario:
-          pattern: '^pyodbc_contrib-'
-
-  pyramid:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: 'pyramid'
-          snapshot: true
-
   pyramid_latest:
     <<: *machine_executor
     steps:
@@ -979,32 +881,12 @@ jobs:
       - run_test:
           pattern: "requests"
 
-  requestsgevent:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^requests_gevent_contrib-'
-
-  sanic:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "sanic"
-          snapshot: true
-
   snowflake:
     <<: *machine_executor
     parallelism: 4
     steps:
       - run_test:
           pattern: "snowflake"
-          snapshot: true
-
-  starlette:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "starlette"
           snapshot: true
 
   sqlalchemy:
@@ -1017,12 +899,6 @@ jobs:
       - run_test:
           wait: postgres mysql
           pattern: "sqlalchemy"
-
-  dbapi:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^dbapi_contrib-'
 
   psycopg:
     <<: *machine_executor
@@ -1146,13 +1022,6 @@ jobs:
           wait: vertica
           pattern: '^vertica_contrib-'
 
-  wsgi:
-    <<: *machine_executor
-    steps:
-      - run_test:
-          pattern: "wsgi"
-          snapshot: true
-
   kombu:
     <<: *contrib_job
     parallelism: 7
@@ -1164,36 +1033,12 @@ jobs:
           wait: rabbitmq
           pattern: '^kombu_contrib-'
 
-  sqlite3:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^sqlite3_contrib-'
-
   benchmarks:
     <<: *contrib_job
     steps:
       - run_test:
           store_coverage: false
           pattern: '^benchmarks'
-
-  jinja2:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: 'jinja2'
-
-  mako:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: 'mako'
-
-  algoliasearch:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^algoliasearch_contrib-'
 
   build_docs:
     # build documentation and store as an artifact
@@ -1240,23 +1085,83 @@ workflows:
       # Docs
       - build_docs: *requires_pre_check
 
-      - run_test_job_contrib_job:
+      - run_test_contrib_job:
           requires:
             - pre_check
             - ccheck
             - build_base_venvs
           matrix:
             parameters:
-              pattern: ["aiobotocore"]
+              pattern:
+                - 'jinja2'
+                - "pynamodb"
+                - 'falcon'
+                - 'internal'
 
-      - run_test_job_machine_executor:
+      - run_test_contrib_job_small:
           requires:
             - pre_check
             - ccheck
             - build_base_venvs
           matrix:
             parameters:
-              pattern: ["aiohttp", "aiomysql"]
+              pattern:
+                - 'vendor'
+                - 'test_logging'
+                - 'pylons'
+                - 'mako'
+                - 'asgi$'
+                - 'pytest$'
+                - 'pytest-bdd'
+
+      - run_test_machine_executor:
+          requires:
+            - pre_check
+            - ccheck
+            - build_base_venvs
+          matrix:
+            parameters:
+              pattern:
+                - "aiohttp"
+                - "aiomysql"
+                - "fastapi"
+                - "django_hosts$"
+                - "graphene"
+                - "graphql"
+                - 'pyramid'
+                - "sanic"
+                - "starlette"
+                - "wsgi"
+
+      - run_tox_contrib_job:
+          requires:
+            - pre_check
+            - ccheck
+            - build_base_venvs
+          matrix:
+            parameters:
+              pattern:
+                - '^sqlite3_contrib-'
+                - '^algoliasearch_contrib-'
+                - '^requests_gevent_contrib-'
+                - '^molten_contrib-'
+                - '^dogpile_contrib-'
+                - '^bottle_contrib\(_autopatch\)\?-'
+                - '^tornado_contrib-'
+                - '^pyodbc_contrib-'
+                - '^dbapi_contrib-'
+
+      - run_tox_contrib_job_small:
+          requires:
+            - pre_check
+            - ccheck
+            - build_base_venvs
+          matrix:
+            parameters:
+              pattern:
+                - '^futures_contrib-'
+                - '^asyncio_contrib-'
+
       # Integration test suites
 
       # - profile-windows-27: *requires_pre_check
@@ -1278,92 +1183,7 @@ workflows:
       - build_latest_venvs
       - aiobotocore_latest: *requires_latest_venvs
       - aiohttp_latest: *requires_latest_venvs
-      # - aiomysql_latest
-      # - aiopg_latest
-      # - aioredis_latest
-      # - asyncio_latest
-      # - asyncpg_latest
-      # - algoliasearch_latest
-      # - asgi_latest
-      # - benchmarks_latest
-      # - boto_latest
-      # - bottle_latest
-      # - cassandra_latest
-      # - celery_latest
-      # - cherrypy_latest
-      # - consul_latest
-      # - dbapi_latest
-      # - ddtracerun_latest
-      # - django_latest
-      # - django_hosts_latest
-      # - djangorestframework_latest
-      # - dogpile_cache_latest
-      # - elasticsearch_latest
-      # - falcon_latest
-      # - fastapi_latest
-      # - flask_latest
-      # - futures_latest
-      # - gevent_latest
-      # - graphene_latest
-      # - graphql_latest
-      # - grpc_latest
-      # - httplib_latest
-      # - httpx_latest
-      # - integration_agent5_latest
-      # - integration_agent_latest
-      # - integration_testagent_latest
-      # - internal_latest
-      # - vendor_latest
-      # - profile_latest
-      # - jinja2_latest
-      # - kombu_latest
-      # - mako_latest
-      # - mariadb_latest
-      # - molten_latest
-      # - mongoengine_latest
-      # - mysqlconnector_latest
-      # - mysqlpython_latest
-      # - opentracer_latest
-      # - psycopg_latest
-      # - pylibmc_latest
-      # - pylons_latest
-      # - pymemcache_latest
-      # - pymongo_latest
-      # - pymysql_latest
-      # - pynamodb_latest
-      # - pyodbc_latest
       - pyramid_latest: *requires_latest_venvs
-      # - pytest_latest
-      # - pytestbdd_latest
-      # - aredis_latest
-      # - yaaredis_latest
-      # - redis_latest
-      # - rediscluster_latest
-      # - requests_latest
-      # - rq_latest
-      # - sanic_latest
-      # - snowflake_latest
-      # - starlette_latest
-      # - sqlalchemy_latest
-      # - sqlite3_latest
-      # - test_logging_latest
-      # - tornado_latest
-      # - tracer_latest
-      # - telemetry_latest
-      # - debugger_latest
-      # - appsec_latest
-      # - urllib3_latest
-      # - vertica_latest
-      # - wsgi_latest
-      # # - profile-windows-27_latest
-      # - profile-windows-35_latest
-      # - profile-windows-36_latest
-      # # - profile-windows-37_latest
-      # - profile-windows-38_latest
-      # - profile-windows-39_latest
-      # - profile-windows-310_latest
-      # # Final reports
-      # - coverage_report_latest
 
   test_nightly:
     <<: *workflow_test
