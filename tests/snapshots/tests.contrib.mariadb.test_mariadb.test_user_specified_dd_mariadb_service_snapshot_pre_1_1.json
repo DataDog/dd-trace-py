@@ -1,7 +1,7 @@
 [[
   {
     "name": "mariadb.query",
-    "service": "mariadb",
+    "service": "mysvc",
     "resource": "SELECT 1",
     "trace_id": 0,
     "span_id": 1,
@@ -11,7 +11,7 @@
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
-      "runtime-id": "0e9890fbb9d544048b5861934675132d"
+      "runtime-id": "e5b6979ba7634866812c03eb5d59bb3d"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -22,8 +22,8 @@
       "db.rowcount": 0,
       "out.port": 3306,
       "sql.rows": 0,
-      "system.pid": 5863
+      "system.pid": 4762
     },
-    "duration": 868000,
-    "start": 1633039294322557000
+    "duration": 2261500,
+    "start": 1666890489173139292
   }]]
