@@ -2,7 +2,8 @@ import ctypes
 import ctypes.util
 from enum import IntEnum
 import os
-from platform import system, machine
+from platform import machine
+from platform import system
 from typing import Any
 from typing import Optional
 from typing import Union
