@@ -103,6 +103,11 @@ class LibDDWaf_Download(BuildPyCommand):
         }
         SUFFIX = TRANSLATE_SUFFIX[current_os]
 
+        if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
+            return
+
+        os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
+
         for arch in AVAILABLE_RELEASES[current_os]:
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
 
@@ -130,7 +135,6 @@ class LibDDWaf_Download(BuildPyCommand):
                 print("extracting dylib:", [c.name for c in dynfiles])
                 tar.extractall(members=dynfiles, path=HERE)
 
-                os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
                 os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
                 # cleaning unwanted files
                 tar.close()
