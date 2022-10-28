@@ -1,9 +1,11 @@
 import contextlib
 from contextlib import contextmanager
 import inspect
+import json
 import os
 import subprocess
 import sys
+import time
 from typing import List
 
 import attr
@@ -840,7 +842,7 @@ class SnapshotTest(object):
 
 
 @contextmanager
-def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants=None):
+def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants=None, wait_for_num_traces=None):
     # Use variant that applies to update test token. One must apply. If none
     # apply, the test should have been marked as skipped.
     if variants:
@@ -895,6 +897,27 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
             if async_mode:
                 del tracer._writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
+
+        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
+
+        # Wait for the traces to be available
+        if wait_for_num_traces is not None:
+            traces = []
+            for i in range(20):
+                try:
+                    conn.request("GET", "/test/session/traces?test_session_token=%s" % token)
+                    r = conn.getresponse()
+                    if r.status == 200:
+                        traces = json.loads(r.read())
+                        if len(traces) == wait_for_num_traces:
+                            break
+                except Exception:
+                    pass
+                time.sleep(0.1)
+            else:
+                pytest.fail(
+                    "Expected %r trace(s), got %r:\n%s" % (wait_for_num_traces, len(traces), traces), pytrace=False
+                )
 
         # Query for the results of the test.
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)

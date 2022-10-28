@@ -167,7 +167,7 @@ def test_configure_service_name_env():
         with snapshot_context(token=token):
             httpx.get(url)
 
-        with snapshot_context(token=token):
+        with snapshot_context(wait_for_num_traces=1, token=token):
             async with httpx.AsyncClient() as client:
                 await client.get(url)
 
@@ -201,7 +201,7 @@ def test_configure_global_service_name_env():
         with snapshot_context(token=token):
             httpx.get(url)
 
-        with snapshot_context(token=token):
+        with snapshot_context(wait_for_num_traces=1, token=token):
             async with httpx.AsyncClient() as client:
                 await client.get(url)
 
@@ -218,11 +218,11 @@ async def test_get_500(snapshot_context):
         We mark the span as an error
     """
     url = get_url("/status/500")
-    with snapshot_context():
+    with snapshot_context(wait_for_num_traces=1):
         resp = httpx.get(url)
         assert resp.status_code == 500
 
-    with snapshot_context():
+    with snapshot_context(wait_for_num_traces=1):
         async with httpx.AsyncClient() as client:
             resp = await client.get(url)
             assert resp.status_code == 500
@@ -237,11 +237,11 @@ async def test_split_by_domain(snapshot_context):
     url = get_url("/status/200")
 
     with override_config("httpx", {"split_by_domain": True}):
-        with snapshot_context():
+        with snapshot_context(wait_for_num_traces=1):
             resp = httpx.get(url)
             assert resp.status_code == 200
 
-        with snapshot_context():
+        with snapshot_context(wait_for_num_traces=1):
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url)
                 assert resp.status_code == 200
@@ -256,11 +256,11 @@ async def test_trace_query_string(snapshot_context):
     url = get_url("/status/200?some=query&string=args")
 
     with override_http_config("httpx", {"trace_query_string": True}):
-        with snapshot_context():
+        with snapshot_context(wait_for_num_traces=1):
             resp = httpx.get(url)
             assert resp.status_code == 200
 
-        with snapshot_context():
+        with snapshot_context(wait_for_num_traces=1):
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url)
                 assert resp.status_code == 200
@@ -280,11 +280,11 @@ async def test_request_headers(snapshot_context):
 
     try:
         config.httpx.http.trace_headers(["Some-Request-Header", "Some-Response-Header"])
-        with snapshot_context():
+        with snapshot_context(wait_for_num_traces=1):
             resp = httpx.get(url, headers=headers)
             assert resp.status_code == 200
 
-        with snapshot_context():
+        with snapshot_context(wait_for_num_traces=1):
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=headers)
                 assert resp.status_code == 200
