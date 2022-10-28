@@ -1,4 +1,5 @@
 import ctypes
+import ctypes.util
 from enum import IntEnum
 import os
 from platform import system
@@ -24,6 +25,9 @@ FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
 #
 
 try:
+    if system() == "Linux":
+        ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
+
     ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", "lib", "libddwaf." + FILE_EXTENSION))
 except OSError as e:
     error = "_DIRNAME " + os.path.dirname(__file__) + " exists:" + str(os.path.exists(os.path.dirname(__file__))) + "\n"
