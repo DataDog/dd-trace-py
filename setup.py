@@ -130,7 +130,7 @@ class LibDDWaf_Download(BuildPyCommand):
                 print("extracting dylib:", [c.name for c in dynfiles])
                 tar.extractall(members=dynfiles, path=HERE)
 
-                os.makedirs(arch_dir)
+                os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
                 os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
                 # cleaning unwanted files
                 tar.close()
