@@ -1,8 +1,8 @@
 import os
 import platform
+import shutil
 import sys
 import tarfile
-import shutil
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
@@ -17,10 +17,11 @@ import Cython.Distutils
 
 
 if sys.version_info >= (3, 0):
-    from urllib.request import urlretrieve
     from urllib.error import HTTPError
+    from urllib.request import urlretrieve
 else:
     from urllib import urlretrieve
+
     from urllib2 import HTTPError
 
 
@@ -75,8 +76,9 @@ class Tox(TestCommand):
 
     def run_tests(self):
         # import here, cause outside the eggs aren't loaded
-        import tox
         import shlex
+
+        import tox
 
         args = self.tox_args
         if args:
