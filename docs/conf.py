@@ -722,7 +722,6 @@ class DDTraceConfigurationOptionsDirective(rst.Directive):
         node = nodes.section()
         node.document = self.state.document
         self.state.nested_parse(results, 0, node)
-        # nested_parse_with_titles(self.state, results, node)
         return node.children
 
 
