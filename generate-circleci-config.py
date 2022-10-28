@@ -510,21 +510,21 @@ circleci_config = {
         #     "steps": [{"run_test": {"pattern": "aiohttp", "snapshot": True, "docker_services": "httpbin_local"}}],
         #     "parallelism": 6,
         # },
-        # "aiohttp_latest": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [
-        #         {
-        #             "run_test": {
-        #                 "pattern": "aiohttp",
-        #                 "riotfile": "riotfile-latest.py",
-        #                 "snapshot": True,
-        #                 "docker_services": "httpbin_local",
-        #             }
-        #         }
-        #     ],
-        #     "parallelism": 5,
-        # },
+        "aiohttp_latest": {
+            "machine": {"image": "ubuntu-2004:current"},
+            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+            "steps": [
+                {
+                    "run_test": {
+                        "pattern": "aiohttp",
+                        "riotfile": "riotfile-latest.py",
+                        "snapshot": True,
+                        "docker_services": "httpbin_local",
+                    }
+                }
+            ],
+            "parallelism": 5,
+        },
         # "cassandra": {
         #     "executor": "ddtrace_dev",
         #     "parallelism": 4,
