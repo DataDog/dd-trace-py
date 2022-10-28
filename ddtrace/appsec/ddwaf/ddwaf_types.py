@@ -34,7 +34,7 @@ except OSError as e:
         + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf", "lib", "libddwaf." + FILE_EXTENSION)))
         + "\n"
     )
-    e.args = (e.args[0] + "\n" + error,) + e.args[1:]
+    e.args = (str(e.args[0]) + "\n" + str(error),) + e.args[1:]
     raise e
 #
 # Constants
