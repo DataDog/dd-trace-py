@@ -1,6 +1,8 @@
 """
 Generic dbapi tracing code.
 """
+from typing import TYPE_CHECKING
+
 import six
 
 from ddtrace import config
@@ -14,10 +16,18 @@ from ...internal.compat import PY2
 from ...internal.logger import get_logger
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
+from ...internal.utils import set_argument_value
 from ...pin import Pin
+from ...settings import _database_monitoring
 from ...vendor import wrapt
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped
+
+
+if TYPE_CHECKING:
+    from typing import Any
+    from typing import Dict
+    from typing import Tuple
 
 
 log = get_logger(__name__)
@@ -94,6 +104,7 @@ class TracedCursor(wrapt.ObjectProxy):
             if not isinstance(self, FetchTracedCursor):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
+            args, kwargs = _inject_dbm_comment_in_query_arg(s, args, kwargs)
             try:
                 return method(*args, **kwargs)
             finally:
@@ -299,3 +310,17 @@ def _get_vendor(conn):
 
 def _get_module_name(conn):
     return conn.__class__.__module__.split(".")[0]
+
+
+def _inject_dbm_comment_in_query_arg(dbspan, args, kwargs):
+    # type: (...) -> Tuple[Tuple[Any, ...], Dict[str, Any]]
+    dbm_comment = _database_monitoring._get_dbm_comment(dbspan)
+    if dbm_comment is None:
+        return args, kwargs
+
+    # if dbm comment is not None prepend it to the query
+    query = get_argument_value(args, kwargs, 0, "query")
+    query_with_dbm_tags = dbm_comment + query
+    # replace the original query with query_with_dbm_tags
+    args, kwargs = set_argument_value(args, kwargs, 0, "query", query_with_dbm_tags)
+    return args, kwargs

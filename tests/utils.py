@@ -474,9 +474,9 @@ class DummyTracer(Tracer):
     DummyTracer is a tracer which uses the DummyWriter by default
     """
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(DummyTracer, self).__init__()
-        self.configure()
+        self.configure(*args, **kwargs)
 
     @property
     def agent_url(self):
