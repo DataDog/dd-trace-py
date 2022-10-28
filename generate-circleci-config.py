@@ -4,15 +4,12 @@
 import logging
 import sys
 
+import yaml
+from riotfile import venv
+from riotfile import Venv
+
 logger = logging.getLogger()
 
-try:
-    import yaml
-    from riotfile import venv, Venv
-
-except:
-    logger.exception("Yaml not found")
-    sys.exit(1)
 
 def get_jobs_from_riot(venv: Venv, result_dict={}) -> dict:
     if venv.ci:
@@ -22,6 +19,7 @@ def get_jobs_from_riot(venv: Venv, result_dict={}) -> dict:
         get_jobs_from_riot(v, result_dict)
 
     return result_dict
+
 
 defined_jobs = get_jobs_from_riot(venv)
 
@@ -746,7 +744,6 @@ circleci_config = {
         },
         "aiobotocore": {
             "executor": "ddtrace_dev",
-
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "palazzem/moto:1.0.1"}],
             "steps": [{"run_test": {"pattern": "aiobotocore"}}],
         },
@@ -1318,7 +1315,6 @@ circleci_config = {
     },
 }
 
-circleci_config['jobs'].update(defined_jobs)
+circleci_config["jobs"].update(defined_jobs)
 
-
-yaml.dump(circleci_config, sys.stdout, default_flow_style = False)
+yaml.dump(circleci_config, sys.stdout, default_flow_style=False)
