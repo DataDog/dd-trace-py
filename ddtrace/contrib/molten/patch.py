@@ -92,7 +92,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     ) as span:
 
         # set component tag equal to name of integration
-        span.set_tag(COMPONENT, config.molten.integration_name)
+        span.set_tag_str(COMPONENT, config.molten.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled

@@ -52,7 +52,7 @@ def wrap_function(name):
 
         with pin.tracer.trace(consulx.CMD, service=pin.service, resource=resource, span_type=SpanTypes.HTTP) as span:
             # set component tag equal to name of integration
-            span.set_tag(COMPONENT, config.consul.integration_name)
+            span.set_tag_str(COMPONENT, config.consul.integration_name)
 
             span.set_tag(SPAN_MEASURED_KEY)
             rate = config.consul.get_analytics_sample_rate()

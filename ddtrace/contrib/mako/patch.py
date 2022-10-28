@@ -53,7 +53,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
 
     with pin.tracer.trace(func_name(wrapped), pin.service, span_type=SpanTypes.TEMPLATE) as span:
         # set component tag equal to name of integration
-        span.set_tag(COMPONENT, "mako")
+        span.set_tag_str(COMPONENT, "mako")
 
         span.set_tag(SPAN_MEASURED_KEY)
         try:

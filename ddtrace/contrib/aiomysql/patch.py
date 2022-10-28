@@ -59,7 +59,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             self._self_datadog_name, service=service, resource=resource, span_type=SpanTypes.SQL
         ) as s:
             # set component tag equal to name of integration
-            s.set_tag(COMPONENT, config.aiomysql.integration_name)
+            s.set_tag_str(COMPONENT, config.aiomysql.integration_name)
 
             s.set_tag(SPAN_MEASURED_KEY)
             s.set_tag(sql.QUERY, resource)

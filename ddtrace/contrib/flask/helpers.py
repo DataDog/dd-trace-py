@@ -37,7 +37,7 @@ def simple_tracer(name, span_type=None):
             name, service=trace_utils.int_service(pin, config.flask, pin), span_type=span_type
         ) as span:
             # set component tag equal to name of integration
-            span.set_tag(COMPONENT, config.flask.integration_name)
+            span.set_tag_str(COMPONENT, config.flask.integration_name)
 
             return wrapped(*args, **kwargs)
 

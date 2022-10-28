@@ -209,7 +209,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 span_type=conf.get("span_type"),
             ) as span:
                 # set component tag equal to name of integration
-                span.set_tag(COMPONENT, config.integration_name)
+                span.set_tag_str(COMPONENT, config.integration_name)
 
                 if conf.get("measured", False):
                     span.set_tag(SPAN_MEASURED_KEY)

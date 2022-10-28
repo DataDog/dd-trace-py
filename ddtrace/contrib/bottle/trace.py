@@ -50,7 +50,7 @@ class TracePlugin(object):
                 span_type=SpanTypes.WEB,
             ) as s:
                 # set component tag equal to name of integration
-                s.set_tag(COMPONENT, config.bottle.integration_name)
+                s.set_tag_str(COMPONENT, config.bottle.integration_name)
 
                 s.set_tag(SPAN_MEASURED_KEY)
                 # set analytics sample rate with global config enabled

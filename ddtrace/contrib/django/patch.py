@@ -124,7 +124,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
     # get the original function method
     with pin.tracer.trace("django.cache", span_type=SpanTypes.CACHE, service=config.django.cache_service_name) as span:
         # set component tag equal to name of integration
-        span.set_tag(COMPONENT, config.django.integration_name)
+        span.set_tag_str(COMPONENT, config.django.integration_name)
 
         # update the resource name and tag the cache backend
         span.resource = utils.resource_from_cache_prefix(func_name(func), instance)
@@ -218,7 +218,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         with pin.tracer.trace(name, resource=resource) as s:
             # set component tag equal to name of integration
-            s.set_tag(COMPONENT, config.django.integration_name)
+            s.set_tag_str(COMPONENT, config.django.integration_name)
 
             if ignored_excs:
                 for exc in ignored_excs:
@@ -232,7 +232,7 @@ def traced_process_exception(django, name, resource=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         with pin.tracer.trace(name, resource=resource) as span:
             # set component tag equal to name of integration
-            span.set_tag(COMPONENT, config.django.integration_name)
+            span.set_tag_str(COMPONENT, config.django.integration_name)
 
             resp = func(*args, **kwargs)
 
@@ -337,7 +337,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         span_type=SpanTypes.WEB,
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag(COMPONENT, config.django.integration_name)
+        span.set_tag_str(COMPONENT, config.django.integration_name)
 
         utils._before_request_tags(pin, span, request)
         span._metrics[SPAN_MEASURED_KEY] = 1
@@ -366,7 +366,7 @@ def traced_template_render(django, pin, wrapped, instance, args, kwargs):
 
     with pin.tracer.trace("django.template.render", resource=resource, span_type=http.TEMPLATE) as span:
         # set component tag equal to name of integration
-        span.set_tag(COMPONENT, config.django.integration_name)
+        span.set_tag_str(COMPONENT, config.django.integration_name)
 
         if template_name:
             span.set_tag_str("django.template.name", template_name)

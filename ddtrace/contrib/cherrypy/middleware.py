@@ -78,7 +78,7 @@ class TraceTool(cherrypy.Tool):
         )
 
         # set component tag equal to name of integration
-        cherrypy.request._datadog_span.set_tag(COMPONENT, config.cherrypy.integration_name)
+        cherrypy.request._datadog_span.set_tag_str(COMPONENT, config.cherrypy.integration_name)
 
     def _after_error_response(self):
         span = getattr(cherrypy.request, "_datadog_span", None)

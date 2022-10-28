@@ -70,7 +70,7 @@ class _PytestBddPlugin:
                 activate=True,
             )
             # set component tag equal to name of integration
-            span.set_tag(COMPONENT, "pytest_bdd")
+            span.set_tag_str(COMPONENT, "pytest_bdd")
 
             span.set_tag(test.FRAMEWORK, FRAMEWORK)
             span.set_tag(test.FRAMEWORK_VERSION, self.framework_version)

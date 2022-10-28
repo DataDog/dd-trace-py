@@ -75,7 +75,7 @@ def _get_perform_request(elasticsearch):
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
             # set component tag equal to name of integration
-            span.set_tag(COMPONENT, config.elasticsearch.integration_name)
+            span.set_tag_str(COMPONENT, config.elasticsearch.integration_name)
 
             span.set_tag(SPAN_MEASURED_KEY)
 

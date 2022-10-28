@@ -30,7 +30,7 @@ class TraceMiddleware(object):
             span_type=SpanTypes.WEB,
         )
         # set component tag equal to name of integration
-        span.set_tag(COMPONENT, config.falcon.integration_name)
+        span.set_tag_str(COMPONENT, config.falcon.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
