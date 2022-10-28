@@ -36,7 +36,7 @@ def test_get_dbm_comment_disabled_mode():
 
     dbspan = tracer.trace("dbspan", service="orders-db")
     sqlcomment = _database_monitoring._get_dbm_comment(dbspan)
-    assert sqlcomment == ""
+    assert sqlcomment is None
     # ensure that dbm tag is not set (only required in full mode)
     assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
 
