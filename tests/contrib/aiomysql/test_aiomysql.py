@@ -133,3 +133,46 @@ asyncio.run(test())""",
     )
     assert status == 0, err
     assert out == err == b""
+
+
+@pytest.mark.asyncio
+async def test_dbm_context_propagation(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env.update(
+        dict(
+            DD_TRACE_SQL_COMMENT_INJECTION_MODE="service",
+            DD_SERVICE="orders-app",
+            DD_ENV="staging",
+            DD_VERSION="v7343437-d7ac743",
+        )
+    )
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+import asyncio
+import aiomysql
+import mock
+from ddtrace.contrib.aiomysql.patch import AIOTracedCursor
+from ddtrace import Pin
+from tests.contrib.aiomysql.test_aiomysql import AIOMYSQL_CONFIG
+
+
+async def test():
+    cursor = mock.AsyncMock()
+    traced_cursor = AIOTracedCursor(cursor, Pin("orders-db"))
+
+    execute_query = "select 'dba4x4'"
+    await traced_cursor.execute(execute_query)
+
+    executemany_query = "select ?"
+    executemany_args = ["dba4x4", "Jellysmack"]
+    await traced_cursor.executemany(executemany_query, executemany_args)
+
+    dbm_comment = " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
+    cursor.execute.assert_called_once_with(dbm_comment + execute_query)
+    cursor.executemany.assert_called_once_with(dbm_comment + executemany_query, executemany_args)
+
+asyncio.run(test())""",
+        env=env,
+    )
+    assert status == 0, err
+    assert out == err == b""

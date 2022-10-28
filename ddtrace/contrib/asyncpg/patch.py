@@ -5,6 +5,7 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from ...constants import SPAN_MEASURED_KEY
+from ...contrib import dbapi
 from ...ext import SpanTypes
 from ...ext import db
 from ...ext import net
@@ -86,6 +87,7 @@ async def _traced_query(pin, method, query, args, kwargs):
     ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)
+        args, kwargs = dbapi._inject_dbm_comment_in_query_arg(span, args, kwargs)
         return await method(*args, **kwargs)
 
 

@@ -26,7 +26,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         self._datadog_name = "postgres.query"
 
     @asyncio.coroutine
-    def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
+    def _trace_method(self, method, resource, extra_tags, propagate_dbm_context, *args, **kwargs):
         pin = Pin.get_from(self)
         if not pin or not pin.enabled():
             result = yield from method(*args, **kwargs)
@@ -42,6 +42,8 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiopg.get_analytics_sample_rate())
 
+            if propagate_dbm_context:
+                args, kwargs = dbapi._inject_dbm_comment_in_query_arg(s, args, kwargs)
             try:
                 result = yield from method(*args, **kwargs)
                 return result
@@ -53,18 +55,18 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
         result = yield from self._trace_method(
-            self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
+            self.__wrapped__.executemany, query, {"sql.executemany": "true"}, True, query, *args, **kwargs
         )
         return result
 
     @asyncio.coroutine
     def execute(self, query, *args, **kwargs):
-        result = yield from self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
+        result = yield from self._trace_method(self.__wrapped__.execute, query, {}, True, query, *args, **kwargs)
         return result
 
     @asyncio.coroutine
     def callproc(self, proc, args):
-        result = yield from self._trace_method(self.__wrapped__.callproc, proc, {}, proc, args)
+        result = yield from self._trace_method(self.__wrapped__.callproc, proc, {}, False, proc, args)
         return result
 
     def __aiter__(self):

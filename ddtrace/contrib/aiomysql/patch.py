@@ -65,6 +65,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiomysql.get_analytics_sample_rate())
 
+            args, kwargs = dbapi._inject_dbm_comment_in_query_arg(s, args, kwargs)
             try:
                 result = await method(*args, **kwargs)
                 return result
