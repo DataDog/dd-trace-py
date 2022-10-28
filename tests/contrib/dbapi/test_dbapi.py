@@ -49,7 +49,7 @@ class TestTracedCursor(TracerTestCase):
         spans = self.tracer.pop()
         assert len(spans) == 1
 
-        # The following operations should generates DBM comments
+        # The following operations should generate DBM comments
         traced_cursor.execute("SELECT * FROM db;")
         traced_cursor.executemany("SELECT * FROM db;", ())
 
