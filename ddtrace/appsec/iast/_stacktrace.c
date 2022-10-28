@@ -20,7 +20,8 @@
 #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
 #define GET_PREVIOUS(frame) frame->previous
 #define GET_FILENAME(frame) frame->current_frame->f_code->co_filename
-#define GET_LINENO(frame) PyCode_Addr2Line(frame->current_frame->f_code, PyFrame_GetLasti(_PyFrame_GetFrameObject(frame)))
+#define GET_LINENO(frame)                                                                                              \
+    PyCode_Addr2Line(frame->current_frame->f_code, PyFrame_GetLasti(_PyFrame_GetFrameObject(frame)))
 #else
 #define FrameType PyFrameObject
 #define GET_FRAME(tstate) tstate->frame
