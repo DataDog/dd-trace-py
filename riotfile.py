@@ -2,8 +2,11 @@
 from typing import List
 from typing import Tuple
 
-from riot import Venv
+from riot import Venv as RiotVenv
 from riot import latest
+
+import dataclasses
+from typing import Any, Dict
 
 
 SUPPORTED_PYTHON_VERSIONS = [
@@ -79,6 +82,11 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     max_version = str_to_version(max_version)
 
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
+
+
+@dataclasses.dataclass
+class Venv(RiotVenv):
+    ci: Dict[str, Any] = None
 
 
 venv = Venv(
@@ -222,8 +230,14 @@ venv = Venv(
             pkgs={
                 "pycryptodome": "<=3.15.0",
             },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "appsec", "snapshot": True}}],
+            },
         ),
         Venv(
+            name="benchmarks",
             pys=select_pys(),
             pkgs={
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
@@ -232,9 +246,14 @@ venv = Venv(
                 "py-cpuinfo": "~=8.0.0",
                 "msgpack": "<=1.0.4",
             },
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "steps": [{"run_test": {"store_coverage": False, "pattern": "^benchmarks"}}],
+            },
             venvs=[
                 Venv(
-                    name="benchmarks",
+                    name="benchmarks-gc",
                     command="pytest --no-cov --benchmark-warmup=on {cmdargs} tests/benchmarks",
                 ),
                 Venv(
@@ -274,6 +293,14 @@ venv = Venv(
             env={
                 "DD_REMOTE_CONFIGURATION_ENABLED": "false",
             },
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 7,
+                "steps": [
+                    {"run_test": {"pattern": "tracer"}},
+                    {"run_tox_scenario": {"pattern": "^py.\\+-tracer_test_http"}},
+                ],
+            },
         ),
         Venv(
             name="telemetry",
@@ -283,6 +310,11 @@ venv = Venv(
                 # httpretty v1.0 drops python 2.7 support
                 "httpretty": "==0.9.7",
             },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "telemetry", "snapshot": True, "store_coverage": False}}],
+            },
         ),
         Venv(
             name="integration",
@@ -291,22 +323,65 @@ venv = Venv(
             pkgs={"msgpack": "<=1.0.4"},
             venvs=[
                 Venv(
-                    name="integration-v5",
+                    name="integration_agent5",
                     env={
                         "AGENT_VERSION": "v5",
                     },
-                ),
-                Venv(
-                    name="integration-latest",
-                    env={
-                        "AGENT_VERSION": "latest",
+                    ci={
+                        "machine": {"image": "ubuntu-2004:current"},
+                        "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                        "steps": [
+                            {"attach_workspace": {"at": "."}},
+                            "checkout",
+                            {"start_docker_services": {"services": "ddagent5"}},
+                            {
+                                "run": {
+                                    "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-v5'\n"
+                                }
+                            },
+                        ],
                     },
                 ),
                 Venv(
-                    name="integration-snapshot",
+                    name="integration_agent",
+                    env={
+                        "AGENT_VERSION": "latest",
+                    },
+                    ci={
+                        "machine": {"image": "ubuntu-2004:current"},
+                        "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                        "steps": [
+                            {"attach_workspace": {"at": "."}},
+                            "checkout",
+                            {"start_docker_services": {"services": "ddagent"}},
+                            {
+                                "run": {
+                                    "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-latest'\n"
+                                }
+                            },
+                        ],
+                    },
+                ),
+                Venv(
+                    name="integration_testagent",
                     env={
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
+                    },
+                    ci={
+                        "machine": {"image": "ubuntu-2004:current"},
+                        "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                        "steps": [
+                            {"attach_workspace": {"at": "."}},
+                            "checkout",
+                            {"start_docker_services": {"env": "SNAPSHOT_CI=1", "services": "testagent"}},
+                            {
+                                "run": {
+                                    "environment": {"DD_TRACE_AGENT_URL": "http://localhost:9126"},
+                                    "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'\n",
+                                }
+                            },
+                        ],
                     },
                 ),
             ],
@@ -343,6 +418,12 @@ venv = Venv(
                 "redis": "<=3.5.3",
                 "gevent": "<=22.10.1",
             },
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "redis:4.0-alpine"}],
+                "steps": [{"run_test": {"store_coverage": False, "pattern": "ddtracerun"}}],
+            },
         ),
         Venv(
             name="debugger",
@@ -356,6 +437,7 @@ venv = Venv(
                     pkgs={"pytest-asyncio": "<=0.20.1"},
                 ),
             ],
+            ci={"executor": "ddtrace_dev", "parallelism": 7, "steps": [{"run_test": {"pattern": "debugger"}}]},
         ),
         Venv(
             name="vendor",
@@ -369,6 +451,11 @@ venv = Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
             pys=select_pys(),
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "httplib", "snapshot": True, "docker_services": "httpbin_local"}}],
+            },
         ),
         Venv(
             name="test_logging",
@@ -418,6 +505,16 @@ venv = Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
             pkgs={"more_itertools": "<8.11.0"},
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 7,
+                "docker": [
+                    {"image": "datadog/dd-trace-py:buster"},
+                    {"image": "redis:4.0-alpine"},
+                    {"image": "rabbitmq:3.7-alpine"},
+                ],
+                "steps": [{"run_test": {"pattern": "celery"}}],
+            },
             venvs=[
                 # Non-4.x celery should be able to use the older redis lib, since it locks to an older kombu
                 Venv(
@@ -554,6 +651,12 @@ venv = Venv(
         Venv(
             name="cherrypy",
             command="python -m pytest {cmdargs} tests/contrib/cherrypy",
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "cherrypy", "snapshot": True}}],
+                "parallelism": 6,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.10"),
@@ -656,6 +759,20 @@ venv = Venv(
                 "pylibmc": "<=1.6.3",
                 "python-memcached": "<=1.59",
             },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [
+                    {
+                        "run_test": {
+                            "pattern": "django$",
+                            "snapshot": True,
+                            "docker_services": "memcached redis postgres",
+                        }
+                    }
+                ],
+                "parallelism": 6,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.6"),
@@ -746,6 +863,20 @@ venv = Venv(
         Venv(
             name="djangorestframework",
             command="pytest {cmdargs} tests/contrib/djangorestframework",
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [
+                    {
+                        "run_test": {
+                            "pattern": "djangorestframework",
+                            "snapshot": True,
+                            "docker_services": "memcached redis",
+                        }
+                    }
+                ],
+                "parallelism": 6,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.6"),
@@ -792,6 +923,14 @@ venv = Venv(
         Venv(
             name="elasticsearch",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [
+                    {"run_test": {"pattern": "elasticsearch", "snapshot": True, "docker_services": "elasticsearch"}}
+                ],
+                "parallelism": 4,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.8"),
@@ -856,6 +995,21 @@ venv = Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
             pkgs={"blinker": "<=1.5", "requests": "<=2.28.1"},
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [
+                    {
+                        "run_test": {
+                            "store_coverage": False,
+                            "snapshot": True,
+                            "pattern": "flask",
+                            "docker_services": "memcached redis",
+                        }
+                    }
+                ],
+                "parallelism": 7,
+            },
             venvs=[
                 # Flask == 0.12.0
                 Venv(
@@ -1033,8 +1187,25 @@ venv = Venv(
             pkgs={"mako": ["<1.0.0", "~=1.0.0", "~=1.1.0", latest]},
         ),
         Venv(
-            name="mysql",
+            name="mysqlconnector",
             command="pytest {cmdargs} tests/contrib/mysql",
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [
+                    {"image": "datadog/dd-trace-py:buster"},
+                    {
+                        "image": "mysql:5.7",
+                        "environment": [
+                            "MYSQL_ROOT_PASSWORD=admin",
+                            "MYSQL_PASSWORD=test",
+                            "MYSQL_USER=test",
+                            "MYSQL_DATABASE=test",
+                        ],
+                    },
+                ],
+                "steps": [{"run_test": {"wait": "mysql", "pattern": "mysql"}}],
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.5"),
@@ -1181,6 +1352,27 @@ venv = Venv(
         Venv(
             name="sqlalchemy",
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [
+                    {"image": "datadog/dd-trace-py:buster"},
+                    {
+                        "image": "postgres:11-alpine",
+                        "environment": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=postgres"],
+                    },
+                    {
+                        "image": "mysql:5.7",
+                        "environment": [
+                            "MYSQL_ROOT_PASSWORD=admin",
+                            "MYSQL_PASSWORD=test",
+                            "MYSQL_USER=test",
+                            "MYSQL_DATABASE=test",
+                        ],
+                    },
+                ],
+                "steps": [{"run_test": {"wait": "postgres mysql", "pattern": "sqlalchemy"}}],
+            },
             venvs=[
                 Venv(
                     venvs=[
@@ -1261,6 +1453,12 @@ venv = Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
             venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest, "moto": "<1.0.0"})],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "^boto", "snapshot": True, "docker_services": "localstack"}}],
+                "parallelism": 4,
+            },
         ),
         Venv(
             name="botocore",
@@ -1306,6 +1504,11 @@ venv = Venv(
         Venv(
             name="mariadb",
             command="pytest {cmdargs} tests/contrib/mariadb",
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "mariadb$", "snapshot": True, "docker_services": "mariadb"}}],
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.10"),
@@ -1323,6 +1526,23 @@ venv = Venv(
         Venv(
             name="pymysql",
             command="pytest {cmdargs} tests/contrib/pymysql",
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [
+                    {"image": "datadog/dd-trace-py:buster"},
+                    {
+                        "image": "mysql:5.7",
+                        "environment": [
+                            "MYSQL_ROOT_PASSWORD=admin",
+                            "MYSQL_PASSWORD=test",
+                            "MYSQL_USER=test",
+                            "MYSQL_DATABASE=test",
+                        ],
+                    },
+                ],
+                "steps": [{"run_test": {"wait": "mysql", "pattern": "pymysql"}}],
+            },
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -1554,6 +1774,12 @@ venv = Venv(
             pkgs={
                 "googleapis-common-protos": latest,
             },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "grpc", "snapshot": True}}],
+                "parallelism": 7,
+            },
             venvs=[
                 # Versions between 1.14 and 1.20 have known threading issues
                 # See https://github.com/grpc/grpc/issues/18994
@@ -1680,6 +1906,12 @@ venv = Venv(
         Venv(
             name="rq",
             command="pytest tests/contrib/rq",
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "rq", "snapshot": True, "docker_services": "redis"}}],
+                "parallelism": 4,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="2.7"),
@@ -1731,10 +1963,20 @@ venv = Venv(
                     "<1.0.0",
                 ],
             },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "httpx", "snapshot": True, "docker_services": "httpbin_local"}}],
+            },
         ),
         Venv(
             name="urllib3",
             command="pytest {cmdargs} tests/contrib/urllib3",
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "urllib3", "snapshot": True, "docker_services": "httpbin_local"}}],
+            },
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.9"),
@@ -1748,6 +1990,15 @@ venv = Venv(
         ),
         Venv(
             name="cassandra",
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [
+                    {"image": "datadog/dd-trace-py:buster", "environment": {"CASS_DRIVER_NO_EXTENSIONS": 1}},
+                    {"image": "cassandra:3.11.7", "environment": ["MAX_HEAP_SIZE=512M", "HEAP_NEWSIZE=256M"]},
+                ],
+                "steps": [{"run_test": {"wait": "cassandra", "pattern": "cassandra"}}],
+            },
             venvs=[
                 # cassandra-driver does not officially support 3.10
                 # TODO: fix sporadically failing tests in cassandra-driver v3.25.0 and py3.10
@@ -1793,6 +2044,12 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/aiohttp",
             pkgs={
                 "pytest-aiohttp": [latest],
+            },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "aiohttp", "snapshot": True, "docker_services": "httpbin_local"}}],
+                "parallelism": 6,
             },
             venvs=[
                 Venv(
@@ -1920,12 +2177,25 @@ venv = Venv(
             name="rediscluster",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/rediscluster",
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [
+                    {"run_test": {"pattern": "rediscluster", "docker_services": "rediscluster", "snapshot": True}}
+                ],
+            },
             pkgs={
                 "redis-py-cluster": [">=1.3,<1.4", ">=2.0,<2.1", ">=2.1,<2.2", latest],
             },
         ),
         Venv(
             name="redis",
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"docker_services": "redis", "pattern": "redis$", "snapshot": True}}],
+                "parallelism": 4,
+            },
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -1966,6 +2236,12 @@ venv = Venv(
                     latest,
                 ],
             },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"docker_services": "redis", "pattern": "aredis$", "snapshot": True}}],
+                "parallelism": 4,
+            },
         ),
         Venv(
             name="yaaredis",
@@ -1977,6 +2253,12 @@ venv = Venv(
                     "~=2.0.0",
                     latest,
                 ],
+            },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"docker_services": "redis", "pattern": "yaaredis$", "snapshot": True}}],
+                "parallelism": 4,
             },
         ),
         Venv(
@@ -2111,6 +2393,11 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/asyncpg",
             pkgs={
                 "pytest-asyncio": "<=0.20.1",
+            },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "asyncpg", "snapshot": True, "docker_services": "postgres"}}],
             },
             venvs=[
                 Venv(

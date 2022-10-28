@@ -8,10 +8,22 @@ logger = logging.getLogger()
 
 try:
     import yaml
+    from riotfile import venv, Venv
+
 except:
     logger.exception("Yaml not found")
     sys.exit(1)
 
+def get_jobs_from_riot(venv: Venv, result_dict={}) -> dict:
+    if venv.ci:
+        result_dict[venv.name] = venv.ci
+
+    for v in venv.venvs:
+        get_jobs_from_riot(v, result_dict)
+
+    return result_dict
+
+defined_jobs = get_jobs_from_riot(venv)
 
 circleci_config = {
     "version": 2.1,
@@ -377,20 +389,22 @@ circleci_config = {
             "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
             "steps": [{"run_test": {"pattern": "appsec", "snapshot": True}}],
         },
-        "tracer": {
-            "executor": "ddtrace_dev",
-            "parallelism": 7,
-            "steps": [
-                {"run_test": {"pattern": "tracer"}},
-                {"run_tox_scenario": {"pattern": "^py.\\+-tracer_test_http"}},
-            ],
-        },
-        "telemetry": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "telemetry", "snapshot": True, "store_coverage": False}}],
-        },
-        "debugger": {"executor": "ddtrace_dev", "parallelism": 7, "steps": [{"run_test": {"pattern": "debugger"}}]},
+        # "tracer": {
+        #     "executor": "ddtrace_dev",
+        #     "parallelism": 7,
+        #     "steps": [
+        #         {"run_test": {"pattern": "tracer"}},
+        #         {"run_tox_scenario": {"pattern": "^py.\\+-tracer_test_http"}},
+        #     ],
+        # },
+        # "telemetry": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "telemetry", "snapshot": True, "store_coverage": False}}],
+        # },
+        # "debugger": {
+        #     "executor": "ddtrace_dev", "parallelism": 7, "steps": [{"run_test": {"pattern": "debugger"}}]
+        # },
         "opentracer": {
             "executor": "ddtrace_dev",
             "parallelism": 7,
@@ -434,194 +448,194 @@ circleci_config = {
             "resource_class": "large",
             "steps": [{"run_tox_scenario": {"store_coverage": False, "pattern": "^py.\\+-profile"}}],
         },
-        "integration_agent5": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [
-                {"attach_workspace": {"at": "."}},
-                "checkout",
-                {"start_docker_services": {"services": "ddagent5"}},
-                {"run": {"command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-v5'\n"}},
-            ],
-        },
-        "integration_agent": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [
-                {"attach_workspace": {"at": "."}},
-                "checkout",
-                {"start_docker_services": {"services": "ddagent"}},
-                {
-                    "run": {
-                        "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-latest'\n"
-                    }
-                },
-            ],
-        },
-        "integration_testagent": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [
-                {"attach_workspace": {"at": "."}},
-                "checkout",
-                {"start_docker_services": {"env": "SNAPSHOT_CI=1", "services": "testagent"}},
-                {
-                    "run": {
-                        "environment": {"DD_TRACE_AGENT_URL": "http://localhost:9126"},
-                        "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'\n",
-                    }
-                },
-            ],
-        },
-        "boto": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "^boto", "snapshot": True, "docker_services": "localstack"}}],
-            "parallelism": 4,
-        },
-        "ddtracerun": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "redis:4.0-alpine"}],
-            "steps": [{"run_test": {"store_coverage": False, "pattern": "ddtracerun"}}],
-        },
-        "asyncpg": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "asyncpg", "snapshot": True, "docker_services": "postgres"}}],
-        },
-        "aiohttp": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "aiohttp", "snapshot": True, "docker_services": "httpbin_local"}}],
-            "parallelism": 6,
-        },
-        "aiohttp_latest": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [
-                {
-                    "run_test": {
-                        "pattern": "aiohttp",
-                        "riotfile": "riotfile-latest.py",
-                        "snapshot": True,
-                        "docker_services": "httpbin_local",
-                    }
-                }
-            ],
-            "parallelism": 5,
-        },
-        "cassandra": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [
-                {"image": "datadog/dd-trace-py:buster", "environment": {"CASS_DRIVER_NO_EXTENSIONS": 1}},
-                {"image": "cassandra:3.11.7", "environment": ["MAX_HEAP_SIZE=512M", "HEAP_NEWSIZE=256M"]},
-            ],
-            "steps": [{"run_test": {"wait": "cassandra", "pattern": "cassandra"}}],
-        },
-        "celery": {
-            "executor": "ddtrace_dev",
-            "parallelism": 7,
-            "docker": [
-                {"image": "datadog/dd-trace-py:buster"},
-                {"image": "redis:4.0-alpine"},
-                {"image": "rabbitmq:3.7-alpine"},
-            ],
-            "steps": [{"run_test": {"pattern": "celery"}}],
-        },
-        "cherrypy": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "cherrypy", "snapshot": True}}],
-            "parallelism": 6,
-        },
+        # "integration_agent5": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [
+        #         {"attach_workspace": {"at": "."}},
+        #         "checkout",
+        #         {"start_docker_services": {"services": "ddagent5"}},
+        #         {"run": {"command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-v5'\n"}},
+        #     ],
+        # },
+        # "integration_agent": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [
+        #         {"attach_workspace": {"at": "."}},
+        #         "checkout",
+        #         {"start_docker_services": {"services": "ddagent"}},
+        #         {
+        #             "run": {
+        #                 "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-latest'\n"
+        #             }
+        #         },
+        #     ],
+        # },
+        # "integration_testagent": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [
+        #         {"attach_workspace": {"at": "."}},
+        #         "checkout",
+        #         {"start_docker_services": {"env": "SNAPSHOT_CI=1", "services": "testagent"}},
+        #         {
+        #             "run": {
+        #                 "environment": {"DD_TRACE_AGENT_URL": "http://localhost:9126"},
+        #                 "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'\n",
+        #             }
+        #         },
+        #     ],
+        # },
+        # "boto": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "^boto", "snapshot": True, "docker_services": "localstack"}}],
+        #     "parallelism": 4,
+        # },
+        # "ddtracerun": {
+        #     "executor": "ddtrace_dev",
+        #     "parallelism": 4,
+        #     "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "redis:4.0-alpine"}],
+        #     "steps": [{"run_test": {"store_coverage": False, "pattern": "ddtracerun"}}],
+        # },
+        # "asyncpg": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "asyncpg", "snapshot": True, "docker_services": "postgres"}}],
+        # },
+        # "aiohttp": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "aiohttp", "snapshot": True, "docker_services": "httpbin_local"}}],
+        #     "parallelism": 6,
+        # },
+        # "aiohttp_latest": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [
+        #         {
+        #             "run_test": {
+        #                 "pattern": "aiohttp",
+        #                 "riotfile": "riotfile-latest.py",
+        #                 "snapshot": True,
+        #                 "docker_services": "httpbin_local",
+        #             }
+        #         }
+        #     ],
+        #     "parallelism": 5,
+        # },
+        # "cassandra": {
+        #     "executor": "ddtrace_dev",
+        #     "parallelism": 4,
+        #     "docker": [
+        #         {"image": "datadog/dd-trace-py:buster", "environment": {"CASS_DRIVER_NO_EXTENSIONS": 1}},
+        #         {"image": "cassandra:3.11.7", "environment": ["MAX_HEAP_SIZE=512M", "HEAP_NEWSIZE=256M"]},
+        #     ],
+        #     "steps": [{"run_test": {"wait": "cassandra", "pattern": "cassandra"}}],
+        # },
+        # "celery": {
+        #     "executor": "ddtrace_dev",
+        #     "parallelism": 7,
+        #     "docker": [
+        #         {"image": "datadog/dd-trace-py:buster"},
+        #         {"image": "redis:4.0-alpine"},
+        #         {"image": "rabbitmq:3.7-alpine"},
+        #     ],
+        #     "steps": [{"run_test": {"pattern": "celery"}}],
+        # },
+        # "cherrypy": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "cherrypy", "snapshot": True}}],
+        #     "parallelism": 6,
+        # },
         "consul": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "consul:1.6.0"}],
             "steps": [{"run_tox_scenario": {"pattern": "^consul_contrib-"}}],
         },
-        "elasticsearch": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "elasticsearch", "snapshot": True, "docker_services": "elasticsearch"}}],
-            "parallelism": 4,
-        },
-        "django": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [
-                {"run_test": {"pattern": "django$", "snapshot": True, "docker_services": "memcached redis postgres"}}
-            ],
-            "parallelism": 6,
-        },
-        "djangorestframework": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [
-                {"run_test": {"pattern": "djangorestframework", "snapshot": True, "docker_services": "memcached redis"}}
-            ],
-            "parallelism": 6,
-        },
-        "flask": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [
-                {
-                    "run_test": {
-                        "store_coverage": False,
-                        "snapshot": True,
-                        "pattern": "flask",
-                        "docker_services": "memcached redis",
-                    }
-                }
-            ],
-            "parallelism": 7,
-        },
+        # "elasticsearch": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "elasticsearch", "snapshot": True, "docker_services": "elasticsearch"}}],
+        #     "parallelism": 4,
+        # },
+        # "django": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [
+        #         {"run_test": {"pattern": "django$", "snapshot": True, "docker_services": "memcached redis postgres"}}
+        #     ],
+        #     "parallelism": 6,
+        # },
+        # "djangorestframework": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [
+        #         {"run_test": {"pattern": "djangorestframework", "snapshot": True, "docker_services": "memcached redis"}}
+        #     ],
+        #     "parallelism": 6,
+        # },
+        # "flask": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [
+        #         {
+        #             "run_test": {
+        #                 "store_coverage": False,
+        #                 "snapshot": True,
+        #                 "pattern": "flask",
+        #                 "docker_services": "memcached redis",
+        #             }
+        #         }
+        #     ],
+        #     "parallelism": 7,
+        # },
         "gevent": {
             "executor": "ddtrace_dev",
             "parallelism": 7,
             "steps": [{"run_tox_scenario": {"pattern": "^gevent_contrib-"}}],
         },
-        "grpc": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "grpc", "snapshot": True}}],
-            "parallelism": 7,
-        },
-        "httplib": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "httplib", "snapshot": True, "docker_services": "httpbin_local"}}],
-        },
-        "httpx": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "httpx", "snapshot": True, "docker_services": "httpbin_local"}}],
-        },
-        "mariadb": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "mariadb$", "snapshot": True, "docker_services": "mariadb"}}],
-        },
-        "mysqlconnector": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [
-                {"image": "datadog/dd-trace-py:buster"},
-                {
-                    "image": "mysql:5.7",
-                    "environment": [
-                        "MYSQL_ROOT_PASSWORD=admin",
-                        "MYSQL_PASSWORD=test",
-                        "MYSQL_USER=test",
-                        "MYSQL_DATABASE=test",
-                    ],
-                },
-            ],
-            "steps": [{"run_test": {"wait": "mysql", "pattern": "mysql"}}],
-        },
+        # "grpc": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "grpc", "snapshot": True}}],
+        #     "parallelism": 7,
+        # },
+        # "httplib": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "httplib", "snapshot": True, "docker_services": "httpbin_local"}}],
+        # },
+        # "httpx": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "httpx", "snapshot": True, "docker_services": "httpbin_local"}}],
+        # },
+        # "mariadb": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "mariadb$", "snapshot": True, "docker_services": "mariadb"}}],
+        # },
+        # "mysqlconnector": {
+        #     "executor": "ddtrace_dev",
+        #     "parallelism": 4,
+        #     "docker": [
+        #         {"image": "datadog/dd-trace-py:buster"},
+        #         {
+        #             "image": "mysql:5.7",
+        #             "environment": [
+        #                 "MYSQL_ROOT_PASSWORD=admin",
+        #                 "MYSQL_PASSWORD=test",
+        #                 "MYSQL_USER=test",
+        #                 "MYSQL_DATABASE=test",
+        #             ],
+        #         },
+        #     ],
+        #     "steps": [{"run_test": {"wait": "mysql", "pattern": "mysql"}}],
+        # },
         "mysqlpython": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
@@ -639,23 +653,23 @@ circleci_config = {
             ],
             "steps": [{"run_tox_scenario": {"wait": "mysql", "pattern": "^mysqldb_contrib-.*-mysqlclient"}}],
         },
-        "pymysql": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [
-                {"image": "datadog/dd-trace-py:buster"},
-                {
-                    "image": "mysql:5.7",
-                    "environment": [
-                        "MYSQL_ROOT_PASSWORD=admin",
-                        "MYSQL_PASSWORD=test",
-                        "MYSQL_USER=test",
-                        "MYSQL_DATABASE=test",
-                    ],
-                },
-            ],
-            "steps": [{"run_test": {"wait": "mysql", "pattern": "pymysql"}}],
-        },
+        # "pymysql": {
+        #     "executor": "ddtrace_dev",
+        #     "parallelism": 4,
+        #     "docker": [
+        #         {"image": "datadog/dd-trace-py:buster"},
+        #         {
+        #             "image": "mysql:5.7",
+        #             "environment": [
+        #                 "MYSQL_ROOT_PASSWORD=admin",
+        #                 "MYSQL_PASSWORD=test",
+        #                 "MYSQL_USER=test",
+        #                 "MYSQL_DATABASE=test",
+        #             ],
+        #         },
+        #     ],
+        #     "steps": [{"run_test": {"wait": "mysql", "pattern": "pymysql"}}],
+        # },
         "pylibmc": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
@@ -703,27 +717,27 @@ circleci_config = {
             "steps": [{"run_test": {"pattern": "snowflake", "snapshot": True}}],
             "parallelism": 4,
         },
-        "sqlalchemy": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [
-                {"image": "datadog/dd-trace-py:buster"},
-                {
-                    "image": "postgres:11-alpine",
-                    "environment": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=postgres"],
-                },
-                {
-                    "image": "mysql:5.7",
-                    "environment": [
-                        "MYSQL_ROOT_PASSWORD=admin",
-                        "MYSQL_PASSWORD=test",
-                        "MYSQL_USER=test",
-                        "MYSQL_DATABASE=test",
-                    ],
-                },
-            ],
-            "steps": [{"run_test": {"wait": "postgres mysql", "pattern": "sqlalchemy"}}],
-        },
+        # "sqlalchemy": {
+        #     "executor": "ddtrace_dev",
+        #     "parallelism": 4,
+        #     "docker": [
+        #         {"image": "datadog/dd-trace-py:buster"},
+        #         {
+        #             "image": "postgres:11-alpine",
+        #             "environment": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=postgres"],
+        #         },
+        #         {
+        #             "image": "mysql:5.7",
+        #             "environment": [
+        #                 "MYSQL_ROOT_PASSWORD=admin",
+        #                 "MYSQL_PASSWORD=test",
+        #                 "MYSQL_USER=test",
+        #                 "MYSQL_DATABASE=test",
+        #             ],
+        #         },
+        #     ],
+        #     "steps": [{"run_test": {"wait": "postgres mysql", "pattern": "sqlalchemy"}}],
+        # },
         "psycopg": {
             "machine": {"image": "ubuntu-2004:current"},
             "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
@@ -732,7 +746,7 @@ circleci_config = {
         },
         "aiobotocore": {
             "executor": "ddtrace_dev",
-            "parallelism": 4,
+
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "palazzem/moto:1.0.1"}],
             "steps": [{"run_test": {"pattern": "aiobotocore"}}],
         },
@@ -767,40 +781,40 @@ circleci_config = {
             "steps": [{"run_test": {"docker_services": "redis", "pattern": "aioredis$", "snapshot": True}}],
             "parallelism": 4,
         },
-        "aredis": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"docker_services": "redis", "pattern": "aredis$", "snapshot": True}}],
-            "parallelism": 4,
-        },
-        "yaaredis": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"docker_services": "redis", "pattern": "yaaredis$", "snapshot": True}}],
-            "parallelism": 4,
-        },
-        "redis": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"docker_services": "redis", "pattern": "redis$", "snapshot": True}}],
-            "parallelism": 4,
-        },
-        "rediscluster": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "rediscluster", "docker_services": "rediscluster", "snapshot": True}}],
-        },
-        "rq": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "rq", "snapshot": True, "docker_services": "redis"}}],
-            "parallelism": 4,
-        },
-        "urllib3": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "urllib3", "snapshot": True, "docker_services": "httpbin_local"}}],
-        },
+        # "aredis": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"docker_services": "redis", "pattern": "aredis$", "snapshot": True}}],
+        #     "parallelism": 4,
+        # },
+        # "yaaredis": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"docker_services": "redis", "pattern": "yaaredis$", "snapshot": True}}],
+        #     "parallelism": 4,
+        # },
+        # "redis": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"docker_services": "redis", "pattern": "redis$", "snapshot": True}}],
+        #     "parallelism": 4,
+        # },
+        # "rediscluster": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "rediscluster", "docker_services": "rediscluster", "snapshot": True}}],
+        # },
+        # "rq": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "rq", "snapshot": True, "docker_services": "redis"}}],
+        #     "parallelism": 4,
+        # },
+        # "urllib3": {
+        #     "machine": {"image": "ubuntu-2004:current"},
+        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        #     "steps": [{"run_test": {"pattern": "urllib3", "snapshot": True, "docker_services": "httpbin_local"}}],
+        # },
         "vertica": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
@@ -819,11 +833,11 @@ circleci_config = {
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "rabbitmq:3.7-alpine"}],
             "steps": [{"run_tox_scenario": {"wait": "rabbitmq", "pattern": "^kombu_contrib-"}}],
         },
-        "benchmarks": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "steps": [{"run_test": {"store_coverage": False, "pattern": "^benchmarks"}}],
-        },
+        # "benchmarks": {
+        #     "executor": "ddtrace_dev",
+        #     "parallelism": 4,
+        #     "steps": [{"run_test": {"store_coverage": False, "pattern": "^benchmarks"}}],
+        # },
         "build_docs": {
             "executor": "ddtrace_dev",
             "steps": [
@@ -1038,6 +1052,7 @@ circleci_config = {
                             "run_test_machine_executor",
                             "run_tox_contrib_job",
                             "run_tox_contrib_job_small",
+                            "aiohttp",
                             "aiopg",
                             "aioredis",
                             "asyncpg",
@@ -1303,6 +1318,7 @@ circleci_config = {
     },
 }
 
+circleci_config['jobs'].update(defined_jobs)
 
 
 yaml.dump(circleci_config, sys.stdout, default_flow_style = False)
