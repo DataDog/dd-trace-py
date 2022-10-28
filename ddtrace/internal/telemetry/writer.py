@@ -54,6 +54,7 @@ class TelemetryWriter(PeriodicService):
         self._integrations_queue = []  # type: List[Dict]
         self._lock = forksafe.Lock()  # type: forksafe.ResetObject
         self._forked = False  # type: bool
+        forksafe.register(self._fork_writer)
 
         self._headers = {
             "Content-type": "application/json",
@@ -278,7 +279,6 @@ class TelemetryWriter(PeriodicService):
         if self.status == ServiceStatus.STOPPED:
             return
 
-        forksafe.unregister(self._fork_writer)
         atexit.unregister(self.stop)
 
         self.stop()
@@ -295,5 +295,4 @@ class TelemetryWriter(PeriodicService):
         self._enabled = True
         self.start()
 
-        forksafe.register(self._fork_writer)
         atexit.register(self.stop)
