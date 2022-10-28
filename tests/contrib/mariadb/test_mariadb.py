@@ -130,7 +130,7 @@ def test_analytics_default(connection, tracer):
 
 
 @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
-@snapshot(async_mode=False)
+@pytest.mark.snapshot(variants=SNAPSHOT_VARIANTS)
 def test_user_specified_dd_service_snapshot():
     """
     When a user specifies a service for the app
@@ -154,7 +154,7 @@ def test_user_specified_dd_service_snapshot():
 
 
 @pytest.mark.subprocess(env=dict(DD_MARIADB_SERVICE="mysvc"))
-@snapshot(async_mode=False)
+@pytest.mark.snapshot(variants=SNAPSHOT_VARIANTS)
 def test_user_specified_dd_mariadb_service_snapshot():
     """
     When a user specifies a service for the app
