@@ -90,35 +90,49 @@ class Tox(TestCommand):
 class LibDDWaf_Download(BuildPyCommand):
     @staticmethod
     def download_dynamic_library():
-        ARCHI = platform.machine().lower()
-        TRANSLATE_ARCH = {"amd64": "x86_64"}
-        ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
+        current_os = platform.system()
+
+        # TRANSLATE_ARCH = {"amd64": "x64"}
         TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
-        SUFFIX = TRANSLATE_SUFFIX[platform.system()]
+        AVAILABLE_RELEASES = {
+            "Windows": ["win32", "x64"],
+            "Darwin": ["arm64", "x86_64"],
+            "Linux": ["aarch64", "x86_64"],
+        }
+        SUFFIX = TRANSLATE_SUFFIX[current_os]
 
-        ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), ARCHITECTURE)
-        ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
+        for arch in AVAILABLE_RELEASES[current_os]:
 
-        ddwaf_download_address = "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
+            ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), arch)
+            ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
 
-        try:
-            filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
-            print(filename)
-        except HTTPError as e:
-            print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
-            raise e
+            ddwaf_download_address = (
+                "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
+            )
 
-        with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-            dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
+            try:
+                filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
+                print(filename)
+            except HTTPError as e:
+                print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
+                raise e
 
-        with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
-            print("extracting dylib:", [c.name for c in dynfiles])
-            tar.extractall(members=dynfiles, path=HERE)
-            shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
-            os.rename(os.path.join(HERE, ddwaf_archive_dir), LIBDDWAF_DOWNLOAD_DIR)
-            # cleaning unwanted files
-            tar.close()
-        os.remove(filename)
+            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+                dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
+
+            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+                print("extracting dylib:", [c.name for c in dynfiles])
+                tar.extractall(members=dynfiles, path=HERE)
+
+                arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
+                # FIXME
+                shutil.rmtree(arch_dir, True)
+                #
+                os.makedirs(arch_dir)
+                os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
+                # cleaning unwanted files
+                tar.close()
+            os.remove(filename)
 
     def run(self):
         LibDDWaf_Download.download_dynamic_library()
@@ -260,7 +274,7 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec.ddwaf": ["libddwaf/lib/libddwaf.*"],
+        "ddtrace.appsec.ddwaf": ["libddwaf/*/lib/libddwaf.*"],
     },
     include_package_data=True,
     py_modules=["ddtrace_gevent_check"],
