@@ -104,7 +104,7 @@ class TracedCursor(wrapt.ObjectProxy):
             if dbm_operation:
                 # If the traced operation executes a database query (ex: cursor.execute(..) or cursor.executemany(..))
                 # then attempt to add DBM tags to the query.
-                args, kwargs = _propagate_dbm_comment(s, args, kwargs)
+                args, kwargs = _propagate_dbm_context(s, args, kwargs)
 
             try:
                 return method(*args, **kwargs)
@@ -313,7 +313,7 @@ def _get_module_name(conn):
     return conn.__class__.__module__.split(".")[0]
 
 
-def _propagate_dbm_comment(dbspan, args, kwargs):
+def _propagate_dbm_context(dbspan, args, kwargs):
     # type: (...) -> Tuple[Tuple[Any, ...], Dict[str, Any]]
     dbm_comment = _database_monitoring._get_dbm_comment(dbspan)
     if dbm_comment is None:
