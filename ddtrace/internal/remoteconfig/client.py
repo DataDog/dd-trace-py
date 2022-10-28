@@ -18,6 +18,7 @@ import cattr
 import six
 
 import ddtrace
+from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.utils.time import parse_isoformat
@@ -254,6 +255,7 @@ class RemoteConfigClient(object):
                 is_tracer=True,
                 client_tracer=self._client_tracer,
                 state=state,
+                capabilities=_appsec_rc_capabilities(),
             ),
             cached_target_files=[],  # TODO
         )

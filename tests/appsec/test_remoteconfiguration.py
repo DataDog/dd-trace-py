@@ -2,8 +2,8 @@ import os
 
 import pytest
 
-from ddtrace.appsec._remoteconfiguration import _appsec_rc_features_is_enabled
 from ddtrace.appsec._remoteconfiguration import appsec_rc_reload_features
+from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.contrib.trace_utils import set_http_meta
@@ -26,7 +26,7 @@ def _set_and_get_appsec_tags(tracer):
 def test_rc_enabled_by_default(tracer):
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
-    assert _appsec_rc_features_is_enabled()
+    assert not _appsec_rc_features_is_enabled()
 
 
 def test_rc_activate_is_active_and_get_processor_tags(tracer):
