@@ -1,6 +1,6 @@
 import sys
 
-import ddtrace.appsec._ddwaf
+import ddtrace.appsec.ddwaf
 import ddtrace.bootstrap.sitecustomize as module
 
 
