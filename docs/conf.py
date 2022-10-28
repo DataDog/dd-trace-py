@@ -694,6 +694,7 @@ class DDTraceConfigurationOptionsDirective(rst.Directive):
             var_description = value["description"]
             var_type = value.get("type") or "String"
             var_default = value.get("default") or "(no value)"
+            var_version_added = value.get("version_added")
 
             if not skip_label:
                 results.append(".. _`{}`:".format(var_label), "", 0)
@@ -708,6 +709,14 @@ class DDTraceConfigurationOptionsDirective(rst.Directive):
             results.append("", "", 0)
             results.append("    **Default**: {}".format(var_default), "", 0)
             results.append("", "", 0)
+
+            if var_version_added:
+                for version, note in var_version_added.items():
+                    if note:
+                        results.append("    *Changed in version {}*: {}".format(version, note), "", 0)
+                    else:
+                        results.append("    *New in version {}.*".format(version), "", 0)
+                    results.append("", "", 0)
 
         # Generate the RST nodes to return for rendering
         node = nodes.section()

@@ -28,12 +28,18 @@ below:
    DD_TAGS:
      description: |
          Set global tags to be attached to every span. Value must be either comma or space separated. e.g. ``key1:value1,key2,value2`` or ``key1:value key2:value2``.
-         Comma separated support added in ``v0.38.0`` and space separated support added in ``v0.48.0``.
+     version_added:
+       v0.38.0: Comma separated support added
+       v0.48.0: Space separated support added
 
    DD_VERSION:
      description: |
          Set an application's version in traces and logs e.g. ``1.2.3``,
-         ``6c44da20``, ``2020.02.13``. Generally set along with ``DD_SERVICE``. Added in ``v0.36.0``. See `Unified Service Tagging`_ for more information.
+         ``6c44da20``, ``2020.02.13``. Generally set along with ``DD_SERVICE``.
+
+         See `Unified Service Tagging`_ for more information.
+     version_added:
+       v0.36.0:
 
    DD_SITE:
      default: datadoghq.com
@@ -46,7 +52,10 @@ below:
      default: True
      description: |
          Enable sending of spans to the Agent. Note that instrumentation will still be installed and spans will be
-         generated. Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_ENABLED``).
+         generated.
+     version_added:
+       v0.41.0: |
+           Formerly named ``DATADOG_TRACE_ENABLED``
 
    DD_INSTRUMENTATION_TELEMETRY_ENABLED:
      type: Boolean
@@ -59,7 +68,11 @@ below:
      default: False
      description: |
          Enables debug logging in the tracer. Setting this flag will cause the library to create a root logging handler if one does not already exist.
-         Added in ``v0.41.0`` (formerly named ``DATADOG_TRACE_DEBUG``). Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
+
+         Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
+     version_added:
+       v0.41.0: |
+           Formerly named ``DATADOG_TRACE_DEBUG``
 
    DD_TRACE_LOG_FILE_LEVEL:
      default: DEBUG
@@ -85,13 +98,18 @@ below:
      default: True
      description: |
          Enables <INTEGRATION> to be patched. For example, ``DD_TRACE_DJANGO_ENABLED=false`` will disable the Django
-         integration from being installed. Added in ``v0.41.0``.
+         integration from being installed.
+     version_added:
+       v0.41.0:
 
    DD_PATCH_MODULES:
      description: |
          Override the modules patched for this execution of the program. Must be
          a list in the ``module1:boolean,module2:boolean`` format. For example,
-         ``boto:true,redis:false``. Added in ``v0.55.0`` (formerly named ``DATADOG_PATCH_MODULES``).
+         ``boto:true,redis:false``.
+     version_added:
+       v0.55.0: |
+           Formerly named ``DATADOG_PATCH_MODULES``
 
    DD_LOGS_INJECTION:
      type: Boolean
@@ -162,7 +180,7 @@ below:
      type: Float
      default: 1.0
      description: A float, f, 0.0 <= f <= 1.0. f*100% of traces will be sampled.
-   
+
    DD_TRACE_SAMPLING_RULES:
      type: JSON array
      description: |
