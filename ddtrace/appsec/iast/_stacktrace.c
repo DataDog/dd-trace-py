@@ -17,10 +17,10 @@
 
 #ifdef PYTHON311
 #define FrameType _PyCFrame
-#define GET_FRAME(tstate) tstate->cframe
+#define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
 #define GET_PREVIOUS(frame) frame->previous
 #define GET_FILENAME(frame) frame->current_frame->f_code->co_filename
-#define GET_LINENO(frame) frame->current_frame->frame_obj->f_lineno
+#define GET_LINENO(frame) PyCode_Addr2Line(frame->current_frame->f_code, PyFrame_GetLasti(_PyFrame_GetFrameObject(frame)))
 #else
 #define FrameType PyFrameObject
 #define GET_FRAME(tstate) tstate->frame
@@ -41,11 +41,16 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
 {
     PyThreadState* tstate = PyThreadState_GET();
     FrameType* frame;
+    PyObject* filename_o;
+    char* filename;
+    int line;
 
     if (NULL != tstate && NULL != GET_FRAME(tstate)) {
         frame = GET_FRAME(tstate);
         while (NULL != frame) {
-            char* filename = PyBytes_AsString(PyUnicode_AsEncodedString(GET_FILENAME(frame), "utf-8", "surrogatepass"));
+
+            filename_o = GET_FILENAME(frame);
+            filename = PyBytes_AsString(PyUnicode_AsEncodedString(filename_o, "utf-8", "surrogatepass"));
             if (strstr(filename, DD_TRACE_INSTALLED_PREFIX) != NULL && strstr(filename, TESTS_PREFIX) == NULL) {
                 frame = GET_PREVIOUS(frame);
                 continue;
@@ -54,8 +59,9 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
              frame->f_lineno will not always return the correct line number
              you need to call PyCode_Addr2Line().
             */
-            int line = GET_LINENO(frame);
-            return PyTuple_Pack(2, GET_FILENAME(frame), Py_BuildValue("i", line));
+            line = GET_LINENO(frame);
+
+            return PyTuple_Pack(2, filename_o, Py_BuildValue("i", line));
         }
     }
     return PyTuple_Pack(2, Py_None, Py_None);
