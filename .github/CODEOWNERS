@@ -1,9 +1,13 @@
 * @DataDog/apm-python
 
-ddtrace/contrib/pytest/         @DataDog/apm-python @DataDog/ci-app-tracers
-ddtrace/contrib/pytest-bdd/     @DataDog/apm-python @DataDog/ci-app-tracers
-ddtrace/ext/ci.py               @DataDog/apm-python @DataDog/ci-app-tracers
-ddtrace/ext/test.py             @DataDog/apm-python @DataDog/ci-app-tracers
-ddtrace/internal/codeowners.py  @DataDog/apm-python @datadog/ci-app-tracers
-tests/contrib/pytest/           @DataDog/apm-python @DataDog/ci-app-tracers
-tests/contrib/pytest-bdd/       @DataDog/apm-python @DataDog/ci-app-tracers
+ddtrace/contrib/pytest/         @DataDog/apm-python @DataDog/ci-app-libraries
+ddtrace/contrib/pytest-bdd/     @DataDog/apm-python @DataDog/ci-app-libraries
+ddtrace/ext/ci.py               @DataDog/apm-python @DataDog/ci-app-libraries
+ddtrace/ext/test.py             @DataDog/apm-python @DataDog/ci-app-libraries
+ddtrace/internal/codeowners.py  @DataDog/apm-python @datadog/ci-app-libraries
+tests/contrib/pytest/           @DataDog/apm-python @DataDog/ci-app-libraries
+tests/contrib/pytest-bdd/       @DataDog/apm-python @DataDog/ci-app-libraries
+ddtrace/debugging/              @DataDog/debugger-python
+tests/debugging/                @DataDog/debugger-python
+ddtrace/appsec/                 @DataDog/asm-python
+tests/appsec/                   @DataDog/asm-python
