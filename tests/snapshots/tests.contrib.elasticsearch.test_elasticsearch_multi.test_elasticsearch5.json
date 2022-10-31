@@ -13,7 +13,8 @@
       "elasticsearch.method": "PUT",
       "elasticsearch.params": "ignore=400",
       "elasticsearch.url": "/ddtrace_index",
-      "runtime-id": "964639a38f0947ca856b15fab551a976"
+      "runtime-id": "964639a38f0947ca856b15fab551a976",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -41,7 +42,8 @@
       "elasticsearch.method": "DELETE",
       "elasticsearch.params": "ignore=%5B400%2C+404%5D",
       "elasticsearch.url": "/ddtrace_index",
-      "runtime-id": "964639a38f0947ca856b15fab551a976"
+      "runtime-id": "964639a38f0947ca856b15fab551a976",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
