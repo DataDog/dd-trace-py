@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    tracing: fix manual tracing across processes, make``ddtrace.context.Context`` pickable.
+    tracing: fix manual tracing across processes, make ``ddtrace.context.Context`` pickable.
