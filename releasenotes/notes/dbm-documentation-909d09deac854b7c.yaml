@@ -1,0 +1,4 @@
+---
+features:
+  - |
+     Link :ref:`Database Monitoring <Database Monitoring>` profiles for postgres, mysql and mysqlserver to traces.

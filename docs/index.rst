@@ -200,6 +200,17 @@ To disable set ``DD_INSTRUMENTATION_TELEMETRY_ENABLED=false`` environment variab
 
 See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>` _ for more details.
 
+
+.. _`Database Monitoring`:
+
+The `Datadog Database Monitoring product <https://docs.datadoghq.com/database_monitoring/>` provides deep visibility into
+databases across all of your hosts. Dig into historical query performance metrics, explain plans, and host-level metrics
+all in one place, to understand the health and performance of your databases and troubleshoot issues as they arise.
+`ddtrace` correlates Database Monitoring profiles with database spans. Note that enabling sql comment injection results
+in potentially confidential data (service names) being stored in the databases which can then be accessed by other 3rd
+parties that have been granted access to the database.
+
+
 Indices and tables
 ==================
 

@@ -363,6 +363,12 @@ below:
      default: 2
      description: Number of vulnerabilities reported in each request.
 
+   DD_DBM_PROPAGATION_MODE:
+     type: String
+     default: "full"
+     description: |
+         Links :ref:`dbm <Database Monitoring>` profiles to APM Spans. Possible values: `disabled`, `full`, and `service`.
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 
