@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    tracing: fix ``ddtrace.context.Context`` class not being serializable by ``pickle`` for passing context across processes.
+    tracing: fix manual tracing across processes, make``ddtrace.context.Context`` pickable.
