@@ -4,7 +4,6 @@ from typing import Any
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
-from typing import Tuple
 
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
@@ -15,6 +14,8 @@ from .internal.logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Tuple
+
     from .span import Span
     from .span import _MetaDictType
     from .span import _MetricDictType
