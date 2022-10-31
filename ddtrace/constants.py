@@ -33,8 +33,12 @@ APPSEC_WAF_DURATION = "_dd.appsec.waf.duration"
 APPSEC_WAF_DURATION_EXT = "_dd.appsec.waf.duration_ext"
 APPSEC_WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
 APPSEC_WAF_VERSION = "_dd.appsec.waf.version"
+APPSEC_ORIGIN_VALUE = "appsec"
 
-APPSEC_RC_ENABLED_ENV = "DD_APPSEC_RC_ENABLED"
+IAST_ENV = "DD_IAST_ENABLED"
+IAST_JSON = "_dd.iast.json"
+IAST_ENABLED = "_dd.iast.enabled"
+IAST_CONTEXT_KEY = "_iast_data"
 
 MANUAL_DROP_KEY = "manual.drop"
 MANUAL_KEEP_KEY = "manual.keep"

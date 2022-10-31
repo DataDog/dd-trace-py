@@ -723,3 +723,22 @@ def test_debugger_condition_eval_then_rate_limit():
         (snapshots,) = d.uploader.payloads
         (snapshot,) = snapshots
         assert "42" == snapshot["debugger.snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"], snapshot
+
+
+def test_debugger_function_probe_eval_on_exit():
+    from tests.submod.stuff import mutator
+
+    with debugger() as d:
+        d.add_probes(
+            FunctionProbe(
+                probe_id="duration-probe",
+                module="tests.submod.stuff",
+                func_qname="mutator",
+                condition=dd_compile({"contains": ["#arg", 42]}),
+            )
+        )
+
+        mutator(arg=[])
+
+        (snapshot,) = d.test_queue
+        assert snapshot, d.test_queue
