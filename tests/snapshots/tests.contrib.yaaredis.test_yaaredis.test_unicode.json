@@ -12,7 +12,8 @@
       "component": "yaaredis",
       "out.host": "localhost",
       "redis.raw_command": "GET \ud83d\ude10",
-      "runtime-id": "657552856ab8420dac8010e8cad5736c"
+      "runtime-id": "5547e917355d4080b87142160fa8bf83",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -22,9 +23,9 @@
       "_sampling_priority_v1": 1,
       "out.port": 6379,
       "out.redis_db": 0,
-      "process_id": 97977,
+      "process_id": 82810,
       "redis.args_length": 2
     },
-    "duration": 1717000,
-    "start": 1666810188609108000
+    "duration": 1151000,
+    "start": 1667244350010819000
   }]]

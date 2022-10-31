@@ -3,7 +3,7 @@ import os
 from yarl import URL
 
 from ddtrace import config
-from ddtrace.constants import COMPONENT
+from ddtrace.constants import COMPONENT, SPAN_KIND, SPAN_SERVER
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -46,13 +46,25 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
 
     async def connect(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
-        with pin.tracer.trace("%s.connect" % self.__class__.__name__):
+        with pin.tracer.trace("%s.connect" % self.__class__.__name__) as span:
+            # set component tag equal to name of integration
+            span.set_tag(COMPONENT, config.aiohttp.integration_name)
+
+            # set span.kind tag equal to type of request
+            span.set_tag(SPAN_KIND, SPAN_SERVER)
+
             result = await self.__wrapped__.connect(req, *args, **kwargs)
             return result
 
     async def _create_connection(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
-        with pin.tracer.trace("%s._create_connection" % self.__class__.__name__):
+        with pin.tracer.trace("%s._create_connection" % self.__class__.__name__) as span:
+            # set component tag equal to name of integration
+            span.set_tag(COMPONENT, config.aiohttp.integration_name)
+
+            # set span.kind tag equal to type of request
+            span.set_tag(SPAN_KIND, SPAN_SERVER)
+
             result = await self.__wrapped__._create_connection(req, *args, **kwargs)
             return result
 
@@ -73,6 +85,9 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
 
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.aiohttp_client.integration_name)
+
+        # set span.kind tag equal to type of request
+        span.set_tag(SPAN_KIND, SPAN_SERVER)
 
         # Params can be included separate of the URL so the URL has to be constructed
         # with the passed params.

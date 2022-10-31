@@ -13,7 +13,8 @@
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
-      "runtime-id": "2d4ffb74337c4013b010a0d017279826",
+      "runtime-id": "2ba0d890e92448718fffeb1d278f2400",
+      "span.kind": "client",
       "sql.query": "select 'dba4x4'"
     },
     "metrics": {
@@ -25,8 +26,8 @@
       "db.rowcount": 1,
       "db.rownumber": 0,
       "out.port": 3306,
-      "process_id": 86290
+      "process_id": 40832
     },
-    "duration": 918000,
-    "start": 1666808853229465000
+    "duration": 2190000,
+    "start": 1667240729554151000
   }]]

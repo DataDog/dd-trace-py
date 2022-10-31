@@ -8,17 +8,17 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "c110789b92224c258de3e631ca50af4f"
+      "runtime-id": "ad99d3e85d1d407e95c792cfaa56068b"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 85254
+      "process_id": 37333
     },
-    "duration": 13545000,
-    "start": 1666808695012983000
+    "duration": 7476000,
+    "start": 1667240263694016000
   },
      {
        "name": "aiohttp.request",
@@ -33,10 +33,11 @@
          "http.method": "GET",
          "http.status_code": "200",
          "http.status_msg": "OK",
-         "http.url": "http://localhost:8001/status/200"
+         "http.url": "http://localhost:8001/status/200",
+         "span.kind": "server"
        },
-       "duration": 13124000,
-       "start": 1666808695013246000
+       "duration": 7148000,
+       "start": 1667240263694249000
      },
         {
           "name": "TCPConnector.connect",
@@ -45,6 +46,10 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "duration": 1468000,
-          "start": 1666808695013605000
+          "meta": {
+            "component": "aiohttp",
+            "span.kind": "server"
+          },
+          "duration": 1437000,
+          "start": 1667240263694485000
         }]]

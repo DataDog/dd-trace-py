@@ -13,7 +13,8 @@
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "add49f935ae64a128ca0f633f4d25a3c"
+      "runtime-id": "2fa6792268124613bb4489b28faf6c25",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -21,8 +22,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "process_id": 89825
+      "process_id": 46342
     },
-    "duration": 11194000,
-    "start": 1666809593831350000
+    "duration": 21701000,
+    "start": 1667241403411882000
   }]]

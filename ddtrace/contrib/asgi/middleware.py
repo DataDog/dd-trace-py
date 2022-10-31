@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_KIND, SPAN_SERVER
 from ddtrace.constants import COMPONENT
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -123,6 +123,9 @@ class TraceMiddleware:
 
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.asgi.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
 
         if "datadog" not in scope:
             scope["datadog"] = {"request_spans": [span]}

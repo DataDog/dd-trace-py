@@ -13,7 +13,8 @@
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
-      "runtime-id": "93f76aae38d74161926ccd64013f5d01"
+      "runtime-id": "553a390362de479380d0f8d858e19241",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,9 +25,9 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 0,
       "out.port": 3306,
-      "process_id": 9677,
+      "process_id": 57591,
       "sql.rows": 0
     },
-    "duration": 616000,
-    "start": 1656521180800547000
+    "duration": 741000,
+    "start": 1667243011045245000
   }]]

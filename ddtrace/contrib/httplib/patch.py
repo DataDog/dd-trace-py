@@ -7,7 +7,7 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_KIND, SPAN_SERVER
 from ...constants import COMPONENT
 from ...ext import SpanTypes
 from ...internal.compat import PY2
@@ -79,6 +79,9 @@ def _wrap_request(func, instance, args, kwargs):
 
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.httplib.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
 
         setattr(instance, "_datadog_span", span)
 

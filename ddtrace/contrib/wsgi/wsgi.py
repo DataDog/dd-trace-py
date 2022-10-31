@@ -26,7 +26,7 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...constants import COMPONENT
+from ...constants import COMPONENT, SPAN_KIND, SPAN_SERVER
 
 
 log = get_logger(__name__)
@@ -125,6 +125,9 @@ class _DDWSGIMiddlewareBase(object):
         # set component tag equal to name of integration
         req_span.set_tag_str(COMPONENT, self._config.integration_name)
 
+        # set span.kind to the type of operation being performed
+        req_span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+
         self._request_span_modifier(req_span, environ)
 
         try:
@@ -132,6 +135,9 @@ class _DDWSGIMiddlewareBase(object):
 
             # set component tag equal to name of integration
             app_span.set_tag_str(COMPONENT, self._config.integration_name)
+
+            # set span.kind to the type of operation being performed
+            app_span.set_tag_str(SPAN_KIND, SPAN_SERVER)
 
             intercept_start_response = functools.partial(
                 self._traced_start_response, start_response, req_span, app_span
@@ -150,6 +156,9 @@ class _DDWSGIMiddlewareBase(object):
 
         # set component tag equal to name of integration
         resp_span.set_tag_str(COMPONENT, self._config.integration_name)
+
+        # set span.kind to the type of operation being performed
+        resp_span.set_tag_str(SPAN_KIND, SPAN_SERVER)
 
         self._response_span_modifier(resp_span, result)
 
@@ -251,6 +260,9 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         ) as span:
             # set component tag equal to name of integration
             span.set_tag_str(COMPONENT, self._config.integration_name)
+
+            # set span.kind to the type of operation being performed
+            span.set_tag_str(SPAN_KIND, SPAN_SERVER)
 
             return start_response(status, environ, exc_info)
 

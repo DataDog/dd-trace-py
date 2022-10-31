@@ -7,7 +7,7 @@ from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_KIND, SPAN_SERVER
 from ...constants import COMPONENT
 from ...ext import SpanTypes
 from ...internal.compat import parse
@@ -99,6 +99,9 @@ def _wrap_urlopen(func, instance, args, kwargs):
     ) as span:
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.urllib3.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
 
         if config.urllib3.split_by_domain:
             span.service = hostname

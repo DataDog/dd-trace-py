@@ -15,7 +15,8 @@
       "http.url": "http://localhost:8000/",
       "http.useragent": "python-requests/2.28.1",
       "pyramid.route.name": "hello",
-      "runtime-id": "f3274b3ab9a9439a8d62ac478361d6e4"
+      "runtime-id": "7f33e090dbb74fefa23af95800b90c00",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -23,8 +24,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 90991
+      "process_id": 60630
     },
-    "duration": 104000,
-    "start": 1666809830884129000
+    "duration": 102000,
+    "start": 1667243302502836000
   }]]

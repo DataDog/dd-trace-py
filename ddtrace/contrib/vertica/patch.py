@@ -5,7 +5,7 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_CLIENT, SPAN_KIND
 from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -210,6 +210,9 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
             ) as span:
                 # set component tag equal to name of integration
                 span.set_tag_str(COMPONENT, config.integration_name)
+
+                # set span.kind to the type of operation being performed
+                span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
 
                 if conf.get("measured", False):
                     span.set_tag(SPAN_MEASURED_KEY)

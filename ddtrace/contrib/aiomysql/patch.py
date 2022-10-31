@@ -2,7 +2,7 @@ import aiomysql
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_CLIENT, SPAN_KIND
 from ddtrace.constants import COMPONENT
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
@@ -60,6 +60,9 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         ) as s:
             # set component tag equal to name of integration
             s.set_tag_str(COMPONENT, config.aiomysql.integration_name)
+
+            # set span.kind to the type of request being performed
+            s.set_tag_str(SPAN_KIND, SPAN_CLIENT)
 
             s.set_tag(SPAN_MEASURED_KEY)
             s.set_tag(sql.QUERY, resource)

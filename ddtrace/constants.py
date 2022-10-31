@@ -50,6 +50,13 @@ ERROR_STACK = "error.stack"  # a human readable version of the stack.
 
 PID = "process_id"
 COMPONENT = "component"
+SPAN_KIND = "span.kind"
+
+# Types of span.kind
+SPAN_CLIENT = "client"
+SPAN_SERVER = "server"
+SPAN_PRODUCER = "producer"
+SPAN_CONSUMER = "consumer"
 
 # Use this to explicitly inform the backend that a trace should be rejected and not stored.
 USER_REJECT = -1

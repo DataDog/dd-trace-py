@@ -8,17 +8,17 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "runtime-id": "7f2cb2d635a140ce8c6ed2699ad17252"
+      "runtime-id": "581a65cb545c4ab38f9db7c010f3e41a"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 85106
+      "process_id": 44520
     },
-    "duration": 1808000,
-    "start": 1666808667902406000
+    "duration": 2263000,
+    "start": 1667241175682916000
   },
      {
        "name": "redis.command",
@@ -31,7 +31,8 @@
        "meta": {
          "component": "aioredis",
          "out.host": "127.0.0.1",
-         "redis.raw_command": "SET blah boo\nGET blah"
+         "redis.raw_command": "SET blah boo\nGET blah",
+         "span.kind": "client"
        },
        "metrics": {
          "_dd.measured": 1,
@@ -40,8 +41,8 @@
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
-       "duration": 866000,
-       "start": 1666808667902575000
+       "duration": 1075000,
+       "start": 1667241175683092000
      },
      {
        "name": "redis.command",
@@ -54,7 +55,8 @@
        "meta": {
          "component": "aioredis",
          "out.host": "127.0.0.1",
-         "redis.raw_command": "SET foo bar\nGET foo"
+         "redis.raw_command": "SET foo bar\nGET foo",
+         "span.kind": "client"
        },
        "metrics": {
          "_dd.measured": 1,
@@ -63,6 +65,6 @@
          "out.redis_db": 0,
          "redis.pipeline_length": 2
        },
-       "duration": 712000,
-       "start": 1666808667903485000
+       "duration": 936000,
+       "start": 1667241175684223000
      }]]

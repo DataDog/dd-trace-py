@@ -8,7 +8,7 @@ from ddtrace import config
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_KIND, SPAN_SERVER
 from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -75,6 +75,9 @@ def trace_tween_factory(handler, registry):
             with tracer.trace("pyramid.request", service=service, resource="404", span_type=SpanTypes.WEB) as span:
                 # set component tag equal to name of integration
                 span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+
+                # set span.kind to the type of operation being performed
+                span.set_tag_str(SPAN_KIND, SPAN_SERVER)
 
                 span.set_tag(SPAN_MEASURED_KEY)
                 # Configure trace search sample rate

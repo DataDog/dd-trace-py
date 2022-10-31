@@ -15,7 +15,7 @@ from .. import trace_utils
 from ... import Pin
 from ... import Span
 from ... import config
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_CLIENT, SPAN_KIND
 from ...constants import COMPONENT
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
@@ -101,6 +101,9 @@ class _ClientInterceptor:
 
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.grpc_aio_client.integration_name)
+
+        # set span.kind to the type of operation being performed
+        span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
