@@ -121,6 +121,7 @@ multithreaded
 mypy
 mysql
 mysqlclient
+mysqlserver
 mysqldb
 namespace
 obfuscator

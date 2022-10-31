@@ -27,7 +27,7 @@ class DatabaseMonitoringConfig(En):
     propagation_mode = En.v(
         str,
         "propagation_mode",
-        default="disabled",
+        default="service",
         help="Valid Injection Modes: disabled, service, and full",
         validator=validators.choice(["disabled", "full", "service"]),
     )

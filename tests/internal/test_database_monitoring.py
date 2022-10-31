@@ -6,8 +6,7 @@ from tests.utils import override_env
 
 def test_propagation_mode_configuration():
     # Ensure Database Monitoring support is disabled by default
-    # TODO: Enable DBM support by default
-    assert _database_monitoring.dbm_config.propagation_mode == "disabled"
+    assert _database_monitoring.dbm_config.propagation_mode == "service"
 
     # Ensure service is a valid injection mode
     with override_env(dict(DD_DBM_PROPAGATION_MODE="service")):

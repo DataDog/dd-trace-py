@@ -12,6 +12,7 @@ from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import sql
 from ...internal.compat import PY2
+from ...internal.compat import string_type
 from ...internal.logger import get_logger
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
@@ -315,7 +316,9 @@ def _propagate_dbm_context(dbspan, args):
     if dbm_comment is None:
         return args
     # If dbm propagation supported and enabled the first arg must be a sql query or a procedure.
-    assert len(args) > 0 and isinstance(args[0], str)
+    assert len(args) > 0 and isinstance(
+        args[0], string_type
+    ), "ddtrace Database Monitoring Propagation is not supported"
     # get query or procedure from args
     sql_statement = args[0]
     sql_with_dbm_tags = dbm_comment + sql_statement
