@@ -1,3 +1,5 @@
+import pickle
+
 import pytest
 
 from ddtrace.context import Context
@@ -75,3 +77,19 @@ def test_traceparent():
     span = Span("span_c")
     span.context.sampling_priority = 1
     validate_traceparent(span.context, "01")
+
+
+@pytest.mark.parametrize(
+    "context",
+    [
+        Context(),
+        Context(trace_id=123, span_id=321),
+        Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2),
+        Context(trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556}),
+    ],
+)
+def test_context_serializable(context):
+    # type: (Context) -> None
+    state = pickle.dumps(context)
+    restored = pickle.loads(state)
+    assert context == restored
