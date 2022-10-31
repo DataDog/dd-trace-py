@@ -9,8 +9,10 @@ from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_CLIENT, SPAN_KIND
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import COMPONENT
+from ...constants import SPAN_CLIENT
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import net
@@ -181,7 +183,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         span_type=SpanTypes.REDIS,
     ) as span:
         span.set_tag_str(COMPONENT, config.aioredis.integration_name)
-        
+
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
 

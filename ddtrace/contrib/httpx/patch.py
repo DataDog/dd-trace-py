@@ -6,9 +6,11 @@ from six import ensure_binary
 from six import ensure_text
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_KIND, SPAN_SERVER
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import COMPONENT
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import SPAN_SERVER
 from ddtrace.contrib.trace_utils import distributed_tracing_enabled
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import set_http_meta

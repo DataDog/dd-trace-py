@@ -5,7 +5,9 @@ from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
-from ...constants import COMPONENT, SPAN_CLIENT, SPAN_KIND
+from ...constants import COMPONENT
+from ...constants import SPAN_CLIENT
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 
 

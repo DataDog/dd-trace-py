@@ -4,8 +4,10 @@ from aiopg import __version__
 from aiopg.utils import _ContextManager
 
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_CLIENT, SPAN_KIND
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import COMPONENT
+from ddtrace.constants import SPAN_CLIENT
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.ext import SpanTypes

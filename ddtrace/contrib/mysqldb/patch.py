@@ -4,7 +4,9 @@ import MySQLdb
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import COMPONENT, SPAN_CLIENT, SPAN_KIND
+from ddtrace.constants import COMPONENT
+from ddtrace.constants import SPAN_CLIENT
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.trace_utils import ext_service

@@ -8,7 +8,9 @@ from psycopg2.extensions import cursor
 
 from ddtrace import config
 
-from ...constants import COMPONENT, SPAN_CLIENT, SPAN_KIND
+from ...constants import COMPONENT
+from ...constants import SPAN_CLIENT
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import db

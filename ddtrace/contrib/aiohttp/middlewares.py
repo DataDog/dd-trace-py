@@ -1,9 +1,11 @@
 from ddtrace import config
 
 from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_KIND, SPAN_SERVER
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import COMPONENT
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...constants import SPAN_SERVER
 from ...ext import SpanTypes
 from ...ext import http
 from ...internal.compat import stringify

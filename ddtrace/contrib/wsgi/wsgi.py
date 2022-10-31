@@ -26,7 +26,9 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils
-from ...constants import COMPONENT, SPAN_KIND, SPAN_SERVER
+from ...constants import COMPONENT
+from ...constants import SPAN_KIND
+from ...constants import SPAN_SERVER
 
 
 log = get_logger(__name__)

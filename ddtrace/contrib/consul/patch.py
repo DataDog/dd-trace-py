@@ -3,8 +3,10 @@ import consul
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_CLIENT, SPAN_KIND
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import COMPONENT
+from ...constants import SPAN_CLIENT
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import consul as consulx

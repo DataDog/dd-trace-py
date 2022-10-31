@@ -4,8 +4,10 @@ import sanic
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_KIND, SPAN_SERVER
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import COMPONENT
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_SERVER
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.pin import Pin

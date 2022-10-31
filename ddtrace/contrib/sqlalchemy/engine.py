@@ -19,8 +19,10 @@ from sqlalchemy.event import listen
 import ddtrace
 from ddtrace import config
 
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_CLIENT, SPAN_KIND
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import COMPONENT
+from ...constants import SPAN_CLIENT
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import net as netx

@@ -15,10 +15,12 @@ from .. import trace_utils
 from ... import Pin
 from ... import Span
 from ... import config
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_CLIENT, SPAN_KIND
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import COMPONENT
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
+from ...constants import SPAN_CLIENT
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.compat import to_unicode

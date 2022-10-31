@@ -3,7 +3,9 @@ import os
 from yarl import URL
 
 from ddtrace import config
-from ddtrace.constants import COMPONENT, SPAN_KIND, SPAN_SERVER
+from ddtrace.constants import COMPONENT
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_SERVER
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool

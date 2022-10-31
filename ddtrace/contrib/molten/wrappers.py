@@ -1,7 +1,9 @@
 import molten
 
 from ddtrace import config
-from ddtrace.constants import COMPONENT, SPAN_KIND, SPAN_SERVER
+from ddtrace.constants import COMPONENT
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_SERVER
 from ddtrace.vendor import wrapt
 
 from .. import trace_utils

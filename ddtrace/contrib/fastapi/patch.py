@@ -1,10 +1,12 @@
-from ddtrace.constants import COMPONENT, SPAN_KIND, SPAN_SERVER
 import fastapi
 from fastapi.middleware import Middleware
 import fastapi.routing
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import COMPONENT
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_SERVER
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.starlette.patch import get_resource
 from ddtrace.contrib.starlette.patch import traced_handler

@@ -5,9 +5,11 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http as httpx
 
 from .. import trace_utils
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_KIND, SPAN_SERVER
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import COMPONENT
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...constants import SPAN_SERVER
 from ...internal.compat import iteritems
 
 

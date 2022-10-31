@@ -8,10 +8,12 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 from ddtrace import config
-from ddtrace.constants import COMPONENT, SPAN_KIND, SPAN_SERVER
+from ddtrace.constants import COMPONENT
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_SERVER
 
 from .. import trace_utils
 from ...ext import SpanTypes
