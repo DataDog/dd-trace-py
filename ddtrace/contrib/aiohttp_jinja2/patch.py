@@ -1,8 +1,6 @@
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import COMPONENT
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_SERVER
 
 from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
