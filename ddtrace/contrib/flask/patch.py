@@ -587,7 +587,9 @@ def traced_jsonify(wrapped, instance, args, kwargs):
 
 def _set_request_tags(span):
     try:
-        request = flask._request_ctx_stack.top.request
+        # raises RuntimeError if a request is not active:
+        # https://github.com/pallets/flask/blob/2.1.3/src/flask/globals.py#L40
+        request = flask.request
 
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
