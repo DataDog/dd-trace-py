@@ -61,12 +61,25 @@ def unpatch():
 class Psycopg2TracedCursor(dbapi.TracedCursor):
     """TracedCursor for psycopg2"""
 
-    def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
-        # treat psycopg2.sql.Composable resource objects as strings
-        if isinstance(resource, Composable):
-            resource = resource.as_string(self.__wrapped__)
+    def executemany(self, query, *args, **kwargs):
+        """Wraps the cursor.executemany method"""
+        query = self._sql_to_str(query)
+        return super(Psycopg2TracedCursor, self).executemany(query, *args, **kwargs)
 
-        return super(Psycopg2TracedCursor, self)._trace_method(method, name, resource, extra_tags, *args, **kwargs)
+    def execute(self, query, *args, **kwargs):
+        """Wraps the cursor.execute method"""
+        query = self._sql_to_str(query)
+        return super(Psycopg2TracedCursor, self).execute(query, *args, **kwargs)
+
+    def callproc(self, proc, *args):
+        """Wraps the cursor.callproc method"""
+        proc = self._sql_to_str(proc)
+        return super(Psycopg2TracedCursor, self).execute(proc, *args)
+
+    def _sql_to_str(self, sql_statement):
+        if isinstance(sql_statement, Composable):
+            return sql_statement.as_string(self.__wrapped__)
+        return sql_statement
 
 
 class Psycopg2FetchTracedCursor(Psycopg2TracedCursor, dbapi.FetchTracedCursor):
