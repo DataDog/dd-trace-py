@@ -18,7 +18,8 @@
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/stream",
       "http.useragent": "python-httpx/x.xx.x",
-      "runtime-id": "6bd58ff688004046a9547d8ccc2bb845"
+      "runtime-id": "6bd58ff688004046a9547d8ccc2bb845",
+      "span.kind": "server"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,

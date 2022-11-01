@@ -22,7 +22,9 @@ from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import COMPONENT
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...constants import SPAN_SERVER
 from ...ext import SpanTypes
 from ...internal.compat import maybe_stringify
 from ...internal.logger import get_logger
@@ -355,6 +357,9 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.flask.integration_name)
 
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
@@ -487,7 +492,6 @@ def traced_render_template(wrapped, instance, args, kwargs):
     with pin.tracer.trace("flask.render_template", span_type=SpanTypes.TEMPLATE) as span:
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.flask.integration_name)
-
         return wrapped(*args, **kwargs)
 
 
@@ -500,7 +504,6 @@ def traced_render_template_string(wrapped, instance, args, kwargs):
     with pin.tracer.trace("flask.render_template_string", span_type=SpanTypes.TEMPLATE) as span:
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.flask.integration_name)
-
         return wrapped(*args, **kwargs)
 
 
@@ -598,7 +601,6 @@ def traced_jsonify(wrapped, instance, args, kwargs):
     with pin.tracer.trace("flask.jsonify") as span:
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.flask.integration_name)
-
         return wrapped(*args, **kwargs)
 
 

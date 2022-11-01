@@ -5,8 +5,6 @@ import fastapi.routing
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import COMPONENT
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_SERVER
 from ddtrace.contrib.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.starlette.patch import get_resource
 from ddtrace.contrib.starlette.patch import traced_handler
@@ -69,9 +67,6 @@ async def traced_serialize_response(wrapped, instance, args, kwargs):
     with pin.tracer.trace("fastapi.serialize_response") as span:
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.fastapi.integration_name)
-
-        # set span.kind to the type of operation being performed
-        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
 
         return await wrapped(*args, **kwargs)
 

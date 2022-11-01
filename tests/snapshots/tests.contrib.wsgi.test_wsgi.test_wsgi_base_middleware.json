@@ -12,7 +12,7 @@
       "component": "wsgi",
       "http.status_code": "200",
       "request_tag": "req test tag set",
-      "runtime-id": "242334cd1b254fe5a5230c2d5d0127ca",
+      "runtime-id": "cc84154dcff748af9e376e7721ea8b0b",
       "span.kind": "server"
     },
     "metrics": {
@@ -20,11 +20,11 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 82269,
+      "process_id": 82405,
       "request_metric": 1
     },
-    "duration": 195000,
-    "start": 1667244260668875000
+    "duration": 186000,
+    "start": 1667319310978989000
   },
      {
        "name": "test_wsgi.application",
@@ -35,14 +35,13 @@
        "parent_id": 1,
        "meta": {
          "app_tag": "app test tag set",
-         "component": "wsgi",
-         "span.kind": "server"
+         "component": "wsgi"
        },
        "metrics": {
          "app_metric": 2
        },
-       "duration": 50000,
-       "start": 1667244260668941000
+       "duration": 49000,
+       "start": 1667319310979047000
      },
      {
        "name": "test_wsgi.response",
@@ -53,12 +52,11 @@
        "parent_id": 1,
        "meta": {
          "component": "wsgi",
-         "response_tag": "resp test tag set",
-         "span.kind": "server"
+         "response_tag": "resp test tag set"
        },
        "metrics": {
          "response_metric": 3
        },
-       "duration": 51000,
-       "start": 1667244260669010000
+       "duration": 53000,
+       "start": 1667319310979113000
      }]]

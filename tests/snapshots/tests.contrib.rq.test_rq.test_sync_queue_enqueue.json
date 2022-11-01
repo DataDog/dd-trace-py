@@ -11,19 +11,20 @@
       "_dd.p.dm": "-0",
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
-      "job.id": "bf5b152e-ef4d-48e0-a235-610f7e41c7f4",
+      "job.id": "137a3e45-cd79-47dd-b7da-50106456d27c",
       "queue.name": "sync-q",
-      "runtime-id": "45fcb94b0a6e4ddaba953b01b8d6a493"
+      "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
+      "span.kind": "producer"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 80428
+      "process_id": 80299
     },
-    "duration": 9839000,
-    "start": 1666807176270887000
+    "duration": 13305000,
+    "start": 1667319043526589000
   },
      {
        "name": "rq.job.perform",
@@ -34,8 +35,8 @@
        "parent_id": 1,
        "meta": {
          "component": "rq",
-         "job.id": "bf5b152e-ef4d-48e0-a235-610f7e41c7f4"
+         "job.id": "137a3e45-cd79-47dd-b7da-50106456d27c"
        },
-       "duration": 1087000,
-       "start": 1666807176276012000
+       "duration": 1739000,
+       "start": 1667319043532469000
      }]]

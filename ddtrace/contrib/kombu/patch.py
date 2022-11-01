@@ -10,7 +10,10 @@ from ddtrace.vendor import wrapt
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import COMPONENT
+from ...constants import SPAN_CONSUMER
+from ...constants import SPAN_KIND
 from ...constants import SPAN_MEASURED_KEY
+from ...constants import SPAN_PRODUCER
 from ...ext import SpanTypes
 from ...ext import kombu as kombux
 from ...internal.utils import get_argument_value
@@ -97,6 +100,9 @@ def traced_receive(func, instance, args, kwargs):
         # set component tag equal to name of integration
         s.set_tag_str(COMPONENT, config.kombu.integration_name)
 
+        # set span.kind to the type of operation being performed
+        s.set_tag_str(SPAN_KIND, SPAN_CONSUMER)
+
         s.set_tag(SPAN_MEASURED_KEY)
         # run the command
         exchange = message.delivery_info["exchange"]
@@ -118,6 +124,9 @@ def traced_publish(func, instance, args, kwargs):
     with pin.tracer.trace(kombux.PUBLISH_NAME, service=pin.service, span_type=SpanTypes.WORKER) as s:
         # set component tag equal to name of integration
         s.set_tag_str(COMPONENT, config.kombu.integration_name)
+
+        # set span.kind to the type of operation being performed
+        s.set_tag_str(SPAN_KIND, SPAN_PRODUCER)
 
         s.set_tag(SPAN_MEASURED_KEY)
         exchange_name = get_exchange_from_args(args)

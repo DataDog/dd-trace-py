@@ -15,7 +15,9 @@ import sys
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import COMPONENT
+from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.constants import SPAN_SERVER
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
@@ -338,6 +340,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
     ) as span:
         # set component tag equal to name of integration
         span.set_tag_str(COMPONENT, config.django.integration_name)
+
+        # set span.kind to the type of request being performed
+        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
 
         utils._before_request_tags(pin, span, request)
         span._metrics[SPAN_MEASURED_KEY] = 1

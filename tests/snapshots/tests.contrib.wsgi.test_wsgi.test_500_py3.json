@@ -12,11 +12,11 @@
       "_dd.p.dm": "-0",
       "component": "wsgi",
       "error.msg": "Oops!",
-      "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 145, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 35, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 144, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 35, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n",
       "error.type": "builtins.Exception",
       "http.method": "GET",
       "http.url": "http://localhost:80/error",
-      "runtime-id": "242334cd1b254fe5a5230c2d5d0127ca",
+      "runtime-id": "cc84154dcff748af9e376e7721ea8b0b",
       "span.kind": "server"
     },
     "metrics": {
@@ -24,10 +24,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 82269
+      "process_id": 82405
     },
-    "duration": 315000,
-    "start": 1667244260646595000
+    "duration": 418000,
+    "start": 1667319310956544000
   },
      {
        "name": "wsgi.application",
@@ -40,10 +40,9 @@
        "meta": {
          "component": "wsgi",
          "error.msg": "Oops!",
-         "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 145, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 35, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n",
-         "error.type": "builtins.Exception",
-         "span.kind": "server"
+         "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/wsgi/wsgi.py\", line 144, in __call__\n    result = self.app(environ, intercept_start_response)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/wsgi/test_wsgi.py\", line 35, in application\n    raise Exception(\"Oops!\")\nException: Oops!\n",
+         "error.type": "builtins.Exception"
        },
-       "duration": 204000,
-       "start": 1667244260646689000
+       "duration": 294000,
+       "start": 1667319310956641000
      }]]
