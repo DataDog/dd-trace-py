@@ -43,21 +43,17 @@ class TestTracedCursor(TracerTestCase):
         cursor = self.cursor
         traced_cursor = TracedCursor(cursor, Pin(service="orders-db", tracer=self.tracer), {})
 
-        # The following operations should not generate DBM comments
-        traced_cursor.callproc("proc")
-        cursor.callproc.assert_called_once_with("proc")
-        spans = self.tracer.pop()
-        assert len(spans) == 1
-
         # The following operations should generate DBM comments
         traced_cursor.execute("SELECT * FROM db;")
         traced_cursor.executemany("SELECT * FROM db;", ())
+        traced_cursor.callproc("procedure_named_moon")
 
         spans = self.tracer.pop()
-        assert len(spans) == 2
+        assert len(spans) == 3
         dbm_comment = " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
         cursor.execute.assert_called_once_with(dbm_comment + "SELECT * FROM db;")
         cursor.executemany.assert_called_once_with(dbm_comment + "SELECT * FROM db;", ())
+        cursor.callproc.assert_called_once_with(dbm_comment + "procedure_named_moon")
 
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
@@ -523,28 +519,29 @@ class TestFetchTracedCursor(TracerTestCase):
         traced_cursor = FetchTracedCursor(cursor, Pin("pin_name", tracer=self.tracer), {})
 
         # The following operations should not generate DBM comments
-        traced_cursor.callproc("proc")
         traced_cursor.fetchone()
         traced_cursor.fetchall()
         traced_cursor.fetchmany(1)
-        cursor.callproc.assert_called_once_with("proc")
         cursor.fetchone.assert_called_once_with()
         cursor.fetchall.assert_called_once_with()
         cursor.fetchmany.assert_called_once_with(1)
 
         spans = self.tracer.pop()
-        assert len(spans) == 4
+        assert len(spans) == 3
 
         # The following operations should generates DBM comments
         traced_cursor.execute("SELECT * FROM db;")
         traced_cursor.executemany("SELECT * FROM db;", ())
+        traced_cursor.callproc("proc")
 
         spans = self.tracer.pop()
-        assert len(spans) == 2
+        assert len(spans) == 3
         dbm_comment_exc = _database_monitoring._get_dbm_comment(spans[0])
-        dbm_comment_excmany = _database_monitoring._get_dbm_comment(spans[1])
         cursor.execute.assert_called_once_with(dbm_comment_exc + "SELECT * FROM db;")
+        dbm_comment_excmany = _database_monitoring._get_dbm_comment(spans[1])
         cursor.executemany.assert_called_once_with(dbm_comment_excmany + "SELECT * FROM db;", ())
+        dbm_comment_proc = _database_monitoring._get_dbm_comment(spans[2])
+        cursor.callproc.assert_called_once_with(dbm_comment_proc + "proc")
 
 
 class TestTracedConnection(TracerTestCase):

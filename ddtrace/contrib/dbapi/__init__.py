@@ -15,7 +15,6 @@ from ...internal.compat import PY2
 from ...internal.logger import get_logger
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
-from ...internal.utils import set_argument_value
 from ...pin import Pin
 from ...settings import _database_monitoring
 from ...vendor import wrapt
@@ -25,7 +24,6 @@ from ..trace_utils import iswrapped
 
 if TYPE_CHECKING:
     from typing import Any
-    from typing import Dict
     from typing import Tuple
 
 
@@ -102,9 +100,7 @@ class TracedCursor(wrapt.ObjectProxy):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             if dbm_operation:
-                # If the traced operation executes a database query (ex: cursor.execute(..) or cursor.executemany(..))
-                # then attempt to add DBM tags to the query.
-                args, kwargs = _propagate_dbm_context(s, args, kwargs)
+                args = _propagate_dbm_context(s, args)
 
             try:
                 return method(*args, **kwargs)
@@ -145,7 +141,7 @@ class TracedCursor(wrapt.ObjectProxy):
     def callproc(self, proc, *args):
         """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, False, proc, *args)
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, True, proc, *args)
 
     def _set_post_execute_tags(self, span):
         row_count = self.__wrapped__.rowcount
@@ -313,15 +309,16 @@ def _get_module_name(conn):
     return conn.__class__.__module__.split(".")[0]
 
 
-def _propagate_dbm_context(dbspan, args, kwargs):
-    # type: (...) -> Tuple[Tuple[Any, ...], Dict[str, Any]]
+def _propagate_dbm_context(dbspan, args):
+    # type: (...) -> Tuple[Tuple[Any, ...]]
     dbm_comment = _database_monitoring._get_dbm_comment(dbspan)
     if dbm_comment is None:
-        return args, kwargs
-
-    # if dbm comment is not None prepend it to the query
-    query = get_argument_value(args, kwargs, 0, "query")
-    query_with_dbm_tags = dbm_comment + query
-    # replace the original query with query_with_dbm_tags
-    args, kwargs = set_argument_value(args, kwargs, 0, "query", query_with_dbm_tags)
-    return args, kwargs
+        return args
+    # If dbm propagation supported and enabled the first arg must be a sql query or a procedure.
+    assert len(args) > 0 and isinstance(args[0], str)
+    # get query or procedure from args
+    sql_statement = args[0]
+    sql_with_dbm_tags = dbm_comment + sql_statement
+    # replace the original query or procedure with query_with_dbm_tags
+    args = (sql_with_dbm_tags,) + args[1:]
+    return args
