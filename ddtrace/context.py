@@ -13,13 +13,8 @@ from .internal.compat import PY2
 from .internal.logger import get_logger
 
 
-<<<<<<< HEAD
-if TYPE_CHECKING:
-=======
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
-
->>>>>>> 96e6bca5 (fix(tracing): ensure Context is serializable (#4432))
     from .span import Span
     from .span import _MetaDictType
     from .span import _MetricDictType
