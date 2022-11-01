@@ -56,8 +56,7 @@
           "span_id": 3,
           "parent_id": 2,
           "meta": {
-            "component": "fastapi",
-            "span.kind": "server"
+            "component": "fastapi"
           },
           "duration": 36000,
           "start": 1667242400709184000
