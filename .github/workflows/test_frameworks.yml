@@ -378,7 +378,7 @@ jobs:
           python -m pip install -e .[test]
       - name: Run tests
         # Disable tests checking GC references since profiling can interfere
-        run: ddtrace-run python -m pytest -k 'not test_record_gc and not test_record_get and not test_record_items and not test_record_iter' tests
+        run: ddtrace-run python -m pytest -k 'not test_record_gc and not test_record_get and not test_record_items and not test_record_iter and not test_no_explicit_close_with_debug' tests
 
   pylons-testsuite-1_0_3:
     name: Pylons 1.0.3
