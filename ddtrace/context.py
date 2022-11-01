@@ -14,9 +14,19 @@ from .internal.logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Tuple
+
     from .span import Span
     from .span import _MetaDictType
     from .span import _MetricDictType
+
+    _ContextState = Tuple[
+        Optional[int],  # trace_id
+        Optional[int],  # span_id
+        _MetaDictType,  # _meta
+        _MetricDictType,  # _metrics
+    ]
+
 
 log = get_logger(__name__)
 
@@ -62,6 +72,22 @@ class Context(object):
             # are recreated by the tracer after fork
             # https://github.com/DataDog/dd-trace-py/blob/a1932e8ddb704d259ea8a3188d30bf542f59fd8d/ddtrace/tracer.py#L489-L508
             self._lock = threading.RLock()
+
+    def __getstate__(self):
+        # type: () -> _ContextState
+        return (
+            self.trace_id,
+            self.span_id,
+            self._meta,
+            self._metrics,
+            # Note: self._lock is not serializable
+        )
+
+    def __setstate__(self, state):
+        # type: (_ContextState) -> None
+        self.trace_id, self.span_id, self._meta, self._metrics = state
+        # We cannot serialize and lock, so we must recreate it unless we already have one
+        self._lock = threading.RLock()
 
     def _with_span(self, span):
         # type: (Span) -> Context
