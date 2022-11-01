@@ -50,8 +50,6 @@ def test_eq(ctx1, ctx2):
 )
 def test_not_eq(ctx1, ctx2):
     assert ctx1 != ctx2
-<<<<<<< HEAD
-=======
 
 
 def test_traceparent():
@@ -95,4 +93,3 @@ def test_context_serializable(context):
     state = pickle.dumps(context)
     restored = pickle.loads(state)
     assert context == restored
->>>>>>> 96e6bca5 (fix(tracing): ensure Context is serializable (#4432))
