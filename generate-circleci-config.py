@@ -754,7 +754,7 @@ circleci_config = {
                 "ccheck",
                 "build_base_venvs",
                 {"build_docs": {"requires": ["pre_check", "ccheck"]}},
-                {"aiobotocore": {"requires": ["pre_check", "ccheck", "buildw_base_venvs"]}},
+                {"aiobotocore": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"aiomysql": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"aiopg": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"aioredis": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
