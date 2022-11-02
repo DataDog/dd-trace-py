@@ -65,7 +65,7 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
             return PyTuple_Pack(2, filename_o, Py_BuildValue("i", line));
         }
     }
-    return PyTuple_Pack(2, Py_None, Py_None);
+    return Py_None;
 }
 
 static PyMethodDef StacktraceMethods[] = {
