@@ -12,9 +12,6 @@ log = get_logger(__name__)
 
 DEFAULT_REMOTECONFIG_POLL_SECONDS = 5.0  # seconds
 
-# The RCM worker thread is started on start-up so we request soft fork hooks
-periodic.forksafe._soft = True
-
 
 def get_poll_interval_seconds():
     # type:() -> float

@@ -6,7 +6,6 @@ from ddtrace.debugging._config import config
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
 from ddtrace.internal import compat
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import AwakeablePeriodicService
 from ddtrace.internal.runtime import container
@@ -15,10 +14,6 @@ from ddtrace.internal.utils.http import connector
 
 log = get_logger(__name__)
 meter = metrics.get_meter("snapshot.uploader")
-
-
-# The uploader thread might be started on start-up so we request soft fork hooks
-forksafe._soft = True
 
 
 class LogsIntakeUploaderV1(AwakeablePeriodicService):
