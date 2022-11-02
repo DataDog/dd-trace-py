@@ -97,8 +97,8 @@ circleci_config = {
                 {
                     "save_cache": {
                         "key": (
-                            "pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{"
-                            ' checksum "riotfile.py" }}-{{ checksum "setup.py" }}'
+                            "pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum"
+                            ' "riotfile.py" }}-{{ checksum "setup.py" }}'
                         ),
                         "paths": [".cache/pip"],
                     }
@@ -111,8 +111,8 @@ circleci_config = {
                 {
                     "restore_cache": {
                         "key": (
-                            "pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{"
-                            ' checksum "riotfile.py" }}-{{ checksum "setup.py" }}'
+                            "pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum"
+                            ' "riotfile.py" }}-{{ checksum "setup.py" }}'
                         )
                     }
                 }
@@ -120,10 +120,7 @@ circleci_config = {
         },
         "start_docker_services": {
             "description": "Start Docker services",
-            "parameters": {
-                "env": {"type": "string", "default": ""},
-                "services": {"type": "string", "default": ""},
-            },
+            "parameters": {"env": {"type": "string", "default": ""}, "services": {"type": "string", "default": ""}},
             "steps": [
                 {
                     "run": (
@@ -142,7 +139,6 @@ circleci_config = {
                 "snapshot": {"type": "boolean", "default": False},
                 "docker_services": {"type": "string", "default": ""},
                 "store_coverage": {"type": "boolean", "default": True},
-                "riotfile": {"type": "string", "default": "riotfile.py"},
             },
             "steps": [
                 {"attach_workspace": {"at": "."}},
@@ -163,10 +159,9 @@ circleci_config = {
                                 "run": {
                                     "environment": {"DD_TRACE_AGENT_URL": "http://localhost:9126"},
                                     "command": (
-                                        "mv .riot .ddriot\nriot -f '<<parameters.riotfile>>' list -i"
-                                        " '<<parameters.pattern>>' | circleci tests split | xargs -I PY"
-                                        " ./scripts/ddtest riot -f '<<parameters.riotfile>>' -v run"
-                                        " --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'\n"
+                                        "mv .riot .ddriot\nriot list -i '<<parameters.pattern>>' | circleci tests split"
+                                        " | xargs -I PY ./scripts/ddtest riot -v run --python=PY --exitfirst --pass-env"
+                                        " -s '<< parameters.pattern >>'\n"
                                     ),
                                 }
                             },
@@ -195,9 +190,8 @@ circleci_config = {
                             {
                                 "run": {
                                     "command": (
-                                        "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs"
-                                        " -I PY riot -v run --python=PY --exitfirst --pass-env -s '<<"
-                                        " parameters.pattern >>'"
+                                        "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY"
+                                        " riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
                                     )
                                 }
                             },
@@ -289,48 +283,13 @@ circleci_config = {
     },
     "mysql_server": {
         "image": "mysql:5.7",
-        "environment": [
-            "MYSQL_ROOT_PASSWORD=admin",
-            "MYSQL_PASSWORD=test",
-            "MYSQL_USER=test",
-            "MYSQL_DATABASE=test",
-        ],
+        "environment": ["MYSQL_ROOT_PASSWORD=admin", "MYSQL_PASSWORD=test", "MYSQL_USER=test", "MYSQL_DATABASE=test"],
     },
     "postgres_server": {
         "image": "postgres:11-alpine",
         "environment": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=postgres"],
     },
     "jobs": {
-        "run_tox_contrib_job": {
-            "parameters": {"pattern": {"type": "string", "default": ""}},
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "steps": [{"run_tox_scenario": {"pattern": "<<parameters.pattern>>"}}],
-        },
-        "run_tox_contrib_job_small": {
-            "parameters": {"pattern": {"type": "string", "default": ""}},
-            "executor": "ddtrace_dev_small",
-            "parallelism": 1,
-            "steps": [{"run_tox_scenario": {"pattern": "<<parameters.pattern>>"}}],
-        },
-        "run_test_machine_executor": {
-            "parameters": {"pattern": {"type": "string", "default": ""}},
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}],
-            "steps": [{"run_test": {"pattern": "<<parameters.pattern>>", "snapshot": True}}],
-        },
-        "run_test_contrib_job": {
-            "parameters": {"pattern": {"type": "string", "default": ""}},
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "steps": [{"run_test": {"pattern": "<<parameters.pattern>>"}}],
-        },
-        "run_test_contrib_job_small": {
-            "parameters": {"pattern": {"type": "string", "default": ""}},
-            "executor": "ddtrace_dev_small",
-            "parallelism": 1,
-            "steps": [{"run_test": {"pattern": "<<parameters.pattern>>"}}],
-        },
         "pre_check": {
             "executor": "python310",
             "steps": [
@@ -356,8 +315,8 @@ circleci_config = {
                 {"run": "sudo apt-get update"},
                 {
                     "run": (
-                        "sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools"
-                        " python3-pip cppcheck"
+                        "sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip"
+                        " cppcheck"
                     )
                 },
                 {"run": "scripts/cformat.sh"},
@@ -403,62 +362,11 @@ circleci_config = {
                 {"persist_to_workspace": {"root": ".", "paths": ["."]}},
             ],
         },
-        "build_latest_venvs": {
-            "resource_class": "large",
-            "docker": [{"image": "datadog/dd-trace-py:buster"}],
-            "parallelism": 7,
-            "steps": [
-                "checkout",
-                "setup_riot",
-                {
-                    "run": {
-                        "name": "Run riotfile.py tests",
-                        "command": "riot -f riotfile-latest.py run -s riot-helpers",
-                    }
-                },
-                {
-                    "run": {
-                        "name": "Run scripts/*.py tests",
-                        "command": "riot -f riotfile-latest.py run -s scripts",
-                    }
-                },
-                {
-                    "run": {
-                        "name": "Generate base virtual environments.",
-                        "command": (
-                            "riot -f riotfile-latest.py list -i tracer | circleci tests split | xargs -I PY"
-                            " riot -f riotfile-latest.py -v generate --python=PY"
-                        ),
-                    }
-                },
-                {"persist_to_workspace": {"root": ".", "paths": ["."]}},
-            ],
-        },
-        "appsec": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "appsec", "snapshot": True}}],
-        },
-        # "tracer": {
-        #     "executor": "ddtrace_dev",
-        #     "parallelism": 7,
-        #     "steps": [
-        #         {"run_test": {"pattern": "tracer"}},
-        #         {"run_tox_scenario": {"pattern": "^py.\\+-tracer_test_http"}},
-        #     ],
-        # },
-        # "telemetry": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "telemetry", "snapshot": True, "store_coverage": False}}],
-        # },
-        # "debugger": {
-        #     "executor": "ddtrace_dev", "parallelism": 7, "steps": [{"run_test": {"pattern": "debugger"}}]
-        # },
+        "internal": {"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "internal"}}]},
         "opentracer": {
             "executor": "ddtrace_dev",
             "parallelism": 7,
-            "steps": [{"run_tox_scenario": {"pattern": "^py.\\+-opentracer"}}],
+            "steps": [{"run_tox_scenario": {"pattern": "^py..-opentracer"}}],
         },
         "profile-windows-35": {
             "executor": {"name": "win/default", "shell": "bash.exe"},
@@ -498,199 +406,81 @@ circleci_config = {
             "resource_class": "large",
             "steps": [{"run_tox_scenario": {"store_coverage": False, "pattern": "^py.\\+-profile"}}],
         },
-        # "integration_agent5": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [
-        #         {"attach_workspace": {"at": "."}},
-        #         "checkout",
-        #         {"start_docker_services": {"services": "ddagent5"}},
-        #         {"run": {"command": "mv .riot .ddriot\n./scripts/ddtest "
-        #                  "riot -v run --pass-env -s 'integration-v5'\n"}},
-        #     ],
-        # },
-        # "integration_agent": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [
-        #         {"attach_workspace": {"at": "."}},
-        #         "checkout",
-        #         {"start_docker_services": {"services": "ddagent"}},
-        #         {
-        #             "run": {
-        #                 "command": "mv .riot .ddriot\n./scripts/ddtest "
-        #                            "riot -v run --pass-env -s 'integration-latest'\n"
-        #             }
-        #         },
-        #     ],
-        # },
-        # "integration_testagent": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [
-        #         {"attach_workspace": {"at": "."}},
-        #         "checkout",
-        #         {"start_docker_services": {"env": "SNAPSHOT_CI=1", "services": "testagent"}},
-        #         {
-        #             "run": {
-        #                 "environment": {"DD_TRACE_AGENT_URL": "http://localhost:9126"},
-        #                 "command": "mv .riot .ddriot\n./scripts/ddtest "
-        #                            "riot -v run --pass-env -s 'integration-snapshot'\n",
-        #             }
-        #         },
-        #     ],
-        # },
-        # "boto": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "^boto", "snapshot": True, "docker_services": "localstack"}}],
-        #     "parallelism": 4,
-        # },
-        # "ddtracerun": {
-        #     "executor": "ddtrace_dev",
-        #     "parallelism": 4,
-        #     "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "redis:4.0-alpine"}],
-        #     "steps": [{"run_test": {"store_coverage": False, "pattern": "ddtracerun"}}],
-        # },
-        # "asyncpg": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "asyncpg", "snapshot": True, "docker_services": "postgres"}}],
-        # },
-        # "aiohttp": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "aiohttp", "snapshot": True, "docker_services": "httpbin_local"}}],
-        #     "parallelism": 6,
-        # },
-        "aiohttp_latest": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [
-                {
-                    "run_test": {
-                        "pattern": "aiohttp",
-                        "riotfile": "riotfile-latest.py",
-                        "snapshot": True,
-                        "docker_services": "httpbin_local",
-                    }
-                }
-            ],
-            "parallelism": 5,
+        "vendor": {
+            "executor": "ddtrace_dev_small",
+            "parallelism": 1,
+            "docker": [{"image": "datadog/dd-trace-py:buster"}],
+            "steps": [{"run_test": {"pattern": "vendor"}}],
         },
-        # "cassandra": {
-        #     "executor": "ddtrace_dev",
-        #     "parallelism": 4,
-        #     "docker": [
-        #         {"image": "datadog/dd-trace-py:buster", "environment": {"CASS_DRIVER_NO_EXTENSIONS": 1}},
-        #         {"image": "cassandra:3.11.7", "environment": ["MAX_HEAP_SIZE=512M", "HEAP_NEWSIZE=256M"]},
-        #     ],
-        #     "steps": [{"run_test": {"wait": "cassandra", "pattern": "cassandra"}}],
-        # },
-        # "celery": {
-        #     "executor": "ddtrace_dev",
-        #     "parallelism": 7,
-        #     "docker": [
-        #         {"image": "datadog/dd-trace-py:buster"},
-        #         {"image": "redis:4.0-alpine"},
-        #         {"image": "rabbitmq:3.7-alpine"},
-        #     ],
-        #     "steps": [{"run_test": {"pattern": "celery"}}],
-        # },
-        # "cherrypy": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "cherrypy", "snapshot": True}}],
-        #     "parallelism": 6,
-        # },
+        "futures": {
+            "executor": "ddtrace_dev_small",
+            "parallelism": 1,
+            "steps": [{"run_tox_scenario": {"pattern": "^futures_contrib-"}}],
+        },
+        "test_logging": {
+            "executor": "ddtrace_dev_small",
+            "parallelism": 1,
+            "steps": [{"run_test": {"pattern": "test_logging"}}],
+        },
+        "asyncio": {
+            "executor": "ddtrace_dev_small",
+            "parallelism": 1,
+            "steps": [{"run_tox_scenario": {"pattern": "^asyncio_contrib-"}}],
+        },
+        "pylons": {"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "pylons"}}]},
+        "asgi": {"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "asgi$"}}]},
+        "tornado": {
+            "executor": "ddtrace_dev",
+            "parallelism": 4,
+            "steps": [{"run_tox_scenario": {"pattern": "^tornado_contrib-"}}],
+        },
+        "bottle": {
+            "executor": "ddtrace_dev",
+            "parallelism": 4,
+            "steps": [{"run_tox_scenario": {"pattern": "^bottle_contrib\\(_autopatch\\)\\?-"}}],
+        },
         "consul": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "consul:1.6.0"}],
             "steps": [{"run_tox_scenario": {"pattern": "^consul_contrib-"}}],
         },
-        # "elasticsearch": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "elasticsearch", "snapshot": True,
-        #                "docker_services": "elasticsearch"}}],
-        #     "parallelism": 4,
-        # },
-        # "django": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [
-        #         {"run_test": {"pattern": "django$", "snapshot": True, "docker_services": "memcached redis postgres"}}
-        #     ],
-        #     "parallelism": 6,
-        # },
-        # "djangorestframework": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [
-        #         {"run_test": {"pattern": "djangorestframework", "snapshot": True,
-        #                       "docker_services": "memcached redis"}}
-        #     ],
-        #     "parallelism": 6,
-        # },
-        # "flask": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [
-        #         {
-        #             "run_test": {
-        #                 "store_coverage": False,
-        #                 "snapshot": True,
-        #                 "pattern": "flask",
-        #                 "docker_services": "memcached redis",
-        #             }
-        #         }
-        #     ],
-        #     "parallelism": 7,
-        # },
+        "dogpile_cache": {
+            "executor": "ddtrace_dev",
+            "parallelism": 4,
+            "steps": [{"run_tox_scenario": {"pattern": "^dogpile_contrib-"}}],
+        },
+        "falcon": {"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "falcon"}}]},
+        "django_hosts": {
+            "machine": {"image": "ubuntu-2004:current"},
+            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+            "steps": [{"run_test": {"pattern": "django_hosts$", "snapshot": True}}],
+        },
+        "fastapi": {
+            "machine": {"image": "ubuntu-2004:current"},
+            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+            "steps": [{"run_test": {"pattern": "fastapi", "snapshot": True}}],
+        },
         "gevent": {
             "executor": "ddtrace_dev",
             "parallelism": 7,
             "steps": [{"run_tox_scenario": {"pattern": "^gevent_contrib-"}}],
         },
-        # "grpc": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "grpc", "snapshot": True}}],
-        #     "parallelism": 7,
-        # },
-        # "httplib": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "httplib", "snapshot": True, "docker_services": "httpbin_local"}}],
-        # },
-        # "httpx": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "httpx", "snapshot": True, "docker_services": "httpbin_local"}}],
-        # },
-        # "mariadb": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "mariadb$", "snapshot": True, "docker_services": "mariadb"}}],
-        # },
-        # "mysqlconnector": {
-        #     "executor": "ddtrace_dev",
-        #     "parallelism": 4,
-        #     "docker": [
-        #         {"image": "datadog/dd-trace-py:buster"},
-        #         {
-        #             "image": "mysql:5.7",
-        #             "environment": [
-        #                 "MYSQL_ROOT_PASSWORD=admin",
-        #                 "MYSQL_PASSWORD=test",
-        #                 "MYSQL_USER=test",
-        #                 "MYSQL_DATABASE=test",
-        #             ],
-        #         },
-        #     ],
-        #     "steps": [{"run_test": {"wait": "mysql", "pattern": "mysql"}}],
-        # },
+        "graphene": {
+            "machine": {"image": "ubuntu-2004:current"},
+            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+            "steps": [{"run_test": {"pattern": "graphene", "snapshot": True}}],
+        },
+        "graphql": {
+            "machine": {"image": "ubuntu-2004:current"},
+            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+            "steps": [{"run_test": {"pattern": "graphql", "snapshot": True}}],
+        },
+        "molten": {
+            "executor": "ddtrace_dev",
+            "parallelism": 4,
+            "steps": [{"run_tox_scenario": {"pattern": "^molten_contrib-"}}],
+        },
         "mysqlpython": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
@@ -708,29 +498,14 @@ circleci_config = {
             ],
             "steps": [{"run_tox_scenario": {"wait": "mysql", "pattern": "^mysqldb_contrib-.*-mysqlclient"}}],
         },
-        # "pymysql": {
-        #     "executor": "ddtrace_dev",
-        #     "parallelism": 4,
-        #     "docker": [
-        #         {"image": "datadog/dd-trace-py:buster"},
-        #         {
-        #             "image": "mysql:5.7",
-        #             "environment": [
-        #                 "MYSQL_ROOT_PASSWORD=admin",
-        #                 "MYSQL_PASSWORD=test",
-        #                 "MYSQL_USER=test",
-        #                 "MYSQL_DATABASE=test",
-        #             ],
-        #         },
-        #     ],
-        #     "steps": [{"run_test": {"wait": "mysql", "pattern": "pymysql"}}],
-        # },
         "pylibmc": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "memcached:1.5-alpine"}],
             "steps": [{"run_tox_scenario": {"pattern": "^pylibmc_contrib-"}}],
         },
+        "pytest": {"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "pytest$"}}]},
+        "pytestbdd": {"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "pytest-bdd"}}]},
         "pymemcache": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
@@ -749,10 +524,17 @@ circleci_config = {
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "mongo:3.6"}],
             "steps": [{"run_test": {"pattern": "pymongo"}}],
         },
-        "pyramid_latest": {
+        "pynamodb": {"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "pynamodb"}}]},
+        "pyodbc": {
+            "executor": "ddtrace_dev",
+            "parallelism": 4,
+            "docker": [{"image": "datadog/dd-trace-py:buster"}],
+            "steps": [{"run_tox_scenario": {"pattern": "^pyodbc_contrib-"}}],
+        },
+        "pyramid": {
             "machine": {"image": "ubuntu-2004:current"},
             "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "pyramid", "riotfile": "riotfile-latest.py", "snapshot": True}}],
+            "steps": [{"run_test": {"pattern": "pyramid", "snapshot": True}}],
         },
         "requests": {
             "executor": "ddtrace_dev",
@@ -768,33 +550,32 @@ circleci_config = {
             ],
             "steps": [{"run_test": {"pattern": "requests"}}],
         },
+        "requestsgevent": {
+            "executor": "ddtrace_dev",
+            "parallelism": 4,
+            "steps": [{"run_tox_scenario": {"pattern": "^requests_gevent_contrib-"}}],
+        },
+        "sanic": {
+            "machine": {"image": "ubuntu-2004:current"},
+            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+            "steps": [{"run_test": {"pattern": "sanic", "snapshot": True}}],
+        },
         "snowflake": {
             "machine": {"image": "ubuntu-2004:current"},
             "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
             "steps": [{"run_test": {"pattern": "snowflake", "snapshot": True}}],
             "parallelism": 4,
         },
-        # "sqlalchemy": {
-        #     "executor": "ddtrace_dev",
-        #     "parallelism": 4,
-        #     "docker": [
-        #         {"image": "datadog/dd-trace-py:buster"},
-        #         {
-        #             "image": "postgres:11-alpine",
-        #             "environment": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=postgres"],
-        #         },
-        #         {
-        #             "image": "mysql:5.7",
-        #             "environment": [
-        #                 "MYSQL_ROOT_PASSWORD=admin",
-        #                 "MYSQL_PASSWORD=test",
-        #                 "MYSQL_USER=test",
-        #                 "MYSQL_DATABASE=test",
-        #             ],
-        #         },
-        #     ],
-        #     "steps": [{"run_test": {"wait": "postgres mysql", "pattern": "sqlalchemy"}}],
-        # },
+        "starlette": {
+            "machine": {"image": "ubuntu-2004:current"},
+            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+            "steps": [{"run_test": {"pattern": "starlette", "snapshot": True}}],
+        },
+        "dbapi": {
+            "executor": "ddtrace_dev",
+            "parallelism": 4,
+            "steps": [{"run_tox_scenario": {"pattern": "^dbapi_contrib-"}}],
+        },
         "psycopg": {
             "machine": {"image": "ubuntu-2004:current"},
             "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
@@ -803,27 +584,15 @@ circleci_config = {
         },
         "aiobotocore": {
             "executor": "ddtrace_dev",
-            "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "palazzem/moto:1.0.1"}],
-            "steps": [{"run_test": {"pattern": "aiobotocore"}}],
-        },
-        "aiobotocore_latest": {
-            "executor": "ddtrace_dev",
             "parallelism": 4,
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "palazzem/moto:1.0.1"}],
-            "steps": [{"run_test": {"riotfile": "riotfile-latest.py", "pattern": "aiobotocore"}}],
+            "steps": [{"run_test": {"pattern": "aiobotocore"}}],
         },
         "aiomysql": {
             "machine": {"image": "ubuntu-2004:current"},
             "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
             "steps": [
-                {
-                    "run_test": {
-                        "docker_services": "mysql",
-                        "wait": "mysql",
-                        "pattern": "aiomysql",
-                        "snapshot": True,
-                    }
-                }
+                {"run_test": {"docker_services": "mysql", "wait": "mysql", "pattern": "aiomysql", "snapshot": True}}
             ],
         },
         "aiopg": {
@@ -833,11 +602,7 @@ circleci_config = {
                 {"image": "datadog/dd-trace-py:buster"},
                 {
                     "image": "postgres:11-alpine",
-                    "environment": [
-                        "POSTGRES_PASSWORD=postgres",
-                        "POSTGRES_USER=postgres",
-                        "POSTGRES_DB=postgres",
-                    ],
+                    "environment": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=postgres"],
                 },
             ],
             "steps": [{"run_test": {"wait": "postgres", "pattern": "aiopg"}}],
@@ -848,40 +613,6 @@ circleci_config = {
             "steps": [{"run_test": {"docker_services": "redis", "pattern": "aioredis$", "snapshot": True}}],
             "parallelism": 4,
         },
-        # "aredis": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"docker_services": "redis", "pattern": "aredis$", "snapshot": True}}],
-        #     "parallelism": 4,
-        # },
-        # "yaaredis": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"docker_services": "redis", "pattern": "yaaredis$", "snapshot": True}}],
-        #     "parallelism": 4,
-        # },
-        # "redis": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"docker_services": "redis", "pattern": "redis$", "snapshot": True}}],
-        #     "parallelism": 4,
-        # },
-        # "rediscluster": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "rediscluster", "docker_services": "rediscluster", "snapshot": True}}],
-        # },
-        # "rq": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "rq", "snapshot": True, "docker_services": "redis"}}],
-        #     "parallelism": 4,
-        # },
-        # "urllib3": {
-        #     "machine": {"image": "ubuntu-2004:current"},
-        #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "urllib3", "snapshot": True, "docker_services": "httpbin_local"}}],
-        # },
         "vertica": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
@@ -889,14 +620,15 @@ circleci_config = {
                 {"image": "datadog/dd-trace-py:buster"},
                 {
                     "image": "sumitchawla/vertica:latest",
-                    "environment": [
-                        "VP_TEST_USER=dbadmin",
-                        "VP_TEST_PASSWORD=abc123",
-                        "VP_TEST_DATABASE=docker",
-                    ],
+                    "environment": ["VP_TEST_USER=dbadmin", "VP_TEST_PASSWORD=abc123", "VP_TEST_DATABASE=docker"],
                 },
             ],
             "steps": [{"run_tox_scenario": {"wait": "vertica", "pattern": "^vertica_contrib-"}}],
+        },
+        "wsgi": {
+            "machine": {"image": "ubuntu-2004:current"},
+            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+            "steps": [{"run_test": {"pattern": "wsgi", "snapshot": True}}],
         },
         "kombu": {
             "executor": "ddtrace_dev",
@@ -904,11 +636,18 @@ circleci_config = {
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "rabbitmq:3.7-alpine"}],
             "steps": [{"run_tox_scenario": {"wait": "rabbitmq", "pattern": "^kombu_contrib-"}}],
         },
-        # "benchmarks": {
-        #     "executor": "ddtrace_dev",
-        #     "parallelism": 4,
-        #     "steps": [{"run_test": {"store_coverage": False, "pattern": "^benchmarks"}}],
-        # },
+        "sqlite3": {
+            "executor": "ddtrace_dev",
+            "parallelism": 4,
+            "steps": [{"run_tox_scenario": {"pattern": "^sqlite3_contrib-"}}],
+        },
+        "jinja2": {"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "jinja2"}}]},
+        "mako": {"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "mako"}}]},
+        "algoliasearch": {
+            "executor": "ddtrace_dev",
+            "parallelism": 4,
+            "steps": [{"run_tox_scenario": {"pattern": "^algoliasearch_contrib-"}}],
+        },
         "build_docs": {
             "executor": "ddtrace_dev",
             "steps": [
@@ -921,61 +660,85 @@ circleci_config = {
     },
     "requires_pre_check": {"requires": ["pre_check", "ccheck"]},
     "requires_base_venvs": {"requires": ["pre_check", "ccheck", "build_base_venvs"]},
-    "requires_latest_venvs": {"requires": ["ccheck", "build_latest_venvs"]},
     "requires_tests": {
         "requires": [
-            "run_test_contrib_job",
-            "run_test_contrib_job_small",
-            "run_test_machine_executor",
-            "run_tox_contrib_job",
-            "run_tox_contrib_job_small",
+            "aiobotocore",
+            "aiohttp",
+            "aiomysql",
             "aiopg",
             "aioredis",
+            "asyncio",
             "asyncpg",
+            "algoliasearch",
+            "asgi",
             "benchmarks",
             "boto",
+            "bottle",
             "cassandra",
             "celery",
             "cherrypy",
             "consul",
+            "dbapi",
             "ddtracerun",
+            "dogpile_cache",
             "django",
+            "django_hosts",
             "djangorestframework",
             "elasticsearch",
+            "falcon",
+            "fastapi",
             "flask",
+            "futures",
             "gevent",
+            "graphql",
             "grpc",
             "httplib",
             "httpx",
             "integration_agent5",
             "integration_agent",
             "integration_testagent",
+            "vendor",
             "profile",
+            "jinja2",
             "kombu",
+            "mako",
             "mariadb",
+            "molten",
             "mongoengine",
             "mysqlconnector",
             "mysqlpython",
             "opentracer",
             "psycopg",
             "pylibmc",
+            "pylons",
             "pymemcache",
             "pymongo",
             "pymysql",
+            "pynamodb",
+            "pyodbc",
+            "pyramid",
+            "pytest",
+            "pytestbdd",
             "aredis",
             "yaaredis",
             "redis",
             "rediscluster",
             "requests",
             "rq",
+            "sanic",
             "snowflake",
             "sqlalchemy",
+            "sqlite3",
+            "starlette",
+            "test_logging",
             "tracer",
             "telemetry",
             "debugger",
             "appsec",
+            "tornado",
             "urllib3",
             "vertica",
+            "wsgi",
             "profile-windows-35",
             "profile-windows-36",
             "profile-windows-38",
@@ -991,125 +754,53 @@ circleci_config = {
                 "ccheck",
                 "build_base_venvs",
                 {"build_docs": {"requires": ["pre_check", "ccheck"]}},
-                {
-                    "run_test_contrib_job": {
-                        "requires": ["pre_check", "ccheck", "build_base_venvs"],
-                        "matrix": {"parameters": {"pattern": ["jinja2", "pynamodb", "falcon", "internal"]}},
-                    }
-                },
-                {
-                    "run_test_contrib_job_small": {
-                        "requires": ["pre_check", "ccheck", "build_base_venvs"],
-                        "matrix": {
-                            "parameters": {
-                                "pattern": [
-                                    "vendor",
-                                    "test_logging",
-                                    "pylons",
-                                    "mako",
-                                    "asgi$",
-                                    "pytest$",
-                                    "pytest-bdd",
-                                ]
-                            }
-                        },
-                    }
-                },
-                {
-                    "run_test_machine_executor": {
-                        "requires": ["pre_check", "ccheck", "build_base_venvs"],
-                        "matrix": {
-                            "parameters": {
-                                "pattern": [
-                                    "fastapi",
-                                    "django_hosts$",
-                                    "graphene",
-                                    "graphql",
-                                    "pyramid",
-                                    "sanic",
-                                    "starlette",
-                                    "wsgi",
-                                ]
-                            }
-                        },
-                    }
-                },
-                {
-                    "run_tox_contrib_job": {
-                        "requires": ["pre_check", "ccheck", "build_base_venvs"],
-                        "matrix": {
-                            "parameters": {
-                                "pattern": [
-                                    "^sqlite3_contrib-",
-                                    "^algoliasearch_contrib-",
-                                    "^requests_gevent_contrib-",
-                                    "^molten_contrib-",
-                                    "^dogpile_contrib-",
-                                    "^bottle_contrib\\(_autopatch\\)\\?-",
-                                    "^tornado_contrib-",
-                                    "^pyodbc_contrib-",
-                                    "^dbapi_contrib-",
-                                ]
-                            }
-                        },
-                    }
-                },
-                {
-                    "run_tox_contrib_job_small": {
-                        "requires": ["pre_check", "ccheck", "build_base_venvs"],
-                        "matrix": {"parameters": {"pattern": ["^futures_contrib-", "^asyncio_contrib-"]}},
-                    }
-                },
-                {"aiobotocore": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"aiohttp": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"aiobotocore": {"requires": ["pre_check", "ccheck", "buildw_base_venvs"]}},
                 {"aiomysql": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"aiopg": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"aioredis": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"asyncpg": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"benchmarks": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"boto": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"cassandra": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"celery": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"cherrypy": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"asyncio": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"algoliasearch": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"asgi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"bottle": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"consul": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"ddtracerun": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"django": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"djangorestframework": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"elasticsearch": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"flask": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"dbapi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"django_hosts": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"dogpile_cache": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"falcon": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"fastapi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"futures": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"gevent": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"grpc": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"httplib": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"httpx": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"integration_agent5": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"integration_agent": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"integration_testagent": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"graphene": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"graphql": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"internal": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"vendor": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"profile": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"jinja2": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"kombu": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"mariadb": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"mako": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"molten": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"mongoengine": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"mysqlconnector": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"mysqlpython": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"opentracer": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"psycopg": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"pylibmc": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pylons": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"pymemcache": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"pymongo": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"pymysql": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"aredis": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"yaaredis": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"redis": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"rediscluster": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pynamodb": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pyodbc": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pyramid": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pytest": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pytestbdd": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"requests": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"rq": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"sanic": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"snowflake": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"sqlalchemy": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"tracer": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"telemetry": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"debugger": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"appsec": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                # {"urllib3": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"starlette": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"sqlite3": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"test_logging": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"tornado": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"vertica": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"wsgi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"profile-windows-35": {"requires": ["pre_check", "ccheck"]}},
                 {"profile-windows-36": {"requires": ["pre_check", "ccheck"]}},
                 {"profile-windows-38": {"requires": ["pre_check", "ccheck"]}},
@@ -1118,59 +809,83 @@ circleci_config = {
                 {
                     "coverage_report": {
                         "requires": [
-                            "run_test_contrib_job",
-                            "run_test_contrib_job_small",
-                            "run_test_machine_executor",
-                            "run_tox_contrib_job",
-                            "run_tox_contrib_job_small",
+                            "aiobotocore",
                             "aiohttp",
+                            "aiomysql",
                             "aiopg",
                             "aioredis",
+                            "asyncio",
                             "asyncpg",
+                            "algoliasearch",
+                            "asgi",
                             "benchmarks",
                             "boto",
+                            "bottle",
                             "cassandra",
                             "celery",
                             "cherrypy",
                             "consul",
+                            "dbapi",
                             "ddtracerun",
+                            "dogpile_cache",
                             "django",
+                            "django_hosts",
                             "djangorestframework",
                             "elasticsearch",
+                            "falcon",
+                            "fastapi",
                             "flask",
+                            "futures",
                             "gevent",
+                            "graphql",
                             "grpc",
                             "httplib",
                             "httpx",
                             "integration_agent5",
                             "integration_agent",
                             "integration_testagent",
+                            "vendor",
                             "profile",
+                            "jinja2",
                             "kombu",
+                            "mako",
                             "mariadb",
+                            "molten",
                             "mongoengine",
                             "mysqlconnector",
                             "mysqlpython",
                             "opentracer",
                             "psycopg",
                             "pylibmc",
+                            "pylons",
                             "pymemcache",
                             "pymongo",
                             "pymysql",
+                            "pynamodb",
+                            "pyodbc",
+                            "pyramid",
+                            "pytest",
+                            "pytestbdd",
                             "aredis",
                             "yaaredis",
                             "redis",
                             "rediscluster",
                             "requests",
                             "rq",
+                            "sanic",
                             "snowflake",
                             "sqlalchemy",
+                            "sqlite3",
+                            "starlette",
+                            "test_logging",
                             "tracer",
                             "telemetry",
                             "debugger",
                             "appsec",
+                            "tornado",
                             "urllib3",
                             "vertica",
+                            "wsgi",
                             "profile-windows-35",
                             "profile-windows-36",
                             "profile-windows-38",
@@ -1181,140 +896,91 @@ circleci_config = {
                 },
             ]
         },
-        "test_latest": {
-            "jobs": [
-                "ccheck",
-                "build_latest_venvs",
-                {"aiobotocore_latest": {"requires": ["ccheck", "build_latest_venvs"]}},
-                {"aiohttp_latest": {"requires": ["ccheck", "build_latest_venvs"]}},
-                {"pyramid_latest": {"requires": ["ccheck", "build_latest_venvs"]}},
-            ]
-        },
         "test_nightly": {
             "jobs": [
                 "pre_check",
                 "ccheck",
                 "build_base_venvs",
                 {"build_docs": {"requires": ["pre_check", "ccheck"]}},
-                {
-                    "run_test_contrib_job": {
-                        "requires": ["pre_check", "ccheck", "build_base_venvs"],
-                        "matrix": {"parameters": {"pattern": ["jinja2", "pynamodb", "falcon", "internal"]}},
-                    }
-                },
-                {
-                    "run_test_contrib_job_small": {
-                        "requires": ["pre_check", "ccheck", "build_base_venvs"],
-                        "matrix": {
-                            "parameters": {
-                                "pattern": [
-                                    "vendor",
-                                    "test_logging",
-                                    "pylons",
-                                    "mako",
-                                    "asgi$",
-                                    "pytest$",
-                                    "pytest-bdd",
-                                ]
-                            }
-                        },
-                    }
-                },
-                {
-                    "run_test_machine_executor": {
-                        "requires": ["pre_check", "ccheck", "build_base_venvs"],
-                        "matrix": {
-                            "parameters": {
-                                "pattern": [
-                                    "fastapi",
-                                    "django_hosts$",
-                                    "graphene",
-                                    "graphql",
-                                    "pyramid",
-                                    "sanic",
-                                    "starlette",
-                                    "wsgi",
-                                ]
-                            }
-                        },
-                    }
-                },
-                {
-                    "run_tox_contrib_job": {
-                        "requires": ["pre_check", "ccheck", "build_base_venvs"],
-                        "matrix": {
-                            "parameters": {
-                                "pattern": [
-                                    "^sqlite3_contrib-",
-                                    "^algoliasearch_contrib-",
-                                    "^requests_gevent_contrib-",
-                                    "^molten_contrib-",
-                                    "^dogpile_contrib-",
-                                    "^bottle_contrib\\(_autopatch\\)\\?-",
-                                    "^tornado_contrib-",
-                                    "^pyodbc_contrib-",
-                                    "^dbapi_contrib-",
-                                ]
-                            }
-                        },
-                    }
-                },
-                {
-                    "run_tox_contrib_job_small": {
-                        "requires": ["pre_check", "ccheck", "build_base_venvs"],
-                        "matrix": {"parameters": {"pattern": ["^futures_contrib-", "^asyncio_contrib-"]}},
-                    }
-                },
                 {"aiobotocore": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"aiohttp": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"aiomysql": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"aiopg": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"aioredis": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"asyncio": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"asyncpg": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"algoliasearch": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"asgi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"benchmarks": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"boto": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"bottle": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"cassandra": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"celery": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"cherrypy": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"consul": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"dbapi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"ddtracerun": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"django": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"django_hosts": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"djangorestframework": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"dogpile_cache": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"elasticsearch": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"falcon": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"fastapi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"flask": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"futures": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"gevent": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"graphene": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"graphql": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"grpc": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"httplib": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"httpx": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"integration_agent5": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"integration_agent": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"integration_testagent": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"internal": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"vendor": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"profile": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"jinja2": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"kombu": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"mako": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"mariadb": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"molten": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"mongoengine": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"mysqlconnector": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"mysqlpython": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"opentracer": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"psycopg": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"pylibmc": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pylons": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"pymemcache": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"pymongo": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"pymysql": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pynamodb": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pyodbc": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pyramid": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pytest": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"pytestbdd": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"aredis": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"yaaredis": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"redis": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"rediscluster": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"requests": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"rq": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"sanic": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"snowflake": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"starlette": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"sqlalchemy": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"sqlite3": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"test_logging": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"tornado": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"tracer": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"telemetry": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"debugger": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"appsec": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"urllib3": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"vertica": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
+                {"wsgi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
                 {"profile-windows-35": {"requires": ["pre_check", "ccheck"]}},
                 {"profile-windows-36": {"requires": ["pre_check", "ccheck"]}},
                 {"profile-windows-38": {"requires": ["pre_check", "ccheck"]}},
@@ -1323,58 +989,83 @@ circleci_config = {
                 {
                     "coverage_report": {
                         "requires": [
-                            "run_test_contrib_job",
-                            "run_test_contrib_job_small",
-                            "run_test_machine_executor",
-                            "run_tox_contrib_job",
-                            "run_tox_contrib_job_small",
+                            "aiobotocore",
+                            "aiohttp",
+                            "aiomysql",
                             "aiopg",
                             "aioredis",
+                            "asyncio",
                             "asyncpg",
+                            "algoliasearch",
+                            "asgi",
                             "benchmarks",
                             "boto",
+                            "bottle",
                             "cassandra",
                             "celery",
                             "cherrypy",
                             "consul",
+                            "dbapi",
                             "ddtracerun",
+                            "dogpile_cache",
                             "django",
+                            "django_hosts",
                             "djangorestframework",
                             "elasticsearch",
+                            "falcon",
+                            "fastapi",
                             "flask",
+                            "futures",
                             "gevent",
+                            "graphql",
                             "grpc",
                             "httplib",
                             "httpx",
                             "integration_agent5",
                             "integration_agent",
                             "integration_testagent",
+                            "vendor",
                             "profile",
+                            "jinja2",
                             "kombu",
+                            "mako",
                             "mariadb",
+                            "molten",
                             "mongoengine",
                             "mysqlconnector",
                             "mysqlpython",
                             "opentracer",
                             "psycopg",
                             "pylibmc",
+                            "pylons",
                             "pymemcache",
                             "pymongo",
                             "pymysql",
+                            "pynamodb",
+                            "pyodbc",
+                            "pyramid",
+                            "pytest",
+                            "pytestbdd",
                             "aredis",
                             "yaaredis",
                             "redis",
                             "rediscluster",
                             "requests",
                             "rq",
+                            "sanic",
                             "snowflake",
                             "sqlalchemy",
+                            "sqlite3",
+                            "starlette",
+                            "test_logging",
                             "tracer",
                             "telemetry",
                             "debugger",
                             "appsec",
+                            "tornado",
                             "urllib3",
                             "vertica",
+                            "wsgi",
                             "profile-windows-35",
                             "profile-windows-36",
                             "profile-windows-38",
@@ -1389,14 +1080,28 @@ circleci_config = {
     },
 }
 
-circleci_config["jobs"].update(defined_jobs)
+# print(*sorted(defined_jobs.keys()), sep='\n')
+# print(*circleci_config["workflows"]["test"]["jobs"], sep='\n')
+
+# s = circleci_config["workflows"]["test"]["jobs"]
 
 base_requirement = ["pre_check", "ccheck", "build_base_venvs"]
+# for name in defined_jobs:
+#     if name not in base_requirement:
+#         for i in range(len(s)):
+#             if isinstance(s[i], dict) and len(s[i]) == 1 and list(s[i].keys())[0] == name:
+#                 del s[i]
+#                 break
+
+# print(s)
+
+# sys.exit()
+
+circleci_config["jobs"].update(defined_jobs)
+
 for name in defined_jobs:
     if name not in base_requirement:
         circleci_config["workflows"]["test"]["jobs"].append({name: {"requires": base_requirement}})
 
-# print(*list(defined_jobs.keys()), sep='\n')
-# print(*circleci_config["workflows"]["test"]["jobs"], sep='\n')
 
 yaml.dump(circleci_config, sys.stdout, default_flow_style=False)
