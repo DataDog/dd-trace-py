@@ -33,6 +33,8 @@ IS_PYSTON = hasattr(sys, "pyston_version_info")
 
 LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
 
+CURRENT_OS = platform.system()
+
 
 def load_module_from_project_file(mod_name, fname):
     """
@@ -92,8 +94,6 @@ class Tox(TestCommand):
 class LibDDWaf_Download(BuildPyCommand):
     @staticmethod
     def download_dynamic_library():
-        current_os = platform.system()
-
         # TRANSLATE_ARCH = {"amd64": "x64"}
         TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
         AVAILABLE_RELEASES = {
@@ -101,7 +101,7 @@ class LibDDWaf_Download(BuildPyCommand):
             "Darwin": ["arm64", "x86_64"],
             "Linux": ["aarch64", "x86_64"],
         }
-        SUFFIX = TRANSLATE_SUFFIX[current_os]
+        SUFFIX = TRANSLATE_SUFFIX[CURRENT_OS]
 
         if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR) and len(os.listdir(LIBDDWAF_DOWNLOAD_DIR)):
             return
@@ -109,13 +109,13 @@ class LibDDWaf_Download(BuildPyCommand):
         if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
             os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
 
-        for arch in AVAILABLE_RELEASES[current_os]:
+        for arch in AVAILABLE_RELEASES[CURRENT_OS]:
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
 
             if os.path.isdir(arch_dir):
                 continue
 
-            ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (platform.system().lower(), arch)
+            ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (CURRENT_OS.lower(), arch)
             ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
 
             ddwaf_download_address = (
@@ -198,12 +198,12 @@ else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
-if platform.system() == "Windows":
+if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
     debug_compile_args = []
 else:
-    linux = platform.system() == "Linux"
+    linux = CURRENT_OS == "Linux"
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
     if DEBUG_COMPILE:
@@ -272,7 +272,9 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec.ddwaf": ["libddwaf/*/lib/libddwaf.*"],
+        "ddtrace.appsec.ddwaf": [
+            "libddwaf\\*\\lib\\libddwaf.*" if CURRENT_OS == "Windows" else "libddwaf/*/lib/libddwaf.*"
+        ],
     },
     include_package_data=True,
     py_modules=["ddtrace_gevent_check"],
