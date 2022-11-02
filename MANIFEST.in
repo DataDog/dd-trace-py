@@ -1,1 +1,1 @@
-recursive-include ddtrace/appsec/ddwaf/libddwaf
+recursive-include ddtrace/appsec/ddwaf/libddwaf libddwaf.*
