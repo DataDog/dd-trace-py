@@ -5,8 +5,10 @@ import logging
 import sys
 
 import yaml
-from riotfile import venv
+
 from riotfile import Venv
+from riotfile import venv
+
 
 logger = logging.getLogger()
 
@@ -53,7 +55,10 @@ circleci_config = {
             "description": "Save coverage.py results to workspace",
             "steps": [
                 {
-                    "run": "set -ex\nmkdir coverage\nif [ -f .coverage ];\nthen\n  cp .coverage ./coverage/$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage\nfi\n"
+                    "run": (
+                        "set -ex\nmkdir coverage\nif [ -f .coverage ];\nthen\n  cp .coverage"
+                        " ./coverage/$CIRCLE_BUILD_NUM-$CIRCLE_JOB-$CIRCLE_NODE_INDEX.coverage\nfi\n"
+                    )
                 },
                 {"persist_to_workspace": {"root": "coverage", "paths": ["*.coverage"]}},
                 {"store_artifacts": {"path": "coverage"}},
@@ -66,7 +71,9 @@ circleci_config = {
             "steps": [
                 {
                     "restore_cache": {
-                        "key": 'tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}'
+                        "key": (
+                            'tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}'
+                        )
                     }
                 }
             ],
@@ -76,7 +83,9 @@ circleci_config = {
             "steps": [
                 {
                     "save_cache": {
-                        "key": 'tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}',
+                        "key": (
+                            'tox-cache-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}'
+                        ),
                         "paths": [".tox"],
                     }
                 }
@@ -87,7 +96,10 @@ circleci_config = {
             "steps": [
                 {
                     "save_cache": {
-                        "key": 'pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}',
+                        "key": (
+                            "pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{"
+                            ' checksum "riotfile.py" }}-{{ checksum "setup.py" }}'
+                        ),
                         "paths": [".cache/pip"],
                     }
                 }
@@ -98,17 +110,25 @@ circleci_config = {
             "steps": [
                 {
                     "restore_cache": {
-                        "key": 'pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{ checksum "riotfile.py" }}-{{ checksum "setup.py" }}'
+                        "key": (
+                            "pip-cache-{{ .Environment.CIRCLE_JOB }}-{{ .Environment.CIRCLE_NODE_INDEX }}-{{"
+                            ' checksum "riotfile.py" }}-{{ checksum "setup.py" }}'
+                        )
                     }
                 }
             ],
         },
         "start_docker_services": {
             "description": "Start Docker services",
-            "parameters": {"env": {"type": "string", "default": ""}, "services": {"type": "string", "default": ""}},
+            "parameters": {
+                "env": {"type": "string", "default": ""},
+                "services": {"type": "string", "default": ""},
+            },
             "steps": [
                 {
-                    "run": "for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done"
+                    "run": (
+                        "for i in {1..3}; do docker-compose pull -q << parameters.services >> && break || sleep 3; done"
+                    )
                 },
                 {"run": "<< parameters.env >> docker-compose up -d << parameters.services >>"},
                 {"run": {"command": "docker-compose logs -f", "background": True}},
@@ -142,7 +162,12 @@ circleci_config = {
                             {
                                 "run": {
                                     "environment": {"DD_TRACE_AGENT_URL": "http://localhost:9126"},
-                                    "command": "mv .riot .ddriot\nriot -f '<<parameters.riotfile>>' list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY ./scripts/ddtest riot -f '<<parameters.riotfile>>' -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'\n",
+                                    "command": (
+                                        "mv .riot .ddriot\nriot -f '<<parameters.riotfile>>' list -i"
+                                        " '<<parameters.pattern>>' | circleci tests split | xargs -I PY"
+                                        " ./scripts/ddtest riot -f '<<parameters.riotfile>>' -v run"
+                                        " --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'\n"
+                                    ),
                                 }
                             },
                         ],
@@ -169,7 +194,11 @@ circleci_config = {
                             "setup_riot",
                             {
                                 "run": {
-                                    "command": "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                                    "command": (
+                                        "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs"
+                                        " -I PY riot -v run --python=PY --exitfirst --pass-env -s '<<"
+                                        " parameters.pattern >>'"
+                                    )
                                 }
                             },
                         ],
@@ -260,7 +289,12 @@ circleci_config = {
     },
     "mysql_server": {
         "image": "mysql:5.7",
-        "environment": ["MYSQL_ROOT_PASSWORD=admin", "MYSQL_PASSWORD=test", "MYSQL_USER=test", "MYSQL_DATABASE=test"],
+        "environment": [
+            "MYSQL_ROOT_PASSWORD=admin",
+            "MYSQL_PASSWORD=test",
+            "MYSQL_USER=test",
+            "MYSQL_DATABASE=test",
+        ],
     },
     "postgres_server": {
         "image": "postgres:11-alpine",
@@ -321,7 +355,10 @@ circleci_config = {
                 "checkout",
                 {"run": "sudo apt-get update"},
                 {
-                    "run": "sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools python3-pip cppcheck"
+                    "run": (
+                        "sudo apt-get install --yes clang-format gcc-10 g++-10 python3 python3-setuptools"
+                        " python3-pip cppcheck"
+                    )
                 },
                 {"run": "scripts/cformat.sh"},
                 {"run": "scripts/cppcheck.sh"},
@@ -358,7 +395,9 @@ circleci_config = {
                 {
                     "run": {
                         "name": "Generate base virtual environments.",
-                        "command": "riot list -i tracer | circleci tests split | xargs -I PY riot -v generate --python=PY",
+                        "command": (
+                            "riot list -i tracer | circleci tests split | xargs -I PY riot -v generate --python=PY"
+                        ),
                     }
                 },
                 {"persist_to_workspace": {"root": ".", "paths": ["."]}},
@@ -371,12 +410,25 @@ circleci_config = {
             "steps": [
                 "checkout",
                 "setup_riot",
-                {"run": {"name": "Run riotfile.py tests", "command": "riot -f riotfile-latest.py run -s riot-helpers"}},
-                {"run": {"name": "Run scripts/*.py tests", "command": "riot -f riotfile-latest.py run -s scripts"}},
+                {
+                    "run": {
+                        "name": "Run riotfile.py tests",
+                        "command": "riot -f riotfile-latest.py run -s riot-helpers",
+                    }
+                },
+                {
+                    "run": {
+                        "name": "Run scripts/*.py tests",
+                        "command": "riot -f riotfile-latest.py run -s scripts",
+                    }
+                },
                 {
                     "run": {
                         "name": "Generate base virtual environments.",
-                        "command": "riot -f riotfile-latest.py list -i tracer | circleci tests split | xargs -I PY riot -f riotfile-latest.py -v generate --python=PY",
+                        "command": (
+                            "riot -f riotfile-latest.py list -i tracer | circleci tests split | xargs -I PY"
+                            " riot -f riotfile-latest.py -v generate --python=PY"
+                        ),
                     }
                 },
                 {"persist_to_workspace": {"root": ".", "paths": ["."]}},
@@ -453,7 +505,8 @@ circleci_config = {
         #         {"attach_workspace": {"at": "."}},
         #         "checkout",
         #         {"start_docker_services": {"services": "ddagent5"}},
-        #         {"run": {"command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-v5'\n"}},
+        #         {"run": {"command": "mv .riot .ddriot\n./scripts/ddtest "
+        #                  "riot -v run --pass-env -s 'integration-v5'\n"}},
         #     ],
         # },
         # "integration_agent": {
@@ -465,7 +518,8 @@ circleci_config = {
         #         {"start_docker_services": {"services": "ddagent"}},
         #         {
         #             "run": {
-        #                 "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-latest'\n"
+        #                 "command": "mv .riot .ddriot\n./scripts/ddtest "
+        #                            "riot -v run --pass-env -s 'integration-latest'\n"
         #             }
         #         },
         #     ],
@@ -480,7 +534,8 @@ circleci_config = {
         #         {
         #             "run": {
         #                 "environment": {"DD_TRACE_AGENT_URL": "http://localhost:9126"},
-        #                 "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'\n",
+        #                 "command": "mv .riot .ddriot\n./scripts/ddtest "
+        #                            "riot -v run --pass-env -s 'integration-snapshot'\n",
         #             }
         #         },
         #     ],
@@ -557,7 +612,8 @@ circleci_config = {
         # "elasticsearch": {
         #     "machine": {"image": "ubuntu-2004:current"},
         #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        #     "steps": [{"run_test": {"pattern": "elasticsearch", "snapshot": True, "docker_services": "elasticsearch"}}],
+        #     "steps": [{"run_test": {"pattern": "elasticsearch", "snapshot": True,
+        #                "docker_services": "elasticsearch"}}],
         #     "parallelism": 4,
         # },
         # "django": {
@@ -572,7 +628,8 @@ circleci_config = {
         #     "machine": {"image": "ubuntu-2004:current"},
         #     "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
         #     "steps": [
-        #         {"run_test": {"pattern": "djangorestframework", "snapshot": True, "docker_services": "memcached redis"}}
+        #         {"run_test": {"pattern": "djangorestframework", "snapshot": True,
+        #                       "docker_services": "memcached redis"}}
         #     ],
         #     "parallelism": 6,
         # },
@@ -703,7 +760,9 @@ circleci_config = {
             "docker": [
                 {"image": "datadog/dd-trace-py:buster"},
                 {
-                    "image": "kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb",
+                    "image": (
+                        "kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb"
+                    ),
                     "name": "httpbin.org",
                 },
             ],
@@ -757,7 +816,14 @@ circleci_config = {
             "machine": {"image": "ubuntu-2004:current"},
             "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
             "steps": [
-                {"run_test": {"docker_services": "mysql", "wait": "mysql", "pattern": "aiomysql", "snapshot": True}}
+                {
+                    "run_test": {
+                        "docker_services": "mysql",
+                        "wait": "mysql",
+                        "pattern": "aiomysql",
+                        "snapshot": True,
+                    }
+                }
             ],
         },
         "aiopg": {
@@ -767,7 +833,11 @@ circleci_config = {
                 {"image": "datadog/dd-trace-py:buster"},
                 {
                     "image": "postgres:11-alpine",
-                    "environment": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=postgres"],
+                    "environment": [
+                        "POSTGRES_PASSWORD=postgres",
+                        "POSTGRES_USER=postgres",
+                        "POSTGRES_DB=postgres",
+                    ],
                 },
             ],
             "steps": [{"run_test": {"wait": "postgres", "pattern": "aiopg"}}],
@@ -819,7 +889,11 @@ circleci_config = {
                 {"image": "datadog/dd-trace-py:buster"},
                 {
                     "image": "sumitchawla/vertica:latest",
-                    "environment": ["VP_TEST_USER=dbadmin", "VP_TEST_PASSWORD=abc123", "VP_TEST_DATABASE=docker"],
+                    "environment": [
+                        "VP_TEST_USER=dbadmin",
+                        "VP_TEST_PASSWORD=abc123",
+                        "VP_TEST_DATABASE=docker",
+                    ],
                 },
             ],
             "steps": [{"run_tox_scenario": {"wait": "vertica", "pattern": "^vertica_contrib-"}}],

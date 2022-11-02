@@ -1,12 +1,12 @@
 # type: ignore
+import dataclasses
+from typing import Any
+from typing import Dict
 from typing import List
 from typing import Tuple
 
 from riot import Venv as RiotVenv
 from riot import latest
-
-import dataclasses
-from typing import Any, Dict
 
 
 SUPPORTED_PYTHON_VERSIONS = [
@@ -336,7 +336,10 @@ venv = Venv(
                             {"start_docker_services": {"services": "ddagent5"}},
                             {
                                 "run": {
-                                    "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-v5'\n"
+                                    "command": (
+                                        "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s"
+                                        " 'integration-v5'\n"
+                                    )
                                 }
                             },
                         ],
@@ -356,7 +359,10 @@ venv = Venv(
                             {"start_docker_services": {"services": "ddagent"}},
                             {
                                 "run": {
-                                    "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-latest'\n"
+                                    "command": (
+                                        "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s"
+                                        " 'integration-latest'\n"
+                                    )
                                 }
                             },
                         ],
@@ -378,7 +384,10 @@ venv = Venv(
                             {
                                 "run": {
                                     "environment": {"DD_TRACE_AGENT_URL": "http://localhost:9126"},
-                                    "command": "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s 'integration-snapshot'\n",
+                                    "command": (
+                                        "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s"
+                                        " 'integration-snapshot'\n"
+                                    ),
                                 }
                             },
                         ],
