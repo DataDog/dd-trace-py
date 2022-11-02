@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-
+import collections
 import logging
 import sys
 
@@ -550,11 +550,11 @@ circleci_config = {
             ],
             "steps": [{"run_test": {"pattern": "requests"}}],
         },
-        "requestsgevent": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "steps": [{"run_tox_scenario": {"pattern": "^requests_gevent_contrib-"}}],
-        },
+        # "requestsgevent": {
+        #     "executor": "ddtrace_dev",
+        #     "parallelism": 4,
+        #     "steps": [{"run_tox_scenario": {"pattern": "^requests_gevent_contrib-"}}],
+        # },
         "sanic": {
             "machine": {"image": "ubuntu-2004:current"},
             "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
@@ -660,145 +660,32 @@ circleci_config = {
     },
     "workflows": {
         "version": 2,
-        "test": {
-            "jobs": [
-                "pre_check",
-                "ccheck",
-                "build_base_venvs",
-                {"build_docs": {"requires": ["pre_check", "ccheck"]}},
-                {"aiobotocore": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"aiomysql": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"aiopg": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"aioredis": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"asyncio": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"algoliasearch": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"asgi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"bottle": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"consul": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"dbapi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"django_hosts": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"dogpile_cache": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"falcon": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"fastapi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"futures": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"gevent": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"graphene": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"graphql": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"internal": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"vendor": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"profile": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"jinja2": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"kombu": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"mako": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"molten": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"mongoengine": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"mysqlpython": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"opentracer": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"psycopg": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"pylibmc": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"pylons": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"pymemcache": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"pymongo": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"pynamodb": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"pyodbc": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"pyramid": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"pytest": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"pytestbdd": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"requests": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"sanic": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"snowflake": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"starlette": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"sqlite3": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"test_logging": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"tornado": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"vertica": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"wsgi": {"requires": ["pre_check", "ccheck", "build_base_venvs"]}},
-                {"profile-windows-35": {"requires": ["pre_check", "ccheck"]}},
-                {"profile-windows-36": {"requires": ["pre_check", "ccheck"]}},
-                {"profile-windows-38": {"requires": ["pre_check", "ccheck"]}},
-                {"profile-windows-39": {"requires": ["pre_check", "ccheck"]}},
-                {"profile-windows-310": {"requires": ["pre_check", "ccheck"]}},
-                {
-                    "coverage_report": {
-                        "requires": [
-                            "aiobotocore",
-                            "aiomysql",
-                            "aiopg",
-                            "aioredis",
-                            "algoliasearch",
-                            "asgi",
-                            "asyncio",
-                            "bottle",
-                            "consul",
-                            "dbapi",
-                            "django_hosts",
-                            "dogpile_cache",
-                            "falcon",
-                            "fastapi",
-                            "futures",
-                            "gevent",
-                            "graphql",
-                            "jinja2",
-                            "kombu",
-                            "mako",
-                            "molten",
-                            "mongoengine",
-                            "mysqlpython",
-                            "opentracer",
-                            "profile",
-                            "profile-windows-310",
-                            "profile-windows-35",
-                            "profile-windows-36",
-                            "profile-windows-38",
-                            "profile-windows-39",
-                            "psycopg",
-                            "pylibmc",
-                            "pylons",
-                            "pymemcache",
-                            "pymongo",
-                            "pynamodb",
-                            "pyodbc",
-                            "pyramid",
-                            "pytest",
-                            "pytestbdd",
-                            "requests",
-                            "sanic",
-                            "snowflake",
-                            "sqlite3",
-                            "starlette",
-                            "test_logging",
-                            "tornado",
-                            "vendor",
-                            "vertica",
-                            "wsgi",
-                        ]
-                    }
-                },
-            ]
-        },
+        "test": {},
         "test_nightly": {
             "triggers": [{"schedule": {"cron": "0 0 * * *", "filters": {"branches": {"only": ["0.x", "1.x"]}}}}],
         },
     },
 }
 
-base_requirement = ["pre_check", "ccheck", "build_base_venvs"]
+BASE_JOBS = {"pre_check", "ccheck", "build_base_venvs"}
+no_coverage = BASE_JOBS | {"coverage_report", "graphene", "build_docs", "internal"}
 circleci_config["jobs"].update(defined_jobs)
-list_coverage = [
-    c for c in circleci_config["workflows"]["test"]["jobs"] if isinstance(c, dict) and "coverage_report" in c
-][0]["coverage_report"]["requires"]
+list_coverage = [job for job in circleci_config["jobs"] if job not in no_coverage]
+DEFAULT_REQUIREMENTS = ["pre_check", "ccheck", "build_base_venvs"]
+CHECK_REQUIREMENTS = ["pre_check", "ccheck"]
+CHECKONLY_JOBS = ["build_docs"] + [f"profile-windows-3{i}" for i in (5, 6, 8, 9, 10)]
 
-for name in defined_jobs:
-    if name not in base_requirement:
-        list_coverage.append(name)
-        circleci_config["workflows"]["test"]["jobs"].append({name: {"requires": base_requirement}})
+requirements = collections.defaultdict(lambda: DEFAULT_REQUIREMENTS)
+for jobs, reqs in [(BASE_JOBS, []), (CHECKONLY_JOBS, CHECK_REQUIREMENTS), (["coverage_report"], list_coverage)]:
+    for job in jobs:
+        requirements[job] = reqs
+
+test_jobs = []
+circleci_config["workflows"]["test"]["jobs"] = test_jobs
+for name in circleci_config["jobs"]:
+    test_jobs.append({name: {"requires": requirements[name]}})
 
 # nightly tests are the same as tests
 circleci_config["workflows"]["test_nightly"]["jobs"] = circleci_config["workflows"]["test"]["jobs"]
 
 yaml.dump(circleci_config, sys.stdout, default_flow_style=False)
-
-# requestsgevent is not used any more ?
-# graphene is not required for coverage ?
-
-# print([k for k in circleci_config["jobs"] if k not in list_coverage])
