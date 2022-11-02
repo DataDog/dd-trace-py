@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django: fix django asgi support when running ddtrace in debug mode
