@@ -66,7 +66,12 @@ get_file_and_line(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
             return PyTuple_Pack(2, filename_o, Py_BuildValue("i", line));
         }
     }
+#if PY_MAJOR_VERSION > 3 || PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 10
+    return Py_NewRef(Py_None);
+#else
+    Py_INCREF(Py_None);
     return Py_None;
+#endif
 }
 
 static PyMethodDef StacktraceMethods[] = {
