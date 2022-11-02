@@ -31,7 +31,7 @@ try:
         ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
 
     ARCHI = machine().lower()
-    TRANSLATE_ARCH = {"amd64": "x64"}
+    TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64"}
     ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
     ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION))
 except OSError as e:
