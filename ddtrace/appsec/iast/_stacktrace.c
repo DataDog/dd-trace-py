@@ -10,12 +10,8 @@
 #define TESTS_PREFIX "/tests/"
 #endif
 
-#if PY_VERSION_HEX >= 0x30b00f0
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 11
 #include <internal/pycore_frame.h>
-#define PYTHON311
-#endif
-
-#ifdef PYTHON311
 #define FrameType _PyCFrame
 #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
 #define GET_PREVIOUS(frame) frame->previous
@@ -27,7 +23,12 @@
 #define GET_FRAME(tstate) tstate->frame
 #define GET_PREVIOUS(frame) frame->f_back
 #define GET_FILENAME(frame) frame->f_code->co_filename
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
+/* See: https://bugs.python.org/issue44964 */
+#define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
+#else
 #define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
+#endif
 #endif
 
 /**
