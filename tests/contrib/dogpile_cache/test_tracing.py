@@ -94,7 +94,7 @@ def test_traces_get_or_create(tracer, single_cache, test_spans):
     assert span.get_tag("expired") == "True"
     assert span.get_tag("backend") == "MemoryBackend"
     assert span.get_tag("region") == "TestRegion"
-    assert span.get_tag("component") == "dopile_cache"
+    assert span.get_tag("component") == "dogpile_cache"
 
     # Now the results should be cached.
     assert single_cache(1) == 2
@@ -113,7 +113,7 @@ def test_traces_get_or_create(tracer, single_cache, test_spans):
     assert span.get_tag("expired") == "False"
     assert span.get_tag("backend") == "MemoryBackend"
     assert span.get_tag("region") == "TestRegion"
-    assert span.get_tag("component") == "dopile_cache"
+    assert span.get_tag("component") == "dogpile_cache"
 
 
 def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
@@ -134,7 +134,7 @@ def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert span.get_tag("expired") == "True"
     assert span.get_tag("backend") == "MemoryBackend"
     assert span.get_tag("region") == "TestRegion"
-    assert span.get_tag("component") == "dopile_cache"
+    assert span.get_tag("component") == "dogpile_cache"
 
     # Partial hit
     assert multi_cache(2, 4) == [4, 8]
@@ -153,7 +153,7 @@ def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert span.get_tag("expired") == "True"
     assert span.get_tag("backend") == "MemoryBackend"
     assert span.get_tag("region") == "TestRegion"
-    assert span.get_tag("component") == "dopile_cache"
+    assert span.get_tag("component") == "dogpile_cache"
 
     # Full hit
     assert multi_cache(2, 4) == [4, 8]
@@ -172,7 +172,7 @@ def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert span.get_tag("expired") == "False"
     assert span.get_tag("backend") == "MemoryBackend"
     assert span.get_tag("region") == "TestRegion"
-    assert span.get_tag("component") == "dopile_cache"
+    assert span.get_tag("component") == "dogpile_cache"
 
 
 class TestInnerFunctionCalls(object):

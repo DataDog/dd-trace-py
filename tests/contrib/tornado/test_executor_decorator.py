@@ -43,6 +43,8 @@ class TestTornadoExecutor(TornadoTestCase):
         assert executor_span.parent_id == request_span.span_id
         assert 0 == executor_span.error
         assert executor_span.duration >= 0.05
+        assert request_span.get_tag("component") == "tornado"
+        assert executor_span.get_tag("component") == "tornado"
 
     @unittest.skipUnless(futures_available, "Futures must be available to test direct submit")
     def test_on_executor_submit(self):
@@ -73,6 +75,8 @@ class TestTornadoExecutor(TornadoTestCase):
         assert executor_span.parent_id == request_span.span_id
         assert 0 == executor_span.error
         assert executor_span.duration >= 0.05
+        assert request_span.get_tag("component") == "tornado"
+        assert executor_span.get_tag("component") == "tornado"
 
     def test_on_executor_exception_handler(self):
         # it should trace a handler that uses @run_on_executor
@@ -104,6 +108,8 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 1 == executor_span.error
         assert "Ouch!" == executor_span.get_tag("error.msg")
         assert "Exception: Ouch!" in executor_span.get_tag("error.stack")
+        assert request_span.get_tag("component") == "tornado"
+        assert executor_span.get_tag("component") == "tornado"
 
     @unittest.skipIf(
         (version_info[0], version_info[1]) in [(4, 0), (4, 1)],
@@ -138,6 +144,8 @@ class TestTornadoExecutor(TornadoTestCase):
         assert executor_span.parent_id == request_span.span_id
         assert 0 == executor_span.error
         assert executor_span.duration >= 0.05
+        assert request_span.get_tag("component") == "tornado"
+        assert executor_span.get_tag("component") == "tornado"
 
     @unittest.skipIf(
         (version_info[0], version_info[1]) in [(4, 0), (4, 1)],
@@ -164,6 +172,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert 1 == request_span.error
         assert "cannot combine positional and keyword args" == request_span.get_tag("error.msg")
         assert "ValueError" in request_span.get_tag("error.stack")
+        assert request_span.get_tag("component") == "tornado"
 
     @unittest.skipUnless(futures_available, "Futures must be available to test direct submit")
     def test_futures_double_instrumentation(self):

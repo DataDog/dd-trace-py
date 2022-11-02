@@ -85,7 +85,6 @@ async def test_exception(tracer):
     assert 1 == span.error
     assert "f1 error" == span.get_tag("error.msg")
     assert "Exception: f1 error" in span.get_tag("error.stack")
-    assert span.get_tag("component") == "asyncio"
 
 
 @pytest.mark.asyncio
@@ -115,7 +114,6 @@ async def test_nested_exceptions(tracer):
     assert 1 == span.error
     assert "f1 error" == span.get_tag("error.msg")
     assert "Exception: f1 error" in span.get_tag("error.stack")
-    assert span.get_tag("component") == "asyncio"
 
 
 @pytest.mark.asyncio
@@ -145,7 +143,6 @@ async def test_handled_nested_exceptions(tracer):
     assert 1 == span.error
     assert "f1 error" == span.get_tag("error.msg")
     assert "Exception: f1 error" in span.get_tag("error.stack")
-    assert span.get_tag("component") == "asyncio"
 
 
 @pytest.mark.asyncio

@@ -94,7 +94,6 @@ def test_read_homepage(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("component") == "fastapi"
 
     assert serialize_span.service == "fastapi"
     assert serialize_span.name == "fastapi.serialize_response"
@@ -117,7 +116,6 @@ def test_read_item_success(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/foo"
     assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("component") == "fastapi"
 
     assert_serialize_span(serialize_span)
 
@@ -138,7 +136,6 @@ def test_read_item_bad_token(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/bar"
     assert request_span.get_tag("http.status_code") == "401"
-    assert request_span.get_tag("component") == "fastapi"
 
 
 def test_read_item_nonexistent_item(client, tracer, test_spans):
@@ -157,7 +154,6 @@ def test_read_item_nonexistent_item(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/items/foobar"
     assert request_span.get_tag("http.status_code") == "404"
-    assert request_span.get_tag("component") == "fastapi"
 
 
 def test_read_item_query_string(client, tracer, test_spans):
@@ -179,7 +175,6 @@ def test_read_item_query_string(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/items/foo?q=query"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "q=query"
-    assert request_span.get_tag("component") == "fastapi"
 
     assert_serialize_span(serialize_span)
 
@@ -203,7 +198,6 @@ def test_200_multi_query_string(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/items/foo?name=Foo&q=query"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") == "name=Foo&q=query"
-    assert request_span.get_tag("component") == "fastapi"
 
     assert_serialize_span(serialize_span)
 
@@ -230,7 +224,6 @@ def test_create_item_success(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/items/"
     assert request_span.get_tag("http.status_code") == "200"
     assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("component") == "fastapi"
 
     assert_serialize_span(serialize_span)
 
@@ -257,7 +250,6 @@ def test_create_item_bad_token(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/items/"
     assert request_span.get_tag("http.status_code") == "401"
     assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("component") == "fastapi"
 
 
 def test_create_item_duplicate_item(client, tracer, test_spans):
@@ -282,7 +274,6 @@ def test_create_item_duplicate_item(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/items/"
     assert request_span.get_tag("http.status_code") == "400"
     assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("component") == "fastapi"
 
 
 def test_invalid_path(client, tracer, test_spans):
@@ -301,7 +292,6 @@ def test_invalid_path(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/invalid_path"
     assert request_span.get_tag("http.status_code") == "404"
-    assert request_span.get_tag("component") == "fastapi"
 
 
 def test_500_error_raised(client, tracer, test_spans):
@@ -322,7 +312,6 @@ def test_500_error_raised(client, tracer, test_spans):
     assert request_span.get_tag("error.msg") == "Server error"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert 'raise RuntimeError("Server error")' in request_span.get_tag("error.stack")
-    assert request_span.get_tag("component") == "fastapi"
 
 
 def test_streaming_response(client, tracer, test_spans):
@@ -342,7 +331,6 @@ def test_streaming_response(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/stream"
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("component") == "fastapi"
 
 
 def test_file_response(client, tracer, test_spans):
@@ -362,7 +350,6 @@ def test_file_response(client, tracer, test_spans):
     assert request_span.get_tag("http.url") == "http://testserver/file"
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("component") == "fastapi"
 
 
 def test_path_param_aggregate(client, tracer, test_spans):
@@ -381,7 +368,6 @@ def test_path_param_aggregate(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID"
     assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("component") == "fastapi"
 
     assert_serialize_span(serialize_span)
 
@@ -403,7 +389,6 @@ def test_mid_path_param_aggregate(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID/info"
     assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("component") == "fastapi"
 
     assert_serialize_span(serialize_span)
 
@@ -425,7 +410,6 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/users/testUserID/name"
     assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("component") == "fastapi"
 
     assert_serialize_span(serialize_span)
 
@@ -452,7 +436,6 @@ def test_distributed_tracing(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/"
     assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("component") == "fastapi"
     assert request_span.parent_id == 5555
     assert request_span.trace_id == 9999
 
@@ -528,7 +511,6 @@ def test_w_patch_starlette(client, tracer, test_spans):
         assert request_span.get_tag("http.url") == "http://testserver/file"
         assert request_span.get_tag("http.query.string") is None
         assert request_span.get_tag("http.status_code") == "200"
-        assert request_span.get_tag("component") == "fastapi"
     finally:
         unpatch_starlette()
 
