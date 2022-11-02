@@ -83,8 +83,8 @@ class Tox(TestCommand):
         args = self.tox_args
         if args:
             args = shlex.split(self.tox_args)
-        if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
-            LibDDWaf_Download.download_dynamic_library()
+
+        LibDDWaf_Download.download_dynamic_library()
         errno = tox.cmdline(args=args)
         sys.exit(errno)
 
@@ -103,10 +103,11 @@ class LibDDWaf_Download(BuildPyCommand):
         }
         SUFFIX = TRANSLATE_SUFFIX[current_os]
 
-        if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
+        if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR) and len(os.listdir(LIBDDWAF_DOWNLOAD_DIR)):
             return
 
-        os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
+        if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
+            os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
 
         for arch in AVAILABLE_RELEASES[current_os]:
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
@@ -256,6 +257,7 @@ bytecode = [
     "bytecode; python_version>='3.8'",
 ]
 
+LibDDWaf_Download.download_dynamic_library()
 
 setup(
     name="ddtrace",
