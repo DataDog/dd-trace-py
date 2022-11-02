@@ -28,6 +28,7 @@ async def test_template_rendering(untraced_app_tracer_jinja, aiohttp_client):
     assert "aiohttp.template" == span.name
     assert "template" == span.span_type
     assert "/template.jinja2" == span.get_tag("aiohttp.template")
+    assert "aiohttp_jinja2" == span.get_tag("component")
     assert 0 == span.error
 
 
@@ -73,6 +74,7 @@ async def test_template_rendering_filesystem(untraced_app_tracer_jinja, aiohttp_
     assert "aiohttp.template" == span.name
     assert "template" == span.span_type
     assert "/template.jinja2" == span.get_tag("aiohttp.template")
+    assert "aiohttp_jinja2" == span.get_tag("component")
     assert 0 == span.error
 
 
@@ -95,6 +97,7 @@ async def test_template_rendering_package(untraced_app_tracer_jinja, aiohttp_cli
     assert "aiohttp.template" == span.name
     assert "template" == span.span_type
     assert "templates/template.jinja2" == span.get_tag("aiohttp.template")
+    assert "aiohttp_jinja2" == span.get_tag("component")
     assert 0 == span.error
 
 
@@ -115,6 +118,7 @@ async def test_template_decorator(untraced_app_tracer_jinja, aiohttp_client, loo
     assert "aiohttp.template" == span.name
     assert "template" == span.span_type
     assert "/template.jinja2" == span.get_tag("aiohttp.template")
+    assert "aiohttp_jinja2" == span.get_tag("component")
     assert 0 == span.error
 
 
@@ -134,6 +138,7 @@ async def test_template_error(untraced_app_tracer_jinja, aiohttp_client, loop):
     assert "aiohttp.template" == span.name
     assert "template" == span.span_type
     assert "/error.jinja2" == span.get_tag("aiohttp.template")
+    assert "aiohttp_jinja2" == span.get_tag("component")
     assert 1 == span.error
     assert "division by zero" == span.get_tag("error.msg")
     assert "ZeroDivisionError: division by zero" in span.get_tag("error.stack")

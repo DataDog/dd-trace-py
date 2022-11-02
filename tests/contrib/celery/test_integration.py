@@ -122,6 +122,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.id") == t.task_id
         assert span.get_tag("celery.action") == "run"
         assert span.get_tag("celery.state") == "SUCCESS"
+        assert span.get_tag("component") == "celery"
 
     def test_fn_task_apply_bind(self):
         # it should execute a traced task with a returning value
@@ -146,6 +147,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.id") == t.task_id
         assert span.get_tag("celery.action") == "run"
         assert span.get_tag("celery.state") == "SUCCESS"
+        assert span.get_tag("component") == "celery"
 
     def test_fn_task_apply_async(self):
         # it should execute a traced async task that has parameters
@@ -173,6 +175,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.id") == t.task_id
             assert async_span.get_tag("celery.action") == "apply_async"
             assert async_span.get_tag("celery.routing_key") == "celery"
+            assert async_span.get_tag("component") == "celery"
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -185,6 +188,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_span.service == "celery-worker"
         assert run_span.get_tag("celery.id") == t.task_id
         assert run_span.get_tag("celery.action") == "run"
+        assert run_span.get_tag("component") == "celery"
 
     def test_fn_task_delay(self):
         # using delay shorthand must preserve arguments
@@ -212,6 +216,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.id") == t.task_id
             assert async_span.get_tag("celery.action") == "apply_async"
             assert async_span.get_tag("celery.routing_key") == "celery"
+            assert async_span.get_tag("component") == "celery"
         else:
             assert 1 == len(traces)
             assert 1 == len(traces[0])
@@ -224,6 +229,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_span.service == "celery-worker"
         assert run_span.get_tag("celery.id") == t.task_id
         assert run_span.get_tag("celery.action") == "run"
+        assert run_span.get_tag("component") == "celery"
 
     def test_fn_exception(self):
         # it should catch exceptions in task functions
@@ -249,6 +255,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.state") == "FAILURE"
         assert span.error == 1
         assert span.get_tag("error.msg") == "Task class is failing"
+        assert span.get_tag("component") == "celery"
         assert "Traceback (most recent call last)" in span.get_tag("error.stack")
         assert "Task class is failing" in span.get_tag("error.stack")
 
@@ -274,6 +281,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.id") == t.task_id
         assert span.get_tag("celery.action") == "run"
         assert span.get_tag("celery.state") == "FAILURE"
+        assert span.get_tag("component") == "celery"
         assert span.error == 0
 
     def test_fn_retry_exception(self):
@@ -299,6 +307,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.action") == "run"
         assert span.get_tag("celery.state") == "RETRY"
         assert span.get_tag("celery.retry.reason") == "Task class is being retried"
+        assert span.get_tag("component") == "celery"
 
         # This type of retrying should not be marked as an exception
         assert span.error == 0
@@ -334,6 +343,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.id") == r.task_id
         assert span.get_tag("celery.action") == "run"
         assert span.get_tag("celery.state") == "SUCCESS"
+        assert span.get_tag("component") == "celery"
 
     def test_class_task_exception(self):
         # it should catch exceptions in class based tasks
@@ -365,6 +375,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.state") == "FAILURE"
         assert span.error == 1
         assert span.get_tag("error.msg") == "Task class is failing"
+        assert span.get_tag("component") == "celery"
         assert "Traceback (most recent call last)" in span.get_tag("error.stack")
         assert "Task class is failing" in span.get_tag("error.stack")
 
@@ -398,6 +409,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.id") == r.task_id
         assert span.get_tag("celery.action") == "run"
         assert span.get_tag("celery.state") == "FAILURE"
+        assert span.get_tag("component") == "celery"
         assert span.error == 0
 
     def test_shared_task(self):
@@ -423,6 +435,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.id") == res.task_id
         assert span.get_tag("celery.action") == "run"
         assert span.get_tag("celery.state") == "SUCCESS"
+        assert span.get_tag("component") == "celery"
 
     def test_worker_service_name(self):
         @self.app.task
@@ -644,6 +657,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
             assert async_span.get_tag("celery.id") == t.task_id
             assert async_span.get_tag("celery.action") == "apply_async"
             assert async_span.get_tag("celery.routing_key") == "celery"
+            assert async_span.get_tag("component") == "celery"
         else:
             assert 1 == len(traces)
             assert 2 == len(traces[0])
@@ -658,6 +672,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert run_span.service == "celery-worker"
         assert run_span.get_tag("celery.id") == t.task_id
         assert run_span.get_tag("celery.action") == "run"
+        assert run_span.get_tag("component") == "celery"
 
 
 class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):

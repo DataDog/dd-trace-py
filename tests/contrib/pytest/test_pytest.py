@@ -240,6 +240,8 @@ class TestPytest(TracerTestCase):
         assert spans[0].get_tag(test.SKIP_REASON) == "decorator"
         assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
         assert spans[1].get_tag(test.SKIP_REASON) == "body"
+        assert spans[0].get_tag("component") == "pytest"
+        assert spans[1].get_tag("component") == "pytest"
 
     def test_skip_module_with_xfail_cases(self):
         """Test Xfail test cases for a module that is skipped entirely, which should be treated as skip tests."""
@@ -268,6 +270,8 @@ class TestPytest(TracerTestCase):
         assert spans[0].get_tag(test.SKIP_REASON) == "reason"
         assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
         assert spans[1].get_tag(test.SKIP_REASON) == "reason"
+        assert spans[0].get_tag("component") == "pytest"
+        assert spans[1].get_tag("component") == "pytest"
 
     def test_skipif_module(self):
         """Test XFail test cases for a module that is skipped entirely with the skipif marker."""
@@ -296,6 +300,8 @@ class TestPytest(TracerTestCase):
         assert spans[0].get_tag(test.SKIP_REASON) == "reason"
         assert spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
         assert spans[1].get_tag(test.SKIP_REASON) == "reason"
+        assert spans[0].get_tag("component") == "pytest"
+        assert spans[1].get_tag("component") == "pytest"
 
     def test_xfail_fails(self):
         """Test xfail (expected failure) which fails, should be marked as pass."""
@@ -325,6 +331,8 @@ class TestPytest(TracerTestCase):
         assert spans[1].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[1].get_tag(test.RESULT) == test.Status.XFAIL.value
         assert spans[1].get_tag(XFAIL_REASON) == "test should xfail"
+        assert spans[0].get_tag("component") == "pytest"
+        assert spans[1].get_tag("component") == "pytest"
 
     def test_xfail_runxfail_fails(self):
         """Test xfail with --runxfail flags should not crash when failing."""
@@ -391,6 +399,8 @@ class TestPytest(TracerTestCase):
         assert spans[1].get_tag(test.STATUS) == test.Status.PASS.value
         assert spans[1].get_tag(test.RESULT) == test.Status.XPASS.value
         assert spans[1].get_tag(XFAIL_REASON) == "test should not xfail"
+        assert spans[0].get_tag("component") == "pytest"
+        assert spans[1].get_tag("component") == "pytest"
 
     def test_xpass_strict(self):
         """Test xpass (unexpected passing) with strict=True, should be marked as fail."""
@@ -436,6 +446,7 @@ class TestPytest(TracerTestCase):
         assert spans[0].get_tag("world") == "hello"
         assert spans[0].get_tag("mark") == "dd_tags"
         assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
+        assert spans[0].get_tag("component") == "pytest"
 
     def test_service_name_repository_name(self):
         """Test span's service name is set to repository name."""
@@ -605,6 +616,7 @@ class TestPytest(TracerTestCase):
         assert test_span.get_tag("error.type").endswith("AssertionError") is True
         assert test_span.get_tag("error.msg") == "assert 2 == 1"
         assert test_span.get_tag("error.stack") is not None
+        assert test_span.get_tag("component") == "pytest"
 
     def test_pytest_tests_with_internal_exceptions_get_test_status(self):
         """Test that pytest sets a fail test status if it has an internal exception."""
@@ -626,6 +638,7 @@ class TestPytest(TracerTestCase):
         test_span = spans[0]
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type") is None
+        assert test_span.get_tag("component") == "pytest"
 
     def test_pytest_broken_setup_will_be_reported_as_error(self):
         """Test that pytest sets a fail test status if the setup fails."""
@@ -653,6 +666,7 @@ class TestPytest(TracerTestCase):
         assert test_span.get_tag("error.type").endswith("Exception") is True
         assert test_span.get_tag("error.msg") == "will fail in setup"
         assert test_span.get_tag("error.stack") is not None
+        assert test_span.get_tag("component") == "pytest"
 
     def test_pytest_broken_teardown_will_be_reported_as_error(self):
         """Test that pytest sets a fail test status if the teardown fails."""
@@ -680,6 +694,7 @@ class TestPytest(TracerTestCase):
         assert test_span.get_tag("error.type").endswith("Exception") is True
         assert test_span.get_tag("error.msg") == "will fail in teardown"
         assert test_span.get_tag("error.stack") is not None
+        assert test_span.get_tag("component") == "pytest"
 
     def test_pytest_will_report_its_version(self):
         py_file = self.testdir.makepyfile(
