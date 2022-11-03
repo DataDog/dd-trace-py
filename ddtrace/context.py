@@ -15,6 +15,7 @@ from .internal.logger import get_logger
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
+
     from .span import Span
     from .span import _MetaDictType
     from .span import _MetricDictType
