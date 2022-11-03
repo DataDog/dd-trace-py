@@ -73,6 +73,7 @@ class TestSQLite(TracerTestCase):
             root = self.get_root_span()
             assert_is_measured(root)
             self.assertIsNone(root.get_tag("sql.query"))
+            self.assertEqual(root.get_tag("component"), "sqlite")
             assert start <= root.start <= end
             assert root.duration <= end - start
             self.reset()
@@ -88,6 +89,7 @@ class TestSQLite(TracerTestCase):
             root = self.get_root_span()
             assert_is_measured(root)
             self.assertIsNone(root.get_tag("sql.query"))
+            self.assertEqual(root.get_tag("component"), "sqlite")
             self.assertIsNotNone(root.get_tag(ERROR_STACK))
             self.assertIn("OperationalError", root.get_tag(ERROR_TYPE))
             self.assertIn("no such table", root.get_tag(ERROR_MSG))

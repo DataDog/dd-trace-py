@@ -56,6 +56,7 @@ class TestRedisPatch(TracerTestCase):
 
         assert span.get_tag("redis.raw_command").startswith(u"MGET 0 1 2 3")
         assert span.get_tag("redis.raw_command").endswith(u"...")
+        assert span.get_tag("component") == "redis"
 
     def test_basics(self):
         us = self.r.get("cheese")
@@ -71,6 +72,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_metric("out.redis_db") == 0
         assert span.get_tag("out.host") == "localhost"
         assert span.get_tag("redis.raw_command") == u"GET cheese"
+        assert span.get_tag("component") == "redis"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET cheese"
         assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
@@ -112,6 +114,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.get_metric("out.redis_db") == 0
         assert span.get_tag("out.host") == "localhost"
         assert span.get_tag("redis.raw_command") == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.get_tag("component") == "redis"
         assert span.get_metric("redis.pipeline_length") == 3
         assert span.get_metric("redis.pipeline_length") == 3
         assert span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) is None
@@ -133,6 +136,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.error == 0
         assert span.get_metric("out.redis_db") == 0
         assert span.get_tag("out.host") == "localhost"
+        assert span.get_tag("component") == "redis"
 
     def test_meta_override(self):
         r = self.r
@@ -209,6 +213,7 @@ class TestRedisPatch(TracerTestCase):
         assert dd_span.get_metric("out.redis_db") == 0
         assert dd_span.get_tag("out.host") == "localhost"
         assert dd_span.get_tag("redis.raw_command") == u"GET cheese"
+        assert dd_span.get_tag("component") == "redis"
         assert dd_span.get_metric("redis.args_length") == 2
         assert dd_span.resource == "GET cheese"
 

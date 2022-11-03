@@ -47,6 +47,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_tag("redis.raw_command") == u"GET cheese"
+        assert span.get_tag("component") == "rediscluster"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == "GET cheese"
 
@@ -62,6 +63,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_tag("redis.raw_command") == u"GET 😐"
+        assert span.get_tag("component") == "rediscluster"
         assert span.get_metric("redis.args_length") == 2
         assert span.resource == u"GET 😐"
 
@@ -82,6 +84,7 @@ class TestRedisPatch(TracerTestCase):
         assert span.span_type == "redis"
         assert span.error == 0
         assert span.get_tag("redis.raw_command") == u"SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span.get_tag("component") == "rediscluster"
         assert span.get_metric("redis.pipeline_length") == 3
 
     def test_patch_unpatch(self):

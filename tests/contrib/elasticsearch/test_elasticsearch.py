@@ -80,6 +80,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.span_type == "elasticsearch"
         assert span.error == 0
         assert span.get_tag("elasticsearch.method") == "PUT"
+        assert span.get_tag("component") == "elasticsearch"
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
@@ -115,6 +116,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.resource == "POST /%s/_refresh" % self.ES_INDEX
         assert span.get_tag("elasticsearch.method") == "POST"
         assert span.get_tag("elasticsearch.url") == "/%s/_refresh" % self.ES_INDEX
+        assert span.get_tag("component") == "elasticsearch"
 
         # search data
         args = {"index": self.ES_INDEX, "doc_type": self.ES_TYPE}
@@ -142,6 +144,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}}}'
         assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc", "size=100"}
         assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc", "size=100"}
+        assert span.get_tag("component") == "elasticsearch"
 
         self.assertTrue(span.get_metric("elasticsearch.took") > 0)
 

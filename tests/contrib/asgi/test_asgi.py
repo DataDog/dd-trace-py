@@ -182,6 +182,7 @@ async def test_basic_asgi(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     assert request_span.error == 0
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "asgi"
     _check_span_tags(scope, request_span)
 
 
@@ -210,6 +211,7 @@ async def test_double_callable_asgi(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     assert request_span.error == 0
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "asgi"
     _check_span_tags(scope, request_span)
 
 
@@ -240,6 +242,7 @@ async def test_query_string(scope, tracer, test_spans):
         assert request_span.span_type == "web"
         assert request_span.error == 0
         assert request_span.get_tag("http.status_code") == "200"
+        assert request_span.get_tag("component") == "asgi"
         _check_span_tags(scope, request_span)
 
 
@@ -261,6 +264,7 @@ async def test_asgi_error(scope, tracer, test_spans):
     assert request_span.get_tag("http.status_code") == "500"
     assert request_span.get_tag("error.msg") == "Test"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
+    assert request_span.get_tag("component") == "asgi"
     assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
     _check_span_tags(scope, request_span)
 
@@ -281,6 +285,7 @@ async def test_asgi_500(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     assert request_span.error == 1
     assert request_span.get_tag("http.status_code") == "500"
+    assert request_span.get_tag("component") == "asgi"
 
 
 @pytest.mark.asyncio
@@ -304,6 +309,7 @@ async def test_asgi_error_custom(scope, tracer, test_spans):
     assert request_span.get_tag("http.status_code") == "501"
     assert request_span.get_tag("error.msg") == "Test"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
+    assert request_span.get_tag("component") == "asgi"
     assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
     _check_span_tags(scope, request_span)
 
@@ -340,6 +346,7 @@ async def test_distributed_tracing(scope, tracer, test_spans):
     assert request_span.trace_id == 5678
     assert request_span.error == 0
     assert request_span.get_tag("http.status_code") == "200"
+    assert request_span.get_tag("component") == "asgi"
     _check_span_tags(scope, request_span)
 
 
@@ -368,6 +375,7 @@ async def test_multiple_requests(tracer, test_spans):
     assert r1_span.get_tag("http.method") == "GET"
     assert r1_span.get_tag("http.url") == "http://testserver/?sleep=true"
     assert r1_span.get_tag("http.query.string") == "sleep=true"
+    assert r1_span.get_tag("component") == "asgi"
 
     r2_span = spans[0][0]
     assert r2_span.name == "asgi.request"
@@ -375,6 +383,7 @@ async def test_multiple_requests(tracer, test_spans):
     assert r2_span.get_tag("http.method") == "GET"
     assert r2_span.get_tag("http.url") == "http://testserver/?sleep=true"
     assert r2_span.get_tag("http.query.string") == "sleep=true"
+    assert r2_span.get_tag("component") == "asgi"
 
 
 @pytest.mark.asyncio
