@@ -330,3 +330,7 @@ def test_get_fields_slots():
 )
 def test_format_message(args, expected):
     assert format_message("foo", {k: _captured_value_v2(v, level=0) for k, v in args.items()}) == "foo(%s)" % expected
+
+
+def test_encoding_none():
+    assert _captured_value_v2(None) == {"isNull": True, "type": "NoneType"}

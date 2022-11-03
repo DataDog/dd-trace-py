@@ -32,6 +32,7 @@ from ddtrace.internal.compat import BUILTIN_CONTAINER_TYPES
 from ddtrace.internal.compat import BUILTIN_SIMPLE_TYPES
 from ddtrace.internal.compat import CALLABLE_TYPES
 from ddtrace.internal.compat import ExcInfoType
+from ddtrace.internal.compat import NoneType
 from ddtrace.internal.compat import stringify
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
@@ -295,18 +296,22 @@ def _captured_value_v2(value, level=MAXLEVEL, maxlen=MAXLEN, maxsize=MAXSIZE, ma
     _type = type(value)
 
     if _type in BUILTIN_SIMPLE_TYPES:
+        if _type is NoneType:
+            return {"type": "NoneType", "isNull": True}
+
         value_repr = repr(value)
+        value_repr_len = len(value_repr)
         return (
             {
                 "type": _qualname(_type),
                 "value": value_repr,
             }
-            if len(value_repr) <= maxlen
+            if value_repr_len <= maxlen
             else {
                 "type": _qualname(_type),
                 "value": value_repr[:maxlen],
                 "truncated": True,
-                "size": len(value_repr),
+                "size": value_repr_len,
             }
         )
 
