@@ -22,6 +22,20 @@ _DIRNAME = os.path.dirname(__file__)
 
 FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
 
+
+log = get_logger(__name__)
+
+#
+# Dynamic loading of libddwaf. For now it requires the file or a link to be in current directory
+#
+
+if system() == "Linux":
+    ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
+
+ARCHI = machine().lower()
+TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
+ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
+ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION))
 #
 # Constants
 #
@@ -278,210 +292,200 @@ ddwaf_log_cb = ctypes.POINTER(
 
 
 #
-# Dynamic loading of libddwaf. For now it requires the file or a link to be in current directory
+# Functions Prototypes (creating python counterpart function from C function with )
 #
 
-try:
-    if system() == "Linux":
-        ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
+ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwaf_ruleset_info_p)(
+    ("ddwaf_init", ddwaf),
+    (
+        (1, "rule"),
+        (1, "config", None),
+        (1, "info", None),
+    ),
+)
 
-    ARCHI = machine().lower()
-    TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
-    ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
-    ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION))
+ddwaf_destroy = ctypes.CFUNCTYPE(None, ddwaf_handle)(
+    ("ddwaf_destroy", ddwaf),
+    ((1, "handle"),),
+)
 
-    #
-    # Functions Prototypes (creating python counterpart function from C function with )
-    #
+ddwaf_update_rule_data = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_handle, ddwaf_object_p)(
+    ("ddwaf_update_rule_data", ddwaf),
+    (
+        (1, "handle"),
+        (1, "data"),
+    ),
+)
 
-    ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwaf_ruleset_info_p)(
-        ("ddwaf_init", ddwaf),
-        (
-            (1, "rule"),
-            (1, "config", None),
-            (1, "info", None),
-        ),
-    )
+ddwaf_toggle_rules = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_handle, ddwaf_object_p)(
+    ("ddwaf_toggle_rules", ddwaf),
+    (
+        (1, "handle"),
+        (1, "rule_map"),
+    ),
+)
 
-    ddwaf_destroy = ctypes.CFUNCTYPE(None, ddwaf_handle)(
-        ("ddwaf_destroy", ddwaf),
-        ((1, "handle"),),
-    )
+ddwaf_ruleset_info_free = ctypes.CFUNCTYPE(None, ddwaf_ruleset_info_p)(
+    ("ddwaf_ruleset_info_free", ddwaf),
+    ((1, "info"),),
+)
 
-    ddwaf_update_rule_data = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_handle, ddwaf_object_p)(
-        ("ddwaf_update_rule_data", ddwaf),
-        (
-            (1, "handle"),
-            (1, "data"),
-        ),
-    )
+ddwaf_required_addresses = ctypes.CFUNCTYPE(
+    ctypes.POINTER(ctypes.c_char_p), ddwaf_handle, ctypes.POINTER(ctypes.c_uint32)
+)(
+    ("ddwaf_required_addresses", ddwaf),
+    (
+        (1, "handle"),
+        (1, "size"),
+    ),
+)
 
-    ddwaf_toggle_rules = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_handle, ddwaf_object_p)(
-        ("ddwaf_toggle_rules", ddwaf),
-        (
-            (1, "handle"),
-            (1, "rule_map"),
-        ),
-    )
 
-    ddwaf_ruleset_info_free = ctypes.CFUNCTYPE(None, ddwaf_ruleset_info_p)(
-        ("ddwaf_ruleset_info_free", ddwaf),
-        ((1, "info"),),
-    )
+def py_ddwaf_required_addresses(handle):
+    # type: (ctypes.c_void_p) -> list[unicode]
+    size = ctypes.c_uint32()
+    obj = ddwaf_required_addresses(handle, ctypes.byref(size))
+    return [obj[i].decode("UTF-8") for i in range(size.value)]
 
-    ddwaf_required_addresses = ctypes.CFUNCTYPE(
-        ctypes.POINTER(ctypes.c_char_p), ddwaf_handle, ctypes.POINTER(ctypes.c_uint32)
-    )(
-        ("ddwaf_required_addresses", ddwaf),
-        (
-            (1, "handle"),
-            (1, "size"),
-        ),
-    )
 
-    def py_ddwaf_required_addresses(handle):
-        # type: (ctypes.c_void_p) -> list[unicode]
-        size = ctypes.c_uint32()
-        obj = ddwaf_required_addresses(handle, ctypes.byref(size))
-        return [obj[i].decode("UTF-8") for i in range(size.value)]
+ddwaf_required_rule_data_ids = ctypes.CFUNCTYPE(
+    ctypes.POINTER(ctypes.c_char_p), ddwaf_handle, ctypes.POINTER(ctypes.c_uint32)
+)(
+    ("ddwaf_required_rule_data_ids", ddwaf),
+    (
+        (1, "handle"),
+        (1, "size"),
+    ),
+)
 
-    ddwaf_required_rule_data_ids = ctypes.CFUNCTYPE(
-        ctypes.POINTER(ctypes.c_char_p), ddwaf_handle, ctypes.POINTER(ctypes.c_uint32)
-    )(
-        ("ddwaf_required_rule_data_ids", ddwaf),
-        (
-            (1, "handle"),
-            (1, "size"),
-        ),
-    )
 
-    def py_ddwaf_required_rule_data_ids(handle):
-        # type: (ctypes.c_void_p) -> list[ddwaf_object]
-        size = ctypes.c_uint32()
-        obj = ddwaf_required_rule_data_ids(handle, ctypes.byref(size))
-        return [obj[i] for i in range(size.value)]
+def py_ddwaf_required_rule_data_ids(handle):
+    # type: (ctypes.c_void_p) -> list[ddwaf_object]
+    size = ctypes.c_uint32()
+    obj = ddwaf_required_rule_data_ids(handle, ctypes.byref(size))
+    return [obj[i] for i in range(size.value)]
 
-    ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle)(
-        ("ddwaf_context_init", ddwaf),
-        ((1, "handle"),),
-    )
 
-    ddwaf_run = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_result_p, ctypes.c_uint64)(
-        ("ddwaf_run", ddwaf), ((1, "context"), (1, "data"), (1, "result"), (1, "timeout"))
-    )
+ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle)(
+    ("ddwaf_context_init", ddwaf),
+    ((1, "handle"),),
+)
 
-    def py_ddwaf_run(context, object_p, timeout):
-        # type : (...) -> tuple[int, ddwaf_result]
-        res = ddwaf_result()
-        err = ddwaf_run(context, object_p, ctypes.byref(res), timeout)
-        return err, res
+ddwaf_run = ctypes.CFUNCTYPE(ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_result_p, ctypes.c_uint64)(
+    ("ddwaf_run", ddwaf), ((1, "context"), (1, "data"), (1, "result"), (1, "timeout"))
+)
 
-    ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
-        ("ddwaf_context_destroy", ddwaf),
-        ((1, "context"),),
-    )
 
-    ddwaf_result_free = ctypes.CFUNCTYPE(None, ddwaf_result_p)(
-        ("ddwaf_result_free", ddwaf),
-        ((1, "result"),),
-    )
+def py_ddwaf_run(context, object_p, timeout):
+    # type : (...) -> tuple[int, ddwaf_result]
+    res = ddwaf_result()
+    err = ddwaf_run(context, object_p, ctypes.byref(res), timeout)
+    return err, res
 
-    ddwaf_object_invalid = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
-        ("ddwaf_object_invalid", ddwaf),
-        ((3, "object"),),
-    )
 
-    ddwaf_object_string = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p)(
-        ("ddwaf_object_string", ddwaf),
-        (
-            (3, "object"),
-            (1, "string"),
-        ),
-    )
+ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
+    ("ddwaf_context_destroy", ddwaf),
+    ((1, "context"),),
+)
 
-    # object_string variants not used
+ddwaf_result_free = ctypes.CFUNCTYPE(None, ddwaf_result_p)(
+    ("ddwaf_result_free", ddwaf),
+    ((1, "result"),),
+)
 
-    ddwaf_object_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
-        ("ddwaf_object_unsigned", ddwaf),
-        (
-            (3, "object"),
-            (1, "value"),
-        ),
-    )
+ddwaf_object_invalid = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
+    ("ddwaf_object_invalid", ddwaf),
+    ((3, "object"),),
+)
 
-    ddwaf_object_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
-        ("ddwaf_object_signed", ddwaf),
-        (
-            (3, "object"),
-            (1, "value"),
-        ),
-    )
+ddwaf_object_string = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p)(
+    ("ddwaf_object_string", ddwaf),
+    (
+        (3, "object"),
+        (1, "string"),
+    ),
+)
 
-    # object_(un)signed_forced : not used ?
+# object_string variants not used
 
-    ddwaf_object_bool = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_bool)(
-        ("ddwaf_object_bool", ddwaf),
-        (
-            (3, "object"),
-            (1, "value"),
-        ),
-    )
+ddwaf_object_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
+    ("ddwaf_object_unsigned", ddwaf),
+    (
+        (3, "object"),
+        (1, "value"),
+    ),
+)
 
-    ddwaf_object_array = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
-        ("ddwaf_object_array", ddwaf),
-        ((3, "object"),),
-    )
+ddwaf_object_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
+    ("ddwaf_object_signed", ddwaf),
+    (
+        (3, "object"),
+        (1, "value"),
+    ),
+)
 
-    ddwaf_object_map = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
-        ("ddwaf_object_map", ddwaf),
-        ((3, "object"),),
-    )
+# object_(un)signed_forced : not used ?
 
-    ddwaf_object_array_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ddwaf_object_p)(
-        ("ddwaf_object_array_add", ddwaf),
-        (
-            (1, "array"),
-            (1, "object"),
-        ),
-    )
+ddwaf_object_bool = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_bool)(
+    ("ddwaf_object_bool", ddwaf),
+    (
+        (3, "object"),
+        (1, "value"),
+    ),
+)
 
-    ddwaf_object_map_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_char_p, ddwaf_object_p)(
-        ("ddwaf_object_map_add", ddwaf),
-        (
-            (1, "map"),
-            (1, "key"),
-            (1, "object"),
-        ),
-    )
+ddwaf_object_array = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
+    ("ddwaf_object_array", ddwaf),
+    ((3, "object"),),
+)
 
-    # unused because accessible from python part
-    # ddwaf_object_type
-    # ddwaf_object_size
-    # ddwaf_object_length
-    # ddwaf_object_get_key
-    # ddwaf_object_get_string
-    # ddwaf_object_get_unsigned
-    # ddwaf_object_get_signed
-    # ddwaf_object_get_index
+ddwaf_object_map = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
+    ("ddwaf_object_map", ddwaf),
+    ((3, "object"),),
+)
 
-    ddwaf_object_free = ctypes.CFUNCTYPE(None, ddwaf_object_p)(
-        ("ddwaf_object_free", ddwaf),
-        ((1, "object"),),
-    )
+ddwaf_object_array_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ddwaf_object_p)(
+    ("ddwaf_object_array_add", ddwaf),
+    (
+        (1, "array"),
+        (1, "object"),
+    ),
+)
 
-    ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(
-        ("ddwaf_get_version", ddwaf),
-        (),
-    )
+ddwaf_object_map_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_char_p, ddwaf_object_p)(
+    ("ddwaf_object_map_add", ddwaf),
+    (
+        (1, "map"),
+        (1, "key"),
+        (1, "object"),
+    ),
+)
 
-    ddwaf_set_log_cb = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_log_cb, ctypes.c_int)(
-        ("ddwaf_set_log_cb", ddwaf),
-        (
-            (1, "cb"),
-            (1, "min_level"),
-        ),
-    )
+# unused because accessible from python part
+# ddwaf_object_type
+# ddwaf_object_size
+# ddwaf_object_length
+# ddwaf_object_get_key
+# ddwaf_object_get_string
+# ddwaf_object_get_unsigned
+# ddwaf_object_get_signed
+# ddwaf_object_get_index
 
-except Exception:
-    log = get_logger(__name__)
-    log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
+ddwaf_object_free = ctypes.CFUNCTYPE(None, ddwaf_object_p)(
+    ("ddwaf_object_free", ddwaf),
+    ((1, "object"),),
+)
+
+ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(
+    ("ddwaf_get_version", ddwaf),
+    (),
+)
+
+
+ddwaf_set_log_cb = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_log_cb, ctypes.c_int)(
+    ("ddwaf_set_log_cb", ddwaf),
+    (
+        (1, "cb"),
+        (1, "min_level"),
+    ),
+)
