@@ -26,18 +26,22 @@ def get_jobs_from_riot(venv: Venv) -> dict:
 
 def generate_main_workflow():
     defined_jobs = get_jobs_from_riot(venv)
+    circleci_config["jobs"].update(defined_jobs)
+
     BASE_JOBS = {"pre_check", "ccheck", "build_base_venvs"}
     NO_COVERAGE = BASE_JOBS | {"coverage_report", "graphene", "build_docs", "internal"}
-    circleci_config["jobs"].update(defined_jobs)
-    list_coverage = [job for job in circleci_config["jobs"] if job not in NO_COVERAGE]
+    CHECKONLY_JOBS = ["build_docs"] + [f"profile-windows-3{i}" for i in (5, 6, 8, 9, 10)]
     DEFAULT_REQUIREMENTS = ["pre_check", "ccheck", "build_base_venvs"]
     CHECK_REQUIREMENTS = ["pre_check", "ccheck"]
-    CHECKONLY_JOBS = ["build_docs"] + [f"profile-windows-3{i}" for i in (5, 6, 8, 9, 10)]
+    COVERAGE_REQUIREMENTS = [job for job in circleci_config["jobs"] if job not in NO_COVERAGE]
 
     # Define the requirements for each tests. Currently most tests are using the same
     # requirements and coverage reports are after all other tests.
     requirements = collections.defaultdict(lambda: DEFAULT_REQUIREMENTS)
-    for jobs, reqs in [(BASE_JOBS, []), (CHECKONLY_JOBS, CHECK_REQUIREMENTS), (["coverage_report"], list_coverage)]:
+    for jobs, reqs in [
+            (BASE_JOBS, []),
+            (CHECKONLY_JOBS, CHECK_REQUIREMENTS),
+            (["coverage_report"], COVERAGE_REQUIREMENTS)]:
         for job in jobs:
             requirements[job] = reqs
 

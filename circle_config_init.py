@@ -516,11 +516,6 @@ circleci_config = {
             ],
             "steps": [{"run_test": {"pattern": "requests"}}],
         },
-        "requestsgevent": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "steps": [{"run_tox_scenario": {"pattern": "^requests_gevent_contrib-"}}],
-        },
         "sanic": {
             "machine": {"image": "ubuntu-2004:current"},
             "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
