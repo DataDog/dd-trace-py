@@ -15,25 +15,25 @@
 #define PYTHON311
 #endif
 
-#if PYTHON311
-    #include <internal/pycore_frame.h>
-    #define FrameType _PyCFrame
-    #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
-    #define GET_PREVIOUS(frame) frame->previous
-    #define GET_FILENAME(frame) frame->current_frame->f_code->co_filename
-    #define GET_LINENO(frame)                                                                                              \
-        PyCode_Addr2Line(frame->current_frame->f_code, PyFrame_GetLasti(_PyFrame_GetFrameObject(frame)))
+#ifdef PYTHON311
+#include <internal/pycore_frame.h>
+#define FrameType _PyCFrame
+#define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
+#define GET_PREVIOUS(frame) frame->previous
+#define GET_FILENAME(frame) frame->current_frame->f_code->co_filename
+#define GET_LINENO(frame)                                                                                              \
+    PyCode_Addr2Line(frame->current_frame->f_code, PyFrame_GetLasti(_PyFrame_GetFrameObject(frame)))
 #else
-    #define FrameType PyFrameObject
-    #define GET_FRAME(tstate) tstate->frame
-    #define GET_PREVIOUS(frame) frame->f_back
-    #define GET_FILENAME(frame) frame->f_code->co_filename
-    #if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
-        /* See: https://bugs.python.org/issue44964 */
-        #define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
-    #else
-        #define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
-    #endif
+#define FrameType PyFrameObject
+#define GET_FRAME(tstate) tstate->frame
+#define GET_PREVIOUS(frame) frame->f_back
+#define GET_FILENAME(frame) frame->f_code->co_filename
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION >= 10
+/* See: https://bugs.python.org/issue44964 */
+#define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti * 2)
+#else
+#define GET_LINENO(frame) PyCode_Addr2Line(frame->f_code, frame->f_lasti)
+#endif
 #endif
 
 /**
