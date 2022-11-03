@@ -208,16 +208,16 @@ async def test_two_traced_pipelines(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_parenting(redis_client):
-    with tracer.trace("web-request", service="test"):
-        await redis_client.set("blah", "boo")
-        await redis_client.get("blah")
+async def test_parenting(redis_client, snapshot_context):
+    with snapshot_context(wait_for_num_traces=1):
+        with tracer.trace("web-request", service="test"):
+            await redis_client.set("blah", "boo")
+            await redis_client.get("blah")
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_client_name():
-    with tracer.trace("web-request", service="test"):
-        redis_client = get_redis_instance(10, client_name="testing-client-name")
-        await redis_client.get("blah")
+async def test_client_name(snapshot_context):
+    with snapshot_context(wait_for_num_traces=1):
+        with tracer.trace("web-request", service="test"):
+            redis_client = get_redis_instance(10, client_name="testing-client-name")
+            await redis_client.get("blah")
