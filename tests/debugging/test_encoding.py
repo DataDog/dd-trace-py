@@ -197,8 +197,8 @@ def test_captured_context_two_level():
 def test_captured_context_three_level():
     context = _captured_context([("self", tree)], [], (None, None, None), 3)
     self = context["arguments"]["self"]
-    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"]["value"] == "None", context
-    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["left"]["value"] == "None", context
+    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"]["isNull"], context
+    assert self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["left"]["isNull"], context
     assert "fields" not in self["fields"]["root"]["fields"]["left"]["fields"]["right"]["fields"]["right"], context
 
 

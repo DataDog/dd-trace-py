@@ -455,6 +455,8 @@ def format_captured_value(value):
     v = value.get("value")
     if v is not None:
         return v
+    elif value.get("isNull"):
+        return "None"
 
     es = value.get("elements")
     if es is not None:
