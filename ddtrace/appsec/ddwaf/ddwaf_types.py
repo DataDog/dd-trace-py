@@ -4,12 +4,12 @@ from enum import IntEnum
 import os
 from platform import machine
 from platform import system
-import sys
 from typing import Any
 from typing import Optional
 from typing import Union
 
 from ddtrace.internal.compat import PY3
+from ddtrace.internal.logger import get_logger
 
 
 # Python 2/3 unicode str compatibility
@@ -22,6 +22,9 @@ _DIRNAME = os.path.dirname(__file__)
 
 FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
 
+
+log = get_logger(__name__)
+
 #
 # Dynamic loading of libddwaf. For now it requires the file or a link to be in current directory
 #
@@ -31,21 +34,11 @@ try:
         ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
 
     ARCHI = machine().lower()
-    TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64"}
+    TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
     ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
     ddwaf = ctypes.CDLL(os.path.join(_DIRNAME, "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION))
-except OSError as e:
-    error = "_DIRNAME " + os.path.dirname(__file__) + " exists:" + str(os.path.exists(os.path.dirname(__file__))) + "\n"
-    error += "libddwaf exists: " + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf"))) + "\n"
-    error += "libddwaf/lib exists: " + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf", "lib"))) + "\n"
-    error += (
-        "libddwaf/lib/libddwaf.%s exists: " % FILE_EXTENSION
-        + str(os.path.exists(os.path.join(_DIRNAME, "libddwaf", "lib", "libddwaf." + FILE_EXTENSION)))
-        + "\n"
-    )
-    print(error, sys.stderr)
-    e.args = (str(e.args[0]) + "\n" + str(error),) + e.args[1:]
-    raise e
+except Exception:
+    log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
 #
 # Constants
 #
