@@ -6,8 +6,8 @@ from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
+from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings import Config
-from ddtrace.settings import _database_monitoring
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.span import Span
 from tests.utils import TracerTestCase
@@ -35,9 +35,9 @@ class TestTracedCursor(TracerTestCase):
     def test_dbm_propagation_not_supported(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service")
-        # By default _dbm_propagation_supported attribute should not be True.
+        # By default _dbm_propagator attribute should not be set or have a value of None.
         # DBM context propagation should be opt in.
-        assert not getattr(cfg, "_dbm_propagation_supported", False)
+        assert getattr(cfg, "_dbm_propagator", None) is None
         traced_cursor = TracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
         # Ensure dbm comment is not appended to sql statement
         traced_cursor.execute("SELECT * FROM db;")
@@ -53,7 +53,7 @@ class TestTracedCursor(TracerTestCase):
     )
     def test_cursor_execute_with_dbm_injection(self):
         cursor = self.cursor
-        cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagation_supported=True)
+        cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagator=_DBM_Propagator(0, "query"))
         traced_cursor = TracedCursor(cursor, Pin(service="orders-db", tracer=self.tracer), cfg)
 
         # The following operations should generate DBM comments
@@ -522,7 +522,7 @@ class TestFetchTracedCursor(TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="full",
+            DD_DBM_PROPAGATION_MODE="service",
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
@@ -530,7 +530,8 @@ class TestFetchTracedCursor(TracerTestCase):
     )
     def test_cursor_execute_fetch_with_dbm_injection(self):
         cursor = self.cursor
-        cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagation_supported=True)
+        dbm_propagator = _DBM_Propagator(0, "query")
+        cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagator=dbm_propagator)
         traced_cursor = FetchTracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
 
         # The following operations should not generate DBM comments
@@ -552,9 +553,9 @@ class TestFetchTracedCursor(TracerTestCase):
 
         spans = self.tracer.pop()
         assert len(spans) == 2
-        dbm_comment_exc = _database_monitoring._get_dbm_comment(spans[0])
+        dbm_comment_exc = dbm_propagator._get_dbm_comment(spans[0])
         cursor.execute.assert_called_once_with(dbm_comment_exc + "SELECT * FROM db;")
-        dbm_comment_excmany = _database_monitoring._get_dbm_comment(spans[1])
+        dbm_comment_excmany = dbm_propagator._get_dbm_comment(spans[1])
         cursor.executemany.assert_called_once_with(dbm_comment_excmany + "SELECT * FROM db;", ())
 
 
