@@ -10,12 +10,7 @@
 #define TESTS_PREFIX "/tests/"
 #endif
 
-#if PY_VERSION_HEX >= 0x30b00f0
-#include <internal/pycore_frame.h>
-#define PYTHON311
-#endif
-
-#ifdef PYTHON311
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 11
 #include <internal/pycore_frame.h>
 #define FrameType _PyCFrame
 #define GET_FRAME(tstate) PyThreadState_GetFrame(tstate)
