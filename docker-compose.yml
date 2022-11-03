@@ -94,6 +94,7 @@ services:
     ddagent:
         image: datadog/agent:latest
         environment:
+            - DD_HOSTNAME=github-actions-worker
             - DD_BIND_HOST=0.0.0.0
             - DD_API_KEY=${DD_API_KEY-invalid_but_this_is_fine}
             - DD_APM_RECEIVER_SOCKET=/tmp/ddagent/trace.sock
