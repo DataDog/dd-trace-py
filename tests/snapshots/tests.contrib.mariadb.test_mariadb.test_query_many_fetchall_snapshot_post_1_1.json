@@ -13,7 +13,7 @@
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
-      "runtime-id": "778c778962a54eeea3ae401d2417ef86",
+      "runtime-id": "7b31b30cdaf94e739b0482954743165e",
       "sql.executemany": "true"
     },
     "metrics": {
@@ -24,11 +24,11 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 3306,
-      "process_id": 9677,
+      "process_id": 55384,
       "sql.rows": 2
     },
-    "duration": 1468400,
-    "start": 1656521264429166700
+    "duration": 937000,
+    "start": 1667513581474433000
   }],
 [
   {
@@ -45,7 +45,7 @@
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
-      "runtime-id": "778c778962a54eeea3ae401d2417ef86"
+      "runtime-id": "7b31b30cdaf94e739b0482954743165e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -55,11 +55,11 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 3306,
-      "process_id": 9677,
+      "process_id": 55384,
       "sql.rows": 2
     },
-    "duration": 698300,
-    "start": 1656521264432090500
+    "duration": 912000,
+    "start": 1667513581475616000
   }],
 [
   {
@@ -76,7 +76,7 @@
       "db.name": "test",
       "db.user": "test",
       "out.host": "127.0.0.1",
-      "runtime-id": "778c778962a54eeea3ae401d2417ef86"
+      "runtime-id": "7b31b30cdaf94e739b0482954743165e"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -85,9 +85,9 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 3306,
-      "process_id": 9600,
+      "process_id": 55384,
       "sql.rows": 2
     },
-    "duration": 94000,
-    "start": 1656521264433020400
+    "duration": 55000,
+    "start": 1667513581476598000
   }]]
