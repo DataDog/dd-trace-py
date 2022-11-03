@@ -3,6 +3,7 @@ import base64
 import datetime
 import hashlib
 import json
+import re
 from time import sleep
 
 import mock
@@ -135,6 +136,7 @@ def test_remote_configuration(mock_send_request):
 
 
 def test_remoteconfig_semver():
-    version = RemoteConfigClient()._client_tracer["tracer_version"]
-    if "rc" in version:
-        assert "-rc" in version, version
+    assert re.match(
+        r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$",
+        RemoteConfigClient()._client_tracer["tracer_version"],
+    )
