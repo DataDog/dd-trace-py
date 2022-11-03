@@ -291,6 +291,10 @@ def _after_request_tags(pin, span, request, response):
             # Note: getattr calls to user / user_is_authenticated may result in ImproperlyConfigured exceptions from
             # Django's get_user_model():
             # https://github.com/django/django/blob/a464ead29db8bf6a27a5291cad9eb3f0f3f0472b/django/contrib/auth/__init__.py
+            #
+            # FIXME: getattr calls to user fail in async contexts.
+            # Sample Error: django.core.exceptions.SynchronousOnlyOperation: You cannot call this from an async context
+            # - use a thread or sync_to_async.
             try:
                 if hasattr(user, "is_authenticated"):
                     span._set_str_tag("django.user.is_authenticated", str(user_is_authenticated(user)))
@@ -304,7 +308,7 @@ def _after_request_tags(pin, span, request, response):
                     if username:
                         span._set_str_tag("django.user.name", username)
             except Exception:
-                log.debug("Error retrieving authentication information for user %r", user, exc_info=True)
+                log.debug("Error retrieving authentication information for user", exc_info=True)
 
         if response:
             status = response.status_code
