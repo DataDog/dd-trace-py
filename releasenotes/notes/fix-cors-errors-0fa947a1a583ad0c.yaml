@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    django: fix django asgi support when running ddtrace in debug mode
+    django: avoid ``SynchronousOnlyOperation`` when failing to retrieve user information.
