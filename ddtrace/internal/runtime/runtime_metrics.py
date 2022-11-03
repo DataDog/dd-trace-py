@@ -136,7 +136,6 @@ class RuntimeWorker(periodic.PeriodicService):
         # type: (...) -> None
         # De-register span hook
         super(RuntimeWorker, self)._stop_service()
-        self.tracer.deregister_on_start_span(self._set_language_on_span)
 
     def update_runtime_tags(self):
         # type: () -> None
