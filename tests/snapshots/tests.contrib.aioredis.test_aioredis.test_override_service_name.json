@@ -10,6 +10,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aioredis",
+      "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "GET cheese",
       "runtime-id": "581a65cb545c4ab38f9db7c010f3e41a",
@@ -41,6 +42,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aioredis",
+      "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "SET cheese my-cheese",
       "runtime-id": "581a65cb545c4ab38f9db7c010f3e41a",
@@ -72,6 +74,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aioredis",
+      "language": "python",
       "out.host": "127.0.0.1",
       "redis.raw_command": "GET cheese",
       "runtime-id": "581a65cb545c4ab38f9db7c010f3e41a",

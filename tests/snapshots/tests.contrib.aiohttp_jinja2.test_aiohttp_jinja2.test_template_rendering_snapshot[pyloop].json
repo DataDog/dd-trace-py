@@ -11,6 +11,7 @@
       "_dd.p.dm": "-0",
       "aiohttp.template": "/template.jinja2",
       "component": "aiohttp_jinja2",
+      "language": "python",
       "runtime-id": "7fd5e3b1eea443a3a794aafc5862cc64"
     },
     "metrics": {

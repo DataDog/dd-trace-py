@@ -22,6 +22,7 @@
       "http.url": "http://localhost:8000/template-view/",
       "http.useragent": "python-requests/2.28.1",
       "http.version": "1.1",
+      "language": "python",
       "runtime-id": "8c20775f48a04c089b137a889688cbbf",
       "span.kind": "server"
     },
@@ -44,7 +45,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 5327000,
        "start": 1667316634440892000
@@ -57,7 +59,8 @@
           "span_id": 3,
           "parent_id": 2,
           "meta": {
-            "component": "django"
+            "component": "django",
+            "language": "python"
           },
           "duration": 21000,
           "start": 1667316634440906000
@@ -70,7 +73,8 @@
           "span_id": 4,
           "parent_id": 2,
           "meta": {
-            "component": "django"
+            "component": "django",
+            "language": "python"
           },
           "duration": 5262000,
           "start": 1667316634440939000
@@ -83,7 +87,8 @@
              "span_id": 6,
              "parent_id": 4,
              "meta": {
-               "component": "django"
+               "component": "django",
+               "language": "python"
              },
              "duration": 21000,
              "start": 1667316634440949000
@@ -96,7 +101,8 @@
              "span_id": 7,
              "parent_id": 4,
              "meta": {
-               "component": "django"
+               "component": "django",
+               "language": "python"
              },
              "duration": 5203000,
              "start": 1667316634440979000
@@ -109,7 +115,8 @@
                 "span_id": 9,
                 "parent_id": 7,
                 "meta": {
-                  "component": "django"
+                  "component": "django",
+                  "language": "python"
                 },
                 "duration": 6000,
                 "start": 1667316634440989000
@@ -122,7 +129,8 @@
                 "span_id": 10,
                 "parent_id": 7,
                 "meta": {
-                  "component": "django"
+                  "component": "django",
+                  "language": "python"
                 },
                 "duration": 5164000,
                 "start": 1667316634441002000
@@ -135,7 +143,8 @@
                    "span_id": 12,
                    "parent_id": 10,
                    "meta": {
-                     "component": "django"
+                     "component": "django",
+                     "language": "python"
                    },
                    "duration": 6000,
                    "start": 1667316634441012000
@@ -148,7 +157,8 @@
                    "span_id": 13,
                    "parent_id": 10,
                    "meta": {
-                     "component": "django"
+                     "component": "django",
+                     "language": "python"
                    },
                    "duration": 5138000,
                    "start": 1667316634441025000
@@ -161,7 +171,8 @@
                       "span_id": 14,
                       "parent_id": 13,
                       "meta": {
-                        "component": "django"
+                        "component": "django",
+                        "language": "python"
                       },
                       "duration": 24000,
                       "start": 1667316634441039000
@@ -174,7 +185,8 @@
                       "span_id": 15,
                       "parent_id": 13,
                       "meta": {
-                        "component": "django"
+                        "component": "django",
+                        "language": "python"
                       },
                       "duration": 5075000,
                       "start": 1667316634441071000
@@ -187,7 +199,8 @@
                          "span_id": 17,
                          "parent_id": 15,
                          "meta": {
-                           "component": "django"
+                           "component": "django",
+                           "language": "python"
                          },
                          "duration": 5045000,
                          "start": 1667316634441080000
@@ -200,7 +213,8 @@
                             "span_id": 19,
                             "parent_id": 17,
                             "meta": {
-                              "component": "django"
+                              "component": "django",
+                              "language": "python"
                             },
                             "duration": 5000,
                             "start": 1667316634441089000
@@ -213,7 +227,8 @@
                             "span_id": 20,
                             "parent_id": 17,
                             "meta": {
-                              "component": "django"
+                              "component": "django",
+                              "language": "python"
                             },
                             "duration": 4992000,
                             "start": 1667316634441101000
@@ -226,7 +241,8 @@
                                "span_id": 22,
                                "parent_id": 20,
                                "meta": {
-                                 "component": "django"
+                                 "component": "django",
+                                 "language": "python"
                                },
                                "duration": 4982000,
                                "start": 1667316634441108000
@@ -239,7 +255,8 @@
                                   "span_id": 23,
                                   "parent_id": 22,
                                   "meta": {
-                                    "component": "django"
+                                    "component": "django",
+                                    "language": "python"
                                   },
                                   "duration": 4967000,
                                   "start": 1667316634441116000
@@ -252,7 +269,8 @@
                                      "span_id": 24,
                                      "parent_id": 23,
                                      "meta": {
-                                       "component": "django"
+                                       "component": "django",
+                                       "language": "python"
                                      },
                                      "duration": 11000,
                                      "start": 1667316634441646000
@@ -265,7 +283,8 @@
                                      "span_id": 25,
                                      "parent_id": 23,
                                      "meta": {
-                                       "component": "django"
+                                       "component": "django",
+                                       "language": "python"
                                      },
                                      "duration": 6000,
                                      "start": 1667316634441747000
@@ -278,7 +297,8 @@
                                      "span_id": 26,
                                      "parent_id": 23,
                                      "meta": {
-                                       "component": "django"
+                                       "component": "django",
+                                       "language": "python"
                                      },
                                      "duration": 3192000,
                                      "start": 1667316634441917000
@@ -291,7 +311,8 @@
                                      "span_id": 27,
                                      "parent_id": 23,
                                      "meta": {
-                                       "component": "django"
+                                       "component": "django",
+                                       "language": "python"
                                      },
                                      "duration": 10000,
                                      "start": 1667316634445250000
@@ -304,7 +325,8 @@
                                      "span_id": 28,
                                      "parent_id": 23,
                                      "meta": {
-                                       "component": "django"
+                                       "component": "django",
+                                       "language": "python"
                                      },
                                      "duration": 474000,
                                      "start": 1667316634445371000
@@ -317,7 +339,8 @@
                             "span_id": 21,
                             "parent_id": 17,
                             "meta": {
-                              "component": "django"
+                              "component": "django",
+                              "language": "python"
                             },
                             "duration": 16000,
                             "start": 1667316634446105000
@@ -330,7 +353,8 @@
                          "span_id": 18,
                          "parent_id": 15,
                          "meta": {
-                           "component": "django"
+                           "component": "django",
+                           "language": "python"
                          },
                          "duration": 8000,
                          "start": 1667316634446134000
@@ -343,7 +367,8 @@
                       "span_id": 16,
                       "parent_id": 13,
                       "meta": {
-                        "component": "django"
+                        "component": "django",
+                        "language": "python"
                       },
                       "duration": 6000,
                       "start": 1667316634446153000
@@ -356,7 +381,8 @@
                 "span_id": 11,
                 "parent_id": 7,
                 "meta": {
-                  "component": "django"
+                  "component": "django",
+                  "language": "python"
                 },
                 "duration": 5000,
                 "start": 1667316634446174000
@@ -369,7 +395,8 @@
              "span_id": 8,
              "parent_id": 4,
              "meta": {
-               "component": "django"
+               "component": "django",
+               "language": "python"
              },
              "duration": 9000,
              "start": 1667316634446189000
@@ -382,7 +409,8 @@
           "span_id": 5,
           "parent_id": 2,
           "meta": {
-            "component": "django"
+            "component": "django",
+            "language": "python"
           },
           "duration": 6000,
           "start": 1667316634446209000

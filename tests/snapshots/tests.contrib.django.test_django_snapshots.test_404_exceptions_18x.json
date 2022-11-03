@@ -16,6 +16,7 @@
       "http.method": "GET",
       "http.status_code": "404",
       "http.url": "http://testserver/404-view/",
+      "language": "python",
       "runtime-id": "b527629f069c46a0b05ad2664effeeed",
       "span.kind": "server"
     },
@@ -38,7 +39,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 82000,
        "start": 1633584190406274000
@@ -51,7 +53,8 @@
        "span_id": 3,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 65000,
        "start": 1633584190406427000
@@ -64,7 +67,8 @@
        "span_id": 4,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 42000,
        "start": 1633584190406553000
@@ -77,7 +81,8 @@
        "span_id": 5,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 35000,
        "start": 1633584190406652000
@@ -90,7 +95,8 @@
        "span_id": 6,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 72000,
        "start": 1633584190406744000
@@ -103,7 +109,8 @@
        "span_id": 7,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 37000,
        "start": 1633584190406874000
@@ -116,7 +123,8 @@
        "span_id": 8,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 325000,
        "start": 1633584190407138000
@@ -131,7 +139,8 @@
        "type": "template",
        "meta": {
          "component": "django",
-         "django.template.engine.class": "django.template.engine.Engine"
+         "django.template.engine.class": "django.template.engine.Engine",
+         "language": "python"
        },
        "duration": 313000,
        "start": 1633584190410760000
@@ -144,7 +153,8 @@
        "span_id": 10,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 43000,
        "start": 1633584190411205000
@@ -157,7 +167,8 @@
        "span_id": 11,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 37000,
        "start": 1633584190411316000
@@ -170,7 +181,8 @@
        "span_id": 12,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 50000,
        "start": 1633584190411414000
@@ -183,7 +195,8 @@
        "span_id": 13,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 39000,
        "start": 1633584190411524000
@@ -196,7 +209,8 @@
        "span_id": 14,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 37000,
        "start": 1633584190411621000
@@ -209,7 +223,8 @@
        "span_id": 15,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 39000,
        "start": 1633584190411963000
@@ -222,7 +237,8 @@
        "span_id": 16,
        "parent_id": 1,
        "meta": {
-         "component": "django"
+         "component": "django",
+         "language": "python"
        },
        "duration": 47000,
        "start": 1633584190412061000

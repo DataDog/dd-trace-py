@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "runtime-id": "5547e917355d4080b87142160fa8bf83"
     },
     "metrics": {
@@ -30,6 +31,7 @@
        "type": "redis",
        "meta": {
          "component": "yaaredis",
+         "language": "python",
          "out.host": "localhost",
          "redis.raw_command": "GET cheese",
          "span.kind": "client"

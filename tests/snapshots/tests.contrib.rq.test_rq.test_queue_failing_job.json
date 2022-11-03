@@ -12,6 +12,7 @@
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
       "job.id": "42d08f54-91c2-4f1a-8d10-4f3db32ccae1",
+      "language": "python",
       "queue.name": "sync-q",
       "runtime-id": "44e88e609a8b47a08690eb02db5b1ed5",
       "span.kind": "producer"
@@ -39,7 +40,8 @@
          "error.msg": "error",
          "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 215, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3615_rq~1100_click712/lib/python3.6/site-packages/rq/job.py\", line 821, in perform\n    self._result = self._execute()\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3615_rq~1100_click712/lib/python3.6/site-packages/rq/job.py\", line 844, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",
          "error.type": "tests.contrib.rq.jobs.MyException",
-         "job.id": "42d08f54-91c2-4f1a-8d10-4f3db32ccae1"
+         "job.id": "42d08f54-91c2-4f1a-8d10-4f3db32ccae1",
+         "language": "python"
        },
        "duration": 4677000,
        "start": 1667319137868920000

@@ -18,6 +18,7 @@
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
       "runtime-id": "1e8cf9d006664b09ab0fab467116ce65",
       "span.kind": "server"
     },
@@ -40,7 +41,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 10000,
        "start": 1667318823913317000
@@ -53,7 +55,8 @@
        "span_id": 3,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 9000,
        "start": 1667318823913355000
@@ -66,7 +69,8 @@
        "span_id": 4,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 30000,
        "start": 1667318823913381000
@@ -79,7 +83,8 @@
           "span_id": 8,
           "parent_id": 4,
           "meta": {
-            "component": "flask"
+            "component": "flask",
+            "language": "python"
           },
           "duration": 6000,
           "start": 1667318823913399000
@@ -92,7 +97,8 @@
        "span_id": 5,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 9000,
        "start": 1667318823913437000
@@ -105,7 +111,8 @@
        "span_id": 6,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 8000,
        "start": 1667318823913480000
@@ -118,7 +125,8 @@
        "span_id": 7,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 6000,
        "start": 1667318823913507000

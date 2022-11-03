@@ -14,6 +14,7 @@
       "http.status_code": "200",
       "http.url": "http://127.0.0.1:58948/template/",
       "http.useragent": "Python/3.7 aiohttp/3.8.3",
+      "language": "python",
       "runtime-id": "6675c2fe10fc41cbb714160b6c434a97",
       "span.kind": "server"
     },
@@ -38,7 +39,8 @@
        "type": "template",
        "meta": {
          "aiohttp.template": "/template.jinja2",
-         "component": "aiohttp_jinja2"
+         "component": "aiohttp_jinja2",
+         "language": "python"
        },
        "duration": 713000,
        "start": 1667240560776121000

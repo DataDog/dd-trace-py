@@ -13,6 +13,7 @@
       "component": "graphql",
       "error.msg": "exception was raised in a graphene query",
       "error.type": "graphql.error.base.GraphQLError",
+      "language": "python",
       "runtime-id": "9203e2a344a64d8da2a34d37d8fe3900"
     },
     "metrics": {
@@ -36,7 +37,8 @@
        "type": "graphql",
        "meta": {
          "component": "graphql",
-         "graphql.source": "{ patron { id name age } }"
+         "graphql.source": "{ patron { id name age } }",
+         "language": "python"
        },
        "duration": 225000,
        "start": 1659643443310716000
@@ -51,7 +53,8 @@
        "type": "graphql",
        "meta": {
          "component": "graphql",
-         "graphql.source": "{ patron { id name age } }"
+         "graphql.source": "{ patron { id name age } }",
+         "language": "python"
        },
        "duration": 1047000,
        "start": 1659643443311052000
@@ -70,7 +73,8 @@
          "error.msg": "exception was raised in a graphene query",
          "error.type": "graphql.error.base.GraphQLError",
          "graphql.operation.type": "query",
-         "graphql.source": "{ patron { id name age } }"
+         "graphql.source": "{ patron { id name age } }",
+         "language": "python"
        },
        "duration": 1877000,
        "start": 1659643443312186000
@@ -84,7 +88,8 @@
           "parent_id": 4,
           "type": "graphql",
           "meta": {
-            "component": "graphql"
+            "component": "graphql",
+            "language": "python"
           },
           "duration": 48000,
           "start": 1659643443312350000

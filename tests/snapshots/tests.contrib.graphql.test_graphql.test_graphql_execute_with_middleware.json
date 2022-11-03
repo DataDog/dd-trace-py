@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "runtime-id": "942f610390fa492b9945e108e5aa0f69"
     },
     "metrics": {
@@ -30,7 +31,8 @@
        "type": "graphql",
        "meta": {
          "component": "graphql",
-         "graphql.source": "query HELLO { hello }"
+         "graphql.source": "query HELLO { hello }",
+         "language": "python"
        },
        "metrics": {
          "_dd.top_level": 1
@@ -50,7 +52,8 @@
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
-         "graphql.source": "query HELLO { hello }"
+         "graphql.source": "query HELLO { hello }",
+         "language": "python"
        },
        "metrics": {
          "_dd.top_level": 1
@@ -67,7 +70,8 @@
           "parent_id": 3,
           "type": "graphql",
           "meta": {
-            "component": "graphql"
+            "component": "graphql",
+            "language": "python"
           },
           "duration": 101000,
           "start": 1658848939283224000
@@ -94,7 +98,8 @@
          "component": "graphql",
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
-         "graphql.source": "query HELLO { hello }"
+         "graphql.source": "query HELLO { hello }",
+         "language": "python"
        },
        "metrics": {
          "_dd.top_level": 1
@@ -111,7 +116,8 @@
           "parent_id": 4,
           "type": "graphql",
           "meta": {
-            "component": "graphql"
+            "component": "graphql",
+            "language": "python"
           },
           "duration": 89000,
           "start": 1658848939284065000

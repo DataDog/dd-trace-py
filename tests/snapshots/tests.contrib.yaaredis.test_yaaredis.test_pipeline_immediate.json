@@ -10,6 +10,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "yaaredis",
+      "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET a 1",
       "runtime-id": "5547e917355d4080b87142160fa8bf83",
@@ -41,6 +42,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "yaaredis",
+      "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "SET a 1",
       "runtime-id": "5547e917355d4080b87142160fa8bf83",

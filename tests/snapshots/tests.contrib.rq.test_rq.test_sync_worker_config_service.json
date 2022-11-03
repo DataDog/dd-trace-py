@@ -12,6 +12,7 @@
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
       "job.id": "b3fe5d94-7632-423c-bd48-d94256b362d0",
+      "language": "python",
       "queue.name": "q",
       "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
       "span.kind": "producer"
@@ -40,6 +41,7 @@
          "job.id": "b3fe5d94-7632-423c-bd48-d94256b362d0",
          "job.origin": "q",
          "job.status": "finished",
+         "language": "python",
          "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
          "span.kind": "consumer"
        },
@@ -61,7 +63,8 @@
           "parent_id": 2,
           "meta": {
             "component": "rq",
-            "job.id": "b3fe5d94-7632-423c-bd48-d94256b362d0"
+            "job.id": "b3fe5d94-7632-423c-bd48-d94256b362d0",
+            "language": "python"
           },
           "duration": 823000,
           "start": 1667319043799656000

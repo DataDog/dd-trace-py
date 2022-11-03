@@ -717,6 +717,9 @@ class Tracer(object):
             ):
                 span.set_tag_str(VERSION_KEY, config.version)
 
+        if self._is_span_internal(span):
+            span.set_tag_str("language", "python")
+
         if activate:
             self.context_provider.activate(span)
 

@@ -14,6 +14,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
+      "language": "python",
       "runtime-id": "cc84154dcff748af9e376e7721ea8b0b",
       "span.kind": "server"
     },
@@ -35,7 +36,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "component": "wsgi"
+         "component": "wsgi",
+         "language": "python"
        },
        "duration": 90000,
        "start": 1667319310935351000
@@ -50,6 +52,7 @@
           "type": "web",
           "meta": {
             "component": "wsgi",
+            "language": "python",
             "span.kind": "server"
           },
           "duration": 35000,
@@ -64,6 +67,7 @@
        "parent_id": 1,
        "meta": {
          "component": "wsgi",
+         "language": "python",
          "result_class": "list"
        },
        "duration": 51000,

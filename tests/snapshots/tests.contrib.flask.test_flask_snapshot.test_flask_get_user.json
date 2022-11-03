@@ -18,6 +18,7 @@
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/identify",
       "http.useragent": "python-requests/2.27.1",
+      "language": "python",
       "runtime-id": "372749d02a18483fbbf43c19feb5b64a",
       "span.kind": "server",
       "usr.email": "usr.email",
@@ -46,7 +47,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 9000,
        "start": 1667318826027931000
@@ -59,7 +61,8 @@
        "span_id": 3,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 9000,
        "start": 1667318826027964000
@@ -72,7 +75,8 @@
        "span_id": 4,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 36000,
        "start": 1667318826027990000
@@ -85,7 +89,8 @@
           "span_id": 8,
           "parent_id": 4,
           "meta": {
-            "component": "flask"
+            "component": "flask",
+            "language": "python"
           },
           "duration": 14000,
           "start": 1667318826028007000
@@ -98,7 +103,8 @@
        "span_id": 5,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 7000,
        "start": 1667318826028053000
@@ -111,7 +117,8 @@
        "span_id": 6,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 8000,
        "start": 1667318826028092000
@@ -124,7 +131,8 @@
        "span_id": 7,
        "parent_id": 1,
        "meta": {
-         "component": "flask"
+         "component": "flask",
+         "language": "python"
        },
        "duration": 6000,
        "start": 1667318826028117000

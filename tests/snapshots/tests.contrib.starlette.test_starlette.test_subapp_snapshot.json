@@ -15,6 +15,7 @@
       "http.url": "http://testserver/sub-app/hello/name",
       "http.useragent": "testclient",
       "http.version": "1.1",
+      "language": "python",
       "runtime-id": "5896866a4ef541ff8eb708f6df509bd1",
       "span.kind": "server"
     },
@@ -43,6 +44,7 @@
          "http.url": "http://testserver/sub-app/hello/name",
          "http.useragent": "testclient",
          "http.version": "1.1",
+         "language": "python",
          "span.kind": "server"
        },
        "duration": 134000,

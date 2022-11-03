@@ -3,12 +3,6 @@ import os
 from typing import ClassVar
 from typing import Optional
 from typing import Set
-from typing import TYPE_CHECKING
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace import Span
-
 import attr
 
 import ddtrace
@@ -86,17 +80,6 @@ class RuntimeWorker(periodic.PeriodicService):
         # type: () -> None
         self._dogstatsd_client = get_dogstatsd_client(self.dogstatsd_url or ddtrace.internal.agent.get_stats_url())
         self.tracer = self.tracer or ddtrace.tracer
-        self.tracer.on_start_span(self._set_language_on_span)
-
-    def _set_language_on_span(
-        self,
-        span,  # type: Span
-    ):
-        # type: (...) -> None
-        # add tags to root span to correlate trace with runtime metrics
-        # only applied to spans with types that are internal to applications
-        if span.parent_id is None and self.tracer._is_span_internal(span):
-            span.set_tag_str("language", "python")
 
     @classmethod
     def disable(cls):

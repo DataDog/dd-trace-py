@@ -13,6 +13,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
+      "language": "python",
       "runtime-id": "cc84154dcff748af9e376e7721ea8b0b",
       "span.kind": "server"
     },
@@ -32,7 +33,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "component": "wsgi"
+         "component": "wsgi",
+         "language": "python"
        },
        "duration": 226000,
        "start": 1667319311030727000
@@ -51,6 +53,7 @@
             "http.status_code": "200",
             "http.status_msg": "OK",
             "http.url": "http://localhost:80/",
+            "language": "python",
             "span.kind": "server"
           },
           "duration": 232000,
@@ -64,7 +67,8 @@
              "span_id": 6,
              "parent_id": 4,
              "meta": {
-               "component": "wsgi"
+               "component": "wsgi",
+               "language": "python"
              },
              "duration": 109000,
              "start": 1667319311030819000
@@ -79,6 +83,7 @@
                 "type": "web",
                 "meta": {
                   "component": "wsgi",
+                  "language": "python",
                   "span.kind": "server"
                 },
                 "duration": 72000,
@@ -93,6 +98,7 @@
              "parent_id": 4,
              "meta": {
                "component": "wsgi",
+               "language": "python",
                "result_class": "list"
              },
              "duration": 71000,
@@ -108,6 +114,7 @@
           "type": "web",
           "meta": {
             "component": "wsgi",
+            "language": "python",
             "span.kind": "server"
           },
           "duration": 33000,
@@ -122,6 +129,7 @@
        "parent_id": 1,
        "meta": {
          "component": "wsgi",
+         "language": "python",
          "result_class": "list_iterator"
        },
        "duration": 57000,

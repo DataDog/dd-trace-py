@@ -11,6 +11,7 @@
       "_dd.p.dm": "-0",
       "component": "wsgi",
       "http.status_code": "200",
+      "language": "python",
       "request_tag": "req test tag set",
       "runtime-id": "cc84154dcff748af9e376e7721ea8b0b",
       "span.kind": "server"
@@ -35,7 +36,8 @@
        "parent_id": 1,
        "meta": {
          "app_tag": "app test tag set",
-         "component": "wsgi"
+         "component": "wsgi",
+         "language": "python"
        },
        "metrics": {
          "app_metric": 2
@@ -52,6 +54,7 @@
        "parent_id": 1,
        "meta": {
          "component": "wsgi",
+         "language": "python",
          "response_tag": "resp test tag set"
        },
        "metrics": {

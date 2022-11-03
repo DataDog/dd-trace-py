@@ -12,6 +12,7 @@
       "component": "rq",
       "job.func_name": "__call__",
       "job.id": "b0d859be-5f70-4a1b-9e13-63785b8bee3f",
+      "language": "python",
       "queue.name": "q",
       "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
       "span.kind": "producer"
@@ -40,6 +41,7 @@
          "job.id": "b0d859be-5f70-4a1b-9e13-63785b8bee3f",
          "job.origin": "q",
          "job.status": "finished",
+         "language": "python",
          "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
          "span.kind": "consumer"
        },
@@ -61,7 +63,8 @@
           "parent_id": 2,
           "meta": {
             "component": "rq",
-            "job.id": "b0d859be-5f70-4a1b-9e13-63785b8bee3f"
+            "job.id": "b0d859be-5f70-4a1b-9e13-63785b8bee3f",
+            "language": "python"
           },
           "duration": 817000,
           "start": 1667319044020974000
@@ -80,6 +83,7 @@
       "component": "rq",
       "job.func_name": "job_on_class",
       "job.id": "68323ae3-de16-446a-8c20-eff6074c0841",
+      "language": "python",
       "queue.name": "q",
       "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
       "span.kind": "producer"
@@ -108,6 +112,7 @@
          "job.id": "68323ae3-de16-446a-8c20-eff6074c0841",
          "job.origin": "q",
          "job.status": "finished",
+         "language": "python",
          "runtime-id": "2cbc4798a5e1448ea9627228c43b1739",
          "span.kind": "consumer"
        },
@@ -129,7 +134,8 @@
           "parent_id": 2,
           "meta": {
             "component": "rq",
-            "job.id": "68323ae3-de16-446a-8c20-eff6074c0841"
+            "job.id": "68323ae3-de16-446a-8c20-eff6074c0841",
+            "language": "python"
           },
           "duration": 834000,
           "start": 1667319044001187000
