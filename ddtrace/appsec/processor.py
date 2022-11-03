@@ -11,6 +11,8 @@ from typing import Union
 import attr
 from six import ensure_binary
 
+from ddtrace.appsec.ddwaf import DDWaf
+from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
 from ddtrace.constants import APPSEC_EVENT_RULE_ERRORS
 from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
@@ -30,19 +32,6 @@ from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
-
-
-try:
-    from ddtrace.appsec.ddwaf import DDWaf
-    from ddtrace.appsec.ddwaf import version
-except ImportError:
-    DDWaf = object
-
-    def version():
-        return "0.0.0"
-
-    log = get_logger(__name__)
-    log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -164,7 +153,6 @@ def _get_waf_timeout():
 
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-
     rules = attr.ib(type=str, factory=get_rules)
     obfuscation_parameter_key_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_key_regexp)
     obfuscation_parameter_value_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_value_regexp)
