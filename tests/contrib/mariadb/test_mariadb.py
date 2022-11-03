@@ -131,7 +131,7 @@ def test_analytics_default(connection, tracer):
 
 
 @pytest.mark.subprocess(env=dict(DD_SERVICE="mysvc"))
-@snapshot(async_mode=False, variants=SNAPSHOT_VARIANTS)
+@pytest.mark.snapshot(variants=SNAPSHOT_VARIANTS)
 def test_user_specified_dd_service_snapshot():
     """
     When a user specifies a service for the app
@@ -139,9 +139,7 @@ def test_user_specified_dd_service_snapshot():
     """
     import mariadb
 
-    from ddtrace import config  # noqa
     from ddtrace import patch
-    from ddtrace import tracer
 
     patch(mariadb=True)
     from tests.contrib.config import MARIADB_CONFIG
@@ -151,11 +149,10 @@ def test_user_specified_dd_service_snapshot():
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     assert len(rows) == 1
-    tracer.shutdown()
 
 
 @pytest.mark.subprocess(env=dict(DD_MARIADB_SERVICE="mysvc"))
-@snapshot(async_mode=False, variants=SNAPSHOT_VARIANTS)
+@pytest.mark.snapshot(variants=SNAPSHOT_VARIANTS)
 def test_user_specified_dd_mariadb_service_snapshot():
     """
     When a user specifies a service for the app
@@ -163,9 +160,7 @@ def test_user_specified_dd_mariadb_service_snapshot():
     """
     import mariadb
 
-    from ddtrace import config  # noqa
     from ddtrace import patch
-    from ddtrace import tracer
 
     patch(mariadb=True)
     from tests.contrib.config import MARIADB_CONFIG
@@ -175,7 +170,6 @@ def test_user_specified_dd_mariadb_service_snapshot():
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     assert len(rows) == 1
-    tracer.shutdown()
 
 
 @snapshot(include_tracer=True, variants=SNAPSHOT_VARIANTS)
