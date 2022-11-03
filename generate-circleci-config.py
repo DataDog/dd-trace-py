@@ -39,9 +39,10 @@ def generate_main_workflow():
     # requirements and coverage reports are after all other tests.
     requirements = collections.defaultdict(lambda: DEFAULT_REQUIREMENTS)
     for jobs, reqs in [
-            (BASE_JOBS, []),
-            (CHECKONLY_JOBS, CHECK_REQUIREMENTS),
-            (["coverage_report"], COVERAGE_REQUIREMENTS)]:
+        (BASE_JOBS, []),
+        (CHECKONLY_JOBS, CHECK_REQUIREMENTS),
+        (["coverage_report"], COVERAGE_REQUIREMENTS),
+    ]:
         for job in jobs:
             requirements[job] = reqs
 
