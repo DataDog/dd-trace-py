@@ -452,7 +452,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     )
     result_keys = list(span.get_tags().keys())
     result_keys.sort(reverse=True)
-    assert result_keys == ["runtime-id", http.USER_AGENT]
+    assert result_keys == ["language", "runtime-id", http.USER_AGENT]
     mock_store_headers.assert_not_called()
 
 
@@ -460,15 +460,15 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
-        ("http-user-agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
-        ("http-user-agent", None, ["runtime-id"], None),
-        ("http-user-agent", 101234, ["runtime-id"], None),
-        ("useragent", True, ["runtime-id"], None),
-        ("http-user-agent", False, ["runtime-id"], None),
-        ("http-user-agent", [], ["runtime-id"], None),
-        ("http-user-agent", {}, ["runtime-id"], None),
-        ("user-agent", ["test1", "test2"], ["runtime-id", http.USER_AGENT], "['test1', 'test2']"),
-        ("user-agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
+        ("http-user-agent", "dd-agent/1.0.0", ["language", "runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("http-user-agent", None, ["language", "runtime-id"], None),
+        ("http-user-agent", 101234, ["language", "runtime-id"], None),
+        ("useragent", True, ["language", "runtime-id"], None),
+        ("http-user-agent", False, ["language", "runtime-id"], None),
+        ("http-user-agent", [], ["language", "runtime-id"], None),
+        ("http-user-agent", {}, ["language", "runtime-id"], None),
+        ("user-agent", ["test1", "test2"], ["language", "runtime-id", http.USER_AGENT], "['test1', 'test2']"),
+        ("user-agent", {"test1": "key1"}, ["language", "runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
     ],
 )
 def test_set_http_meta_headers_useragent(
@@ -496,7 +496,7 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
     )
     result_keys = list(span.get_tags().keys())
     result_keys.sort(reverse=True)
-    assert result_keys == ["runtime-id", http.USER_AGENT]
+    assert result_keys == ["language", "runtime-id", http.USER_AGENT]
     assert span.get_tag(http.USER_AGENT) == "dd-agent/1.0.0"
     mock_store_headers.assert_called()
 
@@ -509,7 +509,7 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
     )
     result_keys = list(span.get_tags().keys())
     result_keys.sort(reverse=True)
-    assert result_keys == ["runtime-id"]
+    assert result_keys == ["language", "runtime-id"]
     assert not span.get_tag(http.USER_AGENT)
     mock_store_headers.assert_called()
 
@@ -521,13 +521,13 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
         (
             "",
             {"x-forwarded-for": "8.8.8.8"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
+            ["language", "runtime-id", "network.client.ip", http.CLIENT_IP],
             "8.8.8.8",
         ),
         (
             "",
             {"x-forwarded-for": "8.8.8.8,127.0.0.1"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
+            ["language", "runtime-id", "network.client.ip", http.CLIENT_IP],
             "8.8.8.8",
         ),
         (
@@ -539,7 +539,7 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
         (
             "",
             {"x-forwarded-for": "192.168.1.14,127.0.0.1"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
+            ["language", "runtime-id", "network.client.ip", http.CLIENT_IP],
             "192.168.1.14",
         ),
         ("", {"x-forwarded-for": "foobar"}, ["runtime-id"], None),
@@ -548,7 +548,7 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
         (
             "via",
             {"x-forwarded-for": "4.4.4.4", "via": "8.8.4.4"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
+            ["language", "runtime-id", "network.client.ip", http.CLIENT_IP],
             "8.8.4.4",
         ),
     ],
@@ -587,8 +587,8 @@ def test_ip_subnet_regression():
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
-        ("ㄲㄴㄷㄸ", ["runtime-id", http.USER_AGENT], "ㄲㄴㄷㄸ"),
-        (b"", ["runtime-id"], None),
+        ("ㄲㄴㄷㄸ", ["language", "runtime-id", http.USER_AGENT], "ㄲㄴㄷㄸ"),
+        (b"", ["language", "runtime-id"], None),
     ],
 )
 def test_set_http_meta_headers_useragent_py3(
@@ -613,8 +613,8 @@ def test_set_http_meta_headers_useragent_py3(
 @pytest.mark.parametrize(
     "user_agent_value, expected_keys ,expected",
     [
-        ("ㄲㄴㄷㄸ", ["runtime-id"], None),
-        (u"", ["runtime-id"], None),
+        ("ㄲㄴㄷㄸ", ["language", "runtime-id"], None),
+        (u"", ["language", "runtime-id"], None),
     ],
 )
 def test_set_http_meta_headers_useragent_py2(

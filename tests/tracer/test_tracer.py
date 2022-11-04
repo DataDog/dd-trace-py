@@ -574,7 +574,7 @@ class TracerTestCases(TracerTestCase):
         )
         span_keys = list(span.get_tags().keys())
         span_keys.sort()
-        assert span_keys == ["runtime-id", "usr.id"]
+        assert span_keys == ["language", "runtime-id", "usr.id"]
         assert span.get_tag(user.ID)
         assert span.get_tag(user.EMAIL) is None
         assert span.get_tag(user.SESSION_ID) is None
