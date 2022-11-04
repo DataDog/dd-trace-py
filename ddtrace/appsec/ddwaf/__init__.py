@@ -1,10 +1,13 @@
 import ctypes
+import logging
 import time
 from typing import Any
 from typing import Union
 
 from ddtrace.internal.compat import PY3
 
+
+LOGGER: logging.Logger = logging.getLogger(__name__)
 
 try:
     from .ddwaf_types import ddwaf_config
@@ -22,6 +25,7 @@ try:
     _DDWAF_LOADED = True
 except OSError:
     _DDWAF_LOADED = False
+    LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
 
 # Python 2/3 unicode str compatibility
 if PY3:
@@ -102,7 +106,6 @@ if _DDWAF_LOADED:
         # type: () -> unicode
         return ddwaf_get_version().decode("UTF-8")
 
-
 else:
     # Mockup of the DDWaf class doing nothing
     class DDWaf(object):  # type: ignore
@@ -119,9 +122,10 @@ else:
             timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:int
         ):
             # type: (...) -> tuple[unicode, float, float]
-
+            LOGGER.warning("DDWaf features disabled. dry run")
             return ("", 0.0, 0.0)
 
     def version():
         # type: () -> unicode
+        LOGGER.warning("DDWaf features disabled. null version")
         return "0.0.0"
