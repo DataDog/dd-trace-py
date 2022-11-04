@@ -207,7 +207,7 @@ def _check_server_span(span, service, method_name, method_kind):
     assert span.get_tag("grpc.method.service") == "Hello"
     assert span.get_tag("grpc.method.name") == method_name
     assert span.get_tag("grpc.method.kind") == method_kind
-    assert span.get_tag("component") == "grpc_aio_client"
+    assert span.get_tag("component") == "grpc_aio_server"
 
 
 @pytest.mark.asyncio
