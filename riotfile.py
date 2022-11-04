@@ -413,6 +413,7 @@ venv = Venv(
                 "httpretty": "==0.9.7",
                 "gevent": "~=22.10.1",
             },
+            ci={"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "internal"}}]},
         ),
         Venv(
             name="runtime",
@@ -455,6 +456,12 @@ venv = Venv(
             pkgs={
                 "msgpack": "~=1.0.0",
             },
+            ci={
+                "executor": "ddtrace_dev_small",
+                "parallelism": 1,
+                "docker": [{"image": "datadog/dd-trace-py:buster"}],
+                "steps": [{"run_test": {"pattern": "vendor"}}],
+            },
         ),
         Venv(
             name="httplib",
@@ -470,6 +477,11 @@ venv = Venv(
             name="test_logging",
             command="pytest {cmdargs} tests/contrib/logging",
             pys=select_pys(),
+            ci={
+                "executor": "ddtrace_dev_small",
+                "parallelism": 1,
+                "steps": [{"run_test": {"pattern": "test_logging"}}],
+            },
         ),
         Venv(
             name="falcon",
@@ -509,6 +521,7 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "falcon"}}]},
         ),
         Venv(
             name="celery",
@@ -656,6 +669,7 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "pylons"}}]},
         ),
         Venv(
             name="cherrypy",
@@ -742,6 +756,12 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "mongo:3.6"}],
+                "steps": [{"run_test": {"pattern": "pymongo"}}],
+            },
         ),
         # Django  Python version support
         # 1.11    2.7, 3.4, 3.5, 3.6, 3.7 (added in 1.11.17)
@@ -868,6 +888,11 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "django_hosts$", "snapshot": True}}],
+            },
         ),
         Venv(
             name="djangorestframework",
@@ -1251,6 +1276,12 @@ venv = Venv(
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "psycopg", "snapshot": True, "docker_services": "postgres"}}],
+                "parallelism": 4,
+            },
         ),
         Venv(
             name="pymemcache",
@@ -1271,6 +1302,12 @@ venv = Venv(
                 Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
                 Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
             ],
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "memcached:1.5-alpine"}],
+                "steps": [{"run_test": {"pattern": "pymemcache"}}],
+            },
         ),
         Venv(
             name="pynamodb",
@@ -1320,6 +1357,7 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "pynamodb"}}]},
         ),
         Venv(
             name="starlette",
@@ -1357,6 +1395,11 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "starlette", "snapshot": True}}],
+            },
         ),
         Venv(
             name="sqlalchemy",
@@ -1445,6 +1488,21 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [
+                    {"image": "datadog/dd-trace-py:buster"},
+                    {
+                        "image": (
+                            "kennethreitz/httpbin@sha256:"
+                            "2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb"
+                        ),
+                        "name": "httpbin.org",
+                    },
+                ],
+                "steps": [{"run_test": {"pattern": "requests"}}],
+            },
         ),
         Venv(
             name="wsgi",
@@ -1457,6 +1515,11 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "wsgi", "snapshot": True}}],
+            },
         ),
         Venv(
             name="boto",
@@ -1499,6 +1562,12 @@ venv = Venv(
                     pkgs={"mongoengine": [">=0.20,<0.21", ">=0.21,<0.22", ">=0.22,<0.23", "<=0.24.2"]},
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "mongoengine", "snapshot": True, "docker_services": "mongo"}}],
+                "parallelism": 1,
+            },
         ),
         Venv(
             name="asgi",
@@ -1509,6 +1578,7 @@ venv = Venv(
             },
             pys=select_pys(min_version="3.6"),
             command="pytest {cmdargs} tests/contrib/asgi",
+            ci={"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "asgi$"}}]},
         ),
         Venv(
             name="mariadb",
@@ -1611,6 +1681,11 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "pyramid", "snapshot": True}}],
+            },
         ),
         Venv(
             name="aiobotocore",
@@ -1658,6 +1733,12 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "palazzem/moto:1.0.1"}],
+                "steps": [{"run_test": {"pattern": "aiobotocore"}}],
+            },
         ),
         Venv(
             name="fastapi",
@@ -1689,6 +1770,11 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "fastapi", "snapshot": True}}],
+            },
         ),
         Venv(
             name="aiomysql",
@@ -1697,6 +1783,13 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": "<=0.20.1",
                 "aiomysql": ["~=0.1.0", latest],
+            },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [
+                    {"run_test": {"docker_services": "mysql", "wait": "mysql", "pattern": "aiomysql", "snapshot": True}}
+                ],
             },
         ),
         Venv(
@@ -1734,6 +1827,7 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "pytest$"}}]},
         ),
         Venv(
             name="pytest-bdd",
@@ -1776,6 +1870,7 @@ venv = Venv(
                     ],
                 ),
             ],
+            ci={"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "pytest-bdd"}}]},
         ),
         Venv(
             name="grpc",
@@ -1890,6 +1985,11 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "graphene", "snapshot": True}}],
+            },
         ),
         Venv(
             name="graphql",
@@ -1911,6 +2011,11 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "graphql", "snapshot": True}}],
+            },
         ),
         Venv(
             name="rq",
@@ -2047,6 +2152,18 @@ venv = Venv(
                 "sqlalchemy": latest,
             },
             command="pytest {cmdargs} tests/contrib/aiopg",
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [
+                    {"image": "datadog/dd-trace-py:buster"},
+                    {
+                        "image": "postgres:11-alpine",
+                        "environment": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=postgres"],
+                    },
+                ],
+                "steps": [{"run_test": {"wait": "postgres", "pattern": "aiopg"}}],
+            },
         ),
         Venv(
             name="aiohttp",
@@ -2327,6 +2444,11 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "sanic", "snapshot": True}}],
+            },
         ),
         Venv(
             name="snowflake",
@@ -2375,6 +2497,12 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"pattern": "snowflake", "snapshot": True}}],
+                "parallelism": 4,
+            },
         ),
         Venv(
             pys=["3"],
@@ -2395,6 +2523,12 @@ venv = Venv(
                     "~=1.3.0",
                     "<=2.1.0",
                 ],
+            },
+            ci={
+                "machine": {"image": "ubuntu-2004:current"},
+                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+                "steps": [{"run_test": {"docker_services": "redis", "pattern": "aioredis$", "snapshot": True}}],
+                "parallelism": 4,
             },
         ),
         Venv(

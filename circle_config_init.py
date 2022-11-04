@@ -328,7 +328,6 @@ circleci_config = {
                 {"persist_to_workspace": {"root": ".", "paths": ["."]}},
             ],
         },
-        "internal": {"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "internal"}}]},
         "opentracer": {
             "executor": "ddtrace_dev",
             "parallelism": 7,
@@ -372,29 +371,16 @@ circleci_config = {
             "resource_class": "large",
             "steps": [{"run_tox_scenario": {"store_coverage": False, "pattern": "^py.\\+-profile"}}],
         },
-        "vendor": {
-            "executor": "ddtrace_dev_small",
-            "parallelism": 1,
-            "docker": [{"image": "datadog/dd-trace-py:buster"}],
-            "steps": [{"run_test": {"pattern": "vendor"}}],
-        },
         "futures": {
             "executor": "ddtrace_dev_small",
             "parallelism": 1,
             "steps": [{"run_tox_scenario": {"pattern": "^futures_contrib-"}}],
-        },
-        "test_logging": {
-            "executor": "ddtrace_dev_small",
-            "parallelism": 1,
-            "steps": [{"run_test": {"pattern": "test_logging"}}],
         },
         "asyncio": {
             "executor": "ddtrace_dev_small",
             "parallelism": 1,
             "steps": [{"run_tox_scenario": {"pattern": "^asyncio_contrib-"}}],
         },
-        "pylons": {"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "pylons"}}]},
-        "asgi": {"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "asgi$"}}]},
         "tornado": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
@@ -416,31 +402,10 @@ circleci_config = {
             "parallelism": 4,
             "steps": [{"run_tox_scenario": {"pattern": "^dogpile_contrib-"}}],
         },
-        "falcon": {"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "falcon"}}]},
-        "django_hosts": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "django_hosts$", "snapshot": True}}],
-        },
-        "fastapi": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "fastapi", "snapshot": True}}],
-        },
         "gevent": {
             "executor": "ddtrace_dev",
             "parallelism": 7,
             "steps": [{"run_tox_scenario": {"pattern": "^gevent_contrib-"}}],
-        },
-        "graphene": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "graphene", "snapshot": True}}],
-        },
-        "graphql": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "graphql", "snapshot": True}}],
         },
         "molten": {
             "executor": "ddtrace_dev",
@@ -470,109 +435,16 @@ circleci_config = {
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "memcached:1.5-alpine"}],
             "steps": [{"run_tox_scenario": {"pattern": "^pylibmc_contrib-"}}],
         },
-        "pytest": {"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "pytest$"}}]},
-        "pytestbdd": {"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "pytest-bdd"}}]},
-        "pymemcache": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "memcached:1.5-alpine"}],
-            "steps": [{"run_test": {"pattern": "pymemcache"}}],
-        },
-        "mongoengine": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "mongoengine", "snapshot": True, "docker_services": "mongo"}}],
-            "parallelism": 1,
-        },
-        "pymongo": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "mongo:3.6"}],
-            "steps": [{"run_test": {"pattern": "pymongo"}}],
-        },
-        "pynamodb": {"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "pynamodb"}}]},
         "pyodbc": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
             "docker": [{"image": "datadog/dd-trace-py:buster"}],
             "steps": [{"run_tox_scenario": {"pattern": "^pyodbc_contrib-"}}],
         },
-        "pyramid": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "pyramid", "snapshot": True}}],
-        },
-        "requests": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [
-                {"image": "datadog/dd-trace-py:buster"},
-                {
-                    "image": (
-                        "kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb"
-                    ),
-                    "name": "httpbin.org",
-                },
-            ],
-            "steps": [{"run_test": {"pattern": "requests"}}],
-        },
-        "sanic": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "sanic", "snapshot": True}}],
-        },
-        "snowflake": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "snowflake", "snapshot": True}}],
-            "parallelism": 4,
-        },
-        "starlette": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "starlette", "snapshot": True}}],
-        },
         "dbapi": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
             "steps": [{"run_tox_scenario": {"pattern": "^dbapi_contrib-"}}],
-        },
-        "psycopg": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "psycopg", "snapshot": True, "docker_services": "postgres"}}],
-            "parallelism": 4,
-        },
-        "aiobotocore": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "palazzem/moto:1.0.1"}],
-            "steps": [{"run_test": {"pattern": "aiobotocore"}}],
-        },
-        "aiomysql": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [
-                {"run_test": {"docker_services": "mysql", "wait": "mysql", "pattern": "aiomysql", "snapshot": True}}
-            ],
-        },
-        "aiopg": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [
-                {"image": "datadog/dd-trace-py:buster"},
-                {
-                    "image": "postgres:11-alpine",
-                    "environment": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=postgres"],
-                },
-            ],
-            "steps": [{"run_test": {"wait": "postgres", "pattern": "aiopg"}}],
-        },
-        "aioredis": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"docker_services": "redis", "pattern": "aioredis$", "snapshot": True}}],
-            "parallelism": 4,
         },
         "vertica": {
             "executor": "ddtrace_dev",
@@ -585,11 +457,6 @@ circleci_config = {
                 },
             ],
             "steps": [{"run_tox_scenario": {"wait": "vertica", "pattern": "^vertica_contrib-"}}],
-        },
-        "wsgi": {
-            "machine": {"image": "ubuntu-2004:current"},
-            "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-            "steps": [{"run_test": {"pattern": "wsgi", "snapshot": True}}],
         },
         "kombu": {
             "executor": "ddtrace_dev",
