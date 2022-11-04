@@ -1,0 +1,30 @@
+[[
+  {
+    "name": "mariadb.query",
+    "service": "mariadb",
+    "resource": "SELECT 1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "test",
+      "db.user": "test",
+      "out.host": "127.0.0.1",
+      "runtime-id": "460f0ba847f14dd2ae661cb4a5511f5c"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": 0,
+      "out.port": 3306,
+      "sql.rows": 0,
+      "system.pid": 2179
+    },
+    "duration": 2502750,
+    "start": 1666907192496273844
+  }]]
