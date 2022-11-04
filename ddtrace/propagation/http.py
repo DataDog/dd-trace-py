@@ -1,3 +1,4 @@
+import re
 from typing import Dict
 from typing import FrozenSet
 from typing import Optional
@@ -64,7 +65,7 @@ _POSSIBLE_HTTP_HEADER_B3_SPAN_IDS = _possible_header(_HTTP_HEADER_B3_SPAN_ID)
 _POSSIBLE_HTTP_HEADER_B3_SAMPLEDS = _possible_header(_HTTP_HEADER_B3_SAMPLED)
 _POSSIBLE_HTTP_HEADER_B3_FLAGS = _possible_header(_HTTP_HEADER_B3_FLAGS)
 _POSSIBLE_HTTP_HEADER_TRACEPARENT = _possible_header(_HTTP_HEADER_TRACEPARENT)
-_POSSIBLE_HTTP_HEADER_TRACEPARENT = _possible_header(_HTTP_HEADER_TRACESTATE)
+_POSSIBLE_HTTP_HEADER_TRACESTATE = _possible_header(_HTTP_HEADER_TRACESTATE)
 
 
 def _extract_header_value(possible_header_names, headers, default=None):
@@ -499,6 +500,7 @@ class _TraceContext:
       - ``tracestate`` extends traceparent with vendor-specific data represented
         by a set of name/value pairs. Storing information in tracestate is
         optional.
+
     The format for ``traceparent`` is::
       HEXDIGLC        = DIGIT / "a" / "b" / "c" / "d" / "e" / "f"
       value           = version "-" version-format
@@ -507,12 +509,14 @@ class _TraceContext:
       trace-id        = 32HEXDIGLC
       parent-id       = 16HEXDIGLC
       trace-flags     = 2HEXDIGLC
+
     Example value of HTTP ``traceparent`` header::
         value = 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
         base16(version) = 00
         base16(trace-id) = 4bf92f3577b34da6a3ce929d0e0e4736
         base16(parent-id) = 00f067aa0ba902b7
         base16(trace-flags) = 01  // sampled
+
     Implementation details:
       - Datadog Trace and Span IDs are 64-bit unsigned integers.
       - The W3C Trace Context Trace ID is a 16-byte hexadecimal string.
@@ -520,27 +524,20 @@ class _TraceContext:
         Otherwise, the value is set to the hex-encoded value of the trace-id.
         If the trace-id is a 64-bit value (i.e. a Datadog trace-id),
         then the upper half of the hex-encoded value will be all zeroes.
-      - The tracestate header has two list members added to it, dd-context and dd-tags.
-      - dd-context contains the values necesarry for propagation information.
-      - dd-tags contains the values that would be propagated in x-datadog-tags
+      - The tracestate header has one list member added to it, dd, which contains
+        values that would be in x-datadog-tags as well as those needed for propagation information.
     """
+
+    @staticmethod
+    def _is_valid_datadog_trace_tag_key(key):
+        return key.startswith("t.")
 
     @staticmethod
     def _inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None
-        # use hex to convert back, the trace id will be pre-pended with a bunch of 0s to fill in for previous values
-        trace_id = span_context.trace_id
-        span_id = span_context.span_id
-        if trace_id is None or span_id is None:
-            log.debug("tried to inject invalid context %r", span_context)
-            return
+        headers[_HTTP_HEADER_TRACEPARENT] = span_context._traceparent
 
-        sampling_priority = span_context.sampling_priority
-        trace_flags = 1 if sampling_priority and sampling_priority >= AUTO_KEEP else 0
-
-        # There is currently only a single version so we always start with 00
-        traceparent = "00-{:032x}-{:016x}-{:02x}".format(trace_id, span_id, trace_flags)
-        headers[_HTTP_HEADER_TRACEPARENT] = traceparent
+        headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
     @staticmethod
     def _extract(headers):
@@ -549,9 +546,10 @@ class _TraceContext:
         if tp is None:
             return None
 
-        version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
-
         try:
+            version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
+            # check version is a valid hexadecimal
+            int(version, 16)
             # currently 00 is the only version format, but if future versions come up we may need to add changes
             if version != "00":
                 log.warning("unsupported traceparent version:%s . Will still attempt to parse.", (version))
@@ -570,15 +568,54 @@ class _TraceContext:
 
             else:
                 log.debug("W3C traceparent hex length incorrect: %s", tp)
+                raise ValueError
 
-            return Context(
-                trace_id=trace_id,
-                span_id=span_id,
-                sampling_priority=sampling_priority,
-            )
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s.", tp)
             return None
+
+        # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
+
+        ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
+        if ts:
+            try:
+                result = re.search("dd=(.*),", ts)
+                dd = dict(item.split(":") for item in result.group(1).split(";"))
+
+                # parse out values
+                sampling_priority_ts = dd.get("s")
+
+                if sampling_priority == 1 and (not sampling_priority_ts or sampling_priority_ts <= 0):
+                    sampling_priority = 1
+
+                if sampling_priority == 0 and (not sampling_priority_ts or sampling_priority_ts <= 0):
+                    sampling_priority = 0
+
+                origin = dd.get("o")
+                # need to convert from t. to _dd.p.
+                meta = {
+                    re.sub("t.", "_dd.p.", k): v for (k, v) in dd if (_TraceContext._is_valid_datadog_trace_tag_key(k))
+                }
+
+                return Context(
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    sampling_priority=sampling_priority,
+                    dd_origin=origin,
+                    meta=cast(_MetaDictType, meta),
+                    traceparent=tp,
+                    tracestate=ts,
+                )
+
+            except (TypeError, ValueError):
+                log.debug(("received invalid dd header value in tracestate: %r "), ts)
+
+        return Context(
+            trace_id=trace_id,
+            span_id=span_id,
+            sampling_priority=sampling_priority,
+            traceparent=tp,
+        )
 
 
 class HTTPPropagator(object):

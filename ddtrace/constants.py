@@ -9,6 +9,9 @@ _SINGLE_SPAN_SAMPLING_RATE = "_dd.span_sampling.rule_rate"
 _SINGLE_SPAN_SAMPLING_MAX_PER_SEC = "_dd.span_sampling.max_per_second"
 _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT = -1
 
+_TRACEPARENT_KEY = "traceparent"
+_TRACESTATE_KEY = "tracestate"
+
 ORIGIN_KEY = "_dd.origin"
 USER_ID_KEY = "_dd.p.usr.id"
 HOSTNAME_KEY = "_dd.hostname"

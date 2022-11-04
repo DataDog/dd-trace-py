@@ -1,4 +1,5 @@
 import base64
+import re
 import threading
 from typing import Any
 from typing import Optional
@@ -8,9 +9,12 @@ from typing import Text
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
+from .constants import _TRACEPARENT_KEY
+from .constants import _TRACESTATE_KEY
 from .internal.compat import NumericType
 from .internal.compat import PY2
 from .internal.logger import get_logger
+from .internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -43,6 +47,8 @@ class Context(object):
         meta=None,  # type: Optional[_MetaDictType]
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
+        traceparent=None,  # type: Optional[str]
+        tracestate=None,  # type: Optional[str]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
@@ -52,6 +58,11 @@ class Context(object):
 
         if dd_origin is not None:
             self._meta[ORIGIN_KEY] = dd_origin
+        if traceparent is not None:
+            self._meta[_TRACEPARENT_KEY] = traceparent
+        if tracestate is not None:
+            self._meta[_TRACESTATE_KEY] = tracestate
+
         if sampling_priority is not None:
             self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
 
@@ -100,8 +111,41 @@ class Context(object):
         if self.trace_id is None or self.span_id is None:
             return ""
 
+        tp = self._meta.get(_TRACEPARENT_KEY)
+        if tp:
+            # grab the original traceparent trace id, not the converted value
+            trace_id = tp.split("-")[1]
+        else:
+            trace_id = self.trace_id
+
         sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
-        return "00-{:032x}-{:016x}-{:02x}".format(self.trace_id, self.span_id, sampled)
+        return "00-{:032x}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
+
+    @property
+    def _tracestate(self):
+        # type: () -> str
+        # create the dd list member
+        # DEV TODO: Need to implement logic to make sure we add on any other t. values
+        dd = ""
+        if self.sampling_priority:
+            dd += "s:{};".format(self.sampling_priority)
+        if self.dd_origin:
+            dd += "o:{};".format(self.dd_origin)
+        if self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+            dd += "t.dm:{};".format(self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY))
+        if self._meta.get(USER_ID_KEY):
+            dd += "t.usr.id:{};".format(self._meta.get(USER_ID_KEY))
+
+        # If there's a prexisting tracestate we need to update it
+        ts = self._meta.get(_TRACESTATE_KEY)
+        if ts and dd:
+            # remove the old dd list member from tracestate since we need to replace it
+            ts_w_out_dd = re.sub("dd=.*,", "", ts)
+            # add dd list member to the front of the tracestate
+            ts = "dd={},{}".format(dd, ts_w_out_dd)
+        elif dd:
+            ts = "dd={},".format(dd)
+        return ts
 
     @property
     def dd_origin(self):
