@@ -77,7 +77,7 @@ jobs:
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=11.0 _PYTHON_HOST_PLATFORM=11.0 CMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=10.9 _PYTHON_HOST_PLATFORM=macosx-10.9-universal2 CMAKE_OSX_DEPLOYMENT_TARGET=10.9
 
       - uses: actions/upload-artifact@v3
         with:
@@ -134,7 +134,7 @@ jobs:
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=11.0 _PYTHON_HOST_PLATFORM=11.0 CMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=10.9 _PYTHON_HOST_PLATFORM=macosx-10.9-universal2 CMAKE_OSX_DEPLOYMENT_TARGET=10.9
 
       - uses: actions/upload-artifact@v3
         with:
