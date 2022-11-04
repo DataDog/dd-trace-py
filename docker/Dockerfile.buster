@@ -63,6 +63,7 @@ RUN \
   && git clone --depth 1 --branch v2.3.6 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
+  && pyenv local | xargs pyenv global \
   && cd -
 
 CMD ["/bin/bash"]
