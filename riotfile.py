@@ -199,6 +199,8 @@ venv = Venv(
                 "pytest-benchmark": latest,
                 "py-cpuinfo": "~=8.0.0",
                 "msgpack": latest,
+                # TODO: remove py dependency once https://github.com/ionelmc/pytest-benchmark/pull/227 is released
+                "py": latest,
             },
             venvs=[
                 Venv(
