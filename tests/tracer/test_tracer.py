@@ -22,21 +22,21 @@ from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import HOSTNAME_KEY
+from ddtrace.constants import LANGUAGE_KEY
+from ddtrace.constants import LANGUAGE_VALUE
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.constants import SPAN_CLIENT
+from ddtrace.constants import SPAN_CONSUMER
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_PRODUCER
+from ddtrace.constants import SPAN_SERVER
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
-from ddtrace.constants import LANGUAGE_KEY
-from ddtrace.constants import LANGUAGE_VALUE
-from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_CLIENT
-from ddtrace.constants import SPAN_CONSUMER
-from ddtrace.constants import SPAN_PRODUCER
-from ddtrace.constants import SPAN_SERVER
 from ddtrace.context import Context
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
@@ -459,7 +459,6 @@ class TracerTestCases(TracerTestCase):
         assert span_1.get_tag(SPAN_KIND) == SPAN_SERVER
         assert span_2.get_tag(SPAN_KIND) == SPAN_CONSUMER
 
-    
     def test_start_span_with_conflicting_language_and_span_kind_tagging(self):
         # it should create a root Span with a language tag
         span_1 = self.tracer.start_span("web.request")
@@ -477,7 +476,6 @@ class TracerTestCases(TracerTestCase):
 
         assert span_1.get_tag(SPAN_KIND) == SPAN_CLIENT
         assert span_2.get_tag(SPAN_KIND) == SPAN_PRODUCER
-        
 
     def test_start_child_span(self):
         # it should create a child Span for the given parent
