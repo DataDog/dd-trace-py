@@ -51,6 +51,7 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
     t2_name = _asyncio._task_get_name(t2)
 
     cpu_time_found = False
+    main_thread_ran_test = False
     stack_sample_events = events[stack_event.StackSampleEvent]
     for event in stack_sample_events:
 
@@ -82,9 +83,9 @@ def test_asyncio(tmp_path, monkeypatch) -> None:
 
             for frame in event.frames:
                 if frame[0] == __file__ and frame[2] == "test_asyncio":
-                    break
-            else:
-                pytest.fail("unable to find expected main thread frame: %r" % event.frames)
+                    main_thread_ran_test = True
+
+    assert main_thread_ran_test
 
     if _asyncio_compat.PY38_AND_LATER:
         # We don't know the name of this task for Python < 3.8
