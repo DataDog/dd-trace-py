@@ -101,6 +101,7 @@ _MODULES_FOR_CONTRIB = {
         "elasticsearch7",
     ),
     "psycopg": ("psycopg2",),
+    "snowflake": ("snowflake.connector",),
 }
 
 IAST_PATCH = {
