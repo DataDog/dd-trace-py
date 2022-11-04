@@ -30,7 +30,7 @@ pushd ${PREFIX}
 popd
 
 # Install dependencies
-pip install hypothesis msgpack pytest
+pip install hypothesis msgpack pytest austin-python~=1.4
 
 # Install ddtrace
 pip install -e .
