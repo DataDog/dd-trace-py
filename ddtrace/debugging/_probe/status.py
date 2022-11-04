@@ -26,10 +26,11 @@ class ProbeStatusLogger(object):
         self._encoder = encoder
         self._retry_queue = deque()  # type: deque[Tuple[str, float]]
 
-    def _payload(self, probe, status, message, exc_info=None):
-        # type: (Probe, str, str, Optional[ExcInfoType]) -> str
+    def _payload(self, probe, status, message, timestamp, exc_info=None):
+        # type: (Probe, str, str, float, Optional[ExcInfoType]) -> str
         payload = {
             "service": self._service,
+            "timestamp": int(timestamp * 1e3),  # milliseconds
             "message": message,
             "ddsource": "dd_debugger",
             "debugger": {
@@ -76,7 +77,7 @@ class ProbeStatusLogger(object):
                     meter.increment("backlog.buffer_full")
                     return
 
-            payload = self._payload(probe, status, message, exc_info)
+            payload = self._payload(probe, status, message, now, exc_info)
 
             try:
                 self._encoder.put(payload)
