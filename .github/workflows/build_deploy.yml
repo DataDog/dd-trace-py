@@ -36,7 +36,7 @@ jobs:
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
-         - os: macos-10
+         - os: macos-latest
            archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v3
@@ -69,6 +69,7 @@ jobs:
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*_arm64 *-macosx_universal2:arm64"
+          MACOSX_DEPLOYMENT_TARGET: "10.9"
 
       - uses: actions/upload-artifact@v3
         with:
@@ -86,7 +87,7 @@ jobs:
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
-         - os: macos-10
+         - os: macos-latest
            archs: x86_64 arm64
     steps:
       - uses: actions/checkout@v3
@@ -116,6 +117,7 @@ jobs:
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*_arm64 *-macosx_universal2:arm64"
+          MACOSX_DEPLOYMENT_TARGET: "10.9"
 
       - uses: actions/upload-artifact@v3
         with:
