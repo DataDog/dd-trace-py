@@ -5,6 +5,7 @@ from ddtrace.contrib.flask import unpatch
 
 from . import BaseFlaskTestCase
 
+EXPECTED_METADATA = {"component": "flask", "language": "python"}
 
 class FlaskBlueprintTestCase(BaseFlaskTestCase):
     def test_patch(self):
@@ -103,7 +104,7 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "bp.test")
         self.assertEqual(span.resource, "/")
-        self.assertEqual(span.get_tags(), {"component": "flask"})
+        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
 
     def test_blueprint_request_pin_override(self):
         """
@@ -130,7 +131,7 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask-bp")
         self.assertEqual(span.name, "bp.test")
         self.assertEqual(span.resource, "/")
-        self.assertEqual(span.get_tags(), {"component": "flask"})
+        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
 
     def test_blueprint_request_pin_disabled(self):
         """

@@ -7,6 +7,7 @@ from ddtrace.contrib.flask.patch import flask_version
 
 from . import BaseFlaskTestCase
 
+EXPECTED_TAGS = set(["flask.signal", "runtime-id", "_dd.p.dm", "component"])
 
 class FlaskSignalsTestCase(BaseFlaskTestCase):
     def get_signal(self, signal_name):
@@ -106,7 +107,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
             self.assertEqual(span.service, "flask")
             self.assertEqual(span.name, "tests.contrib.flask.{}".format(signal_name))
             self.assertEqual(span.resource, "tests.contrib.flask.{}".format(signal_name))
-            self.assertEqual(set(span.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm", "component"]))
+            self.assertEqual(set(span.get_tags().keys()), EXPECTED_TAGS)
             self.assertEqual(span.get_tag("flask.signal"), signal_name)
 
     def test_signals_multiple(self):
@@ -141,7 +142,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         self.assertEqual(span_a.service, "flask")
         self.assertEqual(span_a.name, "tests.contrib.flask.request_started_a")
         self.assertEqual(span_a.resource, "tests.contrib.flask.request_started_a")
-        self.assertEqual(set(span_a.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm", "component"]))
+        self.assertEqual(set(span_a.get_tags().keys()), EXPECTED_TAGS)
         self.assertEqual(span_a.get_tag("flask.signal"), "request_started")
 
         # Assert the span that was created
@@ -149,7 +150,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         self.assertEqual(span_b.service, "flask")
         self.assertEqual(span_b.name, "tests.contrib.flask.request_started_b")
         self.assertEqual(span_b.resource, "tests.contrib.flask.request_started_b")
-        self.assertEqual(set(span_b.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm", "component"]))
+        self.assertEqual(set(span_b.get_tags().keys()), EXPECTED_TAGS)
         self.assertEqual(span_b.get_tag("flask.signal"), "request_started")
 
     def test_signals_pin_disabled(self):

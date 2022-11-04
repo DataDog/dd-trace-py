@@ -3,9 +3,7 @@ import flask
 from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
-
-
-EXPECTED_METADATA = {"component": "flask"}
+from .test_blueprint import EXPECTED_METADATA
 
 
 class FlaskErrorhandlerTestCase(BaseFlaskTestCase):

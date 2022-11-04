@@ -452,7 +452,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
     )
     result_keys = list(span.get_tags().keys())
     result_keys.sort(reverse=True)
-    assert result_keys == ["language", "runtime-id", http.USER_AGENT]
+    assert result_keys == ["runtime-id", http.USER_AGENT]
     mock_store_headers.assert_not_called()
 
 
@@ -460,15 +460,15 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
 @pytest.mark.parametrize(
     "user_agent_key,user_agent_value,expected_keys,expected",
     [
-        ("http-user-agent", "dd-agent/1.0.0", ["language", "runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
-        ("http-user-agent", None, ["language", "runtime-id"], None),
-        ("http-user-agent", 101234, ["language", "runtime-id"], None),
-        ("useragent", True, ["language", "runtime-id"], None),
-        ("http-user-agent", False, ["language", "runtime-id"], None),
-        ("http-user-agent", [], ["language", "runtime-id"], None),
-        ("http-user-agent", {}, ["language", "runtime-id"], None),
-        ("user-agent", ["test1", "test2"], ["language", "runtime-id", http.USER_AGENT], "['test1', 'test2']"),
-        ("user-agent", {"test1": "key1"}, ["language", "runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
+        ("http-user-agent", "dd-agent/1.0.0", ["runtime-id", http.USER_AGENT], "dd-agent/1.0.0"),
+        ("http-user-agent", None, ["runtime-id"], None),
+        ("http-user-agent", 101234, ["runtime-id"], None),
+        ("useragent", True, ["runtime-id"], None),
+        ("http-user-agent", False, ["runtime-id"], None),
+        ("http-user-agent", [], ["runtime-id"], None),
+        ("http-user-agent", {}, ["runtime-id"], None),
+        ("user-agent", ["test1", "test2"], ["runtime-id", http.USER_AGENT], "['test1', 'test2']"),
+        ("user-agent", {"test1": "key1"}, ["runtime-id", http.USER_AGENT], "{'test1': 'key1'}"),
     ],
 )
 def test_set_http_meta_headers_useragent(
@@ -542,9 +542,9 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
             ["language", "runtime-id", "network.client.ip", http.CLIENT_IP],
             "192.168.1.14",
         ),
-        ("", {"x-forwarded-for": "foobar"}, ["runtime-id"], None),
-        ("via", {"x-forwarded-for": "4.4.8.8"}, ["runtime-id"], None),
-        ("via", {"via": "8.8.8.8"}, ["runtime-id", "network.client.ip", http.CLIENT_IP], "8.8.8.8"),
+        ("", {"x-forwarded-for": "foobar"}, ["language", "runtime-id"], None),
+        ("via", {"x-forwarded-for": "4.4.8.8"}, ["language", "runtime-id"], None),
+        ("via", {"via": "8.8.8.8"}, ["language", "runtime-id", "network.client.ip", http.CLIENT_IP], "8.8.8.8"),
         (
             "via",
             {"x-forwarded-for": "4.4.4.4", "via": "8.8.4.4"},

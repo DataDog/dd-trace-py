@@ -6,13 +6,12 @@ from ddtrace.internal.compat import PY2
 from tests.utils import assert_span_http_status_code
 
 from . import BaseFlaskTestCase
+from .test_blueprint import EXPECTED_METADATA
 
 
 base_exception_name = "builtins.Exception"
 if PY2:
     base_exception_name = "exceptions.Exception"
-
-EXPECTED_METADATA = {"component": "flask"}
 
 
 class FlaskViewTestCase(BaseFlaskTestCase):

@@ -74,6 +74,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
         "http.method": "GET",
         "http.status_code": "200",
         "http.url": "http://testserver/",
+        "language": "python",
     }
     if django.VERSION >= (2, 2, 0):
         meta["http.route"] = "^$"
@@ -116,6 +117,7 @@ def test_django_v2XX_alter_root_resource(client, test_spans):
         "http.method": "GET",
         "http.status_code": "200",
         "http.url": "http://testserver/alter-resource/",
+        "language": "python",
     }
     if django.VERSION >= (2, 2, 0):
         meta["http.route"] = "^alter-resource/$"
@@ -732,6 +734,7 @@ def test_cache_get(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "missing_key",
+        "language": "python",
     }
 
     assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -757,6 +760,7 @@ def test_cache_get_unicode(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": u"😐",
+        "language": "python",
     }
 
     assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -783,6 +787,7 @@ def test_cache_set(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "a_new_key",
+        "language": "python",
     }
 
     assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -808,6 +813,7 @@ def test_cache_delete(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "an_existing_key",
+        "language": "python",
     }
 
     assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -844,6 +850,7 @@ def test_cache_incr_1XX(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "value",
+        "language": "python",
     }
 
     assert_dict_issuperset(span_get.get_tags(), expected_meta)
@@ -875,6 +882,7 @@ def test_cache_incr_2XX(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "value",
+        "language": "python",
     }
 
     assert_dict_issuperset(span_incr.get_tags(), expected_meta)
@@ -917,6 +925,7 @@ def test_cache_decr_1XX(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "value",
+        "language": "python",
     }
 
     assert_dict_issuperset(span_get.get_tags(), expected_meta)
@@ -955,6 +964,7 @@ def test_cache_decr_2XX(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "value",
+        "language": "python",
     }
 
     assert_dict_issuperset(span_incr.get_tags(), expected_meta)
@@ -995,6 +1005,7 @@ def test_cache_get_many(test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "missing_key another_key",
+        "language": "python",
     }
 
     assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
@@ -1111,12 +1122,14 @@ def test_cached_view(client, test_spans):
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
+        "language": "python",
     }
 
     expected_meta_header = {
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
+        "language": "python",
     }
 
     assert span_view.get_tags() == expected_meta_view
@@ -1155,6 +1168,7 @@ def test_cached_template(client, test_spans):
         "component": "django",
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
+        "language": "python",
     }
 
     assert span_template_cache.get_tags() == expected_meta
@@ -1834,6 +1848,7 @@ class TestWSGI:
             "http.method": "GET",
             "http.status_code": "200",
             "http.url": "http://testserver/",
+            "language": "python",
         }
         if django.VERSION >= (2, 2, 0):
             meta["http.route"] = "^$"
