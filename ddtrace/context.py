@@ -142,16 +142,27 @@ class Context(object):
             # grab the original traceparent trace id, not the converted value
             trace_id = tp.split("-")[1]
         else:
+<<<<<<< HEAD
             trace_id = self.trace_id
 
         sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
         return "00-{:032x}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
+=======
+            trace_id = "{:x}".format(self.trace_id)
+
+        sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
+        return "00-{}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
+>>>>>>> 3be20951c (initial implementation)
 
     @property
     def _tracestate(self):
         # type: () -> str
         # create the dd list member
         # DEV TODO: Need to implement logic to make sure we add on any other t. values
+<<<<<<< HEAD
+=======
+        # also need to add replacing invalid characters with _
+>>>>>>> 3be20951c (initial implementation)
         dd = ""
         if self.sampling_priority:
             dd += "s:{};".format(self.sampling_priority)
