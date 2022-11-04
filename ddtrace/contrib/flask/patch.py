@@ -141,13 +141,15 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             wsgi_input = environ.get("wsgi.input", "")
 
             # Copy wsgi input if not seekable
-            try:
-                seekable = wsgi_input.seekable()
-            except AttributeError:
-                seekable = False
-            if not seekable:
-                body = wsgi_input.read()
-                environ["wsgi.input"] = BytesIO(body)
+            if wsgi_input:
+                try:
+                    seekable = wsgi_input.seekable()
+                except AttributeError:
+                    seekable = False
+                if not seekable:
+                    content_length = int(environ.get("CONTENT_LENGTH", 0))
+                    body = wsgi_input.read(content_length) if content_length else wsgi_input.read()
+                    environ["wsgi.input"] = BytesIO(body)
 
             try:
                 if content_type == "application/json":
@@ -169,10 +171,11 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                 log.warning("Failed to parse werkzeug request body", exc_info=True)
             finally:
                 # Reset wsgi input to the beginning
-                if seekable:
-                    wsgi_input.seek(0)
-                else:
-                    environ["wsgi.input"] = BytesIO(body)
+                if wsgi_input:
+                    if seekable:
+                        wsgi_input.seek(0)
+                    else:
+                        environ["wsgi.input"] = BytesIO(body)
 
         trace_utils.set_http_meta(
             span,
