@@ -5,7 +5,9 @@ from ddtrace.contrib.flask import unpatch
 
 from . import BaseFlaskTestCase
 
+
 EXPECTED_METADATA = {"component": "flask", "language": "python"}
+
 
 class FlaskBlueprintTestCase(BaseFlaskTestCase):
     def test_patch(self):

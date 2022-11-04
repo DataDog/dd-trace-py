@@ -9,7 +9,9 @@ from ddtrace.internal.compat import StringIO
 
 from . import BaseFlaskTestCase
 
+
 EXPECTED_TAGS = {"component", "language" "runtime-id"}
+
 
 class FlaskHelpersTestCase(BaseFlaskTestCase):
     def test_patch(self):

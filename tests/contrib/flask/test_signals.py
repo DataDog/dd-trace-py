@@ -7,7 +7,9 @@ from ddtrace.contrib.flask.patch import flask_version
 
 from . import BaseFlaskTestCase
 
+
 EXPECTED_TAGS = set(["flask.signal", "runtime-id", "_dd.p.dm", "component"])
+
 
 class FlaskSignalsTestCase(BaseFlaskTestCase):
     def get_signal(self, signal_name):
