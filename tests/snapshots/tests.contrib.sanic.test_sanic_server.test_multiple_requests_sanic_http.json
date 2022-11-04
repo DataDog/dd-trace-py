@@ -36,6 +36,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 75093000,
        "start": 1667243827774337000
      }],
@@ -77,6 +80,9 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 19093000,
        "start": 1667243827885433000
      }]]

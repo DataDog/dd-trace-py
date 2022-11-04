@@ -12,9 +12,9 @@
       "component": "mariadb",
       "db.name": "test",
       "db.user": "test",
-      "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "82fe6b527e8b4430bec59269ebe73552"
+      "runtime-id": "aa75e76fcc694033b1aca182ef989785",
+      "span.kind": "client"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,9 +24,9 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 0,
       "out.port": 3306,
-      "process_id": 55304,
+      "process_id": 4473,
       "sql.rows": 0
     },
-    "duration": 1068000,
-    "start": 1667513575106570000
+    "duration": 1032000,
+    "start": 1667584311748255000
   }]]

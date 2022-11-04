@@ -30,6 +30,13 @@ from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
+from ddtrace.constants import LANGUAGE_KEY
+from ddtrace.constants import LANGUAGE_VALUE
+from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_CLIENT
+from ddtrace.constants import SPAN_CONSUMER
+from ddtrace.constants import SPAN_PRODUCER
+from ddtrace.constants import SPAN_SERVER
 from ddtrace.context import Context
 from ddtrace.contrib.trace_utils import set_user
 from ddtrace.ext import user
@@ -428,6 +435,49 @@ class TracerTestCases(TracerTestCase):
             name="child",
             service="parentsvc",
         )
+
+    def test_start_span_adds_language_tag(self):
+        # it should create a root Span
+        span = self.tracer.start_span("web.request")
+        assert span.get_tag(LANGUAGE_KEY) == LANGUAGE_VALUE
+
+    def test_start_span_with_language_and_span_kind_tagging(self):
+        # it should create a root Span with a language tag
+        span_1 = self.tracer.start_span("web.request")
+        assert span_1.get_tag(LANGUAGE_KEY) == LANGUAGE_VALUE
+
+        span_2 = self.tracer.start_span("db.statement")
+        assert span_2.get_tag(LANGUAGE_KEY) == LANGUAGE_VALUE
+
+        # it should keep the language tag when span kind server, or consumer are then set
+        span_1.set_tag(SPAN_KIND, SPAN_SERVER)
+        span_2.set_tag(SPAN_KIND, SPAN_CONSUMER)
+
+        assert span_1.get_tag(LANGUAGE_KEY) == LANGUAGE_VALUE
+        assert span_2.get_tag(LANGUAGE_KEY) == LANGUAGE_VALUE
+
+        assert span_1.get_tag(SPAN_KIND) == SPAN_SERVER
+        assert span_2.get_tag(SPAN_KIND) == SPAN_CONSUMER
+
+    
+    def test_start_span_with_conflicting_language_and_span_kind_tagging(self):
+        # it should create a root Span with a language tag
+        span_1 = self.tracer.start_span("web.request")
+        assert span_1.get_tag(LANGUAGE_KEY) == LANGUAGE_VALUE
+
+        span_2 = self.tracer.start_span("db.statement")
+        assert span_2.get_tag(LANGUAGE_KEY) == LANGUAGE_VALUE
+
+        # it should delete the language tag when span kind client, or producer are then set
+        span_1.set_tag(SPAN_KIND, SPAN_CLIENT)
+        span_2.set_tag(SPAN_KIND, SPAN_PRODUCER)
+
+        assert span_1.get_tag(LANGUAGE_KEY) is None
+        assert span_2.get_tag(LANGUAGE_KEY) is None
+
+        assert span_1.get_tag(SPAN_KIND) == SPAN_CLIENT
+        assert span_2.get_tag(SPAN_KIND) == SPAN_PRODUCER
+        
 
     def test_start_child_span(self):
         # it should create a child Span for the given parent
