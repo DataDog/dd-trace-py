@@ -2342,7 +2342,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.6"),
                     command="pytest {cmdargs} tests/contrib/redis",
                     pkgs={
-                        "pytest-asyncio": "<=0.20.1",
+                        "pytest-asyncio": latest,
                         "redis": [
                             ">=4.2,<4.3",
                             latest,
