@@ -5,7 +5,9 @@ from ddtrace.contrib.flask import unpatch
 from ddtrace.contrib.flask.patch import flask_version
 
 from . import BaseFlaskTestCase
-from .test_signals import EXPECTED_TAGS
+
+
+EXPECTED_TAGS = set(["flask.template_name", "runtime-id", "_dd.p.dm", "component", "language"])
 
 
 class FlaskTemplateTestCase(BaseFlaskTestCase):

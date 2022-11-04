@@ -8,7 +8,7 @@ from ddtrace.contrib.flask.patch import flask_version
 from . import BaseFlaskTestCase
 
 
-EXPECTED_TAGS = set(["flask.signal", "runtime-id", "_dd.p.dm", "component"])
+EXPECTED_TAGS = set(["flask.signal", "runtime-id", "_dd.p.dm", "component", "language"])
 
 
 class FlaskSignalsTestCase(BaseFlaskTestCase):
