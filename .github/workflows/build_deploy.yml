@@ -46,13 +46,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enable ssh
-        uses: lhotari/action-upterm@v1
-        with:
-          ## limits ssh access and adds the ssh public key for the user which triggered the workflow
-          limit-access-to-actor: true
-          ## limits ssh access and adds the ssh public keys of the listed GitHub users
-          limit-access-to-users: christophe-papazian, gnufede
+      # - name: Enable ssh
+      #   uses: lhotari/action-upterm@v1
+      #   with:
+      #     ## limits ssh access and adds the ssh public key for the user which triggered the workflow
+      #     limit-access-to-actor: true
+      #     ## limits ssh access and adds the ssh public keys of the listed GitHub users
+      #     limit-access-to-users: christophe-papazian, gnufede
 
       - uses: actions/setup-python@v4
         name: Install Python
@@ -108,13 +108,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enable ssh
-        uses: lhotari/action-upterm@v1
-        with:
-          ## limits ssh access and adds the ssh public key for the user which triggered the workflow
-          limit-access-to-actor: true
-          ## limits ssh access and adds the ssh public keys of the listed GitHub users
-          limit-access-to-users: christophe-papazian, gnufede
+      # - name: Enable ssh
+      #   uses: lhotari/action-upterm@v1
+      #   with:
+      #     ## limits ssh access and adds the ssh public key for the user which triggered the workflow
+      #     limit-access-to-actor: true
+      #     ## limits ssh access and adds the ssh public keys of the listed GitHub users
+      #     limit-access-to-users: christophe-papazian, gnufede
 
       - uses: actions/setup-python@v4
         name: Install Python
