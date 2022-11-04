@@ -3,9 +3,13 @@ from typing import TYPE_CHECKING
 
 import attr
 
+from ddtrace.appsec.iast import oce
+from ddtrace.constants import APPSEC_ORIGIN_VALUE
 from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.constants import IAST_ENABLED
 from ddtrace.constants import IAST_JSON
+from ddtrace.constants import MANUAL_KEEP_KEY
+from ddtrace.constants import ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
@@ -22,7 +26,9 @@ log = get_logger(__name__)
 class AppSecIastSpanProcessor(SpanProcessor):
     def on_span_start(self, span):
         # type: (Span) -> None
-        pass
+        if span.span_type != SpanTypes.WEB:
+            return
+        oce.acquire_request()
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -35,9 +41,16 @@ class AppSecIastSpanProcessor(SpanProcessor):
         """
         if span.span_type != SpanTypes.WEB:
             return
+
         span.set_metric(IAST_ENABLED, 1.0)
 
         data = _context.get_item(IAST_CONTEXT_KEY, span=span)
 
         if data:
             span.set_tag_str(IAST_JSON, json.dumps(attr.asdict(data)))
+
+            span.set_tag(MANUAL_KEEP_KEY)
+            if span.get_tag(ORIGIN_KEY) is None:
+                span.set_tag_str(ORIGIN_KEY, APPSEC_ORIGIN_VALUE)
+
+        oce.release_request()

@@ -248,10 +248,15 @@ def test_django_useragent(client, test_spans, tracer):
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
 
 
-def test_django_client_ip_disabled(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="True")
-    ):
+def test_django_client_ip_asm_enabled_reported(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
+        root_span = test_spans.spans[0]
+        assert root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_client_ip_asm_disabled_not_reported(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=False)):
         client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
         root_span = test_spans.spans[0]
         assert not root_span.get_tag(http.CLIENT_IP)

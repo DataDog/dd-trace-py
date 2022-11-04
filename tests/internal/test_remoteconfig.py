@@ -3,6 +3,7 @@ import base64
 import datetime
 import hashlib
 import json
+import re
 from time import sleep
 
 import mock
@@ -86,11 +87,12 @@ def get_mock_encoded_msg(msg):
 
 
 def test_remote_config_register_auto_enable():
+    # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
     assert RemoteConfig._worker is None
 
     RemoteConfig.register("LIVE_DEBUGGER", lambda m, c: None)
 
-    assert RemoteConfig._worker is not None
+    assert RemoteConfig._worker._client._products["LIVE_DEBUGGER"] is not None
 
     RemoteConfig.disable()
 
@@ -123,6 +125,7 @@ def test_remote_configuration(mock_send_request):
             self.features = features
 
     callback = Callback()
+
     with override_env(dict(DD_REMOTECONFIG_POLL_SECONDS="0.1")):
         mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
         rc = RemoteConfig()
@@ -130,3 +133,11 @@ def test_remote_configuration(mock_send_request):
         sleep(0.2)
         mock_send_request.assert_called_once()
         assert callback.features == {"asm": {"enabled": True}}
+
+
+def test_remoteconfig_semver():
+    assert re.match(
+        r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*["
+        r"a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$",
+        RemoteConfigClient()._client_tracer["tracer_version"],
+    )

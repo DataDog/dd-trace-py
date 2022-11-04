@@ -14,9 +14,19 @@ from .internal.logger import get_logger
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Tuple
+
     from .span import Span
     from .span import _MetaDictType
     from .span import _MetricDictType
+
+    _ContextState = Tuple[
+        Optional[int],  # trace_id
+        Optional[int],  # span_id
+        _MetaDictType,  # _meta
+        _MetricDictType,  # _metrics
+    ]
+
 
 log = get_logger(__name__)
 
@@ -63,6 +73,22 @@ class Context(object):
             # https://github.com/DataDog/dd-trace-py/blob/a1932e8ddb704d259ea8a3188d30bf542f59fd8d/ddtrace/tracer.py#L489-L508
             self._lock = threading.RLock()
 
+    def __getstate__(self):
+        # type: () -> _ContextState
+        return (
+            self.trace_id,
+            self.span_id,
+            self._meta,
+            self._metrics,
+            # Note: self._lock is not serializable
+        )
+
+    def __setstate__(self, state):
+        # type: (_ContextState) -> None
+        self.trace_id, self.span_id, self._meta, self._metrics = state
+        # We cannot serialize and lock, so we must recreate it unless we already have one
+        self._lock = threading.RLock()
+
     def _with_span(self, span):
         # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
@@ -93,6 +119,15 @@ class Context(object):
                     del self._metrics[SAMPLING_PRIORITY_KEY]
                 return
             self._metrics[SAMPLING_PRIORITY_KEY] = value
+
+    @property
+    def _traceparent(self):
+        # type: () -> str
+        if self.trace_id is None or self.span_id is None:
+            return ""
+
+        sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
+        return "00-{:032x}-{:016x}-{:02x}".format(self.trace_id, self.span_id, sampled)
 
     @property
     def dd_origin(self):
