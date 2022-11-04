@@ -7,7 +7,7 @@ from typing import Union
 from ddtrace.internal.compat import PY3
 
 
-LOGGER: logging.Logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)  # type: logging.Logger
 
 try:
     from .ddwaf_types import ddwaf_config
