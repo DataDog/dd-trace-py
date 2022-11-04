@@ -205,7 +205,7 @@ def _create_sanic_request_span(request):
     span.set_tag_str(COMPONENT, config.sanic.integration_name)
 
     # set span.kind to the type of operation being performed
-    span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+    span.set_tag(SPAN_KIND, SPAN_SERVER)
 
     sample_rate = config.sanic.get_analytics_sample_rate(use_global_config=True)
     if sample_rate is not None:

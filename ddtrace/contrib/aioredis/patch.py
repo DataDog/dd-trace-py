@@ -124,7 +124,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
     span.set_tag_str(COMPONENT, config.aioredis.integration_name)
 
     # set span.kind to the type of request being performed
-    span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+    span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
     span.set_tag(SPAN_MEASURED_KEY)
     query = stringify_cache_args(args)
@@ -185,7 +185,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.aioredis.integration_name)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+        span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
         span.set_tags(
             {

@@ -103,7 +103,7 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tag_str(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
-            s.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+            s.set_tag(SPAN_KIND, SPAN_CLIENT)
 
             # set analytics sample rate if enabled but only for non-FetchTracedCursor
             if not isinstance(self, FetchTracedCursor):
@@ -281,7 +281,7 @@ class TracedConnection(wrapt.ObjectProxy):
             s.set_tag_str(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
-            s.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+            s.set_tag(SPAN_KIND, SPAN_CLIENT)
 
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)

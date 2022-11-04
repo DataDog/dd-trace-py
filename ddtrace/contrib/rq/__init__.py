@@ -138,7 +138,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.rq.integration_name)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SPAN_PRODUCER)
+        span.set_tag(SPAN_KIND, SPAN_PRODUCER)
 
         span.set_tag_str("queue.name", instance.name)
         span.set_tag("job.id", job.get_id())
@@ -183,7 +183,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             span.set_tag_str(COMPONENT, config.rq.integration_name)
 
             # set span.kind to the type of request being performed
-            span.set_tag_str(SPAN_KIND, SPAN_CONSUMER)
+            span.set_tag(SPAN_KIND, SPAN_CONSUMER)
 
             span.set_tag("job.id", job.get_id())
             try:

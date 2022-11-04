@@ -91,7 +91,7 @@ class PylonsTraceMiddleware(object):
             span.set_tag_str(COMPONENT, ddconfig.pylons.integration_name)
 
             # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+            span.set_tag(SPAN_KIND, SPAN_SERVER)
 
             span.set_tag(SPAN_MEASURED_KEY)
             # Set the service in tracer.trace() as priority sampling requires it to be

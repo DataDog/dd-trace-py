@@ -178,7 +178,7 @@ def _create_span(pin, handler_call_details, method_kind):
     span.set_tag_str(COMPONENT, config.grpc_aio_server.integration_name)
 
     # set span.kind to the type of operation being performed
-    span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+    span.set_tag(SPAN_KIND, SPAN_SERVER)
 
     span.set_tag(SPAN_MEASURED_KEY)
 

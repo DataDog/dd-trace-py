@@ -144,7 +144,7 @@ def patched_connect(connect_func, _, args, kwargs):
             span.set_tag_str(COMPONENT, config.psycopg.integration_name)
 
             # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+            span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = connect_func(*args, **kwargs)

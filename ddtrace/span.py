@@ -17,11 +17,15 @@ from .constants import ANALYTICS_SAMPLE_RATE_KEY
 from .constants import ERROR_MSG
 from .constants import ERROR_STACK
 from .constants import ERROR_TYPE
+from .constants import LANGUAGE_KEY
 from .constants import MANUAL_DROP_KEY
 from .constants import MANUAL_KEEP_KEY
 from .constants import SERVICE_KEY
 from .constants import SERVICE_VERSION_KEY
+from .constants import SPAN_CLIENT
+from .constants import SPAN_KIND
 from .constants import SPAN_MEASURED_KEY
+from .constants import SPAN_PRODUCER
 from .constants import USER_KEEP
 from .constants import USER_REJECT
 from .constants import VERSION_KEY
@@ -323,6 +327,12 @@ class Span(object):
             if value is None:
                 value = 1
             self.set_metric(key, value)
+            return
+        elif key == SPAN_KIND:
+            # Unset 'language' metadata field for producer and client spans
+            if value in [SPAN_PRODUCER, SPAN_CLIENT] and LANGUAGE_KEY in self._meta:
+                del self._meta[LANGUAGE_KEY]
+            self.set_tag_str(key, value)
             return
 
         try:

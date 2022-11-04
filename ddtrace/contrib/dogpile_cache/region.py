@@ -21,7 +21,7 @@ def _wrap_get_create(func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, "dogpile_cache")
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+        span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag("key", key)
@@ -41,7 +41,7 @@ def _wrap_get_create_multi(func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, "dogpile_cache")
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+        span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag("keys", keys)

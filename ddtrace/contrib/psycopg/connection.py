@@ -37,7 +37,7 @@ class TracedCursor(cursor):
             s.set_tag_str(COMPONENT, config.psycopg.integration_name)
 
             # set span.kind to the type of operation being performed
-            s.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+            s.set_tag(SPAN_KIND, SPAN_CLIENT)
 
             s.set_tag(SPAN_MEASURED_KEY)
             if not s.sampled:

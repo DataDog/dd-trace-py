@@ -112,7 +112,7 @@ class TracedServer(ObjectProxy):
         span.set_tag_str(COMPONENT, config.pymongo.integration_name)
 
         # set span.kind to the operation type being performed
-        span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+        span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag(mongox.DB, cmd.db)
@@ -228,7 +228,7 @@ class TracedSocket(ObjectProxy):
         s.set_tag_str(COMPONENT, config.pymongo.integration_name)
 
         # set span.kind to the type of operation being performed
-        s.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+        s.set_tag(SPAN_KIND, SPAN_CLIENT)
 
         s.set_tag(SPAN_MEASURED_KEY)
         if cmd.db:

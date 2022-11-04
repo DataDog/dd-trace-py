@@ -55,7 +55,7 @@ class TracePlugin(object):
                 s.set_tag_str(COMPONENT, config.bottle.integration_name)
 
                 # set span.kind to the type of request being performed
-                s.set_tag_str(SPAN_KIND, SPAN_SERVER)
+                s.set_tag(SPAN_KIND, SPAN_SERVER)
 
                 s.set_tag(SPAN_MEASURED_KEY)
                 # set analytics sample rate with global config enabled

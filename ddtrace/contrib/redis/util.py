@@ -41,7 +41,7 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
         redisx.CMD, service=trace_utils.ext_service(pin, config_integration), span_type=SpanTypes.REDIS
     ) as span:
         span.set_tag_str(COMPONENT, config_integration.integration_name)
-        span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+        span.set_tag(SPAN_KIND, SPAN_CLIENT)
         span.set_tag(SPAN_MEASURED_KEY)
         query = stringify_cache_args(args)
         span.resource = query
@@ -67,7 +67,7 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance):
         span_type=SpanTypes.REDIS,
     ) as span:
         span.set_tag_str(COMPONENT, config_integration.integration_name)
-        span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+        span.set_tag(SPAN_KIND, SPAN_CLIENT)
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag(redisx.RAWCMD, resource)
         span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))

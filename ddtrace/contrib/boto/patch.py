@@ -74,7 +74,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+        span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
 
@@ -175,7 +175,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+        span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
         return result
 

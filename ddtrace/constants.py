@@ -21,6 +21,8 @@ SPAN_KIND = "span.kind"
 SPAN_MEASURED_KEY = "_dd.measured"
 KEEP_SPANS_RATE_KEY = "_dd.tracer_kr"
 MULTIPLE_IP_HEADERS = "_dd.multiple-ip-headers"
+LANGUAGE_KEY = "language"
+LANGUAGE_VALUE = "python"
 
 APPSEC_ENV = "DD_APPSEC_ENABLED"
 APPSEC_ENABLED = "_dd.appsec.enabled"

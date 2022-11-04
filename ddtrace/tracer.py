@@ -28,6 +28,8 @@ from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
 from .constants import ENV_KEY
 from .constants import HOSTNAME_KEY
+from .constants import LANGUAGE_KEY
+from .constants import LANGUAGE_VALUE
 from .constants import PID
 from .constants import SAMPLE_RATE_METRIC_KEY
 from .constants import VERSION_KEY
@@ -717,8 +719,9 @@ class Tracer(object):
             ):
                 span.set_tag_str(VERSION_KEY, config.version)
 
-        if self._is_span_internal(span):
-            span.set_tag_str("language", "python")
+        # Set language field for all spans. If span.kind client or producer are added as tags to the span later,
+        # language tag will be deleted.
+        span.set_tag_str(LANGUAGE_KEY, LANGUAGE_VALUE)
 
         if activate:
             self.context_provider.activate(span)

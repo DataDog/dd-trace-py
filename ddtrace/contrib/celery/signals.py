@@ -49,7 +49,7 @@ def trace_prerun(*args, **kwargs):
     span = pin.tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
 
     # set span.kind to the type of request being performed
-    span.set_tag_str(SPAN_KIND, SPAN_CONSUMER)
+    span.set_tag(SPAN_KIND, SPAN_CONSUMER)
 
     # set component tag equal to name of integration
     span.set_tag_str(COMPONENT, config.celery.integration_name)
@@ -115,7 +115,7 @@ def trace_before_publish(*args, **kwargs):
     span.set_tag_str(COMPONENT, config.celery.integration_name)
 
     # set span.kind to the type of request being performed
-    span.set_tag_str(SPAN_KIND, SPAN_PRODUCER)
+    span.set_tag(SPAN_KIND, SPAN_PRODUCER)
 
     # set analytics sample rate
     rate = config.celery.get_analytics_sample_rate()

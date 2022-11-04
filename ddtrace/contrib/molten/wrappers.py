@@ -26,7 +26,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
         span.set_tag_str(COMPONENT, config.molten.integration_name)
 
         # set span.kind to the operation type being performed
-        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+        span.set_tag(SPAN_KIND, SPAN_SERVER)
 
         return wrapped(*args, **kwargs)
 
@@ -48,7 +48,7 @@ def trace_func(resource):
             span.set_tag_str(COMPONENT, config.molten.integration_name)
 
             # set span.kind to the operation type being performed
-            span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+            span.set_tag(SPAN_KIND, SPAN_SERVER)
 
             return wrapped(*args, **kwargs)
 

@@ -214,7 +214,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 span.set_tag_str(COMPONENT, config.integration_name)
 
                 # set span.kind to the type of operation being performed
-                span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+                span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
                 if conf.get("measured", False):
                     span.set_tag(SPAN_MEASURED_KEY)

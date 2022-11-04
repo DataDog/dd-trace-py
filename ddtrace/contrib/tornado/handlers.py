@@ -45,7 +45,7 @@ def execute(func, handler, args, kwargs):
         request_span.set_tag_str(COMPONENT, config.tornado.integration_name)
 
         # set span.kind to the type of operation being performed
-        request_span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+        request_span.set_tag(SPAN_KIND, SPAN_SERVER)
 
         request_span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate

@@ -83,7 +83,7 @@ def _connect(func, instance, args, kwargs):
             span.set_tag_str(COMPONENT, config.mysqldb.integration_name)
 
             # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+            span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
             span.set_tag(SPAN_MEASURED_KEY)
             conn = func(*args, **kwargs)

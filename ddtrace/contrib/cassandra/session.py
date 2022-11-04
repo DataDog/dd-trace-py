@@ -179,7 +179,7 @@ def _start_span_and_set_tags(pin, query, session, cluster):
     span.set_tag_str(COMPONENT, config.cassandra.integration_name)
 
     # set span.kind to the type of request being performed
-    span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+    span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
     span.set_tag(SPAN_MEASURED_KEY)
     _sanitize_query(span, query)

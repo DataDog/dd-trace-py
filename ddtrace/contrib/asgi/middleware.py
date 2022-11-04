@@ -127,7 +127,7 @@ class TraceMiddleware:
         span.set_tag_str(COMPONENT, config.asgi.integration_name)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+        span.set_tag(SPAN_KIND, SPAN_SERVER)
 
         if "datadog" not in scope:
             scope["datadog"] = {"request_spans": [span]}

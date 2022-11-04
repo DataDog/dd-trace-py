@@ -79,7 +79,7 @@ def trace_tween_factory(handler, registry):
                 span.set_tag_str(COMPONENT, config.pyramid.integration_name)
 
                 # set span.kind to the type of operation being performed
-                span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+                span.set_tag(SPAN_KIND, SPAN_SERVER)
 
                 span.set_tag(SPAN_MEASURED_KEY)
                 # Configure trace search sample rate

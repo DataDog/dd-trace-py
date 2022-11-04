@@ -107,7 +107,7 @@ async def _wrapped_async_send(
         span.set_tag_str(COMPONENT, config.httpx.integration_name)
 
         # set span.kind to the operation type being performed
-        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+        span.set_tag(SPAN_KIND, SPAN_SERVER)
 
         _init_span(span, req)
         resp = None
@@ -136,7 +136,7 @@ def _wrapped_sync_send(
         span.set_tag_str(COMPONENT, config.httpx.integration_name)
 
         # set span.kind to the operation type being performed
-        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+        span.set_tag(SPAN_KIND, SPAN_SERVER)
 
         _init_span(span, req)
         resp = None

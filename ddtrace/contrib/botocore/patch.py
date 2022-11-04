@@ -303,7 +303,7 @@ def patched_api_call(original_func, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.botocore.integration_name)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+        span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
         span.set_tag(SPAN_MEASURED_KEY)
         operation = None

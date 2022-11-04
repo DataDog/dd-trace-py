@@ -154,7 +154,7 @@ class WrappedClient(wrapt.ObjectProxy):
             span.set_tag_str(COMPONENT, config.pymemcache.integration_name)
 
             # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SPAN_CLIENT)
+            span.set_tag(SPAN_KIND, SPAN_CLIENT)
 
             span.set_tag(SPAN_MEASURED_KEY)
             # set analytics sample rate

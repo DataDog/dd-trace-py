@@ -358,7 +358,7 @@ def traced_wsgi_app(pin, wrapped, instance, args, kwargs):
         span.set_tag_str(COMPONENT, config.flask.integration_name)
 
         # set span.kind to the type of request being performed
-        span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+        span.set_tag(SPAN_KIND, SPAN_SERVER)
 
         if sample_rate is not None:
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)

@@ -101,7 +101,7 @@ def traced_receive(func, instance, args, kwargs):
         s.set_tag_str(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
-        s.set_tag_str(SPAN_KIND, SPAN_CONSUMER)
+        s.set_tag(SPAN_KIND, SPAN_CONSUMER)
 
         s.set_tag(SPAN_MEASURED_KEY)
         # run the command
@@ -126,7 +126,7 @@ def traced_publish(func, instance, args, kwargs):
         s.set_tag_str(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
-        s.set_tag_str(SPAN_KIND, SPAN_PRODUCER)
+        s.set_tag(SPAN_KIND, SPAN_PRODUCER)
 
         s.set_tag(SPAN_MEASURED_KEY)
         exchange_name = get_exchange_from_args(args)

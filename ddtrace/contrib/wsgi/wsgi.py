@@ -128,7 +128,7 @@ class _DDWSGIMiddlewareBase(object):
         req_span.set_tag_str(COMPONENT, self._config.integration_name)
 
         # set span.kind to the type of operation being performed
-        req_span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+        req_span.set_tag(SPAN_KIND, SPAN_SERVER)
 
         self._request_span_modifier(req_span, environ)
 
@@ -258,7 +258,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
             span.set_tag_str(COMPONENT, self._config.integration_name)
 
             # set span.kind to the type of operation being performed
-            span.set_tag_str(SPAN_KIND, SPAN_SERVER)
+            span.set_tag(SPAN_KIND, SPAN_SERVER)
 
             return start_response(status, environ, exc_info)
 
