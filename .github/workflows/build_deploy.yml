@@ -47,7 +47,7 @@ jobs:
           fetch-depth: 0
 
       - name: Enable ssh
-        uses: lhotari/action-upterm@v1
+        uses: joerick/action-upterm@v1
         with:
           ## limits ssh access and adds the ssh public key for the user which triggered the workflow
           limit-access-to-actor: true
@@ -109,7 +109,7 @@ jobs:
           fetch-depth: 0
 
       - name: Enable ssh
-        uses: lhotari/action-upterm@v1
+        uses: joerick/action-upterm@v1
         with:
           ## limits ssh access and adds the ssh public key for the user which triggered the workflow
           limit-access-to-actor: true
