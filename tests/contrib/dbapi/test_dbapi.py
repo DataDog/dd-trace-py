@@ -508,7 +508,7 @@ class TestFetchTracedCursor(TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
-            DD_TRACE_SQL_COMMENT_INJECTION_MODE="full",
+            DD_DBM_PROPAGATION_MODE="full",
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
