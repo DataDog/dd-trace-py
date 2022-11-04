@@ -1030,7 +1030,7 @@ class Tracer(object):
 
     @staticmethod
     def _is_span_internal(span):
-        return not span.span_type or span.span_type in _INTERNAL_APPLICATION_SPAN_TYPES
+        return not span.span_type or span.span_type not in ["client", "producer"]
 
 
 def _has_aws_lambda_agent_extension():

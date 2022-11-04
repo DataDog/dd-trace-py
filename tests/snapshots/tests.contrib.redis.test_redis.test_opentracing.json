@@ -31,7 +31,6 @@
        "type": "redis",
        "meta": {
          "component": "redis",
-         "language": "python",
          "out.host": "localhost",
          "redis.raw_command": "GET cheese",
          "span.kind": "client"

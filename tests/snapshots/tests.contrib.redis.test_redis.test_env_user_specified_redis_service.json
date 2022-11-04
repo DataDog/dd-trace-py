@@ -10,7 +10,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "redis",
-      "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
       "runtime-id": "9ea7f54376e2449d97a9896a71bb6d47",
@@ -42,7 +41,6 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "redis",
-      "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
       "runtime-id": "9ea7f54376e2449d97a9896a71bb6d47",

@@ -12,7 +12,6 @@
       "component": "rq",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
       "job.id": "42d08f54-91c2-4f1a-8d10-4f3db32ccae1",
-      "language": "python",
       "queue.name": "sync-q",
       "runtime-id": "44e88e609a8b47a08690eb02db5b1ed5",
       "span.kind": "producer"

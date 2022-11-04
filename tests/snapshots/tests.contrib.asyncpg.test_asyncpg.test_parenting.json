@@ -12,7 +12,6 @@
       "component": "asyncpg",
       "db.name": "postgres",
       "db.user": "postgres",
-      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "2fa6792268124613bb4489b28faf6c25",
       "span.kind": "client"
@@ -63,7 +62,6 @@
          "component": "asyncpg",
          "db.name": "postgres",
          "db.user": "postgres",
-         "language": "python",
          "out.host": "127.0.0.1",
          "span.kind": "client"
        },
@@ -112,7 +110,6 @@
       "component": "asyncpg",
       "db.name": "postgres",
       "db.user": "postgres",
-      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "2fa6792268124613bb4489b28faf6c25",
       "span.kind": "client"

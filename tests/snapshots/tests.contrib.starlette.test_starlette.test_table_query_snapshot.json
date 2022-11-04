@@ -39,7 +39,6 @@
        "type": "sql",
        "meta": {
          "component": "sqlalchemy",
-         "language": "python",
          "span.kind": "client",
          "sql.db": "test.db"
        },
@@ -92,7 +91,6 @@
        "type": "sql",
        "meta": {
          "component": "sqlalchemy",
-         "language": "python",
          "span.kind": "client",
          "sql.db": "test.db"
        },
