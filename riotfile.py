@@ -1219,6 +1219,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
             pkgs={"mako": ["<1.0.0", "~=1.0.0", "~=1.1.0", latest]},
+            ci={"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "mako"}}]},
         ),
         Venv(
             name="mysqlconnector",
@@ -2298,6 +2299,7 @@ venv = Venv(
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
+            ci={"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "jinja2"}}]},
         ),
         Venv(
             name="rediscluster",

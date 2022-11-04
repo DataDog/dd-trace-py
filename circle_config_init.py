@@ -469,8 +469,6 @@ circleci_config = {
             "parallelism": 4,
             "steps": [{"run_tox_scenario": {"pattern": "^sqlite3_contrib-"}}],
         },
-        "jinja2": {"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "jinja2"}}]},
-        "mako": {"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "mako"}}]},
         "algoliasearch": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
