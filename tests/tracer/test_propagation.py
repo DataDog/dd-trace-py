@@ -717,7 +717,7 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        # we prefer Datadog format
+        # 
         "valid_all_headers_all_styles_wsgi",
         PROPAGATION_STYLE_ALL,
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
@@ -773,9 +773,8 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        # We prefer B3 over B3 single header
         "valid_all_headers_both_b3_styles",
-        [PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_B3],
+        [PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
             "trace_id": 5208512171318403364,
@@ -858,7 +857,7 @@ else:
     # DEV: This also helps us get code coverage reporting
     overrides = {}
     if styles is not None:
-        overrides["_propagation_style_extract"] = set(styles)
+        overrides["_propagation_style_extract"] = styles
     with override_global_config(overrides):
         context = HTTPPropagator.extract(headers)
         assert context == Context(**expected_context)
@@ -1159,7 +1158,7 @@ print(json.dumps(headers))
     # DEV: This also helps us get code coverage reporting
     overrides = {}
     if styles is not None:
-        overrides["_propagation_style_inject"] = set(styles)
+        overrides["_propagation_style_inject"] = styles
     with override_global_config(overrides):
         ctx = Context(**context)
         headers = {}
