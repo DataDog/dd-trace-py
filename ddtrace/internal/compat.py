@@ -84,6 +84,30 @@ if PYTHON_VERSION_INFO >= (3, 7):
 else:
     pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
 
+<<<<<<< HEAD
+=======
+try:
+    from inspect import getargspec as getfullargspec
+
+    def is_not_void_function(f, argspec):
+        return argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f)
+
+
+except ImportError:
+    from inspect import getfullargspec  # type: ignore[assignment]  # noqa: F401
+
+    def is_not_void_function(f, argspec):
+        return (
+            argspec.args
+            or argspec.varargs
+            or argspec.varkw
+            or argspec.defaults
+            or argspec.kwonlyargs
+            or argspec.kwonlydefaults
+            or isgeneratorfunction(f)
+        )
+
+>>>>>>> 747c0365 (fix(typing): update types to be compatible with mypy 0.990 (#4495))
 
 def is_integer(obj):
     # type: (Any) -> bool
