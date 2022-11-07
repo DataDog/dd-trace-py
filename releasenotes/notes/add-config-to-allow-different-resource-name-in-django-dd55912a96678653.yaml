@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Django: Add configuration option to allow a resource format like `{method} {handler}.{url_name}` in projects with Django <2.2.0
+    django: add configuration option to allow a resource format like `{method} {handler}.{url_name}` in projects with Django <2.2.0
