@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pytest: add support for ``pytest_bdd>=6.1``.

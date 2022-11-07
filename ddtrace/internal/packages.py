@@ -32,3 +32,12 @@ def get_distributions():
 
     _DISTRIBUTIONS = pkgs
     return _DISTRIBUTIONS
+
+
+def get_distribution(name):
+    # type: (str) -> typing.Optional[Distribution]
+    dists = get_distributions()
+    for dist in dists:
+        if name == dist.name:
+            return dist
+    return None

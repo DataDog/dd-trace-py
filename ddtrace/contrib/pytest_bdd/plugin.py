@@ -9,6 +9,7 @@ from ddtrace.contrib.pytest_bdd.constants import FRAMEWORK
 from ddtrace.contrib.pytest_bdd.constants import STEP_KIND
 from ddtrace.ext import test
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.packages import get_distribution
 from ddtrace.pin import Pin
 
 
@@ -32,9 +33,7 @@ def pytest_sessionstart(session):
 
 class _PytestBddPlugin:
     def __init__(self):
-        import pytest_bdd
-
-        self.framework_version = pytest_bdd.__version__
+        self.framework_version = self._get_framework_version()
 
     @staticmethod
     @pytest.hookimpl(tryfirst=True)
@@ -129,3 +128,9 @@ class _PytestBddPlugin:
                 _, _, tb = sys.exc_info()
             span.set_exc_info(type(exception), exception, tb)
             span.finish()
+
+    def _get_framework_version(self):
+        dist = get_distribution("pytest-bdd")
+        if dist:
+            return dist.version
+        return ""

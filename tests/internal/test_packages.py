@@ -1,5 +1,6 @@
 import os
 
+from ddtrace.internal.packages import get_distribution
 from ddtrace.internal.packages import get_distributions
 
 
@@ -27,3 +28,14 @@ def test_get_distributions():
 
     # assert that pkg_resources and importlib.metadata return the same packages
     assert pkg_resources_ws == importlib_pkgs
+
+
+def test_get_distribution():
+    """test retrieving a distribution by name"""
+    # Get a distribution that does not exist
+    moon_dist = get_distribution("moon_package")
+    assert moon_dist is None
+    # Get ddtrace
+    ddtrace_dist = get_distribution("ddtrace")
+    assert ddtrace_dist is not None
+    assert ddtrace_dist.name == "ddtrace"
