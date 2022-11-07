@@ -37,7 +37,7 @@ jobs:
          - os: windows-latest
            archs: AMD64 x86
          - os: macos-latest
-           archs: x86_64
+           archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v3
         # Include all history and tags
@@ -76,8 +76,8 @@ jobs:
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*-macosx_universal2*"
-          # CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=10.9 CMAKE_OSX_DEPLOYMENT_TARGET=10.9
+          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
+          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=10.9
 
       - uses: actions/upload-artifact@v3
         with:
@@ -96,7 +96,7 @@ jobs:
          - os: windows-latest
            archs: AMD64 x86
          - os: macos-latest
-           archs: x86_64
+           archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v3
         # Include all history and tags
@@ -122,7 +122,6 @@ jobs:
         with:
           platforms: all
 
-
       - name: Build wheels python 3.6 and above
         uses: pypa/cibuildwheel@v2.11.1
         env:
@@ -133,8 +132,8 @@ jobs:
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*-macosx_universal2*"
-          # CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=10.9 CMAKE_OSX_DEPLOYMENT_TARGET=10.9
+          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
+          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=10.9
 
       - uses: actions/upload-artifact@v3
         with:
