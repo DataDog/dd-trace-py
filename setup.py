@@ -222,7 +222,6 @@ else:
     else:
         debug_compile_args = []
 
-
 if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     ext_modules = [
         Extension(
@@ -235,6 +234,17 @@ if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
             extra_compile_args=debug_compile_args,
         ),
     ]
+    if platform.system() != "Windows":
+        ext_modules.append(
+            Extension(
+                "ddtrace.appsec.iast._stacktrace",
+                # Sort source files for reproducibility
+                sources=[
+                    "ddtrace/appsec/iast/_stacktrace.c",
+                ],
+                extra_compile_args=debug_compile_args,
+            )
+        )
 else:
     ext_modules = []
 
