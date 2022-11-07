@@ -705,7 +705,7 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        # we prefer Datadog format
+        # Since Datadog format comes first in PROPAGATION_STYLE_ALL we use it
         "valid_all_headers_all_styles",
         PROPAGATION_STYLE_ALL,
         ALL_HEADERS,
@@ -717,7 +717,6 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        # 
         "valid_all_headers_all_styles_wsgi",
         PROPAGATION_STYLE_ALL,
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
@@ -790,6 +789,40 @@ EXTRACT_FIXTURES = [
         {
             "trace_id": 7277407061855694839,
             "span_id": 16453819474850114513,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    # Testing that order matters
+    (
+        "order_matters_B3_SINGLE_HEADER_first",
+        [PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_DATADOG],
+        B3_SINGLE_HEADERS_VALID,
+        {
+            "trace_id": 7277407061855694839,
+            "span_id": 16453819474850114513,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
+        "order_matters_B3_first",
+        [PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_DATADOG],
+        B3_HEADERS_VALID,
+        {
+            "trace_id": 5208512171318403364,
+            "span_id": 11744061942159299346,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
+        "order_matters_B3_second_no_Datadog_headers",
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3],
+        B3_HEADERS_VALID,
+        {
+            "trace_id": 5208512171318403364,
+            "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
         },

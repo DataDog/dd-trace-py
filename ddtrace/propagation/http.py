@@ -552,17 +552,17 @@ class HTTPPropagator(object):
                         # print("xyz")
                         # print(config._propagation_style_extract)
                         return context
-                        
+
                 if prop_style == PROPAGATION_STYLE_B3:
                     context = _B3MultiHeader._extract(normalized_headers)
                     if context is not None:
                         return context
-                        
+
                 if prop_style == PROPAGATION_STYLE_B3_SINGLE_HEADER:
                     context = _B3SingleHeader._extract(normalized_headers)
                     if context is not None:
                         return context
-                        
+
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)
         return Context()
