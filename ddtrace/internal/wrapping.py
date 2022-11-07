@@ -13,7 +13,7 @@ from six import PY3
 try:
     from typing import Protocol
 except ImportError:
-    from typing_extensions import Protocol  # type: ignore[misc]
+    from typing_extensions import Protocol  # type: ignore[assignment]
 
 from bytecode import Bytecode
 from bytecode import Compare
