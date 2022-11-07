@@ -1,6 +1,5 @@
 # type: ignore
 import os
-from typing import Callable
 from typing import List
 from typing import Tuple
 
