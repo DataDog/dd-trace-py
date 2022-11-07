@@ -2117,7 +2117,6 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # asyncpg does not yet support Python 3.11
                     pys=["3.10"],
                     pkgs={
                         "asyncpg": [
@@ -2125,6 +2124,10 @@ venv = Venv(
                             latest,
                         ],
                     },
+                ),
+                Venv(
+                    pys=["3.11"],
+                    pkgs={"asyncpg": latest},
                 ),
             ],
         ),
