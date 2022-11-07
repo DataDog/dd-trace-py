@@ -549,8 +549,6 @@ class HTTPPropagator(object):
                 if prop_style == PROPAGATION_STYLE_DATADOG:
                     context = _DatadogMultiHeader._extract(normalized_headers)
                     if context is not None:
-                        # print("xyz")
-                        # print(config._propagation_style_extract)
                         return context
 
                 if prop_style == PROPAGATION_STYLE_B3:
