@@ -93,7 +93,7 @@ try:
 
 
 except ImportError:
-    from inspect import getfullargspec  # type: ignore[misc]  # noqa: F401
+    from inspect import getfullargspec  # type: ignore[assignment]  # noqa: F401
 
     def is_not_void_function(f, argspec):
         return (
