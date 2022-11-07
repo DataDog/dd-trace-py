@@ -1,5 +1,5 @@
 ---
-fix:
+fixes:
   - |
     Enforce ordering on ``DD_TRACE_PROPAGATION_STYLE_EXTRACT``` for feature parity across tracers. Previously the order of values provided did not matter, 
     as the priority we put on the values was hardcoded: ``datadog, b3, b3 single header``. Now the extraction order respects the order provided for the value.
