@@ -27,7 +27,7 @@ jobs:
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
-         - os: macos-latest
+         - os: macos-10.15
            archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v3
@@ -86,7 +86,7 @@ jobs:
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
-         - os: macos-latest
+         - os: macos-10.15
            archs: x86_64 universal2
     steps:
       - uses: actions/checkout@v3
