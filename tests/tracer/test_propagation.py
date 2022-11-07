@@ -5,7 +5,6 @@ import os
 import pytest
 
 from ddtrace.context import Context
-from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
@@ -463,7 +462,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_datadog_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         DATADOG_HEADERS_VALID,
         {
             "trace_id": 13088165645273925489,
@@ -579,7 +578,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         B3_HEADERS_VALID,
         {
             "trace_id": 5208512171318403364,
@@ -660,7 +659,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_single_header_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         B3_SINGLE_HEADERS_VALID,
         {
             "trace_id": 7277407061855694839,
@@ -705,9 +704,9 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        # Since Datadog format comes first in PROPAGATION_STYLE_ALL we use it
+        # Since Datadog format comes first in [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER] we use it
         "valid_all_headers_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
             "trace_id": 13088165645273925489,
@@ -718,7 +717,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_all_headers_all_styles_wsgi",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         {
             "trace_id": 13088165645273925489,
@@ -947,7 +946,7 @@ INJECT_FIXTURES = [
     ),
     (
         "invalid_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {},
         {},
     ),
@@ -1100,7 +1099,7 @@ INJECT_FIXTURES = [
     # All styles
     (
         "valid_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         VALID_DATADOG_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1115,7 +1114,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_user_keep",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         VALID_USER_KEEP_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1129,7 +1128,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_auto_reject",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         VALID_AUTO_REJECT_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1143,7 +1142,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_no_sampling_priority",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {
             "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
             "span_id": VALID_DATADOG_CONTEXT["span_id"],
