@@ -73,7 +73,7 @@ jobs:
           CIBW_ARCHS: ${{ matrix.archs }}
           # PyPY is not supported
           # Windows 2.7 wheels no longer can be built https://github.com/DataDog/dd-trace-py/pull/2344
-          CIBW_SKIP: cp27-win*
+          CIBW_SKIP: cp27-win* cp35-macosx_x86_64
           CIBW_BUILD: cp27* cp35*
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
