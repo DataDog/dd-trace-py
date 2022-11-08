@@ -65,8 +65,6 @@ class Psycopg2TracedCursor(dbapi.TracedCursor):
         # treat psycopg2.sql.Composable resource objects as strings
         if isinstance(resource, Composable):
             resource = resource.as_string(self.__wrapped__)
-            # DBM context propagation is only supported for query args with the following type: string
-            dbm_operation = False
 
         return super(Psycopg2TracedCursor, self)._trace_method(
             method, name, resource, extra_tags, dbm_operation, *args, **kwargs

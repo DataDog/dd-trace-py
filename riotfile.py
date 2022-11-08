@@ -1083,6 +1083,12 @@ venv = Venv(
                     # psycopg2>=2.9.2 supports Python 3.11
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest]},
                 ),
+                Venv(
+                    pys=select_pys(min_version="3.6"),
+                    # psycopg2>=2.7 is required to test Composable sql statements
+                    pkgs={"psycopg2-binary": "~=2.9.2"},
+                    env={"DD_DBM_PROPAGATION_MODE": "service"},
+                ),
             ],
         ),
         Venv(
