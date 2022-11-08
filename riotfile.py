@@ -100,7 +100,6 @@ if PY_Latest:
     def latest(arg: str):
         return riot_latest
 
-
 else:
 
     def latest(arg: str):
@@ -1872,6 +1871,7 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
+                                    # FIXME: add support for v6.1
                                     ">=6.0,<6.1",
                                 ]
                             },
@@ -1881,6 +1881,7 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
+                                    # FIXME: add support for v6.1
                                     ">=6.0,<6.1",
                                 ]
                             },
@@ -2587,7 +2588,6 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # asyncpg does not yet support Python 3.11
                     pys=["3.10"],
                     pkgs={
                         "asyncpg": [
@@ -2595,6 +2595,10 @@ venv = Venv(
                             "<=0.26.0",
                         ],
                     },
+                ),
+                Venv(
+                    pys=["3.11"],
+                    pkgs={"asyncpg": latest},
                 ),
             ],
         ),
