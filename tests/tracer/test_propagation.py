@@ -889,7 +889,8 @@ EXTRACT_OVERRIDE_FIXTURES = [
             "dd_origin": "synthetics",
         },
     ),
-    # The empty list provided for DD_TRACE_PROPAGATION_STYLE_EXTRACT overrides the b3 value for DD_TRACE_PROPAGATION_STYLE
+    # The empty list provided for DD_TRACE_PROPAGATION_STYLE_EXTRACT overrides
+    #  the b3 value for DD_TRACE_PROPAGATION_STYLE
     (
         "valid_all_headers_no_style_override",
         [PROPAGATION_STYLE_B3],

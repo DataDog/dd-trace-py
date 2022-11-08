@@ -54,6 +54,7 @@ def _parse_propagation_styles(name, default):
 
 
     Examples::
+
         # Extract and inject b3 headers:
         DD_TRACE_PROPAGATION_STYLE="b3"
 
@@ -209,7 +210,8 @@ class Config(object):
             "DD_TRACE_PROPAGATION_STYLE", default=PROPAGATION_STYLE_DATADOG
         )
         _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=None)
-        # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT take precedence over DD_TRACE_PROPAGATION_STYLE
+        # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
+        #  take precedence over DD_TRACE_PROPAGATION_STYLE
         propagation_style_extract = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=None)
         if propagation_style_extract is not None:
             self._propagation_style_extract = propagation_style_extract
