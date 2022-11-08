@@ -1,0 +1,10 @@
+@import '../alabaster.css';
+
+/*
+  Clip any text in the sidebar.
+
+  Originally added to avoid configuration names overflowing into the page content.
+*/
+.sphinxsidebarwrapper {
+    overflow: auto;
+}
