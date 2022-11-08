@@ -97,13 +97,15 @@ class LibDDWaf_Download(BuildPyCommand):
         TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
         AVAILABLE_RELEASES = {
             "Windows": ["win32", "x64"],
-            # "Darwin": ["arm64", "x86_64"],
-            "Darwin": ["x86_64"],
+            "Darwin": ["arm64", "x86_64"],
             "Linux": ["aarch64", "x86_64"],
         }
         SUFFIX = TRANSLATE_SUFFIX[CURRENT_OS]
 
         if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR) and len(os.listdir(LIBDDWAF_DOWNLOAD_DIR)):
+            return
+
+        if CURRENT_OS == "Darwin":
             return
 
         if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
