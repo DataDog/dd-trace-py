@@ -542,3 +542,16 @@ async def test_host_header(scope, tracer, test_spans, host):
         assert test_spans.spans
         request_span = test_spans.spans[0]
         assert request_span.get_tag("http.url") == "http://%s/" % (host,)
+
+
+@pytest.mark.asyncio
+async def test_response_headers(scope, tracer, test_spans):
+     with override_http_config('asgi', {'trace_headers': ['content-type']}):
+        app = TraceMiddleware(basic_app, tracer=tracer)
+        async with httpx.AsyncClient(app=app) as client:
+            response = await client.get("http://testserver/")
+            assert response.status_code == 200
+
+            assert test_spans.spans
+            request_span = test_spans.spans[0]
+            assert 'http.response.headers.content-type' in request_span.get_tags().keys()
