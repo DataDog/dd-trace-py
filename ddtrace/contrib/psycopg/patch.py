@@ -70,6 +70,12 @@ class Psycopg2TracedCursor(dbapi.TracedCursor):
             method, name, resource, extra_tags, dbm_operation, *args, **kwargs
         )
 
+    def _dbm_sql_injector(self, dbm_comment, sql_statement):
+        if isinstance(sql_statement, Composable):
+            composable_dbm_comment = psycopg2.sql.SQL(dbm_comment)
+            return composable_dbm_comment + sql_statement
+        return super(Psycopg2TracedCursor, self)._dbm_sql_injector(dbm_comment, sql_statement)
+
 
 class Psycopg2FetchTracedCursor(Psycopg2TracedCursor, dbapi.FetchTracedCursor):
     """FetchTracedCursor for psycopg2"""
