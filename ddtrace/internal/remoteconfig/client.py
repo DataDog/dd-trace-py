@@ -31,7 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Union
 
-    ProductCallback = Callable[[Optional["ConfigMetadata"], Optional[Mapping[str, Any], bool]], None]
+    ProductCallback = Optional[Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]]
 
 
 log = logging.getLogger(__name__)
@@ -226,7 +226,7 @@ class RemoteConfigClient(object):
         self._backend_state = None  # type: Optional[str]
 
     def register_product(self, product_name, func=None):
-        # type: (str, Optional[ProductCallback]) -> None
+        # type: (str, ProductCallback) -> None
         if func is not None:
             self._products[product_name] = func
         else:
