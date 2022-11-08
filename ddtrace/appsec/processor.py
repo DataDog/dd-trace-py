@@ -11,8 +11,8 @@ from typing import Union
 import attr
 from six import ensure_binary
 
-# from ddtrace.appsec._ddwaf import DDWaf
-# from ddtrace.appsec._ddwaf import version
+from ddtrace.appsec.ddwaf import DDWaf
+from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
 from ddtrace.constants import APPSEC_EVENT_RULE_ERRORS
 from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
@@ -57,15 +57,6 @@ DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
 
 
 log = get_logger(__name__)
-
-
-class DDWaf(object):
-    def __init__(self, *args, **kwargs):
-        pass
-
-
-def version():
-    return 0, 0, 0
 
 
 def _transform_headers(data):
@@ -162,7 +153,6 @@ def _get_waf_timeout():
 
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-
     rules = attr.ib(type=str, factory=get_rules)
     obfuscation_parameter_key_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_key_regexp)
     obfuscation_parameter_value_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_value_regexp)
@@ -287,7 +277,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if info["errors"]:
                 span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info["errors"]))
             span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info["version"])
-            span.set_tag_str(APPSEC_WAF_VERSION, "%s.%s.%s" % version())
+            span.set_tag_str(APPSEC_WAF_VERSION, version())
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info["loaded"])
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info["failed"])
