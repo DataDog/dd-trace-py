@@ -97,7 +97,8 @@ class LibDDWaf_Download(BuildPyCommand):
         TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
         AVAILABLE_RELEASES = {
             "Windows": ["win32", "x64"],
-            "Darwin": ["arm64", "x86_64"],
+            # "Darwin": ["arm64", "x86_64"],
+            "Darwin": ["x86_64"],
             "Linux": ["aarch64", "x86_64"],
         }
         SUFFIX = TRANSLATE_SUFFIX[CURRENT_OS]
@@ -139,9 +140,6 @@ class LibDDWaf_Download(BuildPyCommand):
                 # cleaning unwanted files
                 tar.close()
             os.remove(filename)
-
-        if CURRENT_OS == "Darwin":
-            shutil.rmtree(os.path.join(LIBDDWAF_DOWNLOAD_DIR, "arm64"), True)
 
     def run(self):
         LibDDWaf_Download.download_dynamic_library()
