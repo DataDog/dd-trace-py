@@ -95,14 +95,10 @@ class Venv(RiotVenv):
     ci: Dict[str, Any] = None
 
 
-if PY_Latest:
-
-    def latest(arg: str):
+def latest(arg: str):
+    if PY_Latest:
         return riot_latest
-
-else:
-
-    def latest(arg: str):
+    else:
         return "==" + LATEST_VERSIONS[arg]
 
 
