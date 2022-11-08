@@ -704,7 +704,8 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        # Since Datadog format comes first in [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER] we use it
+        # Since Datadog format comes first in [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3,
+        #  PROPAGATION_STYLE_B3_SINGLE_HEADER] we use it
         "valid_all_headers_all_styles",
         [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
