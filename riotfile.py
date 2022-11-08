@@ -99,7 +99,7 @@ def latest(arg: str):
     if PY_Latest:
         return riot_latest
     else:
-        return "==" + LATEST_VERSIONS[arg]
+        return "<=" + LATEST_VERSIONS[arg]
 
 
 LATEST_VERSIONS = {
@@ -2210,7 +2210,7 @@ venv = Venv(
                             "~=1.8.0",
                             "~=1.9.0",
                             "~=1.10.0",
-                            latest,
+                            latest("rq"),
                         ],
                         # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
                         "click": "==7.1.2",
@@ -2739,7 +2739,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=["3.11"],
-                    pkgs={"asyncpg": latest},
+                    pkgs={"asyncpg": latest("asyncpg")},
                 ),
             ],
         ),
