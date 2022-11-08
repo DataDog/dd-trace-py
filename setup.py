@@ -1,9 +1,14 @@
 import os
 import platform
+import shutil
 import sys
+import tarfile
+
 from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
+from setuptools.command.build_py import build_py as BuildPyCommand
+from distutils.command.clean import clean as CleanCommand
 
 # ORDER MATTERS
 # Import this after setuptools or it will fail
@@ -11,11 +16,24 @@ from Cython.Build import cythonize  # noqa: I100
 import Cython.Distutils
 
 
+if sys.version_info >= (3, 0):
+    from urllib.error import HTTPError
+    from urllib.request import urlretrieve
+else:
+    from urllib import urlretrieve
+
+    from urllib2 import HTTPError
+
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 DEBUG_COMPILE = "DD_COMPILE_DEBUG" in os.environ
 
 IS_PYSTON = hasattr(sys, "pyston_version_info")
+
+LIBDDWAF_DOWNLOAD_DIR = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
+
+CURRENT_OS = platform.system()
 
 
 def load_module_from_project_file(mod_name, fname):
@@ -66,53 +84,76 @@ class Tox(TestCommand):
         args = self.tox_args
         if args:
             args = shlex.split(self.tox_args)
+
+        LibDDWaf_Download.download_dynamic_library()
         errno = tox.cmdline(args=args)
         sys.exit(errno)
 
 
-# class CMake(BuildExtCommand):
-#     def build_extension(self, ext):
-#         import shutil
-#         import subprocess
-#         import tempfile
+class LibDDWaf_Download(BuildPyCommand):
+    @staticmethod
+    def download_dynamic_library():
+        # TRANSLATE_ARCH = {"amd64": "x64"}
+        TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
+        AVAILABLE_RELEASES = {
+            "Windows": ["win32", "x64"],
+            "Darwin": ["arm64", "x86_64"],
+            "Linux": ["aarch64", "x86_64"],
+        }
+        SUFFIX = TRANSLATE_SUFFIX[CURRENT_OS]
 
-#         to_build = set()
-#         # Detect if any source file sits next to a CMakeLists.txt file
-#         for source in ext.sources:
-#             source_dir = os.path.dirname(os.path.realpath(source))
-#             if os.path.exists(os.path.join(source_dir, "CMakeLists.txt")):
-#                 to_build.add(source_dir)
+        if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR) and len(os.listdir(LIBDDWAF_DOWNLOAD_DIR)):
+            return
 
-#         if not to_build:
-#             # Build the extension as usual
-#             BuildExtCommand.build_extension(self, ext)
-#             return
+        if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
+            os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
 
-#         try:
-#             cmake_command = os.environ.get("CMAKE_COMMAND", "cmake")
-#             build_type = "RelWithDebInfo" if DEBUG_COMPILE else "Release"
-#             opts = ["-DCMAKE_BUILD_TYPE={}".format(build_type)]
-#             if platform.system() == "Windows":
-#                 opts.extend(["-A", "x64" if platform.architecture()[0] == "64bit" else "Win32"])
-#             else:
-#                 opts.extend(["-G", "Ninja"])
-#                 ninja_command = os.environ.get("NINJA_COMMAND", "")
-#                 if ninja_command:
-#                     opts.append("-DCMAKE_MAKE_PROGRAM={}".format(ninja_command))
+        for arch in AVAILABLE_RELEASES[CURRENT_OS]:
+            arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
 
-#             for source_dir in to_build:
-#                 try:
-#                     build_dir = tempfile.mkdtemp()
-#                     subprocess.check_call([cmake_command, "-S", source_dir, "-B", build_dir] + opts)
-#                     subprocess.check_call([cmake_command, "--build", build_dir, "--config", build_type])
-#                 finally:
-#                     if not DEBUG_COMPILE:
-#                         shutil.rmtree(build_dir, ignore_errors=True)
+            if os.path.isdir(arch_dir):
+                continue
 
-#             BuildExtCommand.build_extension(self, ext)
-#         except Exception as e:
-#             print('WARNING: building extension "%s" failed: %s' % (ext.name, e))
-#             raise
+            ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (CURRENT_OS.lower(), arch)
+            ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
+
+            ddwaf_download_address = (
+                "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
+            )
+
+            try:
+                filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
+                print(filename)
+            except HTTPError as e:
+                print("No archive found for dynamic library ddwaf : " + ddwaf_archive_dir)
+                raise e
+
+            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+                dynfiles = [c for c in tar.getmembers() if c.name.endswith(SUFFIX)]
+
+            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+                print("extracting dylib:", [c.name for c in dynfiles])
+                tar.extractall(members=dynfiles, path=HERE)
+
+                os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
+                # cleaning unwanted files
+                tar.close()
+            os.remove(filename)
+
+    def run(self):
+        LibDDWaf_Download.download_dynamic_library()
+        BuildPyCommand.run(self)
+
+
+class CleanLibraries(CleanCommand):
+    @staticmethod
+    def remove_dynamic_library():
+        dst = os.path.join(HERE, os.path.join("ddtrace", "appsec", "ddwaf", "libddwaf"))
+        shutil.rmtree(dst, True)
+
+    def run(self):
+        CleanLibraries.remove_dynamic_library()
+        CleanCommand.run(self)
 
 
 long_description = """
@@ -155,13 +196,13 @@ if sys.byteorder == "big":
 else:
     encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
-if platform.system() == "Windows":
+
+if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
     debug_compile_args = []
-    ddwaf_libraries = ["ddwaf_static"]
 else:
-    linux = platform.system() == "Linux"
+    linux = CURRENT_OS == "Linux"
     encoding_libraries = []
     extra_compile_args = ["-DPy_BUILD_CORE"]
     if DEBUG_COMPILE:
@@ -179,10 +220,6 @@ else:
             ]
     else:
         debug_compile_args = []
-    if linux:
-        ddwaf_libraries = ["ddwaf", "rt", "m", "dl", "pthread"]
-    else:
-        ddwaf_libraries = ["ddwaf"]
 
 if sys.version_info[:2] >= (3, 4) and not IS_PYSTON:
     ext_modules = [
@@ -219,6 +256,7 @@ bytecode = [
     "bytecode; python_version>='3.8'",
 ]
 
+LibDDWaf_Download.download_dynamic_library()
 
 setup(
     name="ddtrace",
@@ -243,7 +281,11 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
+        "ddtrace.appsec.ddwaf": [
+            "libddwaf\\*\\lib\\libddwaf.*" if CURRENT_OS == "Windows" else "libddwaf/*/lib/libddwaf.*"
+        ],
     },
+    include_package_data=True,
     py_modules=["ddtrace_gevent_check"],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*",
     zip_safe=False,
@@ -281,7 +323,7 @@ setup(
     },
     # plugin tox
     tests_require=["tox", "flake8"],
-    cmdclass={"build_ext": BuildExtCommand, "test": Tox},
+    cmdclass={"test": Tox, "build_ext": BuildExtCommand, "build_py": LibDDWaf_Download, "clean": CleanLibraries},
     entry_points={
         "console_scripts": [
             "ddtrace-run = ddtrace.commands.ddtrace_run:main",
@@ -306,7 +348,7 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     use_scm_version={"write_to": "ddtrace/_version.py"},
-    setup_requires=["setuptools_scm[toml]>=4,<6.1", "cython"],
+    setup_requires=["setuptools_scm[toml]>=4", "cython"],
     ext_modules=ext_modules
     + cythonize(
         [
@@ -358,14 +400,6 @@ setup(
                 sources=["ddtrace/profiling/_build.pyx"],
                 language="c",
             ),
-            # Cython.Distutils.Extension(
-            #     "ddtrace.appsec._ddwaf",
-            #     sources=["ddtrace/appsec/_ddwaf.pyx"],
-            #     include_dirs=["ddtrace/appsec/include"],
-            #     library_dirs=["ddtrace/appsec/lib"],
-            #     libraries=ddwaf_libraries,
-            #     language="c++",
-            # ),
         ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
@@ -374,6 +408,7 @@ setup(
         },
         force=True,
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
+        compiler_directives={"language_level": "2"},
     )
     + get_exts_for("wrapt")
     + get_exts_for("psutil"),
