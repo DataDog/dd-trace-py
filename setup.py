@@ -121,6 +121,12 @@ class LibDDWaf_Download(BuildPyCommand):
                 "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
             )
 
+            if CURRENT_OS == "Darwin":
+                if arch == "arm64":
+                    ddwaf_download_address = "https://github.com/DataDog/libddwaf/suites/9183739112/artifacts/428109799"
+                else:
+                    ddwaf_download_address = "https://github.com/DataDog/libddwaf/suites/9183739112/artifacts/428109800"
+
             try:
                 filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
                 print(filename)
