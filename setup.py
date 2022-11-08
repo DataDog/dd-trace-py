@@ -121,9 +121,6 @@ class LibDDWaf_Download(BuildPyCommand):
                 "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
             )
 
-            if CURRENT_OS == "Darwin":
-                continue
-
             try:
                 filename, http_response = urlretrieve(ddwaf_download_address, ddwaf_archive_name)
                 print(filename)
@@ -142,6 +139,9 @@ class LibDDWaf_Download(BuildPyCommand):
                 # cleaning unwanted files
                 tar.close()
             os.remove(filename)
+
+        if CURRENT_OS == "Darwin":
+            shutil.rmtree(os.path.join(LIBDDWAF_DOWNLOAD_DIR, "arm64"), True)
 
     def run(self):
         LibDDWaf_Download.download_dynamic_library()
