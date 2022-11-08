@@ -93,8 +93,8 @@ class Venv(RiotVenv):
 # class latest:
 #     version: str = riot_latest
 
-latest = riot_latest
 
+latest = riot_latest
 
 venv = Venv(
     pkgs={
@@ -158,7 +158,7 @@ venv = Venv(
             command="mypy {cmdargs}",
             create=True,
             pkgs={
-                "mypy": latest,
+                "mypy": "==0.982",
                 "envier": latest,
                 "types-attrs": latest,
                 "types-docutils": latest,
