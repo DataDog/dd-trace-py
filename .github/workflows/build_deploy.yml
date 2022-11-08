@@ -61,6 +61,7 @@ jobs:
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
+          CIBW_DEPENDENCY_VERSIONS: latest
 
       - uses: actions/upload-artifact@v3
         with:
@@ -109,6 +110,7 @@ jobs:
           # Testing arm on MacOS is currently not supported by Github
           CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
+          CIBW_DEPENDENCY_VERSIONS: latest
 
       - uses: actions/upload-artifact@v3
         with:
