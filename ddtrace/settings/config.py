@@ -35,7 +35,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT = (
 
 
 def _parse_propagation_styles(name, default):
-    # type: (str, str) -> set[str]
+    # type: (str, Optional[str]) -> Optional[set[str]]
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -54,6 +54,8 @@ def _parse_propagation_styles(name, default):
 
 
     Examples::
+        # Extract and inject b3 headers:
+        DD_TRACE_PROPAGATION_STYLE="b3"
 
         # Extract trace context from "x-datadog-*" or "x-b3-*" headers from upstream headers
         DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"
@@ -63,6 +65,8 @@ def _parse_propagation_styles(name, default):
     """
     styles = set()
     envvar = os.getenv(name, default=default)
+    if envvar is None:
+        return None
     for style in envvar.split(","):
         style = style.strip().lower()
         if not style:
@@ -201,12 +205,18 @@ class Config(object):
         self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
         # Propagation styles
-        self._propagation_style_extract = _parse_propagation_styles(
-            "DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=PROPAGATION_STYLE_DATADOG
+        self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
+            "DD_TRACE_PROPAGATION_STYLE", default=PROPAGATION_STYLE_DATADOG
         )
-        self._propagation_style_inject = _parse_propagation_styles(
-            "DD_TRACE_PROPAGATION_STYLE_INJECT", default=PROPAGATION_STYLE_DATADOG
-        )
+        _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=None)
+        # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT take precedence over DD_TRACE_PROPAGATION_STYLE
+        propagation_style_extract = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=None)
+        if propagation_style_extract is not None:
+            self._propagation_style_extract = propagation_style_extract
+
+        propagation_style_inject = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_INJECT", default=None)
+        if propagation_style_inject is not None:
+            self._propagation_style_inject = propagation_style_inject
 
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
