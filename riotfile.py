@@ -6,7 +6,7 @@ from typing import List
 from typing import Tuple
 
 from riot import Venv as RiotVenv
-from riot import latest
+from riot import latest as riot_latest
 
 
 SUPPORTED_PYTHON_VERSIONS = [
@@ -87,6 +87,13 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
 @dataclasses.dataclass
 class Venv(RiotVenv):
     ci: Dict[str, Any] = None
+
+
+# @dataclasses.dataclass
+# class latest:
+#     version: str = riot_latest
+
+latest = riot_latest
 
 
 venv = Venv(
