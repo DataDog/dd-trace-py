@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython", "cmake >= 3.14", "ninja"]
+requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
