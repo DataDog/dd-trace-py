@@ -11,8 +11,8 @@ from typing import Union
 import attr
 from six import ensure_binary
 
-from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf import version
+# from ddtrace.appsec._ddwaf import DDWaf
+# from ddtrace.appsec._ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
 from ddtrace.constants import APPSEC_EVENT_RULE_ERRORS
 from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
@@ -57,6 +57,15 @@ DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
 
 
 log = get_logger(__name__)
+
+
+class DDWaf(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
+
+def version():
+    return 0, 0, 0
 
 
 def _transform_headers(data):
