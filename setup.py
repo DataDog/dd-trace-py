@@ -85,7 +85,7 @@ class Tox(TestCommand):
         if args:
             args = shlex.split(self.tox_args)
 
-        LibDDWaf_Download.download_dynamic_library()
+        # LibDDWaf_Download.download_dynamic_library()
         errno = tox.cmdline(args=args)
         sys.exit(errno)
 
@@ -141,7 +141,7 @@ class LibDDWaf_Download(BuildPyCommand):
             os.remove(filename)
 
     def run(self):
-        LibDDWaf_Download.download_dynamic_library()
+        # LibDDWaf_Download.download_dynamic_library()
         BuildPyCommand.run(self)
 
 
@@ -256,7 +256,7 @@ bytecode = [
     "bytecode; python_version>='3.8'",
 ]
 
-LibDDWaf_Download.download_dynamic_library()
+# LibDDWaf_Download.download_dynamic_library()
 
 setup(
     name="ddtrace",
