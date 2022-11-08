@@ -545,19 +545,11 @@ class HTTPPropagator(object):
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
             # loop through the extract propagation styles specified in order
-            for prop_style in config._propagation_style_extract:
-                if prop_style == PROPAGATION_STYLE_DATADOG:
-                    context = _DatadogMultiHeader._extract(normalized_headers)
-                    if context is not None:
-                        return context
-
-                if prop_style == PROPAGATION_STYLE_B3:
-                    context = _B3MultiHeader._extract(normalized_headers)
-                    if context is not None:
-                        return context
-
-                if prop_style == PROPAGATION_STYLE_B3_SINGLE_HEADER:
-                    context = _B3SingleHeader._extract(normalized_headers)
+           prop_styles_to_propagator = {PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader, PROPAGATION_STYLE_B3:  _B3MultiHeader, PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader}
+           for prop_style in PROPAGATION_STYLE_DATADOG:
+                if prop_style in config._propagation_style_extract:
+                    propagator = prop_styles_to_propagator[prop_style]
+                    context = propagator._extract(normalized_headers)
                     if context is not None:
                         return context
 
