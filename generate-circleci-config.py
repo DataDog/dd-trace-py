@@ -39,14 +39,14 @@ def generate_main_workflow() -> None:
 
     test_workflow = "test"
 
-    # fast tests to check everything's ok quickly
-    KEEP_TESTS = NO_COVERAGE | {"aredis", "pylons", "jinja2"}
+    # # fast tests to check everything's ok quickly
+    # KEEP_TESTS = NO_COVERAGE | {"aredis", "pylons", "jinja2"}
 
-    for j in list(circleci_config["jobs"]):
-        if j not in KEEP_TESTS:
-            del circleci_config["jobs"][j]
-    COVERAGE_REQUIREMENTS = [job for job in circleci_config["jobs"] if job not in NO_COVERAGE]
-    # end fast tests
+    # for j in list(circleci_config["jobs"]):
+    #     if j not in KEEP_TESTS:
+    #         del circleci_config["jobs"][j]
+    # COVERAGE_REQUIREMENTS = [job for job in circleci_config["jobs"] if job not in NO_COVERAGE]
+    # # end fast tests
 
     # Define the requirements for each tests. Currently most tests are using the same
     # requirements and coverage reports are after all other tests.
@@ -66,19 +66,17 @@ def generate_main_workflow() -> None:
         if "environment" not in circleci_config["jobs"][name]:
             circleci_config["jobs"][name]["environment"] = []
         circleci_config["jobs"][name]["environment"].append({"DD_USE_LATEST_VERSIONS": "false"})
-        # if latest and name == "pre_check":
-        #     circleci_config["workflows"][test_workflow]["jobs"][-1][name]["type"] = "approval"
-    # if latest:
-    #     # patch tests to use latest version of packages
-    #     run_test = circleci_config["commands"]["run_test"]["steps"][3]["when"]["steps"][2]["run"]
-    #     run_test["environment"]["DD_USE_LATEST_VERSIONS"] = "true"
-    # else:
 
     # nightly tests are the same as tests but with specific triggers
     circleci_config["workflows"]["test_nightly"] = {
         "triggers": [{"schedule": {"cron": "0 0 * * *", "filters": {"branches": {"only": ["0.x", "1.x"]}}}}],
     }
     circleci_config["workflows"]["test_nightly"]["jobs"] = circleci_config["workflows"]["test"]["jobs"]
+
+    # Build latest_workflow by mimicking the regular workflow but
+    # - renaming all jobs
+    # - add an initial empty job that requires manual approval
+    # - setup environment correctly so that riotfile.py knows latest versions are expected
 
     def latest_name(name):
         return name + "_latest"
@@ -95,7 +93,6 @@ def generate_main_workflow() -> None:
         cache_req_latest.append(res)
         return res
 
-    # Build latest_workflow
     test_latest = latest_name(test_workflow)
     circleci_config["workflows"][test_latest] = {"jobs": []}
     #
