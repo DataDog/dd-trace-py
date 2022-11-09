@@ -128,7 +128,6 @@ circleci_config = {
                                 "run": {
                                     "environment": {
                                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
-                                        "DD_USE_LATEST_VERSIONS": "false",
                                     },
                                     "command": (
                                         "mv .riot .ddriot\nriot list -i '<<parameters.pattern>>' | circleci tests split"
