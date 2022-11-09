@@ -83,8 +83,8 @@ def generate_main_workflow(latest: bool) -> None:
     for name in circleci_config["jobs"]:
         circleci_config["workflows"][test_workflow]["jobs"].append({name: {"requires": requirements[name]}})
         if "environment" not in circleci_config["jobs"][name]:
-            circleci_config["jobs"][name]["environment"] = {}
-        circleci_config["jobs"][name]["environment"]["DD_USE_LATEST_VERSIONS"] = "true" if latest else "false"
+            circleci_config["jobs"][name]["environment"] = []
+        circleci_config["jobs"][name]["environment"].append({"DD_USE_LATEST_VERSIONS": "true" if latest else "false"})
 
     # if latest:
     #     # patch tests to use latest version of packages
