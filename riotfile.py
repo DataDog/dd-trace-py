@@ -96,10 +96,10 @@ PY_Latest = False
 if "DD_USE_LATEST_VERSIONS" not in os.environ:
     LOGGER.warning("DD_USE_LATEST_VERSIONS not set.")
 elif os.environ["DD_USE_LATEST_VERSIONS"].lower() == "true":
-    LOGGER.info("Use last versions of packages")
+    LOGGER.warning("Use LATEST versions of packages")
     PY_Latest = True
 else:
-    LOGGER.info("Use regular fixed versions of packages")
+    LOGGER.warning("Use regular fixed versions of packages")
 
 
 @dataclasses.dataclass
