@@ -308,6 +308,20 @@ class GrpcTestCase(TracerTestCase):
 
         self.get_spans_with_sync_and_assert(size=2, should_retry=True)
 
+    def test_span_active_in_custom_interceptor(self):
+        # add an interceptor that raises a custom exception and check error tags
+        # are added to spans
+        interceptor = _SpanActivatationClientInterceptor(self.tracer)
+        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+            intercept_channel = grpc.intercept_channel(channel, interceptor)
+            stub = HelloStub(intercept_channel)
+            stub.SayHello(HelloRequest(name="test"))
+
+        spans = self.get_spans_with_sync_and_assert(size=2)
+        client_span = spans[0]
+
+        assert client_span.get_tag("custom_interceptor_worked")
+
     def test_analytics_default(self):
         with grpc.secure_channel("localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
             stub = HelloStub(channel)
@@ -761,6 +775,23 @@ class _RaiseExceptionClientInterceptor(grpc.UnaryUnaryClientInterceptor):
         continuation(client_call_details, request_or_iterator).result()
 
         raise _CustomException("custom")
+
+    def intercept_unary_unary(self, continuation, client_call_details, request):
+        return self._intercept_call(continuation, client_call_details, request)
+
+class _SpanActivatationClientInterceptor(grpc.UnaryUnaryClientInterceptor):
+    def __init__(self, tracer) -> None:
+        super().__init__()
+        self.tracer = tracer
+
+    def _intercept_call(self, continuation, client_call_details, request_or_iterator):
+        # allow computation to complete
+        span = self.tracer.current_span()
+        assert span is not None
+
+        span.set_tag("custom_interceptor_worked")
+
+        return continuation(client_call_details, request_or_iterator)
 
     def intercept_unary_unary(self, continuation, client_call_details, request):
         return self._intercept_call(continuation, client_call_details, request)
