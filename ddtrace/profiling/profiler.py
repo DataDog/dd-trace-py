@@ -1,7 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
-import sys
 import typing
 from typing import List
 from typing import Optional
@@ -54,11 +53,6 @@ class Profiler(object):
         :param profile_children: Whether to start a profiler in child processes.
         """
 
-        if sys.version_info >= (3, 11, 0):
-            raise RuntimeError(
-                "Profiling is not yet compatible with Python 3.11. "
-                "See tracking issue for more details: https://github.com/DataDog/dd-trace-py/issues/4149"
-            )
         if profile_children:
             try:
                 uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
