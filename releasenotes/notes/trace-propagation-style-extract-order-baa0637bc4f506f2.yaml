@@ -2,3 +2,7 @@
 fixes:
   - |
     The specification of ``DD_TRACE_PROPAGATION_STYLE_EXTRACT`` requires the configured styles be evaluated in order. However, the evaluation order had been hard-coded and so ignored the configured ordering.
+    To recreate the previous hard-coded order
+upgrade:
+  - |
+    To recreate the previous hard-coded evaluation order: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT=datadog,b3,b3 single header``
