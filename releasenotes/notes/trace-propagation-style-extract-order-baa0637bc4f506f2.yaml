@@ -5,4 +5,4 @@ fixes:
     To recreate the previous hard-coded order
 upgrade:
   - |
-    To recreate the previous hard-coded evaluation order: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT=datadog,b3,b3 single header``
+    The configured styles in ``DD_TRACE_PROPAGATION_STYLE_EXTRACT`` are now evaluated in order to specification. To keep the previous hard-coded evaluation order, set: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT=datadog,b3,b3 single header``.
