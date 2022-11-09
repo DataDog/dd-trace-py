@@ -123,7 +123,10 @@ circleci_config = {
                             },
                             {
                                 "run": {
-                                    "environment": {"DD_TRACE_AGENT_URL": "http://localhost:9126"},
+                                    "environment": {
+                                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                                        "DD_USE_LATEST_VERSIONS": "false",
+                                    },
                                     "command": (
                                         "mv .riot .ddriot\nriot list -i '<<parameters.pattern>>' | circleci tests split"
                                         " | xargs -I PY ./scripts/ddtest riot -v run --python=PY --exitfirst --pass-env"
@@ -486,9 +489,5 @@ circleci_config = {
     },
     "workflows": {
         "version": 2,
-        "test": {},
-        "test_nightly": {
-            "triggers": [{"schedule": {"cron": "0 0 * * *", "filters": {"branches": {"only": ["0.x", "1.x"]}}}}],
-        },
     },
 }

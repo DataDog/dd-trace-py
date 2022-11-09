@@ -1,6 +1,8 @@
 # type: ignore
 import dataclasses
 import json
+import logging
+import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -87,7 +89,17 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+LOGGER = logging.getLogger(__name__)
+
 PY_Latest = False
+
+if "DD_USE_LATEST_VERSIONS" not in os.environ:
+    LOGGER.warning("DD_USE_LATEST_VERSIONS not set.")
+elif os.environ["DD_USE_LATEST_VERSIONS"].lower() == "true":
+    LOGGER.info("Use last versions of packages")
+    PY_Latest = True
+else:
+    LOGGER.info("Use regular fixed versions of packages")
 
 
 @dataclasses.dataclass
@@ -2747,22 +2759,6 @@ venv = Venv(
 )
 
 
-def get_pkg_from_riot(venv: Venv) -> dict:
-    """
-    read the riot python file and retrieve configuration information
-    to define properly the circle ci tests
-    """
-    result_set = set()
-    stack = [venv]
-    while stack:
-        v = stack.pop()
-        if v.pkgs:
-            for name in v.pkgs:
-                result_set.add(name)
-        stack.extend(v.venvs)
-    return result_set
-
-
 def latest_version(packages):
     def get(package):
         try:
@@ -2781,6 +2777,9 @@ def latest_version(packages):
     return res
 
 
-# LV = latest_version(get_pkg_from_riot(venv))
-
-# print(LV)
+if __name__ == "__main__":
+    for package in LATEST_VERSIONS:
+        lv = latest_version([package])[package]
+        if lv != LATEST_VERSIONS[package]:
+            print(f"{package} was updated from [{LATEST_VERSIONS[package]}] to [{lv}]")
+    print("all packages scanned.")

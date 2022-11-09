@@ -19,6 +19,8 @@ jobs:
           name: Generate config
           command: |
             ./generate-circleci-config.py > generated_config.yml
+          environment:
+            DD_USE_LATEST_VERSIONS: false
       - continuation/continue:
           configuration_path: generated_config.yml # use newly generated config to continue
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from argparse import ArgumentParser
 import collections
 import sys
 
@@ -24,7 +25,7 @@ def get_jobs_from_riot(venv: Venv) -> dict:
     return result_dict
 
 
-def generate_main_workflow():
+def generate_main_workflow(latest: bool) -> None:
     defined_jobs = get_jobs_from_riot(venv)
     circleci_config["jobs"].update(defined_jobs)
 
@@ -34,6 +35,8 @@ def generate_main_workflow():
     DEFAULT_REQUIREMENTS = ["pre_check", "ccheck", "build_base_venvs"]
     CHECK_REQUIREMENTS = ["pre_check", "ccheck"]
     COVERAGE_REQUIREMENTS = [job for job in circleci_config["jobs"] if job not in NO_COVERAGE]
+
+    test_workflow = "latest_test" if latest else "test"
 
     # Define the requirements for each tests. Currently most tests are using the same
     # requirements and coverage reports are after all other tests.
@@ -46,16 +49,48 @@ def generate_main_workflow():
         for job in jobs:
             requirements[job] = reqs
 
-    # Populating the jobs of tests with the appropriate requirements
-    circleci_config["workflows"]["test"]["jobs"] = []
-    for name in circleci_config["jobs"]:
-        circleci_config["workflows"]["test"]["jobs"].append({name: {"requires": requirements[name]}})
+    if not latest:
+        # build the latest continuance
+        circleci_config["jobs"]["setup_latest"] = {
+            "executor": "continuation/default",
+            "steps": [
+                "checkout",
+                {
+                    "run": {
+                        "name": "Generate config for latest workflow",
+                        "command": "./generate-circleci-config.py --latest > generated_config_latest.yml",
+                        "environment": {"DD_USE_LATEST_VERSIONS": "true"},
+                    }
+                },
+                {"continuation/continue": {"configuration_path": "generated_config_latest.yml"}},
+            ],
+        }
+        requirements["setup_latest"] = ["coverage_report"]
 
-    # nightly tests are the same as tests
-    circleci_config["workflows"]["test_nightly"]["jobs"] = circleci_config["workflows"]["test"]["jobs"]
+    # Populating the jobs of tests with the appropriate requirements
+    circleci_config["workflows"][test_workflow] = {"jobs": []}
+    for name in circleci_config["jobs"]:
+        circleci_config["workflows"][test_workflow]["jobs"].append({name: {"requires": requirements[name]}})
+
+    if latest:
+        # patch tests to use latest version of packages
+        run_test = circleci_config["commands"]["run_test"]["steps"][3]["when"]["steps"][2]["run"]
+        run_test["command"] = run_test["command"][:-1] + " --latest\n"
+        run_test["environment"]["DD_USE_LATEST_VERSIONS"] = "true"
+    else:
+        # nightly tests are the same as tests but with specific triggers
+        circleci_config["workflows"]["test_nightly"] = {
+            "triggers": [{"schedule": {"cron": "0 0 * * *", "filters": {"branches": {"only": ["0.x", "1.x"]}}}}],
+        }
+        circleci_config["workflows"]["test_nightly"]["jobs"] = circleci_config["workflows"]["test"]["jobs"]
 
     yaml.dump(circleci_config, sys.stdout, default_flow_style=False)
 
 
 if __name__ == "__main__":
-    generate_main_workflow()
+    parser = ArgumentParser(
+        prog="generate-circleci-config", description="Automatically generate CircleCI configuration yaml file"
+    )
+    parser.add_argument("--latest", action="store_true")
+    args = parser.parse_args()
+    generate_main_workflow(args.latest)
