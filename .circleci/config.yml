@@ -21,8 +21,8 @@ jobs:
             ./generate-circleci-config.py > generated_config.yml
       - continuation/continue:
           configuration_path: generated_config.yml # use newly generated config to continue
-  environment:
-    DD_USE_LATEST_VERSIONS: false
+    environment:
+      DD_USE_LATEST_VERSIONS: false
 
 # our single workflow, that triggers the setup job defined above
 workflows:
