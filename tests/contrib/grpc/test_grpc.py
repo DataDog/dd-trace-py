@@ -204,6 +204,19 @@ class GrpcTestCase(TracerTestCase):
         self._check_server_span(spans[3], "grpc-server", "SayHello", "unary")
         self._check_client_span(spans[2], "grpc2", "SayHello", "unary")
 
+    def test_span_parent_is_maintained(self):
+        with self.tracer.trace('root') as span:
+            with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
+                stub = HelloStub(channel)
+                result = stub.SayHello(HelloRequest(name="test"))
+
+        spans = self.get_spans_with_sync_and_assert(size=3, should_retry=True)
+        root = spans[0]
+        client = spans[1]
+        server = spans[2]
+        assert root.span_id == client.parent_id
+        assert client.span_id == server.parent_id
+
     def test_active_span_doesnt_leak_with_future(self):
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
@@ -702,21 +715,21 @@ class _UnaryUnaryRpcHandler(grpc.GenericRpcHandler):
         return grpc.unary_unary_rpc_method_handler(self._handler)
 
 
-# @snapshot(ignores=["meta.grpc.port"])
-# def test_method_service(patch_grpc):
-#     def handler(request, context):
-#         return b""
+@snapshot(ignores=["meta.grpc.port"])
+def test_method_service(patch_grpc):
+    def handler(request, context):
+        return b""
 
-#     server = grpc.server(
-#         logging_pool.pool(1),
-#         options=(("grpc.so_reuseport", 0),),
-#     )
-#     port = server.add_insecure_port("[::]:0")
-#     channel = grpc.insecure_channel("[::]:{}".format(port))
-#     server.add_generic_rpc_handlers((_UnaryUnaryRpcHandler(handler),))
-#     try:
-#         server.start()
-#         channel.unary_unary("/Servicer/Handler")(b"request")
-#         channel.unary_unary("/pkg.Servicer/Handler")(b"request")
-#     finally:
-#         server.stop(None)
+    server = grpc.server(
+        logging_pool.pool(1),
+        options=(("grpc.so_reuseport", 0),),
+    )
+    port = server.add_insecure_port("[::]:0")
+    channel = grpc.insecure_channel("[::]:{}".format(port))
+    server.add_generic_rpc_handlers((_UnaryUnaryRpcHandler(handler),))
+    try:
+        server.start()
+        channel.unary_unary("/Servicer/Handler")(b"request")
+        channel.unary_unary("/pkg.Servicer/Handler")(b"request")
+    finally:
+        server.stop(None)

@@ -190,11 +190,13 @@ class _ClientInterceptor(
 
         # This used to use .trace instead, which caused spans to leak when using the .future interface. Instead we now just create the span and
         # activate it at points where we call the continuations
+        parent = tracer.current_span()
         span = tracer.start_span(
             "grpc",
             span_type=SpanTypes.GRPC,
             service=trace_utils.ext_service(self._pin, config.grpc),
             resource=client_call_details.method,
+            child_of=parent,
         )
         span.set_tag(SPAN_MEASURED_KEY)
 
