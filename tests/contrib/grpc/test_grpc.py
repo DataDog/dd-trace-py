@@ -136,14 +136,14 @@ class GrpcTestCase(TracerTestCase):
         unpatch()
         super(GrpcTestCase, self).tearDown()
 
-    def get_spans_with_sync_and_assert(self, size=0, retry=20, force_retry_loop=False):
+    def get_spans_with_sync_and_assert(self, size=0, retry=20, should_retry=(_GRPC_VERSION < (1, 14))):
         # testing instrumentation with grpcio < 1.14.0 presents a problem for
         # checking spans written to the dummy tracer
         # see https://github.com/grpc/grpc/issues/14621
 
         spans = super(GrpcTestCase, self).get_spans()
 
-        if _GRPC_VERSION >= (1, 14) and not force_retry_loop:
+        if not should_retry:
             assert len(spans) == size
             return spans
 
@@ -298,31 +298,15 @@ class GrpcTestCase(TracerTestCase):
         self._check_server_span(spans[3], "grpc-server", "SayHello", "unary")
         self._check_client_span(spans[2], "grpc2", "SayHello", "unary")
 
-    def test_active_span_doesnt_leak_with_future_if_you_sleep(self):
+    def test_active_span_doesnt_leak_with_future(self):
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             future = stub.SayHello.future(HelloRequest(name="test"))
-            # If we wait...
-            time.sleep(1)
-            # ...it magically doesn't leak because the done_callback is called
             assert self.tracer.current_span() is None
-
-        spans = self.get_spans_with_sync_and_assert(size=2, force_retry_loop=True)
-
-    def test_active_span_leaks_without_future_sleep(self):
-        with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
-            stub = HelloStub(channel)
-            assert self.tracer.current_span() is None
-            future = stub.SayHello.future(HelloRequest(name="test"))
-            # Assert that it leaked
-            assert self.tracer.current_span() is not None
-            # wait for it to finish
+            # wait so that we don't cancel the request
             future.result()
-            # and that it's cleared when the future is waited on
-            assert self.tracer.current_span() is None
 
-        spans = self.get_spans_with_sync_and_assert(size=2, force_retry_loop=True)
-
+        self.get_spans_with_sync_and_assert(size=2, should_retry=True)
 
     def test_analytics_default(self):
         with grpc.secure_channel("localhost:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
