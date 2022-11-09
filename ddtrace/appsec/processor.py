@@ -105,6 +105,7 @@ class _Addresses(object):
     SERVER_REQUEST_METHOD = "server.request.method"
     SERVER_REQUEST_PATH_PARAMS = "server.request.path_params"
     SERVER_REQUEST_COOKIES = "server.request.cookies"
+    SERVER_REQUEST_CLIENT_IP = "server.request.client_ip"
     SERVER_RESPONSE_STATUS = "server.response.status"
     SERVER_RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
 
@@ -268,6 +269,11 @@ class AppSecSpanProcessor(SpanProcessor):
             body = _context.get_item("http.request.body", span=span)
             if body is not None:
                 data[_Addresses.SERVER_REQUEST_BODY] = body
+
+        if self._is_needed(_Addresses.SERVER_REQUEST_CLIENT_IP):
+            remote_ip = _context.get_item("http.request.remote_ip", span=span)
+            if remote_ip:
+                data[_Addresses.SERVER_REQUEST_CLIENT_IP] = remote_ip
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         res, total_runtime, total_overall_runtime = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
