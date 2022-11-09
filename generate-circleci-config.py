@@ -39,7 +39,7 @@ def generate_main_workflow(latest: bool) -> None:
     test_workflow = "latest_test" if latest else "test"
 
     # fast tests to check everything's ok quickly
-    KEEP_TESTS = NO_COVERAGE | {"aredis", "pylons", "jinja2", "debugger"}
+    KEEP_TESTS = NO_COVERAGE | {"aredis", "pylons", "jinja2"}
 
     for j in list(circleci_config["jobs"]):
         if j not in KEEP_TESTS:
