@@ -92,6 +92,24 @@ _INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
+def _start_appsec_processor():  # type: () -> Optional[AppsecSpanProcessor]
+    try:
+        from .appsec.processor import AppSecSpanProcessor
+        return AppSecSpanProcessor()
+    except Exception as e:
+        # DDAS-001-01
+        log.error(
+            "[DDAS-001-01] "
+            "AppSec could not start because of an unexpected error. No security activities will "
+            "be collected. "
+            "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: "
+            "\n%s",
+            repr(e),
+        )
+        if config._raise:
+            raise
+
+
 def _default_span_processors_factory(
     trace_filters,  # type: List[TraceFilter]
     trace_writer,  # type: TraceWriter
@@ -114,21 +132,7 @@ def _default_span_processors_factory(
     span_processors += [TopLevelSpanProcessor()]
 
     if appsec_enabled:
-        try:
-            from .appsec.processor import AppSecSpanProcessor
-
-            appsec_span_processor = AppSecSpanProcessor()
-            span_processors.append(appsec_span_processor)
-        except Exception as e:
-            # DDAS-001-01
-            log.error(
-                "[DDAS-001-01] "
-                "AppSec could not start because of an unexpected error. No security activities will be collected. "
-                "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
-                repr(e),
-            )
-            if config._raise:
-                raise
+        span_processors.append(_start_appsec_processor())
 
     if iast_enabled:
         from .appsec.iast.processor import AppSecIastSpanProcessor

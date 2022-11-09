@@ -12,7 +12,7 @@ from inspect import isfunction
 import os
 import sys
 
-from ddtrace import Pin
+from ddtrace import Pin, tracer
 from ddtrace import config
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
@@ -330,12 +330,33 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         span._metrics[SPAN_MEASURED_KEY] = 1
 
         response = None
+        headers_case_sensitive = django.VERSION < (2, 2)
+
+        request_headers = utils._get_request_headers(request)
+
+        # XXX factorize to ddwaf_check_blocked
+        if config._appsec_enabled:
+            peer_ip = request.META.get("REMOTE_ADDR")
+            print('XXX peer_ip in patch: %s' % peer_ip)
+            ip = trace_utils._get_request_header_client_ip(span, request_headers, peer_ip, headers_case_sensitive)
+            print('XXX ip in patch: %s' % peer_ip)
+            if ip:
+                span.set_tag(http.CLIENT_IP, ip)
+
+                data = {}
+                processor = tracer._start_appsec_processor()
+                if processor._is_needed(tracer._Addresses.SERVER_REQUEST_CLIENT_IP):
+                    data[tracer._Addresses.SERVER_REQUEST_CLIENT_IP] = ip
+                    res, total_runtime, total_overall_runtime = processor._run_ddwaf(data)
+                    # XXX check for blocking here
+                    print('XXX res: %s' % res)
+
         try:
             response = func(*args, **kwargs)
             return response
         finally:
             # DEV: Always set these tags, this is where `span.resource` is set
-            utils._after_request_tags(pin, span, request, response)
+            utils._after_request_tags(pin, span, request, response, request_headers, ip, headers_case_sensitive)
 
 
 @trace_utils.with_traced_module

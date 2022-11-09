@@ -216,6 +216,9 @@ class AppSecSpanProcessor(SpanProcessor):
     def _is_needed(self, address):
         # type: (str) -> bool
         return address in self._addresses_to_keep
+    
+    def _run_ddwaf(self, data):
+        return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
 
     def on_span_finish(self, span):
         # type: (Span) -> None
@@ -276,7 +279,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 data[_Addresses.SERVER_REQUEST_CLIENT_IP] = remote_ip
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        res, total_runtime, total_overall_runtime = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        res, total_runtime, total_overall_runtime = self._run_ddwaf(data)
 
         try:
             info = self._ddwaf.info
@@ -293,6 +296,8 @@ class AppSecSpanProcessor(SpanProcessor):
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
+
+        print('XXX processor res: %s' % res)
         if res is not None:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
@@ -311,6 +316,7 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (res,))
 
             remote_ip = _context.get_item("http.request.remote_ip", span=span)
+            print('XXX processor::remote_ip: %s' % remote_ip)
             if remote_ip:
                 # Note that if the ip collection is disabled by the env var
                 # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
