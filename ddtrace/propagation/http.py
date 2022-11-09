@@ -555,7 +555,7 @@ class HTTPPropagator(object):
             for prop_style in PROP_STYLES:
                 if prop_style in config._propagation_style_extract:
                     propagator = PROP_STYLES[prop_style]
-                    context = propagator._extract(normalized_headers)
+                    context = propagator._extract(normalized_headers)  # type: ignore
                     if context is not None:
                         return context
 
