@@ -38,6 +38,14 @@ def generate_main_workflow(latest: bool) -> None:
 
     test_workflow = "latest_test" if latest else "test"
 
+    # fast tests to check everything's ok quickly
+    KEEP_TESTS = NO_COVERAGE | {"aredis", "pylons", "jinja2", "debugger"}
+
+    for j in list(circleci_config["jobs"]):
+        if j not in KEEP_TESTS:
+            del circleci_config["jobs"][j]
+    # end fast tests
+
     # Define the requirements for each tests. Currently most tests are using the same
     # requirements and coverage reports are after all other tests.
     requirements = collections.defaultdict(lambda: DEFAULT_REQUIREMENTS)
@@ -75,7 +83,6 @@ def generate_main_workflow(latest: bool) -> None:
     if latest:
         # patch tests to use latest version of packages
         run_test = circleci_config["commands"]["run_test"]["steps"][3]["when"]["steps"][2]["run"]
-        run_test["command"] = run_test["command"][:-1] + " --latest\n"
         run_test["environment"]["DD_USE_LATEST_VERSIONS"] = "true"
     else:
         # nightly tests are the same as tests but with specific triggers
