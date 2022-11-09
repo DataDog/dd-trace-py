@@ -104,8 +104,8 @@ def generate_main_workflow() -> None:
         circleci_config["workflows"][test_latest]["jobs"].append({lname: {"requires": latest_requirements(name)}})
         circleci_config["jobs"][lname] = deepcopy(circleci_config["jobs"][name])
         circleci_config["jobs"][lname]["environment"][-1]["DD_USE_LATEST_VERSIONS"] = "true"
-    circleci_config["jobs"]["wait_for_approval"] = {"type": "approval"}
-    circleci_config["workflows"][test_latest]["jobs"].append("wait_for_approval")
+    circleci_config["jobs"]["wait_for_approval"] = {"steps": []}
+    circleci_config["workflows"][test_latest]["jobs"].append({"wait_for_approval": {"type": "approval"}})
     yaml.dump(circleci_config, sys.stdout, default_flow_style=False)
 
 
