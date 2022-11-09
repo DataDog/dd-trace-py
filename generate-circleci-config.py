@@ -64,6 +64,8 @@ def generate_main_workflow(latest: bool) -> None:
             "executor": "continuation/default",
             "steps": [
                 "checkout",
+                {"run": "sudo apt-get install python3-pip"},
+                {"run": "python3 -m pip install pyYAML riot"},
                 {
                     "run": {
                         "name": "Generate config for latest workflow",
@@ -76,16 +78,22 @@ def generate_main_workflow(latest: bool) -> None:
         }
         requirements["setup_latest"] = ["coverage_report"]
 
-    # Populating the jobs of tests with the appropriate requirements
+    # Populating the jobs of tests with the appropriate requirements and environment
     circleci_config["workflows"][test_workflow] = {"jobs": []}
     for name in circleci_config["jobs"]:
         circleci_config["workflows"][test_workflow]["jobs"].append({name: {"requires": requirements[name]}})
+        if "build" not in circleci_config["jobs"][name]:
+            circleci_config["jobs"][name]["build"] = {}
+        if "environment" not in circleci_config["jobs"][name]["build"]:
+            circleci_config["jobs"][name]["build"]["environment"] = {}
+        circleci_config["jobs"][name]["build"]["environment"]["DD_USE_LATEST_VERSIONS"] = "true" if latest else "false"
 
-    if latest:
-        # patch tests to use latest version of packages
-        run_test = circleci_config["commands"]["run_test"]["steps"][3]["when"]["steps"][2]["run"]
-        run_test["environment"]["DD_USE_LATEST_VERSIONS"] = "true"
-    else:
+    # if latest:
+    #     # patch tests to use latest version of packages
+    #     run_test = circleci_config["commands"]["run_test"]["steps"][3]["when"]["steps"][2]["run"]
+    #     run_test["environment"]["DD_USE_LATEST_VERSIONS"] = "true"
+    # else:
+    if not latest:
         # nightly tests are the same as tests but with specific triggers
         circleci_config["workflows"]["test_nightly"] = {
             "triggers": [{"schedule": {"cron": "0 0 * * *", "filters": {"branches": {"only": ["0.x", "1.x"]}}}}],
