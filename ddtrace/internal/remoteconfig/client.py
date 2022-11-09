@@ -18,6 +18,7 @@ import cattr
 import six
 
 import ddtrace
+from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.utils.time import parse_isoformat
@@ -191,7 +192,12 @@ class RemoteConfigClient(object):
         self._client_tracer = dict(
             runtime_id=runtime.get_runtime_id(),
             language="python",
-            tracer_version=ddtrace.__version__,
+            # The library uses a PEP 440-compliant versioning scheme, but the
+            # RCM spec requires that we use a SemVer-compliant version. We only
+            # expect that the first occurrence of "rc" in the version string to
+            # break the SemVer format, so we replace it with "-rc" for
+            # simplicity.
+            tracer_version=ddtrace.__version__.replace("rc", "-rc", 1),
             service=ddtrace.config.service,
             env=ddtrace.config.env,
             app_version=ddtrace.config.version,
@@ -254,6 +260,7 @@ class RemoteConfigClient(object):
                 is_tracer=True,
                 client_tracer=self._client_tracer,
                 state=state,
+                capabilities=_appsec_rc_capabilities(),
             ),
             cached_target_files=[],  # TODO
         )

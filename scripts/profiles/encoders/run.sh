@@ -20,8 +20,8 @@ function profile {
 
     PYTHONPATH="." python scripts/profiles/encoders/run.py ${ver} &
     sleep 2
-    sudo ${PREFIX}/austinp -si ${AUSTIN_INTERVAL} -x ${AUSTIN_EXPOSURE} -p $! > ${PREFIX}/artifacts/${ver/./_}.austin
-    python ${PREFIX}/austin/utils/resolve.py ${PREFIX}/artifacts/${ver/./_}.austin > ${PREFIX}/artifacts/${ver/./_}.resolved.austin || true
+    sudo ${PREFIX}/austinp -bsi ${AUSTIN_INTERVAL} -x ${AUSTIN_EXPOSURE} -o ${PREFIX}/artifacts/${ver/./_}.mojo -p $!
+    austinp-resolve ${PREFIX}/artifacts/${ver/./_}.mojo ${PREFIX}/artifacts/${ver/./_}.resolved.mojo || true
 }
 
 source ${PREFIX}/bin/activate

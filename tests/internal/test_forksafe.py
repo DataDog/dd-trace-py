@@ -288,58 +288,61 @@ def test_double_fork():
     assert exit_code == 42
 
 
-@pytest.mark.subprocess(
-    out="" if (3,) < sys.version_info < (3, 7) else ("CTCTCT" if sys.platform == "darwin" else "CCCTTT"),
-    err=None,
-    env=dict(_DD_TRACE_GEVENT_HUB_PATCHED="true"),
-)
-def test_gevent_reinit_patch():
-    import os
-    import sys
+# FIXME: subprocess marks do not respect pytest.mark.skips
+if sys.version_info < (3, 11, 0):
 
-    from ddtrace.internal import forksafe
-    from ddtrace.internal.periodic import PeriodicService
+    @pytest.mark.subprocess(
+        out=("CTCTCT" if sys.platform == "darwin" or (3,) < sys.version_info < (3, 7) else "CCCTTT"),
+        err=None,
+        env=dict(_DD_TRACE_GEVENT_HUB_PATCHED="true"),
+    )
+    def test_gevent_reinit_patch():
+        import os
+        import sys
 
-    class TestService(PeriodicService):
-        def __init__(self):
-            super(TestService, self).__init__(interval=1.0)
+        from ddtrace.internal import forksafe
+        from ddtrace.internal.periodic import PeriodicService
 
-        def periodic(self):
-            sys.stdout.write("T")
+        class TestService(PeriodicService):
+            def __init__(self):
+                super(TestService, self).__init__(interval=1.0)
 
-    service = TestService()
-    service.start()
+            def periodic(self):
+                sys.stdout.write("T")
 
-    def restart_service():
-        global service
-
-        service.stop()
         service = TestService()
         service.start()
 
-    forksafe.register(restart_service)
+        def restart_service():
+            global service
 
-    import gevent  # noqa
+            service.stop()
+            service = TestService()
+            service.start()
 
-    def run_child():
-        global service
+        forksafe.register(restart_service)
 
-        # We mimic what gunicorn does in child processes
-        gevent.monkey.patch_all()
-        gevent.hub.reinit()
+        import gevent  # noqa
 
-        sys.stdout.write("C")
+        def run_child():
+            global service
 
-        gevent.sleep(1.5)
+            # We mimic what gunicorn does in child processes
+            gevent.monkey.patch_all()
+            gevent.hub.reinit()
+
+            sys.stdout.write("C")
+
+            gevent.sleep(1.5)
+
+            service.stop()
+
+        def fork_workers(num):
+            for _ in range(num):
+                if os.fork() == 0:
+                    run_child()
+                    sys.exit(0)
+
+        fork_workers(3)
 
         service.stop()
-
-    def fork_workers(num):
-        for _ in range(num):
-            if os.fork() == 0:
-                run_child()
-                sys.exit(0)
-
-    fork_workers(3)
-
-    service.stop()

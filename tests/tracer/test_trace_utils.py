@@ -543,20 +543,20 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
             "192.168.1.14",
         ),
         ("", {"x-forwarded-for": "foobar"}, ["runtime-id"], None),
-        ("via", {"x-forwarded-for": "4.4.4.4"}, ["runtime-id"], None),
+        ("via", {"x-forwarded-for": "4.4.8.8"}, ["runtime-id"], None),
         ("via", {"via": "8.8.8.8"}, ["runtime-id", "network.client.ip", http.CLIENT_IP], "8.8.8.8"),
         (
             "via",
-            {"x-forwarded-for": "4.4.4.4", "via": "8.8.8.8"},
+            {"x-forwarded-for": "4.4.4.4", "via": "8.8.4.4"},
             ["runtime-id", "network.client.ip", http.CLIENT_IP],
-            "8.8.8.8",
+            "8.8.4.4",
         ),
     ],
 )
 def test_set_http_meta_headers_ip(
     mock_store_headers, header_env_var, headers_dict, expected_keys, expected, span, int_config
 ):
-    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+    with override_global_config(dict(_appsec_enabled=True)):
         with override_env(dict(DD_TRACE_CLIENT_IP_HEADER=header_env_var)):
             int_config.myint.http._header_tags = {"enabled": True}
             assert int_config.myint.is_header_tracing_configured is True
