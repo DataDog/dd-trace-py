@@ -108,7 +108,9 @@ circleci_config = {
                 "snapshot": {"type": "boolean", "default": False},
                 "docker_services": {"type": "string", "default": ""},
                 "store_coverage": {"type": "boolean", "default": True},
+                "use_latest": {"type": "string", "default": "false"},
             },
+            "environment": {"DD_USE_LATEST_VERSIONS": "<< parameters.use_latest >>"},
             "steps": [
                 {"attach_workspace": {"at": "."}},
                 "checkout",
