@@ -1,6 +1,5 @@
 circleci_config = {
     "version": "2.1",
-    "setup": True,
     "default_resource_class": "medium",
     "cimg_base_image": "cimg/base:stable",
     "python310_image": "cimg/python:3.10",

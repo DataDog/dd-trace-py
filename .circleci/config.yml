@@ -23,9 +23,24 @@ jobs:
           configuration_path: generated_config.yml # use newly generated config to continue
     environment:
       DD_USE_LATEST_VERSIONS: false
+  setup_latest:
+    executor: continuation/default
+    steps:
+      - checkout # checkout code
+      - run: sudo apt-get install python3-pip
+      - run: python3 -m pip install pyYAML riot
+      - run: # run a command
+          name: Generate config
+          command: |
+            ./generate-circleci-config.py --latest > generated_config.yml
+      - continuation/continue:
+          configuration_path: generated_config.yml # use newly generated config to continue
+    environment:
+      DD_USE_LATEST_VERSIONS: true
 
 # our single workflow, that triggers the setup job defined above
 workflows:
   setup:
     jobs:
       - setup
+      - setup_latest

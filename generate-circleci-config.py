@@ -58,25 +58,25 @@ def generate_main_workflow(latest: bool) -> None:
         for job in jobs:
             requirements[job] = reqs
 
-    if not latest:
-        # build the latest continuance
-        circleci_config["jobs"]["setup_latest"] = {
-            "executor": "continuation/default",
-            "steps": [
-                "checkout",
-                {"run": "sudo apt-get install python3-pip"},
-                {"run": "python3 -m pip install pyYAML riot"},
-                {
-                    "run": {
-                        "name": "Generate config for latest workflow",
-                        "command": "./generate-circleci-config.py --latest > generated_config_latest.yml",
-                        "environment": {"DD_USE_LATEST_VERSIONS": "true"},
-                    }
-                },
-                {"continuation/continue": {"configuration_path": "generated_config_latest.yml"}},
-            ],
-        }
-        requirements["setup_latest"] = ["coverage_report"]
+    # if not latest:
+    #     # build the latest continuance
+    #     circleci_config["jobs"]["setup_latest"] = {
+    #         "executor": "continuation/default",
+    #         "steps": [
+    #             "checkout",
+    #             {"run": "sudo apt-get install python3-pip"},
+    #             {"run": "python3 -m pip install pyYAML riot"},
+    #             {
+    #                 "run": {
+    #                     "name": "Generate config for latest workflow",
+    #                     "command": "./generate-circleci-config.py --latest > generated_config_latest.yml",
+    #                     "environment": {"DD_USE_LATEST_VERSIONS": "true"},
+    #                 }
+    #             },
+    #             {"continuation/continue": {"configuration_path": "generated_config_latest.yml"}},
+    #         ],
+    #     }
+    #     requirements["setup_latest"] = ["coverage_report"]
 
     # Populating the jobs of tests with the appropriate requirements and environment
     circleci_config["workflows"][test_workflow] = {"jobs": []}
@@ -85,7 +85,8 @@ def generate_main_workflow(latest: bool) -> None:
         if "environment" not in circleci_config["jobs"][name]:
             circleci_config["jobs"][name]["environment"] = []
         circleci_config["jobs"][name]["environment"].append({"DD_USE_LATEST_VERSIONS": "true" if latest else "false"})
-
+        if latest and name == "pre_check":
+            circleci_config["workflows"][test_workflow]["jobs"][-1][name]["type"] = "approval"
     # if latest:
     #     # patch tests to use latest version of packages
     #     run_test = circleci_config["commands"]["run_test"]["steps"][3]["when"]["steps"][2]["run"]
