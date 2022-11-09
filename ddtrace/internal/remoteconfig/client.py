@@ -322,7 +322,8 @@ class RemoteConfigClient(object):
         if last_targets_version is None or targets is None:
             log.debug("No targets in configuration payload")
             for callback in self._products.values():
-                callback(None, None)
+                if callback:
+                    callback(None, None)
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
