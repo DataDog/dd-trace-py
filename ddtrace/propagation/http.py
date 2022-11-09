@@ -483,6 +483,13 @@ class _B3SingleHeader:
         return None
 
 
+PROP_STYLES = {
+    PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
+    PROPAGATION_STYLE_B3: _B3MultiHeader,
+    PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
+}
+
+
 class HTTPPropagator(object):
     """A HTTP Propagator using HTTP headers as carrier."""
 
@@ -545,14 +552,9 @@ class HTTPPropagator(object):
             normalized_headers = {name.lower(): v for name, v in headers.items()}
 
             # loop through the extract propagation styles specified in order
-            prop_styles_to_propagator = {
-                PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
-                PROPAGATION_STYLE_B3: _B3MultiHeader,
-                PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
-            }
-            for prop_style in PROPAGATION_STYLE_DATADOG:
+            for prop_style in PROP_STYLES:
                 if prop_style in config._propagation_style_extract:
-                    propagator = prop_styles_to_propagator[prop_style]
+                    propagator = PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)
                     if context is not None:
                         return context
