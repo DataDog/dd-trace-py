@@ -9,6 +9,8 @@ sections:
   - [api, API Changes]
   - [security, Security Issues]
   - [fixes, Bug Fixes]
+  - [other, Other Changes]
+  - [deprecations, Deprecation Notes]
 
 # The default is: (?P<pre_release>\.v?\d+(?:[ab]|rc)+\d*)$
 # DEV: We have done this to fix how reno collapses pre-releases
