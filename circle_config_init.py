@@ -15,7 +15,10 @@ circleci_config = {
     "httpbin_image": "kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb",
     "vertica_image": "sumitchawla/vertica:latest",
     "rabbitmq_image": "rabbitmq:3.7-alpine",
-    "orbs": {"win": "circleci/windows@5.0"},
+    "orbs": {
+        "win": "circleci/windows@5.0",
+        "continuation": "circleci/continuation@0.1.2",
+    },
     "commands": {
         "save_coverage": {
             "description": "Save coverage.py results to workspace",
