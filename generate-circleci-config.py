@@ -95,11 +95,21 @@ def generate_main_workflow() -> None:
 
     test_latest = latest_name(test_workflow)
     circleci_config["workflows"][test_latest] = {"jobs": []}
+
+    def copy_job(job):
+        res = deepcopy(job)
+        for step in res["steps"]:
+            if not isinstance(step, dict):
+                continue
+            if "run_test" in step:
+                step["run_test"]["use_latest"] = "true"
+        return res
+
     #
     for name in list(circleci_config["jobs"]):
         lname = latest_name(name)
         circleci_config["workflows"][test_latest]["jobs"].append({lname: {"requires": latest_requirements(name)}})
-        circleci_config["jobs"][lname] = deepcopy(circleci_config["jobs"][name])
+        circleci_config["jobs"][lname] = copy_job(circleci_config["jobs"][name])
         circleci_config["jobs"][lname]["environment"][-1]["DD_USE_LATEST_VERSIONS"] = "true"
     circleci_config["jobs"]["wait_for_approval"] = {
         "executor": "python310",

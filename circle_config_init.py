@@ -110,7 +110,6 @@ circleci_config = {
                 "store_coverage": {"type": "boolean", "default": True},
                 "use_latest": {"type": "string", "default": "false"},
             },
-            "environment": {"DD_USE_LATEST_VERSIONS": "<< parameters.use_latest >>"},
             "steps": [
                 {"attach_workspace": {"at": "."}},
                 "checkout",
@@ -130,6 +129,7 @@ circleci_config = {
                                 "run": {
                                     "environment": {
                                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                                        "DD_USE_LATEST_VERSIONS": "<< parameters.use_latest >>",
                                     },
                                     "command": (
                                         "mv .riot .ddriot\nriot list -i '<<parameters.pattern>>' | circleci tests split"
@@ -152,6 +152,9 @@ circleci_config = {
                                         "setup_tox",
                                         {
                                             "run": {
+                                                "environment": {
+                                                    "DD_USE_LATEST_VERSIONS": "<< parameters.use_latest >>"
+                                                },
                                                 "name": "Waiting for << parameters.wait >>",
                                                 "command": "tox -e 'wait' << parameters.wait >>",
                                             }
@@ -162,10 +165,11 @@ circleci_config = {
                             "setup_riot",
                             {
                                 "run": {
+                                    "environment": {"DD_USE_LATEST_VERSIONS": "<< parameters.use_latest >>"},
                                     "command": (
                                         "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY"
                                         " riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
-                                    )
+                                    ),
                                 }
                             },
                         ],
