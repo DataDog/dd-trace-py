@@ -142,27 +142,16 @@ class Context(object):
             # grab the original traceparent trace id, not the converted value
             trace_id = tp.split("-")[1]
         else:
-<<<<<<< HEAD
             trace_id = self.trace_id
 
         sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
         return "00-{:032x}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
-=======
-            trace_id = "{:x}".format(self.trace_id)
-
-        sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
-        return "00-{}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
->>>>>>> 3be20951c (initial implementation)
 
     @property
     def _tracestate(self):
         # type: () -> str
         # create the dd list member
-        # DEV TODO: Need to implement logic to make sure we add on any other t. values
-<<<<<<< HEAD
-=======
-        # also need to add replacing invalid characters with _
->>>>>>> 3be20951c (initial implementation)
+        # DEV TODO: replace comma, colon, semi-colon with _
         dd = ""
         if self.sampling_priority:
             dd += "s:{};".format(self.sampling_priority)
@@ -173,6 +162,12 @@ class Context(object):
         if self._meta.get(USER_ID_KEY):
             dd += "t.usr.id:{};".format(self._meta.get(USER_ID_KEY))
 
+        for k, v in self._meta():
+            if k.starts_with("_dd.p"):
+                next_tag = "{}:{};".format(re.sub("_dd.p.", "t.", k), v)
+                if not (len(dd) + len(next_tag)) > 256:
+                    dd += next_tag
+
         # If there's a prexisting tracestate we need to update it
         ts = self._meta.get(_TRACESTATE_KEY)
         if ts and dd:
@@ -182,6 +177,8 @@ class Context(object):
             ts = "dd={},{}".format(dd, ts_w_out_dd)
         elif dd:
             ts = "dd={},".format(dd)
+        else:
+            ts = ""
         return ts
 
     @property

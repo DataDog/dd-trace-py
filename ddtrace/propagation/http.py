@@ -6,6 +6,7 @@ from typing import Text
 from typing import cast
 
 from ddtrace import config
+from ddtrace.constants import _TRACESTATE_KEY
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -596,6 +597,8 @@ class _TraceContext:
                 meta = {
                     re.sub("t.", "_dd.p.", k): v for (k, v) in dd if (_TraceContext._is_valid_datadog_trace_tag_key(k))
                 }
+                # store ts so we keep other vendor data
+                meta[_TRACESTATE_KEY] = ts
 
                 return Context(
                     trace_id=trace_id,
