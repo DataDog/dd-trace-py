@@ -44,6 +44,7 @@ def generate_main_workflow(latest: bool) -> None:
     for j in list(circleci_config["jobs"]):
         if j not in KEEP_TESTS:
             del circleci_config["jobs"][j]
+    COVERAGE_REQUIREMENTS = [job for job in circleci_config["jobs"] if job not in NO_COVERAGE]
     # end fast tests
 
     # Define the requirements for each tests. Currently most tests are using the same
