@@ -90,12 +90,14 @@ def origin(module):
     # type: (ModuleType) -> str
     """Get the origin source file of the module."""
     try:
-        orig = abspath(module.__file__)  # type: ignore[type-var]
+        # DEV: Use object.__getattribute__ to avoid potential side-effects.
+        orig = abspath(object.__getattribute__(module, "__file__"))
     except (AttributeError, TypeError):
         # Module is probably only partially initialised, so we look at its
         # spec instead
         try:
-            orig = abspath(module.__spec__.origin)  # type: ignore
+            # DEV: Use object.__getattribute__ to avoid potential side-effects.
+            orig = abspath(object.__getattribute__(module, "__spec__").origin)
         except (AttributeError, ValueError, TypeError):
             orig = None
 

@@ -1,4 +1,5 @@
 ---
 fixes:
   - |
-    wsgi: when tracing more than one wsgi app within the same process ensure wsgi spans have the correct parenting.
+    wsgi: when using more than one nested wsgi traced middleware in the same app 
+    ensure wsgi spans have the correct parenting.
