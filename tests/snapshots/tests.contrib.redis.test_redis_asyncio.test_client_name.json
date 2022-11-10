@@ -16,7 +16,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 62577
+      "system.pid": 62577
     },
     "duration": 2439000,
     "start": 1667243591997185000

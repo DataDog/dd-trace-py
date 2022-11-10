@@ -22,7 +22,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
-      "process_id": 79436,
+      "system.pid": 79436,
       "sql.rows": 1
     },
     "duration": 1473000,

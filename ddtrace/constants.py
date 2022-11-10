@@ -50,7 +50,7 @@ ERROR_MSG = "error.msg"  # a string representing the error message
 ERROR_TYPE = "error.type"  # a string representing the type of the error
 ERROR_STACK = "error.stack"  # a human readable version of the stack.
 
-PID = "process_id"
+PID = "system.pid"
 COMPONENT = "component"
 SPAN_KIND = "span.kind"
 

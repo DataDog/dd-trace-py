@@ -21,7 +21,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 80299
+      "system.pid": 80299
     },
     "duration": 1658000,
     "start": 1667319043682216000
@@ -48,7 +48,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 80299
+         "system.pid": 80299
        },
        "duration": 7436000,
        "start": 1667319043745746000
@@ -91,7 +91,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 80299
+      "system.pid": 80299
     },
     "duration": 1538000,
     "start": 1667319043680558000
@@ -118,7 +118,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 80299
+         "system.pid": 80299
        },
        "duration": 7801000,
        "start": 1667319043722521000
@@ -161,7 +161,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 80299
+      "system.pid": 80299
     },
     "duration": 3714000,
     "start": 1667319043676705000
@@ -188,7 +188,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 80299
+         "system.pid": 80299
        },
        "duration": 7120000,
        "start": 1667319043696640000

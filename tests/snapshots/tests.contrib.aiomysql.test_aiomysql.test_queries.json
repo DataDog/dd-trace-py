@@ -26,7 +26,7 @@
       "db.rowcount": 1,
       "db.rownumber": 0,
       "out.port": 3306,
-      "process_id": 40825
+      "system.pid": 40825
     },
     "duration": 6833000,
     "start": 1667240729105451000
@@ -63,7 +63,7 @@
       "db.rowcount": 0,
       "db.rownumber": 0,
       "out.port": 3306,
-      "process_id": 40825
+      "system.pid": 40825
     },
     "duration": 8135000,
     "start": 1667240729138420000

@@ -21,7 +21,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 80299
+      "system.pid": 80299
     },
     "duration": 2900000,
     "start": 1667319043831840000
@@ -48,7 +48,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "process_id": 80299
+         "system.pid": 80299
        },
        "duration": 6881000,
        "start": 1667319043847449000

@@ -22,7 +22,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "process_id": 46342
+      "system.pid": 46342
     },
     "duration": 4224000,
     "start": 1667241403637470000
@@ -52,7 +52,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "process_id": 46342
+      "system.pid": 46342
     },
     "duration": 3862000,
     "start": 1667241403642276000
@@ -82,7 +82,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "process_id": 46342
+      "system.pid": 46342
     },
     "duration": 1094000,
     "start": 1667241403647682000
@@ -112,7 +112,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "process_id": 46342
+      "system.pid": 46342
     },
     "duration": 800000,
     "start": 1667241403648865000
@@ -142,7 +142,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "process_id": 46342
+      "system.pid": 46342
     },
     "duration": 1261000,
     "start": 1667241403650424000
@@ -172,7 +172,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "process_id": 46342
+      "system.pid": 46342
     },
     "duration": 1023000,
     "start": 1667241403651786000

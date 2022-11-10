@@ -21,7 +21,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 3306,
-      "process_id": 4473
+      "system.pid": 4473
     },
     "duration": 1244000,
     "start": 1667584311708587000

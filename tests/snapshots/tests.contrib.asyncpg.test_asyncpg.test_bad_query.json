@@ -22,7 +22,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "process_id": 46342
+      "system.pid": 46342
     },
     "duration": 3696000,
     "start": 1667241403608572000
@@ -56,7 +56,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "process_id": 46342
+      "system.pid": 46342
     },
     "duration": 1353000,
     "start": 1667241403612860000
