@@ -374,7 +374,87 @@ jobs:
     <<: *contrib_job
     steps:
       - run_tox_scenario:
+<<<<<<< HEAD
           pattern: '^py..-opentracer'
+=======
+          pattern: '^py.\+-opentracer'
+
+  # Building gevent (for which we never want wheels because they crash)
+  # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
+  # which is not installed.
+  # profile-windows-27:
+  #   executor:
+  #     name: win/default
+  #     shell: bash.exe
+  #   steps:
+  #     - run: choco install python2
+  #     - run_tox_scenario:
+  #         store_coverage: false
+  #         pattern: '^py27-profile'
+
+  profile-windows-35:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install -y python --version=3.5.4 --side-by-side
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py35-profile'
+
+  profile-windows-36:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install -y python --version=3.6.8 --side-by-side
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py36-profile'
+
+  # For whatever reason, choco does not install Python 3.7 correctly on Windows
+  # profile-windows-37:
+  #   executor:
+  #     name: win/default
+  #     shell: bash.exe
+  #   steps:
+  #     - run: choco install python --version=3.7.9
+  #     - run_tox_scenario:
+  #         store_coverage: false
+  #         pattern: '^py37-profile'
+
+  # This requires the machine to reboot :(
+  # profile-windows-38:
+  #   executor:
+  #     name: win/default
+  #     shell: bash.exe
+  #   steps:
+  #     - run: choco install -y python --version=3.8.10 --side-by-side
+  #     - run_tox_scenario:
+  #         store_coverage: false
+  #         pattern: '^py38-profile'
+
+  # This requires the machine to reboot :(
+  # profile-windows-39:
+  #   executor:
+  #     name: win/default
+  #     shell: bash.exe
+  #   steps:
+  #     - run: choco install -y python --version=3.9.12 --side-by-side
+  #     - run_tox_scenario:
+  #         store_coverage: false
+  #         pattern: '^py39-profile'
+
+  profile-windows-310:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      # circleci/windows@5.0 orb includes python 3.10.6
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py310-profile'
+>>>>>>> e3fff7ed (ci(profiling): disable Python 3.8 and 3.9 on Windows (#4516))
 
   profile:
     <<: *contrib_job
@@ -1060,6 +1140,16 @@ requires_tests: &requires_tests
     - urllib3
     - vertica
     - wsgi
+<<<<<<< HEAD
+=======
+    # - profile-windows-27
+    - profile-windows-35
+    - profile-windows-36
+    # - profile-windows-37
+    # - profile-windows-38
+    # - profile-windows-39
+    - profile-windows-310
+>>>>>>> e3fff7ed (ci(profiling): disable Python 3.8 and 3.9 on Windows (#4516))
 
 workflows:
   version: 2
@@ -1148,7 +1238,17 @@ workflows:
       - urllib3: *requires_base_venvs
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
+<<<<<<< HEAD
 
+=======
+      # - profile-windows-27: *requires_pre_check
+      - profile-windows-35: *requires_pre_check
+      - profile-windows-36: *requires_pre_check
+      # - profile-windows-37: *requires_pre_check
+      # - profile-windows-38: *requires_pre_check
+      # - profile-windows-39: *requires_pre_check
+      - profile-windows-310: *requires_pre_check
+>>>>>>> e3fff7ed (ci(profiling): disable Python 3.8 and 3.9 on Windows (#4516))
       # Final reports
       - coverage_report: *requires_tests
 
