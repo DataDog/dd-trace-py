@@ -1,9 +1,5 @@
 """
 Class based views used for Django tests.
-
-CAVEAT: Add `from import_export import fields` to test AttributeError exception in `ddtrace/vendor/wrapt/wrappers.py`
-when try to import import_export package.
-See issue: https://github.com/DataDog/dd-trace-py/pull/4201#issuecomment-1308604382
 """
 
 from functools import partial
@@ -19,8 +15,6 @@ from django.utils.safestring import mark_safe
 from django.views.generic import ListView
 from django.views.generic import TemplateView
 from django.views.generic import View
-from import_export import fields  # noqa
-from import_export import resources  # noqa
 
 from ddtrace import tracer
 from ddtrace.contrib.trace_utils import set_user
