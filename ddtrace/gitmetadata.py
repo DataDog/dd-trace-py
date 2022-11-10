@@ -36,7 +36,10 @@ def add_project_urls(setup):
 
 def __find_package():
     frm = inspect.stack()[-1]
-    path = inspect.getmodule(frm[0]).__file__
+    module = inspect.getmodule(frm[0])
+    if module is None:
+        return None
+    path = module.__file__
     package = ""
     while len(path) > 1:
         path, end = os.path.split(path)
@@ -47,8 +50,10 @@ def __find_package():
 
 
 def get_tags(package=None):
-    if package == None:
+    if package is None:
         package = __find_package()
+    if package is None:
+        return {}
     try:
         pkg = pkg_resources.require(package)[0]
         metadata_lines = []
