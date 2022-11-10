@@ -91,6 +91,19 @@ sqlcommenter
 
 Source: https://github.com/open-telemetry/opentelemetry-sqlcommenter/blob/2f8841add68358069ebf1c0ee560ab3e98a59aa9/python/sqlcommenter-python/opentelemetry/sqlcommenter/__init__.py
 License: Apache License 2.0
+
+
+forbiddenfruit
+--------------
+
+Source: https://github.com/clarete/forbiddenfruit/
+Version: 0.1.4
+License: GPLv3 and MIT
+
+Notes:
+    Removed `cursed`, `curses`, `reverse` functions
+    Removed "hide from dir" functionality
+    Removed overriding built-in `dir` as it causes side effects
 """
 
 # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger
