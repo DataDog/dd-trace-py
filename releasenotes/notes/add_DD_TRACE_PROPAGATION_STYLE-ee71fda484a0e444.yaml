@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    Adding ``DD_TRACE_PROPAGATION_STYLE`` envar which can be used to set both injection and extraction propagation options E.g. ``b3,datadog,b3 single header``. 
+    Adding ``DD_TRACE_PROPAGATION_STYLE`` environment variable which can be used to set both injection and extraction propagation options, for example: ``DD_TRACE_PROPAGATION_STYLE=b3,datadog,b3 single header``. 
     ``DD_TRACE_PROPAGATION_STYLE_INJECT`` and ``DD_TRACE_PROPAGATION_STYLE_EXTRACT`` can still be set and will override ``DD_TRACE_PROPAGATION_STYLE``
     in the event that values are provided for both.
