@@ -448,7 +448,7 @@ venv = Venv(
                     pys=select_pys(),
                     pkgs={
                         "msgpack": latest("msgpack"),
-                        "attrs": ["<=20.1.0", latest("attrs")],
+                        "attrs": ["==20.1.0", latest("attrs")],
                         "packaging": ["==17.1", latest("packaging")],
                         "structlog": latest("structlog"),
                         # httpretty v1.0 drops python 2.7 support
@@ -516,7 +516,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    name="ntegration-latest",
+                    name="integration-latest",
                     env={
                         "AGENT_VERSION": "latest",
                     },
@@ -684,7 +684,7 @@ venv = Venv(
                     pkgs={
                         "falcon": [
                             "~=3.0.0",
-                            "~=3.1",  # latest 3.x
+                            "~=3.0",  # latest 3.x
                             latest("falcon"),
                         ]
                     },
@@ -870,7 +870,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.5"),
                     pkgs={
-                        "cherrypy": ["<=18.8", latest("cherrypy")],
+                        "cherrypy": [">=18.0,<19", latest("cherrypy")],
                         "more_itertools": "<8.11.0",
                     },
                 ),
@@ -1178,7 +1178,7 @@ venv = Venv(
                 Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
                 Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.4.0", "~=6.8.2", latest("elasticsearch6")]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "<7.14.0"]}),
+                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.6.0", "~=7.8.0", "~=7.10.0"]}),
             ],
         ),
         Venv(
@@ -2564,16 +2564,16 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
-                        "sanic": ["<=21.3.0"],
+                        "sanic": ["~=21.3.0"],
                         "pytest-sanic": latest("pytest-sanic"),
-                        "httpx": ["<=0.15.4"],
+                        "httpx": ["~=0.15.4"],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
                         "sanic": [
-                            "<=21.6.0",
+                            "~=21.6.0",
                         ],
                         "pytest-sanic": latest("pytest-sanic"),
                     },
@@ -2582,24 +2582,24 @@ venv = Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
                         "sanic": [
-                            "<=21.9.0",
-                            "<=21.12.0",
+                            "~=21.9.0",
+                            "~=21.12.0",
                         ],
-                        "sanic-testing": "<=0.8.3",
+                        "sanic-testing": "~=0.8.3",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
-                        "sanic": "<=22.3.0",
-                        "sanic-testing": "<=22.3.0",
+                        "sanic": "~=22.3.0",
+                        "sanic-testing": "~=22.3.0",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.7"),
                     pkgs={
-                        "sanic": "<=22.9.0",
-                        "sanic-testing": "<=22.9.0",
+                        "sanic": "~=22.9.0",
+                        "sanic-testing": "~=22.9.0",
                     },
                 ),
                 Venv(
