@@ -129,8 +129,8 @@ def test_overriding_list_append():
     obj = []
 
     # When I curse an instance method
-    fn = lambda self, v: self._c_append(v) or self
-    foo = curse(list, "append", fn)
+    fn = lambda self, v: self._c_append(v) or self  # noqa: E731
+    curse(list, "append", fn)
 
     # Then I see that my object was cursed properly
     assert obj.append(1) == [1]
@@ -146,8 +146,8 @@ def test_dir_without_args_returns_names_in_local_scope():
     """
 
     # Given that I have a local scope with some names bound to values
-    z = 1
-    some_name = 42
+    z = 1  # noqa: F841
+    some_name = 42  # noqa: F841
 
     # Then I see that `dir()` correctly returns a sorted list of those names
     assert "some_name" in dir()
@@ -172,8 +172,8 @@ def test_dunder_func_chaining():
         return wrapper
 
     curse(FunctionType, "__mul__", matmul_chaining)
-    f = lambda x, y: x * y
-    g = lambda x: (x, x)
+    f = lambda x, y: x * y  # noqa: E731
+    g = lambda x: (x, x)  # noqa: E731
 
     squared = f * g
 
@@ -193,7 +193,7 @@ def test_dunder_list_map():
     curse(list, "__mul__", map_list)
 
     list_ = list(range(10))
-    times_2 = lambda x: x * 2
+    times_2 = lambda x: x * 2  # noqa: E731
 
     assert list(times_2 * list_) == list(range(0, 20, 2))
 
@@ -216,9 +216,9 @@ def test_dunder_unary():
 
     curse(FunctionType, "__inv__", derive_func)
 
-    f = lambda x: x ** 2 + x
+    f = lambda x: x ** 2 + x  # noqa: E731
     # true derivation
-    f_ = lambda x: 2 * x + 1
+    f_ = lambda x: 2 * x + 1  # noqa: E731
 
     assert almost_equal((~f)(10), f_(10))
 
@@ -241,9 +241,9 @@ def test_sequence_dunder():
     curse(FunctionType, "__getitem__", derive_func)
 
     # a function an its derivations
-    f = lambda x: x ** 3 - 2 * x ** 2
-    f_1 = lambda x: 3 * x ** 2 - 4 * x
-    f_2 = lambda x: 6 * x - 4
+    f = lambda x: x ** 3 - 2 * x ** 2  # noqa: E731
+    f_1 = lambda x: 3 * x ** 2 - 4 * x  # noqa: E731
+    f_2 = lambda x: 6 * x - 4  # noqa: E731
 
     for x in range(0, 10):
         x = float(x) / 10.0
