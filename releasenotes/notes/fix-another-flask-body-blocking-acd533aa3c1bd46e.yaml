@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: fix a body read problem on some corner case where don't passing the content length makes wsgi.input.read() blocks.

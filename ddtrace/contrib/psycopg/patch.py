@@ -62,12 +62,16 @@ def unpatch():
 class Psycopg2TracedCursor(dbapi.TracedCursor):
     """TracedCursor for psycopg2"""
 
-    def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
+    def _trace_method(self, method, name, resource, extra_tags, dbm_operation, *args, **kwargs):
         # treat psycopg2.sql.Composable resource objects as strings
         if isinstance(resource, Composable):
             resource = resource.as_string(self.__wrapped__)
+            # DBM context propagation is only supported for query args with the following type: string
+            dbm_operation = False
 
-        return super(Psycopg2TracedCursor, self)._trace_method(method, name, resource, extra_tags, *args, **kwargs)
+        return super(Psycopg2TracedCursor, self)._trace_method(
+            method, name, resource, extra_tags, dbm_operation, *args, **kwargs
+        )
 
 
 class Psycopg2FetchTracedCursor(Psycopg2TracedCursor, dbapi.FetchTracedCursor):
