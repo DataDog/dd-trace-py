@@ -16,6 +16,7 @@ from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.vendor import debtcollector
 
 from . import _hooks
+from . import gitmetadata
 from ._monkey import patch
 from .constants import AUTO_KEEP
 from .constants import AUTO_REJECT
