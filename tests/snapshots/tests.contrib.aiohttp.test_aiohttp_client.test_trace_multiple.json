@@ -21,7 +21,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 85254
+      "system.pid": 85254
     },
     "duration": 14727000,
     "start": 1666808695046798000
@@ -59,7 +59,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 85254
+      "system.pid": 85254
     },
     "duration": 8604000,
     "start": 1666808695061738000
@@ -97,7 +97,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 85254
+      "system.pid": 85254
     },
     "duration": 4776000,
     "start": 1666808695070537000

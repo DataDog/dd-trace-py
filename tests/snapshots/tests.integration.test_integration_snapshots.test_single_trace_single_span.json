@@ -19,7 +19,7 @@
       "float_metric": 12.34,
       "int_metric": 4321,
       "num": 1234,
-      "process_id": 52166
+      "system.pid": 52166
     },
     "duration": 1504000,
     "start": 1631827407230825000

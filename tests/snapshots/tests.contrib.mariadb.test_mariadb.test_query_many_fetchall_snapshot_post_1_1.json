@@ -24,7 +24,7 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 3306,
-      "process_id": 55384,
+      "system.pid": 55384,
       "sql.rows": 2
     },
     "duration": 937000,
@@ -55,7 +55,7 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 3306,
-      "process_id": 55384,
+      "system.pid": 55384,
       "sql.rows": 2
     },
     "duration": 912000,
@@ -85,7 +85,7 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 3306,
-      "process_id": 55384,
+      "system.pid": 55384,
       "sql.rows": 2
     },
     "duration": 55000,
