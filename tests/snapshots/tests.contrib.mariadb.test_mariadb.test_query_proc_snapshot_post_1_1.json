@@ -23,8 +23,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "out.port": 3306,
-      "system.pid": 55384,
-      "sql.rows": 1
+      "sql.rows": 1,
+      "system.pid": 55384
     },
     "duration": 1844000,
     "start": 1667513581544236000

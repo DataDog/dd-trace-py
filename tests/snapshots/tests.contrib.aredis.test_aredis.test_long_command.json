@@ -22,8 +22,8 @@
       "_sampling_priority_v1": 1,
       "out.port": 6379,
       "out.redis_db": 0,
-      "system.pid": 48743,
-      "redis.args_length": 1001
+      "redis.args_length": 1001,
+      "system.pid": 48743
     },
     "duration": 8813000,
     "start": 1666795795279848000
