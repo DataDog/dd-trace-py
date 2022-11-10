@@ -4,7 +4,6 @@ import functools
 import operator
 import weakref
 import inspect
-from forbiddenfruit import curse
 
 PY2 = sys.version_info[0] == 2
 
@@ -822,6 +821,10 @@ def apply_patch(parent, attribute, replacement):
         setattr(parent, attribute, replacement)
     except (TypeError, AttributeError):
         # It is a built-in/extension type
+        # CAVEAT: Global import raises an error, i.e, asynctest package raises:
+        # 'NoneType' object has no attribute '_spec_coroutines'
+        from forbiddenfruit import curse
+
         curse(parent, attribute, replacement)
 
 
