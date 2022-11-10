@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    Fix error in patching functions. ``forbiddenfruit`` package has conflicts with some libraries such as ``asynctest``. 
-    This conflict raises ``AttributeError`` exception. See issue #4484.
+    Fix unintended side effects raised from importing ``forbiddenfruit`` package.
+    See issue `#4484 <https://github.com/DataDog/dd-trace-py/issues/4484>`_ for more details.
