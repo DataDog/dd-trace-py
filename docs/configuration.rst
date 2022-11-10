@@ -272,7 +272,7 @@ below:
 
    DD_PROFILING_ENABLE_CODE_PROVENANCE:
      type: Boolean
-     default: False
+     default: True
      description: Whether to enable code provenance.
 
    DD_PROFILING_MEMORY_ENABLED:

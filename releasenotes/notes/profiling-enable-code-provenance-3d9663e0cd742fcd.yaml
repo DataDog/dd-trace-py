@@ -1,0 +1,3 @@
+---
+features:
+  - The profiler now enables code provenance by default.
