@@ -821,7 +821,7 @@ def apply_patch(parent, attribute, replacement):
         setattr(parent, attribute, replacement)
     except (TypeError, AttributeError):
         # It is a built-in/extension type
-        # CAVEAT: Global import raise an error, i.e, asynctest package raise:
+        # CAVEAT: Global import raises an error, i.e, asynctest package raises:
         # 'NoneType' object has no attribute '_spec_coroutines'
         from forbiddenfruit import curse
 
