@@ -45,9 +45,9 @@ def appsec_rc_reload_features(tracer):
         ```
         """
 
-        if features:
-            log.debug("Reloading tracer features. %r", features)
-            rc_appsec_enabled = features.get("asm", {}).get("enabled")
+        if features is not None:
+            log.debug("Reloading appsec rc: %s", features)
+            rc_appsec_enabled = features.get("asm", {}).get("enabled") if features is not False else False
 
             _appsec_enabled = True
 
