@@ -658,6 +658,7 @@ venv = Venv(
             pkgs={
                 "django-redis": ">=4.5,<4.6",
                 "django-pylibmc": ">=0.6,<0.7",
+                "django-import-export": latest,
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
@@ -671,6 +672,7 @@ venv = Venv(
                     pys=select_pys(max_version="3.6"),
                     pkgs={
                         "django": [">=1.8,<1.9", ">=1.11,<1.12"],
+                        "django-import-export": "==1.2.0",
                     },
                 ),
                 Venv(
