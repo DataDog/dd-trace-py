@@ -730,7 +730,7 @@ class TestPytest(TracerTestCase):
         assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
 
     @pytest.mark.skipif(
-        sys.version_info >= (3, 11, 0),
+        sys.version_info >= (3, 11, 0) and sys.version_info <= (3, 6, 0),
         reason="asynctest isn't working on Python 3.11, asynctest "
         "raisesAttributeError: module 'asyncio' has no "
         "attribute 'coroutine'",
