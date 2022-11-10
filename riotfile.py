@@ -1480,7 +1480,7 @@ venv = Venv(
                 Venv(
                     pys=["2.7"],
                     # pytest==4.6 is last to support python 2.7
-                    pkgs={"pytest": ">=4.0,<4.6", "asynctest": "==0.13.0", "msgpack": latest},
+                    pkgs={"pytest": ">=4.0,<4.6", "asynctest": "==0.11.1", "msgpack": latest},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.9"),
