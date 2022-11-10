@@ -217,10 +217,9 @@ below:
 
          The supported values are ``datadog``, ``b3``, and ``b3 single header``.
 
-         When checking inbound request headers we will take the first valid trace context in the order ``datadog``, ``b3``,
-         then ``b3 single header``.
+         When checking inbound request headers we will take the first valid trace context in the order provided.
 
-         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
+         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="b3,datadog"`` to check for both ``x-b3-*`` and ``x-datadog-*``
          headers when parsing incoming request headers for a trace context.
 
    DD_TRACE_PROPAGATION_STYLE_INJECT:
