@@ -1,6 +1,16 @@
 ---
 default_branch: origin/1.x
 unreleased_version_title: Unreleased
+sections:
+  # The prelude section is implicitly included.
+  - [upgrade, Upgrade Notes]
+  - [deprecations, Deprecation Notes]
+  - [features, New Features]
+  - [issues, Known Issues]
+  - [api, API Changes]
+  - [security, Security Issues]
+  - [fixes, Bug Fixes]
+  - [other, Other Changes]
 
 # The default is: (?P<pre_release>\.v?\d+(?:[ab]|rc)+\d*)$
 # DEV: We have done this to fix how reno collapses pre-releases
