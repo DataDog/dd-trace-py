@@ -140,7 +140,7 @@ class Context(object):
         tp = self._meta.get(_TRACEPARENT_KEY)
         if tp:
             # grab the original traceparent trace id, not the converted value
-            trace_id = tp.split("-")[1]
+            trace_id = int(tp.split("-")[1])
         else:
             trace_id = self.trace_id
 
@@ -158,22 +158,27 @@ class Context(object):
         if self.dd_origin:
             dd += "o:{};".format(self.dd_origin)
         if self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
-            dd += "t.dm:{};".format(self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY))
+            # replace characters ",","=", and characters outside the ASCII range 0x20 to 0x7E
+            dd += "t.dm:{};".format(re.sub(r",|=|[^\x20-\x7E]+", "_", self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)))
+        # since this can change, we need to grab the value off the current span
         if self._meta.get(USER_ID_KEY):
             dd += "t.usr.id:{};".format(self._meta.get(USER_ID_KEY))
 
-        for k, v in self._meta():
-            if k.starts_with("_dd.p"):
-                next_tag = "{}:{};".format(re.sub("_dd.p.", "t.", k), v)
+        # grab all other _dd.p values out of meta since we need to propagate all of them
+        for k, v in self._meta:
+            if isinstance(k, str) and k.startswith("_dd.p") and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]:
+                # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
+                # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
+                next_tag = "{}:{};".format(
+                    re.sub("_dd.p.", "t.", re.sub(r",|=|[^\x20-\x7E]+", "_", k)), re.sub(r",|;|:|[^\x20-\x7E]+", "_", v)
+                )
                 if not (len(dd) + len(next_tag)) > 256:
                     dd += next_tag
 
-        # If there's a prexisting tracestate we need to update it
+        # If there's a preexisting tracestate we need to update it
         ts = self._meta.get(_TRACESTATE_KEY)
         if ts and dd:
-            # remove the old dd list member from tracestate since we need to replace it
             ts_w_out_dd = re.sub("dd=.*,", "", ts)
-            # add dd list member to the front of the tracestate
             ts = "dd={},{}".format(dd, ts_w_out_dd)
         elif dd:
             ts = "dd={},".format(dd)
