@@ -40,7 +40,7 @@ def __find_package():
     package = ""
     while len(path) > 1:
         path, end = os.path.split(path)
-        if end == "site-packages":
+        if end in ("site-packages", "dist-packages"):
             break
         package = end
     return package.split("-")[0]
