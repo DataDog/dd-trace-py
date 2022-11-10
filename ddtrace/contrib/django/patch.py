@@ -53,6 +53,9 @@ config._add(
         analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=True,
+        use_handler_with_url_name_resource_format=asbool(
+            os.getenv("DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT", default=False)
+        ),
         use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
     ),
