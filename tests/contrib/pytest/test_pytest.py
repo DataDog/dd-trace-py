@@ -729,6 +729,27 @@ class TestPytest(TracerTestCase):
         assert json.loads(spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], spans[0]
         assert json.loads(spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], spans[1]
 
+    def test_asynctest_not_raise_attribute_error_exception(self):
+        """Test AttributeError exception in `ddtrace/vendor/wrapt/wrappers.py` when try to import asynctest package.
+        Issue: https://github.com/DataDog/dd-trace-py/issues/4484
+        """
+        py_file = self.testdir.makepyfile(
+            """
+        import asynctest
+        asynctest.CoroutineMock()
+
+        def test_asynctest():
+            assert 1 == 1
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run("--ddtrace", file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 1
+        assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
+
 
 @pytest.mark.parametrize(
     "repository_url,repository_name",
