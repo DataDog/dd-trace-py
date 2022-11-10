@@ -658,7 +658,6 @@ venv = Venv(
             pkgs={
                 "django-redis": ">=4.5,<4.6",
                 "django-pylibmc": ">=0.6,<0.7",
-                "django-import-export": latest,
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
@@ -672,10 +671,6 @@ venv = Venv(
                     pys=select_pys(max_version="3.6"),
                     pkgs={
                         "django": [">=1.8,<1.9", ">=1.11,<1.12"],
-                        "django-import-export": ">=1.2.0",
-                        # Fix an ImportError in `importlib_metadata`package
-                        # with `from backports.configparser import ConfigParser`
-                        "configparser": "<=4.0.2",
                     },
                 ),
                 Venv(
@@ -771,9 +766,6 @@ venv = Venv(
                         "django": "==1.11",
                         "djangorestframework": [">=3.4,<3.5", ">=3.7,<3.8"],
                         "pytest-django": "==3.10.0",
-                        # Fix an ImportError in `importlib_metadata`package
-                        # with `from backports.configparser import ConfigParser`
-                        "configparser": "<=4.0.2",
                     },
                 ),
                 Venv(
