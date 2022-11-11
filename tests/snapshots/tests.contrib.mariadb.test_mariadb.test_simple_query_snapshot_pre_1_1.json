@@ -22,8 +22,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 0,
       "out.port": 3306,
-      "sql.rows": 0,
-      "system.pid": 9600
+      "process_id": 9600,
+      "sql.rows": 0
     },
     "duration": 496000,
     "start": 1656521180575354000
