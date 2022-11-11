@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Added ``tracecontext`` propagation style value for compatibility with `W3C standards <https://www.w3.org/TR/trace-context/>`_.
+    The ``tracecontext`` propagation style will allow distributed tracing with OpenTelemetry and other tracers that adhere to the W3C standard.
+    To set ``tracecontext`` propagation: ``DD_TRACE_PROPAGATION_STYLE=tracecontext``.
