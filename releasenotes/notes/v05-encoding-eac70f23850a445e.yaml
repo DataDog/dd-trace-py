@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    tracing: Upgrade the default trace API version to ``v0.5``.
