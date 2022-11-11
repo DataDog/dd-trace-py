@@ -1502,7 +1502,23 @@ venv = Venv(
                             latest,
                         ],
                         "msgpack": latest,
+                        "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="asynctest",
+            command="pytest {cmdargs} tests/contrib/asynctest/",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.9"),
+                    pkgs={
+                        "pytest": [
+                            ">=6.0,<7.0",
+                        ],
+                        "asynctest": "==0.13.0",
                     },
                 ),
             ],
@@ -1531,7 +1547,8 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
-                                    ">=6.0,<7.0",
+                                    # FIXME: add support for v6.1
+                                    ">=6.0,<6.1",
                                 ]
                             },
                         ),
@@ -1540,8 +1557,8 @@ venv = Venv(
                             pkgs={
                                 "pytest-bdd": [
                                     ">=4.0,<5.0",
-                                    ">=6.0,<7.0",
-                                    latest,
+                                    # FIXME: add support for v6.1
+                                    ">=6.0,<6.1",
                                 ]
                             },
                         ),
@@ -2145,7 +2162,6 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # asyncpg does not yet support Python 3.11
                     pys=["3.10"],
                     pkgs={
                         "asyncpg": [
@@ -2153,6 +2169,10 @@ venv = Venv(
                             latest,
                         ],
                     },
+                ),
+                Venv(
+                    pys=["3.11"],
+                    pkgs={"asyncpg": latest},
                 ),
             ],
         ),
