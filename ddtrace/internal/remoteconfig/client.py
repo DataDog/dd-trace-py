@@ -31,7 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Union
 
-    ProductCallback = Optional[Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]]
+    ProductCallback = Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]
 
 
 log = logging.getLogger(__name__)
@@ -228,7 +228,7 @@ class RemoteConfigClient(object):
         self._backend_state = None  # type: Optional[str]
 
     def register_product(self, product_name, func=None):
-        # type: (str, ProductCallback) -> None
+        # type: (str, Optional[ProductCallback]) -> None
         if func is not None:
             self._products[product_name] = func
         else:
@@ -325,8 +325,7 @@ class RemoteConfigClient(object):
         if last_targets_version is None or targets is None:
             log.debug("No targets in configuration payload")
             for callback in self._products.values():
-                if callback:
-                    callback(None, None)
+                callback(None, None)
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
@@ -344,9 +343,7 @@ class RemoteConfigClient(object):
                 log.debug("Disable configuration: %s", target)
                 callback_action = False
 
-            callback = self._products.get(config.product_name)
-            if callback is None:
-                continue
+            callback = self._products[config.product_name]
 
             try:
                 callback(config, callback_action)
@@ -356,9 +353,7 @@ class RemoteConfigClient(object):
 
         # 3. Load new configurations
         for target, config in client_configs.items():
-            callback = self._products.get(config.product_name)
-            if callback is None:
-                continue
+            callback = self._products[config.product_name]
 
             applied_config = self._applied_configs.get(target)
             if applied_config == config:
