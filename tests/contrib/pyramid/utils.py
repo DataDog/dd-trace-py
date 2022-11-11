@@ -68,6 +68,7 @@ class PyramidTestCase(PyramidBase):
         assert s.error == 0
         assert s.span_type == "web"
         assert s.get_tag("http.method") == "GET"
+        assert s.get_tag("component") == "pyramid"
         assert_span_http_status_code(s, 200)
         if config.pyramid.trace_query_string:
             assert s.get_tag(http.QUERY_STRING) == query_string

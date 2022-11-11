@@ -180,6 +180,7 @@ class TestTracedCursor(TracerTestCase):
         # Row count
         assert span.get_metric("db.rowcount") == 123, "Row count is set as a metric"
         assert span.get_metric("sql.rows") == 123, "Row count is set as a tag (for legacy django cursor replacement)"
+        assert span.get_tag("component") == traced_cursor._self_config.integration_name
 
     def test_cfg_service(self):
         cursor = self.cursor
@@ -413,6 +414,7 @@ class TestFetchTracedCursor(TracerTestCase):
         # Row count
         assert span.get_metric("db.rowcount") == 123, "Row count is set as a metric"
         assert span.get_metric("sql.rows") == 123, "Row count is set as a tag (for legacy django cursor replacement)"
+        assert span.get_tag("component") == traced_cursor._self_config.integration_name
 
     def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
