@@ -8,6 +8,7 @@ from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 from setuptools.command.build_py import build_py as BuildPyCommand
+from pkg_resources import get_build_platform
 from distutils.command.clean import clean as CleanCommand
 
 # ORDER MATTERS
@@ -78,8 +79,9 @@ class Tox(TestCommand):
 
     def run_tests(self):
         # import here, cause outside the eggs aren't loaded
-        import tox
         import shlex
+
+        import tox
 
         args = self.tox_args
         if args:
@@ -93,7 +95,6 @@ class Tox(TestCommand):
 class LibDDWaf_Download(BuildPyCommand):
     @staticmethod
     def download_dynamic_library():
-        # TRANSLATE_ARCH = {"amd64": "x64"}
         TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
         AVAILABLE_RELEASES = {
             "Windows": ["win32", "x64"],
@@ -102,10 +103,12 @@ class LibDDWaf_Download(BuildPyCommand):
         }
         SUFFIX = TRANSLATE_SUFFIX[CURRENT_OS]
 
+        build_platform = get_build_platform()
+
         if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR) and len(os.listdir(LIBDDWAF_DOWNLOAD_DIR)):
             return
 
-        if CURRENT_OS == "Darwin":
+        if CURRENT_OS == "Darwin" and build_platform.endswith("x86_64"):
             return
 
         if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
@@ -326,7 +329,12 @@ setup(
     },
     # plugin tox
     tests_require=["tox", "flake8"],
-    cmdclass={"test": Tox, "build_ext": BuildExtCommand, "build_py": LibDDWaf_Download, "clean": CleanLibraries},
+    cmdclass={
+        "test": Tox,
+        "build_ext": BuildExtCommand,
+        "build_py": LibDDWaf_Download,
+        "clean": CleanLibraries,
+    },
     entry_points={
         "console_scripts": [
             "ddtrace-run = ddtrace.commands.ddtrace_run:main",
