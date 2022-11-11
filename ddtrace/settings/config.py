@@ -209,7 +209,6 @@ class Config(object):
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
             "DD_TRACE_PROPAGATION_STYLE", default=PROPAGATION_STYLE_DATADOG
         )
-        _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=None)
         # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
         #  take precedence over DD_TRACE_PROPAGATION_STYLE
         propagation_style_extract = _parse_propagation_styles("DD_TRACE_PROPAGATION_STYLE_EXTRACT", default=None)
