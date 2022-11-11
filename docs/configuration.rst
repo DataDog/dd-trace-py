@@ -234,7 +234,7 @@ below:
      description: |
          Comma separated list of propagation styles used for extracting trace context from inbound request headers.
 
-         Overrides ``DD_TRACE_PROPAGATION_STYLE`` if both are set.
+         Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagtion style if both are set.
 
          The supported values are ``datadog``, ``b3``, and ``b3 single header``.
 
@@ -250,7 +250,7 @@ below:
      description: |
          Comma separated list of propagation styles used for injecting trace context into outbound request headers.
 
-         Overrides ``DD_TRACE_PROPAGATION_STYLE`` if both are set.
+         Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style if both are set.
 
          The supported values are ``datadog``, ``b3``, and ``b3 single header``.
 
