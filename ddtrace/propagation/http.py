@@ -78,7 +78,7 @@ def _extract_header_value(possible_header_names, headers, default=None):
     return default
 
 
-def _hex_id_to_dd_id(b3_id):
+def _hex_id_to_dd_id(hex_id):
     # type: (str) -> int
     """Helper to convert B3 trace/span hex ids into Datadog compatible ints
 
@@ -86,7 +86,7 @@ def _hex_id_to_dd_id(b3_id):
 
     "463ac35c9f6413ad48485a3953bb6124" -> "48485a3953bb6124" -> 5208512171318403364
     """
-    return int(b3_id[-16:], 16)
+    return int(hex_id[-16:], 16)
 
 
 def _dd_id_to_hex_id(dd_id):
@@ -579,6 +579,8 @@ class _TraceContext:
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
+            # store ts so we keep other vendor data
+            meta[_TRACESTATE_KEY] = ts
             try:
                 result = re.search("dd=(.*),", ts)
                 dd = dict(item.split(":") for item in result.group(1).split(";"))
@@ -597,8 +599,6 @@ class _TraceContext:
                 meta = {
                     re.sub("t.", "_dd.p.", k): v for (k, v) in dd if (_TraceContext._is_valid_datadog_trace_tag_key(k))
                 }
-                # store ts so we keep other vendor data
-                meta[_TRACESTATE_KEY] = ts
 
                 return Context(
                     trace_id=trace_id,
@@ -625,6 +625,7 @@ _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
     PROPAGATION_STYLE_B3: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
+    PROPAGATION_STYLE_TRACECONTEXT: _TraceContext,
 }
 
 
