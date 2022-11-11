@@ -31,7 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Union
 
-    ProductCallback = Callable[[Optional["ConfigMetadata"], Optional[Mapping[str, Any]]], None]
+    ProductCallback = Optional[Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]]
 
 
 log = logging.getLogger(__name__)
@@ -226,7 +226,7 @@ class RemoteConfigClient(object):
         self._backend_state = None  # type: Optional[str]
 
     def register_product(self, product_name, func=None):
-        # type: (str, Optional[ProductCallback]) -> None
+        # type: (str, ProductCallback) -> None
         if func is not None:
             self._products[product_name] = func
         else:
@@ -321,33 +321,38 @@ class RemoteConfigClient(object):
         last_targets_version, backend_state, targets = self._process_targets(payload)
         if last_targets_version is None or targets is None:
             log.debug("No targets in configuration payload")
-            for cb in self._products.values():
-                cb(None, None)
+            for callback in self._products.values():
+                if callback:
+                    callback(None, None)
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
+        log.debug("Retrieved client configs: %s", client_configs)
 
         # 2. Remove previously applied configurations
         applied_configs = dict()
         for target, config in self._applied_configs.items():
+            callback_action = None
             if target in client_configs and targets.get(target) == config:
                 # The configuration has not changed.
                 applied_configs[target] = config
                 continue
+            elif target not in client_configs:
+                log.debug("Disable configuration: %s", target)
+                callback_action = False
 
             callback = self._products.get(config.product_name)
             if callback is None:
                 continue
 
             try:
-                callback(config, None)
+                callback(config, callback_action)
             except Exception:
                 log.debug("error while removing product %s config %r", config.product_name, config)
                 continue
 
         # 3. Load new configurations
         for target, config in client_configs.items():
-            log.debug("new configuration for product %s", config.product_name)
             callback = self._products.get(config.product_name)
             if callback is None:
                 continue
@@ -361,6 +366,7 @@ class RemoteConfigClient(object):
                 continue
 
             try:
+                log.debug("Load new configuration: %s. content %s", target, config_content)
                 callback(config, config_content)
             except Exception:
                 log.debug("error while loading product %s config %r", config.product_name, config)
