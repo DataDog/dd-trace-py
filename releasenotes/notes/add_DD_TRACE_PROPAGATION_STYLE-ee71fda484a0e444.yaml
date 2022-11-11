@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Added environment variable ``DD_TRACE_PROPAGATION_STYLE`` to configure both injection and extraction propagation styles. The configured styles can be overridden with environment variables ``DD_TRACE_PROPAGATION_STYLE_INJECT`` and ``DD_TRACE_PROPAGATION_STYLE_EXTRACT``.
