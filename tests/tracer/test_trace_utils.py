@@ -496,7 +496,7 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
     )
     result_keys = list(span.get_tags().keys())
     result_keys.sort(reverse=True)
-    assert result_keys == ["runtime-id", http.USER_AGENT]
+    assert result_keys == ["runtime-id", "language", http.USER_AGENT]
     assert span.get_tag(http.USER_AGENT) == "dd-agent/1.0.0"
     mock_store_headers.assert_called()
 
