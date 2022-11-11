@@ -35,7 +35,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT = (
 
 
 def _parse_propagation_styles(name, default):
-    # type: (str, str) -> set[str]
+    # type: (str, str) -> List[str]
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -61,7 +61,7 @@ def _parse_propagation_styles(name, default):
         # Inject the "b3: *" header into downstream requests headers
         DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
     """
-    styles = set()
+    styles = []
     envvar = os.getenv(name, default=default)
     for style in envvar.split(","):
         style = style.strip().lower()
@@ -73,7 +73,7 @@ def _parse_propagation_styles(name, default):
                     style, name, PROPAGATION_STYLE_ALL
                 )
             )
-        styles.add(style)
+        styles.append(style)
     return styles
 
 
