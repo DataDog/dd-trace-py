@@ -111,21 +111,20 @@ def test_valid_json(tracer_appsec):
 def test_header_attack(tracer_appsec):
     tracer = tracer_appsec
 
-    with override_global_config(dict(_appsec_enabled=True)):
-        with override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
-            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-                set_http_meta(
-                    span,
-                    Config(),
-                    request_headers={
-                        "User-Agent": "Arachni/v1",
-                        "user-agent": "aa",
-                        "x-forwarded-for": "8.8.8.8",
-                    },
-                )
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(
+                span,
+                Config(),
+                request_headers={
+                    "User-Agent": "Arachni/v1",
+                    "user-agent": "aa",
+                    "x-forwarded-for": "8.8.8.8",
+                },
+            )
 
-                assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
-                assert span.get_tag("actor.ip") == "8.8.8.8"
+        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert span.get_tag("actor.ip") == "8.8.8.8"
 
 
 def test_headers_collection(tracer_appsec):
