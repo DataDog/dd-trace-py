@@ -416,7 +416,7 @@ def test_table_query(client, tracer, test_spans):
     assert sql_span.resource == "SELECT * FROM NOTES"
     assert sql_span.error == 0
     assert sql_span.get_tag("sql.db") == "test.db"
-    assert sql_span.get_tag("component") == "sqlite3"
+    assert sql_span.get_tag("component") == "sqlalchemy"
 
 
 @pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])
