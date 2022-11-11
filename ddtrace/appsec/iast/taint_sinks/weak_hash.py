@@ -23,7 +23,7 @@ SHA1_DEF = "sha1"
 @oce.register
 class WeakHash(VulnerabilityBase):
     vulnerability_type = VULN_INSECURE_HASHING_TYPE
-    evicence_type = EVIDENCE_ALGORITHM_TYPE
+    evidence_type = EVIDENCE_ALGORITHM_TYPE
 
 
 def patch():
