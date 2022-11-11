@@ -211,7 +211,7 @@ class ModuleWatchdog(dict):
     def __init__(self):
         # type: () -> None
         self._hook_map = defaultdict(list)  # type: DefaultDict[str, List[ModuleHookType]]
-        self._origin_map = {origin(module): module for module in sys.modules.values()}
+        self._om = None  # type: Optional[Dict[str, ModuleType]]
         self._modules = sys.modules  # type: Union[dict, ModuleWatchdog]
         self._finding = set()  # type: Set[str]
 
@@ -222,6 +222,21 @@ class ModuleWatchdog(dict):
     def __setitem__(self, name, module):
         # type: (str, ModuleType) -> None
         self._modules.__setitem__(name, module)
+
+    @property
+    def _origin_map(self):
+        # type: () -> Dict[str, ModuleType]
+        if self._om is None:
+            try:
+                self._om = {origin(module): module for module in sys.modules.values()}
+            except RuntimeError:
+                # The state of sys.modules might have been mutated by another
+                # thread. We try to build the full mapping at the next occasion.
+                # For now we take the more expensive route of building a list of
+                # the current values, which might be incomplete.
+                return {origin(module): module for module in list(sys.modules.values())}
+
+        return self._om
 
     def _add_to_meta_path(self):
         # type: () -> None
