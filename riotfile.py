@@ -1048,7 +1048,6 @@ venv = Venv(
         Venv(
             name="mysql",
             command="pytest {cmdargs} tests/contrib/mysql",
-            env={"DD_DBM_PROPAGATION_MODE": "full"},
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.5"),
@@ -1329,7 +1328,6 @@ venv = Venv(
         Venv(
             name="pymysql",
             command="pytest {cmdargs} tests/contrib/pymysql",
-            env={"DD_DBM_PROPAGATION_MODE": "full"},
             venvs=[
                 Venv(
                     pys=select_pys(),
