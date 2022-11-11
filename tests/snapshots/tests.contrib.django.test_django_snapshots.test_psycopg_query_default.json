@@ -11,6 +11,7 @@
       "_dd.p.dm": "-0",
       "django.db.alias": "postgres",
       "django.db.vendor": "postgresql",
+      "language": "python",
       "runtime-id": "b527629f069c46a0b05ad2664effeeed"
     },
     "metrics": {
@@ -38,6 +39,7 @@
          "db.application": "None",
          "db.name": "test_postgres",
          "db.user": "postgres",
+         "language": "python",
          "out.host": "127.0.0.1"
        },
        "metrics": {

@@ -11,6 +11,7 @@
       "_dd.p.dm": "-0",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "460f0ba847f14dd2ae661cb4a5511f5c"
     },

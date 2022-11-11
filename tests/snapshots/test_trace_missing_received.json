@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "runtime-id": "85e0245afd424d4298fb67077ecc3897"
     },
     "metrics": {
@@ -27,6 +28,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 11000,
        "start": 1633030777324740000
      }]]

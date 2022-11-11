@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-3",
+      "language": "python",
       "runtime-id": "8673fb4ff8d3442f943860e59e8ea37a"
     },
     "metrics": {
@@ -27,6 +28,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "metrics": {
          "_dd.span_sampling.mechanism": 8
        },

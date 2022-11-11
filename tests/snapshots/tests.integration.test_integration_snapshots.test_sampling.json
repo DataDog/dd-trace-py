@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-4",
+      "language": "python",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
@@ -27,6 +28,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 37000,
        "start": 1636750509195305000
      }],
@@ -39,6 +43,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "language": "python",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
@@ -58,6 +63,9 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 37000,
        "start": 1636750509187836000
      }],
@@ -70,6 +78,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "language": "python",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
@@ -89,6 +98,9 @@
        "trace_id": 2,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 26000,
        "start": 1636750509182372000
      }],
@@ -102,6 +114,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-3",
+      "language": "python",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
@@ -121,6 +134,9 @@
        "trace_id": 3,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 26000,
        "start": 1636750509177708000
      }],
@@ -133,6 +149,7 @@
     "span_id": 1,
     "parent_id": 0,
     "meta": {
+      "language": "python",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
@@ -152,6 +169,9 @@
        "trace_id": 4,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 29000,
        "start": 1636750509172393000
      }],
@@ -165,6 +185,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-3",
+      "language": "python",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
@@ -184,6 +205,9 @@
        "trace_id": 5,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 27000,
        "start": 1636750509168200000
      }],
@@ -197,6 +221,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "runtime-id": "364c9bd490824db6960feef75bb5f197"
     },
     "metrics": {
@@ -216,6 +241,9 @@
        "trace_id": 6,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 27000,
        "start": 1636750509163937000
      }]]

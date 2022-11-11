@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 5678,
     "meta": {
+      "language": "python",
       "runtime-id": "d3cc0a07d5e745aebadf0c641fd542e6"
     },
     "metrics": {

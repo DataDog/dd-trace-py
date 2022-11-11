@@ -17,6 +17,7 @@
       "http.request.headers.host": "127.0.0.1:54583",
       "http.status_code": "500",
       "http.url": "http://127.0.0.1:54583/fatal",
+      "language": "python",
       "runtime-id": "8cbf3566774347d39dcfc241879cbf84"
     },
     "metrics": {

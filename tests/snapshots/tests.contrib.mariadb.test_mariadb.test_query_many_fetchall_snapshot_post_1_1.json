@@ -11,6 +11,7 @@
       "_dd.p.dm": "-0",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "778c778962a54eeea3ae401d2417ef86",
       "sql.executemany": "true"
@@ -42,6 +43,7 @@
       "_dd.p.dm": "-0",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "778c778962a54eeea3ae401d2417ef86"
     },
@@ -72,6 +74,7 @@
       "_dd.p.dm": "-0",
       "db.name": "test",
       "db.user": "test",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "778c778962a54eeea3ae401d2417ef86"
     },

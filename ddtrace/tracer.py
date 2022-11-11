@@ -694,6 +694,8 @@ class Tracer(object):
                 # We must always mark the span as sampled so it is forwarded to the agent
                 span.sampled = True
 
+        span.set_tag_str("language", "python")
+
         if not span._parent:
             span.set_tag_str("runtime-id", get_runtime_id())
             span._metrics[PID] = self._pid

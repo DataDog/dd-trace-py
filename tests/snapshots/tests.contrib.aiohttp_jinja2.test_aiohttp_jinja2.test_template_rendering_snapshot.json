@@ -10,6 +10,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "aiohttp.template": "/template.jinja2",
+      "language": "python",
       "runtime-id": "fc39cf5f50814b4699d5c4259c7b788c"
     },
     "metrics": {

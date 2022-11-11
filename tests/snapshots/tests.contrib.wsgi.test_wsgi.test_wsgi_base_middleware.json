@@ -10,6 +10,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "http.status_code": "200",
+      "language": "python",
       "request_tag": "req test tag set",
       "runtime-id": "64ea1baed8d745ef8d4b22ef77fb75ee"
     },
@@ -32,7 +33,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "app_tag": "app test tag set"
+         "app_tag": "app test tag set",
+         "language": "python"
        },
        "metrics": {
          "app_metric": 2
@@ -48,6 +50,7 @@
        "span_id": 3,
        "parent_id": 1,
        "meta": {
+         "language": "python",
          "response_tag": "resp test tag set"
        },
        "metrics": {

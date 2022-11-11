@@ -9,6 +9,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "boop": "beep",
+      "language": "python",
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
     },
     "metrics": {
@@ -29,7 +30,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "boop": "beep"
+         "boop": "beep",
+         "language": "python"
        },
        "duration": 11000,
        "start": 1631827407294827000

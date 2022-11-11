@@ -9,6 +9,7 @@
     "type": "redis",
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
       "runtime-id": "803a9bddce7f47f6b10cdefce6466916"

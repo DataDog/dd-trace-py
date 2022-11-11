@@ -13,6 +13,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
+      "language": "python",
       "runtime-id": "b984b1b0f414444b914808157cba1e4d"
     },
     "metrics": {
@@ -32,6 +33,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 7026000,
        "start": 1646414759575827000
      }]]

@@ -14,6 +14,7 @@
       "http.url": "http://testserver/items/",
       "http.useragent": "testclient",
       "http.version": "1.1",
+      "language": "python",
       "runtime-id": "bdffe0368afa4d3c8cb5be8af75b25a4"
     },
     "metrics": {
@@ -33,6 +34,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 80000,
        "start": 1656543965510900000
      }],
@@ -52,6 +56,7 @@
       "http.url": "http://testserver/items/test_id",
       "http.useragent": "testclient",
       "http.version": "1.1",
+      "language": "python",
       "runtime-id": "bdffe0368afa4d3c8cb5be8af75b25a4"
     },
     "metrics": {
@@ -71,6 +76,9 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 65000,
        "start": 1656543965512188000
      }]]

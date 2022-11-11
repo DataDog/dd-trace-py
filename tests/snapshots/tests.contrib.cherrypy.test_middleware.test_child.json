@@ -13,6 +13,7 @@
       "http.request.headers.host": "127.0.0.1:54583",
       "http.status_code": "200",
       "http.url": "http://127.0.0.1:54583/child",
+      "language": "python",
       "runtime-id": "8cbf3566774347d39dcfc241879cbf84"
     },
     "metrics": {
@@ -33,7 +34,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "a": "b"
+         "a": "b",
+         "language": "python"
        },
        "duration": 47000,
        "start": 1631828602147987000

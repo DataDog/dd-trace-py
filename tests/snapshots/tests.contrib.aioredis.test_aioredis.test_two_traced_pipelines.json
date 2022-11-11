@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "runtime-id": "c121cb35b47a4dbf8f2fce11afea6620"
     },
     "metrics": {
@@ -29,6 +30,7 @@
        "parent_id": 1,
        "type": "redis",
        "meta": {
+         "language": "python",
          "out.host": "127.0.0.1",
          "redis.raw_command": "SET blah boo\nGET blah"
        },
@@ -51,6 +53,7 @@
        "parent_id": 1,
        "type": "redis",
        "meta": {
+         "language": "python",
          "out.host": "127.0.0.1",
          "redis.raw_command": "SET foo bar\nGET foo"
        },

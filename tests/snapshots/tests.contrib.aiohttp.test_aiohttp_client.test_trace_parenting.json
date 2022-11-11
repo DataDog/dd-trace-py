@@ -8,6 +8,7 @@
     "parent_id": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "runtime-id": "93de13222bfa491d896a7fd6f40622e1"
     },
     "metrics": {
@@ -32,7 +33,8 @@
          "http.method": "GET",
          "http.status_code": "200",
          "http.status_msg": "OK",
-         "http.url": "http://localhost:8001/status/200"
+         "http.url": "http://localhost:8001/status/200",
+         "language": "python"
        },
        "duration": 5716000,
        "start": 1646794413226273000
@@ -44,6 +46,9 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "meta": {
+            "language": "python"
+          },
           "duration": 2464000,
           "start": 1646794413226798000
         }]]

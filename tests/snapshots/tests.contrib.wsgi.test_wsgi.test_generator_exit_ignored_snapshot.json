@@ -13,6 +13,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/generatorError",
+      "language": "python",
       "runtime-id": "c8fcd5c1faf945f0ae5f194a3992723e"
     },
     "metrics": {
@@ -32,6 +33,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 27000,
        "start": 1632166190214592000
      },
@@ -43,6 +47,7 @@
        "span_id": 3,
        "parent_id": 1,
        "meta": {
+         "language": "python",
          "result_class": "generator"
        },
        "duration": 1702000,
@@ -56,6 +61,9 @@
           "span_id": 4,
           "parent_id": 3,
           "type": "web",
+          "meta": {
+            "language": "python"
+          },
           "duration": 48000,
           "start": 1632166190214765000
         }]]

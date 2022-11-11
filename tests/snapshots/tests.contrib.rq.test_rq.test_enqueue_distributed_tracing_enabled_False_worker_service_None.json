@@ -12,6 +12,7 @@
       "job.id": "cb601426-9ba6-4ff7-baff-4af051664698",
       "job.origin": "q",
       "job.status": "finished",
+      "language": "python",
       "runtime-id": "9f7973a4da1d44a18c0117159fe67295"
     },
     "metrics": {
@@ -32,7 +33,8 @@
        "span_id": 2,
        "parent_id": 1,
        "meta": {
-         "job.id": "cb601426-9ba6-4ff7-baff-4af051664698"
+         "job.id": "cb601426-9ba6-4ff7-baff-4af051664698",
+         "language": "python"
        },
        "duration": 3202000,
        "start": 1632150774369990000
@@ -50,6 +52,7 @@
       "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
       "job.id": "cb601426-9ba6-4ff7-baff-4af051664698",
+      "language": "python",
       "queue.name": "q",
       "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
     },

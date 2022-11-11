@@ -12,6 +12,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
+      "language": "python",
       "runtime-id": "2aff5fc210494b30af54c7548c3425fa"
     },
     "metrics": {
@@ -29,6 +30,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 224000,
        "start": 1665504040161019000
      },
@@ -44,7 +48,8 @@
             "http.method": "GET",
             "http.status_code": "200",
             "http.status_msg": "OK",
-            "http.url": "http://localhost:80/"
+            "http.url": "http://localhost:80/",
+            "language": "python"
           },
           "duration": 234000,
           "start": 1665504040161066000
@@ -56,6 +61,9 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 4,
+             "meta": {
+               "language": "python"
+             },
              "duration": 106000,
              "start": 1665504040161111000
            },
@@ -67,6 +75,9 @@
                 "span_id": 8,
                 "parent_id": 6,
                 "type": "web",
+                "meta": {
+                  "language": "python"
+                },
                 "duration": 70000,
                 "start": 1665504040161140000
               },
@@ -78,6 +89,7 @@
              "span_id": 7,
              "parent_id": 4,
              "meta": {
+               "language": "python",
                "result_class": "list"
              },
              "duration": 67000,
@@ -91,6 +103,9 @@
           "span_id": 5,
           "parent_id": 2,
           "type": "web",
+          "meta": {
+            "language": "python"
+          },
           "duration": 34000,
           "start": 1665504040161164000
         },
@@ -102,6 +117,7 @@
        "span_id": 3,
        "parent_id": 1,
        "meta": {
+         "language": "python",
          "result_class": "list_iterator"
        },
        "duration": 54000,

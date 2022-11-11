@@ -17,6 +17,7 @@
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
       "runtime-id": "0e28ae8b4a6e462cb074bb61da97d779"
     },
     "metrics": {
@@ -37,6 +38,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 9000,
        "start": 1658267703064952000
      },
@@ -47,6 +51,9 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 23000,
        "start": 1658267703064973000
      },
@@ -57,6 +64,9 @@
           "trace_id": 0,
           "span_id": 7,
           "parent_id": 3,
+          "meta": {
+            "language": "python"
+          },
           "duration": 3000,
           "start": 1658267703064990000
         },
@@ -67,6 +77,9 @@
        "trace_id": 0,
        "span_id": 4,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 8000,
        "start": 1658267703065020000
      },
@@ -77,6 +90,9 @@
        "trace_id": 0,
        "span_id": 5,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 6000,
        "start": 1658267703065065000
      },
@@ -87,6 +103,9 @@
        "trace_id": 0,
        "span_id": 6,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 4000,
        "start": 1658267703065084000
      }]]

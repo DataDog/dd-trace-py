@@ -13,6 +13,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/chunked",
+      "language": "python",
       "runtime-id": "95c79fa6df0d4378985caf03beebf928"
     },
     "metrics": {
@@ -32,6 +33,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 20000,
        "start": 1631829206122994000
      },
@@ -43,6 +47,7 @@
        "span_id": 3,
        "parent_id": 1,
        "meta": {
+         "language": "python",
          "result_class": "generator"
        },
        "duration": 1342000,
@@ -56,6 +61,9 @@
           "span_id": 4,
           "parent_id": 3,
           "type": "web",
+          "meta": {
+            "language": "python"
+          },
           "duration": 39000,
           "start": 1631829206123121000
         }]]

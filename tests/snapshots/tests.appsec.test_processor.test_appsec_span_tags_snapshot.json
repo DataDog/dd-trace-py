@@ -17,6 +17,7 @@
       "appsec.event": "true",
       "http.status_code": "404",
       "http.url": "http://example.com/.git",
+      "language": "python",
       "runtime-id": "312bfe0350b54e999b4b705b378e14e6"
     },
     "metrics": {

@@ -9,6 +9,7 @@
     "type": "graphql",
     "meta": {
       "_dd.p.dm": "-0",
+      "language": "python",
       "runtime-id": "bc0efee142884beb96fdb35ca56aa3dc"
     },
     "metrics": {
@@ -31,7 +32,8 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-         "graphql.source": "query HELLO { hello }"
+         "graphql.source": "query HELLO { hello }",
+         "language": "python"
        },
        "duration": 96000,
        "start": 1658848788502146000
@@ -45,7 +47,8 @@
        "parent_id": 1,
        "type": "graphql",
        "meta": {
-         "graphql.source": "query HELLO { hello }"
+         "graphql.source": "query HELLO { hello }",
+         "language": "python"
        },
        "duration": 540000,
        "start": 1658848788502301000
@@ -61,7 +64,8 @@
        "meta": {
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
-         "graphql.source": "query HELLO { hello }"
+         "graphql.source": "query HELLO { hello }",
+         "language": "python"
        },
        "duration": 498000,
        "start": 1658848788502935000
@@ -74,6 +78,9 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
+          "meta": {
+            "language": "python"
+          },
           "duration": 33000,
           "start": 1658848788503087000
         }]]

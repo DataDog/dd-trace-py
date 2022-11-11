@@ -14,6 +14,7 @@
       "http.url": "http://testserver/sub-app/hello/name",
       "http.useragent": "testclient",
       "http.version": "1.1",
+      "language": "python",
       "runtime-id": "b09fdf648040415eafff0458ac0bdff7"
     },
     "metrics": {
@@ -39,7 +40,8 @@
          "http.status_code": "200",
          "http.url": "http://testserver/sub-app/hello/name",
          "http.useragent": "testclient",
-         "http.version": "1.1"
+         "http.version": "1.1",
+         "language": "python"
        },
        "duration": 185000,
        "start": 1655933684228270000

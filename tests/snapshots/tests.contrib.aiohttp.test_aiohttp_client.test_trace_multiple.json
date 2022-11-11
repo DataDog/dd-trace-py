@@ -13,6 +13,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
+      "language": "python",
       "runtime-id": "2d042941bd8e4cd18a0bcb6ea7c9b80f"
     },
     "metrics": {
@@ -32,6 +33,9 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 26278000,
        "start": 1646794505598411000
      }],
@@ -50,6 +54,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
+      "language": "python",
       "runtime-id": "2d042941bd8e4cd18a0bcb6ea7c9b80f"
     },
     "metrics": {
@@ -69,6 +74,9 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 70000,
        "start": 1646794505627940000
      }],
@@ -87,6 +95,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:8001/status/200",
+      "language": "python",
       "runtime-id": "2d042941bd8e4cd18a0bcb6ea7c9b80f"
     },
     "metrics": {
@@ -106,6 +115,9 @@
        "trace_id": 2,
        "span_id": 2,
        "parent_id": 1,
+       "meta": {
+         "language": "python"
+       },
        "duration": 136000,
        "start": 1646794505631851000
      }]]
