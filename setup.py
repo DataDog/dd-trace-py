@@ -79,8 +79,9 @@ class Tox(TestCommand):
 
     def run_tests(self):
         # import here, cause outside the eggs aren't loaded
-        import tox
         import shlex
+
+        import tox
 
         args = self.tox_args
         if args:
@@ -102,17 +103,18 @@ class LibDDWaf_Download(BuildPyCommand):
         }
         SUFFIX = TRANSLATE_SUFFIX[CURRENT_OS]
 
+        build_platform = get_build_platform()
+
         if os.path.isdir(LIBDDWAF_DOWNLOAD_DIR) and len(os.listdir(LIBDDWAF_DOWNLOAD_DIR)):
+            return
+
+        if CURRENT_OS == "Darwin" and build_platform.endswith("x86_64"):
             return
 
         if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
             os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
 
-        build_platform = get_build_platform()
         for arch in AVAILABLE_RELEASES[CURRENT_OS]:
-            if CURRENT_OS == "Darwin" and build_platform.endswith("x86_64") and arch == "arm64":
-                continue
-
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
 
             if os.path.isdir(arch_dir):
