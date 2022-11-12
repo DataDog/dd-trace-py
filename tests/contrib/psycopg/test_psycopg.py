@@ -386,6 +386,15 @@ class PsycopgCore(TracerTestCase):
             conn.cursor().execute("""select 'blah'""")
             self.assert_structure(dict(name="postgres.query", service=service))
 
+    @snapshot()
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    def test_postgres_dbm_propagation(self):
+        """generates snapshot to check whether execution of SQL string sets dbm propagation tag"""
+        conn = psycopg2.connect(**POSTGRES_CONFIG)
+        cursor = conn.cursor()
+        cursor.execute("select 'blah'")
+        cursor.executemany("select %s", (("foo",), ("bar",)))
+
 
 @skipIf(PSYCOPG2_VERSION < (2, 7), "quote_ident not available in psycopg2<2.7")
 def test_manual_wrap_extension_quote_ident_standalone():

@@ -41,7 +41,8 @@ class TestTracedCursor(TracerTestCase):
     )
     def test_curser_execute_with_dbm_injection(self):
         cursor = self.cursor
-        traced_cursor = TracedCursor(cursor, Pin(service="orders-db", tracer=self.tracer), {})
+        cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagation_supported=True)
+        traced_cursor = TracedCursor(cursor, Pin(service="orders-db", tracer=self.tracer), cfg)
 
         # The following operations should generate DBM comments
         traced_cursor.execute("SELECT * FROM db;")
@@ -517,7 +518,8 @@ class TestFetchTracedCursor(TracerTestCase):
     )
     def test_curser_execute_with_dbm_injection(self):
         cursor = self.cursor
-        traced_cursor = FetchTracedCursor(cursor, Pin("pin_name", tracer=self.tracer), {})
+        cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagation_supported=True)
+        traced_cursor = FetchTracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
 
         # The following operations should not generate DBM comments
         traced_cursor.fetchone()
