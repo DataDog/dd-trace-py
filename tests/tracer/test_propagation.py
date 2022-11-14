@@ -8,6 +8,7 @@ from ddtrace.context import Context
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import PROPAGATION_STYLE_TRACECONTEXT
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
@@ -20,6 +21,9 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_SINGLE
 from ddtrace.propagation.http import _HTTP_HEADER_B3_SPAN_ID
 from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
+from ddtrace.propagation.http import _HTTP_HEADER_TRACEPARENT
+from ddtrace.propagation.http import _HTTP_HEADER_TRACESTATE
+from ..utils import override_env
 
 from ..utils import override_global_config
 
@@ -368,6 +372,66 @@ def test_get_wsgi_header(tracer):
     assert get_wsgi_header("x-datadog-trace-id") == "HTTP_X_DATADOG_TRACE_ID"
 
 
+TRACECONTEXT_HEADERS_VALID_BASIC_TRACESTATE = {
+    _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
+}
+
+TRACECONTEXT_HEADERS_VALID = {
+    _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+}
+
+# (
+# "valid_tracecontext_simple",
+# [PROPAGATION_STYLE_TRACECONTEXT],
+# TRACECONTEXT_HEADERS_VALID,
+# {
+#     "trace_id": 11803532876627986230,
+#     "span_id": 67667974448284343,
+#     "sampling_priority": 1.0,
+#     "dd_origin": "rum",
+# } )
+
+
+@pytest.mark.parametrize(
+    "headers,expected_context",
+    [
+        (
+            TRACECONTEXT_HEADERS_VALID,
+            {
+                "trace_id": 11803532876627986230,
+                "span_id": 67667974448284343,
+                "meta": {
+                    "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                    "_dd.p.dm": "-4",
+                    "_dd.p.usr.id": "baz64",
+                    "_dd.origin": "rum",
+                    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                },
+                "metrics": {"_sampling_priority_v1": 1.0},
+            },
+        ),
+    ],
+)
+def test_extract_tracecontext(headers, expected_context):
+    overrides = {"_propagation_style_extract": [PROPAGATION_STYLE_TRACECONTEXT]}
+    with override_global_config(overrides):
+        context = HTTPPropagator.extract(headers)
+        assert context == Context(**expected_context)
+
+        
+        import os
+        e = os.getenv("DD_TRACE_PROPAGATION_STYLE")
+        print("okok")
+        print(e)
+
+        context = HTTPPropagator.extract(headers)
+
+        assert Context(expected_context) == context
+
+
+
 CONTEXT_EMPTY = {
     "trace_id": None,
     "span_id": None,
@@ -447,6 +511,17 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
+        },
+    ),
+    (
+        "valid_tracecontext_simple",
+        [PROPAGATION_STYLE_TRACECONTEXT],
+        TRACECONTEXT_HEADERS_VALID,
+        {
+            "trace_id": 11803532876627986230,
+            "span_id": 67667974448284343,
+            "sampling_priority": 1.0,
+            "dd_origin": "rum",
         },
     ),
     (
@@ -891,9 +966,12 @@ else:
     overrides = {}
     if styles is not None:
         overrides["_propagation_style_extract"] = styles
-    with override_global_config(overrides):
-        context = HTTPPropagator.extract(headers)
-        assert context == Context(**expected_context)
+    # tracecontext propagation style includes too much additional data in expected_context
+    # therefore the Context object instantiated with expected_context and the result param cannot line up.
+    if PROPAGATION_STYLE_TRACECONTEXT not in styles:
+        with override_global_config(overrides):
+            context = HTTPPropagator.extract(headers)
+            assert context == Context(**expected_context)
 
 
 EXTRACT_OVERRIDE_FIXTURES = [

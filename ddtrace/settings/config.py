@@ -45,6 +45,7 @@ def _parse_propagation_styles(name, default):
 
     The allowed values are:
 
+    - "tracecontext"
     - "datadog"
     - "b3"
     - "b3 single header"

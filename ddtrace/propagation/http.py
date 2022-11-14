@@ -576,17 +576,16 @@ class _TraceContext:
             return None
 
         # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
-
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
             # store ts so we keep other vendor data
-            meta[_TRACESTATE_KEY] = ts
+            meta = {_TRACESTATE_KEY: ts}
             try:
                 result = re.search("dd=(.*),", ts)
                 dd = dict(item.split(":") for item in result.group(1).split(";"))
 
                 # parse out values
-                sampling_priority_ts = dd.get("s")
+                sampling_priority_ts = int(dd.get("s"))
 
                 if sampling_priority == 1 and (not sampling_priority_ts or sampling_priority_ts <= 0):
                     sampling_priority = 1
@@ -596,9 +595,12 @@ class _TraceContext:
 
                 origin = dd.get("o")
                 # need to convert from t. to _dd.p.
-                meta = {
-                    re.sub("t.", "_dd.p.", k): v for (k, v) in dd if (_TraceContext._is_valid_datadog_trace_tag_key(k))
+                other_propagated_tags = {
+                    re.sub("t.", "_dd.p.", k): v
+                    for (k, v) in dd.items()
+                    if (_TraceContext._is_valid_datadog_trace_tag_key(k))
                 }
+                meta.update(other_propagated_tags)
 
                 return Context(
                     trace_id=trace_id,
@@ -687,10 +689,10 @@ class HTTPPropagator(object):
         """
         if not headers:
             return Context()
+        import pdb; pdb.set_trace()
 
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
-
             # loop through the extract propagation styles specified in order
             for prop_style in config._propagation_style_extract:
                 propagator = _PROP_STYLES[prop_style]
