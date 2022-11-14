@@ -469,25 +469,27 @@ jobs:
   #         store_coverage: false
   #         pattern: '^py37-profile'
 
-  profile-windows-38:
-    executor:
-      name: win/default
-      shell: bash.exe
-    steps:
-      - run: choco install -y python --version=3.8.10 --side-by-side
-      - run_tox_scenario:
-          store_coverage: false
-          pattern: '^py38-profile'
+  # This requires the machine to reboot :(
+  # profile-windows-38:
+  #   executor:
+  #     name: win/default
+  #     shell: bash.exe
+  #   steps:
+  #     - run: choco install -y python --version=3.8.10 --side-by-side
+  #     - run_tox_scenario:
+  #         store_coverage: false
+  #         pattern: '^py38-profile'
 
-  profile-windows-39:
-    executor:
-      name: win/default
-      shell: bash.exe
-    steps:
-      - run: choco install -y python --version=3.9.12 --side-by-side
-      - run_tox_scenario:
-          store_coverage: false
-          pattern: '^py39-profile'
+  # This requires the machine to reboot :(
+  # profile-windows-39:
+  #   executor:
+  #     name: win/default
+  #     shell: bash.exe
+  #   steps:
+  #     - run: choco install -y python --version=3.9.12 --side-by-side
+  #     - run_tox_scenario:
+  #         store_coverage: false
+  #         pattern: '^py39-profile'
 
   profile-windows-310:
     executor:
@@ -848,6 +850,12 @@ jobs:
       - run_test:
           pattern: 'pytest$'
 
+  asynctest:
+    executor: ddtrace_dev
+    steps:
+      - run_test:
+          pattern: 'asynctest$'
+
   pytestbdd:
     executor: ddtrace_dev
     steps:
@@ -1200,6 +1208,7 @@ requires_tests: &requires_tests
     - pyodbc
     - pyramid
     - pytest
+    - asynctest
     - pytestbdd
     - aredis
     - yaaredis
@@ -1225,8 +1234,8 @@ requires_tests: &requires_tests
     - profile-windows-35
     - profile-windows-36
     # - profile-windows-37
-    - profile-windows-38
-    - profile-windows-39
+    # - profile-windows-38
+    # - profile-windows-39
     - profile-windows-310
 
 workflows:
@@ -1302,6 +1311,7 @@ workflows:
       - pyodbc: *requires_base_venvs
       - pyramid: *requires_base_venvs
       - pytest: *requires_base_venvs
+      - asynctest: *requires_base_venvs
       - pytestbdd: *requires_base_venvs
       - aredis: *requires_base_venvs
       - yaaredis: *requires_base_venvs
@@ -1327,8 +1337,8 @@ workflows:
       - profile-windows-35: *requires_pre_check
       - profile-windows-36: *requires_pre_check
       # - profile-windows-37: *requires_pre_check
-      - profile-windows-38: *requires_pre_check
-      - profile-windows-39: *requires_pre_check
+      # - profile-windows-38: *requires_pre_check
+      # - profile-windows-39: *requires_pre_check
       - profile-windows-310: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
