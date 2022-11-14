@@ -1996,6 +1996,7 @@ venv = Venv(
                     },
                 ),
             ],
+            ci={"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "asynctest$"}}]},
         ),
         Venv(
             name="pytest-bdd",
