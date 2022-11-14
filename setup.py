@@ -8,6 +8,7 @@ from setuptools import setup, find_packages, Extension
 from setuptools.command.test import test as TestCommand
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 from setuptools.command.build_py import build_py as BuildPyCommand
+from pkg_resources import get_build_platform
 from distutils.command.clean import clean as CleanCommand
 
 # ORDER MATTERS
@@ -78,9 +79,8 @@ class Tox(TestCommand):
 
     def run_tests(self):
         # import here, cause outside the eggs aren't loaded
-        import shlex
-
         import tox
+        import shlex
 
         args = self.tox_args
         if args:
@@ -94,7 +94,6 @@ class Tox(TestCommand):
 class LibDDWaf_Download(BuildPyCommand):
     @staticmethod
     def download_dynamic_library():
-        # TRANSLATE_ARCH = {"amd64": "x64"}
         TRANSLATE_SUFFIX = {"Windows": ".dll", "Darwin": ".dylib", "Linux": ".so"}
         AVAILABLE_RELEASES = {
             "Windows": ["win32", "x64"],
@@ -109,17 +108,21 @@ class LibDDWaf_Download(BuildPyCommand):
         if not os.path.isdir(LIBDDWAF_DOWNLOAD_DIR):
             os.makedirs(LIBDDWAF_DOWNLOAD_DIR)
 
+        build_platform = get_build_platform()
         for arch in AVAILABLE_RELEASES[CURRENT_OS]:
+            if CURRENT_OS == "Darwin" and build_platform.endswith("x86_64") and arch == "arm64":
+                continue
+
             arch_dir = os.path.join(LIBDDWAF_DOWNLOAD_DIR, arch)
 
             if os.path.isdir(arch_dir):
                 continue
 
-            ddwaf_archive_dir = "libddwaf-1.5.1-%s-%s" % (CURRENT_OS.lower(), arch)
+            ddwaf_archive_dir = "libddwaf-1.6.0-alpha0-%s-%s" % (CURRENT_OS.lower(), arch)
             ddwaf_archive_name = ddwaf_archive_dir + ".tar.gz"
 
             ddwaf_download_address = (
-                "https://github.com/DataDog/libddwaf/releases/download/1.5.1/%s" % ddwaf_archive_name
+                "https://github.com/DataDog/libddwaf/releases/download/1.6.0-alpha0/%s" % ddwaf_archive_name
             )
 
             try:
@@ -324,7 +327,12 @@ setup(
     },
     # plugin tox
     tests_require=["tox", "flake8"],
-    cmdclass={"test": Tox, "build_ext": BuildExtCommand, "build_py": LibDDWaf_Download, "clean": CleanLibraries},
+    cmdclass={
+        "test": Tox,
+        "build_ext": BuildExtCommand,
+        "build_py": LibDDWaf_Download,
+        "clean": CleanLibraries,
+    },
     entry_points={
         "console_scripts": [
             "ddtrace-run = ddtrace.commands.ddtrace_run:main",

@@ -27,21 +27,15 @@ jobs:
            archs: aarch64
          - os: windows-latest
            archs: AMD64 x86
-         - os: macos-10.15
-           archs: universal2 x86_64
+         - os: macos-11
+           # universal2 and arm64 builds require CPython 3.8 or newer:
+           # https://cibuildwheel.readthedocs.io/en/stable/faq/#universal2
+           archs: x86_64
     steps:
       - uses: actions/checkout@v3
         # Include all history and tags
         with:
           fetch-depth: 0
-
-      # - name: Enable ssh
-      #   uses: lhotari/action-upterm@v1
-      #   with:
-      #     ## limits ssh access and adds the ssh public key for the user which triggered the workflow
-      #     limit-access-to-actor: true
-      #     ## limits ssh access and adds the ssh public keys of the listed GitHub users
-      #     limit-access-to-users: christophe-papazian, gnufede
 
       - uses: actions/setup-python@v4
         name: Install Python
@@ -67,68 +61,58 @@ jobs:
           # Run a smoke test on every supported platform
           CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
           # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*_arm64 *_universal2:arm64"
-          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=10.15
+          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
 
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
 
-  # build_wheels_py3:
-  #   name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     matrix:
-  #       include:
-  #        - os: ubuntu-latest
-  #          archs: x86_64 i686
-  #        - os: ubuntu-latest
-  #          archs: aarch64
-  #        - os: windows-latest
-  #          archs: AMD64 x86
-  #        - os: macos-latest
-  #          archs: universal2
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #       # Include all history and tags
-  #       with:
-  #         fetch-depth: 0
+  build_wheels_py3:
+    name: Build and test wheels on ${{ matrix.os }} (${{ matrix.archs }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+         - os: ubuntu-latest
+           archs: x86_64 i686
+         - os: ubuntu-latest
+           archs: aarch64
+         - os: windows-latest
+           archs: AMD64 x86
+         - os: macos-11
+           archs: x86_64 universal2
+    steps:
+      - uses: actions/checkout@v3
+        # Include all history and tags
+        with:
+          fetch-depth: 0
 
-  #     # - name: Enable ssh
-  #     #   uses: lhotari/action-upterm@v1
-  #     #   with:
-  #     #     ## limits ssh access and adds the ssh public key for the user which triggered the workflow
-  #     #     limit-access-to-actor: true
-  #     #     ## limits ssh access and adds the ssh public keys of the listed GitHub users
-  #     #     limit-access-to-users: christophe-papazian, gnufede
+      - uses: actions/setup-python@v4
+        name: Install Python
+        with:
+          python-version: '3.8'
 
-  #     - uses: actions/setup-python@v4
-  #       name: Install Python
-  #       with:
-  #         python-version: '3.8'
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
 
-  #     - name: Set up QEMU
-  #       if: runner.os == 'Linux'
-  #       uses: docker/setup-qemu-action@v2
-  #       with:
-  #         platforms: all
+      - name: Build wheels python 3.6 and above
+        uses: pypa/cibuildwheel@v2.11.2
+        env:
+          # configure cibuildwheel to build native archs ('auto'), and some
+          # emulated ones
+          CIBW_ARCHS: ${{ matrix.archs }}
+          CIBW_BUILD: cp3*
+          # Run a smoke test on every supported platform
+          CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
+          # Testing arm on MacOS is currently not supported by Github
+          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
 
-  #     - name: Build wheels python 3.6 and above
-  #       uses: pypa/cibuildwheel@v2.11.2
-  #       env:
-  #         # configure cibuildwheel to build native archs ('auto'), and some
-  #         # emulated ones
-  #         CIBW_ARCHS: ${{ matrix.archs }}
-  #         CIBW_BUILD: cp3*
-  #         # Run a smoke test on every supported platform
-  #         CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
-  #         # Testing arm on MacOS is currently not supported by Github
-  #         CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-  #         CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=10.9 _PYTHON_HOST_PLATFORM=macosx-10.9-universal2
-
-  #     - uses: actions/upload-artifact@v3
-  #       with:
-  #         path: ./wheelhouse/*.whl
+      - uses: actions/upload-artifact@v3
+        with:
+          path: ./wheelhouse/*.whl
 
   build_sdist:
     name: Build source distribution
@@ -183,7 +167,7 @@ jobs:
         working-directory: /
 
   upload_pypi:
-    needs: [build_wheels_py27_35, test_alpine_sdist]
+    needs: [build_wheels_py27_35, build_wheels_py3, test_alpine_sdist]
     runs-on: ubuntu-latest
     if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch')
     steps:
