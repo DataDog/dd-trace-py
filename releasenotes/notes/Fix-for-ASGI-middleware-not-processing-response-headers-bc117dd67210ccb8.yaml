@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASGI: response headers are correctly processed instead of ignored
