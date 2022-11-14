@@ -508,7 +508,7 @@ venv = Venv(
                                 "run": {
                                     "command": (
                                         "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s"
-                                        " 'integration-v5'\n"
+                                        " 'integration_agent5'\n"
                                     )
                                 }
                             },
@@ -531,7 +531,7 @@ venv = Venv(
                                 "run": {
                                     "command": (
                                         "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s"
-                                        " 'integration-latest'\n"
+                                        " 'integration_agent'\n"
                                     )
                                 }
                             },
@@ -556,7 +556,7 @@ venv = Venv(
                                     "environment": {"DD_TRACE_AGENT_URL": "http://localhost:9126"},
                                     "command": (
                                         "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s"
-                                        " 'integration-snapshot'\n"
+                                        " 'integration_testagent'\n"
                                     ),
                                 }
                             },
@@ -1411,7 +1411,7 @@ venv = Venv(
                         ],
                     },
                 ],
-                "steps": [{"run_test": {"wait": "mysql", "pattern": "mysql"}}],
+                "steps": [{"run_test": {"wait": "mysql", "pattern": "mysqlconnector"}}],
             },
             venvs=[
                 Venv(
@@ -2040,7 +2040,7 @@ venv = Venv(
                     ],
                 ),
             ],
-            ci={"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "pytest-bdd"}}]},
+            ci={"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "pytestbdd"}}]},
         ),
         Venv(
             name="grpc",
