@@ -166,7 +166,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     capture_pct=capture_pct,
                     nevents=alloc_count,
                 )
-                for (stack, nframes, thread_id), size in events
+                for (stack, nframes, thread_id), size, domain in events
                 if not self.ignore_profiler or thread_id not in thread_id_ignore_set
             ),
         )
