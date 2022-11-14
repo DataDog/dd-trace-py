@@ -1975,6 +1975,7 @@ venv = Venv(
                             latest("pytest"),
                         ],
                         "msgpack": latest("msgpack"),
+                        "asynctest": "==0.13.0",
                         "more_itertools": "<8.11.0",
                     },
                 ),
