@@ -2,9 +2,10 @@
 # and auto instrument Python applications in containerized environments.
 FROM busybox
 
-RUN addgroup -g 1000 -S datadog && \
-    adduser -u 1000 -S datadog -G datadog
-USER datadog
+ARG UID=10000
+RUN addgroup -g 10000 -S datadog && \
+    adduser -u ${UID} -S datadog -G datadog
+USER ${UID}
 WORKDIR /datadog-init
 ADD sitecustomize.py /datadog-init/sitecustomize.py
 ADD copy-lib.sh /datadog-init/copy-lib.sh
