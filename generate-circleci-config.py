@@ -53,7 +53,9 @@ def generate_main_workflow() -> None:
     # Populating the jobs of tests with the appropriate requirements and environment
     circleci_config["workflows"][test_workflow] = {"jobs": []}
     for name in circleci_config["jobs"]:
-        circleci_config["workflows"][test_workflow]["jobs"].append({name: {"requires": requirements[name]}})
+        circleci_config["workflows"][test_workflow]["jobs"].append(
+            {name: {"requires": requirements[name]}} if requirements[name] else name
+        )
         if "environment" not in circleci_config["jobs"][name]:
             circleci_config["jobs"][name]["environment"] = []
         circleci_config["jobs"][name]["environment"].append({"DD_USE_LATEST_VERSIONS": "false"})

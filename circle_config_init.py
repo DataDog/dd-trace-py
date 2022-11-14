@@ -339,7 +339,7 @@ circleci_config = {
         "opentracer": {
             "executor": "ddtrace_dev",
             "parallelism": 7,
-            "steps": [{"run_tox_scenario": {"pattern": "^py..-opentracer"}}],
+            "steps": [{"run_tox_scenario": {"pattern": "^py.\\+-opentracer"}}],
         },
         "profile-windows-35": {
             "executor": {"name": "win/default", "shell": "bash.exe"},

@@ -493,7 +493,7 @@ venv = Venv(
             pkgs={"msgpack": latest("msgpack")},
             venvs=[
                 Venv(
-                    name="integration-v5",
+                    name="integration_agent5",  # formerly integration-v5, but use the name given into the ci
                     env={
                         "AGENT_VERSION": "v5",
                     },
@@ -516,7 +516,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    name="integration-latest",
+                    name="integration_agent",  # formerly integration-latest, but use the name given into the ci
                     env={
                         "AGENT_VERSION": "latest",
                     },
@@ -539,7 +539,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    name="integration-snapshot",
+                    name="integration_testagent",  # formerly integration-snapshot, but use the name given into the ci
                     env={
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
@@ -1394,7 +1394,7 @@ venv = Venv(
             ci={"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "mako"}}]},
         ),
         Venv(
-            name="mysql",
+            name="mysqlconnector",  # formerly mysql, but use the name given into the ci
             command="pytest {cmdargs} tests/contrib/mysql",
             ci={
                 "executor": "ddtrace_dev",
@@ -1999,7 +1999,7 @@ venv = Venv(
             ci={"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "asynctest$"}}]},
         ),
         Venv(
-            name="pytest-bdd",
+            name="pytestbdd",  # formerly pytest-bdd, but use the name given into the ci
             command="pytest {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={"msgpack": latest("msgpack")},
             venvs=[
