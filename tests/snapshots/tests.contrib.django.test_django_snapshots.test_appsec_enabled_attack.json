@@ -16,7 +16,7 @@
       "_dd.runtime_family": "python",
       "appsec.event": "true",
       "asgi.version": "3.0",
-      "component": "asgi",
+      "component": "django",
       "django.request.class": "django.core.handlers.asgi.ASGIRequest",
       "django.response.class": "django.http.response.HttpResponseNotFound",
       "django.user.is_authenticated": "False",

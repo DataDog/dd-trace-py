@@ -122,7 +122,7 @@ class TraceMiddleware:
         )
 
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.asgi.integration_name)
+        span.set_tag_str(COMPONENT, config.integration_config.integration_name)
 
         if "datadog" not in scope:
             scope["datadog"] = {"request_spans": [span]}

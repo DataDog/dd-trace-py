@@ -10,7 +10,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "asgi.version": "3.0",
-      "component": "asgi",
+      "component": "django",
       "http.method": "GET",
       "http.status_code": "200",
       "http.url": "http://localhost:8000/traced-simple-asgi-app/",
