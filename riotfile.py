@@ -1983,6 +1983,21 @@ venv = Venv(
             ci={"executor": "ddtrace_dev", "steps": [{"run_test": {"pattern": "pytest$"}}]},
         ),
         Venv(
+            name="asynctest",
+            command="pytest {cmdargs} tests/contrib/asynctest/",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.5", max_version="3.9"),
+                    pkgs={
+                        "pytest": [
+                            ">=6.0,<7.0",
+                        ],
+                        "asynctest": "==0.13.0",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="pytest-bdd",
             command="pytest {cmdargs} tests/contrib/pytest_bdd/",
             pkgs={"msgpack": latest("msgpack")},

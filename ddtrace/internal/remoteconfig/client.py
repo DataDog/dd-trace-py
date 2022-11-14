@@ -31,7 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Union
 
-    ProductCallback = Callable[[Optional["ConfigMetadata"], Optional[Mapping[str, Any]]], None]
+    ProductCallback = Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]
 
 
 log = logging.getLogger(__name__)
@@ -55,6 +55,7 @@ class ConfigMetadata(object):
     id = attr.ib(type=str)
     product_name = attr.ib(type=str)
     sha256_hash = attr.ib(type=Optional[str])
+    length = attr.ib(type=Optional[int])
     tuf_version = attr.ib(type=Optional[int])
 
 
@@ -173,6 +174,7 @@ def _parse_target(target, metadata):
         id=config_id,
         product_name=product_name,
         sha256_hash=metadata.hashes.get("sha256"),
+        length=metadata.length,
         tuf_version=metadata.custom.get("v"),
     )
 
@@ -202,7 +204,7 @@ class RemoteConfigClient(object):
             env=ddtrace.config.env,
             app_version=ddtrace.config.version,
         )
-
+        self.cached_target_files = []  # type: List[Dict[str, Any]]
         self.converter = cattr.Converter()
 
         # cattrs doesn't implement datetime converter in Py27, we should register
@@ -262,7 +264,7 @@ class RemoteConfigClient(object):
                 state=state,
                 capabilities=_appsec_rc_capabilities(),
             ),
-            cached_target_files=[],  # TODO
+            cached_target_files=self.cached_target_files,
         )
 
     def _build_state(self):
@@ -312,8 +314,9 @@ class RemoteConfigClient(object):
             log.debug("invalid agent payload received: %r", data, exc_info=True)
             raise RemoteConfigError("invalid agent payload received")
 
-        # TODO: Also check among cached targets
         paths = {_.path for _ in payload.target_files}
+        paths = paths.union({_["path"] for _ in self.cached_target_files})
+
         if not set(payload.client_configs) <= paths:
             raise RemoteConfigError("Not all client configurations have target files")
 
@@ -321,36 +324,36 @@ class RemoteConfigClient(object):
         last_targets_version, backend_state, targets = self._process_targets(payload)
         if last_targets_version is None or targets is None:
             log.debug("No targets in configuration payload")
-            for cb in self._products.values():
-                cb(None, None)
+            for callback in self._products.values():
+                callback(None, None)
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
+        log.debug("Retrieved client configs: %s", client_configs)
 
         # 2. Remove previously applied configurations
         applied_configs = dict()
         for target, config in self._applied_configs.items():
+            callback_action = None
             if target in client_configs and targets.get(target) == config:
                 # The configuration has not changed.
                 applied_configs[target] = config
                 continue
+            elif target not in client_configs:
+                log.debug("Disable configuration: %s", target)
+                callback_action = False
 
-            callback = self._products.get(config.product_name)
-            if callback is None:
-                continue
+            callback = self._products[config.product_name]
 
             try:
-                callback(config, None)
+                callback(config, callback_action)
             except Exception:
                 log.debug("error while removing product %s config %r", config.product_name, config)
                 continue
 
         # 3. Load new configurations
         for target, config in client_configs.items():
-            log.debug("new configuration for product %s", config.product_name)
-            callback = self._products.get(config.product_name)
-            if callback is None:
-                continue
+            callback = self._products[config.product_name]
 
             applied_config = self._applied_configs.get(target)
             if applied_config == config:
@@ -361,6 +364,7 @@ class RemoteConfigClient(object):
                 continue
 
             try:
+                log.debug("Load new configuration: %s. content %s", target, config_content)
                 callback(config, config_content)
             except Exception:
                 log.debug("error while loading product %s config %r", config.product_name, config)
@@ -371,6 +375,20 @@ class RemoteConfigClient(object):
         self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs
         self._backend_state = backend_state
+
+        if self._applied_configs:
+            cached_data = []
+            for target, config in self._applied_configs.items():
+                cached_data.append(
+                    {
+                        "path": target,
+                        "length": config.length,
+                        "hashes": [{"algorithm": "sha256", "hash": config.sha256_hash}],
+                    }
+                )
+            self.cached_target_files = cached_data
+        else:
+            self.cached_target_files = []
 
     def request(self):
         # type: () -> None

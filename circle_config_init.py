@@ -355,20 +355,20 @@ circleci_config = {
                 {"run_tox_scenario": {"store_coverage": False, "pattern": "^py36-profile"}},
             ],
         },
-        "profile-windows-38": {
-            "executor": {"name": "win/default", "shell": "bash.exe"},
-            "steps": [
-                {"run": "choco install -y python --version=3.8.10 --side-by-side"},
-                {"run_tox_scenario": {"store_coverage": False, "pattern": "^py38-profile"}},
-            ],
-        },
-        "profile-windows-39": {
-            "executor": {"name": "win/default", "shell": "bash.exe"},
-            "steps": [
-                {"run": "choco install -y python --version=3.9.12 --side-by-side"},
-                {"run_tox_scenario": {"store_coverage": False, "pattern": "^py39-profile"}},
-            ],
-        },
+        # "profile-windows-38": {
+        #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "steps": [
+        #         {"run": "choco install -y python --version=3.8.10 --side-by-side"},
+        #         {"run_tox_scenario": {"store_coverage": False, "pattern": "^py38-profile"}},
+        #     ],
+        # },
+        # "profile-windows-39": {
+        #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "steps": [
+        #         {"run": "choco install -y python --version=3.9.12 --side-by-side"},
+        #         {"run_tox_scenario": {"store_coverage": False, "pattern": "^py39-profile"}},
+        #     ],
+        # },
         "profile-windows-310": {
             "executor": {"name": "win/default", "shell": "bash.exe"},
             "steps": [{"run_tox_scenario": {"store_coverage": False, "pattern": "^py310-profile"}}],

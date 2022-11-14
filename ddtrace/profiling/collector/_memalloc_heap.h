@@ -21,7 +21,7 @@ PyObject*
 memalloc_heap();
 
 bool
-memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size);
+memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain);
 void
 memalloc_heap_untrack(void* ptr);
 
