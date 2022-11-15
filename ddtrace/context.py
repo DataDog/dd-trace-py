@@ -54,10 +54,8 @@ class Context(object):
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
     ):
-        self._meta = meta if meta is not None else {}  # type: _MetaDictType
+        self._meta = meta if meta is not None else {"language": "python"}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
-
-        self._meta["language"] = meta.language if (meta is not None and "language" in meta) else "python"
 
         self.trace_id = trace_id  # type: Optional[int]
         self.span_id = span_id  # type: Optional[int]
