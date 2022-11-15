@@ -2176,5 +2176,13 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="asyncio",
+            command="pytest {cmdargs} tests/contrib/asyncio",
+            pys=select_pys(min_version="3.5"),
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+        ),
     ],
 )
