@@ -8,7 +8,6 @@ from ddtrace.vendor.wrapt import resolve_path
 
 
 log = get_logger(__name__)
-__hidden_elements__ = defaultdict(list)
 
 
 def try_wrap_function_wrapper(module, name, wrapper):
