@@ -319,7 +319,7 @@ circleci_config = {
         "build_base_venvs": {
             "resource_class": "large",
             "docker": [{"image": "datadog/dd-trace-py:buster"}],
-            "parallelism": 7,
+            "parallelism": 8,
             "steps": [
                 "checkout",
                 "setup_riot",
@@ -338,7 +338,7 @@ circleci_config = {
         },
         "opentracer": {
             "executor": "ddtrace_dev",
-            "parallelism": 7,
+            "parallelism": 8,
             "steps": [{"run_tox_scenario": {"pattern": "^py.\\+-opentracer"}}],
         },
         "profile-windows-35": {
@@ -412,7 +412,7 @@ circleci_config = {
         },
         "gevent": {
             "executor": "ddtrace_dev",
-            "parallelism": 7,
+            "parallelism": 8,
             "steps": [{"run_tox_scenario": {"pattern": "^gevent_contrib-"}}],
         },
         "molten": {
@@ -468,7 +468,7 @@ circleci_config = {
         },
         "kombu": {
             "executor": "ddtrace_dev",
-            "parallelism": 7,
+            "parallelism": 8,
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "rabbitmq:3.7-alpine"}],
             "steps": [{"run_tox_scenario": {"wait": "rabbitmq", "pattern": "^kombu_contrib-"}}],
         },

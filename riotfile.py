@@ -465,7 +465,7 @@ venv = Venv(
             },
             ci={
                 "executor": "ddtrace_dev",
-                "parallelism": 7,
+                "parallelism": 8,
                 "steps": [
                     {"run_test": {"pattern": "tracer"}},
                     {"run_tox_scenario": {"pattern": "^py.\\+-tracer_test_http"}},
@@ -1214,7 +1214,7 @@ venv = Venv(
                         }
                     }
                 ],
-                "parallelism": 7,
+                "parallelism": 8,
             },
             venvs=[
                 # Flask == 0.12.0
@@ -2052,7 +2052,7 @@ venv = Venv(
                 "machine": {"image": "ubuntu-2004:current"},
                 "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
                 "steps": [{"run_test": {"pattern": "grpc", "snapshot": True}}],
-                "parallelism": 7,
+                "parallelism": 8,
             },
             venvs=[
                 # Versions between 1.14 and 1.20 have known threading issues
@@ -2769,14 +2769,22 @@ venv = Venv(
 
 
 def latest_version(packages):
+    from datetime import datetime
+
     def get(package):
         try:
             res = urlopen(f"https://pypi.org/pypi/{package}/json")
             j = json.loads(res.read().decode())
-            return j["info"]["version"]
+            d = datetime.now() - datetime.strptime(
+                j["releases"][j["info"]["version"]][0]["upload_time"], "%Y-%m-%dT%H:%M:%S"
+            )
+            c = datetime.now() - datetime.strptime(
+                j["releases"][LATEST_VERSIONS[package]][0]["upload_time"], "%Y-%m-%dT%H:%M:%S"
+            )
+            return j["info"]["version"], c.days, d.days
         except HTTPError:
             print(f"error on {package}")
-            return ""
+            return "", -1, -1
 
     res = {}
     for p in packages:
@@ -2788,7 +2796,11 @@ def latest_version(packages):
 
 if __name__ == "__main__":
     for package in LATEST_VERSIONS:
-        lv = latest_version([package])[package]
+        lv, cdays, udays = latest_version([package])[package]
         if lv != LATEST_VERSIONS[package]:
-            print(f"{package} was updated from [{LATEST_VERSIONS[package]}] to [{lv}]")
+            print(f"{package[:24]:<24s} {LATEST_VERSIONS[package]:>12s} {cdays:4d} days ago")
+            print(f"\x1B[91m >> update            to {lv:>12s} {udays:4d} days ago\x1B[0m")
+        elif cdays > 3 * 365:
+            print(f"\x1B[104m{package[:24]:<24s} {LATEST_VERSIONS[package]:>12s} {cdays:4d} days ago\x1B[0m")
+
     print("all packages scanned.")
