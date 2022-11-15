@@ -46,10 +46,8 @@ a human. All code style enforcement must be automated to avoid bikeshedding
 and losing time.
 
 
-Release Note Guidelines
+Release Notes
 =======================
-The guidelines below describe how to ensure consistency and clarity in release notes.
-
 Release notes are the primary product documentation a user will see when updating the library. Therefore, we must take care to ensure the quality of release notes.
 
 A release note entry should be included for every pull request that changes how a user interacts with the library.
@@ -192,29 +190,8 @@ Note
 ~~~~
 
 The note is a brief description of the change. It should follow sentence-case capitalization.
-The note should also follow valid restructured text (RST) formatting.
-
-* Features: Use present tense with the following format::
-
-  <scope>: This introduces <new_feature_or_component>.
-
-* Upgrade: Use present tense with the following formats (upgrade or removal respectively)::
-
-  <scope>: This upgrades <present tense explanation>. With this upgrade, <actionable_step_for_user>.
-  <scope>: <affected_code> has been removed. As an alternative to <affected_code>, you can use <alternative> instead.
-
-* Deprecations: Use present tense for when deprecation actually happens and future tense for when removal is planned to happen. Include deprecation/removal timeline, as well as workarounds and alternatives in the following format::
-
-  <scope>: <affected_code> is deprecated and will be removed in <version_to_be_removed>. As an alternative to <affected_code>, you can use <alternative> instead.
-
-* Fixes: Use past tense for the problem and present tense for the fix and solution in the following format::
-
-  <scope>: This fix resolves an issue where <ABC bug> caused <XYZ situation>.
-
-* Other: Since changes falling into this category are likely rare and not very similar to each other, no specific format other than a required scope is provided. The author is requested to use their best judgment to ensure a quality release note.
-
-* Prelude: Usually in tandem with a new feature or major change. No specific format other than a required scope is provided and again the author is requested to use their best judgment to provide context and background for the major change or new scope.
-
+The note should also follow valid restructured text (RST) formatting. See the template release note for
+more details and instructions.
 
 How To: Write an Integration
 ============================
