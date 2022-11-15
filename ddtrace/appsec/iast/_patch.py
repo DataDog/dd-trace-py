@@ -38,7 +38,7 @@ def patchable_builtin(klass):
     return refs[0]
 
 
-def patch_builtins(klass, attr, value, hide_from_dir=False):
+def patch_builtins(klass, attr, value):
     """Based on forbiddenfruit package:
     https://github.com/clarete/forbiddenfruit/blob/master/forbiddenfruit/__init__.py#L421
     ---
@@ -64,7 +64,6 @@ def patch_builtins(klass, attr, value, hide_from_dir=False):
       >>> "yo".hello()
       "yoyo"
     """
-
     dikt = patchable_builtin(klass)
 
     old_value = dikt.get(attr, None)
@@ -74,7 +73,6 @@ def patch_builtins(klass, attr, value, hide_from_dir=False):
     dikt[attr] = value
 
     if old_value:
-        hide_from_dir = False  # It was already in dir
         dikt[old_name] = old_value
 
         try:
@@ -87,6 +85,3 @@ def patch_builtins(klass, attr, value, hide_from_dir=False):
             pass
 
     ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
-
-    if hide_from_dir:
-        __hidden_elements__[klass.__name__].append(attr)
