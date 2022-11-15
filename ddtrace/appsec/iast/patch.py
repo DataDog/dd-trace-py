@@ -11,15 +11,11 @@ log = get_logger(__name__)
 __hidden_elements__ = defaultdict(list)
 
 
-def _wrap_function_wrapper_exception(module, name, wrapper):
+def try_wrap_function_wrapper(module, name, wrapper):
     try:
-        wrap_function_wrapper(module, name, wrapper)
+        wrap_object(module, name, FunctionWrapper, (wrapper,))
     except (ImportError, AttributeError):
         log.debug("IAST patching. Module %s.%s not exists", module, name)
-
-
-def wrap_function_wrapper(module, name, wrapper):
-    return wrap_object(module, name, FunctionWrapper, (wrapper,))
 
 
 def apply_patch(parent, attribute, replacement):
