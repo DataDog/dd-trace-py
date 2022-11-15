@@ -802,10 +802,8 @@ def resolve_path(module, name):
                     return vars(cls)[attribute]
             else:
                 return getattr(parent, attribute)
-        elif hasattr(parent, attribute):
-            return getattr(parent, attribute)
         else:
-            return None
+            return getattr(parent, attribute)
 
     original = lookup_attribute(parent, attribute)
 
@@ -817,15 +815,7 @@ def resolve_path(module, name):
 
 
 def apply_patch(parent, attribute, replacement):
-    try:
-        setattr(parent, attribute, replacement)
-    except (TypeError, AttributeError):
-        # It is a built-in/extension type
-        # CAVEAT: Global import raises an error, i.e, asynctest package raises:
-        # 'NoneType' object has no attribute '_spec_coroutines'
-        from forbiddenfruit import curse
-
-        curse(parent, attribute, replacement)
+    setattr(parent, attribute, replacement)
 
 
 def wrap_object(module, name, factory, args=(), kwargs={}):
