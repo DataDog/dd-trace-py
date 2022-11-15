@@ -156,5 +156,5 @@ After installing the `circleci` CLI, you can run jobs by name. For example:
 This project follows [semver](https://semver.org/) and so bug fixes, breaking
 changes, new features, etc must be accompanied by a release note. 
 
-See the [release note guidelines](https://ddtrace.readthedocs.io/en/stable/release_note_guidelines.html) for
+See the [contributing docs](https://ddtrace.readthedocs.io/en/stable/contributing.html) for
 instructions on generating, writing, formatting, and styling release notes.
