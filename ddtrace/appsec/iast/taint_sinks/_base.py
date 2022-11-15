@@ -11,7 +11,6 @@ from ddtrace.appsec.iast.stacktrace import get_info_frame
 from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
-from ddtrace.vendor.wrapt import wrap_function_wrapper
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -74,6 +73,7 @@ class VulnerabilityBase(Operation):
                             evidence=Evidence(type=cls.evidence_type, value=evidence_value),
                             location=Location(path=file_name, line=line_number),
                         )
+<<<<<<< HEAD
                     }
                 )
             _context.set_item(IAST_CONTEXT_KEY, report, span=span)
@@ -84,3 +84,6 @@ def _wrap_function_wrapper_exception(module, name, wrapper):
         wrap_function_wrapper(module, name, wrapper)
     except (ImportError, AttributeError):
         log.debug("IAST patching. Module %s.%s not exists", module, name)
+=======
+                    _context.set_item(IAST_CONTEXT_KEY, report, span=span)
+>>>>>>> 9187070d (fix(iast): forbbidenfruit package conflict (#4546))
