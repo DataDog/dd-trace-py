@@ -10,7 +10,6 @@ from ddtrace.appsec.iast.reporter import Vulnerability
 from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
-from ddtrace.vendor.wrapt import wrap_function_wrapper
 
 
 try:
@@ -86,10 +85,3 @@ class VulnerabilityBase(Operation):
                             }
                         )
                     _context.set_item(IAST_CONTEXT_KEY, report, span=span)
-
-
-def _wrap_function_wrapper_exception(module, name, wrapper):
-    try:
-        wrap_function_wrapper(module, name, wrapper)
-    except (ImportError, AttributeError):
-        log.debug("IAST patching. Module %s.%s not exists", module, name)
