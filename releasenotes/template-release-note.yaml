@@ -1,0 +1,21 @@
+---
+prelude: >
+    <scope>: <add_prelude_and_context_here>.
+features:
+  - |
+    <scope>: this introduces <new_feature_or_component>.
+upgrade:
+  - |
+    <scope>: this upgrades <present_tense_explanation>. With this upgrade, you can <actionable_step_for_user>.
+  - |
+    <scope>: <affected_code> has been removed. As an alternative to <affected_code>, you can use <alternative> instead.
+deprecations:
+  - |
+    <scope>: <affected_code> is deprecated and will be removed in <version_to_be_removed>.
+    As an alternative to <affected_code>, you can use <alternative> instead.
+fixes:
+  - |
+    <scope>: this fix resolves an issue where <ABC_bug> caused <XYZ_situation>.
+other:
+  - |
+    <scope>: <add_release_note_here>.

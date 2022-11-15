@@ -217,6 +217,7 @@ Indices and tables
     advanced_usage
     benchmarks
     contributing
+    release_note_guidelines
     troubleshooting
     versioning
     upgrading
