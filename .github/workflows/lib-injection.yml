@@ -54,7 +54,10 @@ jobs:
 
       - name: Copy python tracer
         run: |
-          cp -R workspace/dd-trace-py/dd-trace-py system-tests/binaries/
+          pwd
+          echo "Ahora voy a listar"
+          ls
+          cp -R workspace/dd-trace-py system-tests/binaries/
 
       - name: Build and push images
         run: |
