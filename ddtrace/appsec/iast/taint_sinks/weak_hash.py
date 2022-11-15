@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 from ddtrace.appsec.iast import oce
 from ddtrace.appsec.iast.constants import EVIDENCE_ALGORITHM_TYPE
 from ddtrace.appsec.iast.constants import VULN_INSECURE_HASHING_TYPE
+from ddtrace.appsec.iast.patch import _wrap_function_wrapper_exception
 from ddtrace.appsec.iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec.iast.taint_sinks._base import _wrap_function_wrapper_exception
 from ddtrace.internal.logger import get_logger
 
 
