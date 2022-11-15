@@ -641,9 +641,14 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 ret = pack_text(&self.pk, span.span_type)
                 if ret != 0: return ret
 
+            ret = pack_bytes(&self.pk, <char *> b"meta", 4)
+            if ret != 0: return ret
+            ret = pack_bytes(&self.pk, <char *> b"language", 8)
+            if ret != 0: return ret
+            ret = pack_text(&self.pk, <char *> b"python", 6)
+            if ret != 0: return ret
+
             if has_meta:
-                ret = pack_bytes(&self.pk, <char *> b"meta", 4)
-                if ret != 0: return ret
                 ret = self._pack_meta(span._meta, <char *> dd_origin)
                 if ret != 0: return ret
 
