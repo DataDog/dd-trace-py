@@ -21,6 +21,7 @@ import ddtrace
 from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
+from ddtrace.internal.runtime import container
 from ddtrace.internal.utils.time import parse_isoformat
 
 
@@ -191,6 +192,13 @@ class RemoteConfigClient(object):
         self.agent_url = agent_url = agent.get_trace_url()
         self._conn = agent.get_connection(agent_url, timeout=agent.get_trace_agent_timeout())
         self._headers = {"content-type": "application/json"}
+
+        container_info = container.get_container_info()
+        if container_info is not None:
+            container_id = container_info.container_id
+            if container_id is not None:
+                self._headers["Datadog-Container-Id"] = container_id
+
         self._client_tracer = dict(
             runtime_id=runtime.get_runtime_id(),
             language="python",
