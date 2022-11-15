@@ -50,34 +50,6 @@ jobs:
           name: logs_${{ matrix.weblog-variant }}
           path: artifact.tar.gz
 
-  lib-injection:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        lib-injection-connection: ['uds', 'network']
-        lib-injection-use-admission-controller: ['', 'use-admission-controller']
-        lib-injection-test-app: ['dd-lib-python-init-test-django', 'dd-lib-python-init-test-django-gunicorn', 'dd-lib-python-init-test-django-uvicorn']
-      fail-fast: false
-    env:
-      TEST_LIBRARY: python
-      WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      DD_API_KEY: ${{ secrets.DD_API_KEY }}
-      LIBRARY_INJECTION_CONNECTION: ${{ matrix.lib-injection-connection }}
-      LIBRARY_INJECTION_ADMISSION_CONTROLLER: ${{ matrix.lib-injection-admission-controller }}
-      LIBRARY_INJECTION_INIT_IMAGE: ghcr.io/datadog/dd-trace-py/dd-lib-python-init:${{ github.sha }}
-      LIBRARY_INJECTION_TEST_APP_IMAGE: ghcr.io/datadog/dd-trace-py/${{ matrix.lib-injection-test-app }}:${{ github.sha }}
-    steps:
-      - name: Checkout system tests
-        uses: actions/checkout@v3
-        with:
-          repository: 'DataDog/system-tests'
-
-      - name: Build
-        run: ./lib-injection/build.sh
-
-      - name: Run
-        run: ./lib-injection/run-lib-injection.sh
-
   parametric:
     runs-on: ubuntu-latest
     env:
