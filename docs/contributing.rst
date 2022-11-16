@@ -47,7 +47,7 @@ and losing time.
 
 
 Release Notes
-=======================
+=============
 Release notes are the primary product documentation a user will see when updating the library. Therefore, we must take care to ensure the quality of release notes.
 
 A release note entry should be included for every pull request that changes how a user interacts with the library.
@@ -78,21 +78,26 @@ If necessary, we can also provide actionable steps to the user.
 The release note should clearly communicate what the change is, why the change was made,
 and how a user can migrate their code.
 
+The release note should also clearly distinguish between announcements and user instructions. Use:
+
+* Past tense for previous/existing behavior (ex: ``resulted, caused, failed``)
+* Third person present tense for the change itself (ex: ``adds, fixes, upgrades``)
+* Active present infinitive for user instructions (ex: ``set, use, add``)
+
 Release notes should:
 
-* Use plain language
-* Avoid overly technical language
-* Be concise
-* Include actionable steps with the necessary code changes
-* Include relevant links (bug issues, upstream issues or release notes, documentation pages)
-* Be full sentences with proper punctuation.
-* Before using specifically acronyms and terminology specific to Datadog, a release note must first introduce them with a definition or explanation.
+* Use plain language.
+* Be concise.
+* Include actionable steps with the necessary code changes.
+* Include relevant links (bug issues, upstream issues or release notes, documentation pages).
+* Use full sentences with sentence-casing and punctuation.
+* Before using Datadog specific acronyms/terminology, a release note must first introduce them with a definition.
 
 Release notes should not:
 
 * Be vague. Example: ``fixes an issue in tracing``.
-* Use acronyms liberally. If an acronym must be used, the acronym should be introduced in the first occurrence of the full term in parentheses immediately after the full term.
-* Use dynamic links (``stable/latest/1.x`` URLs). Instead, use static links (specific version, commit hash/tag) whenever possible so that they don't break in the future.
+* Use overly technical language.
+* Use dynamic links (``stable/latest/1.x`` URLs). Instead, use static links (specific version, commit hash) whenever possible so that they don't break in the future.
 
 Generating a Release Note
 +++++++++++++++++++++++++
@@ -100,15 +105,15 @@ Release notes are generated with the command line tool ``reno`` which can be use
 
     $ riot run reno new <title-slug>
 
-The <title-slug> is used as the prefix for a new file created in ``releasenotes/notes``.
-The <title-slug> is used internally and is not visible in the the product documentation.
+The ``<title-slug>`` is used as the prefix for a new file created in ``releasenotes/notes``.
+The ``<title-slug>`` is used internally and is not visible in the the product documentation.
 
 Generally, the format of the ``<title-slug>`` is lowercase words separated by hyphens.
 
 For example:
 
-* fix-aioredis-catch-canceled-error
-* deprecate-tracer-writer
+* ``fix-aioredis-catch-canceled-error``
+* ``deprecate-tracer-writer``
 
 Release Note Sections
 +++++++++++++++++++++
