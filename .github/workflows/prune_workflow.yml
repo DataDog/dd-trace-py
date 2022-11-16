@@ -52,6 +52,4 @@ jobs:
           delete_workflow_pattern: ${{ inputs.delete_workflow_pattern }}
           delete_workflow_by_state_pattern: ${{ inputs.delete_workflow_by_state_pattern || 'All' }}
           delete_run_by_conclusion_pattern: ${{ inputs.delete_run_by_conclusion_pattern || 'All' }}
-          # FIXME: only allow dry run until tested
-          # dry_run: ${{ inputs.dry_run }}
-          dry_run: true
+          dry_run: ${{ inputs.dry_run || false }}
