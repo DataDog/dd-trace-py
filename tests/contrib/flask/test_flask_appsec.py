@@ -251,5 +251,5 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
     def test_flask_body_xml_empty_logs_warning(self):
         with self._caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
-            self.client.post("/", data="bad xml", content_type="application/xml")
+            self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse werkzeug request body" in self._caplog.text
