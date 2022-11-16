@@ -209,7 +209,7 @@ def test_django_request_body_plain_attack(client, test_spans, tracer):
         assert query == "1' or '1' = '1'"
 
 
-def test_django_request_body_json_empty(caplog, client, test_spans, tracer):
+def test_django_request_body_json_bad(caplog, client, test_spans, tracer):
     with caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
     ):
@@ -221,6 +221,22 @@ def test_django_request_body_json_empty(caplog, client, test_spans, tracer):
             tracer,
             payload=payload,
             content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        assert "Failed to parse request body" in caplog.text
+
+
+def test_django_request_body_xml_bad_logs_warning(caplog, client, test_spans, tracer):
+    with caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)), override_env(
+        dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
+    ):
+        _, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            payload="bad xml",
+            content_type="application/xml",
         )
 
         assert response.status_code == 200

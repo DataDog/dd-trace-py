@@ -249,6 +249,7 @@ def _before_request_tags(pin, span, request):
 
 
 def _extract_body(request):
+    print("XXX extract_body")
     req_body = None
 
     if config._appsec_enabled and request.method in _BODY_METHODS:
