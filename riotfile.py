@@ -364,14 +364,12 @@ venv = Venv(
                         ),
                         Venv(
                             pys=select_pys(min_version="3.7", max_version="3.8"),
-                            # Wheels for gevent segfault pretty easily
-                            env={"PIP_NO_CACHE_DIR": "1"},
                             pkgs={
                                 "gevent": ["~=1.3.0", "~=1.4.0"],
-                                "greenlet": "~=1.0",
-                                "cython": "<=0.29.32",
-                                "cmake": latest,
-                                "ninja": latest,
+                                # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
+                                # This issue was fixed in gevent v20.9:
+                                # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
+                                "greenlet": "<0.4.17",
                             },
                         ),
                         Venv(
@@ -390,7 +388,7 @@ venv = Venv(
                         Venv(
                             pys="3.11",
                             pkgs={
-                                "gevent": ["~=22.8.0"],
+                                "gevent": ["~=22.8.0", latest],
                             },
                         ),
                     ],
