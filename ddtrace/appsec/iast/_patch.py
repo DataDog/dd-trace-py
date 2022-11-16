@@ -1,12 +1,14 @@
 import ctypes
 import gc
+from typing import Any
+from typing import Dict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path
 
 
-_DD_ORIGINAL_ATTRIBUTES = {}  # types: Dict[Any, Any]
+_DD_ORIGINAL_ATTRIBUTES = {}  # type: Dict[Any, Any]
 
 log = get_logger(__name__)
 
