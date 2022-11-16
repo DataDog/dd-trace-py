@@ -504,7 +504,7 @@ jobs:
   profile:
     <<: *contrib_job
     resource_class: large
-    parallelism: 7
+    parallelism: 15
     steps:
       - run_tox_scenario:
           store_coverage: false
@@ -560,12 +560,6 @@ jobs:
       - run_test:
           pattern: 'vendor'
 
-  futures:
-    <<: *contrib_job_small
-    steps:
-      - run_tox_scenario:
-          pattern: '^futures_contrib-'
-
   boto:
     <<: *machine_executor
     parallelism: 4
@@ -591,11 +585,11 @@ jobs:
       - run_test:
           pattern: 'test_logging'
 
-  asyncio:
+  stdlib:
     <<: *contrib_job_small
     steps:
-      - run_tox_scenario:
-          pattern: '^asyncio_contrib-'
+      - run_test:
+          pattern: 'asyncio$|sqlite3$|futures$|dbapi$'
 
   asyncpg:
     <<: *machine_executor
@@ -958,12 +952,6 @@ jobs:
           wait: postgres mysql
           pattern: "sqlalchemy"
 
-  dbapi:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^dbapi_contrib-'
-
   psycopg:
     <<: *machine_executor
     parallelism: 4
@@ -1094,12 +1082,6 @@ jobs:
           wait: rabbitmq
           pattern: '^kombu_contrib-'
 
-  sqlite3:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^sqlite3_contrib-'
-
   benchmarks:
     <<: *contrib_job
     steps:
@@ -1157,7 +1139,6 @@ requires_tests: &requires_tests
     - aiomysql
     - aiopg
     - aioredis
-    - asyncio
     - asyncpg
     - algoliasearch
     - asgi
@@ -1168,7 +1149,6 @@ requires_tests: &requires_tests
     - celery
     - cherrypy
     - consul
-    - dbapi
     - ddtracerun
     - dogpile_cache
     - django
@@ -1178,7 +1158,6 @@ requires_tests: &requires_tests
     - falcon
     - fastapi
     - flask
-    - futures
     - gevent
     - graphql
     - grpc
@@ -1219,8 +1198,8 @@ requires_tests: &requires_tests
     - sanic
     - snowflake
     - sqlalchemy
-    - sqlite3
     - starlette
+    - stdlib
     - test_logging
     - tracer
     - telemetry
@@ -1258,7 +1237,6 @@ workflows:
       - aiomysql: *requires_base_venvs
       - aiopg: *requires_base_venvs
       - aioredis: *requires_base_venvs
-      - asyncio: *requires_base_venvs
       - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
@@ -1269,7 +1247,6 @@ workflows:
       - celery: *requires_base_venvs
       - cherrypy: *requires_base_venvs
       - consul: *requires_base_venvs
-      - dbapi: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
       - django_hosts: *requires_base_venvs
@@ -1279,7 +1256,6 @@ workflows:
       - falcon: *requires_base_venvs
       - fastapi: *requires_base_venvs
       - flask: *requires_base_venvs
-      - futures: *requires_base_venvs
       - gevent: *requires_base_venvs
       - graphene: *requires_base_venvs
       - graphql: *requires_base_venvs
@@ -1322,8 +1298,8 @@ workflows:
       - sanic: *requires_base_venvs
       - snowflake: *requires_base_venvs
       - starlette: *requires_base_venvs
+      - stdlib: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
-      - sqlite3: *requires_base_venvs
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
