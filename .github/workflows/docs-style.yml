@@ -35,6 +35,8 @@ jobs:
       - uses: errata-ai/vale-action@reviewdog
         with:
           reporter: github-pr-review
+          files: docs/_build/
+          filter_mode: nofilter
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
