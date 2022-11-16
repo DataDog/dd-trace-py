@@ -678,8 +678,8 @@ jobs:
   dogpile_cache:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^dogpile_contrib-'
+      - run_test:
+          pattern: 'dogpile_cache'
 
   elasticsearch:
     <<: *machine_executor
