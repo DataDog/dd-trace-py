@@ -594,8 +594,8 @@ jobs:
   asyncio:
     <<: *contrib_job_small
     steps:
-      - run_tox_scenario:
-          pattern: '^asyncio_contrib-'
+      - run_test:
+          pattern: 'asyncio$'
 
   asyncpg:
     <<: *machine_executor
