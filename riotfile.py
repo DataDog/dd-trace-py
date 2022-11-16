@@ -1559,8 +1559,6 @@ venv = Venv(
                     pkgs={
                         "grpcio": [
                             "~=1.12.0",
-                            "~=1.20.0",
-                            "~=1.21.0",
                             "~=1.22.0",
                         ],
                     },
@@ -1570,11 +1568,6 @@ venv = Venv(
                     pkgs={
                         "grpcio": [
                             "~=1.20.0",
-                            "~=1.21.0",
-                            "~=1.22.0",
-                            "~=1.24.0",
-                            "~=1.26.0",
-                            "~=1.28.0",
                             latest,
                         ],
                     },
@@ -1582,7 +1575,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "grpcio": ["~=1.24.0", "~=1.26.0", "~=1.28.0", latest],
+                        "grpcio": ["~=1.24.0", "~=1.40.0", latest],
                     },
                 ),
                 Venv(
@@ -2152,6 +2145,25 @@ venv = Venv(
                 Venv(
                     pys=["3.11"],
                     pkgs={"asyncpg": latest},
+                ),
+            ],
+        ),
+        Venv(
+            name="asyncio",
+            command="pytest {cmdargs} tests/contrib/asyncio",
+            pys=select_pys(min_version="3.5"),
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+        ),
+        Venv(
+            name="futures",
+            command="pytest {cmdargs} tests/contrib/futures",
+            venvs=[
+                # futures is backported for 2.7
+                Venv(pys=["2.7"], pkgs={"futures": ["~=3.0", "~=3.1", "~=3.2", "~=3.4"]}),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
                 ),
             ],
         ),
