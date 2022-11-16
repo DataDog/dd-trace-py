@@ -2062,8 +2062,6 @@ venv = Venv(
                     pkgs={
                         "grpcio": [
                             "~=1.12.0",
-                            "~=1.20.0",
-                            "~=1.21.0",
                             "~=1.22.0",
                         ],
                     },
@@ -2073,11 +2071,6 @@ venv = Venv(
                     pkgs={
                         "grpcio": [
                             "~=1.20.0",
-                            "~=1.21.0",
-                            "~=1.22.0",
-                            "~=1.24.0",
-                            "~=1.26.0",
-                            "~=1.28.0",
                             latest("grpcio"),
                         ],
                     },
@@ -2085,7 +2078,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "grpcio": ["~=1.24.0", "~=1.26.0", "~=1.28.0", latest("grpcio")],
+                        "grpcio": ["~=1.24.0", "~=1.40.0", latest("grpcio")],
                     },
                 ),
                 Venv(
@@ -2763,6 +2756,19 @@ venv = Venv(
                     pkgs={"asyncpg": latest("asyncpg")},
                 ),
             ],
+        ),
+        Venv(
+            name="asyncio",
+            command="pytest {cmdargs} tests/contrib/asyncio",
+            pys=select_pys(min_version="3.5"),
+            pkgs={
+                "pytest-asyncio": latest("pytest-asyncio"),
+            },
+            ci={
+                "executor": "ddtrace_dev_small",
+                "parallelism": "1",
+                "steps": [{"run_test": {"pattern": "asyncio$"}}],
+            },
         ),
     ],
 )

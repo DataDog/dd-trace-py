@@ -384,11 +384,6 @@ circleci_config = {
             "parallelism": 1,
             "steps": [{"run_tox_scenario": {"pattern": "^futures_contrib-"}}],
         },
-        "asyncio": {
-            "executor": "ddtrace_dev_small",
-            "parallelism": 1,
-            "steps": [{"run_tox_scenario": {"pattern": "^asyncio_contrib-"}}],
-        },
         "tornado": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
