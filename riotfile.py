@@ -2177,5 +2177,16 @@ venv = Venv(
                 "pytest-asyncio": latest,
             },
         ),
+        Venv(
+            name="futures",
+            command="pytest {cmdargs} tests/contrib/futures",
+            venvs=[
+                # futures is backported for 2.7
+                Venv(pys=["2.7"], pkgs={"futures": ["~=3.0", "~=3.1", "~=3.2", "~=3.4"]}),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                ),
+            ],
+        ),
     ],
 )
