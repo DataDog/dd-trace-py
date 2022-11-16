@@ -157,7 +157,7 @@ Once finished, the release note should be committed with the rest of the changes
 * Prelude: Not required for every change. Required for major changes such as a new component or new feature which would benefit the user by providing additional context or theme. For example::
 
     prelude: >
-      dynamic instrumentation: Dynamic instrumentation allows instrumenting a running service dynamically
+      dynamic instrumentation: Dynamic Instrumentation allows instrumenting a running service dynamically
       to extract runtime information that could be useful for, e.g., debugging
       purposes, or to add extra metrics without having to make code changes and
       re-deploy the service. See https://ddtrace.readthedocs.io/en/1.6.0/configuration.html
@@ -187,8 +187,8 @@ To ensure consistency in component naming, the convention in referring to compon
 
 * Tracer: ``tracing``
 * Profiler: ``profiling``
-* Application security monitoring: ``ASM``
-* Dynamic instrumentation: ``dynamic instrumentation``
+* Application Security Monitoring: ``ASM``
+* Dynamic Instrumentation: ``dynamic instrumentation``
 * CI Visibility: ``CI visibility``
 * Integrations: ``integration_name``
 
