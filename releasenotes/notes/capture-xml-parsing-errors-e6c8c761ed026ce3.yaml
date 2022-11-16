@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: capture more potential XML parsing exceptions on body parse.
