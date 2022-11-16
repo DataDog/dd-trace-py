@@ -2223,7 +2223,7 @@ venv = Venv(
         Venv(
             name="consul",
             pys=select_pys(),
-            command="pytest tests/contrib/consul",
+            command="pytest {cmdargs} tests/contrib/consul",
             pkgs={
                 "python-consul": [
                     ">=0.7,<1.0",
