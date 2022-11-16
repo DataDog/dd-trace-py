@@ -698,7 +698,7 @@ def test_debugger_function_probe_duration(duration):
         durationstuff(duration)
 
         (snapshot,) = d.test_queue
-        assert 0.9 * duration <= snapshot.duration <= 2.5 * duration, snapshot
+        assert 0.9 * duration <= snapshot.duration <= 3.0 * duration, snapshot
 
 
 def test_debugger_condition_eval_then_rate_limit():
