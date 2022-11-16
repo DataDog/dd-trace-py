@@ -25,7 +25,7 @@ def test_connect_default():
     assert conn
 
 
-@pytest.mark.snapshot()
+@pytest.mark.snapshot(wait_for_num_traces=1)
 def test_connect_traced():
     """When explicitly enabled, we trace psycopg2.connect method"""
     with override_config("psycopg", {"trace_connect": True}):
@@ -33,7 +33,7 @@ def test_connect_traced():
         assert conn
 
 
-@pytest.mark.snapshot(token="tests.contrib.psycopg.test_psycopg_snapshot.test_connect_traced")
+@pytest.mark.snapshot(token="tests.contrib.psycopg.test_psycopg_snapshot.test_connect_traced", wait_for_num_traces=1)
 def test_connect_traced_via_env(run_python_code_in_subprocess):
     """When explicitly enabled, we trace psycopg2.connect method"""
 
