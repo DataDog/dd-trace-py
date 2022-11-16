@@ -140,7 +140,7 @@ memalloc_frame_to_traceback(PyFrameObject* pyframe, uint16_t max_nframe)
 }
 
 traceback_t*
-memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size)
+memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
     PyThreadState* tstate = PyThreadState_Get();
 
@@ -169,6 +169,8 @@ memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size)
 #else
     traceback->thread_id = tstate->thread_id;
 #endif
+
+    traceback->domain = domain;
 
     return traceback;
 }
