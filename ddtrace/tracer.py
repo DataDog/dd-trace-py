@@ -220,6 +220,8 @@ class Tracer(object):
                 sync_mode=self._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"} if self._compute_stats else {},
             )
+            writer.post_start_hooks = []
+            writer.post_start_hooks.append(lambda: enable_appsec_rc(self))
         self._single_span_sampling_rules = get_span_sampling_rules()  # type: List[SpanSamplingRule]
         self._writer = writer  # type: TraceWriter
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
@@ -238,7 +240,6 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
         )
-        enable_appsec_rc(self)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)

@@ -14,6 +14,7 @@ import pytest
 import ddtrace
 from ddtrace import Span
 from ddtrace import Tracer
+from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.compat import httplib
@@ -500,7 +501,10 @@ class DummyTracer(Tracer):
         assert "writer" not in kwargs or isinstance(
             kwargs["writer"], DummyWriter
         ), "cannot configure writer of DummyTracer"
-        kwargs["writer"] = DummyWriter()
+        writer = DummyWriter()
+        writer.post_start_hooks = []
+        writer.post_start_hooks.append(lambda: enable_appsec_rc(self))
+        kwargs["writer"] = writer
         super(DummyTracer, self).configure(*args, **kwargs)
 
 

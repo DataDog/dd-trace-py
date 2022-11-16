@@ -57,6 +57,12 @@ class Service(six.with_metaclass(abc.ABCMeta)):
                 raise ServiceStatusError(self.__class__, self.status)
             self._start_service(*args, **kwargs)
             self.status = ServiceStatus.RUNNING
+            self.run_post_start_hooks()
+
+    def run_post_start_hooks(self):
+        if hasattr(self, "post_start_hooks"):
+            for hook in self.post_start_hooks:
+                hook()
 
     @abc.abstractmethod
     def _start_service(
