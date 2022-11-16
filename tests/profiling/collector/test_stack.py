@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import collections
 import os
+import sys
 import threading
 import time
 import timeit
@@ -129,6 +130,7 @@ def test_collect_once_with_class():
         assert SomeClass.sleep_class()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="FIXME: this test is flaky on Windows")
 def test_collect_once_with_class_not_right_type():
     # type: (...) -> None
     r = recorder.Recorder()

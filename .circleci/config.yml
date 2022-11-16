@@ -672,8 +672,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *consul_image
     steps:
-      - run_tox_scenario:
-          pattern: '^consul_contrib-'
+      - run_test:
+          pattern: 'consul'
 
   dogpile_cache:
     <<: *contrib_job
