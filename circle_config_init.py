@@ -375,7 +375,7 @@ circleci_config = {
         },
         "profile": {
             "executor": "ddtrace_dev",
-            "parallelism": 7,
+            "parallelism": 15,
             "resource_class": "large",
             "steps": [{"run_tox_scenario": {"store_coverage": False, "pattern": "^py.\\+-profile"}}],
         },
