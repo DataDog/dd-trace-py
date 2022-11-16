@@ -1,4 +1,3 @@
-from collections import defaultdict
 import ctypes
 import gc
 
@@ -10,26 +9,21 @@ from ddtrace.vendor.wrapt import resolve_path
 _DD_ORIGINAL_ATTRIBUTES = {}  # types: Dict[Any, Any]
 
 log = get_logger(__name__)
-__hidden_elements__ = defaultdict(list)
 
 
-def _wrap_function_wrapper_exception(module, name, wrapper):
+def try_wrap_function_wrapper(module, name, wrapper):
     try:
-        wrap_function_wrapper(module, name, wrapper)
+        wrap_object(module, name, FunctionWrapper, (wrapper,))
     except (ImportError, AttributeError):
         log.debug("IAST patching. Module %s.%s not exists", module, name)
 
 
-def _unwrap_exception(module, name):
+def try_unwrap(module, name):
     (parent, attribute, _) = resolve_path(module, name)
     if (parent, attribute) in _DD_ORIGINAL_ATTRIBUTES:
         original = _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
         apply_patch(parent, attribute, original)
         del _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
-
-
-def wrap_function_wrapper(module, name, wrapper):
-    return wrap_object(module, name, FunctionWrapper, (wrapper,))
 
 
 def apply_patch(parent, attribute, replacement):
@@ -56,7 +50,7 @@ def patchable_builtin(klass):
     return refs[0]
 
 
-def patch_builtins(klass, attr, value, hide_from_dir=False):
+def patch_builtins(klass, attr, value):
     """Based on forbiddenfruit package:
     https://github.com/clarete/forbiddenfruit/blob/master/forbiddenfruit/__init__.py#L421
     ---
@@ -82,7 +76,6 @@ def patch_builtins(klass, attr, value, hide_from_dir=False):
       >>> "yo".hello()
       "yoyo"
     """
-
     dikt = patchable_builtin(klass)
 
     old_value = dikt.get(attr, None)
@@ -92,7 +85,6 @@ def patch_builtins(klass, attr, value, hide_from_dir=False):
     dikt[attr] = value
 
     if old_value:
-        hide_from_dir = False  # It was already in dir
         dikt[old_name] = old_value
 
         try:
@@ -103,31 +95,5 @@ def patch_builtins(klass, attr, value, hide_from_dir=False):
             dikt[attr].__qualname__ = old_value.__qualname__
         except AttributeError:
             pass
-
-    ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
-
-    if hide_from_dir:
-        __hidden_elements__[klass.__name__].append(attr)
-
-
-def unpatch_builtins(klass, attr):
-    """Reverse a curse in a built-in object
-    This function removes *new* attributes. It's actually possible to remove
-    any kind of attribute from any built-in class, but just DON'T DO IT :)
-    Good:
-      >>> curse(str, "blah", "bleh")
-      >>> assert "blah" in dir(str)
-      >>> reverse(str, "blah")
-      >>> assert "blah" not in dir(str)
-
-    Bad:
-      >>> reverse(str, "strip")
-      >>> " blah ".strip()
-      Traceback (most recent call last):
-        File "<stdin>", line 1, in <module>
-      AttributeError: 'str' object has no attribute 'strip'
-    """
-    dikt = patchable_builtin(klass)
-    del dikt[attr]
 
     ctypes.pythonapi.PyType_Modified(ctypes.py_object(klass))
