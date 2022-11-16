@@ -2167,5 +2167,15 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="sqlite3",
+            command="pytest {cmdargs} tests/contrib/sqlite3",
+            pys=select_pys(),
+        ),
+        Venv(
+            name="dbapi",
+            command="pytest {cmdargs} tests/contrib/dbapi",
+            pys=select_pys(),
+        ),
     ],
 )
