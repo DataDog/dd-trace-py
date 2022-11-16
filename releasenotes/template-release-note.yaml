@@ -5,26 +5,31 @@ prelude: >
     <scope>: <add_prelude_and_context_here>.
 features:
   - |
-    Use present tense with the following format:
+    For new features such as a new integration or component. Use present tense with the following format:
     <scope>: This introduces <new_feature_or_component>. Use present tense here.
 upgrade:
   - |
+    For enhanced functionality or if package dependencies are upgraded. If applicable, include instructions
+    for how a user can migrate their code.
     Use present tense with the following formats, respectively for enhancements or removals:
     <scope>: This upgrades <present_tense_explanation>. With this upgrade, you can <actionable_step_for_user>.
   - |
     <scope>: <affected_code> has been removed. As an alternative to <affected_code>, you can use <alternative> instead.
 deprecations:
   - |
+    Warning of a component or member of the public API being removed in the future.
     Use present tense for when deprecation actually happens and future tense for when removal is planned to happen. 
     Include deprecation/removal timeline, as well as workarounds and alternatives in the following format:
     <scope>: <affected_code> is deprecated and will be removed in <version_to_be_removed>.
     As an alternative to <affected_code>, you can use <alternative> instead.
 fixes:
   - |
+    For reporting bug fixes.
     Use past tense for the problem and present tense for the fix and solution in the following format:
     <scope>: This fix resolves an issue where <ABC_bug> caused <XYZ_situation>.
 other:
   - |
-    Since changes falling into this category are likely rare and not very similar to each other, no specific format 
-    other than a required scope is provided. The author is requested to use their best judgment to ensure a quality release note.
+    For any change which does not fall into any of the above categories. Since changes falling into this category are 
+    likely rare and not very similar to each other, no specific format other than a required scope is provided. 
+    The author is requested to use their best judgment to ensure a quality release note.
     <scope>: <add_release_note_here>.

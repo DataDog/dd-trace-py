@@ -85,6 +85,7 @@ Release notes should:
 * Be concise
 * Include actionable steps with the necessary code changes
 * Include relevant links (bug issues, upstream issues or release notes, documentation pages)
+* Be full sentences with proper punctuation.
 * Before using specifically acronyms and terminology specific to Datadog, a release note must first introduce them with a definition or explanation.
 
 Release notes should not:
@@ -189,7 +190,7 @@ To ensure consistency in component naming, the convention in referring to compon
 Note
 ~~~~
 
-The note is a brief description of the change. It should follow sentence-case capitalization.
+The note is a brief description of the change. It should consist of full sentence(s) with sentence-case capitalization.
 The note should also follow valid restructured text (RST) formatting. See the template release note for
 more details and instructions.
 
