@@ -2220,5 +2220,18 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="consul",
+            pys=select_pys(),
+            command="pytest tests/contrib/consul",
+            pkgs={
+                "python-consul": [
+                    ">=0.7,<1.0",
+                    ">=1.0,<1.1",
+                    ">=1.1,<1.2",
+                    latest,
+                ],
+            },
+        ),
     ],
 )
