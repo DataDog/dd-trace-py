@@ -432,6 +432,7 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   parallelism: 15
   #   steps:
   #     - run: choco install python2
   #     - run_tox_scenario:
@@ -442,6 +443,7 @@ jobs:
     executor:
       name: win/default
       shell: bash.exe
+    parallelism: 15
     steps:
       - run: choco install -y python --version=3.5.4 --side-by-side
       - run_tox_scenario:
@@ -452,6 +454,7 @@ jobs:
     executor:
       name: win/default
       shell: bash.exe
+    parallelism: 15
     steps:
       - run: choco install -y python --version=3.6.8 --side-by-side
       - run_tox_scenario:
@@ -463,6 +466,7 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   parallelism: 15
   #   steps:
   #     - run: choco install python --version=3.7.9
   #     - run_tox_scenario:
@@ -474,6 +478,7 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   parallelism: 15
   #   steps:
   #     - run: choco install -y python --version=3.8.10 --side-by-side
   #     - run_tox_scenario:
@@ -485,6 +490,7 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   parallelism: 15
   #   steps:
   #     - run: choco install -y python --version=3.9.12 --side-by-side
   #     - run_tox_scenario:
@@ -495,6 +501,7 @@ jobs:
     executor:
       name: win/default
       shell: bash.exe
+    parallelism: 15
     steps:
       # circleci/windows@5.0 orb includes python 3.10.6
       - run_tox_scenario:
