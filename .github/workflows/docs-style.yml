@@ -33,6 +33,8 @@ jobs:
           riot run reno report | tee docs/_build/release_notes.rst
 
       - uses: errata-ai/vale-action@reviewdog
+        with:
+          reporter: github-pr-review
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
