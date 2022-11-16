@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    ASM: capture more potential XML parsing exceptions on body parse.
+    ASM: Do not raise exceptions when failing to parse XML request body.
