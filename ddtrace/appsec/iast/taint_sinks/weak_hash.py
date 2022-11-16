@@ -4,8 +4,8 @@ import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec.iast._patch import try_unwrap
+from ddtrace.appsec.iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec.iast.constants import DEFAULT_WEAK_HASH_ALGORITHMS
 from ddtrace.appsec.iast.constants import EVIDENCE_ALGORITHM_TYPE
 from ddtrace.appsec.iast.constants import MD5_DEF

@@ -4,11 +4,11 @@ import pytest
 
 from ddtrace.appsec.iast.constants import EVIDENCE_ALGORITHM_TYPE
 from ddtrace.appsec.iast.constants import VULN_INSECURE_HASHING_TYPE
+from ddtrace.appsec.iast.taint_sinks.weak_hash import unpatch_iast
 from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.internal import _context
 from tests.appsec.iast.fixtures import hashlib_new
 from tests.appsec.iast.fixtures import parametrized_week_hash
-from ddtrace.appsec.iast.taint_sinks.weak_hash import unpatch_iast
 
 
 @pytest.mark.parametrize(
