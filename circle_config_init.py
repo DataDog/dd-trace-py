@@ -379,11 +379,6 @@ circleci_config = {
             "resource_class": "large",
             "steps": [{"run_tox_scenario": {"store_coverage": False, "pattern": "^py.\\+-profile"}}],
         },
-        "futures": {
-            "executor": "ddtrace_dev_small",
-            "parallelism": 1,
-            "steps": [{"run_tox_scenario": {"pattern": "^futures_contrib-"}}],
-        },
         "tornado": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
