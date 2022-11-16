@@ -750,8 +750,8 @@ jobs:
     <<: *contrib_job
     parallelism: 8
     steps:
-      - run_tox_scenario:
-          pattern: '^gevent_contrib-'
+      - run_test:
+          pattern: 'gevent'
 
   graphene:
     <<: *machine_executor

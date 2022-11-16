@@ -333,6 +333,71 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="gevent",
+            command="pytest {cmdargs} tests/contrib/gevent",
+            pkgs={
+                "botocore": latest,
+                "requests": latest,
+                "elasticsearch": latest,
+                "pynamodb": latest,
+            },
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "gevent": ["~=1.1.0", "~=1.2.0", "~=1.3.0"],
+                        "greenlet": "~=1.0",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "aiobotocore": "<=2.3.1",
+                        "aiohttp": latest,
+                    },
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.5", max_version="3.6"),
+                            pkgs={
+                                "gevent": ["~=1.1.0", "~=1.2.0", "~=1.3.0"],
+                                "greenlet": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.8"),
+                            # Wheels for gevent segfault pretty easily
+                            env={"PIP_NO_CACHE_DIR": "1"},
+                            pkgs={
+                                "gevent": ["~=1.3.0", "~=1.4.0"],
+                                "greenlet": "~=1.0",
+                                "cython": "<=0.29.32",
+                                "cmake": latest,
+                                "ninja": latest,
+                            },
+                        ),
+                        Venv(
+                            pys="3.9",
+                            pkgs={
+                                "gevent": ["~=20.12.0", "~=21.1.0"],
+                                "greenlet": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys="3.10",
+                            pkgs={
+                                "gevent": ["~=21.8.0"],
+                            },
+                        ),
+                        Venv(
+                            pys="3.11",
+                            pkgs={
+                                "gevent": ["~=22.8.0"],
+                            },
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             name="runtime",
             command="pytest {cmdargs} tests/runtime/",
             venvs=[Venv(pys=select_pys(), pkgs={"msgpack": latest})],
