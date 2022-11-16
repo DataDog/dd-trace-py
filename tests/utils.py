@@ -501,10 +501,10 @@ class DummyTracer(Tracer):
         assert "writer" not in kwargs or isinstance(
             kwargs["writer"], DummyWriter
         ), "cannot configure writer of DummyTracer"
-        writer = DummyWriter()
-        writer.post_start_hooks = []
-        writer.post_start_hooks.append(lambda: enable_appsec_rc(self))
-        kwargs["writer"] = writer
+        self._writer = DummyWriter()
+        self._writer.post_start_hooks = []
+        self._writer.post_start_hooks.append(lambda: enable_appsec_rc(self))
+        kwargs["writer"] = self._writer
         super(DummyTracer, self).configure(*args, **kwargs)
 
 

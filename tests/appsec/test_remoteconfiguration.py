@@ -10,6 +10,8 @@ from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from tests.utils import override_env
 
+import mock
+
 
 def _set_and_get_appsec_tags(tracer):
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -62,3 +64,13 @@ def test_rc_activation_states(tracer, appsec_enabled, rc_value, expected):
             assert "triggers" in result
         else:
             assert result is None
+
+
+@mock.patch(
+    "tests.utils.enable_appsec_rc",
+)
+def test_ensure_enable_appsec_rc_is_called(mocked_enable_appsec_rc, tracer):
+    with tracer._writer:
+        pass
+
+    mocked_enable_appsec_rc.assert_called_once()
