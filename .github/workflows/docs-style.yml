@@ -13,36 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          # Fetch all branches and tags for reno release traversal
+          # FIXME: For testing, fetch all branches and tags for reno release traversal
           fetch-depth: 0
-
-      - uses: actions/setup-python@v4
-        name: Install Python
-        with:
-          python-version: '3.10'
-
-      - name: Install Dependencies
-        run: pip install riot
-
-      - name: Lint release notes
-        run: riot run -s reno lint
-
-      - name: Generate release notes
-        run: |
-          mkdir -p docs/_build/
-          riot run reno report | tee docs/_build/release_notes.rst
 
       - uses: errata-ai/vale-action@reviewdog
         with:
           reporter: github-pr-review
-          files: docs/_build/
+          files: releasenotes/notes
+          # FIXME: For testing, run over all notes
           filter_mode: nofilter
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-
-      - name: Upload release_notes
-        uses: actions/upload-artifact@v3
-        with:
-          name: release_notes
-          path: |
-            docs/_build/release_notes.rst
