@@ -563,8 +563,8 @@ jobs:
   futures:
     <<: *contrib_job_small
     steps:
-      - run_tox_scenario:
-          pattern: '^futures_contrib-'
+      - run_test:
+          pattern: '^futures$'
 
   boto:
     <<: *machine_executor
