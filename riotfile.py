@@ -2766,7 +2766,7 @@ venv = Venv(
             },
             ci={
                 "executor": "ddtrace_dev_small",
-                "parallelism": "1",
+                "parallelism": 1,
                 "steps": [{"run_test": {"pattern": "asyncio$"}}],
             },
         ),
