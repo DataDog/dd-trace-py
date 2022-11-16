@@ -128,3 +128,4 @@ artifacts/
 
 # Vale
 .github/styles/*
+!.github/styles/Vocab
