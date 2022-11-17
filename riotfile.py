@@ -2230,5 +2230,71 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="sqlite3",
+            command="pytest {cmdargs} tests/contrib/sqlite3",
+            pys=select_pys(),
+        ),
+        Venv(
+            name="dbapi",
+            command="pytest {cmdargs} tests/contrib/dbapi",
+            pys=select_pys(),
+        ),
+        Venv(
+            name="dogpile_cache",
+            command="pytest {cmdargs} tests/contrib/dogpile_cache",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.5"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.6.*",
+                            "==0.7.*",
+                            "==0.8.*",
+                            "==0.9.*",
+                        ],
+                        "decorator": "<5",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.10"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.6.*",
+                            "==0.7.*",
+                            "==0.8.*",
+                            "==0.9.*",
+                            "==1.0.*",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.8.*",
+                            "==0.9.*",
+                            "==1.0.*",
+                            "==1.1.*",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="consul",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/consul",
+            pkgs={
+                "python-consul": [
+                    ">=0.7,<1.0",
+                    ">=1.0,<1.1",
+                    ">=1.1,<1.2",
+                    latest,
+                ],
+            },
+        ),
     ],
 )
