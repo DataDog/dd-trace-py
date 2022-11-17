@@ -437,22 +437,6 @@ venv = Venv(
                         "redis": "~=2.10.6",
                     },
                 ),
-                # 4.x celery bumps kombu to 4.4+, which requires redis 3.2 or later, this tests against
-                # older redis with an older kombu, and newer kombu/newer redis.
-                # https://github.com/celery/kombu/blob/3e60e6503a77b9b1a987cf7954659929abac9bac/Changelog#L35
-                Venv(
-                    pys=select_pys(max_version="3.6"),
-                    pkgs={
-                        "pytest": "~=3.10",
-                        "celery": [
-                            "~=4.0.2",
-                            "~=4.1.1",
-                        ],
-                        "redis": "~=2.10.6",
-                        "kombu": "~=4.3.0",
-                        "importlib_metadata": "<5.0",  # kombu using deprecated shims removed in importlib-metadata>=5.0
-                    },
-                ),
                 # Celery 4.2 is now limited to Kombu 4.3
                 # https://github.com/celery/celery/commit/1571d414461f01ae55be63a03e2adaa94dbcb15d
                 Venv(
@@ -472,8 +456,6 @@ venv = Venv(
                     pkgs={
                         "pytest": "~=3.10",
                         "celery": [
-                            "~=4.3.1",
-                            "~=4.4.7",
                             "~=4.4",  # most recent 4.x
                         ],
                         "redis": "~=3.5",
@@ -486,8 +468,6 @@ venv = Venv(
                     pkgs={
                         "pytest": "~=3.10",
                         "celery": [
-                            "~=4.3.1",
-                            "~=4.4.7",
                             "~=4.4",  # most recent 4.x
                         ],
                         "redis": "~=3.5",
@@ -522,7 +502,6 @@ venv = Venv(
                     },
                     pkgs={
                         "celery": [
-                            "~=5.0.5",
                             "~=5.0",  # most recent 5.x
                             latest,
                         ],
@@ -1580,8 +1559,6 @@ venv = Venv(
                     pkgs={
                         "grpcio": [
                             "~=1.12.0",
-                            "~=1.20.0",
-                            "~=1.21.0",
                             "~=1.22.0",
                         ],
                     },
@@ -1591,11 +1568,6 @@ venv = Venv(
                     pkgs={
                         "grpcio": [
                             "~=1.20.0",
-                            "~=1.21.0",
-                            "~=1.22.0",
-                            "~=1.24.0",
-                            "~=1.26.0",
-                            "~=1.28.0",
                             latest,
                         ],
                     },
@@ -1603,7 +1575,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.9"),
                     pkgs={
-                        "grpcio": ["~=1.24.0", "~=1.26.0", "~=1.28.0", latest],
+                        "grpcio": ["~=1.24.0", "~=1.40.0", latest],
                     },
                 ),
                 Venv(
@@ -2175,6 +2147,91 @@ venv = Venv(
                     pkgs={"asyncpg": latest},
                 ),
             ],
+        ),
+        Venv(
+            name="asyncio",
+            command="pytest {cmdargs} tests/contrib/asyncio",
+            pys=select_pys(min_version="3.5"),
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+        ),
+        Venv(
+            name="futures",
+            command="pytest {cmdargs} tests/contrib/futures",
+            venvs=[
+                # futures is backported for 2.7
+                Venv(pys=["2.7"], pkgs={"futures": ["~=3.0", "~=3.1", "~=3.2", "~=3.4"]}),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                ),
+            ],
+        ),
+        Venv(
+            name="sqlite3",
+            command="pytest {cmdargs} tests/contrib/sqlite3",
+            pys=select_pys(),
+        ),
+        Venv(
+            name="dbapi",
+            command="pytest {cmdargs} tests/contrib/dbapi",
+            pys=select_pys(),
+        ),
+        Venv(
+            name="dogpile_cache",
+            command="pytest {cmdargs} tests/contrib/dogpile_cache",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.5"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.6.*",
+                            "==0.7.*",
+                            "==0.8.*",
+                            "==0.9.*",
+                        ],
+                        "decorator": "<5",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.10"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.6.*",
+                            "==0.7.*",
+                            "==0.8.*",
+                            "==0.9.*",
+                            "==1.0.*",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.8.*",
+                            "==0.9.*",
+                            "==1.0.*",
+                            "==1.1.*",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="consul",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/consul",
+            pkgs={
+                "python-consul": [
+                    ">=0.7,<1.0",
+                    ">=1.0,<1.1",
+                    ">=1.1,<1.2",
+                    latest,
+                ],
+            },
         ),
     ],
 )
