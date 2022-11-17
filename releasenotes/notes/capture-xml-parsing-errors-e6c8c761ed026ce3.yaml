@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    ASM: Do not raise exceptions when failing to parse XML request body.
