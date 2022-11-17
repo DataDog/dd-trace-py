@@ -273,6 +273,8 @@ def _extract_body(request):
             OSError,
             ValueError,
             JSONDecodeError,
+            xmltodict.expat.ExpatError,
+            xmltodict.ParsingInterrupted,
         ):
             log.warning("Failed to parse request body")
             # req_body is None
