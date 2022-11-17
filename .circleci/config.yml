@@ -578,17 +578,11 @@ jobs:
           store_coverage: false
           pattern: 'ddtracerun'
 
-  test_logging:
-    <<: *contrib_job_small
-    steps:
-      - run_test:
-          pattern: 'test_logging'
-
   stdlib:
-    <<: *contrib_job_small
+    <<: *contrib_job
     steps:
       - run_test:
-          pattern: 'asyncio$|sqlite3$|futures$|dbapi$'
+          pattern: 'asyncio$|sqlite3$|futures$|dbapi$|logging$'
 
   asyncpg:
     <<: *machine_executor
@@ -1199,7 +1193,6 @@ requires_tests: &requires_tests
     - sqlalchemy
     - starlette
     - stdlib
-    - test_logging
     - tracer
     - telemetry
     - debugger
@@ -1299,7 +1292,6 @@ workflows:
       - starlette: *requires_base_venvs
       - stdlib: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
-      - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
       - telemetry: *requires_base_venvs

@@ -440,7 +440,7 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
-            name="test_logging",
+            name="logging",
             command="pytest {cmdargs} tests/contrib/logging",
             pys=select_pys(),
         ),
