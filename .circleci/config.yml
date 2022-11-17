@@ -420,7 +420,6 @@ jobs:
 
   opentracer:
     <<: *contrib_job
-    parallelism: 8
     steps:
       - run_test:
           pattern: 'opentracer'
