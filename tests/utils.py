@@ -517,7 +517,7 @@ class TestSpan(Span):
             print('matches')
 
         # Raises an AssertionError
-        span.assert_matches(name='not.my.span', meta={'system.pid': getpid()})
+        span.assert_matches(name='not.my.span', meta={'process_id': getpid()})
     """
 
     def __init__(self, span):
@@ -597,7 +597,7 @@ class TestSpan(Span):
         Example::
 
             span = TestSpan(span)
-            span.meta_matches({'system.pid': getpid()})
+            span.meta_matches({'process_id': getpid()})
 
         :param meta: Property/Value pairs to evaluate on this span
         :type meta: dict
@@ -648,7 +648,7 @@ class TestSpan(Span):
         Example::
 
             span = TestSpan(span)
-            span.assert_meta({'system.pid': getpid()})
+            span.assert_meta({'process_id': getpid()})
 
         :param meta: Property/Value pairs to evaluate on this span
         :type meta: dict
