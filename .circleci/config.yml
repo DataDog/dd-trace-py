@@ -159,7 +159,7 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  riot list --hash-only '<<parameters.pattern>>' | circleci tests split | xargs -n 1 ./scripts/ddtest riot -v run --exitfirst --pass-env -s
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 ./scripts/ddtest riot -v run --exitfirst --pass-env -s
       - unless:
           condition:
               << parameters.snapshot >>
@@ -174,7 +174,7 @@ commands:
                       command: tox -e 'wait' << parameters.wait >>
             - setup_riot
             - run:
-                command: "riot list --hash-only '<<parameters.pattern>>' | circleci tests split | xargs -n 1 riot -v run --exitfirst --pass-env -s"
+                command: "riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 riot -v run --exitfirst --pass-env -s"
       - save_pip_cache
       - when:
           condition:
