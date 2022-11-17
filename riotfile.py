@@ -2303,5 +2303,23 @@ venv = Venv(
             pys=select_pys(max_version="3.9"),
             pkgs={"pyodbc": [">=3.0,<4.0", ">=4.0,<5.0", latest]},
         ),
+        Venv(
+            name="pylibmc",
+            command="pytest {cmdargs} tests/contrib/pylibmc",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.10"),
+                    pkgs={
+                        "pylibmc": [">=1.4,<1.5", ">=1.5,<1.6", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "pylibmc": [">=1.6,<1.7", latest],
+                    },
+                ),
+            ],
+        ),
     ],
 )
