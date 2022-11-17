@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: add defusedexpat as dependency to xmltodict uses it instead of the insecure expat module.
