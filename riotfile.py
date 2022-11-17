@@ -287,6 +287,11 @@ venv = Venv(
             },
         ),
         Venv(
+            name="settings",
+            command="pytest {cmdargs} tests/settings/",
+            pys=select_pys(),
+        ),
+        Venv(
             name="integration",
             pys=select_pys(),
             command="pytest --no-cov {cmdargs} tests/integration/",
