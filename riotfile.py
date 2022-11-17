@@ -2322,16 +2322,9 @@ venv = Venv(
                     command="pytest {cmdargs} tests/opentracer/test_tracer_gevent.py",
                     venvs=[
                         Venv(
-                            pys="2.7",
+                            pys=select_pys(max_version="3.6"),
                             pkgs={
-                                "gevent": ["~=1.1.0", "~=1.2.0", "~=1.3.0"],
-                                "greenlet": "~=1.0",
-                            },
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.5", max_version="3.6"),
-                            pkgs={
-                                "gevent": ["~=1.1.0", "~=1.2.0", "~=1.3.0"],
+                                "gevent": ["~=1.1.0", "~=1.2.0],
                                 "greenlet": "~=1.0",
                             },
                         ),
