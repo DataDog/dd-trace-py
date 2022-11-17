@@ -1219,12 +1219,12 @@ requires_tests: &requires_tests
     - vertica
     - wsgi
     # - profile-windows-27
-    - profile-windows-35
-    - profile-windows-36
+    # - profile-windows-35
+    # - profile-windows-36
     # - profile-windows-37
     # - profile-windows-38
     # - profile-windows-39
-    - profile-windows-310
+    # - profile-windows-310
 
 workflows:
   version: 2
@@ -1321,12 +1321,12 @@ workflows:
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
       # - profile-windows-27: *requires_pre_check
-      - profile-windows-35: *requires_pre_check
-      - profile-windows-36: *requires_pre_check
+      # - profile-windows-35: *requires_pre_check
+      # - profile-windows-36: *requires_pre_check
       # - profile-windows-37: *requires_pre_check
       # - profile-windows-38: *requires_pre_check
       # - profile-windows-39: *requires_pre_check
-      - profile-windows-310: *requires_pre_check
+      # - profile-windows-310: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
 
