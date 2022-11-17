@@ -2296,5 +2296,12 @@ venv = Venv(
                 ],
             },
         ),
+        Venv(
+            name="pyodbc",
+            command="pytest {cmdargs} tests/contrib/pyodbc",
+            # FIXME: check if this constraint is no longer required
+            pys=select_pys(max_version="3.9"),
+            pkgs={"pyodbc": [">=3.0,<4.0", ">=4.0,<5.0", latest]},
+        ),
     ],
 )
