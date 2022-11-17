@@ -210,7 +210,10 @@ def test_django_request_body_plain_attack(client, test_spans, tracer):
 
 
 def test_django_request_body_json_bad(caplog, client, test_spans, tracer):
-    with caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)), override_env(
+    # Note: there is some odd interaction between hypotheses or pytest and
+    # caplog where if you set this to WARNING the second test won't get
+    # output unless you set all to DEBUG.
+    with caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
     ):
         payload = '{"attack": "bad_payload",}'
@@ -228,7 +231,8 @@ def test_django_request_body_json_bad(caplog, client, test_spans, tracer):
 
 
 def test_django_request_body_xml_bad_logs_warning(caplog, client, test_spans, tracer):
-    with caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)), override_env(
+    # see above about caplog
+    with caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
     ):
         _, response = _aux_appsec_get_root_span(
