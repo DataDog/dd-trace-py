@@ -22,8 +22,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "out.port": 3306,
-      "sql.rows": 1,
-      "system.pid": 9677
+      "process_id": 9677,
+      "sql.rows": 1
     },
     "duration": 617000,
     "start": 1656521264338568300
@@ -51,8 +51,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "out.port": 3306,
-      "sql.rows": 1,
-      "system.pid": 9677
+      "process_id": 9677,
+      "sql.rows": 1
     },
     "duration": 271200,
     "start": 1656521264339927400
