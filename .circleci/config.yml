@@ -835,8 +835,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *memcached_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pylibmc_contrib-'
+      - run_test:
+          pattern: 'pylibmc'
 
   pytest:
     executor: ddtrace_dev
