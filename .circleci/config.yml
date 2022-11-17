@@ -743,8 +743,8 @@ jobs:
     <<: *contrib_job
     parallelism: 8
     steps:
-      - run_tox_scenario:
-          pattern: '^gevent_contrib-'
+      - run_test:
+          pattern: 'gevent'
 
   graphene:
     <<: *machine_executor
@@ -893,8 +893,8 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pyodbc_contrib-'
+      - run_test:
+          pattern: 'pyodbc'
 
   pyramid:
     <<: *machine_executor
