@@ -2324,7 +2324,7 @@ venv = Venv(
                         Venv(
                             pys=select_pys(max_version="3.6"),
                             pkgs={
-                                "gevent": ["~=1.1.0", "~=1.2.0],
+                                "gevent": ["~=1.1.0", "~=1.2.0"],
                                 "greenlet": "~=1.0",
                             },
                         ),
