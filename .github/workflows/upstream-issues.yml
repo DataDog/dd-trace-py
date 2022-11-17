@@ -1,0 +1,15 @@
+name: Upstream issue notifier
+on:
+  push:
+    branches:
+      - master
+jobs:
+  upstream-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ZStriker19/upstream-issue-notifier@e5988550eec9f6d8aec9eefeb86f10a23165b0e9
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          IGNORE_DIRS: ddtrace/vendor
+          DRY_RUN: true
