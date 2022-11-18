@@ -112,7 +112,7 @@ class FuzzyEnvMatcher(object):
             max_dist = min(max((len(key) - len(self.SCANNED_PREFIX)) / 3, 1), 2)
             match = self.matcher.match_damreau_levhenstein(key, max_dist)
             if match is not None:
-                log.warning("Env variable %s not recognized, did you mean %s", key, match.match)
+                log.warning("Env variable %s not recognized, did you mean %s", match.match, key)
         return default
 
 

@@ -12,10 +12,10 @@ def test_log_env_var(caplog):
 
 def test_log_env_var_typo(caplog):
     value = "agent host value"
-    with override_env({"DD_AGENT_HOST": value}):
+    with override_env({"DD_AGENT_HSOT": value}):
         env = FuzzyEnvMatcher()
 
-        assert env.get("DD_AGENT_HSOT") is None
+        assert env.get("DD_AGENT_HOST") is None
         assert caplog.record_tuples == [
             ("ddtrace.settings.matching", 30, "Env variable DD_AGENT_HSOT not recognized, did you mean DD_AGENT_HOST")
         ]
