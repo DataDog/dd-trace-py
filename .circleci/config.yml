@@ -431,17 +431,15 @@ jobs:
   # Building gevent (for which we never want wheels because they crash)
   # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
   # which is not installed.
-  # profile-windows-27:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 4
-  #   steps:
-  #     - run: choco install python2
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py27-profile'
+  profile-windows-27:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python2
+      - run_test:
+          store_coverage: false
+          pattern: 'profiler'
 
   profile-windows-35:
     executor:
@@ -451,9 +449,9 @@ jobs:
     parallelism: 4
     steps:
       - run: choco install -y python --version=3.5.4 --side-by-side
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py35-profile'
+          pattern: 'profiler'
 
   profile-windows-36:
     executor:
@@ -463,48 +461,42 @@ jobs:
     parallelism: 4
     steps:
       - run: choco install -y python --version=3.6.8 --side-by-side
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py36-profile'
+          pattern: 'profiler'
 
   # For whatever reason, choco does not install Python 3.7 correctly on Windows
-  # profile-windows-37:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 5
-  #   steps:
-  #     - run: choco install python --version=3.7.9
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py37-profile'
+  profile-windows-37:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install python --version=3.7.9
+      - run_test:
+          store_coverage: false
+          pattern: 'profiler'
 
   # This requires the machine to reboot :(
-  # profile-windows-38:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 5
-  #   steps:
-  #     - run: choco install -y python --version=3.8.10 --side-by-side
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py38-profile'
+  profile-windows-38:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install -y python --version=3.8.10 --side-by-side
+      - run_test:
+          store_coverage: false
+          pattern: 'profiler'
 
   # This requires the machine to reboot :(
-  # profile-windows-39:
-  #   executor:
-  #     name: win/default
-  #     shell: bash.exe
-  #   # This is the number of tox envs for this job
-  #   parallelism: 5
-  #   steps:
-  #     - run: choco install -y python --version=3.9.12 --side-by-side
-  #     - run_tox_scenario:
-  #         store_coverage: false
-  #         pattern: '^py39-profile'
+  profile-windows-39:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install -y python --version=3.9.12 --side-by-side
+      - run_test:
+          store_coverage: false
+          pattern: 'profiler'
 
   profile-windows-310:
     executor:
@@ -514,9 +506,9 @@ jobs:
     parallelism: 5
     steps:
       # circleci/windows@5.0 orb includes python 3.10.6
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py310-profile'
+          pattern: 'profiler'
 
   profile-windows-311:
     executor:
@@ -530,12 +522,12 @@ jobs:
 
   profile:
     <<: *contrib_job
-    resource_class: large
     parallelism: 15
+    resource_class: large
     steps:
-      - run_tox_scenario:
+      - run_test:
           store_coverage: false
-          pattern: '^py.\+-profile'
+          pattern: 'profiler'
 
   integration_agent:
     <<: *machine_executor

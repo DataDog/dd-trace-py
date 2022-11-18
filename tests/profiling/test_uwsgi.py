@@ -40,8 +40,11 @@ def uwsgi(monkeypatch):
 def test_uwsgi_threads_disabled(uwsgi):
     proc = uwsgi()
     stdout, _ = proc.communicate()
-    assert proc.wait() != 0
-    assert b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true" in stdout
+    ret_code = proc.wait()
+    assert ret_code != 0, ret_code
+    assert b"ddtrace.internal.uwsgi.uWSGIConfigError: enable-threads option must be set to true" in stdout, str(
+        sys.path
+    )
 
 
 def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
@@ -52,7 +55,8 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
     # Give some time to the process to actually startup
     time.sleep(3)
     proc.terminate()
-    assert proc.wait() == 30
+    ret_code = proc.wait()
+    assert ret_code == 30, ret_code
     for pid in worker_pids:
         utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
@@ -63,7 +67,7 @@ def test_uwsgi_threads_processes_no_master(uwsgi, monkeypatch):
     assert (
         b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
         in stdout
-    )
+    ), stdout
 
 
 def _get_worker_pids(stdout, num_worker, num_app_started=1):
@@ -94,7 +98,8 @@ def test_uwsgi_threads_processes_master(uwsgi, tmp_path, monkeypatch):
     # Give some time to child to actually startup
     time.sleep(3)
     proc.terminate()
-    assert proc.wait() == 0
+    ret_code = proc.wait()
+    assert ret_code == 0, ret_code
     for pid in worker_pids:
         utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
@@ -110,7 +115,8 @@ def test_uwsgi_threads_processes_master_lazy_apps(uwsgi, tmp_path, monkeypatch):
     # Give some time to child to actually startup
     time.sleep(3)
     proc.terminate()
-    assert proc.wait() == 0
+    ret_code = proc.wait()
+    assert ret_code == 0, ret_code
     for pid in worker_pids:
         utils.check_pprof_file("%s.%d.1" % (filename, pid))
 
