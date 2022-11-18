@@ -17,7 +17,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 8700
+      "process_id": 8700
     },
     "duration": 50000,
     "start": 1649347143772766000
@@ -41,7 +41,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 8700
+      "process_id": 8700
     },
     "duration": 14000,
     "start": 1649347143772950000
@@ -65,7 +65,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 8700
+      "process_id": 8700
     },
     "duration": 10000,
     "start": 1649347143772991000
@@ -89,7 +89,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 8700
+      "process_id": 8700
     },
     "duration": 8000,
     "start": 1649347143773021000
@@ -113,7 +113,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 8700
+      "process_id": 8700
     },
     "duration": 8000,
     "start": 1649347143773047000
@@ -137,7 +137,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 8700
+      "process_id": 8700
     },
     "duration": 8000,
     "start": 1649347143773068000
@@ -161,7 +161,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 8700
+      "process_id": 8700
     },
     "duration": 7000,
     "start": 1649347143773088000
@@ -185,7 +185,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 8700
+      "process_id": 8700
     },
     "duration": 7000,
     "start": 1649347143773111000
@@ -209,7 +209,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 8700
+      "process_id": 8700
     },
     "duration": 7000,
     "start": 1649347143773131000
@@ -233,7 +233,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 8700
+      "process_id": 8700
     },
     "duration": 7000,
     "start": 1649347143773150000

@@ -21,7 +21,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 27506
+      "process_id": 27506
     },
     "duration": 29211000,
     "start": 1646794505597988000
@@ -61,7 +61,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 27506
+      "process_id": 27506
     },
     "duration": 3596000,
     "start": 1646794505627424000
@@ -101,7 +101,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 27506
+      "process_id": 27506
     },
     "duration": 3312000,
     "start": 1646794505631290000
