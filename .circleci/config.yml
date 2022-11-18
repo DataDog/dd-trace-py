@@ -509,19 +509,6 @@ jobs:
           store_coverage: false
           pattern: '^py.\+-profile'
 
-  integration_agent5:
-    <<: *machine_executor
-    steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          services: ddagent5
-      - run:
-          command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
-
   integration_agent:
     <<: *machine_executor
     steps:
@@ -1162,7 +1149,6 @@ requires_tests: &requires_tests
     - grpc
     - httplib
     - httpx
-    - integration_agent5
     - integration_agent
     - integration_testagent
     - vendor
@@ -1261,7 +1247,6 @@ workflows:
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
-      - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
       - internal: *requires_base_venvs
