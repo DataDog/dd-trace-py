@@ -22,6 +22,7 @@ from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.profiling import exporter
 from ddtrace.profiling import recorder
 from ddtrace.profiling.exporter import pprof
+from ddtrace.settings.matching import getenv
 
 
 HOSTNAME = platform.node()
@@ -73,8 +74,8 @@ class PprofHTTPExporter(pprof.PprofExporter):
         tags = {
             k: six.ensure_binary(v)
             for k, v in itertools.chain(
-                parse_tags_str(os.environ.get("DD_TAGS")).items(),
-                parse_tags_str(os.environ.get("DD_PROFILING_TAGS")).items(),
+                parse_tags_str(getenv("DD_TAGS")).items(),
+                parse_tags_str(getenv("DD_PROFILING_TAGS")).items(),
             )
         }
         tags.update({k: six.ensure_binary(v) for k, v in self.tags.items()})

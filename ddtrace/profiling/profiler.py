@@ -28,6 +28,7 @@ from ddtrace.profiling.collector import stack_event
 from ddtrace.profiling.collector import threading
 from ddtrace.profiling.exporter import file
 from ddtrace.profiling.exporter import http
+from ddtrace.settings.matching import getenv
 
 from . import _asyncio
 from ._asyncio import DdtraceProfilerEventLoopPolicy
@@ -114,16 +115,16 @@ class _ProfilerInstance(service.Service):
 
     # User-supplied values
     url = attr.ib(default=None)
-    service = attr.ib(factory=lambda: os.environ.get("DD_SERVICE"))
+    service = attr.ib(factory=lambda: getenv("DD_SERVICE"))
     tags = attr.ib(factory=dict, type=typing.Dict[str, bytes])
-    env = attr.ib(factory=lambda: os.environ.get("DD_ENV"))
-    version = attr.ib(factory=lambda: os.environ.get("DD_VERSION"))
+    env = attr.ib(factory=lambda: getenv("DD_ENV"))
+    version = attr.ib(factory=lambda: getenv("DD_VERSION"))
     tracer = attr.ib(default=ddtrace.tracer)
-    api_key = attr.ib(factory=lambda: os.environ.get("DD_API_KEY"), type=Optional[str])
-    agentless = attr.ib(factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_AGENTLESS", "False")), type=bool)
+    api_key = attr.ib(factory=lambda: getenv("DD_API_KEY"), type=Optional[str])
+    agentless = attr.ib(factory=lambda: formats.asbool(getenv("DD_PROFILING_AGENTLESS", "False")), type=bool)
     asyncio_loop_policy_class = attr.ib(default=DdtraceProfilerEventLoopPolicy)
     _memory_collector_enabled = attr.ib(
-        factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
+        factory=lambda: formats.asbool(getenv("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
     )
     enable_code_provenance = attr.ib(
         factory=attr_utils.from_env("DD_PROFILING_ENABLE_CODE_PROVENANCE", False, formats.asbool),
@@ -145,7 +146,7 @@ class _ProfilerInstance(service.Service):
 
     def _build_default_exporters(self):
         # type: (...) -> List[exporter.Exporter]
-        _OUTPUT_PPROF = os.environ.get("DD_PROFILING_OUTPUT_PPROF")
+        _OUTPUT_PPROF = getenv("DD_PROFILING_OUTPUT_PPROF")
         if _OUTPUT_PPROF:
             return [
                 file.PprofFileExporter(prefix=_OUTPUT_PPROF),
@@ -158,7 +159,7 @@ class _ProfilerInstance(service.Service):
                 "Agentless uploading is currently for internal usage only and not officially supported. "
                 "You should not enable it unless somebody at Datadog instructed you to do so."
             )
-            endpoint = self.ENDPOINT_TEMPLATE.format(os.environ.get("DD_SITE", "datadoghq.com"))
+            endpoint = self.ENDPOINT_TEMPLATE.format(getenv("DD_SITE", "datadoghq.com"))
         else:
             if isinstance(self.tracer._writer, writer.AgentWriter):
                 endpoint = self.tracer._writer.agent_url
@@ -204,7 +205,7 @@ class _ProfilerInstance(service.Service):
                 # Do not limit the heap sample size as the number of events is relative to allocated memory anyway
                 memalloc.MemoryHeapSampleEvent: None,
             },
-            default_max_events=int(os.environ.get("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
+            default_max_events=int(getenv("DD_PROFILING_MAX_EVENTS", recorder.Recorder._DEFAULT_MAX_EVENTS)),
         )
 
         self._collectors = [

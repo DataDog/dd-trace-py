@@ -16,6 +16,7 @@ import six
 import tenacity
 
 import ddtrace
+from ddtrace.settings.matching import getenv
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
@@ -63,22 +64,22 @@ DEFAULT_REUSE_CONNECTIONS = False
 
 def get_writer_buffer_size():
     # type: () -> int
-    return int(os.getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE))
+    return int(getenv("DD_TRACE_WRITER_BUFFER_SIZE_BYTES", default=DEFAULT_BUFFER_SIZE))
 
 
 def get_writer_max_payload_size():
     # type: () -> int
-    return int(os.getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE))
+    return int(getenv("DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES", default=DEFAULT_MAX_PAYLOAD_SIZE))
 
 
 def get_writer_interval_seconds():
     # type: () -> float
-    return float(os.getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL))
+    return float(getenv("DD_TRACE_WRITER_INTERVAL_SECONDS", default=DEFAULT_PROCESSING_INTERVAL))
 
 
 def get_writer_reuse_connections():
     # type: () -> bool
-    return asbool(os.getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS))
+    return asbool(getenv("DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS))
 
 
 def _human_size(nbytes):
@@ -279,7 +280,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             self._headers.update(headers)
         self._timeout = timeout
         self._api_version = (
-            api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
+            api_version or getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
         )
         try:
             Encoder = MSGPACK_ENCODERS[self._api_version]
@@ -511,7 +512,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                     self.start()
                     # instrumentation telemetry writer should be enabled/started after the global tracer and configs
                     # are initialized
-                    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
+                    if asbool(getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
                         telemetry_writer.enable()
             except service.ServiceStatusError:
                 pass

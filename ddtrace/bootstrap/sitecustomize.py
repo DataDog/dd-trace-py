@@ -24,6 +24,7 @@ from ddtrace.internal.logger import get_logger  # noqa
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 from ddtrace.internal.utils.formats import asbool  # noqa
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings.matching import getenv
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
 from ddtrace.tracer import debug_mode
 from ddtrace.vendor.debtcollector import deprecate
@@ -66,7 +67,7 @@ EXTRA_PATCHED_MODULES = {
 
 
 def update_patched_modules():
-    modules_to_patch = os.getenv("DD_PATCH_MODULES")
+    modules_to_patch = getenv("DD_PATCH_MODULES")
     if not modules_to_patch:
         return
 
@@ -78,8 +79,8 @@ def update_patched_modules():
 try:
     from ddtrace import tracer
 
-    priority_sampling = os.getenv("DD_PRIORITY_SAMPLING")
-    profiling = asbool(os.getenv("DD_PROFILING_ENABLED", False))
+    priority_sampling = getenv("DD_PRIORITY_SAMPLING")
+    profiling = asbool(getenv("DD_PROFILING_ENABLED", False))
 
     if profiling:
         log.debug("profiler enabled via environment variable")
@@ -90,12 +91,12 @@ try:
 
         DynamicInstrumentation.enable()
 
-    if asbool(os.getenv("DD_RUNTIME_METRICS_ENABLED")):
+    if asbool(getenv("DD_RUNTIME_METRICS_ENABLED")):
         RuntimeWorker.enable()
 
     opts = {}  # type: Dict[str, Any]
 
-    dd_trace_enabled = os.getenv("DD_TRACE_ENABLED", default=True)
+    dd_trace_enabled = getenv("DD_TRACE_ENABLED", default=True)
     if asbool(dd_trace_enabled):
         trace_enabled = True
     else:
@@ -114,12 +115,12 @@ try:
 
         patch_all(**EXTRA_PATCHED_MODULES)
 
-    dd_env = os.getenv("DD_ENV")
+    dd_env = getenv("DD_ENV")
     if dd_env:
         tracer.set_tags({constants.ENV_KEY: dd_env})
 
-    if "DD_TRACE_GLOBAL_TAGS" in os.environ:
-        env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
+    env_tags = getenv("DD_TRACE_GLOBAL_TAGS")
+    if env_tags is not None:
         tracer.set_tags(parse_tags_str(env_tags))
 
     # Check for and import any sitecustomize that would have normally been used

@@ -1,4 +1,3 @@
-import os
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
@@ -7,6 +6,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings.matching import getenv
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -51,8 +51,8 @@ def appsec_rc_reload_features(tracer):
 
             _appsec_enabled = True
 
-            if not (APPSEC_ENV not in os.environ and rc_appsec_enabled is True) and (
-                asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
+            if not (getenv(APPSEC_ENV) is None and rc_appsec_enabled is True) and (
+                asbool(getenv(APPSEC_ENV)) is False or rc_appsec_enabled is False
             ):
                 _appsec_enabled = False
 

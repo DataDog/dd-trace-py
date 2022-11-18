@@ -3,6 +3,7 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace.internal.compat import parse
+from ddtrace.settings.matching import getenv
 
 from .http import HTTPConnection
 from .http import HTTPSConnection
@@ -24,17 +25,17 @@ T = TypeVar("T")
 
 def get_trace_hostname(default=DEFAULT_HOSTNAME):
     # type: (Union[T, str]) -> Union[T, str]
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DD_TRACE_AGENT_HOSTNAME", default))
+    return getenv("DD_AGENT_HOST", getenv("DD_TRACE_AGENT_HOSTNAME", default))
 
 
 def get_stats_hostname(default=DEFAULT_HOSTNAME):
     # type: (Union[T, str]) -> Union[T, str]
-    return os.environ.get("DD_AGENT_HOST", os.environ.get("DD_DOGSTATSD_HOST", default))
+    return getenv("DD_AGENT_HOST", getenv("DD_DOGSTATSD_HOST", default))
 
 
 def get_trace_port(default=DEFAULT_TRACE_PORT):
     # type: (Union[T, int]) -> Union[T,int]
-    v = os.environ.get("DD_AGENT_PORT", os.environ.get("DD_TRACE_AGENT_PORT"))
+    v = getenv("DD_AGENT_PORT", getenv("DD_TRACE_AGENT_PORT"))
     if v is not None:
         return int(v)
     return default
@@ -42,7 +43,7 @@ def get_trace_port(default=DEFAULT_TRACE_PORT):
 
 def get_stats_port(default=DEFAULT_STATS_PORT):
     # type: (Union[T, int]) -> Union[T,int]
-    v = os.getenv("DD_DOGSTATSD_PORT", default=None)
+    v = getenv("DD_DOGSTATSD_PORT", default=None)
     if v is not None:
         return int(v)
     return default
@@ -50,7 +51,7 @@ def get_stats_port(default=DEFAULT_STATS_PORT):
 
 def get_trace_agent_timeout():
     # type: () -> float
-    return float(os.getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", default=DEFAULT_TIMEOUT))
+    return float(getenv("DD_TRACE_AGENT_TIMEOUT_SECONDS", default=DEFAULT_TIMEOUT))
 
 
 def get_trace_url():
@@ -62,7 +63,7 @@ def get_trace_url():
     user_supplied_host = get_trace_hostname(None) is not None
     user_supplied_port = get_trace_port(None) is not None
 
-    url = os.environ.get("DD_TRACE_AGENT_URL")
+    url = getenv("DD_TRACE_AGENT_URL")
 
     if not url:
         if user_supplied_host or user_supplied_port:
@@ -80,7 +81,7 @@ def get_stats_url():
     user_supplied_host = get_stats_hostname(None) is not None
     user_supplied_port = get_stats_port(None) is not None
 
-    url = os.getenv("DD_DOGSTATSD_URL", default=None)
+    url = getenv("DD_DOGSTATSD_URL", default=None)
 
     if not url:
         if user_supplied_host or user_supplied_port:

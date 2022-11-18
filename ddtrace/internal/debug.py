@@ -13,6 +13,7 @@ import ddtrace
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.sampler import DatadogSampler
+from ddtrace.settings.matching import getenv
 
 from .logger import get_logger
 
@@ -143,7 +144,7 @@ def collect(tracer):
         runtime_metrics_enabled=RuntimeWorker.enabled,
         dd_version=ddtrace.config.version or "",
         priority_sampling_enabled=tracer._priority_sampler is not None,
-        global_tags=os.getenv("DD_TAGS", ""),
+        global_tags=getenv("DD_TAGS", ""),
         tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
         partial_flush_enabled=tracer._partial_flush_enabled,

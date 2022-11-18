@@ -1,7 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
 import math
-import os
 import threading
 import typing
 
@@ -18,6 +17,7 @@ from ddtrace.internal.utils import formats
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
+from ddtrace.settings.matching import getenv
 
 
 LOG = logging.getLogger(__name__)
@@ -52,11 +52,11 @@ def _get_default_heap_sample_size(
     default_heap_sample_size=1024 * 1024,  # type: int
 ):
     # type: (...) -> int
-    heap_sample_size = os.environ.get("DD_PROFILING_HEAP_SAMPLE_SIZE")
+    heap_sample_size = getenv("DD_PROFILING_HEAP_SAMPLE_SIZE")
     if heap_sample_size is not None:
         return int(heap_sample_size)
 
-    if not formats.asbool(os.environ.get("DD_PROFILING_HEAP_ENABLED", "1")):
+    if not formats.asbool(getenv("DD_PROFILING_HEAP_ENABLED", "1")):
         return 0
 
     try:

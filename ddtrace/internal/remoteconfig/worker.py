@@ -1,10 +1,10 @@
 import logging
-import os
 
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.utils.time import StopWatch
+from ddtrace.settings.matching import getenv
 
 
 log = get_logger(__name__)
@@ -15,7 +15,7 @@ DEFAULT_REMOTECONFIG_POLL_SECONDS = 5.0  # seconds
 
 def get_poll_interval_seconds():
     # type:() -> float
-    return float(os.getenv("DD_REMOTECONFIG_POLL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS))
+    return float(getenv("DD_REMOTECONFIG_POLL_SECONDS", default=DEFAULT_REMOTECONFIG_POLL_SECONDS))
 
 
 class RemoteConfigWorker(periodic.PeriodicService):

@@ -1,5 +1,4 @@
 import importlib
-import os
 import sys
 import threading
 from typing import TYPE_CHECKING
@@ -12,6 +11,7 @@ from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
 from .internal.utils.importlib import require_modules
 from .settings import _config as config
+from .settings.matching import getenv
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -177,11 +177,10 @@ def patch_all(**patch_modules):
     # The enabled setting can be overridden by environment variables
     for module, enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-        if env_var not in os.environ:
-            continue
-
-        override_enabled = formats.asbool(os.environ[env_var])
-        modules[module] = override_enabled
+        value = getenv(env_var)
+        if value is not None:
+            override_enabled = formats.asbool(value)
+            modules[module] = override_enabled
 
     # Arguments take precedence over the environment and the defaults.
     modules.update(patch_modules)
@@ -196,7 +195,7 @@ def patch_iast(**patch_modules):
 
     IAST_PATCH: list of implemented vulnerabilities
     """
-    iast_enabled = formats.asbool(os.environ.get(IAST_ENV, "false"))
+    iast_enabled = formats.asbool(getenv(IAST_ENV, "false"))
     if iast_enabled:
         patch(raise_errors=False, patch_modules_prefix="ddtrace.appsec.iast.taint_sinks", **patch_modules)
 

@@ -3,9 +3,10 @@ The Overhead control engine (OCE) is an element that by design ensures that the 
 limit. It will measure operations being executed in a request and it will deactivate detection
 (and therefore reduce the overhead to nearly 0) if a certain threshold is reached.
 """
-import os
 import threading
 from typing import TYPE_CHECKING
+
+from ddtrace.settings.matching import getenv
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -13,8 +14,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Type
 
-MAX_REQUESTS = int(os.environ.get("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
-MAX_VULNERABILITIES_PER_REQUEST = int(os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST", 2))
+MAX_REQUESTS = int(getenv("DD_IAST_MAX_CONCURRENT_REQUESTS", 2))
+MAX_VULNERABILITIES_PER_REQUEST = int(getenv("DD_IAST_VULNERABILITIES_PER_REQUEST", 2))
 
 
 class Operation(object):

@@ -1,5 +1,4 @@
 from copy import deepcopy
-import os
 import re
 from typing import List
 from typing import Optional
@@ -8,6 +7,7 @@ from typing import Tuple
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.settings.matching import getenv
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
@@ -65,7 +65,7 @@ def _parse_propagation_styles(name, default):
         DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
     """
     styles = []
-    envvar = os.getenv(name, default=default)
+    envvar = getenv(name, default=default)
     if envvar is None:
         return None
     for style in envvar.split(","):
@@ -171,24 +171,24 @@ class Config(object):
         # use a dict as underlying storing mechanism
         self._config = {}
 
-        header_tags = parse_tags_str(os.getenv("DD_TRACE_HEADER_TAGS", ""))
+        header_tags = parse_tags_str(getenv("DD_TRACE_HEADER_TAGS", ""))
         self.http = HttpConfig(header_tags=header_tags)
 
         # Master switch for turning on and off trace search by default
         # this weird invocation of getenv is meant to read the DD_ANALYTICS_ENABLED
         # legacy environment variable. It should be removed in the future
-        legacy_config_value = os.getenv("DD_ANALYTICS_ENABLED", default=False)
+        legacy_config_value = getenv("DD_ANALYTICS_ENABLED", default=False)
 
-        self.analytics_enabled = asbool(os.getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
+        self.analytics_enabled = asbool(getenv("DD_TRACE_ANALYTICS_ENABLED", default=legacy_config_value))
 
-        self.tags = parse_tags_str(os.getenv("DD_TAGS") or "")
+        self.tags = parse_tags_str(getenv("DD_TAGS") or "")
 
-        self.env = os.getenv("DD_ENV") or self.tags.get("env")
-        self.service = os.getenv("DD_SERVICE", default=self.tags.get("service"))
-        self.version = os.getenv("DD_VERSION", default=self.tags.get("version"))
+        self.env = getenv("DD_ENV") or self.tags.get("env")
+        self.service = getenv("DD_SERVICE", default=self.tags.get("service"))
+        self.version = getenv("DD_VERSION", default=self.tags.get("version"))
         self.http_server = self._HTTPServerConfig()
 
-        self.service_mapping = parse_tags_str(os.getenv("DD_SERVICE_MAPPING", default=""))
+        self.service_mapping = parse_tags_str(getenv("DD_SERVICE_MAPPING", default=""))
 
         # The service tag corresponds to span.service and should not be
         # included in the global tags.
@@ -199,11 +199,11 @@ class Config(object):
         if self.version and "version" in self.tags:
             del self.tags["version"]
 
-        self.logs_injection = asbool(os.getenv("DD_LOGS_INJECTION", default=False))
+        self.logs_injection = asbool(getenv("DD_LOGS_INJECTION", default=False))
 
-        self.report_hostname = asbool(os.getenv("DD_TRACE_REPORT_HOSTNAME", default=False))
+        self.report_hostname = asbool(getenv("DD_TRACE_REPORT_HOSTNAME", default=False))
 
-        self.health_metrics_enabled = asbool(os.getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
+        self.health_metrics_enabled = asbool(getenv("DD_TRACE_HEALTH_METRICS_ENABLED", default=False))
 
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
@@ -220,7 +220,7 @@ class Config(object):
             self._propagation_style_inject = propagation_style_inject
 
         # Datadog tracer tags propagation
-        x_datadog_tags_max_length = int(os.getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
+        x_datadog_tags_max_length = int(getenv("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", default=512))
         if x_datadog_tags_max_length < 0 or x_datadog_tags_max_length > 512:
             raise ValueError(
                 (
@@ -232,14 +232,14 @@ class Config(object):
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        self._raise = asbool(os.getenv("DD_TESTING_RAISE", False))
+        self._raise = asbool(getenv("DD_TESTING_RAISE", False))
         self._trace_compute_stats = asbool(
-            os.getenv("DD_TRACE_COMPUTE_STATS", os.getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
+            getenv("DD_TRACE_COMPUTE_STATS", getenv("DD_TRACE_STATS_COMPUTATION_ENABLED", False))
         )
-        self._appsec_enabled = asbool(os.getenv(APPSEC_ENV, False))
-        self._iast_enabled = asbool(os.getenv(IAST_ENV, False))
+        self._appsec_enabled = asbool(getenv(APPSEC_ENV, False))
+        self._iast_enabled = asbool(getenv(IAST_ENV, False))
 
-        dd_trace_obfuscation_query_string_pattern = os.getenv(
+        dd_trace_obfuscation_query_string_pattern = getenv(
             "DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN", DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN_DEFAULT
         )
         self.global_query_string_obfuscation_disabled = True  # If empty obfuscation pattern

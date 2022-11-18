@@ -7,6 +7,7 @@ from typing import Optional
 from ...internal import atexit
 from ...internal import forksafe
 from ...settings import _config as config
+from ...settings.matching import getenv
 from ..agent import get_connection
 from ..agent import get_trace_url
 from ..compat import get_connection_response
@@ -28,7 +29,7 @@ log = get_logger(__name__)
 
 def _get_interval_or_default():
     # type: () -> float
-    return float(os.getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", default=60))
+    return float(getenv("DD_TELEMETRY_HEARTBEAT_INTERVAL", default=60))
 
 
 class TelemetryWriter(PeriodicService):

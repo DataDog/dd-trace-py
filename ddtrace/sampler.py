@@ -4,7 +4,6 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 """
 import abc
 import json
-import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -30,6 +29,7 @@ from .internal.rate_limiter import RateLimiter
 from .internal.sampling import SamplingMechanism
 from .internal.sampling import update_sampling_decision
 from .internal.utils.cache import cachedmethod
+from .settings.matching import getenv
 
 
 try:
@@ -242,18 +242,18 @@ class DatadogSampler(RateByServiceSampler):
         super(DatadogSampler, self).__init__()
 
         if default_sample_rate is None:
-            sample_rate = os.getenv("DD_TRACE_SAMPLE_RATE")
+            sample_rate = getenv("DD_TRACE_SAMPLE_RATE")
 
             if sample_rate is not None:
                 default_sample_rate = float(sample_rate)
 
         if rate_limit is None:
-            rate_limit = int(os.getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
+            rate_limit = int(getenv("DD_TRACE_RATE_LIMIT", default=self.DEFAULT_RATE_LIMIT))
 
         # Ensure rules is a list
         self.rules = []  # type: List[SamplingRule]
         if rules is None:
-            env_sampling_rules = os.getenv("DD_TRACE_SAMPLING_RULES")
+            env_sampling_rules = getenv("DD_TRACE_SAMPLING_RULES")
             if env_sampling_rules:
                 rules = self._parse_rules_from_env_variable(env_sampling_rules)
             else:

@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from typing import Optional
 from typing import TYPE_CHECKING
@@ -19,6 +18,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.matching import getenv
 
 from .rate_limiter import RateLimiter
 
@@ -267,7 +267,7 @@ def _get_span_sampling_json():
 
 def _get_file_json():
     # type: () -> Optional[List[Dict[str, Any]]]
-    file_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES_FILE")
+    file_json_raw = getenv("DD_SPAN_SAMPLING_RULES_FILE")
     if file_json_raw:
         with open(file_json_raw) as f:
             return _load_span_sampling_json(f.read())
@@ -276,7 +276,7 @@ def _get_file_json():
 
 def _get_env_json():
     # type: () -> Optional[List[Dict[str, Any]]]
-    env_json_raw = os.getenv("DD_SPAN_SAMPLING_RULES")
+    env_json_raw = getenv("DD_SPAN_SAMPLING_RULES")
     if env_json_raw:
         return _load_span_sampling_json(env_json_raw)
     return None

@@ -32,6 +32,7 @@ from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace.settings.matching import getenv
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -80,20 +81,20 @@ def _transform_headers(data):
 
 def get_rules():
     # type: () -> str
-    return os.getenv("DD_APPSEC_RULES", default=DEFAULT_RULES)
+    return getenv("DD_APPSEC_RULES", default=DEFAULT_RULES)
 
 
 def get_appsec_obfuscation_parameter_key_regexp():
     # type: () -> bytes
     return ensure_binary(
-        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
+        getenv("DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP)
     )
 
 
 def get_appsec_obfuscation_parameter_value_regexp():
     # type: () -> bytes
     return ensure_binary(
-        os.getenv("DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
+        getenv("DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP", DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP)
     )
 
 
@@ -143,12 +144,12 @@ def _set_headers(span, headers, kind):
 
 def _get_rate_limiter():
     # type: () -> RateLimiter
-    return RateLimiter(int(os.getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT_TRACE_RATE_LIMIT)))
+    return RateLimiter(int(getenv("DD_APPSEC_TRACE_RATE_LIMIT", DEFAULT_TRACE_RATE_LIMIT)))
 
 
 def _get_waf_timeout():
     # type: () -> int
-    return int(os.getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT_WAF_TIMEOUT))
+    return int(getenv("DD_APPSEC_WAF_TIMEOUT", DEFAULT_WAF_TIMEOUT))
 
 
 @attr.s(eq=False)
