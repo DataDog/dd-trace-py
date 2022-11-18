@@ -1,8 +1,6 @@
 name: Upstream issue notifier
 on:
   push:
-    branches:
-      - master
 jobs:
   upstream-issues:
     runs-on: ubuntu-latest
