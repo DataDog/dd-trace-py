@@ -52,6 +52,7 @@ def generate_patch_test_source(contrib):
             # overwritten by future re-generations.
 
             from ddtrace.contrib.{contrib}.patch import patch
+            from ddtrace.contrib.{contrib}.patch import unpatch
             from tests.contrib.patch import PatchTestCase
 
 
@@ -59,6 +60,7 @@ def generate_patch_test_source(contrib):
                 __integration_name__ = "{contrib}"
                 __module_name__ = "{module}"
                 __patch_func__ = patch
+                __unpatch_func__ = unpatch
 
                 def assert_module_patched(self, {module.replace(".", "_")}):
                     pass
