@@ -534,15 +534,9 @@ class _TraceContext:
         return key.startswith("t.")
 
     @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
-        headers[_HTTP_HEADER_TRACEPARENT] = span_context._traceparent
+    def _get_traceparent_values(headers):
+        # type: (Dict[str, str]) -> Optional[tuple[str]]
 
-        headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
-
-    @staticmethod
-    def _extract(headers):
-        # type: (Dict[str, str]) -> Optional[Context]
         tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
         if tp is None:
             return None
@@ -575,6 +569,12 @@ class _TraceContext:
             log.exception("received invalid w3c traceparent: %s.", tp)
             return None
 
+        return tp, trace_id, span_id, sampling_priority
+
+    @staticmethod
+    def _get_tracestate_values(headers):
+        # type: (Dict[str, str]) -> Optional[tuple[str, int, Dict[str, str]]]
+
         # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
@@ -585,7 +585,6 @@ class _TraceContext:
                 # grab dd value if dd is only list member
                 if not result:
                     result = re.search("dd=(.*)", ts)
-                # import pdb; pdb.set_trace()
                 dd = dict(item.split(":") for item in result.group(1).split(";"))
 
                 # parse out values
@@ -600,18 +599,40 @@ class _TraceContext:
                 }
                 meta.update(other_propagated_tags)
 
-                return Context(
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    sampling_priority=sampling_priority,
-                    dd_origin=origin,
-                    meta=cast(_MetaDictType, meta),
-                    traceparent=tp,
-                    tracestate=ts,
-                )
-
+                return ts, sampling_priority_ts, meta, origin
             except (TypeError, ValueError, AttributeError):
                 log.debug(("received invalid dd header value in tracestate: %r "), ts)
+                return None
+
+    @staticmethod
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
+        headers[_HTTP_HEADER_TRACEPARENT] = span_context._traceparent
+
+        headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
+
+    @staticmethod
+    def _extract(headers):
+        # type: (Dict[str, str]) -> Optional[Context]
+        traceparent_values = _TraceContext._get_traceparent_values(headers)
+        if traceparent_values:
+            tp, trace_id, span_id, sampling_priority = traceparent_values
+        else:
+            return None
+
+        tracestate_values = _TraceContext._get_tracestate_values(headers)
+        if tracestate_values:
+            ts, sampling_priority_ts, meta, origin = tracestate_values
+            # add logic for figuring out final sampling priority value
+            return Context(
+                trace_id=trace_id,
+                span_id=span_id,
+                sampling_priority=sampling_priority,
+                dd_origin=origin,
+                meta=cast(_MetaDictType, meta),
+                traceparent=tp,
+                tracestate=ts,
+            )
 
         return Context(
             trace_id=trace_id,
