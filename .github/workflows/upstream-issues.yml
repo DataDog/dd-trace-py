@@ -1,6 +1,8 @@
 name: Upstream issue notifier
 on:
-  push:
+  schedule:
+  # run at 8am EST every day
+    - cron: "0 13 * * *"
 jobs:
   upstream-issues:
     runs-on: ubuntu-latest
@@ -10,4 +12,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           IGNORE_DIRS: ddtrace/vendor
-          DRY_RUN: true
+          DRY_RUN: false
