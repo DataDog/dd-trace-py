@@ -42,6 +42,15 @@ def traced_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
 
 
+def trace_add_middleware(wrapped, instance, args, kwargs):
+    # remove ddtrace trace middleware
+    if instance.user_middleware and instance.user_middleware[0].cls is TraceMiddleware:
+        instance.user_middleware.insert(1, Middleware(*args, **kwargs))
+        instance.middleware_stack = instance.build_middleware_stack()
+    else:
+        wrapped(*args, **kwargs)
+
+
 async def traced_serialize_response(wrapped, instance, args, kwargs):
     """Wrapper for fastapi.routing.serialize_response function.
 
@@ -74,6 +83,7 @@ def patch():
     setattr(fastapi, "_datadog_patch", True)
     Pin().onto(fastapi)
     _w("fastapi.applications", "FastAPI.__init__", traced_init)
+    _w("fastapi.applications", "FastAPI.add_middleware", trace_add_middleware)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
 
     # We need to check that Starlette instrumentation hasn't already patched these
