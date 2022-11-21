@@ -31,6 +31,18 @@ class TestTracedCursor(TracerTestCase):
         assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    def test_dbm_propagation_not_supported(self):
+        cursor = self.cursor
+        cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service")
+        # By default _dbm_propagation_supported attribute should not be True.
+        # DBM context propagation should be opt in.
+        assert not getattr(cfg, "_dbm_propagation_supported", False)
+        traced_cursor = TracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+        # Ensure dbm comment is not appended to sql statement
+        traced_cursor.execute("SELECT * FROM db;")
+        cursor.execute.assert_called_once_with("SELECT * FROM db;")
+
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
             DD_DBM_PROPAGATION_MODE="service",
@@ -39,7 +51,7 @@ class TestTracedCursor(TracerTestCase):
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    def test_curser_execute_with_dbm_injection(self):
+    def test_cursor_execute_with_dbm_injection(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagation_supported=True)
         traced_cursor = TracedCursor(cursor, Pin(service="orders-db", tracer=self.tracer), cfg)
@@ -516,7 +528,7 @@ class TestFetchTracedCursor(TracerTestCase):
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    def test_curser_execute_with_dbm_injection(self):
+    def test_cursor_execute_with_dbm_injection(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagation_supported=True)
         traced_cursor = FetchTracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
