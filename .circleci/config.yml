@@ -311,8 +311,14 @@ jobs:
           name: "Codespell check"
           command: riot run -s codespell
       - run:
+          name: "Run riotfile.py tests"
+          command: riot run -s riot-helpers
+      - run:
           name: "Test agent snapshot check"
           command: riot run -s snapshot-fmt && git diff --exit-code
+      - run:
+          name: "Run scripts/*.py tests"
+          command: riot run -s scripts
 
   ccheck:
     executor: cimg_base
@@ -364,12 +370,6 @@ jobs:
     steps:
       - checkout
       - setup_riot
-      - run:
-          name: "Run riotfile.py tests"
-          command: riot run -s riot-helpers
-      - run:
-          name: "Run scripts/*.py tests"
-          command: riot run -s scripts
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
