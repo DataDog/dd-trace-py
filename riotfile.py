@@ -215,6 +215,7 @@ LATEST_VERSIONS = {
     "pymongo": "4.3.2",
     "pymysql": "1.0.2",
     "pynamodb": "5.3.0",
+    "pyodbc": "4.0.35",
     "pyramid": "2.0",
     "pytest": "7.2.0",
     "pytest-aiohttp": "1.0.4",
@@ -620,7 +621,7 @@ venv = Venv(
                         Venv(
                             pys="3.11",
                             pkgs={
-                                "gevent": ["~=22.8.0", latest],
+                                "gevent": ["~=22.8.0", latest("gevent")],
                             },
                         ),
                     ],
@@ -2891,7 +2892,7 @@ venv = Venv(
         ),
         Venv(
             name="opentracer",
-            pkgs={"opentracing": latest},
+            pkgs={"opentracing": latest("opentracing")},
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -2900,7 +2901,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.5"),
                     command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
-                    pkgs={"pytest-asyncio": latest},
+                    pkgs={"pytest-asyncio": latest("pytest-asyncio")},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.5"),
@@ -2964,7 +2965,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/pyodbc",
             # FIXME: check if this constraint is no longer required
             pys=select_pys(max_version="3.9"),
-            pkgs={"pyodbc": [">=3.0,<4.0", ">=4.0,<5.0", latest]},
+            pkgs={"pyodbc": [">=3.0,<4.0", ">=4.0,<5.0", latest("pyodbc")]},
             ci={
                 "executor": "ddtrace_dev",
                 "parallelism": 4,
@@ -2979,13 +2980,13 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.10"),
                     pkgs={
-                        "pylibmc": [">=1.4,<1.5", ">=1.5,<1.6", latest],
+                        "pylibmc": [">=1.4,<1.5", ">=1.5,<1.6", latest("pylibmc")],
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.11"),
                     pkgs={
-                        "pylibmc": [">=1.6,<1.7", latest],
+                        "pylibmc": [">=1.6,<1.7", latest("pylibmc")],
                     },
                 ),
             ],
