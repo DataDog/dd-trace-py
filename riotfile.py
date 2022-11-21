@@ -293,12 +293,6 @@ venv = Venv(
             pkgs={"msgpack": [latest]},
             venvs=[
                 Venv(
-                    name="integration-v5",
-                    env={
-                        "AGENT_VERSION": "v5",
-                    },
-                ),
-                Venv(
                     name="integration-latest",
                     env={
                         "AGENT_VERSION": "latest",
@@ -329,6 +323,69 @@ venv = Venv(
                     # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
                     pys=select_pys(min_version="3.5"),
                     pkgs={"pytest-asyncio": latest},
+                ),
+            ],
+        ),
+        Venv(
+            name="gevent",
+            command="pytest {cmdargs} tests/contrib/gevent",
+            pkgs={
+                "botocore": latest,
+                "requests": latest,
+                "elasticsearch": latest,
+                "pynamodb": latest,
+            },
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "gevent": ["~=1.1.0", "~=1.2.0", "~=1.3.0"],
+                        "greenlet": "~=1.0",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "aiobotocore": "<=2.3.1",
+                        "aiohttp": latest,
+                    },
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.5", max_version="3.6"),
+                            pkgs={
+                                "gevent": ["~=1.1.0", "~=1.2.0", "~=1.3.0"],
+                                "greenlet": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.8"),
+                            pkgs={
+                                "gevent": ["~=1.3.0", "~=1.4.0"],
+                                # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
+                                # This issue was fixed in gevent v20.9:
+                                # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
+                                "greenlet": "<0.4.17",
+                            },
+                        ),
+                        Venv(
+                            pys="3.9",
+                            pkgs={
+                                "gevent": ["~=20.9.0", "~=20.12.0", "~=21.1.0"],
+                                "greenlet": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys="3.10",
+                            pkgs={
+                                "gevent": ["~=21.8.0"],
+                            },
+                        ),
+                        Venv(
+                            pys="3.11",
+                            pkgs={
+                                "gevent": ["~=22.8.0", latest],
+                            },
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -2164,6 +2221,162 @@ venv = Venv(
                 Venv(pys=["2.7"], pkgs={"futures": ["~=3.0", "~=3.1", "~=3.2", "~=3.4"]}),
                 Venv(
                     pys=select_pys(min_version="3.5"),
+                ),
+            ],
+        ),
+        Venv(
+            name="sqlite3",
+            command="pytest {cmdargs} tests/contrib/sqlite3",
+            pys=select_pys(),
+        ),
+        Venv(
+            name="dbapi",
+            command="pytest {cmdargs} tests/contrib/dbapi",
+            pys=select_pys(),
+        ),
+        Venv(
+            name="dogpile_cache",
+            command="pytest {cmdargs} tests/contrib/dogpile_cache",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.5"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.6.*",
+                            "==0.7.*",
+                            "==0.8.*",
+                            "==0.9.*",
+                        ],
+                        "decorator": "<5",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.10"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.6.*",
+                            "==0.7.*",
+                            "==0.8.*",
+                            "==0.9.*",
+                            "==1.0.*",
+                            latest,
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.8.*",
+                            "==0.9.*",
+                            "==1.0.*",
+                            "==1.1.*",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="consul",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/consul",
+            pkgs={
+                "python-consul": [
+                    ">=0.7,<1.0",
+                    ">=1.0,<1.1",
+                    ">=1.1,<1.2",
+                    latest,
+                ],
+            },
+        ),
+        Venv(
+            name="opentracer",
+            pkgs={"opentracing": latest},
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    command="pytest {cmdargs} tests/opentracer/core",
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
+                    pkgs={"pytest-asyncio": latest},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    command="pytest {cmdargs} tests/opentracer/test_tracer_tornado.py",
+                    # TODO: update opentracing tests to be compatible with Tornado v6.
+                    # https://github.com/opentracing/opentracing-python/issues/136
+                    pkgs={
+                        "tornado": ["~=4.4.0", "~=4.5.0", "~=5.0.0", "~=5.1.0"],
+                    },
+                ),
+                Venv(
+                    command="pytest {cmdargs} tests/opentracer/test_tracer_gevent.py",
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.6"),
+                            pkgs={
+                                "gevent": ["~=1.1.0", "~=1.2.0"],
+                                "greenlet": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.8"),
+                            pkgs={
+                                "gevent": ["~=1.3.0", "~=1.4.0"],
+                                # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
+                                # This issue was fixed in gevent v20.9:
+                                # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
+                                "greenlet": "<0.4.17",
+                            },
+                        ),
+                        Venv(
+                            pys="3.9",
+                            pkgs={
+                                "gevent": ["~=20.9.0", "~=20.12.0", "~=21.1.0"],
+                                "greenlet": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys="3.10",
+                            pkgs={
+                                "gevent": "~=21.8.0",
+                            },
+                        ),
+                        Venv(
+                            pys="3.11",
+                            pkgs={
+                                "gevent": "~=22.8.0",
+                            },
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
+            name="pyodbc",
+            command="pytest {cmdargs} tests/contrib/pyodbc",
+            # FIXME: check if this constraint is no longer required
+            pys=select_pys(max_version="3.9"),
+            pkgs={"pyodbc": [">=3.0,<4.0", ">=4.0,<5.0", latest]},
+        ),
+        Venv(
+            name="pylibmc",
+            command="pytest {cmdargs} tests/contrib/pylibmc",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.10"),
+                    pkgs={
+                        "pylibmc": [">=1.4,<1.5", ">=1.5,<1.6", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "pylibmc": [">=1.6,<1.7", latest],
+                    },
                 ),
             ],
         ),
