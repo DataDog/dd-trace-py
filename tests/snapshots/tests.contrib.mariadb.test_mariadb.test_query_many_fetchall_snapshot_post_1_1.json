@@ -24,8 +24,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 3306,
-      "sql.rows": 2,
-      "system.pid": 55384
+      "process_id": 9677,
+      "sql.rows": 2
     },
     "duration": 937000,
     "start": 1667513581474433000
@@ -55,8 +55,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 3306,
-      "sql.rows": 2,
-      "system.pid": 55384
+      "process_id": 9677,
+      "sql.rows": 2
     },
     "duration": 912000,
     "start": 1667513581475616000
@@ -85,8 +85,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 3306,
-      "sql.rows": 2,
-      "system.pid": 55384
+      "process_id": 9677,
+      "sql.rows": 2
     },
     "duration": 55000,
     "start": 1667513581476598000
