@@ -19,7 +19,7 @@ def test_weak_hash_hashlib(iast_span, hash_func, method):
     span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures.py")
-    assert list(span_report.vulnerabilities)[0].location.line == 13 if sys.version_info > (3, 0, 0) else 10
+    assert list(span_report.vulnerabilities)[0].location.line == 14 if sys.version_info > (3, 0, 0) else 11
     assert list(span_report.vulnerabilities)[0].evidence.value == hash_func
     assert list(span_report.vulnerabilities)[0].evidence.type == EVIDENCE_ALGORITHM_TYPE
 
@@ -55,7 +55,7 @@ def test_weak_hash_new(iast_span):
 
     assert list(span_report.vulnerabilities)[0].type == VULN_INSECURE_HASHING_TYPE
     assert list(span_report.vulnerabilities)[0].location.path.endswith("tests/appsec/iast/fixtures.py")
-    assert list(span_report.vulnerabilities)[0].location.line == 22 if sys.version_info > (3, 0, 0) else 19
+    assert list(span_report.vulnerabilities)[0].location.line == 23 if sys.version_info > (3, 0, 0) else 20
     assert list(span_report.vulnerabilities)[0].evidence.value == "md5"
     assert list(span_report.vulnerabilities)[0].evidence.type == EVIDENCE_ALGORITHM_TYPE
 
