@@ -956,11 +956,10 @@ else:
     # Setting via ddtrace.config works as expected too
     # DEV: This also helps us get code coverage reporting
     overrides = {}
-    if styles is not None:
+    # we skip context verification for tracecontext propagation style since it adds values to meta which
+    # this testing style cannot account for. Tracecontext propagation style context values are tested separately.
+    if styles is not None and PROPAGATION_STYLE_TRACECONTEXT not in styles:
         overrides["_propagation_style_extract"] = styles
-        # tracecontext propagation style includes data outside of the basic trace_id, span_id, sampling_priority, and dd_origin
-        # therefore the Context object instantiated with expected_context and the result param will not align. Context
-        # for tracecontext propagation style is tested separately.
         with override_global_config(overrides):
             context = HTTPPropagator.extract(headers)
             assert context == Context(**expected_context)
@@ -1013,8 +1012,6 @@ EXTRACT_OVERRIDE_FIXTURES = [
         },
     ),
 ]
-
-
 @pytest.mark.parametrize("name,styles,styles_extract,headers,expected_context", EXTRACT_OVERRIDE_FIXTURES)
 def test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE(
     name, styles, styles_extract, headers, expected_context, run_python_code_in_subprocess

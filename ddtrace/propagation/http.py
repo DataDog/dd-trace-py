@@ -591,12 +591,6 @@ class _TraceContext:
                 # parse out values
                 sampling_priority_ts = int(dd.get("s"))
 
-                if sampling_priority == 1 and (not sampling_priority_ts or sampling_priority_ts <= 0):
-                    sampling_priority = 1
-
-                if sampling_priority == 0 and (not sampling_priority_ts or sampling_priority_ts <= 0):
-                    sampling_priority = 0
-
                 origin = dd.get("o")
                 # need to convert from t. to _dd.p.
                 other_propagated_tags = {
