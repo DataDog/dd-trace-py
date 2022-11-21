@@ -154,6 +154,7 @@ LATEST_VERSIONS = {
     "databases": "0.6.2",
     "ddapm-test-agent": "1.7.2",
     "decorator": "5.1.1",
+    "dogpile.cache": "1.1.8",
     "django": "4.1.3",
     "django-pylibmc": "0.6.1",
     "django-redis": "5.2.0",
@@ -224,6 +225,7 @@ LATEST_VERSIONS = {
     "pytest-django": "4.5.2",
     "pytest-mock": "3.10.0",
     "pytest-sanic": "1.9.1",
+    "python-consul": "1.1.0",
     "python-memcached": "1.59",
     "redis": "4.3.4",
     "redis-py-cluster": "2.1.3",
@@ -493,30 +495,7 @@ venv = Venv(
             pkgs={"msgpack": latest("msgpack")},
             venvs=[
                 Venv(
-                    name="integration_agent5",  # formerly integration-v5, but use the name given into the ci
-                    env={
-                        "AGENT_VERSION": "v5",
-                    },
-                    ci={
-                        "machine": {"image": "ubuntu-2004:current"},
-                        "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                        "steps": [
-                            {"attach_workspace": {"at": "."}},
-                            "checkout",
-                            {"start_docker_services": {"services": "ddagent5"}},
-                            {
-                                "run": {
-                                    "command": (
-                                        "mv .riot .ddriot\n./scripts/ddtest riot -v run --pass-env -s"
-                                        " 'integration_agent5'\n"
-                                    )
-                                }
-                            },
-                        ],
-                    },
-                ),
-                Venv(
-                    name="integration_agent",  # formerly integration-latest, but use the name given into the ci
+                    name="integration-latest",
                     env={
                         "AGENT_VERSION": "latest",
                     },
@@ -584,6 +563,74 @@ venv = Venv(
                 ),
             ],
             ci={"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "internal"}}]},
+        ),
+        Venv(
+            name="gevent",
+            command="pytest {cmdargs} tests/contrib/gevent",
+            pkgs={
+                "botocore": latest("botocore"),
+                "requests": latest("requests"),
+                "elasticsearch": latest("elasticsearch"),
+                "pynamodb": latest("pynamodb"),
+            },
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "gevent": ["~=1.1.0", "~=1.2.0", "~=1.3.0"],
+                        "greenlet": "~=1.0",
+                    },
+                ),
+                Venv(
+                    pkgs={
+                        "aiobotocore": "<=2.3.1",
+                        "aiohttp": latest("aiohttp"),
+                    },
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.5", max_version="3.6"),
+                            pkgs={
+                                "gevent": ["~=1.1.0", "~=1.2.0", "~=1.3.0"],
+                                "greenlet": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.8"),
+                            pkgs={
+                                "gevent": ["~=1.3.0", "~=1.4.0"],
+                                # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
+                                # This issue was fixed in gevent v20.9:
+                                # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
+                                "greenlet": "<0.4.17",
+                            },
+                        ),
+                        Venv(
+                            pys="3.9",
+                            pkgs={
+                                "gevent": ["~=20.9.0", "~=20.12.0", "~=21.1.0"],
+                                "greenlet": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys="3.10",
+                            pkgs={
+                                "gevent": ["~=21.8.0"],
+                            },
+                        ),
+                        Venv(
+                            pys="3.11",
+                            pkgs={
+                                "gevent": ["~=22.8.0", latest],
+                            },
+                        ),
+                    ],
+                ),
+            ],
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 8,
+                "steps": [{"run_test": {"pattern": "gevent"}}],
+            },
         ),
         Venv(
             name="runtime",
@@ -2737,32 +2784,216 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="asyncio",
-            command="pytest {cmdargs} tests/contrib/asyncio",
-            pys=select_pys(min_version="3.5"),
-            pkgs={
-                "pytest-asyncio": latest("pytest-asyncio"),
-            },
-            ci={
-                "executor": "ddtrace_dev_small",
-                "parallelism": 1,
-                "steps": [{"run_test": {"pattern": "asyncio$"}}],
-            },
-        ),
-        Venv(
-            name="futures",
-            command="pytest {cmdargs} tests/contrib/futures",
+            name="stdlib",
             venvs=[
-                # futures is backported for 2.7
-                Venv(pys=["2.7"], pkgs={"futures": ["~=3.0", "~=3.1", "~=3.2", "~=3.4"]}),
                 Venv(
+                    name="asyncio",
+                    command="pytest {cmdargs} tests/contrib/asyncio",
                     pys=select_pys(min_version="3.5"),
+                    pkgs={
+                        "pytest-asyncio": latest("pytest-asyncio"),
+                    },
+                ),
+                Venv(
+                    name="futures",
+                    command="pytest {cmdargs} tests/contrib/futures",
+                    venvs=[
+                        # futures is backported for 2.7
+                        Venv(pys=["2.7"], pkgs={"futures": ["~=3.0", "~=3.1", "~=3.2", "~=3.4"]}),
+                        Venv(
+                            pys=select_pys(min_version="3.5"),
+                        ),
+                    ],
+                ),
+                Venv(
+                    name="sqlite3",
+                    command="pytest {cmdargs} tests/contrib/sqlite3",
+                    pys=select_pys(),
+                ),
+                Venv(
+                    name="dbapi",
+                    command="pytest {cmdargs} tests/contrib/dbapi",
+                    pys=select_pys(),
                 ),
             ],
             ci={
                 "executor": "ddtrace_dev_small",
                 "parallelism": 1,
-                "steps": [{"run_test": {"pattern": "^futures$"}}],
+                "steps": [{"run_test": {"pattern": "asyncio$|sqlite3$|futures$|dbapi$"}}],
+            },
+        ),
+        Venv(
+            name="dogpile_cache",
+            command="pytest {cmdargs} tests/contrib/dogpile_cache",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.5"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.6.*",
+                            "==0.7.*",
+                            "==0.8.*",
+                            "==0.9.*",
+                        ],
+                        "decorator": "<5",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.6", max_version="3.10"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.6.*",
+                            "==0.7.*",
+                            "==0.8.*",
+                            "==0.9.*",
+                            "==1.0.*",
+                            latest("dogpile.cache"),
+                        ],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "dogpile.cache": [
+                            "==0.8.*",
+                            "==0.9.*",
+                            "==1.0.*",
+                            "==1.1.*",
+                            latest("dogpile.cache"),
+                        ],
+                    },
+                ),
+            ],
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "steps": [{"run_test": {"pattern": "dogpile_cache"}}],
+            },
+        ),
+        Venv(
+            name="consul",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/consul",
+            pkgs={
+                "python-consul": [
+                    ">=0.7,<1.0",
+                    ">=1.0,<1.1",
+                    ">=1.1,<1.2",
+                    latest("python-consul"),
+                ],
+            },
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "consul:1.6.0"}],
+                "steps": [{"run_test": {"pattern": "consul"}}],
+            },
+        ),
+        Venv(
+            name="opentracer",
+            pkgs={"opentracing": latest},
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    command="pytest {cmdargs} tests/opentracer/core",
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
+                    pkgs={"pytest-asyncio": latest},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    command="pytest {cmdargs} tests/opentracer/test_tracer_tornado.py",
+                    # TODO: update opentracing tests to be compatible with Tornado v6.
+                    # https://github.com/opentracing/opentracing-python/issues/136
+                    pkgs={
+                        "tornado": ["~=4.4.0", "~=4.5.0", "~=5.0.0", "~=5.1.0"],
+                    },
+                ),
+                Venv(
+                    command="pytest {cmdargs} tests/opentracer/test_tracer_gevent.py",
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.6"),
+                            pkgs={
+                                "gevent": ["~=1.1.0", "~=1.2.0"],
+                                "greenlet": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.7", max_version="3.8"),
+                            pkgs={
+                                "gevent": ["~=1.3.0", "~=1.4.0"],
+                                # greenlet>0.4.17 wheels are incompatible with gevent and python>3.7
+                                # This issue was fixed in gevent v20.9:
+                                # https://github.com/gevent/gevent/issues/1678#issuecomment-697995192
+                                "greenlet": "<0.4.17",
+                            },
+                        ),
+                        Venv(
+                            pys="3.9",
+                            pkgs={
+                                "gevent": ["~=20.9.0", "~=20.12.0", "~=21.1.0"],
+                                "greenlet": "~=1.0",
+                            },
+                        ),
+                        Venv(
+                            pys="3.10",
+                            pkgs={
+                                "gevent": "~=21.8.0",
+                            },
+                        ),
+                        Venv(
+                            pys="3.11",
+                            pkgs={
+                                "gevent": "~=22.8.0",
+                            },
+                        ),
+                    ],
+                ),
+            ],
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "steps": [{"run_test": {"pattern": "opentracer"}}],
+            },
+        ),
+        Venv(
+            name="pyodbc",
+            command="pytest {cmdargs} tests/contrib/pyodbc",
+            # FIXME: check if this constraint is no longer required
+            pys=select_pys(max_version="3.9"),
+            pkgs={"pyodbc": [">=3.0,<4.0", ">=4.0,<5.0", latest]},
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [{"image": "datadog/dd-trace-py:buster"}],
+                "steps": [{"run_test": {"pattern": "pyodbc"}}],
+            },
+        ),
+        Venv(
+            name="pylibmc",
+            command="pytest {cmdargs} tests/contrib/pylibmc",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.10"),
+                    pkgs={
+                        "pylibmc": [">=1.4,<1.5", ">=1.5,<1.6", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={
+                        "pylibmc": [">=1.6,<1.7", latest],
+                    },
+                ),
+            ],
+            ci={
+                "executor": "ddtrace_dev",
+                "parallelism": 4,
+                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "memcached:1.5-alpine"}],
+                "steps": [{"run_test": {"pattern": "pylibmc"}}],
             },
         ),
     ],

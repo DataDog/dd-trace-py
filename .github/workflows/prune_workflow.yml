@@ -9,6 +9,10 @@ on:
         description: 'Number of days.'
         required: true
         default: 30
+      minimum_runs:
+        description: 'The minimum runs to keep for each workflow.'
+        required: true
+        default: 6
       delete_workflow_pattern:
         description: 'The name or filename of the workflow. if not set then it will target all workflows.'
         required: false
@@ -49,9 +53,8 @@ jobs:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
           retain_days: ${{ inputs.days || 30}}
+          keep_minimum_runs: ${{ inputs.minimum_runs }}
           delete_workflow_pattern: ${{ inputs.delete_workflow_pattern }}
           delete_workflow_by_state_pattern: ${{ inputs.delete_workflow_by_state_pattern || 'All' }}
           delete_run_by_conclusion_pattern: ${{ inputs.delete_run_by_conclusion_pattern || 'All' }}
-          # FIXME: only allow dry run until tested
-          # dry_run: ${{ inputs.dry_run }}
-          dry_run: true
+          dry_run: ${{ inputs.dry_run }}

@@ -336,25 +336,20 @@ circleci_config = {
                 {"persist_to_workspace": {"root": ".", "paths": ["."]}},
             ],
         },
-        "opentracer": {
-            "executor": "ddtrace_dev",
-            "parallelism": 8,
-            "steps": [{"run_tox_scenario": {"pattern": "^py.\\+-opentracer"}}],
-        },
-        "profile-windows-35": {
-            "executor": {"name": "win/default", "shell": "bash.exe"},
-            "steps": [
-                {"run": "choco install -y python --version=3.5.4 --side-by-side"},
-                {"run_tox_scenario": {"store_coverage": False, "pattern": "^py35-profile"}},
-            ],
-        },
-        "profile-windows-36": {
-            "executor": {"name": "win/default", "shell": "bash.exe"},
-            "steps": [
-                {"run": "choco install -y python --version=3.6.8 --side-by-side"},
-                {"run_tox_scenario": {"store_coverage": False, "pattern": "^py36-profile"}},
-            ],
-        },
+        # "profile-windows-35": {
+        #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "steps": [
+        #         {"run": "choco install -y python --version=3.5.4 --side-by-side"},
+        #         {"run_tox_scenario": {"store_coverage": False, "pattern": "^py35-profile"}},
+        #     ],
+        # },
+        # "profile-windows-36": {
+        #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "steps": [
+        #         {"run": "choco install -y python --version=3.6.8 --side-by-side"},
+        #         {"run_tox_scenario": {"store_coverage": False, "pattern": "^py36-profile"}},
+        #     ],
+        # },
         # "profile-windows-38": {
         #     "executor": {"name": "win/default", "shell": "bash.exe"},
         #     "steps": [
@@ -369,10 +364,10 @@ circleci_config = {
         #         {"run_tox_scenario": {"store_coverage": False, "pattern": "^py39-profile"}},
         #     ],
         # },
-        "profile-windows-310": {
-            "executor": {"name": "win/default", "shell": "bash.exe"},
-            "steps": [{"run_tox_scenario": {"store_coverage": False, "pattern": "^py310-profile"}}],
-        },
+        # "profile-windows-310": {
+        #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "steps": [{"run_tox_scenario": {"store_coverage": False, "pattern": "^py310-profile"}}],
+        # },
         "profile": {
             "executor": "ddtrace_dev",
             "parallelism": 15,
@@ -388,22 +383,6 @@ circleci_config = {
             "executor": "ddtrace_dev",
             "parallelism": 4,
             "steps": [{"run_tox_scenario": {"pattern": "^bottle_contrib\\(_autopatch\\)\\?-"}}],
-        },
-        "consul": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "consul:1.6.0"}],
-            "steps": [{"run_tox_scenario": {"pattern": "^consul_contrib-"}}],
-        },
-        "dogpile_cache": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "steps": [{"run_tox_scenario": {"pattern": "^dogpile_contrib-"}}],
-        },
-        "gevent": {
-            "executor": "ddtrace_dev",
-            "parallelism": 8,
-            "steps": [{"run_tox_scenario": {"pattern": "^gevent_contrib-"}}],
         },
         "molten": {
             "executor": "ddtrace_dev",
@@ -427,23 +406,6 @@ circleci_config = {
             ],
             "steps": [{"run_tox_scenario": {"wait": "mysql", "pattern": "^mysqldb_contrib-.*-mysqlclient"}}],
         },
-        "pylibmc": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "memcached:1.5-alpine"}],
-            "steps": [{"run_tox_scenario": {"pattern": "^pylibmc_contrib-"}}],
-        },
-        "pyodbc": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "docker": [{"image": "datadog/dd-trace-py:buster"}],
-            "steps": [{"run_tox_scenario": {"pattern": "^pyodbc_contrib-"}}],
-        },
-        "dbapi": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "steps": [{"run_tox_scenario": {"pattern": "^dbapi_contrib-"}}],
-        },
         "vertica": {
             "executor": "ddtrace_dev",
             "parallelism": 4,
@@ -461,11 +423,6 @@ circleci_config = {
             "parallelism": 8,
             "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "rabbitmq:3.7-alpine"}],
             "steps": [{"run_tox_scenario": {"wait": "rabbitmq", "pattern": "^kombu_contrib-"}}],
-        },
-        "sqlite3": {
-            "executor": "ddtrace_dev",
-            "parallelism": 4,
-            "steps": [{"run_tox_scenario": {"pattern": "^sqlite3_contrib-"}}],
         },
         "algoliasearch": {
             "executor": "ddtrace_dev",
