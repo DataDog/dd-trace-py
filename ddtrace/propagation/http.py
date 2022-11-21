@@ -582,6 +582,10 @@ class _TraceContext:
             meta = {_TRACESTATE_KEY: ts}
             try:
                 result = re.search("dd=(.*),", ts)
+                # grab dd value if dd is only list member
+                if not result:
+                    result = re.search("dd=(.*)", ts)
+                # import pdb; pdb.set_trace()
                 dd = dict(item.split(":") for item in result.group(1).split(";"))
 
                 # parse out values
@@ -612,7 +616,7 @@ class _TraceContext:
                     tracestate=ts,
                 )
 
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, AttributeError):
                 log.debug(("received invalid dd header value in tracestate: %r "), ts)
 
         return Context(
@@ -689,17 +693,15 @@ class HTTPPropagator(object):
         """
         if not headers:
             return Context()
-        import pdb; pdb.set_trace()
+        # try:
+        normalized_headers = {name.lower(): v for name, v in headers.items()}
+        # loop through the extract propagation styles specified in order
+        for prop_style in config._propagation_style_extract:
+            propagator = _PROP_STYLES[prop_style]
+            context = propagator._extract(normalized_headers)  # type: ignore
+            if context is not None:
+                return context
 
-        try:
-            normalized_headers = {name.lower(): v for name, v in headers.items()}
-            # loop through the extract propagation styles specified in order
-            for prop_style in config._propagation_style_extract:
-                propagator = _PROP_STYLES[prop_style]
-                context = propagator._extract(normalized_headers)  # type: ignore
-                if context is not None:
-                    return context
-
-        except Exception:
-            log.debug("error while extracting context propagation headers", exc_info=True)
+        # except Exception:
+        #     log.debug("error while extracting context propagation headers", exc_info=True)
         return Context()

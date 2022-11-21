@@ -23,8 +23,8 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
 from ddtrace.propagation.http import _HTTP_HEADER_TRACEPARENT
 from ddtrace.propagation.http import _HTTP_HEADER_TRACESTATE
-from ..utils import override_env
 
+from ..utils import override_env
 from ..utils import override_global_config
 
 
@@ -372,7 +372,8 @@ def test_get_wsgi_header(tracer):
     assert get_wsgi_header("x-datadog-trace-id") == "HTTP_X_DATADOG_TRACE_ID"
 
 
-TRACECONTEXT_HEADERS_VALID_BASIC_TRACESTATE = {
+# for testing with other propagation styles
+TRACECONTEXT_HEADERS_VALID_BASIC = {
     _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
     _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
 }
@@ -381,17 +382,6 @@ TRACECONTEXT_HEADERS_VALID = {
     _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
     _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
 }
-
-# (
-# "valid_tracecontext_simple",
-# [PROPAGATION_STYLE_TRACECONTEXT],
-# TRACECONTEXT_HEADERS_VALID,
-# {
-#     "trace_id": 11803532876627986230,
-#     "span_id": 67667974448284343,
-#     "sampling_priority": 1.0,
-#     "dd_origin": "rum",
-# } )
 
 
 @pytest.mark.parametrize(
@@ -412,6 +402,19 @@ TRACECONTEXT_HEADERS_VALID = {
                 "metrics": {"_sampling_priority_v1": 1.0},
             },
         ),
+        (
+            TRACECONTEXT_HEADERS_VALID_BASIC,
+            {
+                "trace_id": 11803532876627986230,
+                "span_id": 67667974448284343,
+                "meta": {
+                    "tracestate": "dd=s:2;o:rum",
+                    "_dd.origin": "rum",
+                    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                },
+                "metrics": {"_sampling_priority_v1": 1.0},
+            },
+        ),
     ],
 )
 def test_extract_tracecontext(headers, expected_context):
@@ -419,17 +422,6 @@ def test_extract_tracecontext(headers, expected_context):
     with override_global_config(overrides):
         context = HTTPPropagator.extract(headers)
         assert context == Context(**expected_context)
-
-        
-        import os
-        e = os.getenv("DD_TRACE_PROPAGATION_STYLE")
-        print("okok")
-        print(e)
-
-        context = HTTPPropagator.extract(headers)
-
-        assert Context(expected_context) == context
-
 
 
 CONTEXT_EMPTY = {
@@ -516,7 +508,7 @@ EXTRACT_FIXTURES = [
     (
         "valid_tracecontext_simple",
         [PROPAGATION_STYLE_TRACECONTEXT],
-        TRACECONTEXT_HEADERS_VALID,
+        TRACECONTEXT_HEADERS_VALID_BASIC,
         {
             "trace_id": 11803532876627986230,
             "span_id": 67667974448284343,
@@ -966,9 +958,9 @@ else:
     overrides = {}
     if styles is not None:
         overrides["_propagation_style_extract"] = styles
-    # tracecontext propagation style includes too much additional data in expected_context
-    # therefore the Context object instantiated with expected_context and the result param cannot line up.
-    if PROPAGATION_STYLE_TRACECONTEXT not in styles:
+        # tracecontext propagation style includes data outside of the basic trace_id, span_id, sampling_priority, and dd_origin
+        # therefore the Context object instantiated with expected_context and the result param will not align. Context
+        # for tracecontext propagation style is tested separately.
         with override_global_config(overrides):
             context = HTTPPropagator.extract(headers)
             assert context == Context(**expected_context)
