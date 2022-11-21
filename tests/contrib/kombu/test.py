@@ -68,27 +68,27 @@ class TestKombuPatch(TracerTestCase):
         """Tests both producer and consumer tracing"""
         spans = self.get_spans()
         self.assertEqual(len(spans), 2)
-        consumer_span = spans[0]
-        assert_is_measured(consumer_span)
-        self.assertEqual(consumer_span.service, self.TEST_SERVICE)
-        self.assertEqual(consumer_span.name, kombux.PUBLISH_NAME)
-        self.assertEqual(consumer_span.span_type, "worker")
-        self.assertEqual(consumer_span.error, 0)
-        self.assertEqual(consumer_span.get_tag("out.vhost"), "/")
-        self.assertEqual(consumer_span.get_tag("out.host"), "127.0.0.1")
-        self.assertEqual(consumer_span.get_tag("kombu.exchange"), u"tasks")
-        self.assertEqual(consumer_span.get_metric("kombu.body_length"), 18)
-        self.assertEqual(consumer_span.get_tag("kombu.routing_key"), u"tasks")
-        self.assertEqual(consumer_span.resource, "tasks")
-
-        producer_span = spans[1]
+        producer_span = spans[0]
         assert_is_measured(producer_span)
         self.assertEqual(producer_span.service, self.TEST_SERVICE)
-        self.assertEqual(producer_span.name, kombux.RECEIVE_NAME)
+        self.assertEqual(producer_span.name, kombux.PUBLISH_NAME)
         self.assertEqual(producer_span.span_type, "worker")
         self.assertEqual(producer_span.error, 0)
+        self.assertEqual(producer_span.get_tag("out.vhost"), "/")
+        self.assertEqual(producer_span.get_tag("out.host"), "127.0.0.1")
         self.assertEqual(producer_span.get_tag("kombu.exchange"), u"tasks")
+        self.assertEqual(producer_span.get_metric("kombu.body_length"), 18)
         self.assertEqual(producer_span.get_tag("kombu.routing_key"), u"tasks")
+        self.assertEqual(producer_span.resource, "tasks")
+
+        consumer_span = spans[1]
+        assert_is_measured(consumer_span)
+        self.assertEqual(consumer_span.service, self.TEST_SERVICE)
+        self.assertEqual(consumer_span.name, kombux.RECEIVE_NAME)
+        self.assertEqual(consumer_span.span_type, "worker")
+        self.assertEqual(consumer_span.error, 0)
+        self.assertEqual(consumer_span.get_tag("kombu.exchange"), u"tasks")
+        self.assertEqual(consumer_span.get_tag("kombu.routing_key"), u"tasks")
 
     def test_analytics_default(self):
         self._publish_consume()

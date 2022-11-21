@@ -24,7 +24,7 @@
       "db.rowcount": 1,
       "db.rownumber": 0,
       "out.port": 3306,
-      "system.pid": 89502
+      "process_id": 89502
     },
     "duration": 1370000,
     "start": 1656453688953207000
