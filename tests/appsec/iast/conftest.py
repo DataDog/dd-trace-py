@@ -18,24 +18,29 @@ def iast_span(tracer, env):
 
 @pytest.fixture
 def iast_span_defaults(tracer):
-    yield from iast_span(tracer, dict(DD_IAST_ENABLED="true"))
+    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true")):
+        yield t
 
 
 @pytest.fixture
 def iast_span_md5_and_sha1_configured(tracer):
-    yield from iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_HASH_ALGORITHMS="MD5, SHA1"))
+    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_HASH_ALGORITHMS="MD5, SHA1")):
+        yield t
 
 
 @pytest.fixture
 def iast_span_only_md4(tracer):
-    yield from iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_HASH_ALGORITHMS="MD4"))
+    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_HASH_ALGORITHMS="MD4")):
+        yield t
 
 
 @pytest.fixture
 def iast_span_only_md5(tracer):
-    yield from iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_HASH_ALGORITHMS="MD5"))
+    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_HASH_ALGORITHMS="MD5")):
+        yield t
 
 
 @pytest.fixture
 def iast_span_only_sha1(tracer):
-    yield from iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_HASH_ALGORITHMS="SHA1"))
+    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_HASH_ALGORITHMS="SHA1")):
+        yield t
