@@ -293,12 +293,6 @@ venv = Venv(
             pkgs={"msgpack": [latest]},
             venvs=[
                 Venv(
-                    name="integration-v5",
-                    env={
-                        "AGENT_VERSION": "v5",
-                    },
-                ),
-                Venv(
                     name="integration-latest",
                     env={
                         "AGENT_VERSION": "latest",
@@ -1780,7 +1774,7 @@ venv = Venv(
                     "~=0.16.0",
                     "~=0.17.0",
                     "~=0.18.0",
-                    "<1.0.0",
+                    "~=0.22.0",
                     latest,
                 ],
             },
