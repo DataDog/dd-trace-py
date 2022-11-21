@@ -13,6 +13,7 @@ jobs:
     executor: continuation/default
     steps:
       - checkout # checkout code
+      - run: sudo apt-get update
       - run: sudo apt-get install python3-pip
       - run: python3 -m pip install pyYAML riot
       - run: # run a command
