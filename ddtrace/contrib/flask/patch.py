@@ -167,7 +167,16 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                     req_body = request.form.to_dict()
                 else:
                     req_body = request.get_data()
-            except (AttributeError, RuntimeError, TypeError, BadRequest, ValueError, JSONDecodeError):
+            except (
+                AttributeError,
+                RuntimeError,
+                TypeError,
+                BadRequest,
+                ValueError,
+                JSONDecodeError,
+                xmltodict.expat.ExpatError,
+                xmltodict.ParsingInterrupted,
+            ):
                 log.warning("Failed to parse werkzeug request body", exc_info=True)
             finally:
                 # Reset wsgi input to the beginning

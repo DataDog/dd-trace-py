@@ -360,7 +360,7 @@ jobs:
     resource_class: large
     docker:
       - image: *ddtrace_dev_image
-    parallelism: 7
+    parallelism: 8
     steps:
       - checkout
       - setup_riot
@@ -394,7 +394,7 @@ jobs:
 
   tracer:
     <<: *contrib_job
-    parallelism: 7
+    parallelism: 8
     steps:
       - run_test:
           pattern: "tracer"
@@ -420,10 +420,9 @@ jobs:
 
   opentracer:
     <<: *contrib_job
-    parallelism: 7
     steps:
-      - run_tox_scenario:
-          pattern: '^py.\+-opentracer'
+      - run_test:
+          pattern: 'opentracer'
 
   # Building gevent (for which we never want wheels because they crash)
   # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
@@ -504,24 +503,11 @@ jobs:
   profile:
     <<: *contrib_job
     resource_class: large
-    parallelism: 7
+    parallelism: 15
     steps:
       - run_tox_scenario:
           store_coverage: false
           pattern: '^py.\+-profile'
-
-  integration_agent5:
-    <<: *machine_executor
-    steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          services: ddagent5
-      - run:
-          command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
@@ -560,12 +546,6 @@ jobs:
       - run_test:
           pattern: 'vendor'
 
-  futures:
-    <<: *contrib_job_small
-    steps:
-      - run_tox_scenario:
-          pattern: '^futures_contrib-'
-
   boto:
     <<: *machine_executor
     parallelism: 4
@@ -591,11 +571,11 @@ jobs:
       - run_test:
           pattern: 'test_logging'
 
-  asyncio:
+  stdlib:
     <<: *contrib_job_small
     steps:
-      - run_tox_scenario:
-          pattern: '^asyncio_contrib-'
+      - run_test:
+          pattern: 'asyncio$|sqlite3$|futures$|dbapi$'
 
   asyncpg:
     <<: *machine_executor
@@ -678,14 +658,14 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *consul_image
     steps:
-      - run_tox_scenario:
-          pattern: '^consul_contrib-'
+      - run_test:
+          pattern: 'consul'
 
   dogpile_cache:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^dogpile_contrib-'
+      - run_test:
+          pattern: 'dogpile_cache'
 
   elasticsearch:
     <<: *machine_executor
@@ -736,7 +716,7 @@ jobs:
 
   flask:
     <<: *machine_executor
-    parallelism: 7
+    parallelism: 8
     steps:
       - run_test:
           # Run both flask and flask_cache test suites
@@ -748,10 +728,10 @@ jobs:
 
   gevent:
     <<: *contrib_job
-    parallelism: 7
+    parallelism: 8
     steps:
-      - run_tox_scenario:
-          pattern: '^gevent_contrib-'
+      - run_test:
+          pattern: 'gevent'
 
   graphene:
     <<: *machine_executor
@@ -769,7 +749,7 @@ jobs:
 
   grpc:
     <<: *machine_executor
-    parallelism: 7
+    parallelism: 8
     steps:
       - run_test:
           pattern: "grpc"
@@ -841,8 +821,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *memcached_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pylibmc_contrib-'
+      - run_test:
+          pattern: 'pylibmc'
 
   pytest:
     executor: ddtrace_dev
@@ -900,8 +880,8 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pyodbc_contrib-'
+      - run_test:
+          pattern: 'pyodbc'
 
   pyramid:
     <<: *machine_executor
@@ -957,12 +937,6 @@ jobs:
       - run_test:
           wait: postgres mysql
           pattern: "sqlalchemy"
-
-  dbapi:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^dbapi_contrib-'
 
   psycopg:
     <<: *machine_executor
@@ -1085,7 +1059,7 @@ jobs:
 
   kombu:
     <<: *contrib_job
-    parallelism: 7
+    parallelism: 8
     docker:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
@@ -1093,12 +1067,6 @@ jobs:
       - run_tox_scenario:
           wait: rabbitmq
           pattern: '^kombu_contrib-'
-
-  sqlite3:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^sqlite3_contrib-'
 
   benchmarks:
     <<: *contrib_job
@@ -1157,7 +1125,6 @@ requires_tests: &requires_tests
     - aiomysql
     - aiopg
     - aioredis
-    - asyncio
     - asyncpg
     - algoliasearch
     - asgi
@@ -1168,7 +1135,6 @@ requires_tests: &requires_tests
     - celery
     - cherrypy
     - consul
-    - dbapi
     - ddtracerun
     - dogpile_cache
     - django
@@ -1178,13 +1144,11 @@ requires_tests: &requires_tests
     - falcon
     - fastapi
     - flask
-    - futures
     - gevent
     - graphql
     - grpc
     - httplib
     - httpx
-    - integration_agent5
     - integration_agent
     - integration_testagent
     - vendor
@@ -1219,8 +1183,8 @@ requires_tests: &requires_tests
     - sanic
     - snowflake
     - sqlalchemy
-    - sqlite3
     - starlette
+    - stdlib
     - test_logging
     - tracer
     - telemetry
@@ -1231,12 +1195,12 @@ requires_tests: &requires_tests
     - vertica
     - wsgi
     # - profile-windows-27
-    - profile-windows-35
-    - profile-windows-36
+    # - profile-windows-35
+    # - profile-windows-36
     # - profile-windows-37
     # - profile-windows-38
     # - profile-windows-39
-    - profile-windows-310
+    # - profile-windows-310
 
 workflows:
   version: 2
@@ -1258,7 +1222,6 @@ workflows:
       - aiomysql: *requires_base_venvs
       - aiopg: *requires_base_venvs
       - aioredis: *requires_base_venvs
-      - asyncio: *requires_base_venvs
       - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
@@ -1269,7 +1232,6 @@ workflows:
       - celery: *requires_base_venvs
       - cherrypy: *requires_base_venvs
       - consul: *requires_base_venvs
-      - dbapi: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
       - django_hosts: *requires_base_venvs
@@ -1279,14 +1241,12 @@ workflows:
       - falcon: *requires_base_venvs
       - fastapi: *requires_base_venvs
       - flask: *requires_base_venvs
-      - futures: *requires_base_venvs
       - gevent: *requires_base_venvs
       - graphene: *requires_base_venvs
       - graphql: *requires_base_venvs
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
-      - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
       - internal: *requires_base_venvs
@@ -1322,8 +1282,8 @@ workflows:
       - sanic: *requires_base_venvs
       - snowflake: *requires_base_venvs
       - starlette: *requires_base_venvs
+      - stdlib: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
-      - sqlite3: *requires_base_venvs
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
@@ -1334,12 +1294,12 @@ workflows:
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
       # - profile-windows-27: *requires_pre_check
-      - profile-windows-35: *requires_pre_check
-      - profile-windows-36: *requires_pre_check
+      # - profile-windows-35: *requires_pre_check
+      # - profile-windows-36: *requires_pre_check
       # - profile-windows-37: *requires_pre_check
       # - profile-windows-38: *requires_pre_check
       # - profile-windows-39: *requires_pre_check
-      - profile-windows-310: *requires_pre_check
+      # - profile-windows-310: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
 
