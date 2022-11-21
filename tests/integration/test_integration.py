@@ -25,7 +25,7 @@ AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 def allencodings(f):
-    return pytest.mark.parametrize("encoding", ["v0.5", "v0.4"] if AGENT_VERSION != "v5" else [""])(f)
+    return pytest.mark.parametrize("encoding", ["v0.5", "v0.4"])(f)
 
 
 def test_configure_keeps_api_hostname_and_port():

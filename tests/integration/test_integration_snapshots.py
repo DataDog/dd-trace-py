@@ -248,6 +248,7 @@ def test_wrong_span_name_type_not_sent():
 )
 @snapshot()
 def test_trace_with_wrong_meta_types_not_sent(meta):
+    """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
     tracer = Tracer()
     with mock.patch("ddtrace.span.log") as log:
         with tracer.trace("root") as root:
