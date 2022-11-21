@@ -698,7 +698,7 @@ jobs:
 
   django:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 8
     steps:
       - run_test:
           pattern: 'django$'
