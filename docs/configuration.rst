@@ -195,7 +195,7 @@ below:
      description: |
          A JSON array of objects. Each object must have a “name” and/or “service” field, and the “sample_rate” field is optional. 
          The “sample_rate” value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled) if not provided. 
-         The "service" and ""name" fields are glob patterns, where "glob" here means: 
+         The "service" and "name" fields are glob patterns, where "glob" means: 
          "*" matches any substring, including the empty string,
          "?" matches exactly one of any character, and
          any other character matches exactly one of itself.
