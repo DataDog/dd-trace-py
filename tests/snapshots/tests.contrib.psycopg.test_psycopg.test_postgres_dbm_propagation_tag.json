@@ -14,7 +14,7 @@
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "23a6f4e5100c4df599a97a17d0ee8178"
+      "runtime-id": "ea0558dd44144da4bf43d58c08454b61"
     },
     "metrics": {
       "_dd.agent_psr": 1.0,
@@ -24,11 +24,11 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "out.port": 5432,
-      "sql.rows": 1,
-      "system.pid": 73126
+      "process_id": 34772,
+      "sql.rows": 1
     },
-    "duration": 2932000,
-    "start": 1668217192786999000
+    "duration": 2461000,
+    "start": 1669137528022891000
   }],
 [
   {
@@ -46,7 +46,7 @@
       "db.name": "postgres",
       "db.user": "postgres",
       "out.host": "127.0.0.1",
-      "runtime-id": "23a6f4e5100c4df599a97a17d0ee8178",
+      "runtime-id": "ea0558dd44144da4bf43d58c08454b61",
       "sql.executemany": "true"
     },
     "metrics": {
@@ -57,9 +57,9 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 5432,
-      "sql.rows": 2,
-      "system.pid": 73126
+      "process_id": 34772,
+      "sql.rows": 2
     },
-    "duration": 4445000,
-    "start": 1668217192817081000
+    "duration": 2211000,
+    "start": 1669137528052341000
   }]]
