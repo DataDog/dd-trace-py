@@ -999,7 +999,7 @@ venv = Venv(
                         }
                     }
                 ],
-                "parallelism": 6,
+                "parallelism": 8,
             },
             venvs=[
                 Venv(
@@ -1028,7 +1028,6 @@ venv = Venv(
                         "django": [
                             "~=3.0",
                             "~=3.0.0",
-                            "~=3.1.0",
                             "~=3.2.0",
                         ],
                         "channels": ["~=3.0", latest("channels")],
@@ -1038,7 +1037,7 @@ venv = Venv(
                     pys=select_pys(min_version="3.8", max_version="3.10"),
                     pkgs={
                         "django": ["~=4.0.0", latest("django")],
-                        "channels": ["~=3.0", latest("channels")],
+                        "channels": [latest("channels")],
                     },
                 ),
                 Venv(
@@ -1048,7 +1047,7 @@ venv = Venv(
                             "~=4.1.0",
                             latest("django"),
                         ],
-                        "channels": ["~=3.0", latest("channels")],
+                        "channels": [latest("channels")],
                     },
                 ),
             ],

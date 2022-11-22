@@ -274,12 +274,14 @@ circleci_config = {
                 {"run": {"name": "Slots check", "command": "riot run -s slotscheck"}},
                 {"run": {"name": "Mypy check", "command": "riot run -s mypy"}},
                 {"run": {"name": "Codespell check", "command": "riot run -s codespell"}},
+                {"run": {"name": "Run riotfile.py tests", "command": "riot run -s riot-helpers"}},
                 {
                     "run": {
                         "name": "Test agent snapshot check",
                         "command": "riot run -s snapshot-fmt && git diff --exit-code",
                     }
                 },
+                {"run": {"name": "Run scripts/*.py tests", "command": "riot run -s scripts"}},
             ],
         },
         "ccheck": {
@@ -323,8 +325,6 @@ circleci_config = {
             "steps": [
                 "checkout",
                 "setup_riot",
-                {"run": {"name": "Run riotfile.py tests", "command": "riot run -s riot-helpers"}},
-                {"run": {"name": "Run scripts/*.py tests", "command": "riot run -s scripts"}},
                 {
                     "run": {
                         "name": "Generate base virtual environments.",
@@ -338,6 +338,7 @@ circleci_config = {
         },
         # "profile-windows-35": {
         #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "parallelism": 4,  # This is the number of tox envs for this job
         #     "steps": [
         #         {"run": "choco install -y python --version=3.5.4 --side-by-side"},
         #         {"run_tox_scenario": {"store_coverage": False, "pattern": "^py35-profile"}},
@@ -345,13 +346,24 @@ circleci_config = {
         # },
         # "profile-windows-36": {
         #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "parallelism": 4,  # This is the number of tox envs for this job
         #     "steps": [
         #         {"run": "choco install -y python --version=3.6.8 --side-by-side"},
         #         {"run_tox_scenario": {"store_coverage": False, "pattern": "^py36-profile"}},
         #     ],
         # },
+        # For whatever reason, choco does not install Python 3.7 correctly on Windows
+        # "profile-windows-37": {
+        #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "parallelism": 5, # This is the number of tox envs for this job
+        #     "steps": [
+        #         {"run": "choco install -y python --version=3.7.9 --side-by-side"},
+        #         {"run_tox_scenario": {"store_coverage": False, "pattern": "^py37-profile"}},
+        #     ],
+        # },
         # "profile-windows-38": {
         #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "parallelism": 5, # This is the number of tox envs for this job
         #     "steps": [
         #         {"run": "choco install -y python --version=3.8.10 --side-by-side"},
         #         {"run_tox_scenario": {"store_coverage": False, "pattern": "^py38-profile"}},
@@ -359,6 +371,7 @@ circleci_config = {
         # },
         # "profile-windows-39": {
         #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "parallelism": 5, # This is the number of tox envs for this job
         #     "steps": [
         #         {"run": "choco install -y python --version=3.9.12 --side-by-side"},
         #         {"run_tox_scenario": {"store_coverage": False, "pattern": "^py39-profile"}},
@@ -366,6 +379,7 @@ circleci_config = {
         # },
         # "profile-windows-310": {
         #     "executor": {"name": "win/default", "shell": "bash.exe"},
+        #     "parallelism": 5,  # This is the number of tox envs for this job
         #     "steps": [{"run_tox_scenario": {"store_coverage": False, "pattern": "^py310-profile"}}],
         # },
         "profile": {

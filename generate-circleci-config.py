@@ -31,7 +31,7 @@ def generate_main_workflow() -> None:
 
     BASE_JOBS = {"pre_check", "ccheck", "build_base_venvs"}
     NO_COVERAGE = BASE_JOBS | {"coverage_report", "graphene", "build_docs", "internal"}
-    CHECKONLY_JOBS = ["build_docs"]  # + [f"profile-windows-3{i}" for i in (5, 6, 8, 9, 10)]
+    CHECKONLY_JOBS = ["build_docs"] + [f"profile-windows-3{i}" for i in (5, 6, 8, 9, 10)]
     BASE_REQUIREMENTS = []
     DEFAULT_REQUIREMENTS = ["pre_check", "ccheck", "build_base_venvs"]
     CHECK_REQUIREMENTS = ["pre_check", "ccheck"]
