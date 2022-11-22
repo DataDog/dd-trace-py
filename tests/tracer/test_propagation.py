@@ -23,6 +23,7 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
 from ddtrace.propagation.http import _HTTP_HEADER_TRACEPARENT
 from ddtrace.propagation.http import _HTTP_HEADER_TRACESTATE
+from ddtrace.propagation.http import _TraceContext
 
 from ..utils import override_env
 from ..utils import override_global_config
@@ -382,6 +383,49 @@ TRACECONTEXT_HEADERS_VALID = {
     _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
     _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
 }
+
+
+@pytest.mark.parametrize(
+    "headers,expected_tuple",
+    [
+        (
+            TRACECONTEXT_HEADERS_VALID,
+            # tp, trace_id, span_id, sampling_priority
+            ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", 11803532876627986230, 67667974448284343, 1),
+        ),
+    ],
+)
+def test_extract_traceparent(headers, expected_tuple):
+    overrides = {"_propagation_style_extract": [PROPAGATION_STYLE_TRACECONTEXT]}
+    with override_global_config(overrides):
+        traceparent_values = _TraceContext._get_traceparent_values(headers)
+        assert traceparent_values == expected_tuple
+
+
+@pytest.mark.parametrize(
+    "headers,expected_tuple",
+    [
+        (
+            TRACECONTEXT_HEADERS_VALID,
+            # ts, sampling_priority_ts, meta, origin
+            (
+                "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                2,
+                {
+                    "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                    "_dd.p.dm": "-4",
+                    "_dd.p.usr.id": "baz64",
+                },
+                "rum",
+            ),
+        ),
+    ],
+)
+def test_extract_tracestate(headers, expected_tuple):
+    overrides = {"_propagation_style_extract": [PROPAGATION_STYLE_TRACECONTEXT]}
+    with override_global_config(overrides):
+        tracestate_values = _TraceContext._get_tracestate_values(headers)
+        assert tracestate_values == expected_tuple
 
 
 @pytest.mark.parametrize(
