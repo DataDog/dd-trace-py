@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    tracing: This resolves an issue where v0.5 encoding endpoint errors were output to ``stderr`` instead of
+    tracing: Resolves an issue where v0.5 encoding endpoint errors were output to ``stderr`` instead of
     to a logger if non-text span tags were set.

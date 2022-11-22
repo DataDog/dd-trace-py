@@ -180,7 +180,7 @@ cdef class StringTable(object):
 
         _id = self._next_id
         ret = PyDict_SetItem(self._table, string, PyLong_FromLong(_id))
-        if ret != 0: return ret
+        if ret == -1: return ret
         self.insert(string)
         self._next_id += 1
         return _id
