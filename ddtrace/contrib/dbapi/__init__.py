@@ -141,7 +141,7 @@ class TracedCursor(wrapt.ObjectProxy):
     def callproc(self, proc, *args):
         """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, True, proc, *args)
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, False, proc, *args)
 
     def _set_post_execute_tags(self, span):
         row_count = self.__wrapped__.rowcount
