@@ -1101,7 +1101,6 @@ venv = Venv(
         Venv(
             name="psycopg",
             command="pytest {cmdargs} tests/contrib/psycopg",
-            env={"DD_DBM_PROPAGATION_MODE": "full"},
             venvs=[
                 Venv(
                     pys=["2.7"],

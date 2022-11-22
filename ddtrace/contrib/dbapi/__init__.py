@@ -179,7 +179,8 @@ class TracedCursor(wrapt.ObjectProxy):
         except TypeError:
             log.warning(
                 "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "
-                "To disable this feature please set the following environment variable: DD_DBM_PROPAGATION_MODE=disabled",
+                "To disable this feature please set the following environment variable: "
+                "DD_DBM_PROPAGATION_MODE=disabled",
                 type(sql_statement),
                 exc_info=True,
             )
