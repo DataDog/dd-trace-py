@@ -203,6 +203,9 @@ below:
          The trace API version to use when sending traces to the Datadog agent.
 
          Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
+     version_added:
+       v0.56.0: Formerly defaulted to ``v0.4``.
+       v1.7.0: Made ``v0.5`` the default trace API version.
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN:
      default: |
