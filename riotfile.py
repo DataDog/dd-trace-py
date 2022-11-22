@@ -262,11 +262,11 @@ LATEST_VERSIONS = {
 }
 
 
-def machine_executor(steps=[], **argdir):
+def machine_executor(steps=[{"run": {"name": "Set global pyenv", "command": "pyenv global 3.9.4"}}], **argdir):
     res = {
         "machine": {"image": "ubuntu-2004:current"},
         "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-        "steps": [{"run": {"name": "Set global pyenv", "command": "pyenv global 3.9.4"}}] + steps,
+        "steps": steps,
     }
     res.update(argdir)
     return res
