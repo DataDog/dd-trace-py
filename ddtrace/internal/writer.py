@@ -569,7 +569,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 if raise_exc:
                     e.reraise()
                 else:
-                    log.error("failed to send traces to Datadog Agent at %s", self._agent_endpoint, exc_info=True)
+                    log.warning("failed to send traces to Datadog Agent at %s", self._agent_endpoint, exc_info=True)
             finally:
                 if self._report_metrics and self.dogstatsd:
                     # Note that we cannot use the batching functionality of dogstatsd because
