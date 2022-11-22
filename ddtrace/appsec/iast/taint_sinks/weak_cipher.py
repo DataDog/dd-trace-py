@@ -2,6 +2,8 @@ import os
 from typing import TYPE_CHECKING
 
 from ddtrace.appsec.iast import oce
+from ddtrace.appsec.iast._patch import set_and_check_module_is_patched
+from ddtrace.appsec.iast._patch import set_module_unpatched
 from ddtrace.appsec.iast._patch import try_unwrap
 from ddtrace.appsec.iast._patch import try_wrap_function_wrapper
 from ddtrace.appsec.iast.constants import BLOWFISH_DEF
@@ -18,18 +20,19 @@ from ddtrace.internal.logger import get_logger
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
+    from typing import Set
 
 log = get_logger(__name__)
 
 
 def get_weak_cipher_algorithms():
+    # type: () -> Set
     CONFIGURED_WEAK_CIPHER_ALGORITHMS = None
     DD_IAST_WEAK_CIPHER_ALGORITHMS = os.getenv("DD_IAST_WEAK_CIPHER_ALGORITHMS")
     if DD_IAST_WEAK_CIPHER_ALGORITHMS:
         CONFIGURED_WEAK_CIPHER_ALGORITHMS = set(
             algo.strip() for algo in DD_IAST_WEAK_CIPHER_ALGORITHMS.lower().split(",")
         )
-
     return CONFIGURED_WEAK_CIPHER_ALGORITHMS or DEFAULT_WEAK_CIPHER_ALGORITHMS
 
 
@@ -40,6 +43,9 @@ class WeakCipher(VulnerabilityBase):
 
 
 def unpatch_iast():
+    # type: () -> None
+    set_module_unpatched("Crypto", default_attr="_datadog_weak_cipher_patch")
+    set_module_unpatched("cryptography", default_attr="_datadog_weak_cipher_patch")
 
     try_unwrap("Crypto.Cipher.DES", "new")
     try_unwrap("Crypto.Cipher.Blowfish", "new")
@@ -57,6 +63,11 @@ def patch():
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
     """
+    if set_and_check_module_is_patched("Crypto", default_attr="_datadog_weak_cipher_patch") is False:
+        return
+    if set_and_check_module_is_patched("cryptography", default_attr="_datadog_weak_cipher_patch") is False:
+        return
+
     weak_cipher_algorithms = get_weak_cipher_algorithms()
 
     # pycryptodome methods
