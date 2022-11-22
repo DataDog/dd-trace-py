@@ -272,9 +272,28 @@ def machine_executor(steps=[{"run": {"name": "Set global pyenv", "command": "pye
     return res
 
 
-def contrib_job(steps=[], parallelism=4):
-    return {"executor": "ddtrace_dev", "parallelism": parallelism, "steps": steps}
+def contrib_job(steps=[], parallelism=4, **argdir):
+    res = {
+        "executor": "ddtrace_dev_small" if parallelism == 1 else "ddtrace_dev",
+        "parallelism": parallelism,
+        "steps": steps,
+    }
+    res.update(argdir)
+    return res
 
+
+docker_mysql_server = [
+    {"image": "datadog/dd-trace-py:buster"},
+    {
+        "image": "mysql:5.7",
+        "environment": [
+            "MYSQL_ROOT_PASSWORD=admin",
+            "MYSQL_PASSWORD=test",
+            "MYSQL_USER=test",
+            "MYSQL_DATABASE=test",
+        ],
+    },
+]
 
 venv = Venv(
     pkgs={
@@ -429,11 +448,7 @@ venv = Venv(
                 "py-cpuinfo": "~=8.0.0",
                 "msgpack": latest("msgpack"),
             },
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "steps": [{"run_test": {"store_coverage": False, "pattern": "^benchmarks"}}],
-            },
+            ci=contrib_job([{"run_test": {"store_coverage": False, "pattern": "^benchmarks"}}]),
             venvs=[
                 Venv(
                     name="benchmarks-gc",
@@ -476,14 +491,13 @@ venv = Venv(
             env={
                 "DD_REMOTE_CONFIGURATION_ENABLED": "false",
             },
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 8,
-                "steps": [
+            ci=contrib_job(
+                [
                     {"run_test": {"pattern": "tracer"}},
                     {"run_tox_scenario": {"pattern": "^py.\\+-tracer_test_http"}},
                 ],
-            },
+                parallelism=8,
+            ),
         ),
         Venv(
             name="telemetry",
@@ -565,7 +579,7 @@ venv = Venv(
                     pkgs={"pytest-asyncio": latest("pytest-asyncio")},
                 ),
             ],
-            ci={"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "internal"}}]},
+            ci=contrib_job([{"run_test": {"pattern": "internal"}}]),
         ),
         Venv(
             name="gevent",
@@ -629,11 +643,7 @@ venv = Venv(
                     ],
                 ),
             ],
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 8,
-                "steps": [{"run_test": {"pattern": "gevent"}}],
-            },
+            ci=contrib_job([{"run_test": {"pattern": "gevent"}}], parallelism=8),
         ),
         Venv(
             name="runtime",
@@ -648,12 +658,10 @@ venv = Venv(
                 "redis": latest("redis"),
                 "gevent": latest("gevent"),
             },
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "redis:4.0-alpine"}],
-                "steps": [{"run_test": {"store_coverage": False, "pattern": "ddtracerun"}}],
-            },
+            ci=contrib_job(
+                [{"run_test": {"store_coverage": False, "pattern": "ddtracerun"}}],
+                docker=[{"image": "datadog/dd-trace-py:buster"}, {"image": "redis:4.0-alpine"}],
+            ),
         ),
         Venv(
             name="debugger",
@@ -667,19 +675,16 @@ venv = Venv(
                     pkgs={"pytest-asyncio": latest("pytest-asyncio")},
                 ),
             ],
-            ci={"executor": "ddtrace_dev", "parallelism": 7, "steps": [{"run_test": {"pattern": "debugger"}}]},
+            ci=contrib_job([{"run_test": {"pattern": "debugger"}}], parallelism=7),
         ),
         Venv(
             name="vendor",
             command="pytest {cmdargs} tests/vendor/",
             pys=select_pys(),
             pkgs={"msgpack": ["~=1.0.0", latest("msgpack")]},
-            ci={
-                "executor": "ddtrace_dev_small",
-                "parallelism": 1,
-                "docker": [{"image": "datadog/dd-trace-py:buster"}],
-                "steps": [{"run_test": {"pattern": "vendor"}}],
-            },
+            ci=contrib_job(
+                [{"run_test": {"pattern": "vendor"}}], parallelism=1, docker=[{"image": "datadog/dd-trace-py:buster"}]
+            ),
         ),
         Venv(
             name="httplib",
@@ -693,11 +698,7 @@ venv = Venv(
             name="test_logging",
             command="pytest {cmdargs} tests/contrib/logging",
             pys=select_pys(),
-            ci={
-                "executor": "ddtrace_dev_small",
-                "parallelism": 1,
-                "steps": [{"run_test": {"pattern": "test_logging"}}],
-            },
+            ci=contrib_job([{"run_test": {"pattern": "test_logging"}}], parallelism=1),
         ),
         Venv(
             name="falcon",
@@ -738,22 +739,21 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "falcon"}}]},
+            ci=contrib_job([{"run_test": {"pattern": "falcon"}}]),
         ),
         Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
             pkgs={"more_itertools": "<8.11.0"},
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 7,
-                "docker": [
+            ci=contrib_job(
+                [{"run_test": {"pattern": "celery"}}],
+                parallelism=7,
+                docker=[
                     {"image": "datadog/dd-trace-py:buster"},
                     {"image": "redis:4.0-alpine"},
                     {"image": "rabbitmq:3.7-alpine"},
                 ],
-                "steps": [{"run_test": {"pattern": "celery"}}],
-            },
+            ),
             venvs=[
                 # Non-4.x celery should be able to use the older redis lib, since it locks to an older kombu
                 Venv(
@@ -867,7 +867,7 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "pylons"}}]},
+            ci=contrib_job([{"run_test": {"pattern": "pylons"}}], parallelism=1),
         ),
         Venv(
             name="cherrypy",
@@ -950,12 +950,10 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "mongo:3.6"}],
-                "steps": [{"run_test": {"pattern": "pymongo"}}],
-            },
+            ci=contrib_job(
+                [{"run_test": {"pattern": "pymongo"}}],
+                docker=[{"image": "datadog/dd-trace-py:buster"}, {"image": "mongo:3.6"}],
+            ),
         ),
         # Django  Python version support
         # 1.11    2.7, 3.4, 3.5, 3.6, 3.7 (added in 1.11.17)
@@ -1400,28 +1398,12 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
             pkgs={"mako": ["<1.0.0", "~=1.0.0", "~=1.1.0", latest("mako")]},
-            ci={"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "mako"}}]},
+            ci=contrib_job([{"run_test": {"pattern": "mako"}}], parallelism=1),
         ),
         Venv(
             name="mysqlconnector",  # formerly mysql, but use the name given into the ci
             command="pytest {cmdargs} tests/contrib/mysql",
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [
-                    {"image": "datadog/dd-trace-py:buster"},
-                    {
-                        "image": "mysql:5.7",
-                        "environment": [
-                            "MYSQL_ROOT_PASSWORD=admin",
-                            "MYSQL_PASSWORD=test",
-                            "MYSQL_USER=test",
-                            "MYSQL_DATABASE=test",
-                        ],
-                    },
-                ],
-                "steps": [{"run_test": {"wait": "mysql", "pattern": "mysqlconnector"}}],
-            },
+            ci=contrib_job([{"run_test": {"wait": "mysql", "pattern": "mysqlconnector"}}], docker=docker_mysql_server),
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.5"),
@@ -1481,12 +1463,10 @@ venv = Venv(
                 Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
                 Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
             ],
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "memcached:1.5-alpine"}],
-                "steps": [{"run_test": {"pattern": "pymemcache"}}],
-            },
+            ci=contrib_job(
+                [{"run_test": {"pattern": "pymemcache"}}],
+                docker=[{"image": "datadog/dd-trace-py:buster"}, {"image": "memcached:1.5-alpine"}],
+            ),
         ),
         Venv(
             name="pynamodb",
@@ -1536,7 +1516,7 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "pynamodb"}}]},
+            ci=contrib_job([{"run_test": {"pattern": "pynamodb"}}]),
         ),
         Venv(
             name="starlette",
@@ -1571,10 +1551,9 @@ venv = Venv(
         Venv(
             name="sqlalchemy",
             command="pytest {cmdargs} tests/contrib/sqlalchemy",
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [
+            ci=contrib_job(
+                [{"run_test": {"wait": "postgres mysql", "pattern": "sqlalchemy"}}],
+                docker=[
                     {"image": "datadog/dd-trace-py:buster"},
                     {
                         "image": "postgres:11-alpine",
@@ -1590,8 +1569,7 @@ venv = Venv(
                         ],
                     },
                 ],
-                "steps": [{"run_test": {"wait": "postgres mysql", "pattern": "sqlalchemy"}}],
-            },
+            ),
             venvs=[
                 Venv(
                     venvs=[
@@ -1655,10 +1633,9 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [
+            ci=contrib_job(
+                [{"run_test": {"pattern": "requests"}}],
+                docker=[
                     {"image": "datadog/dd-trace-py:buster"},
                     {
                         "image": (
@@ -1668,8 +1645,7 @@ venv = Venv(
                         "name": "httpbin.org",
                     },
                 ],
-                "steps": [{"run_test": {"pattern": "requests"}}],
-            },
+            ),
         ),
         Venv(
             name="wsgi",
@@ -1735,7 +1711,7 @@ venv = Venv(
             },
             pys=select_pys(min_version="3.6"),
             command="pytest {cmdargs} tests/contrib/asgi",
-            ci={"executor": "ddtrace_dev_small", "parallelism": 1, "steps": [{"run_test": {"pattern": "asgi$"}}]},
+            ci=contrib_job([{"run_test": {"pattern": "asgi$"}}], parallelism=1),
         ),
         Venv(
             name="mariadb",
@@ -1760,23 +1736,7 @@ venv = Venv(
         Venv(
             name="pymysql",
             command="pytest {cmdargs} tests/contrib/pymysql",
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [
-                    {"image": "datadog/dd-trace-py:buster"},
-                    {
-                        "image": "mysql:5.7",
-                        "environment": [
-                            "MYSQL_ROOT_PASSWORD=admin",
-                            "MYSQL_PASSWORD=test",
-                            "MYSQL_USER=test",
-                            "MYSQL_DATABASE=test",
-                        ],
-                    },
-                ],
-                "steps": [{"run_test": {"wait": "mysql", "pattern": "pymysql"}}],
-            },
+            ci=contrib_job([{"run_test": {"wait": "mysql", "pattern": "pymysql"}}], docker=docker_mysql_server),
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -1875,12 +1835,10 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "palazzem/moto:1.0.1"}],
-                "steps": [{"run_test": {"pattern": "aiobotocore"}}],
-            },
+            ci=contrib_job(
+                [{"run_test": {"pattern": "aiobotocore"}}],
+                docker=[{"image": "datadog/dd-trace-py:buster"}, {"image": "palazzem/moto:1.0.1"}],
+            ),
         ),
         Venv(
             name="fastapi",
@@ -2225,15 +2183,13 @@ venv = Venv(
         ),
         Venv(
             name="cassandra",
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [
+            ci=contrib_job(
+                [{"run_test": {"wait": "cassandra", "pattern": "cassandra"}}],
+                docker=[
                     {"image": "datadog/dd-trace-py:buster", "environment": {"CASS_DRIVER_NO_EXTENSIONS": 1}},
                     {"image": "cassandra:3.11.7", "environment": ["MAX_HEAP_SIZE=512M", "HEAP_NEWSIZE=256M"]},
                 ],
-                "steps": [{"run_test": {"wait": "cassandra", "pattern": "cassandra"}}],
-            },
+            ),
             venvs=[
                 # cassandra-driver does not officially support 3.10
                 # TODO: fix sporadically failing tests in cassandra-driver v3.25.0 and py3.10
@@ -2277,18 +2233,16 @@ venv = Venv(
                 "sqlalchemy": latest("sqlalchemy"),
             },
             command="pytest {cmdargs} tests/contrib/aiopg",
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [
+            ci=contrib_job(
+                [{"run_test": {"wait": "postgres", "pattern": "aiopg"}}],
+                docker=[
                     {"image": "datadog/dd-trace-py:buster"},
                     {
                         "image": "postgres:11-alpine",
                         "environment": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=postgres"],
                     },
                 ],
-                "steps": [{"run_test": {"wait": "postgres", "pattern": "aiopg"}}],
-            },
+            ),
         ),
         Venv(
             name="aiohttp",
@@ -2421,7 +2375,7 @@ venv = Venv(
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
-            ci={"executor": "ddtrace_dev", "parallelism": 4, "steps": [{"run_test": {"pattern": "jinja2"}}]},
+            ci=contrib_job([{"run_test": {"pattern": "jinja2"}}]),
         ),
         Venv(
             name="rediscluster",
@@ -2718,11 +2672,7 @@ venv = Venv(
                     pys=select_pys(),
                 ),
             ],
-            ci={
-                "executor": "ddtrace_dev_small",
-                "parallelism": 1,
-                "steps": [{"run_test": {"pattern": "asyncio$|sqlite3$|futures$|dbapi$"}}],
-            },
+            ci=contrib_job([{"run_test": {"pattern": "asyncio$|sqlite3$|futures$|dbapi$"}}], parallelism=1),
         ),
         Venv(
             name="dogpile_cache",
@@ -2766,11 +2716,7 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "steps": [{"run_test": {"pattern": "dogpile_cache"}}],
-            },
+            ci=contrib_job([{"run_test": {"pattern": "dogpile_cache"}}]),
         ),
         Venv(
             name="consul",
@@ -2784,12 +2730,10 @@ venv = Venv(
                     latest("python-consul"),
                 ],
             },
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "consul:1.6.0"}],
-                "steps": [{"run_test": {"pattern": "consul"}}],
-            },
+            ci=contrib_job(
+                [{"run_test": {"pattern": "consul"}}],
+                docker=[{"image": "datadog/dd-trace-py:buster"}, {"image": "consul:1.6.0"}],
+            ),
         ),
         Venv(
             name="opentracer",
@@ -2855,11 +2799,7 @@ venv = Venv(
                     ],
                 ),
             ],
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "steps": [{"run_test": {"pattern": "opentracer"}}],
-            },
+            ci=contrib_job([{"run_test": {"pattern": "opentracer"}}]),
         ),
         Venv(
             name="pyodbc",
@@ -2867,12 +2807,10 @@ venv = Venv(
             # FIXME: check if this constraint is no longer required
             pys=select_pys(max_version="3.9"),
             pkgs={"pyodbc": [">=3.0,<4.0", ">=4.0,<5.0", latest("pyodbc")]},
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [{"image": "datadog/dd-trace-py:buster"}],
-                "steps": [{"run_test": {"pattern": "pyodbc"}}],
-            },
+            ci=contrib_job(
+                [{"run_test": {"pattern": "pyodbc"}}],
+                docker=[{"image": "datadog/dd-trace-py:buster"}],
+            ),
         ),
         Venv(
             name="pylibmc",
@@ -2891,12 +2829,10 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "executor": "ddtrace_dev",
-                "parallelism": 4,
-                "docker": [{"image": "datadog/dd-trace-py:buster"}, {"image": "memcached:1.5-alpine"}],
-                "steps": [{"run_test": {"pattern": "pylibmc"}}],
-            },
+            ci=contrib_job(
+                [{"run_test": {"pattern": "pylibmc"}}],
+                docker=[{"image": "datadog/dd-trace-py:buster"}, {"image": "memcached:1.5-alpine"}],
+            ),
         ),
     ],
 )
