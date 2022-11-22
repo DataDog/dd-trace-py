@@ -391,6 +391,11 @@ below:
      default: "MD5,SHA1"
      description: Weak hashing algorithms that should be reported, comma separated.
 
+   DD_IAST_WEAK_CIPHER_ALGORITHMS:
+     type: String
+     default: "DES,Blowfish,RC2,RC4,IDEA"
+     description: Weak cipher algorithms that should be reported, comma separated.
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 

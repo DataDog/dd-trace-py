@@ -68,27 +68,29 @@ def patch():
         return
     setattr(hashlib, "_datadog_patch", True)
 
+    weak_hash_algorithms = get_weak_hash_algorithms()
+
     if sys.version_info >= (3, 0, 0):
         try_wrap_function_wrapper("_hashlib", "HASH.digest", wrapped_digest_function)
         try_wrap_function_wrapper("_hashlib", "HASH.hexdigest", wrapped_digest_function)
-        if MD5_DEF in get_weak_hash_algorithms():
+        if MD5_DEF in weak_hash_algorithms:
             try_wrap_function_wrapper(("_%s" % MD5_DEF), "MD5Type.digest", wrapped_md5_function)
             try_wrap_function_wrapper(("_%s" % MD5_DEF), "MD5Type.hexdigest", wrapped_md5_function)
-        if SHA1_DEF in get_weak_hash_algorithms():
+        if SHA1_DEF in weak_hash_algorithms:
             try_wrap_function_wrapper(("_%s" % SHA1_DEF), "SHA1Type.digest", wrapped_sha1_function)
             try_wrap_function_wrapper(("_%s" % SHA1_DEF), "SHA1Type.hexdigest", wrapped_sha1_function)
     else:
-        if MD5_DEF in get_weak_hash_algorithms():
+        if MD5_DEF in weak_hash_algorithms:
             try_wrap_function_wrapper("hashlib", MD5_DEF, wrapped_md5_function)
-        if SHA1_DEF in get_weak_hash_algorithms():
+        if SHA1_DEF in weak_hash_algorithms:
             try_wrap_function_wrapper("hashlib", SHA1_DEF, wrapped_sha1_function)
         try_wrap_function_wrapper("hashlib", "new", wrapped_new_function)
 
     # pycryptodome methods
-    if MD5_DEF in get_weak_hash_algorithms():
+    if MD5_DEF in weak_hash_algorithms:
         try_wrap_function_wrapper("Crypto.Hash.MD5", "MD5Hash.digest", wrapped_md5_function)
         try_wrap_function_wrapper("Crypto.Hash.MD5", "MD5Hash.hexdigest", wrapped_md5_function)
-    if SHA1_DEF in get_weak_hash_algorithms():
+    if SHA1_DEF in weak_hash_algorithms:
         try_wrap_function_wrapper("Crypto.Hash.SHA1", "SHA1Hash.digest", wrapped_sha1_function)
         try_wrap_function_wrapper("Crypto.Hash.SHA1", "SHA1Hash.hexdigest", wrapped_sha1_function)
 
