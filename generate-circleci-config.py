@@ -5,9 +5,11 @@ import sys
 
 import yaml
 
-from circle_config_init import circleci_config
 from riotfile import Venv
 from riotfile import venv
+
+with open(".circleci/config.base.yml", "r") as stream:
+    circleci_config = yaml.safe_load(stream)
 
 
 def get_jobs_from_riot(venv: Venv) -> dict:
@@ -98,7 +100,6 @@ def generate_main_workflow() -> None:
                 step["run_test"]["use_latest"] = "true"
         return res
 
-    #
     for name in list(circleci_config["jobs"]):
         lname = latest_name(name)
         circleci_config["workflows"][test_latest]["jobs"].append({lname: {"requires": latest_requirements(name)}})
