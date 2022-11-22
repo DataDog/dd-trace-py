@@ -414,9 +414,7 @@ def set_http_meta(
          { "id": <int_value> }
     """
 
-    # XXX if not ip: try to retrieve it from the headers, for testing and frameworks where
-    # IP blocking is not implemented
-    print('XXX peer_ip in trace_utils: %s' % peer_ip)
+    print('XXX peer_ip in trace_utils.set_http_meta: %s' % peer_ip)
     if method is not None:
         span.set_tag_str(http.METHOD, method)
 
@@ -454,14 +452,21 @@ def set_http_meta(
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled:
+            client_ip_saved = False
+
             if not peer_ip:
-                # Framework didn't extract the peer IP (maybe IP blocking workflow not implemented)
-                peer_ip = _get_request_header_client_ip(span, request_headers, peer_ip,
-                                                               headers_are_case_sensitive)
-                print('XXX peer_ip after retrieval: %s' % peer_ip)
+                # Should have been saved on patch, but if not try to retrieve it
+                # for isolated testing and frameworks where IP blocking is not implemented
+                peer_ip = span.get_tag(http.CLIENT_IP)
+                client_ip_saved = peer_ip is not None
+
+                if not peer_ip:
+                    peer_ip = _get_request_header_client_ip(span, request_headers, peer_ip,
+                                                            headers_are_case_sensitive)
 
             if peer_ip:
-                span.set_tag(http.CLIENT_IP, peer_ip)
+                if not client_ip_saved:
+                    span.set_tag(http.CLIENT_IP, peer_ip)
                 span.set_tag("network.client.ip", peer_ip)
 
         if integration_config.is_header_tracing_configured:
@@ -477,6 +482,7 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
+        print('XXX in trace_utils, setting stuff')
         status_code = str(status_code) if status_code is not None else None
 
         _context.set_items(

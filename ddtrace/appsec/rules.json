@@ -20,11 +20,14 @@
                 "address": "http.client_ip"
               }
             ],
+            "list": [],
             "data": "blocked_ips"
           }
         }
       ],
-      "on_match": ["block"]
+      "on_match": [
+        "block"
+      ]
     },
     {
       "id": "crs-913-110",

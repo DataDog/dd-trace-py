@@ -121,7 +121,7 @@ def _default_span_processors_factory(
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
 ):
-    # type: (...) -> List[SpanProcessor]
+    # type: (...) -> Tuple[List[SpanProcessor], Optional[AppsecSpanProcessor]]
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
@@ -132,7 +132,11 @@ def _default_span_processors_factory(
     span_processors += [TopLevelSpanProcessor()]
 
     if appsec_enabled:
-        span_processors.append(_start_appsec_processor())
+        appsec_processor = _start_appsec_processor()
+        if appsec_processor:
+            span_processors.append(appsec_processor)
+    else:
+        appsec_processor = None
 
     if iast_enabled:
         from .appsec.iast.processor import AppSecIastSpanProcessor
@@ -161,7 +165,7 @@ def _default_span_processors_factory(
             writer=trace_writer,
         )
     )
-    return span_processors
+    return span_processors, appsec_processor
 
 
 class Tracer(object):
@@ -229,9 +233,11 @@ class Tracer(object):
         self._partial_flush_enabled = asbool(os.getenv("DD_TRACE_PARTIAL_FLUSH_ENABLED", default=True))
         self._partial_flush_min_spans = int(os.getenv("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", default=500))
         self._appsec_enabled = config._appsec_enabled
+        # Direct link to the appsec processor
+        self._appsec_processor = None
         self._iast_enabled = config._iast_enabled
 
-        self._span_processors = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor = _default_span_processors_factory(
             self._filters,
             self._writer,
             self._partial_flush_enabled,
@@ -468,7 +474,7 @@ class Tracer(object):
                 iast_enabled,
             ]
         ):
-            self._span_processors = _default_span_processors_factory(
+            self._span_processors, self._appsec_processor = _default_span_processors_factory(
                 self._filters,
                 self._writer,
                 self._partial_flush_enabled,
@@ -513,7 +519,7 @@ class Tracer(object):
 
         # Re-create the background writer thread
         self._writer = self._writer.recreate()
-        self._span_processors = _default_span_processors_factory(
+        self._span_processors, self._appsec_processor = _default_span_processors_factory(
             self._filters,
             self._writer,
             self._partial_flush_enabled,

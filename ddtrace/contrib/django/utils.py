@@ -21,6 +21,7 @@ from ddtrace.ext import user as _user
 from ddtrace.propagation._utils import from_wsgi_header
 
 from .. import trace_utils
+from ...internal import _context
 from ...internal.logger import get_logger
 from ...internal.utils.formats import stringify_cache_args
 from ...vendor.wrapt import FunctionWrapper
@@ -294,7 +295,7 @@ def _get_request_headers(request):  # XXX typing
     return request_headers
 
 
-def _after_request_tags(pin, span, request, response, request_headers, ip, headers_case_sensitive):
+def _after_request_tags(pin, span, request, response, ip, request_headers, headers_case_sensitive):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
     # during the request.
