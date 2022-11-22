@@ -729,7 +729,6 @@ venv = Venv(
                         "django": [
                             "~=3.0",
                             "~=3.0.0",
-                            "~=3.1.0",
                             "~=3.2.0",
                         ],
                         "channels": ["~=3.0", latest],
@@ -742,7 +741,7 @@ venv = Venv(
                             "~=4.0.0",
                             latest,
                         ],
-                        "channels": ["~=3.0", latest],
+                        "channels": [latest],
                     },
                 ),
                 Venv(
@@ -752,7 +751,7 @@ venv = Venv(
                             "~=4.1.0",
                             latest,
                         ],
-                        "channels": ["~=3.0", latest],
+                        "channels": [latest],
                     },
                 ),
             ],
