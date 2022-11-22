@@ -528,7 +528,7 @@ class TestFetchTracedCursor(TracerTestCase):
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    def test_cursor_execute_with_dbm_injection(self):
+    def test_cursor_execute_fetch_with_dbm_injection(self):
         cursor = self.cursor
         cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagation_supported=True)
         traced_cursor = FetchTracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
