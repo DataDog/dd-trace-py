@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where using the v0.5 encoding endpoint did not raise any ``TypeError``
+    if non-text span tags were set.
