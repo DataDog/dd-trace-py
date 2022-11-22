@@ -166,27 +166,22 @@ cdef class StringTable(object):
     cdef insert(self, object string):
         pass
 
-    cdef stdint.uint32_t _index(self, object string) except? -1:
+    cdef stdint.uint32_t _index(self, object string):
         cdef stdint.uint32_t _id
-        cdef int ret
 
         if string is None:
             return 0
 
-        ret = PyDict_Contains(self._table, string)
-        if ret == -1: return ret
-        if ret:
-            ret = PyLong_AsLong(<object>PyDict_GetItem(self._table, string))
-            if ret != 0: return ret
+        if PyDict_Contains(self._table, string):
+            return PyLong_AsLong(<object>PyDict_GetItem(self._table, string))
 
         _id = self._next_id
-        ret = PyDict_SetItem(self._table, string, PyLong_FromLong(_id))
-        if ret != 0: return ret
+        PyDict_SetItem(self._table, string, PyLong_FromLong(_id))
         self.insert(string)
         self._next_id += 1
         return _id
 
-    cpdef stdint.uint32_t index(self, object string) except? -1:
+    cpdef index(self, object string):
         return self._index(string)
 
     cdef reset(self):
@@ -270,7 +265,7 @@ cdef class MsgpackStringTable(StringTable):
         cdef stdint.uint32_t l = self._next_id
         cdef int offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(l)
         cdef int old_pos = self.pk.length
-        
+
         with self._lock:
             # Update table size prefix
             self.pk.length = offset
@@ -283,7 +278,7 @@ cdef class MsgpackStringTable(StringTable):
             if ret:
                 return None
             self.pk.length = old_pos
-        
+
         return PyBytes_FromStringAndSize(self.pk.buf + offset, self.pk.length - offset)
 
     @property
@@ -690,7 +685,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 self._st.rollback()
                 raise
 
-    cdef inline int _pack_string(self, object string) except? -1:
+    cdef inline int _pack_string(self, object string):
         return msgpack_pack_uint32(&self.pk, self._st._index(string))
 
     cdef void * get_dd_origin_ref(self, str dd_origin):
@@ -712,23 +707,23 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         _ = span.trace_id
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.span_id
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.parent_id
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.start_ns
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.duration_ns
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.error
         ret = msgpack_pack_int32(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
@@ -746,7 +741,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if ret != 0: return ret
             ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
             if ret != 0: return ret
-        
+
         ret = msgpack_pack_map(&self.pk, len(span._metrics))
         if ret != 0: return ret
         if span._metrics:
@@ -765,15 +760,12 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
 cdef class Packer(object):
     """Slightly modified version of the v0.6.2 msgpack Packer
     which only supports basic Python types (int, bool, float, dict, list).
-
     Note that _only_ the basic types can be encoded. Subtypes of these types
     are not supported.
-
     - strict_type argument is removed and assumed to be True
     - use_bin_type argument is removed and assumed to be True (use the msgpack 2.0 bin type fields when possible)
     - use_single_float is removed and assumed to be False
     - autoreset is removed and assumed to be True (bytes are always returned from pack and the buffer reset)
-
     https://github.com/msgpack/msgpack-python/tree/v0.6.2
     """
     cdef msgpack_packer pk
