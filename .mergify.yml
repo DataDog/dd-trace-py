@@ -31,6 +31,7 @@ pull_request_rules:
   - name: update approved PRs
     conditions:
       - label!=manual merge
+      - check-success=test
       - "#approved-reviews-by>=2"
     actions:
       update: {}
