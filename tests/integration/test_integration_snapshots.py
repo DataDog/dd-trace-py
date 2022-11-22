@@ -269,6 +269,7 @@ def test_trace_with_wrong_meta_types_not_sent(meta):
 )
 @snapshot()
 def test_trace_with_wrong_metrics_types_not_sent(metrics):
+    """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
     tracer = Tracer()
     with mock.patch("ddtrace.span.log") as log:
         with tracer.trace("root") as root:

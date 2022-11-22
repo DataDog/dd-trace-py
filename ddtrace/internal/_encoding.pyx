@@ -176,8 +176,7 @@ cdef class StringTable(object):
         ret = PyDict_Contains(self._table, string)
         if ret == -1: return ret
         if ret:
-            ret = PyLong_AsLong(<object>PyDict_GetItem(self._table, string))
-            if ret != 0: return ret
+            return PyLong_AsLong(<object>PyDict_GetItem(self._table, string))
 
         _id = self._next_id
         ret = PyDict_SetItem(self._table, string, PyLong_FromLong(_id))

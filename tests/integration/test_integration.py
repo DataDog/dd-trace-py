@@ -208,7 +208,6 @@ def test_child_spans(encoding, monkeypatch):
             spans.append(t.trace("op"))
         for s in spans:
             s.finish()
-
         t.shutdown()
         log.warning.assert_not_called()
         log.error.assert_not_called()
@@ -869,3 +868,47 @@ def test_no_warnings():
     out, err, _, _ = call_program("ddtrace-run", sys.executable, "-Wall", "-c", "'import ddtrace'", env=env)
     assert out == b"", out
     assert err == b"", err
+
+
+@pytest.mark.parametrize(
+    "meta",
+    [
+        ({"env": "my-env", "tag1": "some_str_1", "tag2": "some_str_2", "tag3": [1, 2, 3]}),
+        ({"env": "test-env", b"tag1": {"wrong_type": True}, b"tag2": "some_str_2", b"tag3": "some_str_3"}),
+        ({"env": "my-test-env", u"😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
+    ],
+)
+@allencodings
+def test_trace_with_wrong_meta_types(encoding, meta, monkeypatch):
+    """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+    tracer = Tracer()
+    with mock.patch("ddtrace.span.log") as log:
+        with tracer.trace("root") as root:
+            root._meta = meta
+            for _ in range(499):
+                with tracer.trace("child") as child:
+                    child._meta = meta
+        log.exception.assert_called_once_with("error closing trace")
+
+
+@pytest.mark.parametrize(
+    "metrics",
+    [
+        ({"num1": 12345, "num2": 53421, "num3": 1, "num4": "not-a-number"}),
+        ({b"num1": 123.45, b"num2": [1, 2, 3], b"num3": 11.0, b"num4": 1.20}),
+        ({u"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}),
+    ],
+)
+@allencodings
+def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, monkeypatch):
+    """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
+    monkeypatch.setenv("DD_TRACE_API_VERSION", encoding)
+    tracer = Tracer()
+    with mock.patch("ddtrace.span.log") as log:
+        with tracer.trace("root") as root:
+            root._metrics = metrics
+            for _ in range(499):
+                with tracer.trace("child") as child:
+                    child._metrics = metrics
+        log.exception.assert_called_once_with("error closing trace")
