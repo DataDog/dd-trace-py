@@ -333,6 +333,7 @@ venv = Venv(
                 "botocore": latest,
                 "requests": latest,
                 "elasticsearch": latest,
+                "opensearch-py": latest,
                 "pynamodb": latest,
             },
             venvs=[
@@ -1096,6 +1097,20 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={"mysql-connector-python": [">=8.0", latest]},
+                ),
+            ],
+        ),
+        Venv(
+            name="opensearch",
+            command="pytest {cmdargs} tests/contrib/opensearch/test_opensearch.py",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"opensearch-py[requests]": ["~=1.0.0", "~=1.1.0"]},
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"opensearch-py": [latest]},
                 ),
             ],
         ),

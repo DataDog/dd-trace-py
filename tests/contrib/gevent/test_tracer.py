@@ -400,6 +400,7 @@ class TestGeventTracer(TracerTestCase):
             import aiobotocore  # noqa
         import botocore  # noqa
         import elasticsearch  # noqa
+        import opensearchpy  # noqa
         import pynamodb  # noqa
         import requests  # noqa
 

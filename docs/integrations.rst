@@ -273,6 +273,13 @@ mysqlclient
 .. automodule:: ddtrace.contrib.mysqldb
 
 
+.. _opensearch:
+
+OpenSearch
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.opensearch
+
+
 .. _pylibmc:
 
 pylibmc

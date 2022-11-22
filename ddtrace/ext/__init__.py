@@ -6,6 +6,7 @@ class SpanTypes(object):
     GRAPHQL = "graphql"
     HTTP = "http"
     MONGODB = "mongodb"
+    OPENSEARCH = "opensearch"
     REDIS = "redis"
     SQL = "sql"
     TEMPLATE = "template"

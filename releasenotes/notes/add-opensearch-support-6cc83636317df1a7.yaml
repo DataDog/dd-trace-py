@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    opensearch: add tracing for ``opensearch-py``. See `the opensearch documentation <https://ddtrace.readthedocs.io/en/stable/integrations.html#opensearch>`_
+    for more information.
