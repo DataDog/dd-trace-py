@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    IAST: Weak hashing algorithms configurable through environment variable.

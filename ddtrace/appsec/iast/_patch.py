@@ -1,10 +1,18 @@
 import ctypes
 import gc
+from typing import TYPE_CHECKING
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path
 
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Dict
+
+
+_DD_ORIGINAL_ATTRIBUTES = {}  # type: Dict[Any, Any]
 
 log = get_logger(__name__)
 
@@ -16,8 +24,20 @@ def try_wrap_function_wrapper(module, name, wrapper):
         log.debug("IAST patching. Module %s.%s not exists", module, name)
 
 
+def try_unwrap(module, name):
+    (parent, attribute, _) = resolve_path(module, name)
+    if (parent, attribute) in _DD_ORIGINAL_ATTRIBUTES:
+        original = _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
+        apply_patch(parent, attribute, original)
+        del _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
+
+
 def apply_patch(parent, attribute, replacement):
     try:
+        current_attribute = getattr(parent, attribute)
+        # Avoid overwriting the original function if we call this twice
+        if not isinstance(current_attribute, FunctionWrapper):
+            _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)] = current_attribute
         setattr(parent, attribute, replacement)
     except (TypeError, AttributeError):
         patch_builtins(parent, attribute, replacement)
