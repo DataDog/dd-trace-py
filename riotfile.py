@@ -262,6 +262,18 @@ LATEST_VERSIONS = {
 }
 
 
+def machine_executor(steps=[], **argdir):
+    return {
+        "machine": {"image": "ubuntu-2004:current"},
+        "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
+        "steps": [{"run": {"name": "Set global pyenv", "command": "pyenv global 3.9.4"}}] + steps,
+    } | argdir
+
+
+def contrib_job(steps=[], parallelism=4):
+    return {"executor": "ddtrace_dev", "parallelism": parallelism, "steps": steps}
+
+
 venv = Venv(
     pkgs={
         "mock": latest("mock"),
@@ -403,11 +415,7 @@ venv = Venv(
             pkgs={
                 "pycryptodome": latest("pycryptodome"),
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "appsec", "snapshot": True}}],
-            },
+            ci=machine_executor([{"run_test": {"pattern": "appsec", "snapshot": True}}]),
         ),
         Venv(
             name="benchmarks",
@@ -483,11 +491,7 @@ venv = Venv(
                 # httpretty v1.0 drops python 2.7 support
                 "httpretty": "==0.9.7",
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "telemetry", "snapshot": True, "store_coverage": False}}],
-            },
+            ci=machine_executor([{"run_test": {"pattern": "telemetry", "snapshot": True, "store_coverage": False}}]),
         ),
         Venv(
             name="integration",
@@ -500,10 +504,8 @@ venv = Venv(
                     env={
                         "AGENT_VERSION": "latest",
                     },
-                    ci={
-                        "machine": {"image": "ubuntu-2004:current"},
-                        "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                        "steps": [
+                    ci=machine_executor(
+                        [
                             {"attach_workspace": {"at": "."}},
                             "checkout",
                             {"start_docker_services": {"services": "ddagent"}},
@@ -515,8 +517,8 @@ venv = Venv(
                                     )
                                 }
                             },
-                        ],
-                    },
+                        ]
+                    ),
                 ),
                 Venv(
                     name="integration_testagent",  # formerly integration-snapshot, but use the name given into the ci
@@ -524,10 +526,8 @@ venv = Venv(
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                     },
-                    ci={
-                        "machine": {"image": "ubuntu-2004:current"},
-                        "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                        "steps": [
+                    ci=machine_executor(
+                        [
                             {"attach_workspace": {"at": "."}},
                             "checkout",
                             {"start_docker_services": {"env": "SNAPSHOT_CI=1", "services": "testagent"}},
@@ -540,8 +540,8 @@ venv = Venv(
                                     ),
                                 }
                             },
-                        ],
-                    },
+                        ]
+                    ),
                 ),
             ],
         ),
@@ -683,11 +683,9 @@ venv = Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
             pys=select_pys(),
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "httplib", "snapshot": True, "docker_services": "httpbin_local"}}],
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "httplib", "snapshot": True, "docker_services": "httpbin_local"}}]
+            ),
         ),
         Venv(
             name="test_logging",
@@ -872,12 +870,7 @@ venv = Venv(
         Venv(
             name="cherrypy",
             command="python -m pytest {cmdargs} tests/contrib/cherrypy",
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "cherrypy", "snapshot": True}}],
-                "parallelism": 6,
-            },
+            ci=machine_executor([{"run_test": {"pattern": "cherrypy", "snapshot": True}}], parallelism=6),
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.10"),
@@ -987,10 +980,8 @@ venv = Venv(
                 "pylibmc": latest("pylibmc"),
                 "python-memcached": latest("python-memcached"),
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [
+            ci=machine_executor(
+                [
                     {
                         "run_test": {
                             "pattern": "django$",
@@ -999,8 +990,8 @@ venv = Venv(
                         }
                     }
                 ],
-                "parallelism": 8,
-            },
+                parallelism=8,
+            ),
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.6"),
@@ -1086,19 +1077,13 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "django_hosts$", "snapshot": True}}],
-            },
+            ci=machine_executor([{"run_test": {"pattern": "django_hosts$", "snapshot": True}}]),
         ),
         Venv(
             name="djangorestframework",
             command="pytest {cmdargs} tests/contrib/djangorestframework",
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [
+            ci=machine_executor(
+                [
                     {
                         "run_test": {
                             "pattern": "djangorestframework",
@@ -1107,8 +1092,8 @@ venv = Venv(
                         }
                     }
                 ],
-                "parallelism": 6,
-            },
+                parallelism=6,
+            ),
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.6"),
@@ -1155,14 +1140,10 @@ venv = Venv(
         Venv(
             name="elasticsearch",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [
-                    {"run_test": {"pattern": "elasticsearch", "snapshot": True, "docker_services": "elasticsearch"}}
-                ],
-                "parallelism": 4,
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "elasticsearch", "snapshot": True, "docker_services": "elasticsearch"}}],
+                parallelism=4,
+            ),
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.8"),
@@ -1227,12 +1208,12 @@ venv = Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest("blinker"), "requests": latest("requests")},
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [
+            ci=machine_executor(
+                [
                     {
                         "run_test": {
+                            # Run both flask and flask_cache test suites
+                            # TODO: Re-enable coverage for Flask tests
                             "store_coverage": False,
                             "snapshot": True,
                             "pattern": "flask",
@@ -1240,8 +1221,8 @@ venv = Venv(
                         }
                     }
                 ],
-                "parallelism": 8,
-            },
+                parallelism=8,
+            ),
             venvs=[
                 # Flask == 0.12.0
                 Venv(
@@ -1475,12 +1456,9 @@ venv = Venv(
                     pkgs={"psycopg2-binary": ["~=2.9.2", latest("psycopg2-binary")]},
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "psycopg", "snapshot": True, "docker_services": "postgres"}}],
-                "parallelism": 4,
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "psycopg", "snapshot": True, "docker_services": "postgres"}}], parallelism=4
+            ),
         ),
         Venv(
             name="pymemcache",
@@ -1586,11 +1564,7 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "starlette", "snapshot": True}}],
-            },
+            ci=machine_executor([{"run_test": {"pattern": "starlette", "snapshot": True}}]),
         ),
         Venv(
             name="sqlalchemy",
@@ -1706,22 +1680,15 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "wsgi", "snapshot": True}}],
-            },
+            ci=machine_executor([{"run_test": {"pattern": "wsgi", "snapshot": True}}]),
         ),
         Venv(
             name="boto",
             command="pytest {cmdargs} tests/contrib/boto",
             venvs=[Venv(pys=select_pys(max_version="3.6"), pkgs={"boto": latest("boto"), "moto": "<1.0.0"})],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "^boto", "snapshot": True, "docker_services": "localstack"}}],
-                "parallelism": 4,
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "^boto", "snapshot": True, "docker_services": "localstack"}}], parallelism=4
+            ),
         ),
         Venv(
             name="botocore",
@@ -1753,12 +1720,9 @@ venv = Venv(
                     pkgs={"mongoengine": [">=0.20,<0.21", ">=0.21,<0.22", ">=0.22,<0.23", latest("mongoengine")]},
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "mongoengine", "snapshot": True, "docker_services": "mongo"}}],
-                "parallelism": 1,
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "mongoengine", "snapshot": True, "docker_services": "mongo"}}], parallelism=1
+            ),
         ),
         Venv(
             name="asgi",
@@ -1774,11 +1738,9 @@ venv = Venv(
         Venv(
             name="mariadb",
             command="pytest {cmdargs} tests/contrib/mariadb",
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "mariadb$", "snapshot": True, "docker_services": "mariadb"}}],
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "mariadb$", "snapshot": True, "docker_services": "mariadb"}}]
+            ),
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.10"),
@@ -1863,11 +1825,7 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "pyramid", "snapshot": True}}],
-            },
+            ci=machine_executor([{"run_test": {"pattern": "pyramid", "snapshot": True}}]),
         ),
         Venv(
             name="aiobotocore",
@@ -1948,11 +1906,7 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "fastapi", "snapshot": True}}],
-            },
+            ci=machine_executor([{"run_test": {"pattern": "fastapi", "snapshot": True}}]),
         ),
         Venv(
             name="aiomysql",
@@ -1962,13 +1916,9 @@ venv = Venv(
                 "pytest-asyncio": latest("pytest-asyncio"),
                 "aiomysql": ["~=0.1.0", latest("aiomysql")],
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [
-                    {"run_test": {"docker_services": "mysql", "wait": "mysql", "pattern": "aiomysql", "snapshot": True}}
-                ],
-            },
+            ci=machine_executor(
+                [{"run_test": {"docker_services": "mysql", "wait": "mysql", "pattern": "aiomysql", "snapshot": True}}]
+            ),
         ),
         Venv(
             name="pytest",
@@ -2074,12 +2024,7 @@ venv = Venv(
             pkgs={
                 "googleapis-common-protos": latest("googleapis-common-protos"),
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "grpc", "snapshot": True}}],
-                "parallelism": 8,
-            },
+            ci=machine_executor([{"run_test": {"pattern": "grpc", "snapshot": True}}], parallelism=8),
             venvs=[
                 # Versions between 1.14 and 1.20 have known threading issues
                 # See https://github.com/grpc/grpc/issues/18994
@@ -2174,11 +2119,7 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "graphene", "snapshot": True}}],
-            },
+            ci=machine_executor([{"run_test": {"pattern": "graphene", "snapshot": True}}]),
         ),
         Venv(
             name="graphql",
@@ -2200,21 +2141,14 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "graphql", "snapshot": True}}],
-            },
+            ci=machine_executor([{"run_test": {"pattern": "graphql", "snapshot": True}}]),
         ),
         Venv(
             name="rq",
             command="pytest tests/contrib/rq",
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "rq", "snapshot": True, "docker_services": "redis"}}],
-                "parallelism": 4,
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "rq", "snapshot": True, "docker_services": "redis"}}], parallelism=4
+            ),
             venvs=[
                 Venv(
                     pys=select_pys(max_version="2.7"),
@@ -2266,20 +2200,16 @@ venv = Venv(
                     latest("httpx"),
                 ],
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "httpx", "snapshot": True, "docker_services": "httpbin_local"}}],
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "httpx", "snapshot": True, "docker_services": "httpbin_local"}}]
+            ),
         ),
         Venv(
             name="urllib3",
             command="pytest {cmdargs} tests/contrib/urllib3",
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "urllib3", "snapshot": True, "docker_services": "httpbin_local"}}],
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "urllib3", "snapshot": True, "docker_services": "httpbin_local"}}]
+            ),
             venvs=[
                 Venv(
                     pys=select_pys(max_version="3.9"),
@@ -2364,12 +2294,10 @@ venv = Venv(
             pkgs={
                 "pytest-aiohttp": [latest("pytest-aiohttp")],
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "aiohttp", "snapshot": True, "docker_services": "httpbin_local"}}],
-                "parallelism": 6,
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "aiohttp", "snapshot": True, "docker_services": "httpbin_local"}}],
+                parallelism=6,
+            ),
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.5", max_version="3.6"),
@@ -2497,25 +2425,18 @@ venv = Venv(
             name="rediscluster",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/rediscluster",
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [
-                    {"run_test": {"pattern": "rediscluster", "docker_services": "rediscluster", "snapshot": True}}
-                ],
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "rediscluster", "docker_services": "rediscluster", "snapshot": True}}]
+            ),
             pkgs={
                 "redis-py-cluster": [">=1.3,<1.4", ">=2.0,<2.1", ">=2.1,<2.2", latest("redis-py-cluster")],
             },
         ),
         Venv(
             name="redis",
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"docker_services": "redis", "pattern": "redis$", "snapshot": True}}],
-                "parallelism": 4,
-            },
+            ci=machine_executor(
+                [{"run_test": {"docker_services": "redis", "pattern": "redis$", "snapshot": True}}], parallelism=4
+            ),
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -2556,12 +2477,9 @@ venv = Venv(
                     latest("aredis"),
                 ],
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"docker_services": "redis", "pattern": "aredis$", "snapshot": True}}],
-                "parallelism": 4,
-            },
+            ci=machine_executor(
+                [{"run_test": {"docker_services": "redis", "pattern": "aredis$", "snapshot": True}}], parallelism=4
+            ),
         ),
         Venv(
             name="yaaredis",
@@ -2574,12 +2492,9 @@ venv = Venv(
                     latest("yaaredis"),
                 ],
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"docker_services": "redis", "pattern": "yaaredis$", "snapshot": True}}],
-                "parallelism": 4,
-            },
+            ci=machine_executor(
+                [{"run_test": {"docker_services": "redis", "pattern": "yaaredis$", "snapshot": True}}], parallelism=4
+            ),
         ),
         Venv(
             name="sanic",
@@ -2645,11 +2560,7 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "sanic", "snapshot": True}}],
-            },
+            ci=machine_executor([{"run_test": {"pattern": "sanic", "snapshot": True}}]),
         ),
         Venv(
             name="snowflake",
@@ -2698,12 +2609,7 @@ venv = Venv(
                     },
                 ),
             ],
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "snowflake", "snapshot": True}}],
-                "parallelism": 4,
-            },
+            ci=machine_executor([{"run_test": {"pattern": "snowflake", "snapshot": True}}], parallelism=4),
         ),
         Venv(
             pys=["3"],
@@ -2725,12 +2631,9 @@ venv = Venv(
                     latest("aioredis"),
                 ],
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"docker_services": "redis", "pattern": "aioredis$", "snapshot": True}}],
-                "parallelism": 4,
-            },
+            ci=machine_executor(
+                [{"run_test": {"docker_services": "redis", "pattern": "aioredis$", "snapshot": True}}], parallelism=4
+            ),
         ),
         Venv(
             name="asyncpg",
@@ -2738,11 +2641,9 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest("pytest-asyncio"),
             },
-            ci={
-                "machine": {"image": "ubuntu-2004:current"},
-                "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
-                "steps": [{"run_test": {"pattern": "asyncpg", "snapshot": True, "docker_services": "postgres"}}],
-            },
+            ci=machine_executor(
+                [{"run_test": {"pattern": "asyncpg", "snapshot": True, "docker_services": "postgres"}}]
+            ),
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.6", max_version="3.8"),
