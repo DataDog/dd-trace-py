@@ -263,11 +263,13 @@ LATEST_VERSIONS = {
 
 
 def machine_executor(steps=[], **argdir):
-    return {
+    res = {
         "machine": {"image": "ubuntu-2004:current"},
         "environment": [{"BOTO_CONFIG": "/dev/null"}, {"PYTHONUNBUFFERED": 1}],
         "steps": [{"run": {"name": "Set global pyenv", "command": "pyenv global 3.9.4"}}] + steps,
-    } | argdir
+    }
+    res.update(argdir)
+    return res
 
 
 def contrib_job(steps=[], parallelism=4):
