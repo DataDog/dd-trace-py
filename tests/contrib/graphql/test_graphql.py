@@ -73,7 +73,7 @@ async def test_graphql_with_traced_resolver(test_schema, test_source_str, snapsh
 
 @pytest.mark.asyncio
 async def test_graphql_error(test_schema, snapshot_context):
-    with snapshot_context(ignores=["meta.error.type", "meta.error.msg"]):
+    with snapshot_context(ignores=["meta.error.type", "meta.error.message"]):
         if graphql_version < (3, 0):
             result = graphql.graphql(test_schema, "{ invalid_schema }")
         else:
@@ -93,7 +93,7 @@ def test_graphql_v2_promise(test_schema, test_source_str):
 
 @snapshot(
     token_override="tests.contrib.graphql.test_graphql.test_graphql_error",
-    ignores=["meta.error.type", "meta.error.msg"],
+    ignores=["meta.error.type", "meta.error.message"],
 )
 @pytest.mark.skipif(graphql_version >= (3, 0), reason="graphql.graphql is NOT async in v2.0")
 def test_graphql_error_v2_promise(test_schema):

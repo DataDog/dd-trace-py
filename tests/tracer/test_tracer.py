@@ -158,7 +158,7 @@ class TracerTestCases(TracerTestCase):
                     name="tests.test_tracer.f",
                     error=1,
                     meta={
-                        "error.msg": ex.message,
+                        "error.message": ex.message,
                         "error.type": ex.__class__.__name__,
                     },
                 ),

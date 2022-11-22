@@ -9,7 +9,7 @@ from six.moves.urllib.parse import quote as url_quote
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_MESSAGE
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -196,7 +196,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.error == 1
         assert s.get_tag(http.METHOD) == "GET"
         assert "ZeroDivisionError" in s.get_tag(ERROR_TYPE), s.get_tags()
-        assert "by zero" in s.get_tag(ERROR_MSG)
+        assert "by zero" in s.get_tag(ERROR_MESSAGE)
         assert re.search('File ".*/contrib/cherrypy/web.py", line [0-9]+, in fatal', s.get_tag(ERROR_STACK))
 
     def test_unicode(self):
@@ -479,7 +479,7 @@ class TestCherrypySnapshot(helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("child")
 
-    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.msg"])
+    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.message"])
     def test_success(self):
         self.getPage("/")
         time.sleep(0.1)
@@ -487,13 +487,13 @@ class TestCherrypySnapshot(helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("Hello world!")
 
-    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.msg"])
+    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.message"])
     def test_error(self):
         self.getPage("/error")
         time.sleep(0.1)
         self.assertErrorPage(500)
 
-    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.msg"])
+    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.message"])
     def test_fatal(self):
         self.getPage("/fatal")
         time.sleep(0.1)
