@@ -1,11 +1,15 @@
 import ctypes
 import gc
-from typing import Any
-from typing import Dict
+from typing import TYPE_CHECKING
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.vendor.wrapt import FunctionWrapper
 from ddtrace.vendor.wrapt import resolve_path
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Dict
 
 
 _DD_ORIGINAL_ATTRIBUTES = {}  # type: Dict[Any, Any]
