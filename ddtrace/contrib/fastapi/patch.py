@@ -43,8 +43,11 @@ def traced_init(wrapped, instance, args, kwargs):
 
 
 def trace_add_middleware(wrapped, instance, args, kwargs):
-    # remove ddtrace trace middleware
+    # Ensures user_middlewares are added after ddtrace TraceMiddleware
     if instance.user_middleware and instance.user_middleware[0].cls is TraceMiddleware:
+        # Overrides FastApi.add_middlware(). Note - fastapi.applications.FastAPI is the
+        # child class of starlette.applications.Starlette():
+        # https://github.com/encode/starlette/blob/0.13.2/starlette/applications.py#L115
         instance.user_middleware.insert(1, Middleware(*args, **kwargs))
         instance.middleware_stack = instance.build_middleware_stack()
     else:

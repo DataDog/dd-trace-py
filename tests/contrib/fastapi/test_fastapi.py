@@ -53,17 +53,20 @@ def application(tracer):
 
 
 @pytest.fixture
-def app_with_middleware(application, tracer):
+def snapshot_app_with_middleware():
+    fastapi_patch()
+
+    application = app.get_app()
+
     @application.middleware("http")
     async def traced_middlware(request, call_next):
-        response = await call_next(request)
-        response.headers["MIDDLEWARE-CALLED"] = "true"
-        span = tracer.current_span()
-        if span is not None:
-            response.headers["DD-TRACE-CURRENT-SPAN"] = span.name
-        return response
+        with ddtrace.tracer.trace("traced_middlware"):
+            response = await call_next(request)
+            return response
 
     yield application
+
+    fastapi_unpatch()
 
 
 @pytest.fixture
@@ -606,18 +609,9 @@ def test_host_header(client, tracer, test_spans, host):
     assert request_span.get_tag("http.url") == "http://%s/asynctask" % (host,)
 
 
-def test_tracing_in_middleware(app_with_middleware, test_spans):
+@snapshot()
+def test_tracing_in_middleware(snapshot_app_with_middleware):
     """Test if fastapi middlewares are traced"""
-
-    with TestClient(app_with_middleware) as client:
-        r = client.get("/", headers={"sleep": "False"})
+    with TestClient(snapshot_app_with_middleware) as test_client:
+        r = test_client.get("/", headers={"sleep": "False"})
         assert r.status_code == 200
-
-        spans = test_spans.pop_traces()
-        assert len(spans) == 1
-        assert len(spans[0]) == 2
-        request_span, _ = spans[0]
-
-        assert r.headers["MIDDLEWARE-CALLED"] == "true"
-        assert "DD-TRACE-CURRENT-SPAN" in r.headers
-        assert r.headers["DD-TRACE-CURRENT-SPAN"] == request_span.name
