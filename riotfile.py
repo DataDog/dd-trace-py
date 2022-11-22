@@ -1,18 +1,23 @@
 # type: ignore
 import dataclasses
-import json
 import logging
 import os
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Tuple
-from urllib.error import HTTPError
-from urllib.request import urlopen
 
 from riot import Venv as RiotVenv
 from riot import latest as riot_latest
 
+
+try:
+    sys.path.append(".")
+    from dependencies import LATEST_VERSIONS
+except ModuleNotFoundError:
+    print("missing dependencies.py", file=sys.stderr)
+    raise
 
 SUPPORTED_PYTHON_VERSIONS = [
     (2, 7),
@@ -94,12 +99,12 @@ LOGGER = logging.getLogger(__name__)
 PY_Latest = False
 
 if "DD_USE_LATEST_VERSIONS" not in os.environ:
-    LOGGER.warning("DD_USE_LATEST_VERSIONS not set.")
+    LOGGER.debug("DD_USE_LATEST_VERSIONS not set.")
 elif os.environ["DD_USE_LATEST_VERSIONS"].lower() == "true":
-    LOGGER.warning("Use LATEST versions of packages")
+    LOGGER.debug("Use LATEST versions of packages")
     PY_Latest = True
 else:
-    LOGGER.warning("Use regular fixed versions of packages")
+    LOGGER.debug("Use regular fixed versions of packages")
 
 
 @dataclasses.dataclass
@@ -115,151 +120,6 @@ def latest(arg: str):
             return "<=" + LATEST_VERSIONS[arg]
         except KeyError:
             raise ValueError(f"{arg} not found in the modules known. Please add it if needed")
-
-
-LATEST_VERSIONS = {
-    "Flask-Cache": "0.13.1",
-    "MarkupSafe": "2.1.1",
-    "PyEnchant": "3.2.2",
-    "WebTest": "3.0.0",
-    "Werkzeug": "2.2.2",
-    "aiobotocore": "2.4.0",
-    "aiofiles": "22.1.0",
-    "aiohttp": "3.8.3",
-    "aiohttp_jinja2": "1.5",
-    "aiomysql": "0.1.1",
-    "aiopg": "1.4.0",
-    "aioredis": "2.0.1",
-    "aiosqlite": "0.17.0",
-    "aredis": "1.1.8",
-    "asgiref": "3.5.2",
-    "async-timeout": "4.0.2",
-    "async_generator": "1.10",
-    "asyncpg": "0.27.0",
-    "attrs": "22.1.0",
-    "austin-python": "1.4.2",
-    "black": "22.10.0",
-    "blinker": "1.5",
-    "boto": "2.49.0",
-    "botocore": "1.29.10",
-    "cassandra-driver": "3.25.0",
-    "celery": "5.2.7",
-    "channels": "4.0.0",
-    "cherrypy": "18.8.0",
-    "click": "8.1.3",
-    "codespell": "2.2.2",
-    "coverage": "6.5.0",
-    "cython": "0.29.32",
-    "daphne": "4.0.0",
-    "databases": "0.6.2",
-    "ddapm-test-agent": "1.7.2",
-    "decorator": "5.1.1",
-    "dogpile.cache": "1.1.8",
-    "django": "4.1.3",
-    "django-pylibmc": "0.6.1",
-    "django-redis": "5.2.0",
-    "django_hosts": "5.1",
-    "djangorestframework": "3.14.0",
-    "dulwich": "0.20.50",
-    "elasticsearch": "8.5.0",
-    "elasticsearch1": "1.10.0",
-    "elasticsearch2": "2.5.1",
-    "elasticsearch5": "5.5.6",
-    "elasticsearch6": "6.8.2",
-    "elasticsearch7": "7.17.7",
-    "envier": "0.4.0",
-    "falcon": "3.1.0",
-    "fastapi": "0.87.0",
-    "flake8": "5.0.4",
-    "flake8-blind-except": "0.2.1",
-    "flake8-builtins": "2.0.1",
-    "flake8-docstrings": "1.6.0",
-    "flake8-isort": "5.0.0",
-    "flake8-logging-format": "0.8.1",
-    "flake8-rst-docstrings": "0.2.7",
-    "flask": "2.2.2",
-    "flask-caching": "2.0.1",
-    "gevent": "22.10.2",
-    "googleapis-common-protos": "1.57.0",
-    "graphene": "3.1.1",
-    "graphql-core": "3.2.3",
-    "grpcio": "1.50.0",
-    "httpretty": "1.1.4",
-    "httpx": "0.23.0",
-    "hypothesis": "6.57.1",
-    "importlib_metadata": "5.0.0",
-    "isort": "5.10.1",
-    "itsdangerous": "2.1.2",
-    "jinja2": "3.1.2",
-    "kombu": "5.2.4",
-    "mako": "1.2.4",
-    "mariadb": "1.1.5.post2",
-    "markupsafe": "2.1.1",
-    "mock": "4.0.3",
-    "mongoengine": "0.24.2",
-    "more_itertools": "9.0.0",
-    "moto": "4.0.9",
-    "msgpack": "1.0.4",
-    "mypy": "0.991",
-    "mysql-connector-python": "8.0.31",
-    "opentracing": "2.4.0",
-    "packaging": "21.3",
-    "pastedeploy": "3.0.1",
-    "psycopg2-binary": "2.9.5",
-    "py-cpuinfo": "9.0.0",
-    "pycryptodome": "3.15.0",
-    "pygments": "2.13.0",
-    "pylibmc": "1.6.3",
-    "pylons": "1.0.3",
-    "pymemcache": "4.0.0",
-    "pymongo": "4.3.2",
-    "pymysql": "1.0.2",
-    "pynamodb": "5.3.0",
-    "pyodbc": "4.0.35",
-    "pyramid": "2.0",
-    "pytest": "7.2.0",
-    "pytest-aiohttp": "1.0.4",
-    "pytest-asyncio": "0.20.2",
-    "pytest-bdd": "6.1.1",
-    "pytest-benchmark": "4.0.0",
-    "pytest-cov": "4.0.0",
-    "pytest-django": "4.5.2",
-    "pytest-mock": "3.10.0",
-    "pytest-sanic": "1.9.1",
-    "python-consul": "1.1.0",
-    "python-memcached": "1.59",
-    "redis": "4.3.4",
-    "redis-py-cluster": "2.1.3",
-    "reno": "3.5.0",
-    "requests": "2.28.1",
-    "requests-mock": "1.10.0",
-    "responses": "0.22.0",
-    "rich": "12.6.0",
-    "riot": "0.14.1",
-    "rq": "1.11.1",
-    "rsa": "4.9",
-    "sanic": "22.9.1",
-    "sanic-testing": "22.9.0",
-    "slotscheck": "0.16.0",
-    "snowflake-connector-python": "2.8.1",
-    "sphinx": "5.3.0",
-    "sphinxcontrib-spelling": "7.7.0",
-    "sqlalchemy": "1.4.44",
-    "starlette": "0.21.0",
-    "structlog": "22.1.0",
-    "types-PyYAML": "6.0.12.2",
-    "types-attrs": "19.1.0",
-    "types-docutils": "0.19.1.1",
-    "types-protobuf": "3.20.4.5",
-    "types-setuptools": "65.5.0.3",
-    "types-six": "1.16.21.3",
-    "urllib3": "1.26.12",
-    "webob": "1.8.7",
-    "webtest": "3.0.0",
-    "werkzeug": "2.2.2",
-    "yaaredis": "3.0.0",
-    "yarl": "1.8.1",
-}
 
 
 def machine_executor(steps=[{"run": {"name": "Set global pyenv", "command": "pyenv global 3.9.4"}}], **argdir):
@@ -2836,46 +2696,3 @@ venv = Venv(
         ),
     ],
 )
-
-
-def latest_version(packages):
-    """
-    Show the latest version of packages that are not yet into LATEST_VERSIONS.
-    May be used to understand why a test from the "latest" workflow is failing.
-    Also show the packages with no update for more than 3 years (in blue)
-    """
-    from datetime import datetime
-
-    def get(package):
-        try:
-            res = urlopen(f"https://pypi.org/pypi/{package}/json")
-            j = json.loads(res.read().decode())
-            d = datetime.now() - datetime.strptime(
-                j["releases"][j["info"]["version"]][0]["upload_time"], "%Y-%m-%dT%H:%M:%S"
-            )
-            c = datetime.now() - datetime.strptime(
-                j["releases"][LATEST_VERSIONS[package]][0]["upload_time"], "%Y-%m-%dT%H:%M:%S"
-            )
-            return j["info"]["version"], c.days, d.days
-        except HTTPError:
-            print(f"error on {package}")
-            return "", -1, -1
-
-    res = {}
-    for p in packages:
-        v = get(p)
-        if v:
-            res[p] = v
-    return res
-
-
-if __name__ == "__main__":
-    for package in LATEST_VERSIONS:
-        lv, cdays, udays = latest_version([package])[package]
-        if lv != LATEST_VERSIONS[package]:
-            print(f"{package[:24]:<24s} {LATEST_VERSIONS[package]:>12s} {cdays:4d} days ago")
-            print(f"\x1B[91m >> update            to {lv:>12s} {udays:4d} days ago\x1B[0m")
-        elif cdays > 3 * 365:
-            print(f"\x1B[104m{package[:24]:<24s} {LATEST_VERSIONS[package]:>12s} {cdays:4d} days ago\x1B[0m")
-
-    print("all packages scanned.")
