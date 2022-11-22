@@ -9,9 +9,8 @@ from dependencies import LATEST_VERSIONS
 
 def latest_version(packages):
     """
-    Show the latest version of packages that are not yet into LATEST_VERSIONS.
-    May be used to understand why a test from the "latest" workflow is failing.
-    Also show the packages with no update for more than 3 years (in blue)
+    Connect to pypi.org and retrieve information about the last available version
+    and time elapsed since the last update
     """
 
     def get(package):
@@ -38,6 +37,11 @@ def latest_version(packages):
 
 
 def read_versions(time):
+    """
+    Show the latest version of packages that are not yet into LATEST_VERSIONS.
+    May be used to understand why a test from the "latest" workflow is failing.
+    Also show the packages with no update for more than 3 years (in blue)
+    """
     new_versions = {}
     for package in LATEST_VERSIONS:
         lv, cdays, udays = latest_version([package])[package]
@@ -45,7 +49,7 @@ def read_versions(time):
         if lv != LATEST_VERSIONS[package]:
             print(f"{package[:24]:<24s} {LATEST_VERSIONS[package]:>12s} {cdays:4d} days ago")
             print(f"\x1B[91m >> update            to {lv:>12s} {udays:4d} days ago\x1B[0m")
-        elif cdays > 3 * 365:
+        elif cdays > time:
             print(f"\x1B[104m{package[:24]:<24s} {LATEST_VERSIONS[package]:>12s} {cdays:4d} days ago\x1B[0m")
 
     print("all packages scanned.")
@@ -53,9 +57,14 @@ def read_versions(time):
 
 
 def update_versions(time):
+    """
+    Use versions retrieved in read_versions to update the file dependencies.py
+    Use ONLY if the test_latest workflow is completely validated on the CI
+    """
     new_versions = read_versions(time)
     with open("dependencies.py", "w") as dep_file:
-        print("# This file is updated by manage_depencies.py\n", file=dep_file)
+        print("# This file is updated by manage_depencies.py", file=dep_file)
+        print("# Any new dependency can be added directly in this file\n", file=dep_file)
         print("LATEST_VERSIONS = {", file=dep_file)
         for package, version in sorted(new_versions.items(), key=lambda s: s[0].lower()):
             print(f'    "{package}": "{version}",', file=dep_file)

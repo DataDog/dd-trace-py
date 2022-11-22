@@ -1,3 +1,6 @@
+# CircleCI dynamic configuration settings
+# Use generate-circleci-config.py to build the configuration of the all the tests
+
 version: 2.1
 
 # this allows you to use CircleCI's dynamic configuration feature

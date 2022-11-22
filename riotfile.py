@@ -94,6 +94,15 @@ def select_pys(min_version=MIN_PYTHON_VERSION, max_version=MAX_PYTHON_VERSION):
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+# Decoration of the Venv Class with a new field 'ci' to store the configuration of each test
+@dataclasses.dataclass
+class Venv(RiotVenv):
+    ci: Dict[str, Any] = None
+
+
+# Use of DD_USE_LATEST_VERSIONS to set PyLatest and use
+# either the fixed versions or the last versions available
+
 LOGGER = logging.getLogger(__name__)
 
 PY_Latest = False
@@ -107,12 +116,8 @@ else:
     LOGGER.debug("Use regular fixed versions of packages")
 
 
-@dataclasses.dataclass
-class Venv(RiotVenv):
-    ci: Dict[str, Any] = None
-
-
 def latest(arg: str):
+    """Compute the latest version, either fixed from LATEST_VERSIONS or latest available"""
     if PY_Latest:
         return riot_latest
     else:
@@ -122,6 +127,7 @@ def latest(arg: str):
             raise ValueError(f"{arg} not found in the modules known. Please add it if needed")
 
 
+# mimic the old configuration of the CircleCI Config
 def machine_executor(steps=[{"run": {"name": "Set global pyenv", "command": "pyenv global 3.9.4"}}], **argdir):
     res = {
         "machine": {"image": "ubuntu-2004:current"},
@@ -132,6 +138,7 @@ def machine_executor(steps=[{"run": {"name": "Set global pyenv", "command": "pye
     return res
 
 
+# mimic the old configuration of the CircleCI Config
 def contrib_job(steps=[], parallelism=4, **argdir):
     res = {
         "executor": "ddtrace_dev_small" if parallelism == 1 else "ddtrace_dev",
@@ -142,6 +149,7 @@ def contrib_job(steps=[], parallelism=4, **argdir):
     return res
 
 
+# used for both mysqlconnector and pymysql
 docker_mysql_server = [
     {"image": "datadog/dd-trace-py:buster"},
     {
@@ -155,6 +163,7 @@ docker_mysql_server = [
     },
 ]
 
+# Main Venv for riot and CircleCi configuration
 venv = Venv(
     pkgs={
         "mock": latest("mock"),
