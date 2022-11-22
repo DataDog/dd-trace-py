@@ -208,6 +208,7 @@ def test_child_spans(encoding, monkeypatch):
             spans.append(t.trace("op"))
         for s in spans:
             s.finish()
+
         t.shutdown()
         log.warning.assert_not_called()
         log.error.assert_not_called()
