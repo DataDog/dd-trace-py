@@ -30,7 +30,7 @@ export DD_TRACE_HEADER_TAGS="User-Agent:http.user_agent,Referer:http.referer,Con
 
 # Baseline
 pushd ${PREFIX}/app
-    gunicorn app:app --pid ${PREFIX}/gunicorn.pid > /dev/null &
+    gunicorn -b 0.0.0.0 app:app --pid ${PREFIX}/gunicorn.pid > /dev/null &
     echo "Done"
 popd
 profile_with_load "baseline"
@@ -38,7 +38,7 @@ profile_with_load "baseline"
 kill $(cat ${PREFIX}/gunicorn.pid)
 
 pushd ${PREFIX}/app
-    ddtrace-run gunicorn app:app --pid ${PREFIX}/gunicorn.pid > /dev/null &
+    ddtrace-run gunicorn -b 0.0.0.0 app:app --pid ${PREFIX}/gunicorn.pid > /dev/null &
 popd
 profile_with_load "head"
 kill $(cat ${PREFIX}/gunicorn.pid)
