@@ -1,10 +1,13 @@
+import re
 from typing import Dict
 from typing import FrozenSet
 from typing import Optional
 from typing import Text
+from typing import Tuple
 from typing import cast
 
 from ddtrace import config
+from ddtrace.internal.constants import _TRACESTATE_KEY
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -21,6 +24,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import PROPAGATION_STYLE_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
 from ..span import _MetaDictType
@@ -41,6 +45,8 @@ _HTTP_HEADER_B3_SPAN_ID = "x-b3-spanid"
 _HTTP_HEADER_B3_SAMPLED = "x-b3-sampled"
 _HTTP_HEADER_B3_FLAGS = "x-b3-flags"
 _HTTP_HEADER_TAGS = "x-datadog-tags"
+_HTTP_HEADER_TRACEPARENT = "traceparent"
+_HTTP_HEADER_TRACESTATE = "tracestate"
 
 
 def _possible_header(header):
@@ -60,6 +66,8 @@ _POSSIBLE_HTTP_HEADER_B3_TRACE_IDS = _possible_header(_HTTP_HEADER_B3_TRACE_ID)
 _POSSIBLE_HTTP_HEADER_B3_SPAN_IDS = _possible_header(_HTTP_HEADER_B3_SPAN_ID)
 _POSSIBLE_HTTP_HEADER_B3_SAMPLEDS = _possible_header(_HTTP_HEADER_B3_SAMPLED)
 _POSSIBLE_HTTP_HEADER_B3_FLAGS = _possible_header(_HTTP_HEADER_B3_FLAGS)
+_POSSIBLE_HTTP_HEADER_TRACEPARENT = _possible_header(_HTTP_HEADER_TRACEPARENT)
+_POSSIBLE_HTTP_HEADER_TRACESTATE = _possible_header(_HTTP_HEADER_TRACESTATE)
 
 
 def _extract_header_value(possible_header_names, headers, default=None):
@@ -71,20 +79,18 @@ def _extract_header_value(possible_header_names, headers, default=None):
     return default
 
 
-def _b3_id_to_dd_id(b3_id):
+def _hex_id_to_dd_id(hex_id):
     # type: (str) -> int
-    """Helper to convert B3 trace/span hex ids into Datadog compatible ints
-
+    """Helper to convert hex ids into Datadog compatible ints
     If the id is > 64 bit then truncate the trailing 64 bit.
-
     "463ac35c9f6413ad48485a3953bb6124" -> "48485a3953bb6124" -> 5208512171318403364
     """
-    return int(b3_id[-16:], 16)
+    return int(hex_id[-16:], 16)
 
 
-def _dd_id_to_b3_id(dd_id):
+def _dd_id_to_hex_id(dd_id):
     # type: (int) -> str
-    """Helper to convert Datadog trace/span int ids into B3 compatible hex ids"""
+    """Helper to convert Datadog trace/span int ids into hex ids"""
     # DEV: `hex(dd_id)` will give us `0xDEADBEEF`
     # DEV: this gives us lowercase hex, which is what we want
     return "{:x}".format(dd_id)
@@ -297,8 +303,8 @@ class _B3MultiHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        headers[_HTTP_HEADER_B3_TRACE_ID] = _dd_id_to_b3_id(span_context.trace_id)
-        headers[_HTTP_HEADER_B3_SPAN_ID] = _dd_id_to_b3_id(span_context.span_id)
+        headers[_HTTP_HEADER_B3_TRACE_ID] = _dd_id_to_hex_id(span_context.trace_id)
+        headers[_HTTP_HEADER_B3_SPAN_ID] = _dd_id_to_hex_id(span_context.span_id)
         sampling_priority = span_context.sampling_priority
         # Propagate priority only if defined
         if sampling_priority is not None:
@@ -339,9 +345,9 @@ class _B3MultiHeader:
             trace_id = None
             span_id = None
             if trace_id_val is not None:
-                trace_id = _b3_id_to_dd_id(trace_id_val) or None
+                trace_id = _hex_id_to_dd_id(trace_id_val) or None
             if span_id_val is not None:
-                span_id = _b3_id_to_dd_id(span_id_val) or None
+                span_id = _hex_id_to_dd_id(span_id_val) or None
 
             sampling_priority = None
             if sampled is not None:
@@ -414,7 +420,7 @@ class _B3SingleHeader:
             log.debug("tried to inject invalid context %r", span_context)
             return
 
-        single_header = "{}-{}".format(_dd_id_to_b3_id(span_context.trace_id), _dd_id_to_b3_id(span_context.span_id))
+        single_header = "{}-{}".format(_dd_id_to_hex_id(span_context.trace_id), _dd_id_to_hex_id(span_context.span_id))
         sampling_priority = span_context.sampling_priority
         if sampling_priority is not None:
             if sampling_priority <= 0:
@@ -457,9 +463,9 @@ class _B3SingleHeader:
             # DEV: We are allowed to have only x-b3-sampled/flags
             # DEV: Do not allow `0` for trace id or span id, use None instead
             if trace_id_val is not None:
-                trace_id = _b3_id_to_dd_id(trace_id_val) or None
+                trace_id = _hex_id_to_dd_id(trace_id_val) or None
             if span_id_val is not None:
-                span_id = _b3_id_to_dd_id(span_id_val) or None
+                span_id = _hex_id_to_dd_id(span_id_val) or None
 
             sampling_priority = None
             if sampled is not None:
@@ -483,10 +489,193 @@ class _B3SingleHeader:
         return None
 
 
+class _TraceContext:
+    """Helper class to inject/extract W3C Trace Context
+    https://www.w3.org/TR/trace-context/
+    Overview:
+      - ``traceparent`` header describes the position of the incoming request in its
+        trace graph in a portable, fixed-length format. Its design focuses on
+        fast parsing. Every tracing tool MUST properly set traceparent even when
+        it only relies on vendor-specific information in tracestate
+      - ``tracestate`` header extends traceparent with vendor-specific data represented
+        by a set of name/value pairs. Storing information in tracestate is
+        optional.
+    The format for ``traceparent`` is::
+      HEXDIGLC        = DIGIT / "a" / "b" / "c" / "d" / "e" / "f"
+      value           = version "-" version-format
+      version         = 2HEXDIGLC
+      version-format  = trace-id "-" parent-id "-" trace-flags
+      trace-id        = 32HEXDIGLC
+      parent-id       = 16HEXDIGLC
+      trace-flags     = 2HEXDIGLC
+    Example value of HTTP ``traceparent`` header::
+        value = 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+        base16(version) = 00
+        base16(trace-id) = 4bf92f3577b34da6a3ce929d0e0e4736
+        base16(parent-id) = 00f067aa0ba902b7
+        base16(trace-flags) = 01  // sampled
+    The format for ``tracestate`` is key value pairs with each entry limited to 256 characters.
+    An example of the ``dd`` list member we would add is::
+    "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64"
+    Implementation details:
+      - Datadog Trace and Span IDs are 64-bit unsigned integers.
+      - The W3C Trace Context Trace ID is a 16-byte hexadecimal string.
+      - If the incoming traceparent was valid we DO NOT update the trace-id.
+        Otherwise, the value is set to the hex-encoded value of the trace-id.
+        If the trace-id is a 64-bit value (i.e. a Datadog trace-id),
+        then the upper half of the hex-encoded value will be all zeroes.
+      - The tracestate header will have one list member added to it, ``dd``, which contains
+        values that would be in x-datadog-tags as well as those needed for propagation information.
+        The keys to the ``dd`` values have been shortened as follows to save space:
+        ``sampling_priority`` = ``s``
+        ``origin`` = ``o``
+        ``_dd.p.`` prefix = ``t.``
+    """
+
+    @staticmethod
+    def _is_valid_datadog_trace_tag_key(key):
+        return key.startswith("t.")
+
+    @staticmethod
+    def _get_traceparent_values(headers):
+        # type: (Dict[str, str]) -> Optional[Tuple[str,int,int,int]]
+
+        tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
+        if tp is None:
+            return None
+
+        try:
+            version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
+            # check version is a valid hexadecimal
+            int(version, 16)
+            # currently 00 is the only version format, but if future versions come up we may need to add changes
+            if version != "00":
+                log.warning("unsupported traceparent version:%s . Will still attempt to parse.", (version))
+
+            if len(trace_id_hex) == 32 and len(span_id_hex) == 16 and len(trace_flags_hex) >= 2:
+                trace_id = _hex_id_to_dd_id(trace_id_hex)
+                span_id = _hex_id_to_dd_id(span_id_hex)
+
+                # All 0s are invalid values
+                assert trace_id != 0
+                assert span_id != 0
+
+                trace_flags = _hex_id_to_dd_id(trace_flags_hex)
+                # there's currently only one trace flag, which denotes sampling priority was set to keep "01" or drop "00"
+                # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
+                sampling_priority = int(trace_flags & 0x1)
+
+            else:
+                log.debug("W3C traceparent hex length incorrect: %s", tp)
+                raise ValueError
+
+        except (ValueError, AssertionError):
+            log.exception("received invalid w3c traceparent: %s.", tp)
+            return None
+
+        return tp, trace_id, span_id, sampling_priority
+
+    @staticmethod
+    def _get_tracestate_values(ts):
+        # type: (str) -> Optional[Tuple[Optional[int], Dict[str, str], Optional[str]]]
+
+        # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
+        # store ts so we keep other vendor data
+        meta = {_TRACESTATE_KEY: ts}
+
+        try:
+            result = re.search("dd=(.+?),", ts)
+
+            # grab dd value if dd is only list member
+            if not result:
+                result = re.search("dd=(.*)", ts)
+            try:
+                dd = dict(item.split(":") for item in result.group(1).split(";"))
+            except AttributeError:
+                log.debug(("no dd list member in tracestate from incoming request: %r "), ts)
+                dd = None
+
+            # parse out values
+            if dd:
+                sampling_priority_ts = dd.get("s")
+                if sampling_priority_ts:
+                    sampling_priority_ts = int(sampling_priority_ts)
+                else:
+                    sampling_priority_ts = None
+
+                origin = dd.get("o")
+                # need to convert from t. to _dd.p.
+                other_propagated_tags = {
+                    re.sub("t.", "_dd.p.", k): v
+                    for (k, v) in dd.items()
+                    if (_TraceContext._is_valid_datadog_trace_tag_key(k))
+                }
+                meta.update(other_propagated_tags)
+
+                return sampling_priority_ts, meta, origin
+            else:
+                # even if there's no dd list member, we still need to propagate the other tracestate values
+                return None, meta, ""
+
+        except (TypeError, ValueError, AttributeError):
+            log.debug(("received invalid dd header value in tracestate: %r "), ts)
+            return None
+
+    @staticmethod
+    def _decicide_sampling_priority(sampling_priority_tp, sampling_priority_ts):
+        # type: (str, str) -> int
+        if sampling_priority_tp == 0 and (not sampling_priority_ts or sampling_priority_ts >= 0):
+            sampling_priority = 0
+
+        elif sampling_priority_tp == 1 and (not sampling_priority_ts or sampling_priority_ts < 0):
+            sampling_priority = 1
+
+        elif sampling_priority_tp == 1 and sampling_priority_ts > 0:
+            sampling_priority = sampling_priority_ts
+
+        elif sampling_priority_tp == 0 and sampling_priority_ts < 0:
+            sampling_priority = sampling_priority_ts
+
+        return sampling_priority
+
+    @staticmethod
+    def _extract(headers):
+        # type: (Dict[str, str]) -> Optional[Context]
+        traceparent_values = _TraceContext._get_traceparent_values(headers)
+        if traceparent_values:
+            tp, trace_id, span_id, sampling_priority = traceparent_values
+        else:
+            return None
+        ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
+        if ts:
+            tracestate_values = _TraceContext._get_tracestate_values(ts)
+            if tracestate_values:
+                sampling_priority_ts, meta, origin = tracestate_values
+
+                sampling_priority = _TraceContext._decicide_sampling_priority(sampling_priority, sampling_priority_ts)
+
+                return Context(
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    sampling_priority=sampling_priority,
+                    dd_origin=origin,
+                    meta=cast(_MetaDictType, meta),
+                    traceparent=tp,
+                )
+
+        return Context(
+            trace_id=trace_id,
+            span_id=span_id,
+            sampling_priority=sampling_priority,
+            traceparent=tp,
+        )
+
+
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
     PROPAGATION_STYLE_B3: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
+    PROPAGATION_STYLE_TRACECONTEXT: _TraceContext,
 }
 
 
