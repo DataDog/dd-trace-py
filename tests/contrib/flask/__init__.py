@@ -16,7 +16,7 @@ class DDFlaskTestClient(FlaskClient):
         # From pep-333: If an iterable returned by the application has a close() method,
         # the server or gateway must call that method upon completion of the current request.
         # FlaskClient does not align with this specification so we must do this manually.
-        # Closing the application iterable will finish the flask.request and flask.respionse
+        # Closing the application iterable will finish the flask.request and flask.response
         # spans.
         res = super(DDFlaskTestClient, self).open(*args, **kwargs)
         res.make_sequence()
