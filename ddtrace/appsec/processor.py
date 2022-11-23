@@ -7,6 +7,7 @@ from typing import Set
 from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
+from typing import Any
 
 import attr
 from six import ensure_binary
@@ -26,12 +27,14 @@ from ddtrace.constants import APPSEC_WAF_VERSION
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace import config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -205,9 +208,37 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._mark_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES)
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
-        pass
+    def on_span_start(self, span, *args, **kwargs):
+        # type: (Span, Any, Any) -> None
+        peer_ip = kwargs.get("peer_ip")
+        headers = kwargs.get("headers")
+        headers_case_sensitive = bool(kwargs.get("headers_case_sensitive"))
+
+        if config._appsec_enabled and peer_ip and headers:
+            ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip,
+                                                           headers_case_sensitive)
+            # Save the IP and headers in the context so the retrieval can be skipped later
+            _context.set_items({
+                "http.request.remote_ip": ip,
+                "http.response.headers": headers,
+                "http.response.headers_case_sensitive": headers_case_sensitive,
+            }, span=span)
+            if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
+                data = {_Addresses.HTTP_CLIENT_IP: ip}
+                res, total_runtime, total_overall_runtime = self._run_ddwaf(data)
+
+                if res:
+                    res_dict = json.loads(res)
+                    for r in res_dict:
+                        if r.get("rule", {}).get("id") == 'ip_match_rule' and \
+                                'block' in r.get("rule", {}).get("on_match", {}):
+                            log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
+                            _context.set_items({
+                                    "http.request.waf_json": '{"triggers":%s}' % (res,),
+                                    "http.request.waf_duration": total_runtime,
+                                    "http.request.waf_duration_ext": total_overall_runtime,
+                                    "http.request.blocked": True,
+                            }, span=span)
 
     def _mark_needed(self, address):
         # type: (str) -> None
@@ -273,6 +304,11 @@ class AppSecSpanProcessor(SpanProcessor):
             if body is not None:
                 data[_Addresses.SERVER_REQUEST_BODY] = body
 
+        if self._is_needed(_Addresses.HTTP_CLIENT_IP):
+            remote_ip = _context.get_item("http.request.remote_ip", span=span)
+            if remote_ip:
+                data[_Addresses.HTTP_CLIENT_IP] = remote_ip
+
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
         blocked_request = _context.get_item("http.request.blocked", span=span)
         if not blocked_request:
@@ -320,7 +356,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
                 span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (ddwaf_result.data,))
             else:
-                span.set_tag_str(APPSEC_JSON, _context.get_item("http.request.waf_json"))
+                span.set_tag_str(APPSEC_JSON, _context.get_item("http.request.waf_json", span=span))
                 span.set_tag("appsec.blocked", True)
 
             # Partial DDAS-011-00

@@ -489,12 +489,13 @@ class Span(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        try:
+        # try:
             if exc_type:
                 self.set_exc_info(exc_type, exc_val, exc_tb)
             self.finish()
-        except Exception:
-            log.exception("error closing trace")
+        # except Exception as e:  # XXX
+        #     # FIXME: see why this log doesn't show on tests
+        #     log.exception("error closing trace")
 
     def __repr__(self):
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (

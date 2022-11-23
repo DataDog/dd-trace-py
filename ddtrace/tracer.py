@@ -539,10 +539,12 @@ class Tracer(object):
         resource=None,  # type: Optional[str]
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
+        *args,  # type: Any
+        **kwargs,  # type: Any
     ):
         # type: (...) -> Span
         log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
-        return self._start_span(name, child_of, service, resource, span_type, activate)
+        return self._start_span(name, child_of, service, resource, span_type, activate, *args, **kwargs)
 
     def _start_span(
         self,
@@ -552,6 +554,8 @@ class Tracer(object):
         resource=None,  # type: Optional[str]
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
+        *args,  # type: Any
+        **kwargs,  # type: Any
     ):
         # type: (...) -> Span
         """Return a span that represents an operation called ``name``.
@@ -735,7 +739,7 @@ class Tracer(object):
         # Only call span processors if the tracer is enabled
         if self.enabled:
             for p in self._span_processors:
-                p.on_span_start(span)
+                p.on_span_start(span, *args, **kwargs)
 
         self._hooks.emit(self.__class__.start_span, span)
         return span
@@ -775,7 +779,7 @@ class Tracer(object):
         else:
             log.log(level, msg)
 
-    def trace(self, name, service=None, resource=None, span_type=None):
+    def trace(self, name, service=None, resource=None, span_type=None, *args, **kwargs):
         # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
         """Activate and return a new span that inherits from the current active span.
 
@@ -824,6 +828,8 @@ class Tracer(object):
             resource=resource,
             span_type=span_type,
             activate=True,
+            *args,
+            **kwargs
         )
 
     def current_root_span(self):
