@@ -405,7 +405,7 @@ TRACECONTEXT_HEADERS_VALID = {
 def test_tracecontext_decide_sampling_priority(
     name, sampling_priority_tp, sampling_priority_ts, expected_sampling_priority
 ):
-    traceparent_values = _TraceContext._decicide_sampling_priority(sampling_priority_tp, sampling_priority_ts)
+    traceparent_values = _TraceContext._get_sampling_priority(sampling_priority_tp, sampling_priority_ts)
     assert traceparent_values == expected_sampling_priority
 
 
@@ -571,7 +571,7 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
                 {
                     "tracestate": "congo=t61rcWkgMzE,mako=s:2;o:rum;",
                 },
-                "",
+                None,
             ),
             ["no dd list member in tracestate from incoming request: 'congo=t61rcWkgMzE,mako=s:2;o:rum;'"],
         ),
@@ -589,6 +589,26 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
                 None,
             ),
             None,
+        ),
+        (
+            "tracestate_invalid_dd_list_member",
+            "dd=invalid,congo=123",
+            # sampling_priority_ts, meta, origin
+            (
+                None,
+                {
+                    "tracestate": "dd=invalid,congo=123",
+                },
+                None,
+            ),
+            ["received invalid dd header value in tracestate: 'dd=invalid,congo=123'"],
+        ),
+        (
+            "tracestate_invalid_tracestate_char_outside_ascii_range_20-70",
+            "dd=foo|bar:hi|l¢¢¢¢¢¢:",
+            # sampling_priority_ts, meta, origin
+            None,
+            ["received invalid tracestate header: 'dd=foo|bar:hi|l¢¢¢¢¢¢:"],
         ),
     ],
 )

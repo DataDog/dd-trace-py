@@ -586,28 +586,25 @@ class _TraceContext:
         # type: (str) -> Optional[Tuple[Optional[int], Dict[str, str], Optional[str]]]
 
         # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
+        # the value MUST contain only ASCII characters in the range of 0x20 to 0x7E except comma (,) and equal-sign (=)
+        if re.search(r"[^\x20-\x7E]+", ts):
+            log.debug("received invalid tracestate header: %r", ts)
+            return None
+
         # store ts so we keep other vendor data
         meta = {_TRACESTATE_KEY: ts}
 
         try:
-            result = re.search("dd=(.+?),", ts)
-
-            # grab dd value if dd is only list member
-            if not result:
-                result = re.search("dd=(.*)", ts)
-            try:
-                dd = dict(item.split(":") for item in result.group(1).split(";"))  # type: ignore
-            except AttributeError:
-                log.debug(("no dd list member in tracestate from incoming request: %r "), ts)
-                dd = None
+            dd_ts = re.search("dd=(.+?)(?:,|$)", ts)
+            dd = None
+            if dd_ts:
+                dd = dict(item.split(":") for item in dd_ts.group(1).split(";"))  # type: ignore
 
             # parse out values
             if dd:
                 sampling_priority_ts = dd.get("s")
                 if sampling_priority_ts:
                     sampling_priority_ts = int(sampling_priority_ts)
-                else:
-                    sampling_priority_ts = None
 
                 origin = dd.get("o")
                 # need to convert from t. to _dd.p.
@@ -621,15 +618,28 @@ class _TraceContext:
                 return sampling_priority_ts, meta, origin
             else:
                 # even if there's no dd list member, we still need to propagate the other tracestate values
-                return None, meta, ""
+                return None, meta, None
 
         except (TypeError, ValueError, AttributeError):
             log.debug(("received invalid dd header value in tracestate: %r "), ts)
-            return None
+            return None, meta, None
 
     @staticmethod
-    def _decicide_sampling_priority(sampling_priority_tp, sampling_priority_ts):
+    def _get_sampling_priority(sampling_priority_tp, sampling_priority_ts):
         # type: (int, int) -> int
+        """
+        1. If the traceparent sampled flag == 0, and the tracestate sampling priority is not present or greater than 0,
+        set the sampling priority field to 0.
+
+        2. If the traceparent sampled flag == 1, and the tracestate sampling priority is
+         not present or less than or equal to 0, update the sampling priority field to 1.
+
+        3. If the traceparent sampled flag == 1, and the tracestate sampling priority is greater than 0,
+        use the extracted sampling priority value.
+
+        4. If the traceparent sampled flag == 0, and the tracestate sampling priority is less than or equal to 0,
+        use the extracted sampling priority value."""
+
         if sampling_priority_tp == 0 and (not sampling_priority_ts or sampling_priority_ts >= 0):
             sampling_priority = 0
 
@@ -648,17 +658,18 @@ class _TraceContext:
     def _extract(headers):
         # type: (Dict[str, str]) -> Optional[Context]
         traceparent_values = _TraceContext._get_traceparent_values(headers)
-        if traceparent_values:
-            tp, trace_id, span_id, sampling_priority = traceparent_values
-        else:
+        if not traceparent_values:
             return None
+
+        tp, trace_id, span_id, sampling_priority = traceparent_values
+
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
             tracestate_values = _TraceContext._get_tracestate_values(ts)
             if tracestate_values:
                 sampling_priority_ts, meta, origin = tracestate_values
 
-                sampling_priority = _TraceContext._decicide_sampling_priority(
+                sampling_priority = _TraceContext._get_sampling_priority(
                     sampling_priority, sampling_priority_ts  # type: ignore
                 )
 
