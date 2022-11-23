@@ -25,6 +25,7 @@ config._add(
         _dbapi_span_name_prefix="postgres",
         trace_fetch_methods=asbool(os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)),
+        _dbm_propagation_supported=True,
     ),
 )
 
