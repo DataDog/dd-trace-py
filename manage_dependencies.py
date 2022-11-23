@@ -49,6 +49,8 @@ def read_versions(time):
         if lv != LATEST_VERSIONS[package]:
             print(f"{package[:24]:<24s} {LATEST_VERSIONS[package]:>12s} {cdays:4d} days ago")
             print(f"\x1B[91m >> update            to {lv:>12s} {udays:4d} days ago\x1B[0m")
+            if udays > cdays:
+                print("\x1B[7;91m >> WARNING POSSIBLE YANKED VERSION\x1B[0m")
         elif cdays > time:
             print(f"\x1B[104m{package[:24]:<24s} {LATEST_VERSIONS[package]:>12s} {cdays:4d} days ago\x1B[0m")
 
