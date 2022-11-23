@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import logging
 import os
 
 import pytest
@@ -23,6 +24,7 @@ from ddtrace.propagation.http import _HTTP_HEADER_B3_TRACE_ID
 from ddtrace.propagation.http import _HTTP_HEADER_TAGS
 from ddtrace.propagation.http import _HTTP_HEADER_TRACEPARENT
 from ddtrace.propagation.http import _HTTP_HEADER_TRACESTATE
+from ddtrace.propagation.http import _TraceContext
 
 from ..utils import override_global_config
 
@@ -546,15 +548,15 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
         ),
         (
             "tracestate_with_unknown_t._values",
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.unknown:unknown,congo=t61rcWkgMzE,mako=s:2;o:rum;",
+            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
             # sampling_priority_ts, meta, origin
             (
                 2,
                 {
-                    "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.unknown:unknown,congo=t61rcWkgMzE,mako=s:2;o:rum;",
+                    "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
-                    "_dd.p.unknown": "unknown",
+                    "_dd.p.unk": "unk",
                 },
                 "rum",
             ),

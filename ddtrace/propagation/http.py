@@ -500,6 +500,7 @@ class _TraceContext:
       - ``tracestate`` header extends traceparent with vendor-specific data represented
         by a set of name/value pairs. Storing information in tracestate is
         optional.
+
     The format for ``traceparent`` is::
       HEXDIGLC        = DIGIT / "a" / "b" / "c" / "d" / "e" / "f"
       value           = version "-" version-format
@@ -508,15 +509,18 @@ class _TraceContext:
       trace-id        = 32HEXDIGLC
       parent-id       = 16HEXDIGLC
       trace-flags     = 2HEXDIGLC
+
     Example value of HTTP ``traceparent`` header::
         value = 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
         base16(version) = 00
         base16(trace-id) = 4bf92f3577b34da6a3ce929d0e0e4736
         base16(parent-id) = 00f067aa0ba902b7
         base16(trace-flags) = 01  // sampled
+
     The format for ``tracestate`` is key value pairs with each entry limited to 256 characters.
     An example of the ``dd`` list member we would add is::
     "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64"
+
     Implementation details:
       - Datadog Trace and Span IDs are 64-bit unsigned integers.
       - The W3C Trace Context Trace ID is a 16-byte hexadecimal string.
@@ -524,6 +528,7 @@ class _TraceContext:
         Otherwise, the value is set to the hex-encoded value of the trace-id.
         If the trace-id is a 64-bit value (i.e. a Datadog trace-id),
         then the upper half of the hex-encoded value will be all zeroes.
+
       - The tracestate header will have one list member added to it, ``dd``, which contains
         values that would be in x-datadog-tags as well as those needed for propagation information.
         The keys to the ``dd`` values have been shortened as follows to save space:
@@ -561,7 +566,8 @@ class _TraceContext:
                 assert span_id != 0
 
                 trace_flags = _hex_id_to_dd_id(trace_flags_hex)
-                # there's currently only one trace flag, which denotes sampling priority was set to keep "01" or drop "00"
+                # there's currently only one trace flag, which denotes sampling priority
+                # was set to keep "01" or drop "00"
                 # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
                 sampling_priority = int(trace_flags & 0x1)
 
@@ -590,7 +596,7 @@ class _TraceContext:
             if not result:
                 result = re.search("dd=(.*)", ts)
             try:
-                dd = dict(item.split(":") for item in result.group(1).split(";"))
+                dd = dict(item.split(":") for item in result.group(1).split(";"))  # type: ignore
             except AttributeError:
                 log.debug(("no dd list member in tracestate from incoming request: %r "), ts)
                 dd = None
@@ -623,7 +629,7 @@ class _TraceContext:
 
     @staticmethod
     def _decicide_sampling_priority(sampling_priority_tp, sampling_priority_ts):
-        # type: (str, str) -> int
+        # type: (int, int) -> int
         if sampling_priority_tp == 0 and (not sampling_priority_ts or sampling_priority_ts >= 0):
             sampling_priority = 0
 
@@ -652,7 +658,9 @@ class _TraceContext:
             if tracestate_values:
                 sampling_priority_ts, meta, origin = tracestate_values
 
-                sampling_priority = _TraceContext._decicide_sampling_priority(sampling_priority, sampling_priority_ts)
+                sampling_priority = _TraceContext._decicide_sampling_priority(
+                    sampling_priority, sampling_priority_ts  # type: ignore
+                )
 
                 return Context(
                     trace_id=trace_id,
