@@ -63,9 +63,9 @@ def patch():
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
     """
-    if set_and_check_module_is_patched("Crypto", default_attr="_datadog_weak_cipher_patch") is False:
+    if not set_and_check_module_is_patched("Crypto", default_attr="_datadog_weak_cipher_patch"):
         return
-    if set_and_check_module_is_patched("cryptography", default_attr="_datadog_weak_cipher_patch") is False:
+    if not set_and_check_module_is_patched("cryptography", default_attr="_datadog_weak_cipher_patch"):
         return
 
     weak_cipher_algorithms = get_weak_cipher_algorithms()

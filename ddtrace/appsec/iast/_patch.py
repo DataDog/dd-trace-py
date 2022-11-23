@@ -28,10 +28,9 @@ def set_and_check_module_is_patched(module_str, default_attr="_datadog_patch"):
         if getattr(module, default_attr, False):
             return False
         setattr(module, default_attr, True)
-        return True
     except ImportError:
         pass
-    return None
+    return True
 
 
 def set_module_unpatched(module_str, default_attr="_datadog_patch"):

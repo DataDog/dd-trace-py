@@ -71,10 +71,10 @@ def patch():
     and thus are not fit for use.
     """
 
-    if set_and_check_module_is_patched("hashlib", default_attr="_datadog_weak_hash_patch") is False:
+    if not set_and_check_module_is_patched("hashlib", default_attr="_datadog_weak_hash_patch"):
         return
 
-    if set_and_check_module_is_patched("Crypto", default_attr="_datadog_weak_hash_patch") is False:
+    if not set_and_check_module_is_patched("Crypto", default_attr="_datadog_weak_hash_patch"):
         return
 
     weak_hash_algorithms = get_weak_hash_algorithms()
