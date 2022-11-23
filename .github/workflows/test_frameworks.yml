@@ -138,7 +138,7 @@ jobs:
         run: ddtrace-run pytest graphene
 
   fastapi-testsuite-0_75:
-    runs-on: ubuntu-latest
+    runs-on: "ubuntu-20.04"
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
