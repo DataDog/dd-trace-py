@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    tracing: upgrades the default trace API version to ``v0.5``. The ``v0.5`` trace API version generates 
+    smaller payloads, thus increasing the throughput to the Datadog agent especially with larger traces.
