@@ -311,8 +311,14 @@ jobs:
           name: "Codespell check"
           command: riot run -s codespell
       - run:
+          name: "Run riotfile.py tests"
+          command: riot run -s riot-helpers
+      - run:
           name: "Test agent snapshot check"
           command: riot run -s snapshot-fmt && git diff --exit-code
+      - run:
+          name: "Run scripts/*.py tests"
+          command: riot run -s scripts
 
   ccheck:
     executor: cimg_base
@@ -364,12 +370,6 @@ jobs:
     steps:
       - checkout
       - setup_riot
-      - run:
-          name: "Run riotfile.py tests"
-          command: riot run -s riot-helpers
-      - run:
-          name: "Run scripts/*.py tests"
-          command: riot run -s scripts
       - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
@@ -431,6 +431,8 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   # This is the number of tox envs for this job
+  #   parallelism: 4
   #   steps:
   #     - run: choco install python2
   #     - run_tox_scenario:
@@ -441,6 +443,8 @@ jobs:
     executor:
       name: win/default
       shell: bash.exe
+    # This is the number of tox envs for this job
+    parallelism: 4
     steps:
       - run: choco install -y python --version=3.5.4 --side-by-side
       - run_tox_scenario:
@@ -451,6 +455,8 @@ jobs:
     executor:
       name: win/default
       shell: bash.exe
+    # This is the number of tox envs for this job
+    parallelism: 4
     steps:
       - run: choco install -y python --version=3.6.8 --side-by-side
       - run_tox_scenario:
@@ -462,6 +468,8 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   # This is the number of tox envs for this job
+  #   parallelism: 5
   #   steps:
   #     - run: choco install python --version=3.7.9
   #     - run_tox_scenario:
@@ -473,6 +481,8 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   # This is the number of tox envs for this job
+  #   parallelism: 5
   #   steps:
   #     - run: choco install -y python --version=3.8.10 --side-by-side
   #     - run_tox_scenario:
@@ -484,6 +494,8 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   # This is the number of tox envs for this job
+  #   parallelism: 5
   #   steps:
   #     - run: choco install -y python --version=3.9.12 --side-by-side
   #     - run_tox_scenario:
@@ -494,6 +506,8 @@ jobs:
     executor:
       name: win/default
       shell: bash.exe
+    # This is the number of tox envs for this job
+    parallelism: 5
     steps:
       # circleci/windows@5.0 orb includes python 3.10.6
       - run_tox_scenario:
@@ -508,19 +522,6 @@ jobs:
       - run_tox_scenario:
           store_coverage: false
           pattern: '^py.\+-profile'
-
-  integration_agent5:
-    <<: *machine_executor
-    steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          services: ddagent5
-      - run:
-          command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
@@ -697,7 +698,7 @@ jobs:
 
   django:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 8
     steps:
       - run_test:
           pattern: 'django$'
@@ -1162,7 +1163,6 @@ requires_tests: &requires_tests
     - grpc
     - httplib
     - httpx
-    - integration_agent5
     - integration_agent
     - integration_testagent
     - vendor
@@ -1261,7 +1261,6 @@ workflows:
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
-      - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
       - internal: *requires_base_venvs

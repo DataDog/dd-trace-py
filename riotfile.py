@@ -262,7 +262,6 @@ venv = Venv(
                     pkgs={
                         "msgpack": latest,
                         "attrs": ["==20.1.0", latest],
-                        "packaging": ["==17.1", latest],
                         "structlog": latest,
                         # httpretty v1.0 drops python 2.7 support
                         "httpretty": "==0.9.7",
@@ -293,12 +292,6 @@ venv = Venv(
             pkgs={"msgpack": [latest]},
             venvs=[
                 Venv(
-                    name="integration-v5",
-                    env={
-                        "AGENT_VERSION": "v5",
-                    },
-                ),
-                Venv(
                     name="integration-latest",
                     env={
                         "AGENT_VERSION": "latest",
@@ -319,6 +312,7 @@ venv = Venv(
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
+                "packaging": ["==17.1", latest],
             },
             env={
                 "DD_REMOTE_CONFIGURATION_ENABLED": "false",
@@ -735,7 +729,6 @@ venv = Venv(
                         "django": [
                             "~=3.0",
                             "~=3.0.0",
-                            "~=3.1.0",
                             "~=3.2.0",
                         ],
                         "channels": ["~=3.0", latest],
@@ -748,7 +741,7 @@ venv = Venv(
                             "~=4.0.0",
                             latest,
                         ],
-                        "channels": ["~=3.0", latest],
+                        "channels": [latest],
                     },
                 ),
                 Venv(
@@ -758,7 +751,7 @@ venv = Venv(
                             "~=4.1.0",
                             latest,
                         ],
-                        "channels": ["~=3.0", latest],
+                        "channels": [latest],
                     },
                 ),
             ],
@@ -1780,7 +1773,7 @@ venv = Venv(
                     "~=0.16.0",
                     "~=0.17.0",
                     "~=0.18.0",
-                    "<1.0.0",
+                    "~=0.22.0",
                     latest,
                 ],
             },
