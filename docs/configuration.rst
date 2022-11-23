@@ -401,6 +401,11 @@ below:
      default: 2
      description: Number of vulnerabilities reported in each request.
 
+   DD_IAST_WEAK_HASH_ALGORITHMS:
+     type: String
+     default: "MD5,SHA1"
+     description: Weak hashing algorithms that should be reported, comma separated.
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 
