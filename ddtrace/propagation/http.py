@@ -81,7 +81,7 @@ def _extract_header_value(possible_header_names, headers, default=None):
 
 def _hex_id_to_dd_id(hex_id):
     # type: (str) -> int
-    """Helper to convert B3 trace/span hex ids into Datadog compatible ints
+    """Helper to convert hex ids into Datadog compatible ints
 
     If the id is > 64 bit then truncate the trailing 64 bit.
 
@@ -495,11 +495,11 @@ class _TraceContext:
     """Helper class to inject/extract W3C Trace Context
     https://www.w3.org/TR/trace-context/
     Overview:
-      - ``traceparent`` describes the position of the incoming request in its
+      - ``traceparent`` header describes the position of the incoming request in its
         trace graph in a portable, fixed-length format. Its design focuses on
         fast parsing. Every tracing tool MUST properly set traceparent even when
         it only relies on vendor-specific information in tracestate
-      - ``tracestate`` extends traceparent with vendor-specific data represented
+      - ``tracestate`` header extends traceparent with vendor-specific data represented
         by a set of name/value pairs. Storing information in tracestate is
         optional.
 
@@ -519,6 +519,11 @@ class _TraceContext:
         base16(parent-id) = 00f067aa0ba902b7
         base16(trace-flags) = 01  // sampled
 
+    The format for ``tracestate`` is key value pairs with each entry limited to 256 characters.
+    An example of the ``dd`` list member we would add is::
+    "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64"
+
+
     Implementation details:
       - Datadog Trace and Span IDs are 64-bit unsigned integers.
       - The W3C Trace Context Trace ID is a 16-byte hexadecimal string.
@@ -526,8 +531,14 @@ class _TraceContext:
         Otherwise, the value is set to the hex-encoded value of the trace-id.
         If the trace-id is a 64-bit value (i.e. a Datadog trace-id),
         then the upper half of the hex-encoded value will be all zeroes.
-      - The tracestate header has one list member added to it, dd, which contains
+
+      - The tracestate header will have one list member added to it, ``dd``, which contains
         values that would be in x-datadog-tags as well as those needed for propagation information.
+        The keys to the ``dd`` values have been shortened as follows to save space:
+        ``sampling_priority`` = ``s``
+        ``origin`` = ``o``
+        ``_dd.p.`` prefix = ``t.``
+
     """
 
     @staticmethod

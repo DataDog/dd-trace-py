@@ -147,7 +147,9 @@ class Context(object):
     @property
     def _tracestate(self):
         # type: () -> str
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         dd = ""
         if self.sampling_priority:
             dd += "s:{};".format(self.sampling_priority)
