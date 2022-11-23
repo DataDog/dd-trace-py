@@ -3,6 +3,7 @@ from typing import Dict
 from typing import FrozenSet
 from typing import Optional
 from typing import Text
+from typing import Tuple
 from typing import cast
 
 from ddtrace import config
@@ -535,7 +536,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_traceparent_values(headers):
-        # type: (Dict[str, str]) -> Optional[tuple[str]]
+        # type: (Dict[str, str]) -> Optional[Tuple[str,int,int,int]]
 
         tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
         if tp is None:
@@ -558,8 +559,9 @@ class _TraceContext:
                 assert span_id != 0
 
                 trace_flags = _hex_id_to_dd_id(trace_flags_hex)
-                # there's currently only one trace flag, which denotes sampling priority was set to keep
-                sampling_priority = float(trace_flags & 0x1)
+                # there's currently only one trace flag, which denotes sampling priority was set to keep "01" or drop "00"
+                # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
+                sampling_priority = int(trace_flags & 0x1)
 
             else:
                 log.debug("W3C traceparent hex length incorrect: %s", tp)
@@ -572,23 +574,32 @@ class _TraceContext:
         return tp, trace_id, span_id, sampling_priority
 
     @staticmethod
-    def _get_tracestate_values(headers):
-        # type: (Dict[str, str]) -> Optional[tuple[str, int, Dict[str, str]]]
+    def _get_tracestate_values(ts):
+        # type: (str) -> Optional[Tuple[Optional[int], Dict[str, str], Optional[str]]]
 
         # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
-        ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
-        if ts:
-            # store ts so we keep other vendor data
-            meta = {_TRACESTATE_KEY: ts}
-            try:
-                result = re.search("dd=(.*),", ts)
-                # grab dd value if dd is only list member
-                if not result:
-                    result = re.search("dd=(.*)", ts)
-                dd = dict(item.split(":") for item in result.group(1).split(";"))
+        # store ts so we keep other vendor data
+        meta = {_TRACESTATE_KEY: ts}
 
-                # parse out values
-                sampling_priority_ts = int(dd.get("s"))
+        try:
+            result = re.search("dd=(.+?),", ts)
+
+            # grab dd value if dd is only list member
+            if not result:
+                result = re.search("dd=(.*)", ts)
+            try:
+                dd = dict(item.split(":") for item in result.group(1).split(";"))
+            except AttributeError:
+                log.debug(("no dd list member in tracestate from incoming request: %r "), ts)
+                dd = None
+
+            # parse out values
+            if dd:
+                sampling_priority_ts = dd.get("s")
+                if sampling_priority_ts:
+                    sampling_priority_ts = int(sampling_priority_ts)
+                else:
+                    sampling_priority_ts = None
 
                 origin = dd.get("o")
                 # need to convert from t. to _dd.p.
@@ -599,10 +610,31 @@ class _TraceContext:
                 }
                 meta.update(other_propagated_tags)
 
-                return ts, sampling_priority_ts, meta, origin
-            except (TypeError, ValueError, AttributeError):
-                log.debug(("received invalid dd header value in tracestate: %r "), ts)
-                return None
+                return sampling_priority_ts, meta, origin
+            else:
+                # even if there's no dd list member, we still need to propagate the other tracestate values
+                return None, meta, ""
+
+        except (TypeError, ValueError, AttributeError):
+            log.debug(("received invalid dd header value in tracestate: %r "), ts)
+            return None
+
+    @staticmethod
+    def _decicide_sampling_priority(sampling_priority_tp, sampling_priority_ts):
+        # type: (str, str) -> int
+        if sampling_priority_tp == 0 and (not sampling_priority_ts or sampling_priority_ts >= 0):
+            sampling_priority = 0
+
+        elif sampling_priority_tp == 1 and (not sampling_priority_ts or sampling_priority_ts < 0):
+            sampling_priority = 1
+
+        elif sampling_priority_tp == 1 and sampling_priority_ts > 0:
+            sampling_priority = sampling_priority_ts
+
+        elif sampling_priority_tp == 0 and sampling_priority_ts < 0:
+            sampling_priority = sampling_priority_ts
+
+        return sampling_priority
 
     @staticmethod
     def _inject(span_context, headers):
@@ -619,20 +651,22 @@ class _TraceContext:
             tp, trace_id, span_id, sampling_priority = traceparent_values
         else:
             return None
+        ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
+        if ts:
+            tracestate_values = _TraceContext._get_tracestate_values(ts)
+            if tracestate_values:
+                sampling_priority_ts, meta, origin = tracestate_values
 
-        tracestate_values = _TraceContext._get_tracestate_values(headers)
-        if tracestate_values:
-            ts, sampling_priority_ts, meta, origin = tracestate_values
-            # add logic for figuring out final sampling priority value
-            return Context(
-                trace_id=trace_id,
-                span_id=span_id,
-                sampling_priority=sampling_priority,
-                dd_origin=origin,
-                meta=cast(_MetaDictType, meta),
-                traceparent=tp,
-                tracestate=ts,
-            )
+                sampling_priority = _TraceContext._decicide_sampling_priority(sampling_priority, sampling_priority_ts)
+
+                return Context(
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    sampling_priority=sampling_priority,
+                    dd_origin=origin,
+                    meta=cast(_MetaDictType, meta),
+                    traceparent=tp,
+                )
 
         return Context(
             trace_id=trace_id,
@@ -708,15 +742,15 @@ class HTTPPropagator(object):
         """
         if not headers:
             return Context()
-        # try:
-        normalized_headers = {name.lower(): v for name, v in headers.items()}
-        # loop through the extract propagation styles specified in order
-        for prop_style in config._propagation_style_extract:
-            propagator = _PROP_STYLES[prop_style]
-            context = propagator._extract(normalized_headers)  # type: ignore
-            if context is not None:
-                return context
+        try:
+            normalized_headers = {name.lower(): v for name, v in headers.items()}
+            # loop through the extract propagation styles specified in order
+            for prop_style in config._propagation_style_extract:
+                propagator = _PROP_STYLES[prop_style]
+                context = propagator._extract(normalized_headers)  # type: ignore
+                if context is not None:
+                    return context
 
-        # except Exception:
-        #     log.debug("error while extracting context propagation headers", exc_info=True)
+        except Exception:
+            log.debug("error while extracting context propagation headers", exc_info=True)
         return Context()

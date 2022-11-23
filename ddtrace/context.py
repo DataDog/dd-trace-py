@@ -58,7 +58,6 @@ class Context(object):
         metrics=None,  # type: Optional[_MetricDictType]
         lock=None,  # type: Optional[threading.RLock]
         traceparent=None,  # type: Optional[str]
-        tracestate=None,  # type: Optional[str]
     ):
         self._meta = meta if meta is not None else {}  # type: _MetaDictType
         self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
@@ -70,8 +69,6 @@ class Context(object):
             self._meta[ORIGIN_KEY] = dd_origin
         if traceparent is not None:
             self._meta[_TRACEPARENT_KEY] = traceparent
-        if tracestate is not None:
-            self._meta[_TRACESTATE_KEY] = tracestate
 
         if sampling_priority is not None:
             self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
@@ -150,8 +147,6 @@ class Context(object):
     @property
     def _tracestate(self):
         # type: () -> str
-        # create the dd list member
-        # DEV TODO: replace comma, colon, semi-colon with _
         dd = ""
         if self.sampling_priority:
             dd += "s:{};".format(self.sampling_priority)
