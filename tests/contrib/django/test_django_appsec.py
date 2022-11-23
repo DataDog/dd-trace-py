@@ -5,6 +5,7 @@ import logging
 import pytest
 from django.core.wsgi import get_wsgi_application
 
+from ddtrace import constants
 from ddtrace._monkey import patch_iast
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
@@ -17,7 +18,8 @@ from tests.utils import override_global_config
 
 
 def _aux_appsec_get_root_span(
-    client, test_spans, tracer, appsec_enabled=True, payload=None, url="/", content_type="text/plain"
+        client, test_spans, tracer, appsec_enabled=True, payload=None, url="/",
+        content_type="text/plain"
 ):
     tracer._appsec_enabled = appsec_enabled
     # Hack: need to pass an argument to configure so that the processors are recreated
@@ -44,7 +46,8 @@ def test_django_querystrings(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/?a=1&b&c=d")
         query = dict(_context.get_item("http.request.query", span=root_span))
-        assert query == {"a": "1", "b": "", "c": "d"} or query == {"a": ["1"], "b": [""], "c": ["d"]}
+        assert query == {"a": "1", "b": "", "c": "d"} or query == {"a": ["1"], "b": [""],
+                                                                   "c": ["d"]}
 
 
 def test_no_django_querystrings(client, test_spans, tracer):
@@ -77,7 +80,8 @@ def test_django_request_body_urlencoded(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)):
         payload = urlencode({"mytestingbody_key": "mytestingbody_value"})
         root_span, response = _aux_appsec_get_root_span(
-            client, test_spans, tracer, payload=payload, url="/body/", content_type="application/x-www-form-urlencoded"
+            client, test_spans, tracer, payload=payload, url="/body/",
+            content_type="application/x-www-form-urlencoded"
         )
 
         assert response.status_code == 200
@@ -201,9 +205,10 @@ def test_django_request_body_plain(client, test_spans, tracer):
 
 
 def test_django_request_body_plain_attack(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-
-        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, payload="1' or '1' = '1'")
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer,
+                                                 payload="1' or '1' = '1'")
 
         query = _context.get_item("http.request.body", span=root_span)
         assert "triggers" in json.loads(root_span.get_tag(APPSEC_JSON))
@@ -214,8 +219,9 @@ def test_django_request_body_json_bad(caplog, client, test_spans, tracer):
     # Note: there is some odd interaction between hypotheses or pytest and
     # caplog where if you set this to WARNING the second test won't get
     # output unless you set all to DEBUG.
-    with caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
+    with caplog.at_level(logging.DEBUG), override_global_config(
+            dict(_appsec_enabled=True)), override_env(
+            dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
     ):
         payload = '{"attack": "bad_payload",}'
 
@@ -233,8 +239,9 @@ def test_django_request_body_json_bad(caplog, client, test_spans, tracer):
 
 def test_django_request_body_xml_bad_logs_warning(caplog, client, test_spans, tracer):
     # see above about caplog
-    with caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
+    with caplog.at_level(logging.DEBUG), override_global_config(
+            dict(_appsec_enabled=True)), override_env(
+            dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
     ):
         _, response = _aux_appsec_get_root_span(
             client,
@@ -285,7 +292,7 @@ def test_django_client_ip_asm_disabled_not_reported(client, test_spans, tracer):
 
 def test_django_client_ip_header_set_by_env_var_empty(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
+            dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
     ):
         client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="", HTTP_X_REAL_IP="8.8.8.8")
         root_span = test_spans.spans[0]
@@ -295,7 +302,7 @@ def test_django_client_ip_header_set_by_env_var_empty(client, test_spans, tracer
 
 def test_django_client_ip_header_set_by_env_var_invalid(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
+            dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
     ):
         client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="foobar", HTTP_X_REAL_IP="8.8.8.8")
         root_span = test_spans.spans[0]
@@ -304,7 +311,8 @@ def test_django_client_ip_header_set_by_env_var_invalid(client, test_spans, trac
 
 
 def test_django_client_ip_header_set_by_env_var_valid(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_TRACE_CLIENT_IP_HEADER="X-Use-This")):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(DD_TRACE_CLIENT_IP_HEADER="X-Use-This")):
         client.get("/?a=1&b&c=d", HTTP_CLIENT_IP="8.8.8.8", HTTP_X_USE_THIS="4.4.4.4")
         root_span = test_spans.spans[0]
         assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
@@ -335,7 +343,7 @@ def test_django_client_ip_headers(client, test_spans, tracer, kwargs, expected):
 
 def test_django_client_ip_header_set_by_env_var_invalid_2(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
+            dict(DD_TRACE_CLIENT_IP_HEADER="Fooipheader")
     ):
         result = client.get("/?a=1&b&c=d", HTTP_FOOIPHEADER="", HTTP_X_REAL_IP="アスダス")
         assert result.status_code == 200
@@ -360,7 +368,8 @@ def test_django_weak_hash(client, test_spans, tracer):
 
 
 def test_request_ipblock_nomatch_200(client, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
         tracer._appsec_enabled = True
         # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
@@ -370,26 +379,25 @@ def test_request_ipblock_nomatch_200(client, tracer):
         assert result.content == b"Hello, test app."
 
 
-# XXX check spans!
-# XXX check with not APPSEC_ENABLED
 def test_request_ipblock_match_403(client, test_spans, tracer):
-    print('XXX test_span.spans at the start: %s' % test_spans.spans)
     with override_global_config(dict(_appsec_enabled=True)), \
             override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-            # tracer.trace("test", span_type=SpanTypes.WEB) as span:
+
         tracer._appsec_enabled = True
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
 
         result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.4.4")
-        print('XXX test_span.spans after client.get: %s' % test_spans.spans)
         assert result.status_code == 403
-        assert result.content == b"XXX this should be the loaded 403 template"
-        # print('XXX result: %s' % result)
-        # print('XXX test_spans: %s' % test_spans.get_spans())
-        # root = test_spans.find_span(name="django.request")
-        # print('XXX tracer.current_span: %s' % tracer.current_span())
-        # print('XXX tracer.current_root_span: %s' % tracer.current_root_span())
-
-        # assert root.get_tag("actor.ip") == "8.8.4.4"
-        # assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert result.content == bytes(constants.APPSEC_IPBLOCK_403_DEFAULT, 'utf-8')
+        root = test_spans.spans[0]
+        assert root.get_tag("actor.ip") == "8.8.4.4"
+        loaded = json.loads(root.get_tag(APPSEC_JSON))
+        assert loaded == {'triggers':
+            [
+                {'rule': {'id': 'ip_match_rule', 'name': 'Block IP addresses',
+                          'tags': {'type': 'ip_addresses', 'category': 'blocking'},
+                          'on_match': ['block']}, 'rule_matches': [
+                    {'operator': 'ip_match', 'operator_value': '', 'parameters': [
+                        {'address': 'http.client_ip', 'key_path': [], 'value': '8.8.4.4',
+                         'highlight': ['8.8.4.4']}]}]}]}

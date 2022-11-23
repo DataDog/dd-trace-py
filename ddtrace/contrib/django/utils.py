@@ -303,7 +303,7 @@ def _get_request_headers(request):  # XXX typing
     return request_headers
 
 
-def _after_request_tags(pin, span, request, response, ip, request_headers, headers_case_sensitive):
+def _after_request_tags(pin, span, request, response):
     # Response can be None in the event that the request failed
     # We still want to set additional request tags that are resolved
     # during the request.
@@ -383,13 +383,13 @@ def _after_request_tags(pin, span, request, response, ip, request_headers, heade
                 status_code=status,
                 query=request.META.get("QUERY_STRING", None),
                 parsed_query=request.GET,
-                request_headers=request_headers,
+                request_headers=_context.get_item("http.request.headers", span=span),
                 response_headers=response_headers,
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
                 request_body=_extract_body(request),
-                peer_ip=ip,
-                headers_are_case_sensitive=headers_case_sensitive,
+                peer_ip=_context.get_item("http.request.remote_ip", span=span),
+                headers_are_case_sensitive=_context.get_item("http.request.headers_case_sensitive", span=span),
             )
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:

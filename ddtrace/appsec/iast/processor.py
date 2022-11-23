@@ -18,14 +18,15 @@ from ddtrace.internal.processor import SpanProcessor
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.span import Span
+    from typing import Any
 
 log = get_logger(__name__)
 
 
 @attr.s(eq=False)
 class AppSecIastSpanProcessor(SpanProcessor):
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span, *args, **kwargs):
+        # type: (Span, Any, Any) -> None
         if span.span_type != SpanTypes.WEB:
             return
         oce.acquire_request()

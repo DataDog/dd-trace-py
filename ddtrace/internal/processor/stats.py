@@ -31,6 +31,7 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from typing import List
     from typing import Optional
     from typing import Union
+    from typing import Any
 
     from ddtrace import Span
 
@@ -123,8 +124,8 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         )
         self.start()
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span, *args, **kwargs):
+        # type: (Span, Any, Any) -> None
         pass
 
     def on_span_finish(self, span):

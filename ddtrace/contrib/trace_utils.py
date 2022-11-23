@@ -177,10 +177,11 @@ def _get_request_header_client_ip(span, headers, peer_ip=None, headers_are_case_
     global _USED_IP_HEADER
 
     def get_header_value(key):  # type: (str) -> Optional[str]
-        if not headers_are_case_sensitive:
-            return headers.get(key)
-
-        return _get_header_value_case_insensitive(headers, key)
+        # Sanic client will use a dict for headers even if under Django headers are case
+        # insensitive so we need to check against dict type.
+        if headers_are_case_sensitive or type(headers) == dict:
+            return _get_header_value_case_insensitive(headers, key)
+        return headers.get(key)
 
     ip_header_value = ""
     user_configured_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER", None)
@@ -414,7 +415,6 @@ def set_http_meta(
          { "id": <int_value> }
     """
 
-    print('XXX peer_ip in trace_utils.set_http_meta: %s' % peer_ip)
     if method is not None:
         span.set_tag_str(http.METHOD, method)
 
@@ -443,7 +443,6 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span.set_tag_str(http.QUERY_STRING, query)
 
-    print('XXX request_headers: %s' % request_headers)
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
@@ -482,7 +481,6 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
-        print('XXX in trace_utils, setting stuff')
         status_code = str(status_code) if status_code is not None else None
 
         _context.set_items(

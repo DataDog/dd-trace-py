@@ -7,6 +7,7 @@ from typing import Set
 from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
+from typing import Any
 
 import attr
 from six import ensure_binary
@@ -26,12 +27,14 @@ from ddtrace.constants import APPSEC_WAF_VERSION
 from ddtrace.constants import MANUAL_KEEP_KEY
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import RUNTIME_FAMILY
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.trace_utils import _normalize_tag_name
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
+from ddtrace import config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -170,7 +173,6 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: () -> None
         if self._ddwaf is None:
             try:
-                print('XXX AppsecSpanProcessor, self.rules: %s' % self.rules)
                 with open(self.rules, "r") as f:
                     rules = json.load(f)
             except EnvironmentError as err:
@@ -206,9 +208,37 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._mark_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES)
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
-        pass
+    def on_span_start(self, span, *args, **kwargs):
+        # type: (Span, Any, Any) -> None
+        peer_ip = kwargs.get("peer_ip")
+        headers = kwargs.get("headers")
+        headers_case_sensitive = bool(kwargs.get("headers_case_sensitive"))
+
+        if config._appsec_enabled and peer_ip and headers:
+            ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip,
+                                                           headers_case_sensitive)
+            # Save the IP and headers in the context so the retrieval can be skipped later
+            _context.set_items({
+                "http.request.remote_ip": ip,
+                "http.response.headers": headers,
+                "http.response.headers_case_sensitive": headers_case_sensitive,
+            }, span=span)
+            if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
+                data = {_Addresses.HTTP_CLIENT_IP: ip}
+                res, total_runtime, total_overall_runtime = self._run_ddwaf(data)
+
+                if res:
+                    res_dict = json.loads(res)
+                    for r in res_dict:
+                        if r.get("rule", {}).get("id") == 'ip_match_rule' and \
+                                'block' in r.get("rule", {}).get("on_match", {}):
+                            log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
+                            _context.set_items({
+                                    "http.request.waf_json": '{"triggers":%s}' % (res,),
+                                    "http.request.waf_duration": total_runtime,
+                                    "http.request.waf_duration_ext": total_overall_runtime,
+                                    "http.request.blocked": True,
+                            }, span=span)
 
     def _mark_needed(self, address):
         # type: (str) -> None
@@ -223,7 +253,6 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
-        print('XXX appsec processor on_span_finish!')
         if span.span_type != SpanTypes.WEB:
             return
         span.set_metric(APPSEC_ENABLED, 1.0)
@@ -281,13 +310,13 @@ class AppSecSpanProcessor(SpanProcessor):
                 data[_Addresses.HTTP_CLIENT_IP] = remote_ip
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        blocked_request = _context.get_item("http.request.blocked")
+        blocked_request = _context.get_item("http.request.blocked", span=span)
         if not blocked_request:
             res, total_runtime, total_overall_runtime = self._run_ddwaf(data)
         else:
-            # Blocked requests call ddwaf earlier so we already have the data
-            total_runtime = _context.get_item("http.request.waf_duration")
-            total_overall_runtime = _context.get_item("http.request.waf_duration_ext")
+            # Blocked requests call ddwaf earlier, so we already have the data
+            total_runtime = _context.get_item("http.request.waf_duration", span=span)
+            total_overall_runtime = _context.get_item("http.request.waf_duration_ext", span=span)
             res = None
 
         try:
@@ -307,8 +336,6 @@ class AppSecSpanProcessor(SpanProcessor):
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
 
-        print('XXX processor res: %s' % res)
-        print('XXX blocked request: %s' % blocked_request)
         if res is not None or blocked_request:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
@@ -326,18 +353,16 @@ class AppSecSpanProcessor(SpanProcessor):
                 log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
                 span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (res,))
             else:
-                span.set_tag_str(APPSEC_JSON, _context.get_item("http.request.waf_json"))
+                span.set_tag_str(APPSEC_JSON, _context.get_item("http.request.waf_json", span=span))
                 span.set_tag("appsec.blocked", True)
 
             # Partial DDAS-011-00
             span.set_tag_str("appsec.event", "true")
 
             remote_ip = _context.get_item("http.request.remote_ip", span=span)
-            print('XXX processor::remote_ip: %s' % remote_ip)
             if remote_ip:
                 # Note that if the ip collection is disabled by the env var
                 # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
-                print("XXX setting tag actor.ip to %s" % remote_ip)
                 span.set_tag_str("actor.ip", remote_ip)
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
@@ -345,5 +370,3 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
                 span.set_tag_str(ORIGIN_KEY, APPSEC_ORIGIN_VALUE)
-
-        print('XXX span in on_span_finish: %s' % span)

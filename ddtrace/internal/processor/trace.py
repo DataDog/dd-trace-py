@@ -5,6 +5,7 @@ from typing import DefaultDict
 from typing import Iterable
 from typing import List
 from typing import Optional
+from typing import Any
 
 import attr
 import six
@@ -101,8 +102,8 @@ class TopLevelSpanProcessor(SpanProcessor):
 
     """
 
-    def on_span_start(self, _):
-        # type: (Span) -> None
+    def on_span_start(self, _, *args, **kwargs):
+        # type: (Span, Any, Any) -> None
         pass
 
     def on_span_finish(self, span):
@@ -157,8 +158,8 @@ class SpanAggregator(SpanProcessor):
     )
     _lock = attr.ib(init=False, factory=threading.Lock, repr=False)
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span, *args, **kwargs):
+        # type: (Span, Any, Any) -> None
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
@@ -240,8 +241,8 @@ class SpanSamplingProcessor(SpanProcessor):
 
     rules = attr.ib(type=List[SpanSamplingRule])
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span, *args, **kwargs):
+        # type: (Span, Any, Any) -> None
         pass
 
     def on_span_finish(self, span):

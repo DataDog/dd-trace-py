@@ -49,7 +49,7 @@ def truncate_to_length(value, max_length):
 
 
 class TruncateSpanProcessor(SpanProcessor):
-    def on_span_start(self, span):
+    def on_span_start(self, span, *args, **kwargs):
         pass
 
     def on_span_finish(self, span):
@@ -62,7 +62,7 @@ class TruncateSpanProcessor(SpanProcessor):
 
 
 class NormalizeSpanProcessor(SpanProcessor):
-    def on_span_start(self, span):
+    def on_span_start(self, span, *args, **kwargs):
         pass
 
     def on_span_finish(self, span):
