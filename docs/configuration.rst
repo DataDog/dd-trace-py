@@ -191,7 +191,7 @@ below:
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
 
    DD_SPAN_SAMPLING_RULES:
-     type: JSON array
+     type: string
      description: |
          A JSON array of objects. Each object must have a “name” and/or “service” field, and the “sample_rate” field is optional. 
          The “sample_rate” value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled) if not provided. 
@@ -203,6 +203,7 @@ below:
          **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","name":"flask.request"}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
+         **Note** this feature was added in dd-trace-py version 1.4.0.
 
    DD_TRACE_HEADER_TAGS:
      description: |
