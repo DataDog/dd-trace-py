@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace import tracer
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast.overhead_control_engine import Operation
+from ddtrace.appsec.iast._overhead_control_engine import Operation
 from ddtrace.appsec.iast.reporter import Evidence
 from ddtrace.appsec.iast.reporter import IastSpanReporter
 from ddtrace.appsec.iast.reporter import Location
@@ -10,7 +10,6 @@ from ddtrace.appsec.iast.reporter import Vulnerability
 from ddtrace.constants import IAST_CONTEXT_KEY
 from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
-from ddtrace.vendor.wrapt import wrap_function_wrapper
 
 
 try:
@@ -18,7 +17,7 @@ try:
     from ddtrace.appsec.iast._stacktrace import get_info_frame
 except ImportError:
     # Python 2
-    from ddtrace.appsec.iast.stacktrace_py2 import get_info_frame
+    from ddtrace.appsec.iast._stacktrace_py2 import get_info_frame
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
@@ -86,10 +85,3 @@ class VulnerabilityBase(Operation):
                             }
                         )
                     _context.set_item(IAST_CONTEXT_KEY, report, span=span)
-
-
-def _wrap_function_wrapper_exception(module, name, wrapper):
-    try:
-        wrap_function_wrapper(module, name, wrapper)
-    except (ImportError, AttributeError):
-        log.debug("IAST patching. Module %s.%s not exists", module, name)

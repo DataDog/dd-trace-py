@@ -5,7 +5,6 @@ import os
 import pytest
 
 from ddtrace.context import Context
-from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
@@ -463,7 +462,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_datadog_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         DATADOG_HEADERS_VALID,
         {
             "trace_id": 13088165645273925489,
@@ -579,7 +578,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         B3_HEADERS_VALID,
         {
             "trace_id": 5208512171318403364,
@@ -660,7 +659,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_single_header_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         B3_SINGLE_HEADERS_VALID,
         {
             "trace_id": 7277407061855694839,
@@ -705,9 +704,10 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        # we prefer Datadog format
+        # Since Datadog format comes first in [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3,
+        #  PROPAGATION_STYLE_B3_SINGLE_HEADER] we use it
         "valid_all_headers_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
             "trace_id": 13088165645273925489,
@@ -717,9 +717,8 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        # we prefer Datadog format
         "valid_all_headers_all_styles_wsgi",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         {
             "trace_id": 13088165645273925489,
@@ -773,9 +772,8 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        # We prefer B3 over B3 single header
         "valid_all_headers_both_b3_styles",
-        [PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_B3],
+        [PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
             "trace_id": 5208512171318403364,
@@ -791,6 +789,40 @@ EXTRACT_FIXTURES = [
         {
             "trace_id": 7277407061855694839,
             "span_id": 16453819474850114513,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    # Testing that order matters
+    (
+        "order_matters_B3_SINGLE_HEADER_first",
+        [PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_DATADOG],
+        B3_SINGLE_HEADERS_VALID,
+        {
+            "trace_id": 7277407061855694839,
+            "span_id": 16453819474850114513,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
+        "order_matters_B3_first",
+        [PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_DATADOG],
+        B3_HEADERS_VALID,
+        {
+            "trace_id": 5208512171318403364,
+            "span_id": 11744061942159299346,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
+        "order_matters_B3_second_no_Datadog_headers",
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3],
+        B3_HEADERS_VALID,
+        {
+            "trace_id": 5208512171318403364,
+            "span_id": 11744061942159299346,
             "sampling_priority": 1,
             "dd_origin": None,
         },
@@ -846,7 +878,7 @@ else:
 
     env = os.environ.copy()
     if styles is not None:
-        env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = ",".join(styles)
+        env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -858,10 +890,97 @@ else:
     # DEV: This also helps us get code coverage reporting
     overrides = {}
     if styles is not None:
-        overrides["_propagation_style_extract"] = set(styles)
+        overrides["_propagation_style_extract"] = styles
     with override_global_config(overrides):
         context = HTTPPropagator.extract(headers)
         assert context == Context(**expected_context)
+
+
+EXTRACT_OVERRIDE_FIXTURES = [
+    (
+        "valid_all_headers_b3_single_override",
+        [PROPAGATION_STYLE_B3],
+        [PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        ALL_HEADERS,
+        {
+            "trace_id": 7277407061855694839,
+            "span_id": 16453819474850114513,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
+        "valid_all_headers_datadog_override",
+        [PROPAGATION_STYLE_B3],
+        [PROPAGATION_STYLE_DATADOG],
+        ALL_HEADERS,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+        },
+    ),
+    # The empty list provided for DD_TRACE_PROPAGATION_STYLE_EXTRACT overrides
+    #  the b3 value for DD_TRACE_PROPAGATION_STYLE
+    (
+        "valid_all_headers_no_style_override",
+        [PROPAGATION_STYLE_B3],
+        [],
+        ALL_HEADERS,
+        CONTEXT_EMPTY,
+    ),
+    (
+        "valid_all_headers_b3_single_header_override_default",
+        None,
+        [PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        ALL_HEADERS,
+        {
+            "trace_id": 7277407061855694839,
+            "span_id": 16453819474850114513,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+]
+
+
+@pytest.mark.parametrize("name,styles,styles_extract,headers,expected_context", EXTRACT_OVERRIDE_FIXTURES)
+def test_DD_TRACE_PROPAGATION_STYLE_EXTRACT_overrides_DD_TRACE_PROPAGATION_STYLE(
+    name, styles, styles_extract, headers, expected_context, run_python_code_in_subprocess
+):
+    # Execute the test code in isolation to ensure env variables work as expected
+    code = """
+import json
+
+from ddtrace.propagation.http import HTTPPropagator
+
+
+context = HTTPPropagator.extract({!r})
+if context is None:
+    print("null")
+else:
+    print(json.dumps({{
+      "trace_id": context.trace_id,
+      "span_id": context.span_id,
+      "sampling_priority": context.sampling_priority,
+      "dd_origin": context.dd_origin,
+    }}))
+    """.format(
+        headers
+    )
+    env = os.environ.copy()
+    if styles is not None:
+        env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
+    if styles_extract is not None:
+        env["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] = ",".join(styles_extract)
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+    assert stderr == b"", (stdout, stderr)
+
+    result = json.loads(stdout.decode())
+    assert result == expected_context
 
 
 VALID_DATADOG_CONTEXT = {
@@ -915,7 +1034,7 @@ INJECT_FIXTURES = [
     ),
     (
         "invalid_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {},
         {},
     ),
@@ -1068,7 +1187,7 @@ INJECT_FIXTURES = [
     # All styles
     (
         "valid_all_styles",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         VALID_DATADOG_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1083,7 +1202,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_user_keep",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         VALID_USER_KEEP_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1097,7 +1216,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_auto_reject",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         VALID_AUTO_REJECT_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1111,7 +1230,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_no_sampling_priority",
-        PROPAGATION_STYLE_ALL,
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {
             "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
             "span_id": VALID_DATADOG_CONTEXT["span_id"],
@@ -1147,7 +1266,7 @@ print(json.dumps(headers))
 
     env = os.environ.copy()
     if styles is not None:
-        env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = ",".join(styles)
+        env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
     stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
     assert status == 0, (stdout, stderr)
     assert stderr == b"", (stdout, stderr)
@@ -1159,9 +1278,67 @@ print(json.dumps(headers))
     # DEV: This also helps us get code coverage reporting
     overrides = {}
     if styles is not None:
-        overrides["_propagation_style_inject"] = set(styles)
+        overrides["_propagation_style_inject"] = styles
     with override_global_config(overrides):
         ctx = Context(**context)
         headers = {}
         HTTPPropagator.inject(ctx, headers)
         assert headers == expected_headers
+
+
+INJECT_OVERRIDE_FIXTURES = [
+    (
+        "valid_b3_single_style_override",
+        [PROPAGATION_STYLE_DATADOG],
+        [PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        VALID_DATADOG_CONTEXT,
+        {_HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1"},
+    ),
+    (
+        "none_override",
+        [PROPAGATION_STYLE_DATADOG],
+        [],
+        VALID_DATADOG_CONTEXT,
+        {},
+    ),
+    (
+        "valid_b3_single_style_override_none",
+        [],
+        [PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        VALID_DATADOG_CONTEXT,
+        {_HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1"},
+    ),
+]
+
+
+@pytest.mark.parametrize("name,styles,styles_inject,context,expected_headers", INJECT_OVERRIDE_FIXTURES)
+def test_DD_TRACE_PROPAGATION_STYLE_INJECT_overrides_DD_TRACE_PROPAGATION_STYLE(
+    name, styles, styles_inject, context, expected_headers, run_python_code_in_subprocess
+):
+    # Execute the test code in isolation to ensure env variables work as expected
+    code = """
+import json
+
+from ddtrace.context import Context
+from ddtrace.propagation.http import HTTPPropagator
+
+context = Context(**{!r})
+headers = {{}}
+HTTPPropagator.inject(context, headers)
+
+print(json.dumps(headers))
+    """.format(
+        context
+    )
+
+    env = os.environ.copy()
+    if styles is not None:
+        env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
+    if styles_inject is not None:
+        env["DD_TRACE_PROPAGATION_STYLE_INJECT"] = ",".join(styles_inject)
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+    assert stderr == b"", (stdout, stderr)
+
+    result = json.loads(stdout.decode())
+    assert result == expected_headers

@@ -28,7 +28,7 @@ def wrapped_function(wrapped, instance, args, kwargs):
     )
     return wrapped(*args, **kwargs)
 """  # noqa: RST201, RST213, RST210
-from ddtrace.appsec.iast.overhead_control_engine import OverheadControl
+from ddtrace.appsec.iast._overhead_control_engine import OverheadControl
 
 
 oce = OverheadControl()

@@ -31,23 +31,43 @@ class TestTracedCursor(TracerTestCase):
         assert "__result__" == traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
+    def test_dbm_propagation_not_supported(self):
+        cursor = self.cursor
+        cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service")
+        # By default _dbm_propagation_supported attribute should not be True.
+        # DBM context propagation should be opt in.
+        assert not getattr(cfg, "_dbm_propagation_supported", False)
+        traced_cursor = TracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+        # Ensure dbm comment is not appended to sql statement
+        traced_cursor.execute("SELECT * FROM db;")
+        cursor.execute.assert_called_once_with("SELECT * FROM db;")
+
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="full",
+            DD_DBM_PROPAGATION_MODE="service",
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
         )
     )
-    def test_curser_execute_with_dbm_injection(self):
+    def test_cursor_execute_with_dbm_injection(self):
         cursor = self.cursor
-        traced_cursor = TracedCursor(cursor, Pin("pin_name", tracer=self.tracer), {})
-        query = "SELECT * FROM db;"
-        traced_cursor.execute(query)
+        cfg = IntegrationConfig(Config(), "dbapi", service="orders-db", _dbm_propagation_supported=True)
+        traced_cursor = TracedCursor(cursor, Pin(service="orders-db", tracer=self.tracer), cfg)
+
+        # The following operations should generate DBM comments
+        traced_cursor.execute("SELECT * FROM db;")
+        traced_cursor.executemany("SELECT * FROM db;", ())
+        traced_cursor.callproc("procedure_named_moon")
+
         spans = self.tracer.pop()
-        assert len(spans) == 1
-        dbm_comment = _database_monitoring._get_dbm_comment(spans[0])
-        cursor.execute.assert_called_once_with(dbm_comment + query)
+        assert len(spans) == 3
+        dbm_comment = " /*dddbs='orders-db',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
+        cursor.execute.assert_called_once_with(dbm_comment + "SELECT * FROM db;")
+        cursor.executemany.assert_called_once_with(dbm_comment + "SELECT * FROM db;", ())
+        # DBM comment should not be added procedure names
+        cursor.callproc.assert_called_once_with("procedure_named_moon")
 
     def test_executemany_wrapped_is_called_and_returned(self):
         cursor = self.cursor
@@ -161,7 +181,7 @@ class TestTracedCursor(TracerTestCase):
         def method():
             pass
 
-        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"})
+        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         # Only measure if the name passed matches the default name (e.g. `sql.query` and not `sql.query.fetchall`)
         assert_is_not_measured(span)
@@ -186,7 +206,7 @@ class TestTracedCursor(TracerTestCase):
         def method():
             pass
 
-        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"})
+        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.service == "cfg-service"
 
@@ -201,7 +221,7 @@ class TestTracedCursor(TracerTestCase):
         def method():
             pass
 
-        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"})
+        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.service == "db"
 
@@ -216,7 +236,7 @@ class TestTracedCursor(TracerTestCase):
         def method():
             pass
 
-        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"})
+        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.service == "default-svc"
 
@@ -231,7 +251,7 @@ class TestTracedCursor(TracerTestCase):
         def method():
             pass
 
-        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"})
+        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.service == "pin-svc"
 
@@ -249,7 +269,7 @@ class TestTracedCursor(TracerTestCase):
         def method():
             pass
 
-        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"})
+        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         # Row count
         assert span.get_metric("db.rowcount") == 123, "Row count is set as a metric"
@@ -396,7 +416,7 @@ class TestFetchTracedCursor(TracerTestCase):
         def method():
             pass
 
-        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"})
+        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.get_tag("pin1") == "value_pin1", "Pin tags are preserved"
         assert span.get_tag("extra1") == "value_extra1", "Extra tags are merged into pin tags"
@@ -421,7 +441,7 @@ class TestFetchTracedCursor(TracerTestCase):
         def method():
             pass
 
-        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"})
+        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         # Row count
         assert span.get_metric("db.rowcount") == 123, "Row count is set as a metric"
@@ -473,7 +493,7 @@ class TestFetchTracedCursor(TracerTestCase):
         def method():
             pass
 
-        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"})
+        traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = tracer.pop()[0]  # type: Span
         assert span.get_metric("db.rowcount") is None
         assert span.get_metric("sql.rows") is None
@@ -499,6 +519,43 @@ class TestFetchTracedCursor(TracerTestCase):
         spans = self.tracer.pop()
         assert len(spans) == 1
         self.reset()
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(
+            DD_DBM_PROPAGATION_MODE="full",
+            DD_SERVICE="orders-app",
+            DD_ENV="staging",
+            DD_VERSION="v7343437-d7ac743",
+        )
+    )
+    def test_cursor_execute_fetch_with_dbm_injection(self):
+        cursor = self.cursor
+        cfg = IntegrationConfig(Config(), "dbapi", service="dbapi_service", _dbm_propagation_supported=True)
+        traced_cursor = FetchTracedCursor(cursor, Pin("dbapi_service", tracer=self.tracer), cfg)
+
+        # The following operations should not generate DBM comments
+        traced_cursor.fetchone()
+        traced_cursor.fetchall()
+        traced_cursor.fetchmany(1)
+        traced_cursor.callproc("proc")
+        cursor.fetchone.assert_called_once_with()
+        cursor.fetchall.assert_called_once_with()
+        cursor.fetchmany.assert_called_once_with(1)
+        cursor.callproc.assert_called_once_with("proc")
+
+        spans = self.tracer.pop()
+        assert len(spans) == 4
+
+        # The following operations should generate DBM comments
+        traced_cursor.execute("SELECT * FROM db;")
+        traced_cursor.executemany("SELECT * FROM db;", ())
+
+        spans = self.tracer.pop()
+        assert len(spans) == 2
+        dbm_comment_exc = _database_monitoring._get_dbm_comment(spans[0])
+        cursor.execute.assert_called_once_with(dbm_comment_exc + "SELECT * FROM db;")
+        dbm_comment_excmany = _database_monitoring._get_dbm_comment(spans[1])
+        cursor.executemany.assert_called_once_with(dbm_comment_excmany + "SELECT * FROM db;", ())
 
 
 class TestTracedConnection(TracerTestCase):

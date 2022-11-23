@@ -201,6 +201,12 @@ def _set_resolver_tags(pin, span, request):
                     resource = " ".join((request.method, route))
                     span.set_tag_str("http.route", route)
             else:
+                if config.django.use_handler_with_url_name_resource_format:
+                    # Append url name in order to distinguish different routes of the same ViewSet
+                    url_name = resolver_match.url_name
+                    if url_name:
+                        handler = ".".join([handler, url_name])
+
                 resource = " ".join((request.method, handler))
 
         span.set_tag_str("django.view", resolver_match.view_name)
@@ -275,6 +281,8 @@ def _extract_body(request):
             OSError,
             ValueError,
             JSONDecodeError,
+            xmltodict.expat.ExpatError,
+            xmltodict.ParsingInterrupted,
         ):
             log.warning("Failed to parse request body")
             # req_body is None
