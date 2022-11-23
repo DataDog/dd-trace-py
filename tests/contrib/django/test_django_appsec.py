@@ -3,11 +3,12 @@ import json
 import logging
 
 import pytest
+from django.core.wsgi import get_wsgi_application
 
 from ddtrace._monkey import patch_iast
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
-from ddtrace.ext import http
+from ddtrace.ext import http, SpanTypes
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -380,3 +381,39 @@ def test_django_weak_hash(client, test_spans, tracer):
         vulnerability = json.loads(root_span.get_tag(IAST_JSON))["vulnerabilities"][0]
         assert vulnerability["location"]["path"].endswith("tests/contrib/django/views.py")
         assert vulnerability["evidence"]["value"] == "md5"
+
+
+def test_request_ipblock_nomatch_200(client, tracer):
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+        tracer._appsec_enabled = True
+        # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+
+        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
+        assert result.status_code == 200
+        assert result.content == b"Hello, test app."
+
+
+# XXX check spans!
+# XXX check with not APPSEC_ENABLED
+def test_request_ipblock_match_403(client, test_spans, tracer):
+    print('XXX test_span.spans at the start: %s' % test_spans.spans)
+    with override_global_config(dict(_appsec_enabled=True)), \
+            override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+            # tracer.trace("test", span_type=SpanTypes.WEB) as span:
+        tracer._appsec_enabled = True
+        # # Hack: need to pass an argument to configure so that the processors are recreated
+        tracer.configure(api_version="v0.4")
+
+        result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.4.4")
+        print('XXX test_span.spans after client.get: %s' % test_spans.spans)
+        assert result.status_code == 403
+        assert result.content == b"XXX this should be the loaded 403 template"
+        # print('XXX result: %s' % result)
+        # print('XXX test_spans: %s' % test_spans.get_spans())
+        # root = test_spans.find_span(name="django.request")
+        # print('XXX tracer.current_span: %s' % tracer.current_span())
+        # print('XXX tracer.current_root_span: %s' % tracer.current_root_span())
+
+        # assert root.get_tag("actor.ip") == "8.8.4.4"
+        # assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))

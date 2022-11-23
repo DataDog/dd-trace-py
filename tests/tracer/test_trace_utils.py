@@ -526,62 +526,52 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
     mock_store_headers.assert_called()
 
 
-@mock.patch("ddtrace.contrib.trace_utils._store_headers")
+# XXX add test checking the expected tags for IP given appsec env and IP argument
+# XXX add test for the retrieval of the IP in set_http_meta if the framework didn't pass it
 @pytest.mark.parametrize(
-    "header_env_var,headers_dict,expected_keys,expected",
+    "header_env_var,headers_dict,expected",
     [
         (
             "",
             {"x-forwarded-for": "8.8.8.8"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
             "8.8.8.8",
         ),
         (
             "",
             {"x-forwarded-for": "8.8.8.8,127.0.0.1"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
             "8.8.8.8",
         ),
         (
             "",
             {"x-forwarded-for": "192.168.1.14,8.8.8.8,127.0.0.1"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
             "8.8.8.8",
         ),
         (
             "",
             {"x-forwarded-for": "192.168.1.14,127.0.0.1"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
             "192.168.1.14",
         ),
-        ("", {"x-forwarded-for": "foobar"}, ["runtime-id"], None),
-        ("via", {"x-forwarded-for": "4.4.8.8"}, ["runtime-id"], None),
-        ("via", {"via": "8.8.8.8"}, ["runtime-id", "network.client.ip", http.CLIENT_IP], "8.8.8.8"),
+        ("", {"x-forwarded-for": "foobar"}, ""),
+        ("via", {"x-forwarded-for": "4.4.8.8"}, ""),
+        ("via", {"via": "8.8.8.8"}, "8.8.8.8"),
         (
             "via",
             {"x-forwarded-for": "4.4.4.4", "via": "8.8.4.4"},
-            ["runtime-id", "network.client.ip", http.CLIENT_IP],
             "8.8.4.4",
         ),
     ],
 )
-def test_set_http_meta_headers_ip(
-    mock_store_headers, header_env_var, headers_dict, expected_keys, expected, span, int_config
+def test_get_request_header_ip(
+    header_env_var, headers_dict, expected, span
 ):
-    with override_global_config(dict(_appsec_enabled=True)):
-        with override_env(dict(DD_TRACE_CLIENT_IP_HEADER=header_env_var)):
-            int_config.myint.http._header_tags = {"enabled": True}
-            assert int_config.myint.is_header_tracing_configured is True
-            trace_utils.set_http_meta(
-                span,
-                int_config.myint,
-                request_headers=headers_dict,
-            )
-            result_keys = list(span.get_tags().keys())
-            result_keys.sort(reverse=True)
-            assert result_keys == expected_keys
-            assert span.get_tag(http.CLIENT_IP) == expected
-            mock_store_headers.assert_called()
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER=header_env_var)):
+        ip = trace_utils._get_request_header_client_ip(
+            span,
+            headers_dict,
+            None,
+            False
+        )
+        assert ip == expected
 
 
 def test_ip_subnet_regression():

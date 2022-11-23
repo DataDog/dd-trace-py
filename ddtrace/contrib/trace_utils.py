@@ -483,10 +483,22 @@ def set_http_meta(
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled:
-            ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
-            if ip:
-                span.set_tag_str(http.CLIENT_IP, ip)
-                span.set_tag_str("network.client.ip", ip)
+            client_ip_saved = False
+
+            if not peer_ip:
+                # Should have been saved on patch, but if not try to retrieve it
+                # for isolated testing and frameworks where IP blocking is not implemented
+                peer_ip = span.get_tag(http.CLIENT_IP)
+                client_ip_saved = peer_ip is not None
+
+                if not peer_ip:
+                    peer_ip = _get_request_header_client_ip(span, request_headers, peer_ip,
+                                                            headers_are_case_sensitive)
+
+            if peer_ip:
+                if not client_ip_saved:
+                    span.set_tag_str(http.CLIENT_IP, peer_ip)
+                span.set_tag_str("network.client.ip", peer_ip)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
@@ -516,7 +528,7 @@ def set_http_meta(
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
                     ("http.request.body", request_body),
-                    ("http.request.remote_ip", ip),
+                    ("http.request.remote_ip", peer_ip),
                 ]
                 if v is not None
             },

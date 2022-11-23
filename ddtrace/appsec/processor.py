@@ -105,6 +105,7 @@ class _Addresses(object):
     SERVER_REQUEST_METHOD = "server.request.method"
     SERVER_REQUEST_PATH_PARAMS = "server.request.path_params"
     SERVER_REQUEST_COOKIES = "server.request.cookies"
+    HTTP_CLIENT_IP = "http.client_ip"
     SERVER_RESPONSE_STATUS = "server.response.status"
     SERVER_RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
 
@@ -313,10 +314,17 @@ class AppSecSpanProcessor(SpanProcessor):
 
             if _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES in data:
                 _set_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES], kind="response")
+
+            if not blocked_request:
+                # Partial DDAS-011-00
+                log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
+                span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (ddwaf_result.data,))
+            else:
+                span.set_tag_str(APPSEC_JSON, _context.get_item("http.request.waf_json"))
+                span.set_tag("appsec.blocked", True)
+
             # Partial DDAS-011-00
-            log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
             span.set_tag_str("appsec.event", "true")
-            span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (ddwaf_result.data,))
 
             remote_ip = _context.get_item("http.request.remote_ip", span=span)
             if remote_ip:
