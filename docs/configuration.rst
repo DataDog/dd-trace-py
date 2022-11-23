@@ -202,7 +202,8 @@ below:
 
          **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","name":"flask.request"}]'``
 
-         **Note** this feature was added in dd-trace-py version 1.4.0.
+     version_added:
+       v1.4.0:
 
    DD_TRACE_HEADER_TAGS:
      description: |
