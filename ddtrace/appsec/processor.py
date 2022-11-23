@@ -11,8 +11,8 @@ from typing import Union
 import attr
 from six import ensure_binary
 
-from ddtrace.appsec._ddwaf import DDWaf
-from ddtrace.appsec._ddwaf import version
+from ddtrace.appsec.ddwaf import DDWaf
+from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
 from ddtrace.constants import APPSEC_EVENT_RULE_ERRORS
 from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
@@ -105,6 +105,7 @@ class _Addresses(object):
     SERVER_REQUEST_METHOD = "server.request.method"
     SERVER_REQUEST_PATH_PARAMS = "server.request.path_params"
     SERVER_REQUEST_COOKIES = "server.request.cookies"
+    HTTP_CLIENT_IP = "http.client_ip"
     SERVER_RESPONSE_STATUS = "server.response.status"
     SERVER_RESPONSE_HEADERS_NO_COOKIES = "server.response.headers.no_cookies"
 
@@ -153,7 +154,6 @@ def _get_waf_timeout():
 
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-
     rules = attr.ib(type=str, factory=get_rules)
     obfuscation_parameter_key_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_key_regexp)
     obfuscation_parameter_value_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_value_regexp)
@@ -170,6 +170,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: () -> None
         if self._ddwaf is None:
             try:
+                print('XXX AppsecSpanProcessor, self.rules: %s' % self.rules)
                 with open(self.rules, "r") as f:
                     rules = json.load(f)
             except EnvironmentError as err:
@@ -216,9 +217,13 @@ class AppSecSpanProcessor(SpanProcessor):
     def _is_needed(self, address):
         # type: (str) -> bool
         return address in self._addresses_to_keep
+    
+    def _run_ddwaf(self, data):
+        return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
 
     def on_span_finish(self, span):
         # type: (Span) -> None
+        print('XXX appsec processor on_span_finish!')
         if span.span_type != SpanTypes.WEB:
             return
         span.set_metric(APPSEC_ENABLED, 1.0)
@@ -270,25 +275,41 @@ class AppSecSpanProcessor(SpanProcessor):
             if body is not None:
                 data[_Addresses.SERVER_REQUEST_BODY] = body
 
+        if self._is_needed(_Addresses.HTTP_CLIENT_IP):
+            remote_ip = _context.get_item("http.request.remote_ip", span=span)
+            if remote_ip:
+                data[_Addresses.HTTP_CLIENT_IP] = remote_ip
+
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        res, total_runtime, total_overall_runtime = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        blocked_request = _context.get_item("http.request.blocked")
+        if not blocked_request:
+            res, total_runtime, total_overall_runtime = self._run_ddwaf(data)
+        else:
+            # Blocked requests call ddwaf earlier so we already have the data
+            total_runtime = _context.get_item("http.request.waf_duration")
+            total_overall_runtime = _context.get_item("http.request.waf_duration_ext")
+            res = None
 
         try:
             info = self._ddwaf.info
             if info["errors"]:
                 span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info["errors"]))
             span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info["version"])
-            span.set_tag_str(APPSEC_WAF_VERSION, "%s.%s.%s" % version())
+            span.set_tag_str(APPSEC_WAF_VERSION, version())
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info["loaded"])
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info["failed"])
-            span.set_metric(APPSEC_WAF_DURATION, total_runtime)
-            span.set_metric(APPSEC_WAF_DURATION_EXT, total_overall_runtime)
+            if not blocked_request:
+                span.set_metric(APPSEC_WAF_DURATION, total_runtime)
+                span.set_metric(APPSEC_WAF_DURATION_EXT, total_overall_runtime)
         except (json.decoder.JSONDecodeError, ValueError):
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
-        if res is not None:
+
+        print('XXX processor res: %s' % res)
+        print('XXX blocked request: %s' % blocked_request)
+        if res is not None or blocked_request:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
@@ -300,15 +321,23 @@ class AppSecSpanProcessor(SpanProcessor):
 
             if _Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES in data:
                 _set_headers(span, data[_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES], kind="response")
+
+            if not blocked_request:
+                log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
+                span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (res,))
+            else:
+                span.set_tag_str(APPSEC_JSON, _context.get_item("http.request.waf_json"))
+                span.set_tag("appsec.blocked", True)
+
             # Partial DDAS-011-00
-            log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span.set_tag_str("appsec.event", "true")
-            span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (res,))
 
             remote_ip = _context.get_item("http.request.remote_ip", span=span)
+            print('XXX processor::remote_ip: %s' % remote_ip)
             if remote_ip:
                 # Note that if the ip collection is disabled by the env var
                 # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
+                print("XXX setting tag actor.ip to %s" % remote_ip)
                 span.set_tag_str("actor.ip", remote_ip)
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
@@ -316,3 +345,5 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
                 span.set_tag_str(ORIGIN_KEY, APPSEC_ORIGIN_VALUE)
+
+        print('XXX span in on_span_finish: %s' % span)

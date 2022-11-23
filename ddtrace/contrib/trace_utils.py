@@ -413,6 +413,8 @@ def set_http_meta(
     :param request_path_params: the parameters of the HTTP URL as set by the framework: /posts/<id:int> would give us
          { "id": <int_value> }
     """
+
+    print('XXX peer_ip in trace_utils.set_http_meta: %s' % peer_ip)
     if method is not None:
         span.set_tag_str(http.METHOD, method)
 
@@ -441,7 +443,7 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span.set_tag_str(http.QUERY_STRING, query)
 
-    ip = None
+    print('XXX request_headers: %s' % request_headers)
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
@@ -450,10 +452,22 @@ def set_http_meta(
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled:
-            ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
-            if ip:
-                span.set_tag(http.CLIENT_IP, ip)
-                span.set_tag("network.client.ip", ip)
+            client_ip_saved = False
+
+            if not peer_ip:
+                # Should have been saved on patch, but if not try to retrieve it
+                # for isolated testing and frameworks where IP blocking is not implemented
+                peer_ip = span.get_tag(http.CLIENT_IP)
+                client_ip_saved = peer_ip is not None
+
+                if not peer_ip:
+                    peer_ip = _get_request_header_client_ip(span, request_headers, peer_ip,
+                                                            headers_are_case_sensitive)
+
+            if peer_ip:
+                if not client_ip_saved:
+                    span.set_tag(http.CLIENT_IP, peer_ip)
+                span.set_tag("network.client.ip", peer_ip)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
@@ -468,6 +482,7 @@ def set_http_meta(
         span.set_tag_str(http.RETRIES_REMAIN, str(retries_remain))
 
     if config._appsec_enabled:
+        print('XXX in trace_utils, setting stuff')
         status_code = str(status_code) if status_code is not None else None
 
         _context.set_items(
@@ -483,7 +498,7 @@ def set_http_meta(
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
                     ("http.request.body", request_body),
-                    ("http.request.remote_ip", ip),
+                    ("http.request.remote_ip", peer_ip),
                 ]
                 if v is not None
             },
