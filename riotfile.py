@@ -344,10 +344,9 @@ venv = Venv(
                 Venv(
                     pys=select_pys(),
                     pkgs={
-                        "msgpack": latest("msgpack"),
-                        "attrs": ["==20.1.0", latest("attrs")],
-                        "packaging": ["==17.1", latest("packaging")],
-                        "structlog": latest("structlog"),
+                        "msgpack": latest,
+                        "attrs": ["==20.1.0", latest],
+                        "structlog": latest,
                         # httpretty v1.0 drops python 2.7 support
                         "httpretty": "==0.9.7",
                     },
@@ -436,6 +435,7 @@ venv = Venv(
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest("gevent"),
+                "packaging": ["==17.1", latest("packaging")],
             },
             env={
                 "DD_REMOTE_CONFIGURATION_ENABLED": "false",
