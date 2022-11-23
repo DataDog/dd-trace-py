@@ -127,6 +127,8 @@ Configuration
 .. py:data:: ddtrace.config.django['include_user_name']
 
    Whether or not to include the authenticated user's username as a tag on the root request span.
+   
+   Can also configured via the ``DD_DJANGO_INCLUDE_USER_NAME`` environment variable.
 
    Default: ``True``
 
