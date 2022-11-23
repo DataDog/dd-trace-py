@@ -137,16 +137,17 @@ class Context(object):
         tp = self._meta.get(_TRACEPARENT_KEY)
         if tp:
             # grab the original traceparent trace id, not the converted value
-            trace_id = int(tp.split("-")[1])
+            trace_id = tp.split("-")[1]
         else:
-            trace_id = self.trace_id
+            trace_id = "{:032x}".format(self.trace_id)
 
         sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
-        return "00-{:032x}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
+        return "00-{}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
 
     @property
     def _tracestate(self):
         # type: () -> str
+        import pdb; pdb.set_trace()
         dd = ""
         if self.sampling_priority:
             dd += "s:{};".format(self.sampling_priority)
@@ -160,7 +161,7 @@ class Context(object):
             dd += "t.usr.id:{};".format(self._meta.get(USER_ID_KEY))
 
         # grab all other _dd.p values out of meta since we need to propagate all of them
-        for k, v in self._meta:
+        for k, v in self._meta.items():
             if isinstance(k, str) and k.startswith("_dd.p") and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]:
                 # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
                 # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E

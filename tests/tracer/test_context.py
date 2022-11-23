@@ -93,3 +93,44 @@ def test_context_serializable(context):
     state = pickle.dumps(context)
     restored = pickle.loads(state)
     assert context == restored
+
+
+@pytest.mark.parametrize(
+    "context,expected_traceparent",
+    [
+        (Context(trace_id=11803532876627986230,span_id=67667974448284343,sampling_priority=1, traceparent="00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" ),
+        (Context(trace_id=11803532876627986230,span_id=67667974448284343,sampling_priority=0, traceparent="00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00" ),
+        (Context(trace_id=11803532876627986230,span_id=67667974448284343,sampling_priority=2, traceparent="00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"),"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" ),
+        (Context(trace_id=11803532876627986230,span_id=67667974448284343,sampling_priority=-1, traceparent="00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00" ),
+        (Context(trace_id=11803532876627986230,span_id=67667974448284343,sampling_priority=-1, traceparent="00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"),"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00" ),
+
+        (Context(trace_id=11803532876627986230,span_id=67667974448284343,sampling_priority=1),"00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+        (Context(trace_id=123,span_id=123,sampling_priority=1),"00-0000000000000000000000000000007b-000000000000007b-01" ),
+        (Context(trace_id=11803532876627986230,span_id=67667974448284343,sampling_priority=-1),"00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-00" ),
+        (Context(trace_id=11803532876627986230,span_id=67667974448284343,sampling_priority=2),"00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01" ),
+
+
+        # (Context(trace_id=123, span_id=321)),
+        # (Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2)),
+        # (Context(trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556})),
+    ],
+)
+def test_traceparent(context, expected_traceparent):
+    # type: (Context,str) -> None
+    assert context._traceparent == expected_traceparent
+
+
+@pytest.mark.parametrize(
+    "context,expected_tracestate",
+    [
+        (Context(trace_id=11803532876627986230,span_id=67667974448284343,sampling_priority=1, meta = {"tracestate":"dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"}),"dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE" ),
+
+
+        # (Context(trace_id=123, span_id=321)),
+        # (Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2)),
+        # (Context(trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556})),
+    ],
+)
+def test_tracestate(context, expected_tracestate):
+    # type: (Context,str) -> None
+    assert context._tracestate == expected_tracestate

@@ -92,7 +92,7 @@ def _hex_id_to_dd_id(hex_id):
 
 def _dd_id_to_hex_id(dd_id):
     # type: (int) -> str
-    """Helper to convert Datadog trace/span int ids into B3 compatible hex ids"""
+    """Helper to convert Datadog trace/span int ids into hex ids"""
     # DEV: `hex(dd_id)` will give us `0xDEADBEEF`
     # DEV: this gives us lowercase hex, which is what we want
     return "{:x}".format(dd_id)
