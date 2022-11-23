@@ -202,7 +202,6 @@ below:
 
          **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","name":"flask.request"}]'``
 
-         **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
          **Note** this feature was added in dd-trace-py version 1.4.0.
 
    DD_TRACE_HEADER_TAGS:
