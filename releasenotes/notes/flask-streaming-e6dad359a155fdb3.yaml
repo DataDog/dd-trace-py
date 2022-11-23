@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    flask: add support for streamed responses
+    flask: Adds support for streamed responses by using a WSGI middleware. Note that additional WSGI spans, `flask.application` and `flask.response` will be generated.
