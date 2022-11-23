@@ -309,4 +309,46 @@ jobs:
           python -m pip install -U pip setuptools wheel
           python -m pip install -e .[test]
       - name: Run tests
+<<<<<<< HEAD
         run: ddtrace-run python setup.py test
+=======
+        # Disable tests checking GC references since profiling can interfere
+        run: ddtrace-run python -m pytest -k 'not test_record_gc and not test_record_get and not test_record_items and not test_record_iter' tests
+
+  pylons-testsuite-1_0_3:
+    name: Pylons 1.0.3
+    runs-on: "ubuntu-20.04"
+    # Ubuntu 20.04 is the last version of ubuntu on github setup actions to provide Python 2.7.
+    env:
+      DD_TESTING_RAISE: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: pylons
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '2.7'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: pylons/pylons
+          ref: master
+          path: pylons
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Install test dependencies
+        run: pip install -e .[test]
+      - name: Pin PasteDeploy to Python 2.7 compatible version
+        run: pip install pastedeploy==2.1.1
+      - name: MarkupSafe fix
+        run: pip install --upgrade MarkupSafe==0.18 pip setuptools --force
+      - name: Disable failing tests
+        run: |
+          sed -i'' "s/test_detect_lang/detect_lang/g" tests/test_units/test_basic_app.py
+          sed -i'' "s/test_langs/langs/g" tests/test_units/test_basic_app.py
+      - name: Run tests
+        run: nosetests
+>>>>>>> fdcefa9c (chore(framework/pylons): pin github actions ubuntu runner to 20.04 (#4619))
