@@ -74,6 +74,16 @@ class Profiler(object):
         if profile_children:
             forksafe.register(self._restart_on_fork)
 
+    def set_tags(self, tags):
+        print('[Amy:dd-trace-py:profiler.py:set_tags] successfully called set_tags in the Profiler')
+        print('[Amy:dd-trace-py:profiler.py:set_tags] received tags:', tags)
+        self._profiler.add_tags(tags)
+        print('[Amy:dd-trace-py:profiler.py:set_tags] profiler tags updated:', self._profiler.tags)
+
+    def increment_invocations(self):
+        print('[Amy:dd-trace-py:profiler.py:Profiler:increment_invocations] here')
+        self._profiler.increment_invocations()
+
     def stop(self, flush=True):
         """Stop the profiler.
 
@@ -140,6 +150,7 @@ class _ProfilerInstance(service.Service):
     _lambda_function_name = attr.ib(
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
+    _num_invocations = 0
 
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
@@ -174,7 +185,10 @@ class _ProfilerInstance(service.Service):
             endpoint_path = "profiling/v1/input"
 
         if self._lambda_function_name is not None:
-            self.tags.update({"functionname": self._lambda_function_name.encode("utf-8")})
+            self.add_tags({
+                "functionname": self._lambda_function_name,
+                "serverless": "lambda",
+            })
 
         return [
             http.PprofHTTPExporter(
@@ -224,7 +238,7 @@ class _ProfilerInstance(service.Service):
                 scheduler_class = scheduler.Scheduler
             else:
                 scheduler_class = scheduler.ServerlessScheduler
-            self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
+            self._scheduler = scheduler_class(recorder=r, exporters=exporters, profiler=self, before_flush=self._collectors_snapshot)
 
         self.set_asyncio_event_loop_policy()
 
@@ -252,6 +266,23 @@ class _ProfilerInstance(service.Service):
                 if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
             }
         )
+    
+    def add_tags(
+        self, tags  # type: dict
+    ):
+        tags = { name: value.encode("utf-8") for name, value in tags.items() }
+        self.tags.update(tags)
+
+    def increment_invocations(self):
+        print('[Amy:dd-trace-py:profiler.py:_ProfilerInstance:increment_invocations] here')
+        self._num_invocations += 1
+        print('[Amy:dd-trace-py:profiler.py:_ProfilerInstance:increment_invocations] num_invocations:', self._num_invocations)
+
+    def reset_num_invocations(self):
+        print('[Amy:dd-trace-py:profiler.py:_ProfilerInstance:reset_num_invocations] here')
+        self.add_tags({"serverless_function_calls": self._num_invocations})
+        self._num_invocations = 0
+        print('[Amy:dd-trace-py:profiler.py:_ProfilerInstance:reset_num_invocations] num_invocations:', self._num_invocations)
 
     def _start_service(self):
         # type: (...) -> None

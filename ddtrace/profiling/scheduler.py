@@ -19,6 +19,7 @@ class Scheduler(periodic.PeriodicService):
 
     recorder = attr.ib()
     exporters = attr.ib()
+    profiler = attr.ib()
     before_flush = attr.ib(default=None, eq=False)
     _interval = attr.ib(factory=attr_utils.from_env("DD_PROFILING_UPLOAD_INTERVAL", 60.0, float))
     _configured_interval = attr.ib(init=False)
@@ -45,6 +46,7 @@ class Scheduler(periodic.PeriodicService):
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
         if self.exporters:
+            self.profiler.reset_num_invocations()
             events = self.recorder.reset()
             start = self._last_export
             self._last_export = compat.time_ns()
