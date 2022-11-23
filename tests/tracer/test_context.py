@@ -96,9 +96,10 @@ def test_context_serializable(context):
 
 
 @pytest.mark.parametrize(
-    "context,expected_traceparent",
+    "name,context,expected_traceparent",
     [
         (
+            "basic_tp",
             Context(
                 trace_id=11803532876627986230,
                 span_id=67667974448284343,
@@ -108,6 +109,7 @@ def test_context_serializable(context):
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
         ),
         (
+            "sampling_priority_0_on_context_1_on_tp",
             Context(
                 trace_id=11803532876627986230,
                 span_id=67667974448284343,
@@ -117,6 +119,7 @@ def test_context_serializable(context):
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
         ),
         (
+            "sampling_priority_2_on_context_0_on_tp",
             Context(
                 trace_id=11803532876627986230,
                 span_id=67667974448284343,
@@ -126,6 +129,7 @@ def test_context_serializable(context):
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
         ),
         (
+            "sampling_priority_-1_on_context_1_on_tp",
             Context(
                 trace_id=11803532876627986230,
                 span_id=67667974448284343,
@@ -135,6 +139,7 @@ def test_context_serializable(context):
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
         ),
         (
+            "sampling_priority_-1_on_context_0_on_tp",
             Context(
                 trace_id=11803532876627986230,
                 span_id=67667974448284343,
@@ -144,48 +149,113 @@ def test_context_serializable(context):
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
         ),
         (
+            "no_tp_in_context",
             Context(trace_id=11803532876627986230, span_id=67667974448284343, sampling_priority=1),
             "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
         ),
         (
+            "shortened_trace_and_span_id",
             Context(trace_id=123, span_id=123, sampling_priority=1),
             "00-0000000000000000000000000000007b-000000000000007b-01",
         ),
         (
+            "no_tp_in_context_sampling_priority_-1",
             Context(trace_id=11803532876627986230, span_id=67667974448284343, sampling_priority=-1),
             "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-00",
         ),
         (
+            "no_tp_in_context_sampling_priority_2",
             Context(trace_id=11803532876627986230, span_id=67667974448284343, sampling_priority=2),
             "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
         ),
-        # (Context(trace_id=123, span_id=321)),
-        # (Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2)),
-        # (Context(trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556})),
     ],
 )
-def test_traceparent(context, expected_traceparent):
-    # type: (Context,str) -> None
+def test_traceparent(name, context, expected_traceparent):
+    # type: (str,Context,str) -> None
     assert context._traceparent == expected_traceparent
 
 
 @pytest.mark.parametrize(
-    "context,expected_tracestate",
+    "name,context,expected_tracestate",
     [
         (
+            "basic_ts_with_extra_listmember",
             Context(
                 trace_id=11803532876627986230,
                 span_id=67667974448284343,
                 sampling_priority=1,
-                meta={"tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE"},
+                meta={
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                    "_dd.p.dm": "-4",
+                    "_dd.p.usr.id": "baz64",
+                },
+                dd_origin="rum",
             ),
             "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
         ),
-        # (Context(trace_id=123, span_id=321)),
-        # (Context(trace_id=123, span_id=321, dd_origin="synthetics", sampling_priority=2)),
-        # (Context(trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556})),
+        (
+            "no_dd_list_member_in_meta_ts",
+            Context(
+                trace_id=11803532876627986230,
+                span_id=67667974448284343,
+                sampling_priority=1,
+                dd_origin="rum",
+                meta={"tracestate": "congo=t61rcWkgMzE"},
+            ),
+            "dd=s:1;o:rum,congo=t61rcWkgMzE",
+        ),
+        (
+            "multiple_additional_list_members_and_sampling_priority_override",
+            Context(
+                trace_id=11803532876627986230,
+                span_id=67667974448284343,
+                sampling_priority=2,
+                meta={
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,nr=ok,s=ink",
+                    "_dd.p.dm": "-4",
+                    "_dd.p.usr.id": "baz64",
+                },
+                dd_origin="synthetics",
+            ),
+            "dd=s:2;o:synthetics;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,nr=ok,s=ink",
+        ),
+        (
+            "negative sampling_priority",
+            Context(
+                trace_id=11803532876627986230,
+                span_id=67667974448284343,
+                sampling_priority=-1,
+                meta={
+                    "_dd.p.dm": "-4",
+                    "_dd.p.usr.id": "baz64",
+                },
+                dd_origin="synthetics",
+            ),
+            "dd=s:-1;o:synthetics;t.dm:-4;t.usr.id:baz64",
+        ),
+        (
+            "propagate_unknown_dd.p_values",
+            Context(
+                trace_id=11803532876627986230,
+                span_id=67667974448284343,
+                sampling_priority=1,
+                meta={
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                    "_dd.p.dm": "-4",
+                    "_dd.p.usr.id": "baz64",
+                    "_dd.p.unknown": "unk",
+                },
+                dd_origin="rum",
+            ),
+            "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64;t.unknown:unk,congo=t61rcWkgMzE",
+        ),
+        (
+            "no values",
+            Context(),
+            "",
+        ),
     ],
 )
-def test_tracestate(context, expected_tracestate):
-    # type: (Context,str) -> None
+def test_tracestate(name, context, expected_tracestate):
+    # type: (str,Context,str) -> None
     assert context._tracestate == expected_tracestate

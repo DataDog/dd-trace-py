@@ -147,16 +147,13 @@ class Context(object):
     @property
     def _tracestate(self):
         # type: () -> str
-        import pdb
-
-        pdb.set_trace()
         dd = ""
         if self.sampling_priority:
             dd += "s:{};".format(self.sampling_priority)
         if self.dd_origin:
             dd += "o:{};".format(self.dd_origin)
         if self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
-            # replace characters ",","=", and characters outside the ASCII range 0x20 to 0x7E
+            # replace characters ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             dd += "t.dm:{};".format(re.sub(r",|=|[^\x20-\x7E]+", "_", self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)))
         # since this can change, we need to grab the value off the current span
         if self._meta.get(USER_ID_KEY):
@@ -172,14 +169,16 @@ class Context(object):
                 )
                 if not (len(dd) + len(next_tag)) > 256:
                     dd += next_tag
-
+        # remove final ;
+        if dd:
+            dd = dd[:-1]
         # If there's a preexisting tracestate we need to update it
         ts = self._meta.get(_TRACESTATE_KEY)
         if ts and dd:
-            ts_w_out_dd = re.sub("dd=.*,", "", ts)
+            ts_w_out_dd = re.sub("dd=(.+?),", "", ts)
             ts = "dd={},{}".format(dd, ts_w_out_dd)
         elif dd:
-            ts = "dd={},".format(dd)
+            ts = "dd={}".format(dd)
         else:
             ts = ""
         return ts
