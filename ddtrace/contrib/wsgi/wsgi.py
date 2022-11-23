@@ -131,13 +131,13 @@ class _DDWSGIMiddlewareBase(object):
             result = self.app(environ, intercept_start_response)
             self._application_span_modifier(app_span, environ, result)
             app_span.finish()
-        except Exception:
+        except BaseException:
             req_span.set_exc_info(*sys.exc_info())
             app_span.set_exc_info(*sys.exc_info())
             app_span.finish()
             req_span.finish()
             raise
-
+        # start flask.response span. This span will be finished after iter(result) is closed.
         resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
         self._response_span_modifier(resp_span, result)
 
