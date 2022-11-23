@@ -150,11 +150,13 @@ class Context(object):
             dd += "s:{};".format(self.sampling_priority)
         if self.dd_origin:
             dd += "o:{};".format(self.dd_origin)
-        if self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+        sampling_decision = self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
+        if sampling_decision:
             # replace characters ",", "=", and characters outside the ASCII range 0x20 to 0x7E
-            dd += "t.dm:{};".format(re.sub(r",|=|[^\x20-\x7E]+", "_", self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)))
+            dd += "t.dm:{};".format(re.sub(r",|=|[^\x20-\x7E]+", "_", sampling_decision))
         # since this can change, we need to grab the value off the current span
-        if self._meta.get(USER_ID_KEY):
+        usr_id_key = self._meta.get(USER_ID_KEY)
+        if usr_id_key:
             dd += "t.usr.id:{};".format(self._meta.get(USER_ID_KEY))
 
         # grab all other _dd.p values out of meta since we need to propagate all of them
