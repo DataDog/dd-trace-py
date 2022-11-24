@@ -99,6 +99,7 @@ LATEST_VERSIONS = {
     "pynamodb": "5.3.2",
     "pyodbc": "4.0.35",
     "pyramid": "2.0",
+    "py": "1.1.0",
     "pytest": "7.2.0",
     "pytest-aiohttp": "1.0.4",
     "pytest-asyncio": "0.20.2",

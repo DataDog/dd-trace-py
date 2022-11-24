@@ -34,7 +34,7 @@ if "DD_USE_LATEST_VERSIONS" not in os.environ:
         LOGGER.warning("DD_USE_LATEST_VERSIONS not set and not in CircleCI")
     else:
         PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
-        LOGGER.warning(f"Set latest versions of packages: {PY_Latest}")
+        LOGGER.warning("Set latest versions of packages:", PY_Latest)
         os.environ["DD_USE_LATEST_VERSIONS"] = str(PY_Latest).lower()
 elif os.environ["DD_USE_LATEST_VERSIONS"].lower() == "true":
     LOGGER.warning("Use LATEST versions of packages")
@@ -2429,10 +2429,10 @@ venv = Venv(
 
 def update_venv(venv: Venv):
     def replace(package):
-        if PY_Latest:
+        if PY_Latest or "/" in package:
             return latest_riot
         else:
-            return "<=" + LATEST_VERSIONS[package]
+            return "<=" + LATEST_VERSIONS[package.split("[")[0]]
 
     def update_pkgs(d):
         for k, v in list(d.items()):
@@ -2450,4 +2450,4 @@ def update_venv(venv: Venv):
             update_venv(v)
 
 
-update_venv()
+update_venv(venv)
