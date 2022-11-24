@@ -1,12 +1,13 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "GET",
@@ -20,30 +21,33 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 27506
+      "process_id": 27506
     },
     "duration": 29211000,
     "start": 1646794505597988000
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 26278000,
        "start": 1646794505598411000
      }],
 [
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "GET",
@@ -57,30 +61,33 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 27506
+      "process_id": 27506
     },
     "duration": 3596000,
     "start": 1646794505627424000
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 70000,
        "start": 1646794505627940000
      }],
 [
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "GET",
@@ -94,18 +101,20 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 27506
+      "process_id": 27506
     },
     "duration": 3312000,
     "start": 1646794505631290000
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 2,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 136000,
        "start": 1646794505631851000
      }]]

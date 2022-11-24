@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.request",
-    "service": null,
+    "service": "",
     "resource": "http.request",
     "trace_id": 0,
     "span_id": 1,
@@ -22,7 +22,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 85259
+      "process_id": 85259
     },
     "duration": 5397000,
     "start": 1633032093706602000

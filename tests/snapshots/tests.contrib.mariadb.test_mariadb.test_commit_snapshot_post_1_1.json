@@ -6,6 +6,8 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "test",
@@ -19,7 +21,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 3306,
-      "system.pid": 9677
+      "process_id": 9677
     },
     "duration": 420500,
     "start": 1656521264458364000

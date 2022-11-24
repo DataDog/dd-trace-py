@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
@@ -19,7 +20,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67067
+      "process_id": 67067
     },
     "duration": 7712000,
     "start": 1632150771154656000
@@ -32,6 +33,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "job.id": "18f1134c-2010-438c-acd4-7943a99b8be6",
@@ -43,7 +45,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "system.pid": 67067
+         "process_id": 67067
        },
        "duration": 10394000,
        "start": 1632150771179817000
@@ -55,6 +57,8 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "job.id": "18f1134c-2010-438c-acd4-7943a99b8be6"
           },
