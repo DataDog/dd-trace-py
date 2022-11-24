@@ -1139,7 +1139,7 @@ requires_base_venvs: &requires_base_venvs
     - ccheck
     - build_base_venvs
 
-requires_base_venvs: &requires_wait
+requires_wait: &requires_wait
   requires:
     - wait_for_approval
 
