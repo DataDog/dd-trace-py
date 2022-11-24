@@ -45,7 +45,7 @@ def read_versions(time):
     new_versions = {}
     for package in LATEST_VERSIONS:
         lv, cdays, udays = latest_version([package])[package]
-        new_versions[package] = lv
+        new_versions[package] = lv, udays
         if lv != LATEST_VERSIONS[package]:
             print(f"{package[:24]:<24s} {LATEST_VERSIONS[package]:>12s} {cdays:4d} days ago")
             print(f"\x1B[91m >> update            to {lv:>12s} {udays:4d} days ago\x1B[0m")
@@ -58,7 +58,7 @@ def read_versions(time):
     return new_versions
 
 
-def update_versions(time):
+def update_versions(time, up_days):
     """
     Use versions retrieved in read_versions to update the file dependencies.py
     Use ONLY if the test_latest workflow is completely validated on the CI
@@ -68,8 +68,8 @@ def update_versions(time):
         print("# This file is updated by manage_depencies.py", file=dep_file)
         print("# Any new dependency can be added directly in this file\n", file=dep_file)
         print("LATEST_VERSIONS = {", file=dep_file)
-        for package, version in sorted(new_versions.items(), key=lambda s: s[0].lower()):
-            print(f'    "{package}": "{version}",', file=dep_file)
+        for package, (version, days) in sorted(new_versions.items(), key=lambda s: s[0].lower()):
+            print(f'    "{package}": "{version if days>= up_days else LATEST_VERSIONS[package]}",', file=dep_file)
         print("}", file=dep_file)
 
 
@@ -80,12 +80,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "-u",
         "--update",
-        action="store_true",
-        help="update dependencies.py. A proper commit is required after that action",
+        type=int,
+        help=(
+            "update dependencies.py older than DAYS days. A proper commit is required after that action. 0 will update"
+            " everything."
+        ),
+        default=3650,
     )
-    parser.add_argument("-t", "--time", type=int, help="minimum time to show a package as frozen", default=3 * 365)
+    parser.add_argument(
+        "-t", "--time", type=int, help="minimum time to show a package as frozen", default=3 * 365, metavar="DAYS"
+    )
     args = parser.parse_args()
     if args.update:
-        update_versions(args.time)
+        update_versions(args.time, args.update)
     else:
         read_versions(args.time)

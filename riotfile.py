@@ -17,6 +17,7 @@ latest = object()  # sentinel value
 
 
 def find_workflow(workflow_id):
+    """Use CircleCI API to retrieve current workflow name"""
     try:
         url = f"https://circleci.com/api/v2/workflow/{workflow_id}"
         res = urlopen(url)
@@ -27,20 +28,22 @@ def find_workflow(workflow_id):
         raise
 
 
+# Set up PY_Latest to True if the current workflow is test_latest
 PY_Latest = False
-
 if "CIRCLE_WORKFLOW_ID" not in os.environ:
     logger.warning("not in CircleCI. Use fixed dependencies versions.")
 else:
     PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
     logger.info("Set latest versions of packages: %s", ["FIXED", "LATEST"][PY_Latest])
 
-try:
-    sys.path.append(".")
-    from dependencies import LATEST_VERSIONS
-except ModuleNotFoundError:
-    print("missing dependencies.py", file=sys.stderr)
-    raise
+# Import fixed version if needed
+if not PY_Latest:
+    try:
+        sys.path.append(".")
+        from dependencies import LATEST_VERSIONS
+    except ModuleNotFoundError:
+        logger.error("missing dependencies.py")
+        raise
 
 
 SUPPORTED_PYTHON_VERSIONS = [
@@ -2421,8 +2424,13 @@ venv = Venv(
 
 
 def update_venv(venv: Venv):
+    """Recursively update the venvs by replacing the sentinel object 'latest' with either
+    - constant latest from riot package if PY_Latest
+    - fixed version string from local package dependencies
+    """
+
     def replace(package):
-        if PY_Latest or "/" in package:
+        if PY_Latest or "/" in package:  # local package are always using latest
             return latest_riot
         else:
             return "<=" + LATEST_VERSIONS[package.split("[")[0]]
