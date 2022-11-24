@@ -12,7 +12,7 @@ from riot import Venv
 from riot import latest as latest_riot
 
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 latest = object()  # sentinel value
 
 
@@ -23,24 +23,17 @@ def find_workflow(workflow_id):
         body = res.read().decode()
         return json.loads(body)["name"]
     except HTTPError:
-        LOGGER.error("Error loading workflow information from the CircleC: %s", url)
+        logger.error("Error loading workflow information from the CircleC: %s", url)
         raise
 
 
 PY_Latest = False
 
-if "DD_USE_LATEST_VERSIONS" not in os.environ:
-    if "CIRCLE_WORKFLOW_ID" not in os.environ:
-        LOGGER.warning("DD_USE_LATEST_VERSIONS not set and not in CircleCI")
-    else:
-        PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
-        LOGGER.warning("Set latest versions of packages: %s", str(PY_Latest))
-        os.environ["DD_USE_LATEST_VERSIONS"] = str(PY_Latest).lower()
-elif os.environ["DD_USE_LATEST_VERSIONS"].lower() == "true":
-    LOGGER.warning("Use LATEST versions of packages")
-    PY_Latest = True
+if "CIRCLE_WORKFLOW_ID" not in os.environ:
+    logger.warning("not in CircleCI. Use fixed dependencies versions.")
 else:
-    LOGGER.warning("Use regular fixed versions of packages")
+    PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
+    logger.info("Set latest versions of packages: %s", ["FIXED", "LATEST"][PY_Latest])
 
 try:
     sys.path.append(".")
