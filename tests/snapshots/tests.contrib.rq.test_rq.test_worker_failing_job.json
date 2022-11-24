@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
@@ -19,7 +20,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67067
+      "process_id": 67067
     },
     "duration": 3958000,
     "start": 1632150771256100000
@@ -44,7 +45,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "system.pid": 67067
+         "process_id": 67067
        },
        "duration": 8098000,
        "start": 1632150771275814000
@@ -56,6 +57,7 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
           "error": 1,
           "meta": {
             "error.msg": "error",

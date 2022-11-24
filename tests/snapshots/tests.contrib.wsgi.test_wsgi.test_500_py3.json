@@ -22,7 +22,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 55611
+      "process_id": 55611
     },
     "duration": 273000,
     "start": 1631829206158689000
@@ -34,6 +34,7 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
        "error": 1,
        "meta": {
          "error.msg": "Oops!",
