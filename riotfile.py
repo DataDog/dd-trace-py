@@ -2,16 +2,18 @@
 import json
 import logging
 import os
+import sys
 from typing import List
 from typing import Tuple
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
 from riot import Venv
-from riot import latest
+from riot import latest as latest_riot
 
 
 LOGGER = logging.getLogger(__name__)
+latest = object()  # sentinel value
 
 
 def find_workflow(workflow_id):
@@ -32,13 +34,20 @@ if "DD_USE_LATEST_VERSIONS" not in os.environ:
         LOGGER.warning("DD_USE_LATEST_VERSIONS not set and not in CircleCI")
     else:
         PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
-        LOGGER.warning("Set latest versions of packages: {PY_Latest}")
+        LOGGER.warning(f"Set latest versions of packages: {PY_Latest}")
         os.environ["DD_USE_LATEST_VERSIONS"] = str(PY_Latest).lower()
 elif os.environ["DD_USE_LATEST_VERSIONS"].lower() == "true":
     LOGGER.warning("Use LATEST versions of packages")
     PY_Latest = True
 else:
     LOGGER.warning("Use regular fixed versions of packages")
+
+try:
+    sys.path.append(".")
+    from dependencies import LATEST_VERSIONS
+except ModuleNotFoundError:
+    print("missing dependencies.py", file=sys.stderr)
+    raise
 
 
 SUPPORTED_PYTHON_VERSIONS = [
@@ -2416,3 +2425,29 @@ venv = Venv(
         ),
     ],
 )
+
+
+def update_venv(venv: Venv):
+    def replace(package):
+        if PY_Latest:
+            return latest_riot
+        else:
+            return "<=" + LATEST_VERSIONS[package]
+
+    def update_pkgs(d):
+        for k, v in list(d.items()):
+            if v is latest:
+                d[k] = replace(k)
+            elif isinstance(v, list):
+                for i, e in enumerate(v):
+                    if e is latest:
+                        v[i] = replace(k)
+
+    if hasattr(venv, "pkgs"):
+        update_pkgs(venv.pkgs)
+    if hasattr(venv, "venvs"):
+        for v in venv.venvs:
+            update_venv(v)
+
+
+update_venv()
