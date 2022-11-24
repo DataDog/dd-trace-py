@@ -1,18 +1,38 @@
 # type: ignore
+import json
 import logging
 import os
 from typing import List
 from typing import Tuple
+from urllib.error import HTTPError
+from urllib.request import urlopen
 
 from riot import Venv
 from riot import latest
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def find_workflow(id):
+    try:
+        res = urlopen("https://circleci.com/api/v2/workflow/{id}")
+        body = res.read().decode()
+        return json.loads(body)["name"]
+    except HTTPError:
+        LOGGER.error("Error loading workflow information from the CircleCI")
+        raise
+
+
 PY_Latest = False
 
 if "DD_USE_LATEST_VERSIONS" not in os.environ:
-    LOGGER.warning("DD_USE_LATEST_VERSIONS not set.")
+    if "CIRCLE_WORKFLOW_ID" not in os.environ:
+        LOGGER.warning("DD_USE_LATEST_VERSIONS not set and not in CircleCI")
+    else:
+        PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
+        LOGGER.warning("Set latest versions of packages: {PY_Latest}")
+        os.environ["DD_USE_LATEST_VERSIONS"] = str(PY_Latest).lower()
 elif os.environ["DD_USE_LATEST_VERSIONS"].lower() == "true":
     LOGGER.warning("Use LATEST versions of packages")
     PY_Latest = True
