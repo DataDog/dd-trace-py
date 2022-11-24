@@ -14,13 +14,14 @@ from riot import latest
 LOGGER = logging.getLogger(__name__)
 
 
-def find_workflow(id):
+def find_workflow(workflow_id):
     try:
-        res = urlopen("https://circleci.com/api/v2/workflow/{id}")
+        url = f"https://circleci.com/api/v2/workflow/{workflow_id}"
+        res = urlopen(url)
         body = res.read().decode()
         return json.loads(body)["name"]
     except HTTPError:
-        LOGGER.error("Error loading workflow information from the CircleCI")
+        LOGGER.error("Error loading workflow information from the CircleC", url)
         raise
 
 
