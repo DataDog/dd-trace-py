@@ -1220,7 +1220,7 @@ workflows:
   version: 2
   test: &workflow_test
     environment:
-      - DD_USE_LATEST_VERSIONS: false
+      - DD_USE_LATEST_VERSIONS=false
     jobs:
       # Pre-checking before running all jobs
       - pre_check
