@@ -6,29 +6,34 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
-import json
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
+import json
 import os
 import sys
 
 from django.core.exceptions import PermissionDenied
-from django.http import HttpResponse, HttpResponseForbidden
+from django.http import HttpResponse
+from django.http import HttpResponseForbidden
 from django.template import loader
 
-from ddtrace import Pin, tracer, constants
+from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import SPAN_MEASURED_KEY, APPSEC_JSON, APPSEC_WAF_DURATION, \
-    APPSEC_WAF_DURATION_EXT
+from ddtrace import constants
+from ddtrace import tracer
+from ddtrace.constants import APPSEC_JSON
+from ddtrace.constants import APPSEC_WAF_DURATION
+from ddtrace.constants import APPSEC_WAF_DURATION_EXT
+from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import sql as sqlx
+from ddtrace.internal import _context
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal import _context
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.vendor import wrapt
@@ -38,6 +43,7 @@ from .. import trace_utils
 from ...appsec.processor import _Addresses
 from ...internal.utils import get_argument_value
 from ...tracer import _start_appsec_processor
+
 
 log = get_logger(__name__)
 

@@ -17,8 +17,9 @@ from ddtrace.internal.processor import SpanProcessor
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.span import Span
     from typing import Any
+
+    from ddtrace.span import Span
 
 log = get_logger(__name__)
 

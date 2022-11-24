@@ -8,7 +8,8 @@ from django.core.wsgi import get_wsgi_application
 from ddtrace._monkey import patch_iast
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
-from ddtrace.ext import http, SpanTypes
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
@@ -394,26 +395,42 @@ def test_request_ipblock_nomatch_200(client, tracer):
         assert result.content == b"Hello, test app."
 
 
-# XXX check spans!
-# XXX check with not APPSEC_ENABLED
 def test_request_ipblock_match_403(client, test_spans, tracer):
-    print('XXX test_span.spans at the start: %s' % test_spans.spans)
-    with override_global_config(dict(_appsec_enabled=True)), \
-            override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
-            # tracer.trace("test", span_type=SpanTypes.WEB) as span:
+    with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+
         tracer._appsec_enabled = True
         # # Hack: need to pass an argument to configure so that the processors are recreated
         tracer.configure(api_version="v0.4")
 
         result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.4.4")
-        print('XXX test_span.spans after client.get: %s' % test_spans.spans)
         assert result.status_code == 403
-        assert result.content == b"XXX this should be the loaded 403 template"
-        # print('XXX result: %s' % result)
-        # print('XXX test_spans: %s' % test_spans.get_spans())
-        # root = test_spans.find_span(name="django.request")
-        # print('XXX tracer.current_span: %s' % tracer.current_span())
-        # print('XXX tracer.current_root_span: %s' % tracer.current_root_span())
-
-        # assert root.get_tag("actor.ip") == "8.8.4.4"
-        # assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert result.content == bytes(constants.APPSEC_IPBLOCK_403_DEFAULT, "utf-8")
+        root = test_spans.spans[0]
+        assert root.get_tag("actor.ip") == "8.8.4.4"
+        loaded = json.loads(root.get_tag(APPSEC_JSON))
+        assert loaded == {
+            "triggers": [
+                {
+                    "rule": {
+                        "id": "ip_match_rule",
+                        "name": "Block IP addresses",
+                        "tags": {"type": "ip_addresses", "category": "blocking"},
+                        "on_match": ["block"],
+                    },
+                    "rule_matches": [
+                        {
+                            "operator": "ip_match",
+                            "operator_value": "",
+                            "parameters": [
+                                {
+                                    "address": "http.client_ip",
+                                    "key_path": [],
+                                    "value": "8.8.4.4",
+                                    "highlight": ["8.8.4.4"],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ]
+        }

@@ -2,16 +2,17 @@ import errno
 import json
 import os
 import os.path
+from typing import Any
 from typing import List
 from typing import Set
 from typing import TYPE_CHECKING
 from typing import Tuple
 from typing import Union
-from typing import Any
 
 import attr
 from six import ensure_binary
 
+from ddtrace import config
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
@@ -34,7 +35,6 @@ from ddtrace.internal import _context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.processor import SpanProcessor
 from ddtrace.internal.rate_limiter import RateLimiter
-from ddtrace import config
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -214,14 +214,16 @@ class AppSecSpanProcessor(SpanProcessor):
         headers = kwargs.get("headers")
         headers_case_sensitive = bool(kwargs.get("headers_case_sensitive"))
 
-        _context.set_items({
-            "http.request.headers": headers,
-            "http.request.headers_case_sensitive": headers_case_sensitive,
-        }, span=span)
+        _context.set_items(
+            {
+                "http.request.headers": headers,
+                "http.request.headers_case_sensitive": headers_case_sensitive,
+            },
+            span=span,
+        )
 
         if config._appsec_enabled and peer_ip and headers:
-            ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip,
-                                                           headers_case_sensitive)
+            ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
             _context.set_item("http.request.remote_ip", ip, span=span)
             if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
@@ -231,15 +233,19 @@ class AppSecSpanProcessor(SpanProcessor):
                 if res:
                     res_dict = json.loads(res)
                     for r in res_dict:
-                        if r.get("rule", {}).get("id") == 'ip_match_rule' and \
-                                'block' in r.get("rule", {}).get("on_match", {}):
+                        if r.get("rule", {}).get("id") == "ip_match_rule" and "block" in r.get("rule", {}).get(
+                            "on_match", {}
+                        ):
                             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
-                            _context.set_items({
+                            _context.set_items(
+                                {
                                     "http.request.waf_json": '{"triggers":%s}' % (res,),
                                     "http.request.waf_duration": total_runtime,
                                     "http.request.waf_duration_ext": total_overall_runtime,
                                     "http.request.blocked": True,
-                            }, span=span)
+                                },
+                                span=span,
+                            )
 
     def _mark_needed(self, address):
         # type: (str) -> None

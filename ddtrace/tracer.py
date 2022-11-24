@@ -94,6 +94,7 @@ AnyCallable = TypeVar("AnyCallable", bound=Callable)
 def _start_appsec_processor():  # type: () -> Optional[AppsecSpanProcessor]
     try:
         from .appsec.processor import AppSecSpanProcessor
+
         return AppSecSpanProcessor()
     except Exception as e:
         # DDAS-001-01

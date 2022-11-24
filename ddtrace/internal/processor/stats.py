@@ -26,12 +26,12 @@ from ..writer import _human_size
 
 
 if typing.TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
     from typing import DefaultDict
     from typing import Dict
     from typing import List
     from typing import Optional
     from typing import Union
-    from typing import Any
 
     from ddtrace import Span
 

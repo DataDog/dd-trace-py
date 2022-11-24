@@ -1,11 +1,11 @@
 import abc
 from collections import defaultdict
 import threading
+from typing import Any
 from typing import DefaultDict
 from typing import Iterable
 from typing import List
 from typing import Optional
-from typing import Any
 
 import attr
 import six
