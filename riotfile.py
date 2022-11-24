@@ -34,7 +34,7 @@ if "DD_USE_LATEST_VERSIONS" not in os.environ:
         LOGGER.warning("DD_USE_LATEST_VERSIONS not set and not in CircleCI")
     else:
         PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
-        LOGGER.warning("Set latest versions of packages:", PY_Latest)
+        LOGGER.warning("Set latest versions of packages:", str(PY_Latest))
         os.environ["DD_USE_LATEST_VERSIONS"] = str(PY_Latest).lower()
 elif os.environ["DD_USE_LATEST_VERSIONS"].lower() == "true":
     LOGGER.warning("Use LATEST versions of packages")
