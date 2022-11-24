@@ -1,10 +1,17 @@
 import argparse
 from datetime import datetime
 import json
+import sys
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
-from dependencies import LATEST_VERSIONS
+
+try:
+    sys.path.extend(["."])
+    from dependencies import LATEST_VERSIONS
+except ModuleNotFoundError:
+    print("usage (from the root directory of the project):\npython scripts/manage_dependencies.py", file=sys.stderr)
+    sys.exit(-1)
 
 
 def latest_version(packages):
@@ -54,7 +61,7 @@ def read_versions(time):
         elif cdays > time:
             print(f"\x1B[104m{package[:24]:<24s} {LATEST_VERSIONS[package]:>12s} {cdays:4d} days ago\x1B[0m")
 
-    print("all packages scanned.")
+    print("all dependencies scanned.")
     return new_versions
 
 
@@ -71,6 +78,7 @@ def update_versions(time, up_days):
         for package, (version, days) in sorted(new_versions.items(), key=lambda s: s[0].lower()):
             print(f'    "{package}": "{version if days>= up_days else LATEST_VERSIONS[package]}",', file=dep_file)
         print("}", file=dep_file)
+    print("dependencies updated.")
 
 
 if __name__ == "__main__":
@@ -85,13 +93,13 @@ if __name__ == "__main__":
             "update dependencies.py older than DAYS days. A proper commit is required after that action. 0 will update"
             " everything."
         ),
-        default=3650,
+        default=0xFFFFFFFF,
     )
     parser.add_argument(
-        "-t", "--time", type=int, help="minimum time to show a package as frozen", default=3 * 365, metavar="DAYS"
+        "-t", "--time", type=int, help="minimum time to show a package as frozen", default=100 * 365, metavar="DAYS"
     )
     args = parser.parse_args()
-    if args.update:
+    if args.update < 0xFFFFFFFF:
         update_versions(args.time, args.update)
     else:
         read_versions(args.time)
