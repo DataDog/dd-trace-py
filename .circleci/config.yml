@@ -1120,13 +1120,6 @@ jobs:
              cp -r docs/_build/html/* /tmp/docs
       - store_artifacts:
           path: /tmp/docs
-  wait_for_approval:
-    # can't be empty
-    executor: python310
-    steps:
-      -run:
-        name: "Waiting for approval"
-        command: "echo Waiting for your approval"
 
 requires_pre_check: &requires_pre_check
   requires:
@@ -1138,10 +1131,6 @@ requires_base_venvs: &requires_base_venvs
     - pre_check
     - ccheck
     - build_base_venvs
-
-requires_wait: &requires_wait
-  requires:
-    - wait_for_approval
 
 requires_tests: &requires_tests
   requires:
@@ -1232,7 +1221,7 @@ workflows:
   test: &workflow_test
     environment:
       DD_USE_LATEST_VERSIONS: "false"
-    jobs: &test_jobs
+    jobs:
       # Pre-checking before running all jobs
       - pre_check
       - ccheck
@@ -1331,18 +1320,9 @@ workflows:
       - coverage_report: *requires_tests
 
   test_latest:
+    <<: *workflow_test
     environment:
       DD_USE_LATEST_VERSIONS: "true"
-    jobs:
-      - wait_for_approval: 
-          type: approval
-      # Pre-checking and building base venvs need to wait
-      - pre_check : *requires_wait
-      - ccheck : *requires_wait
-      - build_base_venvs : *requires_wait
-
-      - <<: *test_jobs
-
 
   test_nightly:
     <<: *workflow_test

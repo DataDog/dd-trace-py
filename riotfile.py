@@ -1,9 +1,23 @@
 # type: ignore
+import logging
+import os
 from typing import List
 from typing import Tuple
 
 from riot import Venv
 from riot import latest
+
+
+LOGGER = logging.getLogger(__name__)
+PY_Latest = False
+
+if "DD_USE_LATEST_VERSIONS" not in os.environ:
+    LOGGER.warning("DD_USE_LATEST_VERSIONS not set.")
+elif os.environ["DD_USE_LATEST_VERSIONS"].lower() == "true":
+    LOGGER.warning("Use LATEST versions of packages")
+    PY_Latest = True
+else:
+    LOGGER.warning("Use regular fixed versions of packages")
 
 
 SUPPORTED_PYTHON_VERSIONS = [
