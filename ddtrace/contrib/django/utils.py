@@ -369,6 +369,11 @@ def _after_request_tags(pin, span, request, response):
             #      urlconf changes at any point during the request
             _set_resolver_tags(pin, span, request)
 
+            request_headers = _context.get_item("http.request.headers", span=span)
+            if not request_headers:
+                # did not go through AppSecProcessor.on_span_start
+                request_headers = _get_request_headers(request)
+
             response_headers = dict(response.items()) if response else {}
             raw_uri = url
             if raw_uri and request.META.get("QUERY_STRING"):
@@ -383,7 +388,7 @@ def _after_request_tags(pin, span, request, response):
                 status_code=status,
                 query=request.META.get("QUERY_STRING", None),
                 parsed_query=request.GET,
-                request_headers=_context.get_item("http.request.headers", span=span),
+                request_headers=request_headers,
                 response_headers=response_headers,
                 request_cookies=request.COOKIES,
                 request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
