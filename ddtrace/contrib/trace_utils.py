@@ -158,15 +158,15 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
     """
-    for key_pattern in USER_AGENT_PATTERNS:
-        if not headers_are_case_sensitive:
-            user_agent = headers.get(key_pattern)
-        else:
-            user_agent = _get_header_value_case_insensitive(headers, key_pattern)
+    user_agent = None
 
-        if user_agent:
-            return user_agent
-    return ""
+    for key_pattern in USER_AGENT_PATTERNS:
+        if headers_are_case_sensitive or type(headers) == dict:
+            user_agent = _get_header_value_case_insensitive(headers, key_pattern)
+        else:
+            user_agent = headers.get(key_pattern)
+
+    return user_agent if user_agent else ""
 
 
 # Used to cache the last header used for the cache. From the same server/framework
@@ -436,8 +436,8 @@ def set_http_meta(
     :param url: the HTTP URL
     :param status_code: the HTTP status code
     :param status_msg: the HTTP status message
-    :param query: the HTTP query part of the URI as a string
-    :param parsed_query: the HTTP query part of the URI as parsed by the framework and forwarded to the user code
+    :param query: the HTTP query part of the_context.get_item("http.request.headers", span=span), URI as a string
+    :param parsed_query: the HTTP query part_context.get_item("http.request.headers", span=span), of the URI as parsed by the framework and forwarded to the user code
     :param request_headers: the HTTP request headers
     :param response_headers: the HTTP response headers
     :param raw_uri: the full raw HTTP URI (including ports and query)
@@ -476,7 +476,7 @@ def set_http_meta(
     if query is not None and integration_config.trace_query_string:
         span.set_tag_str(http.QUERY_STRING, query)
 
-    ip = None
+    request_ip = peer_ip
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
@@ -485,22 +485,16 @@ def set_http_meta(
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled:
-            client_ip_saved = False
+            # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+            request_ip = _context.get_item("http.request.remote_ip", span=span)
 
-            if not peer_ip:
-                # Should have been saved on patch, but if not try to retrieve it
-                # for isolated testing and frameworks where IP blocking is not implemented
-                peer_ip = span.get_tag(http.CLIENT_IP)
-                client_ip_saved = peer_ip is not None
+            if not request_ip:
+                # Not calculated: framework does not support IP blocking or testing env
+                request_ip = _get_request_header_client_ip(span, request_headers, peer_ip,
+                                                        headers_are_case_sensitive)
 
-                if not peer_ip:
-                    peer_ip = _get_request_header_client_ip(span, request_headers, peer_ip,
-                                                            headers_are_case_sensitive)
-
-            if peer_ip:
-                if not client_ip_saved:
-                    span.set_tag_str(http.CLIENT_IP, peer_ip)
-                span.set_tag_str("network.client.ip", peer_ip)
+            span.set_tag_str(http.CLIENT_IP, request_ip)
+            span.set_tag_str("network.client.ip", request_ip)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
@@ -530,7 +524,7 @@ def set_http_meta(
                     ("http.response.status", status_code),
                     ("http.request.path_params", request_path_params),
                     ("http.request.body", request_body),
-                    ("http.request.remote_ip", peer_ip),
+                    ("http.request.remote_ip", request_ip),
                 ]
                 if v is not None
             },

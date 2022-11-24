@@ -214,15 +214,16 @@ class AppSecSpanProcessor(SpanProcessor):
         headers = kwargs.get("headers")
         headers_case_sensitive = bool(kwargs.get("headers_case_sensitive"))
 
+        _context.set_items({
+            "http.request.headers": headers,
+            "http.request.headers_case_sensitive": headers_case_sensitive,
+        }, span=span)
+
         if config._appsec_enabled and peer_ip and headers:
             ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip,
                                                            headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
-            _context.set_items({
-                "http.request.remote_ip": ip,
-                "http.response.headers": headers,
-                "http.response.headers_case_sensitive": headers_case_sensitive,
-            }, span=span)
+            _context.set_item("http.request.remote_ip", ip, span=span)
             if ip and self._is_needed(_Addresses.HTTP_CLIENT_IP):
                 data = {_Addresses.HTTP_CLIENT_IP: ip}
                 res, total_runtime, total_overall_runtime = self._run_ddwaf(data)

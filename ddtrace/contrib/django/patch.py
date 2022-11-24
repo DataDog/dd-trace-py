@@ -357,7 +357,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
         response = None
 
-        if _context.get_item("http.request.blocked"):
+        if _context.get_item("http.request.blocked", span=span):
             func = HttpResponseForbidden
             args = []
             kwargs = {"content": constants.APPSEC_IPBLOCK_403_DEFAULT}

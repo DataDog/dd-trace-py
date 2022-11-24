@@ -4,6 +4,7 @@ import logging
 from flask import request
 import pytest
 
+from ddtrace import constants
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
@@ -253,3 +254,30 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse werkzeug request body" in self._caplog.text
+
+    def test_request_ipblock_match_403(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), \
+                override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4"})
+            print('XXX resp.text: %s' % resp.text)
+            assert resp.status_code == 403
+            assert resp.text == bytes(constants.APPSEC_IPBLOCK_403_DEFAULT, 'utf-8')
+
+            root = self.pop_spans()[0]
+            assert root.get_tag("actor.ip") == "8.8.4.4"
+            loaded = json.loads(root.get_tag(APPSEC_JSON))
+            assert loaded == {'triggers':
+                [
+                    {'rule': {'id': 'ip_match_rule', 'name': 'Block IP addresses',
+                              'tags': {'type': 'ip_addresses', 'category': 'blocking'},
+                              'on_match': ['block']}, 'rule_matches': [
+                        {'operator': 'ip_match', 'operator_value': '', 'parameters': [
+                            {'address': 'http.client_ip', 'key_path': [], 'value': '8.8.4.4',
+                             'highlight': ['8.8.4.4']}]}]}]}
