@@ -1,6 +1,6 @@
 import abc
-from typing import Optional
 from typing import Any
+from typing import Optional
 
 import attr
 import six
