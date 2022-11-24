@@ -20,6 +20,7 @@ if [[ "${CIRCLECI}" = "true" ]]; then
     docker-compose run \
                    -e CIRCLE_NODE_TOTAL \
                    -e CIRCLE_NODE_INDEX \
+                   -e CIRCLE_WORKFLOW_ID \
                    -e DD_TRACE_AGENT_URL \
                    --no-TTY \
                    --quiet-pull \

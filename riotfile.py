@@ -31,7 +31,10 @@ def find_workflow(workflow_id):
 # Set up PY_Latest to True if the current workflow is test_latest
 PY_Latest = False
 if "CIRCLE_WORKFLOW_ID" not in os.environ:
-    logger.warning("not in CircleCI. Use fixed dependencies versions.")
+    if "DD_USE_LATEST_VERSIONS" in os.environ:
+        PY_Latest = True
+    else:
+        logger.warning("not in CircleCI. Use fixed dependencies versions.")
 else:
     PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
     logger.info("Set latest versions of packages: %s", ["FIXED", "LATEST"][PY_Latest])
