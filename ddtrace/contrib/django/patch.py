@@ -338,7 +338,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         span_type=SpanTypes.WEB,
         peer_ip=request.META.get("REMOTE_ADDR"),
         headers=utils._get_request_headers(request),
-        headers_case_snsitive=django.VERSION < (2, 2),
+        headers_case_sensitive=django.VERSION < (2, 2),
     ) as span:
         utils._before_request_tags(pin, span, request)
         span._metrics[SPAN_MEASURED_KEY] = 1
@@ -355,7 +355,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
             return response
         finally:
             # DEV: Always set these tags, this is where `span.resource` is set
-            # XXX call these too even if blocked?
             utils._after_request_tags(pin, span, request, response)
 
 
