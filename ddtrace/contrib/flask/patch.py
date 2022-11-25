@@ -6,6 +6,8 @@ import werkzeug
 from werkzeug.exceptions import BadRequest
 import xmltodict
 
+from ...internal import _context
+
 
 # Not all versions of flask/werkzeug have this mixin
 try:
@@ -17,11 +19,13 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace import constants
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
 from ...constants import SPAN_MEASURED_KEY
+from ...contrib.wsgi.wsgi import IPBlockedException
 from ...contrib.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ...ext import SpanTypes
 from ...internal.compat import maybe_stringify
@@ -113,28 +117,14 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
             req_span, config.flask, status_code=code, response_headers=headers, route=req_span.get_tag(FLASK_URL_RULE)
         )
 
+        if config._appsec_enabled and _context.get_item("http.request.blocked", span=req_span):
+            request = flask.request
+            start_response(403, request.headers)
+            raise IPBlockedException(constants.APPSEC_IPBLOCK_403_DEFAULT, request)
+
         return start_response(status_code, headers)
 
-    def _request_span_modifier(self, span, environ):
-        # Create a werkzeug request from the `environ` to make interacting with it easier
-        # DEV: This executes before a request context is created
-        request = _RequestType(environ)
-
-        # Default resource is method and path:
-        #   GET /
-        #   POST /save
-        # We will override this below in `traced_dispatch_request` when we have a `
-        # RequestContext` and possibly a url rule
-        span.resource = u" ".join((request.method, request.path))
-
-        span.set_tag(SPAN_MEASURED_KEY)
-        # set analytics sample rate with global config enabled
-        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
-        if sample_rate is not None:
-            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
-
-        span.set_tag_str(FLASK_VERSION, flask_version_str)
-
+    def _extract_body(self, request, environ):
         req_body = None
         if config._appsec_enabled and request.method in _BODY_METHODS:
             content_type = request.content_type
@@ -185,6 +175,29 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
                         wsgi_input.seek(0)
                     else:
                         environ["wsgi.input"] = BytesIO(body)
+        return req_body
+
+    def _request_span_modifier(self, span, environ):
+        # Create a werkzeug request from the `environ` to make interacting with it easier
+        # DEV: This executes before a request context is created
+        request = _RequestType(environ)
+
+        # Default resource is method and path:
+        #   GET /
+        #   POST /save
+        # We will override this below in `traced_dispatch_request` when we have a `
+        # RequestContext` and possibly a url rule
+        span.resource = u" ".join((request.method, request.path))
+
+        span.set_tag(SPAN_MEASURED_KEY)
+        # set analytics sample rate with global config enabled
+        sample_rate = config.flask.get_analytics_sample_rate(use_global_config=True)
+        if sample_rate is not None:
+            span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
+
+        span.set_tag_str(FLASK_VERSION, flask_version_str)
+
+        req_body = self._extract_body(request, environ)
 
         trace_utils.set_http_meta(
             span,
@@ -560,9 +573,14 @@ def request_tracer(name):
         # This call may be unnecessary since we try to add the tags earlier
         # We just haven't been able to confirm this yet
         _set_request_tags(span)
+        request = flask.request
 
         with pin.tracer.trace(
-            ".".join(("flask", name)), service=trace_utils.int_service(pin, config.flask, pin)
+            ".".join(("flask", name)),
+            service=trace_utils.int_service(pin, config.flask, pin),
+            peer_ip=request.remote_addr,
+            headers=request.headers,
+            headers_case_sensitive=False,
         ) as request_span:
             # set component tag equal to name of integration
             request_span.set_tag_str("component", config.flask.integration_name)

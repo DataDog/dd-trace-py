@@ -288,7 +288,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 "triggers": [
                     {
                         "rule": {
-                            "id": "ip_match_rule",
+                            "id": "blk-001-001",
                             "name": "Block IP addresses",
                             "tags": {"type": "ip_addresses", "category": "blocking"},
                             "on_match": ["block"],

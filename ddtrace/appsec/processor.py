@@ -367,7 +367,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", ddwaf_result.data)
                 span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (ddwaf_result.data,))
             else:
-                span.set_tag(APPSEC_JSON, _context.get_item("http.request.waf_json"))
+                span.set_tag(APPSEC_JSON, _context.get_item("http.request.waf_json", span=span))
                 span.set_tag(APPSEC_JSON, _context.get_item("http.request.waf_json", span=span))
                 span.set_tag("appsec.blocked", True)
 
