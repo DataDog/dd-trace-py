@@ -202,3 +202,5 @@ cattrs
 IAST
 DES
 Blowfish
+hsa
+ba
