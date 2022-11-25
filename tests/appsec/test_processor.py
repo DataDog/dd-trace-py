@@ -15,6 +15,7 @@ from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import _context
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import snapshot
@@ -198,6 +199,87 @@ def test_appsec_body_no_collection_snapshot(tracer):
             )
 
         assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+
+
+def test_ip_block(tracer):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
+        _enable_appsec(tracer)
+        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.4.4", headers={}) as span:
+            set_http_meta(
+                span,
+                Config(),
+            )
+
+        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+        assert _context.get_item("http.request.blocked", span)
+        assert (
+            json.loads(_context.get_item("http.request.waf_json", span))["triggers"][0]["rule"]["id"] == "blk-001-001"
+        )
+
+
+def test_ip_not_block(tracer):
+    with override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)), override_global_config(dict(_appsec_enabled=True)):
+        _enable_appsec(tracer)
+        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.8.4", headers={}) as span:
+            set_http_meta(
+                span,
+                Config(),
+            )
+
+        assert _context.get_item("http.request.remote_ip", span) == "8.8.8.4"
+        assert _context.get_item("http.request.blocked", span) is None
+
+
+def test_ip_update_rules_and_block(tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        _enable_appsec(tracer)
+        tracer._appsec_processor.update_rules(
+            [
+                {
+                    "data": [
+                        {"value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        )
+        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.4.4", headers={}) as span:
+            set_http_meta(
+                span,
+                Config(),
+            )
+
+        assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+        assert _context.get_item("http.request.blocked", span)
+        assert (
+            json.loads(_context.get_item("http.request.waf_json", span))["triggers"][0]["rule"]["id"] == "blk-001-001"
+        )
+
+
+def test_ip_update_rules_expired_no_block(tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        _enable_appsec(tracer)
+        tracer._appsec_processor.update_rules(
+            [
+                {
+                    "data": [
+                        {"expiration": 1662804872, "value": "8.8.4.4"},
+                    ],
+                    "id": "blocked_ips",
+                    "type": "ip_with_expiration",
+                },
+            ]
+        )
+        with tracer.trace("test", span_type=SpanTypes.WEB, peer_ip="8.8.4.4", headers={}) as span:
+            set_http_meta(
+                span,
+                Config(),
+            )
+
+        assert _context.get_item("http.request.remote_ip", span) == "8.8.4.4"
+        assert _context.get_item("http.request.blocked", span) is None
 
 
 @snapshot(

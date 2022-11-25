@@ -177,11 +177,11 @@ venv = Venv(
             venvs=[
                 Venv(
                     name="codespell",
-                    command='codespell --skip="ddwaf.h" ddtrace/ tests/',
+                    command='codespell -I docs/spelling_wordlist.txt --skip="ddwaf.h" ddtrace/ tests/',
                 ),
                 Venv(
                     name="hook-codespell",
-                    command="codespell {cmdargs}",
+                    command='codespell -I docs/spelling_wordlist.txt --skip="ddwaf.h" ddtrace/ tests/ {cmdargs}',
                 ),
             ],
         ),

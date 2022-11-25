@@ -2,7 +2,7 @@
   "version": "2.1",
   "rules": [
     {
-      "id": "ip_match_rule",
+      "id": "blk-001-001",
       "name": "Block IP addresses",
       "tags": {
         "type": "ip_addresses",

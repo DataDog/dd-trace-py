@@ -208,10 +208,14 @@ class AppSecSpanProcessor(SpanProcessor):
         # we always need the response headers
         self._mark_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES)
 
+    def update_rules(self, new_rules):
+        # type: (List[Dict[str, Any]]) -> None
+        self._ddwaf.update_rules(new_rules)
+
     def on_span_start(self, span, *args, **kwargs):
         # type: (Span, Any, Any) -> None
         peer_ip = kwargs.get("peer_ip")
-        headers = kwargs.get("headers")
+        headers = kwargs.get("headers", {})
         headers_case_sensitive = bool(kwargs.get("headers_case_sensitive"))
 
         _context.set_items(
@@ -222,7 +226,7 @@ class AppSecSpanProcessor(SpanProcessor):
             span=span,
         )
 
-        if config._appsec_enabled and peer_ip and headers:
+        if config._appsec_enabled and (peer_ip or headers):
             ip = trace_utils._get_request_header_client_ip(span, headers, peer_ip, headers_case_sensitive)
             # Save the IP and headers in the context so the retrieval can be skipped later
             _context.set_item("http.request.remote_ip", ip, span=span)
@@ -233,7 +237,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 if res:
                     res_dict = json.loads(res)
                     for r in res_dict:
-                        if r.get("rule", {}).get("id") == "ip_match_rule" and "block" in r.get("rule", {}).get(
+                        if r.get("rule", {}).get("id") == "blk-001-001" and "block" in r.get("rule", {}).get(
                             "on_match", {}
                         ):
                             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)

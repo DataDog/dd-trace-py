@@ -8,16 +8,6 @@ import sys
 from threading import RLock
 from typing import TYPE_CHECKING
 
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import TypeVar
-from typing import Union
-from typing import Tuple
-
 from ddtrace import config
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -64,6 +54,17 @@ from .sampler import RateByServiceSampler
 from .sampler import RateSampler
 from .span import Span
 
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Callable
+    from typing import Dict
+    from typing import List
+    from typing import Optional
+    from typing import Set
+    from typing import TypeVar
+    from typing import Union
+    from typing import Tuple
+    from .appsec.processor import AppSecSpanProcessor
 
 log = get_logger(__name__)
 
@@ -94,9 +95,11 @@ _INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
-def _start_appsec_processor():  # type: () -> Optional[SpanProcessor]
+def _start_appsec_processor():
+    # type: () -> Optional[AppSecSpanProcessor]
     try:
         from .appsec.processor import AppSecSpanProcessor
+
         return AppSecSpanProcessor()
     except Exception as e:
         # DDAS-001-01
@@ -126,7 +129,7 @@ def _default_span_processors_factory(
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
 ):
-    # type: (...) -> Tuple[List[SpanProcessor], Optional[SpanProcessor]]
+    # type: (...) -> Tuple[List[SpanProcessor], Optional[AppSecSpanProcessor]]
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
