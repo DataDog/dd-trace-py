@@ -6,6 +6,8 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 
 
+ETERNITY = 0x7FFFFFFFFFFFFFFF
+
 try:
     sys.path.extend(["."])
     from dependencies import LATEST_VERSIONS
@@ -93,13 +95,13 @@ if __name__ == "__main__":
             "update dependencies.py older than DAYS days. A proper commit is required after that action. 0 will update"
             " everything."
         ),
-        default=0xFFFFFFFF,
+        default=ETERNITY,
     )
     parser.add_argument(
-        "-t", "--time", type=int, help="minimum time to show a package as frozen", default=100 * 365, metavar="DAYS"
+        "-t", "--time", type=int, help="minimum time to show a package as frozen", default=ETERNITY, metavar="DAYS"
     )
     args = parser.parse_args()
-    if args.update < 0xFFFFFFFF:
+    if args.update < ETERNITY:
         update_versions(args.time, args.update)
     else:
         read_versions(args.time)
