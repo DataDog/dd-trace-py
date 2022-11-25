@@ -42,6 +42,17 @@ config._add(
 )
 
 
+class BlockedException(Exception):
+    def __init__(self, message, request):
+        super(BlockedException, self).__init__(message)
+        self.code = 403
+        self.request = request
+
+
+class IPBlockedException(BlockedException):
+    pass
+
+
 class _TracedIterable(wrapt.ObjectProxy):
     def __init__(self, wrapped, span, parent_span):
         super(_TracedIterable, self).__init__(wrapped)
@@ -124,11 +135,14 @@ class _DDWSGIMiddlewareBase(object):
         self._request_span_modifier(req_span, environ)
 
         try:
-            app_span = self.tracer.trace(self._application_span_name)
-            intercept_start_response = functools.partial(
-                self._traced_start_response, start_response, req_span, app_span
-            )
-            result = self.app(environ, intercept_start_response)
+            app_span = self.tracer.start_span(self._application_span_name, child_of=req_span, activate=True)
+            try:
+                intercept_start_response = functools.partial(
+                    self._traced_start_response, start_response, req_span, app_span
+                )
+                result = self.app(environ, intercept_start_response)
+            except BlockedException as e:
+                result = str(e)
             self._application_span_modifier(app_span, environ, result)
             app_span.finish()
         except BaseException:

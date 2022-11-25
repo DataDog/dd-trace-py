@@ -2,14 +2,12 @@
 import json
 import logging
 
-from django.core.wsgi import get_wsgi_application
 import pytest
 
 from ddtrace import constants
 from ddtrace._monkey import patch_iast
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
-from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
@@ -388,7 +386,7 @@ def test_request_ipblock_match_403(client, test_spans, tracer):
             "triggers": [
                 {
                     "rule": {
-                        "id": "ip_match_rule",
+                        "id": "blk-001-001",
                         "name": "Block IP addresses",
                         "tags": {"type": "ip_addresses", "category": "blocking"},
                         "on_match": ["block"],
