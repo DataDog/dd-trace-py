@@ -6,6 +6,8 @@ from os import environ
 from os import getpid
 import sys
 from threading import RLock
+from typing import TYPE_CHECKING
+
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -95,7 +97,6 @@ AnyCallable = TypeVar("AnyCallable", bound=Callable)
 def _start_appsec_processor():  # type: () -> Optional[SpanProcessor]
     try:
         from .appsec.processor import AppSecSpanProcessor
-
         return AppSecSpanProcessor()
     except Exception as e:
         # DDAS-001-01
@@ -109,6 +110,8 @@ def _start_appsec_processor():  # type: () -> Optional[SpanProcessor]
         )
         if config._raise:
             raise
+    return None
+
     return None
 
 
@@ -825,7 +828,7 @@ class Tracer(object):
             parent2.finish()
         """
         return self.start_span(
-            name,
+            name=name,
             child_of=self.context_provider.active(),
             service=service,
             resource=resource,
