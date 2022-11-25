@@ -19,13 +19,20 @@ except ModuleNotFoundError:
 def latest_version(packages):
     """
     Connect to pypi.org and retrieve information about the last available version
-    and time elapsed since the last update
+    and time elapsed since the current and last release
     """
 
-    def get(package):
+    def get(package: str) -> tuple[str, int, int]:
+        """return
+        - the last version of a package
+        - days since release of the current fixed version
+        - days since releast of the last available version
+        """
         try:
             res = urlopen(f"https://pypi.org/pypi/{package}/json")
             j = json.loads(res.read().decode())
+            # j["info"]["version"] is officially the last published (larger) version of the package
+            # index 0 is to get the first published wheel in this particular version
             d = datetime.now() - datetime.strptime(
                 j["releases"][j["info"]["version"]][0]["upload_time"], "%Y-%m-%dT%H:%M:%S"
             )
