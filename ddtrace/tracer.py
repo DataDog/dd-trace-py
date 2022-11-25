@@ -14,6 +14,7 @@ from typing import Optional
 from typing import Set
 from typing import TypeVar
 from typing import Union
+from typing import Tuple
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
@@ -91,7 +92,7 @@ _INTERNAL_APPLICATION_SPAN_TYPES = {"custom", "template", "web", "worker"}
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
-def _start_appsec_processor():  # type: () -> Optional[AppsecSpanProcessor]
+def _start_appsec_processor():  # type: () -> Optional[SpanProcessor]
     try:
         from .appsec.processor import AppSecSpanProcessor
 
@@ -108,6 +109,7 @@ def _start_appsec_processor():  # type: () -> Optional[AppsecSpanProcessor]
         )
         if config._raise:
             raise
+    return None
 
 
 def _default_span_processors_factory(
@@ -121,7 +123,7 @@ def _default_span_processors_factory(
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
 ):
-    # type: (...) -> Tuple[List[SpanProcessor], Optional[AppsecSpanProcessor]]
+    # type: (...) -> Tuple[List[SpanProcessor], Optional[SpanProcessor]]
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
@@ -781,7 +783,7 @@ class Tracer(object):
             log.log(level, msg)
 
     def trace(self, name, service=None, resource=None, span_type=None, *args, **kwargs):
-        # type: (str, Optional[str], Optional[str], Optional[str]) -> Span
+        # type: (str, Optional[str], Optional[str], Optional[str], Any, Any) -> Span
         """Activate and return a new span that inherits from the current active span.
 
         :param str name: the name of the operation being traced
@@ -831,7 +833,7 @@ class Tracer(object):
             activate=True,
             *args,
             **kwargs
-        )
+        )  # type: ignore[misc]
 
     def current_root_span(self):
         # type: () -> Optional[Span]

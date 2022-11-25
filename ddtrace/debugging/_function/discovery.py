@@ -9,7 +9,7 @@ from ddtrace.vendor.wrapt.wrappers import FunctionWrapper
 try:
     from collections.abc import Iterator
 except ImportError:
-    from collections import Iterator  # type: ignore[attr-defined,no-redef]
+    from collections import Iterator
 
 try:
     from typing import Protocol
