@@ -9,7 +9,7 @@ from ddtrace.context import Context
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
-from ddtrace.internal.constants import PROPAGATION_STYLE_TRACECONTEXT
+from ddtrace.internal.constants import PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
@@ -431,14 +431,14 @@ def test_tracecontext_decide_sampling_priority(
             {_HTTP_HEADER_TRACEPARENT: "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
             # tp, trace_id, span_id, sampling_priority
             ("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", 11803532876627986230, 67667974448284343, 1),
-            ["unsupported traceparent version:01 . Will still attempt to parse."],
+            ["unsupported traceparent version:'01', still attempting to parse"],
         ),
         (
             "short_version",
             {_HTTP_HEADER_TRACEPARENT: "0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
             # tp, trace_id, span_id, sampling_priority
             ("0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", 11803532876627986230, 67667974448284343, 1),
-            ["unsupported traceparent version:0 . Will still attempt to parse."],
+            ["unsupported traceparent version:'0', still attempting to parse"],
         ),
         (
             "short_trace_id",
@@ -614,7 +614,7 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
 )
 def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_logging):
     with caplog.at_level(logging.DEBUG):
-        tracestate_values = _TraceContext._get_tracestate_values(ts_string)
+        tracestate_values = _TraceContext._get_tracestate_values(ts_string, {})
         assert tracestate_values == expected_tuple
         if caplog.text:
             for expected_log in expected_logging:
@@ -686,7 +686,7 @@ def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_lo
     ],
 )
 def test_extract_tracecontext(name, headers, expected_context):
-    overrides = {"_propagation_style_extract": [PROPAGATION_STYLE_TRACECONTEXT]}
+    overrides = {"_propagation_style_extract": [PROPAGATION_STYLE_W3C_TRACECONTEXT]}
     with override_global_config(overrides):
         context = HTTPPropagator.extract(headers)
         assert context == Context(**expected_context)
@@ -803,7 +803,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_tracecontext_simple",
-        [PROPAGATION_STYLE_TRACECONTEXT],
+        [PROPAGATION_STYLE_W3C_TRACECONTEXT],
         TRACECONTEXT_HEADERS_VALID_BASIC,
         {
             "trace_id": 11803532876627986230,
@@ -1226,7 +1226,7 @@ else:
     overrides = {}
     # we skip context verification for tracecontext propagation style since it adds values to meta which
     # this testing style cannot account for. Tracecontext propagation style context values are tested separately.
-    if styles is not None and PROPAGATION_STYLE_TRACECONTEXT not in styles:
+    if styles is not None and PROPAGATION_STYLE_W3C_TRACECONTEXT not in styles:
         overrides["_propagation_style_extract"] = styles
         with override_global_config(overrides):
             context = HTTPPropagator.extract(headers)
