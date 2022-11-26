@@ -576,7 +576,7 @@ class _TraceContext:
                 # there's currently only one trace flag, which denotes sampling priority
                 # was set to keep "01" or drop "00"
                 # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
-                sampling_priority = int(trace_flags & 0x1)
+                sampling_priority = trace_flags & 0x1
 
             else:
                 log.debug("W3C traceparent hex length incorrect: %s", tp)
