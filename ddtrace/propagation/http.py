@@ -580,7 +580,7 @@ class _TraceContext:
 
             else:
                 log.debug("W3C traceparent hex length incorrect: %s", tp)
-                raise ValueError
+                raise ValueError("W3C traceparent hex length incorrect: %s" % tp)
 
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s.", tp)
