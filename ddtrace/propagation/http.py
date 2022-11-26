@@ -579,7 +579,6 @@ class _TraceContext:
                 sampling_priority = trace_flags & 0x1
 
             else:
-                log.debug("W3C traceparent hex length incorrect: %s", tp)
                 raise ValueError("W3C traceparent hex length incorrect: %s" % tp)
 
         except (ValueError, AssertionError):
