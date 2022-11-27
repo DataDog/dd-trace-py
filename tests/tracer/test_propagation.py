@@ -410,150 +410,159 @@ def test_tracecontext_decide_sampling_priority(
 
 
 @pytest.mark.parametrize(
-    "name,headers,expected_tuple,expected_logging",
+    "name,headers,expected_tuple,expected_logging,expected_exception",
     [
         (
             "traceflag_01",
-            {_HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
-            ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", 11803532876627986230, 67667974448284343, 1),
+            (11803532876627986230, 67667974448284343, 1),
+            None,
             None,
         ),
         (
             "traceflag_00",
-            {_HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"},
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
             # tp, trace_id, span_id, sampling_priority
-            ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00", 11803532876627986230, 67667974448284343, 0),
+            (11803532876627986230, 67667974448284343, 0),
+            None,
             None,
         ),
         (
             "unsupported_version",
-            {_HTTP_HEADER_TRACEPARENT: "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
+            "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
-            ("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", 11803532876627986230, 67667974448284343, 1),
+            (11803532876627986230, 67667974448284343, 1),
             ["unsupported traceparent version:'01', still attempting to parse"],
+            None,
         ),
         (
             "short_version",
-            {_HTTP_HEADER_TRACEPARENT: "0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
+            "0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
-            ("0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", 11803532876627986230, 67667974448284343, 1),
+            (11803532876627986230, 67667974448284343, 1),
             ["unsupported traceparent version:'0', still attempting to parse"],
+            None,
         ),
         (
             "short_trace_id",
-            {_HTTP_HEADER_TRACEPARENT: "00-f92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
+            "00-f92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
             None,
             [
                 "received invalid w3c traceparent: 00-f92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01.",
                 "W3C traceparent hex length incorrect: 00-f92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             ],
+            ValueError,
         ),
-        (
+        (  # we still parse the trace flag and analyze the it as a bit field
             "unknown_trace_flag",
-            {_HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-02"},
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-02",
             # tp, trace_id, span_id, sampling_priority
-            ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-02", 11803532876627986230, 67667974448284343, 0.0),
+            (11803532876627986230, 67667974448284343, 0),
+            None,
             None,
         ),
     ],
 )
-def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_logging):
+def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_logging, expected_exception):
     with caplog.at_level(logging.DEBUG):
-        traceparent_values = _TraceContext._get_traceparent_values(headers)
-        assert traceparent_values == expected_tuple
-        if caplog.text:
-            for expected_log in expected_logging:
-                assert expected_log in caplog.text
+        if expected_exception:
+            with pytest.raises(expected_exception):
+                traceparent_values = _TraceContext._get_traceparent_values(headers)
+        else:
+            traceparent_values = _TraceContext._get_traceparent_values(headers)
+            assert traceparent_values == expected_tuple
+            if caplog.text:
+                for expected_log in expected_logging:
+                    assert expected_log in caplog.text
 
 
 @pytest.mark.parametrize(
-    "name,ts_string,expected_tuple,expected_logging",
+    "name,ts_string,expected_tuple,expected_logging,expected_exception",
     [
         (
             "tracestate_with_additional_list_members",
             "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, meta, origin
+            # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
                 {
-                    "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
             ),
+            None,
             None,
         ),
         (
             "tracestate_with_only_dd_list_member",
             "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, meta, origin
+            # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
                 {
-                    "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
             ),
+            None,
             None,
         ),
         (
             "no_sampling_priority",
             "dd=o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, meta, origin
+            # sampling_priority_ts, other_propagated_tags, origin
             (
                 None,
                 {
-                    "tracestate": "dd=o:rum;t.dm:-4;t.usr.id:baz64",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
             ),
+            None,
             None,
         ),
         (
             "tracestate_with_negative_sampling_priority",
             "dd=s:-1;o:rum;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, meta, origin
+            # sampling_priority_ts, other_propagated_tags, origin
             (
                 -1,
                 {
-                    "tracestate": "dd=s:-1;o:rum;t.dm:-4;t.usr.id:baz64",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                 },
                 "rum",
             ),
             None,
+            None,
         ),
         (
             "tracestate_with_no_origin",
             "dd=s:2;t.dm:-4;t.usr.id:baz64",
-            # sampling_priority_ts, meta, origin
+            # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
                 {
-                    "tracestate": "dd=s:2;t.dm:-4;t.usr.id:baz64",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                 },
                 None,
             ),
             None,
+            None,
         ),
         (
             "tracestate_with_unknown_t._values",
             "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, meta, origin
+            # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
                 {
-                    "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                     "_dd.p.unk": "unk",
@@ -561,64 +570,58 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
                 "rum",
             ),
             None,
+            None,
         ),
         (
             "tracestate_with_no_dd_list_member",
             "congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, meta, origin
-            (
-                None,
-                {
-                    "tracestate": "congo=t61rcWkgMzE,mako=s:2;o:rum;",
-                },
-                None,
-            ),
+            # sampling_priority_ts, other_propagated_tags, origin
+            None,
             ["no dd list member in tracestate from incoming request: 'congo=t61rcWkgMzE,mako=s:2;o:rum;'"],
+            None,
         ),
         (
             "tracestate_no_origin",
             "dd=s:2;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
-            # sampling_priority_ts, meta, origin
+            # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
                 {
-                    "tracestate": "dd=s:2;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                 },
                 None,
             ),
             None,
+            None,
         ),
         (
             "tracestate_invalid_dd_list_member",
             "dd=invalid,congo=123",
-            # sampling_priority_ts, meta, origin
-            (
-                None,
-                {
-                    "tracestate": "dd=invalid,congo=123",
-                },
-                None,
-            ),
+            None,
             ["received invalid dd header value in tracestate: 'dd=invalid,congo=123'"],
+            ValueError,
         ),
         (
             "tracestate_invalid_tracestate_char_outside_ascii_range_20-70",
             "dd=foo|bar:hi|l¢¢¢¢¢¢:",
-            # sampling_priority_ts, meta, origin
             None,
             ["received invalid tracestate header: 'dd=foo|bar:hi|l¢¢¢¢¢¢:"],
+            ValueError,
         ),
     ],
 )
-def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_logging):
+def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_logging, expected_exception):
     with caplog.at_level(logging.DEBUG):
-        tracestate_values = _TraceContext._get_tracestate_values(ts_string, {})
-        assert tracestate_values == expected_tuple
-        if caplog.text:
-            for expected_log in expected_logging:
-                assert expected_log in caplog.text
+        if expected_exception:
+            with pytest.raises(expected_exception):
+                tracetstate_values = _TraceContext._get_tracestate_values(ts_string)
+                assert tracetstate_values == expected_tuple
+        else:
+            tracetstate_values = _TraceContext._get_tracestate_values(ts_string)
+            if caplog.text:
+                for expected_log in expected_logging:
+                    assert expected_log in caplog.text
 
 
 @pytest.mark.parametrize(

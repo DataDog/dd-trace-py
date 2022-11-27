@@ -546,89 +546,66 @@ class _TraceContext:
         return key.startswith("t.")
 
     @staticmethod
-    def _get_traceparent_values(headers):
+    def _get_traceparent_values(tp):
         # type: (Dict[str, str]) -> Optional[Tuple[str, int, int, int]]
         """If there is no traceparent, or if the traceparent value is invalid return None.
         Otherwise we extract the traceparent, trace-id, span-id, and sampling priority from the
         traceparent header."""
 
-        tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
-        if tp is None:
-            return None
+        version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
+        # check version is a valid hexadecimal
+        int(version, 16)
+        # currently 00 is the only version format, but if future versions come up we may need to add changes
+        if version != "00":
+            log.warning("unsupported traceparent version:%r, still attempting to parse", version)
 
-        try:
-            version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
-            # check version is a valid hexadecimal
-            int(version, 16)
-            # currently 00 is the only version format, but if future versions come up we may need to add changes
-            if version != "00":
-                log.warning("unsupported traceparent version:%r, still attempting to parse", version)
+        if len(trace_id_hex) == 32 and len(span_id_hex) == 16 and len(trace_flags_hex) >= 2:
+            trace_id = _hex_id_to_dd_id(trace_id_hex)
+            span_id = _hex_id_to_dd_id(span_id_hex)
 
-            if len(trace_id_hex) == 32 and len(span_id_hex) == 16 and len(trace_flags_hex) >= 2:
-                trace_id = _hex_id_to_dd_id(trace_id_hex)
-                span_id = _hex_id_to_dd_id(span_id_hex)
+            # All 0s are invalid values
+            assert trace_id != 0
+            assert span_id != 0
 
-                # All 0s are invalid values
-                assert trace_id != 0
-                assert span_id != 0
+            trace_flags = _hex_id_to_dd_id(trace_flags_hex)
+            # there's currently only one trace flag, which denotes sampling priority
+            # was set to keep "01" or drop "00"
+            # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
+            sampling_priority = trace_flags & 0x1
 
-                trace_flags = _hex_id_to_dd_id(trace_flags_hex)
-                # there's currently only one trace flag, which denotes sampling priority
-                # was set to keep "01" or drop "00"
-                # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
-                sampling_priority = trace_flags & 0x1
+        else:
+            raise ValueError("W3C traceparent hex length incorrect: %s" % tp)
 
-            else:
-                raise ValueError("W3C traceparent hex length incorrect: %s" % tp)
-
-        except (ValueError, AssertionError):
-            log.exception("received invalid w3c traceparent: %s.", tp)
-            return None
-
-        return tp, trace_id, span_id, sampling_priority
+        return trace_id, span_id, sampling_priority
 
     @staticmethod
-    def _get_tracestate_values(ts, meta):
-        # type: (str, Dict[str, str]) -> Optional[Tuple[Optional[int], Dict[str, str], Optional[str]]]
+    def _get_tracestate_values(ts):
+        # type: (str) -> Optional[Tuple[Optional[int], Dict[str, str], Optional[str]]]
 
         # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
-        # the value MUST contain only ASCII characters in the range of 0x20 to 0x7E except comma (,) and equal-sign (=)
-        if re.search(r"[^\x20-\x7E]+", ts):
-            log.debug("received invalid tracestate header: %r", ts)
+        dd_ts = re.search("dd=(.+?)(?:,|$)", ts)
+        dd = None
+        if dd_ts:
+            dd = dict(item.split(":") for item in dd_ts.group(1).split(";"))  # type: ignore
+
+        # parse out values
+        if dd:
+            sampling_priority_ts = dd.get("s")
+            if sampling_priority_ts:
+                sampling_priority_ts = int(sampling_priority_ts)
+
+            origin = dd.get("o")
+            # need to convert from t. to _dd.p.
+            other_propagated_tags = {
+                re.sub("t.", "_dd.p.", k): v
+                for (k, v) in dd.items()
+                if (_TraceContext._is_valid_datadog_trace_tag_key(k))
+            }
+
+            return sampling_priority_ts, other_propagated_tags, origin
+        else:
+            log.debug("no dd list member in tracestate from incoming request: %r", ts)
             return None
-
-        # store ts so we keep other vendor data
-        meta[_TRACESTATE_KEY] = ts
-
-        try:
-            dd_ts = re.search("dd=(.+?)(?:,|$)", ts)
-            dd = None
-            if dd_ts:
-                dd = dict(item.split(":") for item in dd_ts.group(1).split(";"))  # type: ignore
-
-            # parse out values
-            if dd:
-                sampling_priority_ts = dd.get("s")
-                if sampling_priority_ts:
-                    sampling_priority_ts = int(sampling_priority_ts)
-
-                origin = dd.get("o")
-                # need to convert from t. to _dd.p.
-                other_propagated_tags = {
-                    re.sub("t.", "_dd.p.", k): v
-                    for (k, v) in dd.items()
-                    if (_TraceContext._is_valid_datadog_trace_tag_key(k))
-                }
-                meta.update(other_propagated_tags)
-
-                return sampling_priority_ts, meta, origin
-            else:
-                # even if there's no dd list member, we still need to propagate the other tracestate values
-                return None, meta, None
-
-        except (TypeError, ValueError, AttributeError):
-            log.debug(("received invalid dd header value in tracestate: %r "), ts)
-            return None, meta, None
 
     @staticmethod
     def _get_sampling_priority(sampling_priority_tp, sampling_priority_ts):
@@ -663,30 +640,48 @@ class _TraceContext:
     @staticmethod
     def _extract(headers):
         # type: (Dict[str, str]) -> Optional[Context]
-        traceparent_values = _TraceContext._get_traceparent_values(headers)
-        if not traceparent_values:
+
+        try:
+            tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
+            if tp is None:
+                return None
+            traceparent_values = _TraceContext._get_traceparent_values(tp)
+        except (ValueError, AssertionError):
+            log.exception("received invalid w3c traceparent: %s ", tp)
             return None
 
-        tp, trace_id, span_id, sampling_priority = traceparent_values
+        trace_id, span_id, sampling_priority = traceparent_values
         meta = {"traceparent": tp}
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
-            tracestate_values = _TraceContext._get_tracestate_values(ts, meta)
-            if tracestate_values:
-                sampling_priority_ts, meta, origin = tracestate_values
+            # the value MUST contain only ASCII characters in the range of 0x20 to 0x7E except comma (,) and equal-sign (=)
+            if re.search(r"[^\x20-\x7E]+", ts):
+                log.debug("received invalid tracestate header: %r" % ts)
+            else:
+                # store ts so we keep other vendor data, even if dd ends up being invalid
+                meta[_TRACESTATE_KEY] = ts
+                try:
+                    tracestate_values = _TraceContext._get_tracestate_values(ts)
+                except (TypeError, ValueError, AttributeError):
+                    log.debug(("received invalid dd header value in tracestate: %r "), ts)
+                    tracestate_values = None
 
-                sampling_priority = _TraceContext._get_sampling_priority(
-                    sampling_priority, sampling_priority_ts  # type: ignore
-                )
+                if tracestate_values:
+                    sampling_priority_ts, other_propagated_tags, origin = tracestate_values
+                    meta.update(other_propagated_tags)
 
-                return Context(
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    sampling_priority=sampling_priority,
-                    dd_origin=origin,
-                    meta=cast(_MetaDictType, meta),
-                )
+                    sampling_priority = _TraceContext._get_sampling_priority(
+                        sampling_priority, sampling_priority_ts  # type: ignore
+                    )
+
+                    return Context(
+                        trace_id=trace_id,
+                        span_id=span_id,
+                        sampling_priority=sampling_priority,
+                        dd_origin=origin,
+                        meta=cast(_MetaDictType, meta),
+                    )
 
         return Context(
             trace_id=trace_id,
