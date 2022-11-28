@@ -10,7 +10,6 @@ from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
 from .internal.compat import NumericType
 from .internal.compat import PY2
-from .internal.constants import _TRACEPARENT_KEY
 from .internal.logger import get_logger
 
 

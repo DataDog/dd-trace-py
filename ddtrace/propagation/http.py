@@ -547,10 +547,11 @@ class _TraceContext:
 
     @staticmethod
     def _get_traceparent_values(tp):
-        # type: (Dict[str, str]) -> Optional[Tuple[str, int, int, int]]
+        # type: (str) -> Tuple[int, int, int]
         """If there is no traceparent, or if the traceparent value is invalid return None.
         Otherwise we extract the traceparent, trace-id, span-id, and sampling priority from the
-        traceparent header."""
+        traceparent header.
+        """
 
         version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
         # check version is a valid hexadecimal
@@ -587,12 +588,9 @@ class _TraceContext:
         ts_l = ts.split(",")
         for list_mem in ts_l:
             if list_mem.startswith("dd="):
+                # cut out dd= before turning into dict
                 list_mem = list_mem[3:]
                 dd = dict(item.split(":") for item in list_mem.split(";"))
-
-        # dd_ts = re.search("dd=(.+?)(?:,|$)", ts)
-        # if dd_ts:
-        #     dd = dict(item.split(":") for item in dd_ts.group(1).split(";"))  # type: ignore
 
         # parse out values
         if dd:
@@ -621,13 +619,14 @@ class _TraceContext:
         set the sampling priority field to 0.
 
         2. If the traceparent sampled flag == 1, and the tracestate sampling priority is
-         not present or less than or equal to 0, update the sampling priority field to 1.
+        not present or less than or equal to 0, update the sampling priority field to 1.
 
         3. If the traceparent sampled flag == 1, and the tracestate sampling priority is greater than 0,
         use the extracted sampling priority value.
 
         4. If the traceparent sampled flag == 0, and the tracestate sampling priority is less than or equal to 0,
-        use the extracted sampling priority value."""
+        use the extracted sampling priority value.
+        """
 
         if sampling_priority_tp == 0 and (not sampling_priority_ts or sampling_priority_ts >= 0):
             sampling_priority = 0
@@ -661,9 +660,10 @@ class _TraceContext:
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
-            # the value MUST contain only ASCII characters in the range of 0x20 to 0x7E except comma (,) and equal-sign (=)
+            # the value MUST contain only ASCII characters in the
+            # range of 0x20 to 0x7E except comma (,) and equal-sign (=)
             if re.search(r"[^\x20-\x7E]+", ts):
-                log.debug("received invalid tracestate header: %r" % ts)
+                log.debug("received invalid tracestate header: %r", ts)
             else:
                 # store ts so we keep other vendor data, even if dd ends up being invalid
                 meta[_TRACESTATE_KEY] = ts
@@ -677,9 +677,7 @@ class _TraceContext:
                     sampling_priority_ts, other_propagated_tags, origin = tracestate_values
                     meta.update(other_propagated_tags)
 
-                    sampling_priority = _TraceContext._get_sampling_priority(
-                        sampling_priority, sampling_priority_ts  # type: ignore
-                    )
+                    sampling_priority = _TraceContext._get_sampling_priority(sampling_priority, sampling_priority_ts)
 
                     return Context(
                         trace_id=trace_id,
