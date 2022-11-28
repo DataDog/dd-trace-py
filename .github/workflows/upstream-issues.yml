@@ -12,4 +12,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           IGNORE_DIRS: ddtrace/vendor
-          DRY_RUN: false
