@@ -194,7 +194,7 @@ below:
      type: string
      description: |
          A JSON array of objects. Each object must have a "name" and/or "service" field, while the "max_per_second" and "sample_rate" fields are optional. 
-         The “sample_rate” value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
+         The "sample_rate" value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
          The "max_per_second" value must be >= 0 and will default to no limit. 
          The "service" and "name" fields can be glob patterns: 
          "*" matches any substring, including the empty string,
