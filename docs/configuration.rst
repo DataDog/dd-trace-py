@@ -198,8 +198,7 @@ below:
          The "max_per_second" value must be >= 0 and will default to no limit. 
          The "service" and "name" fields can be glob patterns: 
          "*" matches any substring, including the empty string,
-         "?" matches exactly one of any character, and
-         any other character matches exactly one of itself.
+         "?" matches exactly one of any character, and any other character matches exactly one of itself.
 
          **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.re?uest"}]'``
 
@@ -215,8 +214,7 @@ below:
          The "max_per_second" value must be >= 0 and will default to no limit. 
          The "service" and "name" fields are glob patterns, where "glob" means: 
          "*" matches any substring, including the empty string,
-         "?" matches exactly one of any character, and
-         any other character matches exactly one of itself.
+         "?" matches exactly one of any character, and any other character matches exactly one of itself.
 
          **Example:** ``DD_SPAN_SAMPLING_RULES_FILE="data/span_sampling_rules.json"'``
          **Example File Contents:** ``[{"sample_rate":0.5,"service":"*-service","name":"my-name-????", "max_per_second":"20"}, {"service":"xy?","name":"a*c"}]``
