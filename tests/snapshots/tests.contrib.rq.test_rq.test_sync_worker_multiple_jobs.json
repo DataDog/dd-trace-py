@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
@@ -32,6 +33,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "job.id": "380429de-bfb1-4967-a134-7857d94d0d42",
@@ -55,6 +57,8 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "job.id": "380429de-bfb1-4967-a134-7857d94d0d42"
           },
@@ -70,6 +74,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
@@ -95,6 +100,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "job.id": "898c9c2c-b587-4eb4-992e-eb5886acf9d2",
@@ -118,6 +124,8 @@
           "trace_id": 1,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "job.id": "898c9c2c-b587-4eb4-992e-eb5886acf9d2"
           },
@@ -133,6 +141,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
@@ -158,6 +167,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "job.id": "13dc2e21-6d00-41e3-95d9-27a56ced8f2f",
@@ -181,6 +191,8 @@
           "trace_id": 2,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "job.id": "13dc2e21-6d00-41e3-95d9-27a56ced8f2f"
           },
