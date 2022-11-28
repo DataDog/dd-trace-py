@@ -126,7 +126,7 @@ _METRIC_PREFIX = "metricProbe_"
 _CONFIG_REGEX = re.compile(r"^[\da-f]{8}-([\da-f]{4}-){3}[\da-f]{12}$", re.IGNORECASE)
 
 
-def _makeProbes(probes, _type):
+def _make_probes(probes, _type):
     return [probe(p["id"], _type, p) for p in probes]
 
 
@@ -135,15 +135,15 @@ def get_probes(config_id, config):
     # type: (str, dict) -> Iterable[Probe]
 
     if config_id.startswith(_SNAPSHOT_PREFIX):
-        return _makeProbes([config], "snapshotProbes")
+        return _make_probes([config], "snapshotProbes")
 
     if config_id.startswith(_METRIC_PREFIX):
-        return chain(_makeProbes([config], "metricProbes"))
+        return chain(_make_probes([config], "metricProbes"))
 
     if _CONFIG_REGEX.match(config_id):
         return chain(
-            _makeProbes(config.get("snapshotProbes") or [], "snapshotProbes"),
-            _makeProbes(config.get("metricProbes") or [], "metricProbes"),
+            _make_probes(config.get("snapshotProbes") or [], "snapshotProbes"),
+            _make_probes(config.get("metricProbes") or [], "metricProbes"),
         )
 
     raise ValueError("Unsupported config id: %s" % config_id)
@@ -186,7 +186,7 @@ class ProbeRCAdapter(object):
         # type: () -> None
         self._status_timestamp = time.time() + config.diagnostics_interval
 
-    def _update_probes(self, prev_probes, next_probes):
+    def _dispatch_prove_events(self, prev_probes, next_probes):
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
         modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and probe_modified(p, prev_probes[_])]
@@ -205,7 +205,7 @@ class ProbeRCAdapter(object):
             {probe.probe_id: probe for probe in get_probes(config_id, config)} if config is not None else {}
         )  # type: Dict[str, Probe]
 
-        self._update_probes(prev_probes, next_probes)
+        self._dispatch_prove_events(prev_probes, next_probes)
 
         if next_probes:
             self._configs[config_id] = next_probes
@@ -226,5 +226,5 @@ class ProbeRCAdapter(object):
         if metadata is None:
             log.warning("no metadata was provided")
             return
-        else:
-            self._update_probes_for_config(metadata.id, config)
+
+        self._update_probes_for_config(metadata.id, config)

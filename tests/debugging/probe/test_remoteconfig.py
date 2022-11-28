@@ -9,9 +9,7 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
-from ddtrace.internal.compat import PY2
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
-from ddtrace.internal.remoteconfig.constants import DEBUGGER_PRODUCT
 from tests.utils import override_global_config
 
 
@@ -36,7 +34,7 @@ class MockConfig(object):
 
 
 def config_metadata(config_id=uuid4()):
-    return ConfigMetadata(config_id, product_name=DEBUGGER_PRODUCT, sha256_hash="hash", length=123, tuf_version=1)
+    return ConfigMetadata(config_id, product_name="LIVE_DEBUGGING", sha256_hash="hash", length=123, tuf_version=1)
 
 
 @pytest.fixture
@@ -106,7 +104,6 @@ def test_poller_env_version(env, version, expected, mock_config):
         assert set(_.probe_id for _ in probes) == expected
 
 
-@pytest.mark.xfail(PY2, reason="occasionally fails on Python 2")
 def test_poller_events(mock_config):
     events = set()
 
@@ -191,7 +188,7 @@ def test_multiple_configs():
     events = set()
 
     def cb(e, ps):
-        events.add((e, frozenset([p.probe_id if isinstance(p, Probe) else p for p in ps])))
+        events.add((e, frozenset({p.probe_id if isinstance(p, Probe) else p for p in ps})))
 
     def validate_events(expected):
         assert events == expected
@@ -200,9 +197,9 @@ def test_multiple_configs():
     old_interval = config.diagnostics_interval
     config.diagnostics_interval = 0.5
     try:
-        addapter = ProbeRCAdapter(cb)
+        adapter = ProbeRCAdapter(cb)
 
-        addapter(
+        adapter(
             config_metadata("snapshotProbe_probe1"),
             {
                 "id": "probe1",
@@ -214,11 +211,11 @@ def test_multiple_configs():
 
         validate_events(
             {
-                (ProbePollerEvent.NEW_PROBES, frozenset(["probe1"])),
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
             }
         )
 
-        addapter(
+        adapter(
             config_metadata("metricProbe_probe2"),
             {
                 "id": "probe2",
@@ -232,7 +229,7 @@ def test_multiple_configs():
 
         validate_events(
             {
-                (ProbePollerEvent.NEW_PROBES, frozenset(["probe2"])),
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
             }
         )
 
@@ -242,20 +239,20 @@ def test_multiple_configs():
         #  1. after sleep 0.5 probe status should report 2 probes
         #  2. bad config id raises ValueError
         with pytest.raises(ValueError):
-            addapter(config_metadata("not-supported"), {})
+            adapter(config_metadata("not-supported"), {})
 
         validate_events(
             {
-                (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe1", "probe2"])),
+                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2"})),
             }
         )
 
         # remove configuration
-        addapter(config_metadata("metricProbe_probe2"), None)
+        adapter(config_metadata("metricProbe_probe2"), None)
 
         validate_events(
             {
-                (ProbePollerEvent.DELETED_PROBES, frozenset(["probe2"])),
+                (ProbePollerEvent.DELETED_PROBES, frozenset({"probe2"})),
             }
         )
 
