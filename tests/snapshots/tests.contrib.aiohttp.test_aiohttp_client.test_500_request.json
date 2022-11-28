@@ -1,7 +1,7 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
@@ -21,18 +21,20 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 32687
+      "process_id": 32687
     },
     "duration": 6225000,
     "start": 1646414759679627000
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 2061000,
        "start": 1646414759680240000
      }]]

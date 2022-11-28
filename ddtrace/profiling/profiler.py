@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 import logging
 import os
+import sys
 import typing
 from typing import List
 from typing import Optional
@@ -10,6 +11,7 @@ import attr
 import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import atexit
+from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal import writer
@@ -52,6 +54,11 @@ class Profiler(object):
         :param profile_children: Whether to start a profiler in child processes.
         """
 
+        if sys.version_info >= (3, 11, 0):
+            raise RuntimeError(
+                "Profiling is not yet compatible with Python 3.11. "
+                "See tracking issue for more details: https://github.com/DataDog/dd-trace-py/issues/4149"
+            )
         if profile_children:
             try:
                 uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
@@ -65,13 +72,7 @@ class Profiler(object):
             atexit.register(self.stop)
 
         if profile_children:
-            if hasattr(os, "register_at_fork"):
-                os.register_at_fork(after_in_child=self._restart_on_fork)
-            else:
-                LOG.warning(
-                    "Your Python version does not have `os.register_at_fork`. "
-                    "You have to start a new Profiler after fork() manually."
-                )
+            forksafe.register(self._restart_on_fork)
 
     def stop(self, flush=True):
         """Stop the profiler.

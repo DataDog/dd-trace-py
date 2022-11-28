@@ -198,7 +198,7 @@ with obfuscated stack traces, and various system performance metrics.
 
 To disable set ``DD_INSTRUMENTATION_TELEMETRY_ENABLED=false`` environment variable.
 
-See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>` _ for more details.
+See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>`_ for more details.
 
 Indices and tables
 ==================

@@ -279,7 +279,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             self._headers.update(headers)
         self._timeout = timeout
         self._api_version = (
-            api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
+            api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.5" if priority_sampler is not None else "v0.3")
         )
         try:
             Encoder = MSGPACK_ENCODERS[self._api_version]

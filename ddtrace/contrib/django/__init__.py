@@ -140,6 +140,16 @@ Configuration
 
    Default: ``False``
 
+.. py:data:: ddtrace.config.django['use_handler_with_url_name_resource_format']
+
+   Whether or not to use the resource format `"{method} {handler}.{url_name}"`. Can also be
+   enabled with the ``DD_DJANGO_USE_HANDLER_WITH_URL_NAME_RESOURCE_FORMAT`` environment
+   variable.
+
+   This configuration applies only for Django <= 2.2.0.
+
+   Default: ``False``
+
 .. py:data:: ddtrace.config.django['use_legacy_resource_format']
 
    Whether or not to use the legacy resource format `"{handler}"`. Can also be

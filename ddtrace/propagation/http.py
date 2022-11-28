@@ -483,6 +483,13 @@ class _B3SingleHeader:
         return None
 
 
+_PROP_STYLES = {
+    PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
+    PROPAGATION_STYLE_B3: _B3MultiHeader,
+    PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
+}
+
+
 class HTTPPropagator(object):
     """A HTTP Propagator using HTTP headers as carrier."""
 
@@ -543,20 +550,14 @@ class HTTPPropagator(object):
 
         try:
             normalized_headers = {name.lower(): v for name, v in headers.items()}
-            # Check all styles until we find the first valid match
-            # DEV: We want to check them in this specific priority order
-            if PROPAGATION_STYLE_DATADOG in config._propagation_style_extract:
-                context = _DatadogMultiHeader._extract(normalized_headers)
+
+            # loop through the extract propagation styles specified in order
+            for prop_style in config._propagation_style_extract:
+                propagator = _PROP_STYLES[prop_style]
+                context = propagator._extract(normalized_headers)  # type: ignore
                 if context is not None:
                     return context
-            if PROPAGATION_STYLE_B3 in config._propagation_style_extract:
-                context = _B3MultiHeader._extract(normalized_headers)
-                if context is not None:
-                    return context
-            if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_extract:
-                context = _B3SingleHeader._extract(normalized_headers)
-                if context is not None:
-                    return context
+
         except Exception:
             log.debug("error while extracting context propagation headers", exc_info=True)
         return Context()

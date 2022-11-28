@@ -6,6 +6,8 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "c121cb35b47a4dbf8f2fce11afea6620"
@@ -15,7 +17,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 782
+      "process_id": 782
     },
     "duration": 2223000,
     "start": 1638921889729678000
@@ -28,6 +30,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "redis",
+       "error": 0,
        "meta": {
          "out.host": "127.0.0.1",
          "redis.raw_command": "SET blah boo\nGET blah"
@@ -50,6 +53,7 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "redis",
+       "error": 0,
        "meta": {
          "out.host": "127.0.0.1",
          "redis.raw_command": "SET foo bar\nGET foo"

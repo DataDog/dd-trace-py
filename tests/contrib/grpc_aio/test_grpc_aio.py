@@ -396,6 +396,9 @@ async def test_analytics_without_rate(server_info, tracer):
     assert server_span.get_metric(ANALYTICS_SAMPLE_RATE_KEY) == 1.0
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
+)
 @pytest.mark.asyncio
 async def test_unary_exception(server_info, tracer):
     async with aio.insecure_channel(server_info.target) as channel:
@@ -429,6 +432,9 @@ async def test_unary_exception(server_info, tracer):
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
+)
 @pytest.mark.asyncio
 async def test_unary_cancellation(server_info, tracer):
     async with aio.insecure_channel(server_info.target) as channel:
@@ -589,6 +595,9 @@ async def test_client_streaming(server_info, tracer):
     _check_server_span(server_span, "grpc-aio-server", "SayHelloLast", "client_streaming")
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
+)
 @pytest.mark.asyncio
 async def test_client_streaming_exception(server_info, tracer):
     request_iterator = iter(HelloRequest(name=name) for name in ["exception", "test"])
@@ -678,6 +687,9 @@ async def test_bidi_streaming(server_info, tracer):
     _check_server_span(server_span, "grpc-aio-server", "SayHelloRepeatedly", "bidi_streaming")
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 11, 0), reason="Segfaults in Python 3.11, see https://github.com/grpc/grpc/issues/31441"
+)
 @pytest.mark.asyncio
 async def test_bidi_streaming_exception(server_info, tracer):
     names = ["Alice", "exception", "Bob"]

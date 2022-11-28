@@ -58,6 +58,7 @@ jobs:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
       DD_DEBUGGER_EXPL_ENCODE: 0  # Disabled to speed up
+      DD_REMOTE_CONFIGURATION_ENABLED: false
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/:.
     defaults:
       run:
@@ -156,7 +157,7 @@ jobs:
           repository: tiangolo/fastapi
           ref: 0.75.0
           path: fastapi
-      - uses: actions/cache@v3.0.10
+      - uses: actions/cache@v3.0.11
         id: cache
         with:
           path: ${{ env.pythonLocation }}
@@ -169,6 +170,9 @@ jobs:
       - name: Install Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: flit install --symlink
+      - name: Pin SQLAlchemy
+        # https://github.com/encode/databases/issues/512
+        run: pip install "SQLAlchemy==1.4.41"
       - name: Inject ddtrace
         run: pip install ../ddtrace
       - name: Test
@@ -305,6 +309,9 @@ jobs:
         run: pip install ../ddtrace
       - name: Install dependencies
         run: scripts/install
+      - name: Pin SQLAlchemy
+        # https://github.com/encode/databases/issues/512
+        run: pip install "SQLAlchemy==1.4.41"
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       #test_staticfiles_with_invalid_dir_permissions_returns_401 fails with and without ddtrace enabled
       - name: Run tests
@@ -345,6 +352,7 @@ jobs:
     env:
       DD_TESTING_RAISE: true
       DD_PROFILING_ENABLED: true
+      DD_REMOTE_CONFIGURATION_ENABLED: false
     defaults:
       run:
         working-directory: asyncpg
@@ -374,7 +382,8 @@ jobs:
 
   pylons-testsuite-1_0_3:
     name: Pylons 1.0.3
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-20.04"
+    # Ubuntu 20.04 is the last version of ubuntu on github setup actions to provide Python 2.7.
     env:
       DD_TESTING_RAISE: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
@@ -397,6 +406,8 @@ jobs:
         run: pip install ../ddtrace
       - name: Install test dependencies
         run: pip install -e .[test]
+      - name: Pin PasteDeploy to Python 2.7 compatible version
+        run: pip install pastedeploy==2.1.1
       - name: MarkupSafe fix
         run: pip install --upgrade MarkupSafe==0.18 pip setuptools --force
       - name: Disable failing tests

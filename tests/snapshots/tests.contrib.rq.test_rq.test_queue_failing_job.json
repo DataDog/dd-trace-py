@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_fail",
@@ -19,7 +20,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 4083
+      "process_id": 4083
     },
     "duration": 9563000,
     "start": 1638903827586533000
@@ -31,6 +32,7 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
        "error": 1,
        "meta": {
          "error.msg": "error",

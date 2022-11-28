@@ -700,7 +700,7 @@ def test_debugger_function_probe_duration(duration):
         durationstuff(duration)
 
         (snapshot,) = d.test_queue
-        assert 0.9 * duration <= snapshot.duration <= 2.5 * duration, snapshot
+        assert 0.9 * duration <= snapshot.duration <= 10.0 * duration, snapshot
 
 
 def test_debugger_condition_eval_then_rate_limit():
@@ -743,3 +743,22 @@ def test_debugger_run_module():
 
     assert out.strip() == b"OK"
     assert status == 0
+
+
+def test_debugger_function_probe_eval_on_exit():
+    from tests.submod.stuff import mutator
+
+    with debugger() as d:
+        d.add_probes(
+            FunctionProbe(
+                probe_id="duration-probe",
+                module="tests.submod.stuff",
+                func_qname="mutator",
+                condition=dd_compile({"contains": ["#arg", 42]}),
+            )
+        )
+
+        mutator(arg=[])
+
+        (snapshot,) = d.test_queue
+        assert snapshot, d.test_queue

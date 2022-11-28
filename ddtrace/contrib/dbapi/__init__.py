@@ -1,6 +1,8 @@
 """
 Generic dbapi tracing code.
 """
+from typing import TYPE_CHECKING
+
 import six
 
 from ddtrace import config
@@ -14,9 +16,15 @@ from ...internal.logger import get_logger
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...pin import Pin
+from ...settings import _database_monitoring
 from ...vendor import wrapt
 from ..trace_utils import ext_service
 from ..trace_utils import iswrapped
+
+
+if TYPE_CHECKING:
+    from typing import Any
+    from typing import Tuple
 
 
 log = get_logger(__name__)
@@ -47,6 +55,7 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_datadog_name = "{}.query".format(span_name_prefix)
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
+        self._self_dbm_propagation_supported = getattr(self._self_config, "_dbm_propagation_supported", False)
 
     def __iter__(self):
         return self.__wrapped__.__iter__()
@@ -60,13 +69,14 @@ class TracedCursor(wrapt.ObjectProxy):
         def next(self):  # noqa: A001
             return self.__wrapped__.next()
 
-    def _trace_method(self, method, name, resource, extra_tags, *args, **kwargs):
+    def _trace_method(self, method, name, resource, extra_tags, dbm_operation, *args, **kwargs):
         """
         Internal function to trace the call to the underlying cursor method
         :param method: The callable to be wrapped
         :param name: The name of the resulting span.
         :param resource: The sql query. Sql queries are obfuscated on the agent side.
         :param extra_tags: A dict of tags to store into the span's meta
+        :param dbm_operation: Boolean, True if callable supports DBM query propagation
         :param args: The args that will be passed as positional args to the wrapped method
         :param kwargs: The args that will be passed as kwargs to the wrapped method
         :return: The result of the wrapped method invocation
@@ -90,6 +100,9 @@ class TracedCursor(wrapt.ObjectProxy):
             if not isinstance(self, FetchTracedCursor):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
+            if dbm_operation:
+                args = _propagate_dbm_context(s, args)
+
             try:
                 return method(*args, **kwargs)
             finally:
@@ -109,6 +122,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_datadog_name,
             query,
             {"sql.executemany": "true"},
+            self._self_dbm_propagation_supported,
             query,
             *args,
             **kwargs
@@ -121,12 +135,21 @@ class TracedCursor(wrapt.ObjectProxy):
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
-        return self._trace_method(self.__wrapped__.execute, self._self_datadog_name, query, {}, query, *args, **kwargs)
+        return self._trace_method(
+            self.__wrapped__.execute,
+            self._self_datadog_name,
+            query,
+            {},
+            self._self_dbm_propagation_supported,
+            query,
+            *args,
+            **kwargs
+        )
 
     def callproc(self, proc, *args):
         """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, proc, *args)
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, False, proc, *args)
 
     def _set_post_execute_tags(self, span):
         row_count = self.__wrapped__.rowcount
@@ -160,14 +183,14 @@ class FetchTracedCursor(TracedCursor):
         """Wraps the cursor.fetchone method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchone")
         return self._trace_method(
-            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, *args, **kwargs
+            self.__wrapped__.fetchone, span_name, self._self_last_execute_operation, {}, False, *args, **kwargs
         )
 
     def fetchall(self, *args, **kwargs):
         """Wraps the cursor.fetchall method"""
         span_name = "{}.{}".format(self._self_datadog_name, "fetchall")
         return self._trace_method(
-            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, *args, **kwargs
+            self.__wrapped__.fetchall, span_name, self._self_last_execute_operation, {}, False, *args, **kwargs
         )
 
     def fetchmany(self, *args, **kwargs):
@@ -184,7 +207,7 @@ class FetchTracedCursor(TracedCursor):
             extra_tags = {size_tag_key: default_array_size} if default_array_size else {}
 
         return self._trace_method(
-            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, *args, **kwargs
+            self.__wrapped__.fetchmany, span_name, self._self_last_execute_operation, extra_tags, False, *args, **kwargs
         )
 
 
@@ -292,3 +315,18 @@ def _get_vendor(conn):
 
 def _get_module_name(conn):
     return conn.__class__.__module__.split(".")[0]
+
+
+def _propagate_dbm_context(dbspan, args):
+    # type: (...) -> Tuple[Tuple[Any, ...]]
+    dbm_comment = _database_monitoring._get_dbm_comment(dbspan)
+    if dbm_comment is None:
+        return args
+    # If dbm propagation supported and enabled the first arg must be a sql query or a procedure.
+    assert len(args) > 0 and isinstance(args[0], str)
+    # get query or procedure from args
+    sql_statement = args[0]
+    sql_with_dbm_tags = dbm_comment + sql_statement
+    # replace the original query or procedure with query_with_dbm_tags
+    args = (sql_with_dbm_tags,) + args[1:]
+    return args

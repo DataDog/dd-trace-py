@@ -4,9 +4,8 @@
 <!-- If this is a breaking change, explain why it is necessary. Breaking changes must append `!` after the type/scope. See https://ddtrace.readthedocs.io/en/stable/contributing.html for more details. -->
 
 ## Checklist
-- [ ] Title must conform to [conventional commit](https://github.com/conventional-changelog/commitlint/tree/master/%40commitlint/config-conventional).
+- [ ] Followed the [library release note guidelines](https://ddtrace.readthedocs.io/en/stable/contributing.html#Release-Note-Guidelines) when writing a release note.
 - [ ] Add additional sections for `feat` and `fix` pull requests.
-- [ ] Ensure tests are passing for affected code.
 - [ ] [Library documentation](https://github.com/DataDog/dd-trace-py/tree/1.x/docs) and/or [Datadog's documentation site](https://github.com/DataDog/documentation/) is updated. Link to doc PR in description.
 
 <!-- Copy and paste the relevant snippet based on the type of pull request -->
@@ -38,10 +37,8 @@
 - [ ] Title is accurate.
 - [ ] Description motivates each change.
 - [ ] No unnecessary changes were introduced in this PR.
-- [ ] PR cannot be broken up into smaller PRs.
 - [ ] Avoid breaking [API](https://ddtrace.readthedocs.io/en/stable/versioning.html#interfaces) changes unless absolutely necessary.
 - [ ] Tests provided or description of manual testing performed is included in the code or PR.
-- [ ] Release note has been added for fixes and features, or else `changelog/no-changelog` label added.
+- [ ] Release note has been added and follows the [library release note guidelines](https://ddtrace.readthedocs.io/en/stable/contributing.html#Release-Note-Guidelines), or else `changelog/no-changelog` label added.
 - [ ] All relevant GitHub issues are correctly linked.
 - [ ] Backports are identified and tagged with Mergifyio.
-- [ ] Add to milestone.
