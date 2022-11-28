@@ -82,7 +82,7 @@ Configuration
 
    Whether or not to trace fetch methods.
 
-   Can also configured via the ``DD_DJANGO_TRACE_FETCH_METHODS`` environment variable.
+   Can also be configured via the ``DD_DJANGO_TRACE_FETCH_METHODS`` environment variable.
 
    Default: ``False``
 
@@ -127,6 +127,8 @@ Configuration
 .. py:data:: ddtrace.config.django['include_user_name']
 
    Whether or not to include the authenticated user's username as a tag on the root request span.
+
+   Can also be configured via the ``DD_DJANGO_INCLUDE_USER_NAME`` environment variable.
 
    Default: ``True``
 
