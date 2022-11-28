@@ -211,7 +211,7 @@ below:
      description: |
          A path to a json file containing span sampling rules organized as JSON array of objects. 
          For the rules each object must have a “name” and/or “service” field, and the “sample_rate” field is optional. 
-         The “sample_rate” value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
+         The "sample_rate" value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
          The "max_per_second" value must be >= 0 and will default to no limit. 
          The "service" and "name" fields are glob patterns, where "glob" means: 
          "*" matches any substring, including the empty string,
