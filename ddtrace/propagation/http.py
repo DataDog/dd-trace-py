@@ -7,7 +7,6 @@ from typing import Tuple
 from typing import cast
 
 from ddtrace import config
-from ddtrace.internal.constants import _TRACESTATE_KEY
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -32,6 +31,9 @@ from ._utils import get_wsgi_header
 
 
 log = get_logger(__name__)
+
+_TRACEPARENT_KEY = "traceparent"
+_TRACESTATE_KEY = "tracestate"
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
@@ -541,11 +543,6 @@ class _TraceContext:
     """
 
     @staticmethod
-    def _is_valid_datadog_trace_tag_key(key):
-        # type: (str) -> bool
-        return key.startswith("t.")
-
-    @staticmethod
     def _get_traceparent_values(tp):
         # type: (str) -> Tuple[int, int, int]
         """If there is no traceparent, or if the traceparent value is invalid return None.
@@ -565,8 +562,10 @@ class _TraceContext:
             span_id = _hex_id_to_dd_id(span_id_hex)
 
             # All 0s are invalid values
-            assert trace_id != 0
-            assert span_id != 0
+            if trace_id == 0:
+                raise ValueError("0 value for trace_id is invalid")
+            if span_id == 0:
+                raise ValueError("0 value for span_id is invalid")
 
             trace_flags = _hex_id_to_dd_id(trace_flags_hex)
             # there's currently only one trace flag, which denotes sampling priority
@@ -595,25 +594,20 @@ class _TraceContext:
         # parse out values
         if dd:
             sampling_priority_ts = dd.get("s")
-            if sampling_priority_ts:
+            if sampling_priority_ts is not None:
                 sampling_priority_ts = int(sampling_priority_ts)
 
             origin = dd.get("o")
             # need to convert from t. to _dd.p.
-            other_propagated_tags = {
-                re.sub("t.", "_dd.p.", k): v
-                for (k, v) in dd.items()
-                if (_TraceContext._is_valid_datadog_trace_tag_key(k))
-            }
+            other_propagated_tags = {"_dd.p.%s" % k[2:]: v for (k, v) in dd.items() if (k.startswith("t."))}
 
             return sampling_priority_ts, other_propagated_tags, origin
         else:
-            log.debug("no dd list member in tracestate from incoming request: %r", ts)
             return None
 
     @staticmethod
     def _get_sampling_priority(sampling_priority_tp, sampling_priority_ts):
-        # type: (int, int) -> int
+        # type: (int, Optional[int]) -> int
         """
         1. If the traceparent sampled flag == 0, and the tracestate sampling priority is not present or greater than 0,
         set the sampling priority field to 0.
@@ -649,6 +643,7 @@ class _TraceContext:
         try:
             tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
             if tp is None:
+                log.debug("no traceparent header")
                 return None
             traceparent_values = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
@@ -656,8 +651,7 @@ class _TraceContext:
             return None
 
         trace_id, span_id, sampling_priority = traceparent_values
-        meta = {"traceparent": tp}
-
+        meta = {_TRACEPARENT_KEY: tp}  # type: _MetaDictType
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
             # the value MUST contain only ASCII characters in the
@@ -669,8 +663,8 @@ class _TraceContext:
                 meta[_TRACESTATE_KEY] = ts
                 try:
                     tracestate_values = _TraceContext._get_tracestate_values(ts)
-                except (TypeError, ValueError, AttributeError):
-                    log.debug(("received invalid dd header value in tracestate: %r "), ts)
+                except (TypeError, ValueError):
+                    log.debug("received invalid dd header value in tracestate: %r ", ts)
                     tracestate_values = None
 
                 if tracestate_values:
@@ -684,14 +678,16 @@ class _TraceContext:
                         span_id=span_id,
                         sampling_priority=sampling_priority,
                         dd_origin=origin,
-                        meta=cast(_MetaDictType, meta),
+                        meta=meta,
                     )
+                else:
+                    log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
         return Context(
             trace_id=trace_id,
             span_id=span_id,
             sampling_priority=sampling_priority,
-            meta=cast(_MetaDictType, meta),
+            meta=meta,
         )
 
 

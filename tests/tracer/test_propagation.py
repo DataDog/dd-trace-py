@@ -421,6 +421,20 @@ def test_tracecontext_decide_sampling_priority(
             None,
         ),
         (
+            "invalid_0_value_for_trace_id",
+            "00-00000000000000000000000000000000-00f067aa0ba902b7-01",
+            None,
+            None,
+            ValueError,
+        ),
+        (
+            "invalid_0_value_for_span_id",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
+            None,
+            None,
+            ValueError,
+        ),
+        (
             "traceflag_00",
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
             # tp, trace_id, span_id, sampling_priority
@@ -470,10 +484,11 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
         if expected_exception:
             with pytest.raises(expected_exception):
                 traceparent_values = _TraceContext._get_traceparent_values(headers)
+                assert traceparent_values == expected_tuple
         else:
             traceparent_values = _TraceContext._get_traceparent_values(headers)
             assert traceparent_values == expected_tuple
-            if caplog.text:
+            if caplog.text or expected_logging:
                 for expected_log in expected_logging:
                     assert expected_log in caplog.text
 
@@ -487,6 +502,21 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
+                {
+                    "_dd.p.dm": "-4",
+                    "_dd.p.usr.id": "baz64",
+                },
+                "rum",
+            ),
+            None,
+            None,
+        ),
+        (
+            "tracestate_with_0_sampling_priority",
+            "dd=s:0;o:rum;t.dm:-4;t.usr.id:baz64",
+            # sampling_priority_ts, other_propagated_tags, origin
+            (
+                0,
                 {
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
@@ -577,7 +607,7 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             "congo=t61rcWkgMzE,mako=s:2;o:rum;",
             # sampling_priority_ts, other_propagated_tags, origin
             None,
-            ["no dd list member in tracestate from incoming request: 'congo=t61rcWkgMzE,mako=s:2;o:rum;'"],
+            None,
             None,
         ),
         (
@@ -615,11 +645,12 @@ def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_lo
     with caplog.at_level(logging.DEBUG):
         if expected_exception:
             with pytest.raises(expected_exception):
-                tracetstate_values = _TraceContext._get_tracestate_values(ts_string)
-                assert tracetstate_values == expected_tuple
+                tracestate_values = _TraceContext._get_tracestate_values(ts_string)
+                assert tracestate_values == expected_tuple
         else:
-            tracetstate_values = _TraceContext._get_tracestate_values(ts_string)
-            if caplog.text:
+            tracestate_values = _TraceContext._get_tracestate_values(ts_string)
+            assert tracestate_values == expected_tuple
+            if caplog.text or expected_logging:
                 for expected_log in expected_logging:
                     assert expected_log in caplog.text
 

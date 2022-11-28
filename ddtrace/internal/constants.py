@@ -9,7 +9,4 @@ PROPAGATION_STYLE_ALL = (
     PROPAGATION_STYLE_B3_SINGLE_HEADER,
 )
 
-_TRACEPARENT_KEY = "traceparent"
-_TRACESTATE_KEY = "tracestate"
-
 DEFAULT_SERVICE_NAME = "unnamed_python_service"
