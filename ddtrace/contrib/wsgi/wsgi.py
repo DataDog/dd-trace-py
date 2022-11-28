@@ -135,7 +135,7 @@ class _DDWSGIMiddlewareBase(object):
         self._request_span_modifier(req_span, environ)
 
         try:
-            app_span = self.tracer.start_span(self._application_span_name, child_of=req_span, activate=True)
+            app_span = self.tracer.trace(self._application_span_name)
             try:
                 intercept_start_response = functools.partial(
                     self._traced_start_response, start_response, req_span, app_span
