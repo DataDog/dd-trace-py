@@ -254,6 +254,40 @@ def test_traceparent(name, context, expected_traceparent):
             Context(),
             "",
         ),
+        (  # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
+            "equals_and_comma_chars_replaced",
+            Context(
+                trace_id=11803532876627986230,
+                span_id=67667974448284343,
+                sampling_priority=1,
+                meta={
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64",
+                    "_dd.p.dm": "=5=",
+                    "_dd.p.usr.id": "b,z64,",
+                    "_dd.p.unk": ";2",
+                },
+                dd_origin="rum",
+            ),
+            "dd=s:1;o:rum;t.dm:_5_;t.usr.id:b_z64_;t.unk:_2",
+        ),
+        (  # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E with _
+            "key_outside_range_replaced_w_underscored",
+            Context(
+                trace_id=11803532876627986230,
+                span_id=67667974448284343,
+                sampling_priority=1,
+                meta={
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64",
+                    "_dd.p.dm": "5",
+                    "_dd.p.usr.id": "bz64",
+                    "_dd.p.unk¢": "2",
+                    "_dd.p.another ": "2",
+                    "_dd.p.one_more=": "2",
+                },
+                dd_origin="rum",
+            ),
+            "dd=s:1;o:rum;t.dm:5;t.usr.id:bz64;t.unk_:2;t.another_:2;t.one_more_:2",
+        ),
     ],
 )
 def test_tracestate(name, context, expected_tracestate):

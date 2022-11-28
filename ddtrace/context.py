@@ -157,7 +157,7 @@ class Context(object):
         # since this can change, we need to grab the value off the current span
         usr_id_key = self._meta.get(USER_ID_KEY)
         if usr_id_key:
-            dd += "t.usr.id:{};".format(self._meta.get(USER_ID_KEY))
+            dd += "t.usr.id:{};".format(re.sub(r",|=|[^\x20-\x7E]+", "_", usr_id_key))
 
         # grab all other _dd.p values out of meta since we need to propagate all of them
         for k, v in self._meta.items():
@@ -165,7 +165,8 @@ class Context(object):
                 # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
                 # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
                 next_tag = "{}:{};".format(
-                    re.sub("_dd.p.", "t.", re.sub(r",|=|[^\x20-\x7E]+", "_", k)), re.sub(r",|;|:|[^\x20-\x7E]+", "_", v)
+                    re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)),
+                    re.sub(r",|;|:|[^\x20-\x7E]+", "_", v),
                 )
                 if not (len(dd) + len(next_tag)) > 256:
                     dd += next_tag
@@ -175,8 +176,11 @@ class Context(object):
         # If there's a preexisting tracestate we need to update it
         ts = self._meta.get(_TRACESTATE_KEY)
         if ts and dd:
-            ts_w_out_dd = re.sub("dd=(.+?),", "", ts)
-            ts = "dd={},{}".format(dd, ts_w_out_dd)
+            ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
+            if ts_w_out_dd:
+                ts = "dd={},{}".format(dd, ts_w_out_dd)
+            else:
+                ts = "dd={}".format(dd)
         elif dd:
             ts = "dd={}".format(dd)
         else:
