@@ -6,6 +6,8 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
 
+import six
+
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
@@ -161,7 +163,11 @@ class Context(object):
 
         # grab all other _dd.p values out of meta since we need to propagate all of them
         for k, v in self._meta.items():
-            if isinstance(k, six.string_types) and k.startswith("_dd.p") and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]:
+            if (
+                isinstance(k, six.string_types)
+                and k.startswith("_dd.p")
+                and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
+            ):
                 # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
                 # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
                 next_tag = "{}:{};".format(
@@ -173,8 +179,9 @@ class Context(object):
         # remove final ;
         if dd:
             dd = dd[:-1]
-        # If there's a preexisting tracestate we need to update it
-        ts = self._meta.get(_TRACESTATE_KEY)
+
+        # If there's a preexisting tracestate we need to update it to preserve other vendor data
+        ts = self._meta.get(_TRACESTATE_KEY, "")
         if ts and dd:
             ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
             if ts_w_out_dd:
@@ -183,8 +190,6 @@ class Context(object):
                 ts = "dd={}".format(dd)
         elif dd:
             ts = "dd={}".format(dd)
-        else:
-            ts = ""
         return ts
 
     @property
