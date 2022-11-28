@@ -44,7 +44,8 @@ def _get_perform_request():
             return func(*args, **kwargs)
 
         with pin.tracer.trace(
-            "opensearch.query", service=ext_service(pin, config.opensearch), span_type=SpanTypes.OPENSEARCH
+            # Use `SpanTypes.ELASTICSEARCH` until OpenSearch is aliased to DB
+            "opensearch.query", service=ext_service(pin, config.opensearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
             span.set_tag(SPAN_MEASURED_KEY)
 

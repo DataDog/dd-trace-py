@@ -60,7 +60,7 @@ class OpenSearchPatchTest(TracerTestCase):
         TracerTestCase.assert_is_measured(span)
         assert span.service == "opensearch"
         assert span.name == "opensearch.query"
-        assert span.span_type == "opensearch"
+        assert span.span_type == "elasticsearch"
         assert span.error == 0
         assert span.get_tag("opensearch.method") == "PUT"
         assert span.get_tag("opensearch.url") == "/%s" % self.OS_INDEX
