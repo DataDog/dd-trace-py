@@ -9,22 +9,14 @@ specific Django apps like Django Rest Framework (DRF).
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
-import json
 import os
 import sys
 
-from django.core.exceptions import PermissionDenied
-from django.http import HttpResponse
 from django.http import HttpResponseForbidden
-from django.template import loader
 
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace import constants
-from ddtrace import tracer
-from ddtrace.constants import APPSEC_JSON
-from ddtrace.constants import APPSEC_WAF_DURATION
-from ddtrace.constants import APPSEC_WAF_DURATION_EXT
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
@@ -40,9 +32,7 @@ from ddtrace.vendor import wrapt
 
 from . import utils
 from .. import trace_utils
-from ...appsec.processor import _Addresses
 from ...internal.utils import get_argument_value
-from ...tracer import _start_appsec_processor
 
 
 log = get_logger(__name__)

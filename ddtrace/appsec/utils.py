@@ -14,7 +14,7 @@ def _appsec_rc_features_is_enabled():
 
 def _appsec_rc_capabilities():
     # type: () -> str
-    """return the bit representation of the composed capabilities in base64
+    r"""return the bit representation of the composed capabilities in base64
     bit 0: Reserved
     bit 1: ASM 1-click Activation
     bit 2: ASM Ip blocking

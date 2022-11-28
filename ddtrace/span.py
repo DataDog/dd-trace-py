@@ -493,7 +493,7 @@ class Span(object):
             if exc_type:
                 self.set_exc_info(exc_type, exc_val, exc_tb)
             self.finish()
-        except:
+        except Exception:
             log.exception("error closing trace")
 
     def __repr__(self):
