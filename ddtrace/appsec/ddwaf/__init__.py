@@ -17,10 +17,8 @@ try:
     from .ddwaf_types import ddwaf_get_version
     from .ddwaf_types import ddwaf_init
     from .ddwaf_types import ddwaf_object
-    from .ddwaf_types import ddwaf_required_rule_data_ids
     from .ddwaf_types import ddwaf_result_free
     from .ddwaf_types import ddwaf_ruleset_info
-    from .ddwaf_types import ddwaf_toggle_rules
     from .ddwaf_types import ddwaf_update_rule_data
     from .ddwaf_types import py_ddwaf_required_addresses
     from .ddwaf_types import py_ddwaf_run

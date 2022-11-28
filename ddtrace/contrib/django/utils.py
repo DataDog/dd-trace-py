@@ -5,7 +5,6 @@ from typing import List
 from typing import Text
 from typing import Union
 
-import django
 from django.http import RawPostDataException
 from django.http import UnreadablePostError
 from django.utils.functional import SimpleLazyObject
