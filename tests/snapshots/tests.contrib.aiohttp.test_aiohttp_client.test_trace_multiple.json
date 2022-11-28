@@ -1,12 +1,13 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aiohttp_client",
@@ -28,23 +29,26 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 1326000,
-       "start": 1666808695047088000
+       "type": "",
+       "error": 0,
+       "duration": 26278000,
+       "start": 1646794505598411000
      }],
 [
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aiohttp_client",
@@ -66,23 +70,26 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 92000,
-       "start": 1666808695062084000
+       "type": "",
+       "error": 0,
+       "duration": 70000,
+       "start": 1646794505627940000
      }],
 [
   {
     "name": "aiohttp.request",
-    "service": null,
+    "service": "",
     "resource": "aiohttp.request",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "aiohttp_client",
@@ -104,11 +111,13 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": null,
+       "service": "",
        "resource": "TCPConnector.connect",
        "trace_id": 2,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 41000,
-       "start": 1666808695070844000
+       "type": "",
+       "error": 0,
+       "duration": 136000,
+       "start": 1646794505631851000
      }]]

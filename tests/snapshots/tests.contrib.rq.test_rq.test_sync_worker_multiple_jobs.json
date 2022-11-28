@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "rq",
@@ -33,6 +34,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "component": "rq",
@@ -57,6 +59,8 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "component": "rq",
             "job.id": "05471619-decb-41ff-9bcd-e99759524087"
@@ -73,6 +77,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "rq",
@@ -99,6 +104,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "component": "rq",
@@ -123,6 +129,8 @@
           "trace_id": 1,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "component": "rq",
             "job.id": "3f321637-b119-4a25-a7c0-ae0a5aa05d1a"
@@ -139,6 +147,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "rq",
@@ -165,6 +174,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "component": "rq",
@@ -189,6 +199,8 @@
           "trace_id": 2,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "component": "rq",
             "job.id": "6ee30d0e-4d5d-4a30-9ec0-bd40bff59e6a"

@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "sanic",
@@ -34,8 +35,10 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 73060000,
-       "start": 1666809950609912000
+       "type": "",
+       "error": 0,
+       "duration": 84899000,
+       "start": 1643465627713142000
      }],
 [
   {
@@ -46,6 +49,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "sanic",
@@ -73,6 +77,8 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "duration": 45061000,
-       "start": 1666809950715948000
+       "type": "",
+       "error": 0,
+       "duration": 50094000,
+       "start": 1643465627811863000
      }]]

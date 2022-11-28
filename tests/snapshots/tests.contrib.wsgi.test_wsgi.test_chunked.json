@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "wsgi",
@@ -36,8 +37,10 @@
        "meta": {
          "component": "wsgi"
        },
-       "duration": 16000,
-       "start": 1666810172064316000
+       "type": "",
+       "error": 0,
+       "duration": 20000,
+       "start": 1631829206122994000
      },
         {
           "name": "wsgi.start_response",
@@ -60,10 +63,27 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "component": "wsgi",
          "result_class": "generator"
        },
-       "duration": 693000,
-       "start": 1666810172064351000
-     }]]
+       "duration": 1342000,
+       "start": 1631829206123038000
+     },
+        {
+          "name": "wsgi.start_response",
+          "service": "wsgi",
+          "resource": "wsgi.start_response",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 3,
+          "meta": {
+            "component": "wsgi"
+          },
+          "type": "web",
+          "error": 0,
+          "duration": 39000,
+          "start": 1631829206123121000
+        }]]

@@ -6,6 +6,8 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "657552856ab8420dac8010e8cad5736c"
@@ -28,6 +30,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "redis",
+       "error": 0,
        "meta": {
          "component": "yaaredis",
          "out.host": "localhost",

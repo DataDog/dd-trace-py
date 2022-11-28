@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "starlette",
@@ -35,6 +36,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
+       "error": 0,
        "meta": {
          "component": "sqlalchemy",
          "sql.db": "test.db"
@@ -56,6 +58,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "starlette",
@@ -84,6 +87,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
+       "error": 0,
        "meta": {
          "component": "sqlalchemy",
          "sql.db": "test.db"

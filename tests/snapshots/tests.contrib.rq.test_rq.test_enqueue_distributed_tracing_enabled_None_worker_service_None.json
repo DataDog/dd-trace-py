@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "component": "rq",
@@ -33,6 +34,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "component": "rq",
@@ -57,6 +59,8 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "component": "rq",
             "job.id": "713ececf-241b-49d1-878c-9472231d7798"

@@ -56,6 +56,7 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_datadog_name = "{}.query".format(span_name_prefix)
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
+        self._self_dbm_propagation_supported = getattr(self._self_config, "_dbm_propagation_supported", False)
 
     def __iter__(self):
         return self.__wrapped__.__iter__()
@@ -125,7 +126,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_datadog_name,
             query,
             {"sql.executemany": "true"},
-            True,
+            self._self_dbm_propagation_supported,
             query,
             *args,
             **kwargs
@@ -139,13 +140,20 @@ class TracedCursor(wrapt.ObjectProxy):
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         return self._trace_method(
-            self.__wrapped__.execute, self._self_datadog_name, query, {}, True, query, *args, **kwargs
+            self.__wrapped__.execute,
+            self._self_datadog_name,
+            query,
+            {},
+            self._self_dbm_propagation_supported,
+            query,
+            *args,
+            **kwargs
         )
 
     def callproc(self, proc, *args):
         """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, True, proc, *args)
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, False, proc, *args)
 
     def _set_post_execute_tags(self, span):
         row_count = self.__wrapped__.rowcount
