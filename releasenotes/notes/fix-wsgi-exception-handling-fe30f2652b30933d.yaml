@@ -1,0 +1,4 @@
+--- 
+fixes:
+  - |
+    wsgi: This fix resolves an issue where spans are not submitted when SystemExit is raised in a traced wsgi app.
