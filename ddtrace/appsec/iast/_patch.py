@@ -1,5 +1,6 @@
 import ctypes
 import gc
+import sys
 from typing import TYPE_CHECKING
 
 from ddtrace.internal.logger import get_logger
@@ -9,7 +10,9 @@ from ddtrace.vendor.wrapt import resolve_path
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
+    from typing import Callable
     from typing import Dict
+    from typing import Optional
 
 
 _DD_ORIGINAL_ATTRIBUTES = {}  # type: Dict[Any, Any]
@@ -17,7 +20,31 @@ _DD_ORIGINAL_ATTRIBUTES = {}  # type: Dict[Any, Any]
 log = get_logger(__name__)
 
 
+def set_and_check_module_is_patched(module_str, default_attr="_datadog_patch"):
+    # type: (str, str) -> Optional[bool]
+    try:
+        __import__(module_str)
+        module = sys.modules[module_str]
+        if getattr(module, default_attr, False):
+            return False
+        setattr(module, default_attr, True)
+    except ImportError:
+        pass
+    return True
+
+
+def set_module_unpatched(module_str, default_attr="_datadog_patch"):
+    # type: (str, str) -> None
+    try:
+        __import__(module_str)
+        module = sys.modules[module_str]
+        setattr(module, default_attr, False)
+    except ImportError:
+        pass
+
+
 def try_wrap_function_wrapper(module, name, wrapper):
+    # type: (str, str, Callable) -> None
     try:
         wrap_object(module, name, FunctionWrapper, (wrapper,))
     except (ImportError, AttributeError):

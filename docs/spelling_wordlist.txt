@@ -200,3 +200,5 @@ Serverless
 serverless
 cattrs
 IAST
+DES
+Blowfish
