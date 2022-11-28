@@ -583,10 +583,16 @@ class _TraceContext:
         # type: (str) -> Optional[Tuple[Optional[int], Dict[str, str], Optional[str]]]
 
         # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
-        dd_ts = re.search("dd=(.+?)(?:,|$)", ts)
         dd = None
-        if dd_ts:
-            dd = dict(item.split(":") for item in dd_ts.group(1).split(";"))  # type: ignore
+        ts_l = ts.split(",")
+        for list_mem in ts_l:
+            if list_mem.startswith("dd="):
+                list_mem = list_mem[3:]
+                dd = dict(item.split(":") for item in list_mem.split(";"))
+
+        # dd_ts = re.search("dd=(.+?)(?:,|$)", ts)
+        # if dd_ts:
+        #     dd = dict(item.split(":") for item in dd_ts.group(1).split(";"))  # type: ignore
 
         # parse out values
         if dd:
