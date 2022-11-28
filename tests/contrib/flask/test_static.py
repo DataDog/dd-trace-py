@@ -21,7 +21,7 @@ class FlaskStaticFileTestCase(BaseFlaskTestCase):
         self.assertEqual(res.data, b"Hello Flask\n")
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 9 - REMOVED_SPANS_2_2_0)
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         req_span = self.find_span_by_name(spans, "flask.request")
         handler_span = self.find_span_by_name(spans, "static")
@@ -62,7 +62,7 @@ class FlaskStaticFileTestCase(BaseFlaskTestCase):
         self.assertEqual(res.status_code, 404)
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
+        self.assertEqual(len(spans), 13 - REMOVED_SPANS_2_2_0)
 
         req_span = self.find_span_by_name(spans, "flask.request")
         handler_span = self.find_span_by_name(spans, "static")
