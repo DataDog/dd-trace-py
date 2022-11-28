@@ -161,7 +161,7 @@ class Context(object):
 
         # grab all other _dd.p values out of meta since we need to propagate all of them
         for k, v in self._meta.items():
-            if isinstance(k, str) and k.startswith("_dd.p") and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]:
+            if isinstance(k, six.string_types) and k.startswith("_dd.p") and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]:
                 # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
                 # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
                 next_tag = "{}:{};".format(
