@@ -82,6 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CLIENTS_ENABLED: python
+      OVERRIDE_SKIPS: test_distributed_headers_extract_datadog_invalid
       PYTHON_DDTRACE_PACKAGE: git+https://github.com/Datadog/dd-trace-py.git@${{ github.sha }}
     steps:
       - name: Checkout system tests
