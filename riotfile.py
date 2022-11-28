@@ -221,6 +221,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec",
             pkgs={
                 "pycryptodome": latest,
+                "cryptography": latest,
             },
         ),
         Venv(
