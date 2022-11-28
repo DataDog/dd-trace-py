@@ -128,7 +128,6 @@ venv = Venv(
                 "flake8-logging-format": latest,
                 "flake8-rst-docstrings": latest,
                 "flake8-isort": latest,
-                "importlib-metadata": "<5",
                 "pygments": latest,
             },
             venvs=[
@@ -170,7 +169,7 @@ venv = Venv(
         ),
         Venv(
             pys=["3"],
-            pkgs={"slotscheck": latest, "forbiddenfruit": latest, "riot": latest},
+            pkgs={"slotscheck": latest},
             venvs=[
                 Venv(
                     name="slotscheck",
@@ -222,6 +221,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec",
             pkgs={
                 "pycryptodome": latest,
+                "cryptography": latest,
             },
         ),
         Venv(
@@ -263,7 +263,6 @@ venv = Venv(
                     pkgs={
                         "msgpack": latest,
                         "attrs": ["==20.1.0", latest],
-                        "packaging": ["==17.1", latest],
                         "structlog": latest,
                         # httpretty v1.0 drops python 2.7 support
                         "httpretty": "==0.9.7",
@@ -314,6 +313,7 @@ venv = Venv(
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
+                "packaging": ["==17.1", latest],
             },
             env={
                 "DD_REMOTE_CONFIGURATION_ENABLED": "false",
@@ -730,7 +730,6 @@ venv = Venv(
                         "django": [
                             "~=3.0",
                             "~=3.0.0",
-                            "~=3.1.0",
                             "~=3.2.0",
                         ],
                         "channels": ["~=3.0", latest],
@@ -743,7 +742,7 @@ venv = Venv(
                             "~=4.0.0",
                             latest,
                         ],
-                        "channels": ["~=3.0", latest],
+                        "channels": [latest],
                     },
                 ),
                 Venv(
@@ -753,7 +752,7 @@ venv = Venv(
                             "~=4.1.0",
                             latest,
                         ],
-                        "channels": ["~=3.0", latest],
+                        "channels": [latest],
                     },
                 ),
             ],
