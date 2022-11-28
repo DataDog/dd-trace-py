@@ -82,10 +82,10 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
+          "error": 0,
           "meta": {
             "component": "graphql"
           },
-          "error": 0,
           "duration": 33000,
           "start": 1658848788503087000
         }]]

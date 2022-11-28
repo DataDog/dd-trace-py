@@ -31,20 +31,35 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "component": "wsgi"
        },
-       "type": "",
-       "error": 0,
        "duration": 224000,
        "start": 1665504040161019000
      },
+        {
+          "name": "wsgi.start_response",
+          "service": "wsgi",
+          "resource": "wsgi.start_response",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "web",
+          "error": 0,
+          "meta": {
+            "component": "wsgi"
+          },
+          "duration": 34000,
+          "start": 1665504040161164000
+        },
         {
           "name": "wsgi.request",
           "service": "wsgi",
           "resource": "GET /",
           "trace_id": 0,
-          "span_id": 4,
+          "span_id": 5,
           "parent_id": 2,
           "type": "web",
           "error": 0,
@@ -64,12 +79,12 @@
              "resource": "wsgi.application",
              "trace_id": 0,
              "span_id": 6,
-             "parent_id": 4,
+             "parent_id": 5,
+             "type": "",
+             "error": 0,
              "meta": {
                "component": "wsgi"
              },
-             "type": "",
-             "error": 0,
              "duration": 106000,
              "start": 1665504040161111000
            },
@@ -81,10 +96,10 @@
                 "span_id": 8,
                 "parent_id": 6,
                 "type": "web",
+                "error": 0,
                 "meta": {
                   "component": "wsgi"
                 },
-                "error": 0,
                 "duration": 70000,
                 "start": 1665504040161140000
               },
@@ -94,7 +109,7 @@
              "resource": "wsgi.response",
              "trace_id": 0,
              "span_id": 7,
-             "parent_id": 4,
+             "parent_id": 5,
              "type": "",
              "error": 0,
              "meta": {
@@ -104,21 +119,6 @@
              "duration": 74000,
              "start": 1666810172336525000
            },
-        {
-          "name": "wsgi.start_response",
-          "service": "wsgi",
-          "resource": "wsgi.start_response",
-          "trace_id": 0,
-          "span_id": 5,
-          "parent_id": 2,
-          "type": "web",
-          "meta": {
-            "component": "wsgi"
-          },
-          "error": 0,
-          "duration": 34000,
-          "start": 1665504040161164000
-        },
      {
        "name": "wsgi.response",
        "service": "wsgi",

@@ -70,10 +70,10 @@
           "span_id": 5,
           "parent_id": 3,
           "type": "graphql",
+          "error": 0,
           "meta": {
             "component": "graphql"
           },
-          "error": 0,
           "duration": 101000,
           "start": 1658848939283224000
         },
@@ -118,10 +118,10 @@
           "span_id": 6,
           "parent_id": 4,
           "type": "graphql",
+          "error": 0,
           "meta": {
             "component": "graphql"
           },
-          "error": 0,
           "duration": 89000,
           "start": 1658848939284065000
         },

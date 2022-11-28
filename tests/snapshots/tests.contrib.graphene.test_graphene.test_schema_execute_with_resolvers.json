@@ -81,10 +81,10 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
+          "error": 0,
           "meta": {
             "component": "graphql"
           },
-          "error": 0,
           "duration": 60000,
           "start": 1659643443278923000
         },
@@ -96,10 +96,10 @@
           "span_id": 6,
           "parent_id": 4,
           "type": "graphql",
+          "error": 0,
           "meta": {
             "component": "graphql"
           },
-          "error": 0,
           "duration": 33000,
           "start": 1659643443279216000
         },
@@ -111,10 +111,10 @@
           "span_id": 7,
           "parent_id": 4,
           "type": "graphql",
+          "error": 0,
           "meta": {
             "component": "graphql"
           },
-          "error": 0,
           "duration": 27000,
           "start": 1659643443279338000
         },
@@ -126,10 +126,10 @@
           "span_id": 8,
           "parent_id": 4,
           "type": "graphql",
+          "error": 0,
           "meta": {
             "component": "graphql"
           },
-          "error": 0,
           "duration": 27000,
           "start": 1659643443279449000
         }]]
