@@ -552,7 +552,7 @@ class Tracer(object):
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
         *args,  # type: Any
-        **kwargs,  # type: Any
+        **kwargs  # type: Any
     ):
         # type: (...) -> Span
         log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
@@ -567,7 +567,7 @@ class Tracer(object):
         span_type=None,  # type: Optional[str]
         activate=False,  # type: bool
         *args,  # type: Any
-        **kwargs,  # type: Any
+        **kwargs  # type: Any
     ):
         # type: (...) -> Span
         """Return a span that represents an operation called ``name``.
