@@ -23,6 +23,18 @@ CONTRIB_PATH = Path.cwd() / "ddtrace" / "contrib"
 CONTRIB_TEST_PATH = Path().cwd() / "tests" / "contrib"
 
 
+def _has_unpatch_method(obj):
+    # type: (ast) -> bool
+    if isinstance(obj, ast.Assign):
+        if len(obj.targets) == 1 and isinstance(obj.targets[0], ast.Name) and obj.targets[0].id == "__all__":
+            if isinstance(obj.value, ast.List):
+                if any(i.value == "unpatch" for i in obj.value.elts):
+                    return True
+        return False
+    else:
+        return any(_has_unpatch_method(x) for x in ast.iter_child_nodes(obj))
+
+
 def generate_patch_test_source(contrib):
     print(f"Generating patch test for {contrib}")
 
