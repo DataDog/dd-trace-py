@@ -35,7 +35,7 @@ if PY3:
 #
 # Interface as Cython
 #
-DDWafRulesType = Union[None, int, unicode, list[Any], dict[unicode, Any]]
+DDWafRulesType = Union[None, int, unicode, list, dict]
 DEFAULT_DDWAF_TIMEOUT_MS = 20
 
 if _DDWAF_LOADED:
