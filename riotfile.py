@@ -480,6 +480,39 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="bottle",
+            pkgs={"WebTest": latest},
+            venvs=[
+                Venv(
+                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.9"),
+                            pkgs={"bottle": [">=0.11,<0.12", ">=0.12,<0.13", latest]},
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={"bottle": latest},
+                        ),
+                    ],
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    env={"DD_SERVICE": "bottle-app"},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.9"),
+                            pkgs={"bottle": [">=0.11,<0.12", ">=0.12,<0.13", latest]},
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={"bottle": latest},
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
             pkgs={"more_itertools": "<8.11.0"},
