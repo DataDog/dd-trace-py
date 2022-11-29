@@ -545,8 +545,8 @@ class _TraceContext:
     @staticmethod
     def _get_traceparent_values(tp):
         # type: (str) -> Tuple[int, int, int]
-        """If there is no traceparent, or if the traceparent value is invalid return None.
-        Otherwise we extract the traceparent, trace-id, span-id, and sampling priority from the
+        """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
+        Otherwise we extract the trace-id, span-id, and sampling priority from the
         traceparent header.
         """
 
@@ -580,7 +580,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_tracestate_values(ts):
-        # type: (str) -> Optional[Tuple[Optional[int], Dict[str, str], Optional[str]]]
+        # type: (str) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
 
         # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
         dd = None
@@ -603,7 +603,7 @@ class _TraceContext:
 
             return sampling_priority_ts, other_propagated_tags, origin
         else:
-            return None
+            return None, {}, None
 
     @staticmethod
     def _get_sampling_priority(sampling_priority_tp, sampling_priority_ts):
@@ -627,11 +627,9 @@ class _TraceContext:
 
         elif sampling_priority_tp == 1 and (not sampling_priority_ts or sampling_priority_ts < 0):
             sampling_priority = 1
-
-        elif sampling_priority_tp == 1 and sampling_priority_ts > 0:
-            sampling_priority = sampling_priority_ts
-
-        elif sampling_priority_tp == 0 and sampling_priority_ts < 0:
+        else:
+            # elif sampling_priority_tp == 1 and sampling_priority_ts > 0:
+            # elif sampling_priority_tp == 0 and sampling_priority_ts < 0:
             sampling_priority = sampling_priority_ts
 
         return sampling_priority
@@ -645,21 +643,21 @@ class _TraceContext:
             if tp is None:
                 log.debug("no traceparent header")
                 return None
-            traceparent_values = _TraceContext._get_traceparent_values(tp)
+            trace_id, span_id, sampling_priority = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s ", tp)
             return None
-
-        trace_id, span_id, sampling_priority = traceparent_values
+        origin = None
         meta = {_TRACEPARENT_KEY: tp}  # type: _MetaDictType
+
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
             # the value MUST contain only ASCII characters in the
-            # range of 0x20 to 0x7E except comma (,) and equal-sign (=)
+            # range of 0x20 to 0x7E
             if re.search(r"[^\x20-\x7E]+", ts):
                 log.debug("received invalid tracestate header: %r", ts)
             else:
-                # store ts so we keep other vendor data, even if dd ends up being invalid
+                # store tracestate so we keep other vendor data for injection, even if dd ends up being invalid
                 meta[_TRACESTATE_KEY] = ts
                 try:
                     tracestate_values = _TraceContext._get_tracestate_values(ts)
@@ -672,14 +670,6 @@ class _TraceContext:
                     meta.update(other_propagated_tags)
 
                     sampling_priority = _TraceContext._get_sampling_priority(sampling_priority, sampling_priority_ts)
-
-                    return Context(
-                        trace_id=trace_id,
-                        span_id=span_id,
-                        sampling_priority=sampling_priority,
-                        dd_origin=origin,
-                        meta=meta,
-                    )
                 else:
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
@@ -687,6 +677,7 @@ class _TraceContext:
             trace_id=trace_id,
             span_id=span_id,
             sampling_priority=sampling_priority,
+            dd_origin=origin,
             meta=meta,
         )
 

@@ -606,7 +606,7 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             "tracestate_with_no_dd_list_member",
             "congo=t61rcWkgMzE,mako=s:2;o:rum;",
             # sampling_priority_ts, other_propagated_tags, origin
-            None,
+            (None, {}, None),
             None,
             None,
         ),
