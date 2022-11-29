@@ -435,7 +435,7 @@ venv = Venv(
             pys="3.9",
             pkgs={
                 "cassandra-driver": latest,
-                "psycopg2": latest,
+                "psycopg2-binary": latest,
                 "mysql-connector-python": "!=8.0.18",
                 "vertica-python": ">=0.6.0,<0.7.0",
                 "kombu": ">=4.2.0,<4.3.0",
