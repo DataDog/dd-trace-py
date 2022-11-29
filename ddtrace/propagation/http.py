@@ -609,17 +609,10 @@ class _TraceContext:
     def _get_sampling_priority(sampling_priority_tp, sampling_priority_ts):
         # type: (int, Optional[int]) -> int
         """
-        1. If the traceparent sampled flag == 0, and the tracestate sampling priority is not present or greater than 0,
-        set the sampling priority field to 0.
-
-        2. If the traceparent sampled flag == 1, and the tracestate sampling priority is
-        not present or less than or equal to 0, update the sampling priority field to 1.
-
-        3. If the traceparent sampled flag == 1, and the tracestate sampling priority is greater than 0,
-        use the extracted sampling priority value.
-
-        4. If the traceparent sampled flag == 0, and the tracestate sampling priority is less than or equal to 0,
-        use the extracted sampling priority value.
+        """
+        When the traceparent sampled flag is set, the Datadog sampling priority is either 1 or a positive value of sampling priority if propagated in tracestate.
+        
+        When the traceparent sampled flag is not set, the Datadog sampling priority is either 0 or a negative value of sampling priority if propagated in tracestate.
         """
 
         if sampling_priority_tp == 0 and (not sampling_priority_ts or sampling_priority_ts >= 0):
