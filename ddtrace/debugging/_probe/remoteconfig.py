@@ -186,7 +186,7 @@ class ProbeRCAdapter(object):
         # type: () -> None
         self._status_timestamp = time.time() + config.diagnostics_interval
 
-    def _dispatch_prove_events(self, prev_probes, next_probes):
+    def _dispatch_probe_events(self, prev_probes, next_probes):
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
         modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and probe_modified(p, prev_probes[_])]
@@ -205,7 +205,7 @@ class ProbeRCAdapter(object):
             {probe.probe_id: probe for probe in get_probes(config_id, config)} if config is not None else {}
         )  # type: Dict[str, Probe]
 
-        self._dispatch_prove_events(prev_probes, next_probes)
+        self._dispatch_probe_events(prev_probes, next_probes)
 
         if next_probes:
             self._configs[config_id] = next_probes
