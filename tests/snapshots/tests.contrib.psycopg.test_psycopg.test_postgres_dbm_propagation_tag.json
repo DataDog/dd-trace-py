@@ -25,7 +25,7 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "out.port": 5432,
-      "process_id": 82883,
+      "process_id": 56478,
       "sql.rows": 1
     },
     "duration": 2652000,
@@ -59,7 +59,7 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 5432,
-      "process_id": 82883,
+      "process_id": 56478,
       "sql.rows": 2
     },
     "duration": 2410000,
@@ -74,6 +74,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.dbm_trace_injected": "true",
       "_dd.p.dm": "-0",
@@ -91,7 +92,7 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "out.port": 5432,
-      "process_id": 82883,
+      "process_id": 56478,
       "sql.rows": 1
     },
     "duration": 1301000,
@@ -106,6 +107,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.dbm_trace_injected": "true",
       "_dd.p.dm": "-0",
@@ -124,7 +126,7 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 2,
       "out.port": 5432,
-      "process_id": 82883,
+      "process_id": 56478,
       "sql.rows": 2
     },
     "duration": 1988000,
