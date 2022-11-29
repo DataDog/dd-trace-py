@@ -159,6 +159,20 @@ def test_context_serializable(context):
             Context(trace_id=11803532876627986230, span_id=67667974448284343, sampling_priority=2),
             "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
         ),
+        (
+            Context(
+                span_id=67667974448284343,
+                sampling_priority=1,
+            ),
+            "",
+        ),
+        (
+            Context(
+                trace_id=11803532876627986230,
+                sampling_priority=1,
+            ),
+            "",
+        ),
     ],
     ids=[
         "basic_tp",
@@ -170,6 +184,8 @@ def test_context_serializable(context):
         "shortened_trace_and_span_id",
         "no_tp_in_context_sampling_priority_-1",
         "no_tp_in_context_sampling_priority_2",
+        "no_trace_id_or_tp",
+        "no_span_id_or_tp",
     ],
 )
 def test_traceparent(context, expected_traceparent):

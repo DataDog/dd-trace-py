@@ -131,18 +131,29 @@ class Context(object):
     def _traceparent(self):
         # type: () -> str
         tp = self._meta.get(_TRACEPARENT_KEY)
+        dd_trace_id = self.trace_id
+        span_id = self.span_id
+
         # if we only have a traceparent then we'll forward it
-        if tp and self.span_id is None:
+        if tp and (span_id is None or dd_trace_id is None):
             return tp
 
+        # determine the trace_id value
         if tp:
             # grab the original traceparent trace id, not the converted value
             trace_id = tp.split("-")[1]
+        elif dd_trace_id:
+            trace_id = "{:032x}".format(dd_trace_id)
         else:
-            trace_id = "{:032x}".format(self.trace_id)
+            # if we don't have trace id value we can't build a traceparent
+            trace_id = ""
+
+        # if we don't have trace id value or a span id value we can't build a traceparent
+        if not trace_id or not span_id:
+            return ""
 
         sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
-        return "00-{}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
+        return "00-{}-{:016x}-{:02x}".format(trace_id, span_id, sampled)
 
     @property
     def _tracestate(self):
