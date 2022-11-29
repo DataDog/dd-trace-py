@@ -1073,6 +1073,7 @@ jobs:
       - image: *rabbitmq_image
     steps:
       - run_test:
+          wait: rabbitmq
           pattern: 'kombu'
 
   benchmarks:

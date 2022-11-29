@@ -6,7 +6,9 @@ from cassandra.cluster import NoHostAvailable
 from contrib.config import CASSANDRA_CONFIG
 from contrib.config import MYSQL_CONFIG
 from contrib.config import POSTGRES_CONFIG
+from contrib.config import RABBITMQ_CONFIG
 from contrib.config import VERTICA_CONFIG
+import kombu
 import mysql.connector
 from psycopg2 import OperationalError
 from psycopg2 import connect
@@ -73,12 +75,23 @@ def check_vertica():
         conn.close()
 
 
+@try_until_timeout(Exception)
+def check_rabbitmq():
+    url = "amqp://{user}:{password}@{host}:{port}//".format(**RABBITMQ_CONFIG)
+    conn = kombu.Connection(url)
+    try:
+        conn.connect()
+    finally:
+        conn.release()
+
+
 if __name__ == "__main__":
     check_functions = {
         "cassandra": check_cassandra,
         "postgres": check_postgres,
         "mysql": check_mysql,
         "vertica": check_vertica,
+        "rabbitmq": check_rabbitmq,
     }
     if len(sys.argv) >= 2:
         for service in sys.argv[1:]:
