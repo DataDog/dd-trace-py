@@ -906,6 +906,7 @@ venv = Venv(
             name="elasticsearch-opensearch",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py",
             venvs=[
+                # `opensearch-py<2` needs the `requests` extra; later versions include `requests` by default
                 Venv(
                     pys=select_pys(),
                     pkgs={"opensearch-py[requests]": ["~=1.0.0", "~=1.1.0"]},
