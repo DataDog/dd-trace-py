@@ -9,7 +9,7 @@ from ddtrace.context import Context
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
-from ddtrace.internal.constants import PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import HTTP_HEADER_ORIGIN
@@ -724,7 +724,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
     ],
 )
 def test_extract_tracecontext(headers, expected_context):
-    overrides = {"_propagation_style_extract": [PROPAGATION_STYLE_W3C_TRACECONTEXT]}
+    overrides = {"_propagation_style_extract": [_PROPAGATION_STYLE_W3C_TRACECONTEXT]}
     with override_global_config(overrides):
         context = HTTPPropagator.extract(headers)
         assert context == Context(**expected_context)
@@ -841,7 +841,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_tracecontext_simple",
-        [PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         TRACECONTEXT_HEADERS_VALID_BASIC,
         {
             "trace_id": 11803532876627986230,
@@ -1264,7 +1264,7 @@ else:
     overrides = {}
     # we skip context verification for tracecontext propagation style since it adds values to meta which
     # this testing style cannot account for. Tracecontext propagation style context values are tested separately.
-    if styles is not None and PROPAGATION_STYLE_W3C_TRACECONTEXT not in styles:
+    if styles is not None and _PROPAGATION_STYLE_W3C_TRACECONTEXT not in styles:
         overrides["_propagation_style_extract"] = styles
         with override_global_config(overrides):
             context = HTTPPropagator.extract(headers)
