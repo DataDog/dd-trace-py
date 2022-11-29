@@ -595,35 +595,38 @@ class _TraceContext:
         if dd:
             sampling_priority_ts = dd.get("s")
             if sampling_priority_ts is not None:
-                sampling_priority_ts = int(sampling_priority_ts)
+                sampling_priority_ts_int = int(sampling_priority_ts)
+            else:
+                sampling_priority_ts_int = None
 
             origin = dd.get("o")
             # need to convert from t. to _dd.p.
             other_propagated_tags = {"_dd.p.%s" % k[2:]: v for (k, v) in dd.items() if (k.startswith("t."))}
 
-            return sampling_priority_ts, other_propagated_tags, origin
+            return sampling_priority_ts_int, other_propagated_tags, origin
         else:
             return None, {}, None
 
     @staticmethod
-    def _get_sampling_priority(sampling_priority_tp, sampling_priority_ts):
+    def _get_sampling_priority(traceparent_sampled, tracestate_sampling_priority):
         # type: (int, Optional[int]) -> int
         """
-        """
-        When the traceparent sampled flag is set, the Datadog sampling priority is either 1 or a positive value of sampling priority if propagated in tracestate.
-        
-        When the traceparent sampled flag is not set, the Datadog sampling priority is either 0 or a negative value of sampling priority if propagated in tracestate.
+        When the traceparent sampled flag is set, the Datadog sampling priority is either
+        1 or a positive value of sampling priority if propagated in tracestate.
+
+        When the traceparent sampled flag is not set, the Datadog sampling priority is either
+        0 or a negative value of sampling priority if propagated in tracestate.
         """
 
-        if sampling_priority_tp == 0 and (not sampling_priority_ts or sampling_priority_ts >= 0):
+        if traceparent_sampled == 0 and (not tracestate_sampling_priority or tracestate_sampling_priority >= 0):
             sampling_priority = 0
 
-        elif sampling_priority_tp == 1 and (not sampling_priority_ts or sampling_priority_ts < 0):
+        elif traceparent_sampled == 1 and (not tracestate_sampling_priority or tracestate_sampling_priority < 0):
             sampling_priority = 1
         else:
             # elif sampling_priority_tp == 1 and sampling_priority_ts > 0:
             # elif sampling_priority_tp == 0 and sampling_priority_ts < 0:
-            sampling_priority = sampling_priority_ts
+            sampling_priority = tracestate_sampling_priority  # type: ignore
 
         return sampling_priority
 
@@ -660,7 +663,7 @@ class _TraceContext:
 
                 if tracestate_values:
                     sampling_priority_ts, other_propagated_tags, origin = tracestate_values
-                    meta.update(other_propagated_tags)
+                    meta.update(other_propagated_tags.items())
 
                     sampling_priority = _TraceContext._get_sampling_priority(sampling_priority, sampling_priority_ts)
                 else:
@@ -694,6 +697,7 @@ class HTTPPropagator(object):
         Here is an example using `requests`::
 
             import requests
+
             from ddtrace.propagation.http import HTTPPropagator
 
             def parent_call():
