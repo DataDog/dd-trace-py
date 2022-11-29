@@ -171,7 +171,7 @@ commands:
                   - setup_tox
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: tox -e 'wait' << parameters.wait >>
+                      command: riot -v run 'wait' << parameters.wait >>
             - setup_riot
             - run:
                 command: "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
@@ -203,7 +203,7 @@ commands:
           steps:
             - run:
                 name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
+                command: riot -v run 'wait' << parameters.wait >>
       - start_docker_services:
           env: SNAPSHOT_CI=1
           services: memcached redis testagent
@@ -235,7 +235,7 @@ commands:
           steps:
             - run:
                 name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
+                command: riot -v run 'wait' << parameters.wait >>
       - run:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'

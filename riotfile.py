@@ -430,6 +430,18 @@ venv = Venv(
             },
         ),
         Venv(
+            name="wait",
+            command="python tests/wait-for-services.py {cmdargs}",
+            pys="3.9",
+            pkgs={
+                "cassandra-driver": latest,
+                "psycopg2": latest,
+                "mysql-connector-python": "!=8.0.18",
+                "vertica-python": ">=0.6.0,<0.7.0",
+                "kombu": ">=4.2.0,<4.3.0",
+            },
+        ),
+        Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
             pys=select_pys(),
