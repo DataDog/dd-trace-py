@@ -2380,5 +2380,33 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="tornado",
+            command="python -m pytest {cmdargs} tests/contrib/tornado",
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={"tornado": [">=4.4,<4.5", ">=4.5,<4.6"], "futures": ["~=3.0", "~=3.1", "~=3.2", latest]},
+                ),
+                Venv(
+                    pys=select_pys(max_version="3.9"),
+                    pkgs={
+                        "tornado": [">=4.4,<4.5", ">=4.5,<4.6"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "tornado": [">=5.0,<5.1", ">=5.1,<5.2", ">=6.0,<6.1", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.11"),
+                    pkgs={
+                        "tornado": [">=6.0,<6.1", latest],
+                    },
+                ),
+            ],
+        ),
     ],
 )
