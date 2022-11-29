@@ -922,12 +922,6 @@ jobs:
       - run_test:
           pattern: "requests"
 
-  requestsgevent:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^requests_gevent_contrib-'
-
   sanic:
     <<: *machine_executor
     steps:
