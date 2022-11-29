@@ -129,9 +129,11 @@ class Context(object):
     @property
     def _traceparent(self):
         # type: () -> str
-        if self.trace_id is None or self.span_id is None:
-            return ""
         tp = self._meta.get(_TRACEPARENT_KEY)
+        # if we only have a traceparent then we'll forward it
+        if tp and self.span_id is None:
+            return tp
+
         if tp:
             # grab the original traceparent trace id, not the converted value
             trace_id = tp.split("-")[1]
@@ -163,6 +165,7 @@ class Context(object):
             if (
                 isinstance(k, six.string_types)
                 and k.startswith("_dd.p")
+                # we've already added sampling decision and user id
                 and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
             ):
                 # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
