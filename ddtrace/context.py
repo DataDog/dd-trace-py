@@ -33,7 +33,7 @@ if TYPE_CHECKING:  # pragma: no cover
         _MetricDictType,  # _metrics
     ]
 # regex matches ",", ";", ":", and characters outside the ASCII range 0x20 to 0x7E
-TRACESTATE_INVALID_CHARS_REGEX = r",|;|:|[^\x20-\x7E]+"
+_TRACESTATE_INVALID_CHARS_REGEX = r",|;|:|[^\x20-\x7E]+"
 
 log = get_logger(__name__)
 
@@ -159,11 +159,11 @@ class Context(object):
         sampling_decision = self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
         if sampling_decision:
             # replace characters ",", "=", and characters outside the ASCII range 0x20 to 0x7E
-            dd += "t.dm:{};".format(re.sub(TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision))
+            dd += "t.dm:{};".format(re.sub(_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision))
         # since this can change, we need to grab the value off the current span
         usr_id_key = self._meta.get(USER_ID_KEY)
         if usr_id_key:
-            dd += "t.usr.id:{};".format(re.sub(TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key))
+            dd += "t.usr.id:{};".format(re.sub(_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key))
 
         # grab all other _dd.p values out of meta since we need to propagate all of them
         for k, v in self._meta.items():
@@ -177,7 +177,7 @@ class Context(object):
                 # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
                 next_tag = "{}:{};".format(
                     re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)),
-                    re.sub(TRACESTATE_INVALID_CHARS_REGEX, "_", v),
+                    re.sub(_TRACESTATE_INVALID_CHARS_REGEX, "_", v),
                 )
                 if not (len(dd) + len(next_tag)) > 256:
                     dd += next_tag
