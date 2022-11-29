@@ -402,7 +402,7 @@ TRACECONTEXT_HEADERS_VALID = {
         ("0_tp_-2_ts", 0, -2, -2),
     ],
 )
-def test_tracecontext_decide_sampling_priority(
+def test_tracecontext_get_sampling_priority(
     name, sampling_priority_tp, sampling_priority_ts, expected_sampling_priority
 ):
     traceparent_values = _TraceContext._get_sampling_priority(sampling_priority_tp, sampling_priority_ts)
