@@ -53,7 +53,7 @@ jobs:
         run: ddtrace-run pytest test --continue-on-collection-errors -v -k 'not TestServerAdapter_gunicorn'
 
   django-testsuite-3_1:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     env:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
