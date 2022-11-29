@@ -408,10 +408,9 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
 
 
 @pytest.mark.parametrize(
-    "name,headers,expected_tuple,expected_logging,expected_exception",
+    "headers,expected_tuple,expected_logging,expected_exception",
     [
         (
-            "traceflag_01",
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 1),
@@ -419,21 +418,18 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             None,
         ),
         (
-            "invalid_0_value_for_trace_id",
             "00-00000000000000000000000000000000-00f067aa0ba902b7-01",
             None,
             None,
             ValueError,
         ),
         (
-            "invalid_0_value_for_span_id",
             "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
             None,
             None,
             ValueError,
         ),
         (
-            "traceflag_00",
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 0),
@@ -441,7 +437,6 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             None,
         ),
         (
-            "unsupported_version",
             "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 1),
@@ -449,7 +444,6 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             None,
         ),
         (
-            "short_version",
             "0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 1),
@@ -457,7 +451,6 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             None,
         ),
         (
-            "short_trace_id",
             "00-f92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
             None,
@@ -468,7 +461,6 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             ValueError,
         ),
         (  # we still parse the trace flag and analyze the it as a bit field
-            "unknown_trace_flag",
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-02",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 0),
@@ -476,8 +468,18 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             None,
         ),
     ],
+    ids=[
+        "traceflag_01",
+        "invalid_0_value_for_trace_id",
+        "invalid_0_value_for_span_id",
+        "traceflag_00",
+        "unsupported_version",
+        "short_version",
+        "short_trace_id",
+        "unknown_trace_flag",
+    ],
 )
-def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_logging, expected_exception):
+def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, expected_exception):
     with caplog.at_level(logging.DEBUG):
         if expected_exception:
             with pytest.raises(expected_exception):
@@ -492,10 +494,9 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
 
 
 @pytest.mark.parametrize(
-    "name,ts_string,expected_tuple,expected_logging,expected_exception",
+    "ts_string,expected_tuple,expected_logging,expected_exception",
     [
         (
-            "tracestate_with_additional_list_members",
             "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
             # sampling_priority_ts, other_propagated_tags, origin
             (
@@ -510,7 +511,6 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             None,
         ),
         (
-            "tracestate_with_0_sampling_priority",
             "dd=s:0;o:rum;t.dm:-4;t.usr.id:baz64",
             # sampling_priority_ts, other_propagated_tags, origin
             (
@@ -525,7 +525,6 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             None,
         ),
         (
-            "tracestate_with_only_dd_list_member",
             "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64",
             # sampling_priority_ts, other_propagated_tags, origin
             (
@@ -540,7 +539,6 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             None,
         ),
         (
-            "no_sampling_priority",
             "dd=o:rum;t.dm:-4;t.usr.id:baz64",
             # sampling_priority_ts, other_propagated_tags, origin
             (
@@ -555,7 +553,6 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             None,
         ),
         (
-            "tracestate_with_negative_sampling_priority",
             "dd=s:-1;o:rum;t.dm:-4;t.usr.id:baz64",
             # sampling_priority_ts, other_propagated_tags, origin
             (
@@ -570,7 +567,6 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             None,
         ),
         (
-            "tracestate_with_no_origin",
             "dd=s:2;t.dm:-4;t.usr.id:baz64",
             # sampling_priority_ts, other_propagated_tags, origin
             (
@@ -585,7 +581,6 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             None,
         ),
         (
-            "tracestate_with_unknown_t._values",
             "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
             # sampling_priority_ts, other_propagated_tags, origin
             (
@@ -601,7 +596,6 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             None,
         ),
         (
-            "tracestate_with_no_dd_list_member",
             "congo=t61rcWkgMzE,mako=s:2;o:rum;",
             # sampling_priority_ts, other_propagated_tags, origin
             (None, {}, None),
@@ -609,7 +603,6 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             None,
         ),
         (
-            "tracestate_no_origin",
             "dd=s:2;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
             # sampling_priority_ts, other_propagated_tags, origin
             (
@@ -624,22 +617,33 @@ def test_extract_traceparent(caplog, name, headers, expected_tuple, expected_log
             None,
         ),
         (
-            "tracestate_invalid_dd_list_member",
             "dd=invalid,congo=123",
             None,
             ["received invalid dd header value in tracestate: 'dd=invalid,congo=123'"],
             ValueError,
         ),
         (
-            "tracestate_invalid_tracestate_char_outside_ascii_range_20-70",
             "dd=foo|bar:hi|l¢¢¢¢¢¢:",
             None,
             ["received invalid tracestate header: 'dd=foo|bar:hi|l¢¢¢¢¢¢:"],
             ValueError,
         ),
     ],
+    ids=[
+        "tracestate_with_additional_list_members",
+        "tracestate_with_0_sampling_priority",
+        "tracestate_with_only_dd_list_member",
+        "no_sampling_priority",
+        "tracestate_with_negative_sampling_priority",
+        "tracestate_with_no_origin",
+        "tracestate_with_unknown_t._values",
+        "tracestate_with_no_dd_list_member",
+        "tracestate_no_origin",
+        "tracestate_invalid_dd_list_member",
+        "tracestate_invalid_tracestate_char_outside_ascii_range_20-70",
+    ],
 )
-def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_logging, expected_exception):
+def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging, expected_exception):
     with caplog.at_level(logging.DEBUG):
         if expected_exception:
             with pytest.raises(expected_exception):
@@ -654,10 +658,9 @@ def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_lo
 
 
 @pytest.mark.parametrize(
-    "name,headers,expected_context",
+    "headers,expected_context",
     [
         (
-            "valid_headers_with_multiple_tracestate_list_members",
             TRACECONTEXT_HEADERS_VALID,
             {
                 "trace_id": 11803532876627986230,
@@ -673,7 +676,6 @@ def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_lo
             },
         ),
         (
-            "valid_headers_only_dd_tracestate_list_member",
             TRACECONTEXT_HEADERS_VALID_BASIC,
             {
                 "trace_id": 11803532876627986230,
@@ -687,7 +689,6 @@ def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_lo
             },
         ),
         (
-            "invalid_traceparent",
             {
                 _HTTP_HEADER_TRACEPARENT: "00-4bae0e4736-00f067aa0ba902b7-01",
                 _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
@@ -695,7 +696,6 @@ def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_lo
             {"trace_id": None, "span_id": None, "meta": {}, "metrics": {}},
         ),
         (
-            "traceparent_no_tracestate",
             {
                 _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             },
@@ -709,15 +709,21 @@ def test_extract_tracestate(caplog, name, ts_string, expected_tuple, expected_lo
             },
         ),
         (
-            "tracestate_no_traceparent",
             {
                 _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
             },
             {"trace_id": None, "span_id": None, "meta": {}, "metrics": {}},
         ),
     ],
+    ids=[
+        "valid_headers_with_multiple_tracestate_list_members",
+        "valid_headers_only_dd_tracestate_list_member",
+        "invalid_traceparent",
+        "traceparent_no_tracestate",
+        "tracestate_no_traceparent",
+    ],
 )
-def test_extract_tracecontext(name, headers, expected_context):
+def test_extract_tracecontext(headers, expected_context):
     overrides = {"_propagation_style_extract": [PROPAGATION_STYLE_W3C_TRACECONTEXT]}
     with override_global_config(overrides):
         context = HTTPPropagator.extract(headers)

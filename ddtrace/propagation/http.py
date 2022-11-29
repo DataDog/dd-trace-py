@@ -624,8 +624,9 @@ class _TraceContext:
         elif traceparent_sampled == 1 and (not tracestate_sampling_priority or tracestate_sampling_priority < 0):
             sampling_priority = 1
         else:
-            # elif sampling_priority_tp == 1 and sampling_priority_ts > 0:
-            # elif sampling_priority_tp == 0 and sampling_priority_ts < 0:
+            # The two other options provided for clarity:
+            # elif traceparent_sampled == 1 and tracestate_sampling_priority > 0:
+            # elif traceparent_sampled == 0 and tracestate_sampling_priority <= 0:
             sampling_priority = tracestate_sampling_priority  # type: ignore
 
         return sampling_priority
