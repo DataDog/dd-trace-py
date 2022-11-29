@@ -386,24 +386,24 @@ TRACECONTEXT_HEADERS_VALID = {
 
 
 @pytest.mark.parametrize(
-    "name,sampling_priority_tp,sampling_priority_ts,expected_sampling_priority",
+    "sampling_priority_tp,sampling_priority_ts,expected_sampling_priority",
     [
-        ("0_tp_0_ts", 0, 0, 0),
-        ("0_tp_1_ts", 0, 1, 0),
-        ("0_tp_2_ts", 0, 2, 0),
-        ("1_tp_0_ts", 1, 0, 1),
-        ("1_tp_1_ts", 1, 1, 1),
-        ("1_tp_0_ts", 1, 2, 2),
-        ("0_tp_None_ts", 0, None, 0),
-        ("1_tp_None_ts", 1, None, 1),
-        ("1_tp_-1_ts", 0, -1, -1),
-        ("1_tp_-1_ts", 1, -1, 1),
-        ("1_tp_-2_ts", 1, -2, 1),
-        ("0_tp_-2_ts", 0, -2, -2),
+        (0, 0, 0),
+        (0, 1, 0),
+        (0, 2, 0),
+        (1, 0, 1),
+        (1, 1, 1),
+        (1, 2, 2),
+        (0, None, 0),
+        (1, None, 1),
+        (0, -1, -1),
+        (1, -1, 1),
+        (1, -2, 1),
+        (0, -2, -2),
     ],
 )
 def test_tracecontext_get_sampling_priority(
-    name, sampling_priority_tp, sampling_priority_ts, expected_sampling_priority
+    sampling_priority_tp, sampling_priority_ts, expected_sampling_priority
 ):
     traceparent_values = _TraceContext._get_sampling_priority(sampling_priority_tp, sampling_priority_ts)
     assert traceparent_values == expected_sampling_priority
