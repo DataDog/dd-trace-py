@@ -9,10 +9,10 @@
         "Type": null,
         "HTTPStatusCode": 0,
         "Synthetics": false,
-        "Hits": 1000,
-        "TopLevelHits": 1000,
+        "Hits": 100,
+        "TopLevelHits": 100,
         "Duration": 5093000,
-        "Errors": 500,
+        "Errors": 50,
         "OkSummary": 2070,
         "ErrorSummary": 1046
       }
