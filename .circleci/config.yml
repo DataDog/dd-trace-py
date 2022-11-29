@@ -164,15 +164,15 @@ commands:
           condition:
               << parameters.snapshot >>
           steps:
+            - setup_riot
             - when:
                 condition:
                   << parameters.wait >>
                 steps:
-                  - setup_tox
                   - run:
                       name: "Waiting for << parameters.wait >>"
                       command: riot -v run 'wait' << parameters.wait >>
-            - setup_riot
+
             - run:
                 command: "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - save_pip_cache
@@ -201,6 +201,7 @@ commands:
           condition:
             << parameters.wait >>
           steps:
+            - setup_riot
             - run:
                 name: "Waiting for << parameters.wait >>"
                 command: riot -v run 'wait' << parameters.wait >>
@@ -233,6 +234,7 @@ commands:
           condition:
             << parameters.wait >>
           steps:
+            - setup_riot
             - run:
                 name: "Waiting for << parameters.wait >>"
                 command: riot -v run 'wait' << parameters.wait >>
