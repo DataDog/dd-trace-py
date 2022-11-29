@@ -623,14 +623,14 @@ jobs:
   tornado:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^tornado_contrib-'
+      - run_test:
+          pattern: 'tornado'
 
   bottle:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^bottle_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: 'bottle'
 
   cassandra:
     <<: *contrib_job
@@ -912,12 +912,6 @@ jobs:
     steps:
       - run_test:
           pattern: "requests"
-
-  requestsgevent:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^requests_gevent_contrib-'
 
   sanic:
     <<: *machine_executor

@@ -480,6 +480,39 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="bottle",
+            pkgs={"WebTest": latest},
+            venvs=[
+                Venv(
+                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.9"),
+                            pkgs={"bottle": [">=0.11,<0.12", ">=0.12,<0.13", latest]},
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={"bottle": latest},
+                        ),
+                    ],
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    env={"DD_SERVICE": "bottle-app"},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.9"),
+                            pkgs={"bottle": [">=0.11,<0.12", ">=0.12,<0.13", latest]},
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={"bottle": latest},
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        Venv(
             name="celery",
             command="pytest {cmdargs} tests/contrib/celery",
             pkgs={"more_itertools": "<8.11.0"},
@@ -2376,6 +2409,34 @@ venv = Venv(
                     pys=select_pys(min_version="3.11"),
                     pkgs={
                         "pylibmc": [">=1.6,<1.7", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="tornado",
+            command="python -m pytest {cmdargs} tests/contrib/tornado",
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={"tornado": [">=4.4,<4.5", ">=4.5,<4.6"], "futures": ["~=3.0", "~=3.1", "~=3.2", latest]},
+                ),
+                Venv(
+                    pys=select_pys(max_version="3.9"),
+                    pkgs={
+                        "tornado": [">=4.4,<4.5", ">=4.5,<4.6"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "tornado": [">=5.0,<5.1", ">=5.1,<5.2", ">=6.0,<6.1", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.11"),
+                    pkgs={
+                        "tornado": [">=6.0,<6.1", latest],
                     },
                 ),
             ],
