@@ -1,6 +1,5 @@
 from functools import partial
 import sys
-import typing
 import unittest
 
 import mock
@@ -16,7 +15,6 @@ from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.internal.utils.version import parse_version
 
 
 class TestUtils(unittest.TestCase):
@@ -322,30 +320,6 @@ def test_cachedmethod():
             return expensive(key)
 
     cached_test_recipe(expensive, Foo().cheap, witness, cache_size)
-
-
-@pytest.mark.parametrize(
-    "version_str,expected",
-    [
-        ("5", (5, 0, 0)),
-        ("0.5", (0, 5, 0)),
-        ("0.5.0", (0, 5, 0)),
-        ("1.0.0", (1, 0, 0)),
-        ("1.2.0", (1, 2, 0)),
-        ("1.2.8", (1, 2, 8)),
-        ("2.0.0rc1", (2, 0, 0)),
-        ("2.0.0-rc1", (2, 0, 0)),
-        ("2.0.0 here be dragons", (2, 0, 0)),
-        ("2020.6.19", (2020, 6, 19)),
-        ("beta 1.0.0", (0, 0, 0)),
-        ("no version found", (0, 0, 0)),
-        ("", (0, 0, 0)),
-    ],
-)
-def test_parse_version(version_str, expected):
-    # type: (str, typing.Tuple[int, int, int]) -> None
-    """Ensure parse_version helper properly parses versions"""
-    assert parse_version(version_str) == expected
 
 
 i = 0

@@ -91,7 +91,7 @@ def probe(_id, _type, attribs):
             probe_id=_id,
             condition=_compile_condition(attribs.get("when")),
             active=attribs["active"],
-            tags=dict(_.split(":", maxsplit=1) for _ in attribs.get("tags", [])),
+            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
         )
 
         if attribs["where"].get("sourceFile", None):
@@ -109,7 +109,7 @@ def probe(_id, _type, attribs):
         return MetricProbe(
             probe_id=_id,
             active=attribs["active"],
-            tags=dict(_.split(":", maxsplit=1) for _ in attribs.get("tags", [])),
+            tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
             source_file=attribs["where"]["sourceFile"],
             line=int(attribs["where"]["lines"][0]),
             name=attribs["metricName"],

@@ -198,11 +198,14 @@ below:
 
    DD_TRACE_API_VERSION:
      default: |
-         ``v0.4`` if priority sampling is enabled, else ``v0.3``
+         ``v0.5`` if priority sampling is enabled, else ``v0.3``
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
          Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
+     version_added:
+       v0.56.0:
+       v1.7.0: default changed to ``v0.5``.
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN:
      default: |
@@ -390,6 +393,11 @@ below:
      type: String
      default: "MD5,SHA1"
      description: Weak hashing algorithms that should be reported, comma separated.
+
+   DD_IAST_WEAK_CIPHER_ALGORITHMS:
+     type: String
+     default: "DES,Blowfish,RC2,RC4,IDEA"
+     description: Weak cipher algorithms that should be reported, comma separated.
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
