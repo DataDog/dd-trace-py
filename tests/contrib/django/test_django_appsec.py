@@ -10,6 +10,7 @@ from ddtrace.constants import APPSEC_JSON
 from ddtrace.constants import IAST_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
+from ddtrace.internal.compat import PY3
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.utils import override_env
@@ -403,7 +404,8 @@ def test_request_ipblock_match_403(client, test_spans, tracer):
 
         result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.4.4")
         assert result.status_code == 403
-        assert result.content == bytes(constants.APPSEC_IPBLOCK_403_DEFAULT, "utf-8")
+        as_bytes = bytes(constants.APPSEC_IPBLOCK_403_DEFAULT, "utf-8") if PY3 else constants.APPSEC_IPBLOCK_403_DEFAULT
+        assert result.content == as_bytes
         root = test_spans.spans[0]
         assert root.get_tag("actor.ip") == "8.8.4.4"
         loaded = json.loads(root.get_tag(APPSEC_JSON))
