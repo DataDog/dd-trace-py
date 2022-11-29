@@ -1072,9 +1072,8 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
     steps:
-      - run_tox_scenario:
-          wait: rabbitmq
-          pattern: '^kombu_contrib-'
+      - run_test:
+          pattern: 'kombu'
 
   benchmarks:
     <<: *contrib_job
