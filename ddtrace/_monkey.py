@@ -36,7 +36,6 @@ PATCH_MODULES = {
     "consul": True,
     "django": True,
     "elasticsearch": True,
-    "opensearch": True,
     "algoliasearch": True,
     "futures": True,
     "gevent": True,
@@ -109,8 +108,8 @@ _PATCH_ON_IMPORT = {
         "elasticsearch5",
         "elasticsearch6",
         "elasticsearch7",
+        "opensearchpy",
     ),
-    "opensearch": ("opensearch",),
     "pynamodb": ("pynamodb",),
 }
 

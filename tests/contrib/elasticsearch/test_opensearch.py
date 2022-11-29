@@ -5,12 +5,11 @@ import opensearchpy
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.contrib.opensearch.patch import patch
-from ddtrace.contrib.opensearch.patch import unpatch
+from ddtrace.contrib.elasticsearch.patch import patch
+from ddtrace.contrib.elasticsearch.patch import unpatch
 from ddtrace.ext import http
+from tests.contrib.config import OPENSEARCH_CONFIG
 from tests.utils import TracerTestCase
-
-from ..config import OPENSEARCH_CONFIG
 
 
 class OpenSearchPatchTest(TracerTestCase):
@@ -58,12 +57,12 @@ class OpenSearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         span = spans[0]
         TracerTestCase.assert_is_measured(span)
-        assert span.service == "opensearch"
-        assert span.name == "opensearch.query"
+        assert span.service == "elasticsearch"
+        assert span.name == "elasticsearch.query"
         assert span.span_type == "elasticsearch"
         assert span.error == 0
-        assert span.get_tag("opensearch.method") == "PUT"
-        assert span.get_tag("opensearch.url") == "/%s" % self.OS_INDEX
+        assert span.get_tag("elasticsearch.method") == "PUT"
+        assert span.get_tag("elasticsearch.url") == "/%s" % self.OS_INDEX
         assert span.resource == "PUT /%s" % self.OS_INDEX
 
         args = {"index": self.OS_INDEX}
@@ -78,9 +77,9 @@ class OpenSearchPatchTest(TracerTestCase):
         span = spans[0]
         TracerTestCase.assert_is_measured(span)
         assert span.error == 0
-        assert span.get_tag("opensearch.method") == "PUT"
+        assert span.get_tag("elasticsearch.method") == "PUT"
         assert span.resource == "PUT /%s/%s/?" % (self.OS_INDEX, self.OS_TYPE)
-        assert span.get_tag("opensearch.url") == "/%s/%s/%s" % (self.OS_INDEX, self.OS_TYPE, 10)
+        assert span.get_tag("elasticsearch.url") == "/%s/%s/%s" % (self.OS_INDEX, self.OS_TYPE, 10)
 
         os.indices.refresh(index=self.OS_INDEX)
 
@@ -91,12 +90,12 @@ class OpenSearchPatchTest(TracerTestCase):
         span = spans[0]
         TracerTestCase.assert_is_measured(span)
         assert span.resource == "POST /%s/_refresh" % self.OS_INDEX
-        assert span.get_tag("opensearch.method") == "POST"
-        assert span.get_tag("opensearch.url") == "/%s/_refresh" % self.OS_INDEX
+        assert span.get_tag("elasticsearch.method") == "POST"
+        assert span.get_tag("elasticsearch.url") == "/%s/_refresh" % self.OS_INDEX
 
         # search data
         args = {"index": self.OS_INDEX}
-        with self.override_http_config("opensearch", dict(trace_query_string=True)):
+        with self.override_http_config("elasticsearch", dict(trace_query_string=True)):
             os.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
             os.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
             os.index(id=12, body={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
@@ -110,16 +109,16 @@ class OpenSearchPatchTest(TracerTestCase):
         span = spans[-1]
         TracerTestCase.assert_is_measured(span)
         method, url = span.resource.split(" ")
-        assert method == span.get_tag("opensearch.method")
+        assert method == span.get_tag("elasticsearch.method")
         assert method in ["GET", "POST"]
         assert self.OS_INDEX in url
         assert url.endswith("/_search")
-        assert url == span.get_tag("opensearch.url")
-        assert span.get_tag("opensearch.body").replace(" ", "") == '{"query":{"match_all":{}}}'
-        assert set(span.get_tag("opensearch.params").split("&")) == {"sort=name%3Adesc", "size=100"}
+        assert url == span.get_tag("elasticsearch.url")
+        assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}}}'
+        assert set(span.get_tag("elasticsearch.params").split("&")) == {"sort=name%3Adesc", "size=100"}
         assert set(span.get_tag(http.QUERY_STRING).split("&")) == {"sort=name%3Adesc", "size=100"}
 
-        self.assertTrue(span.get_metric("opensearch.took") > 0)
+        self.assertTrue(span.get_metric("elasticsearch.took") > 0)
 
         # Search by type not supported by default json encoder
         query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}
@@ -135,7 +134,7 @@ class OpenSearchPatchTest(TracerTestCase):
         self.assertIsNone(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY))
 
     def test_analytics_with_rate(self):
-        with self.override_config("opensearch", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
+        with self.override_config("elasticsearch", dict(analytics_enabled=True, analytics_sample_rate=0.5)):
             self.os.indices.create(index=self.OS_INDEX, ignore=400, body=self.OS_MAPPING)
 
             spans = self.get_spans()
@@ -143,7 +142,7 @@ class OpenSearchPatchTest(TracerTestCase):
             self.assertEqual(spans[0].get_metric(ANALYTICS_SAMPLE_RATE_KEY), 0.5)
 
     def test_analytics_without_rate(self):
-        with self.override_config("opensearch", dict(analytics_enabled=True)):
+        with self.override_config("elasticsearch", dict(analytics_enabled=True)):
             self.os.indices.create(index=self.OS_INDEX, ignore=400, body=self.OS_MAPPING)
 
             spans = self.get_spans()
@@ -209,12 +208,12 @@ class OpenSearchPatchTest(TracerTestCase):
         assert len(spans) == 1
         assert spans[0].service != "os"
 
-    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="opensearch:custom-opensearch"))
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE_MAPPING="elasticsearch:custom-opensearch"))
     def test_service_mapping_config(self):
         """
         When a user specifies a service mapping it should override the default
         """
-        assert config.opensearch.service != "custom-opensearch"
+        assert config.elasticsearch.service != "custom-opensearch"
 
         self.os.indices.create(index=self.OS_INDEX, ignore=400)
         spans = self.get_spans()
@@ -226,7 +225,7 @@ class OpenSearchPatchTest(TracerTestCase):
         """
         When a user specifies a service mapping it should override the default
         """
-        with self.override_config("opensearch", dict(service="test_service")):
+        with self.override_config("elasticsearch", dict(service="test_service")):
             self.os.indices.create(index=self.OS_INDEX, ignore=400)
             spans = self.get_spans()
             self.reset()

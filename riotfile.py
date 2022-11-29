@@ -903,6 +903,20 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="elasticsearch-opensearch",
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py",
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"opensearch-py[requests]": ["~=1.0.0", "~=1.1.0"]},
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"opensearch-py": [latest]},
+                ),
+            ],
+        ),
+        Venv(
             name="flask",
             command="pytest {cmdargs} tests/contrib/flask",
             pkgs={"blinker": latest, "requests": latest},
@@ -1097,20 +1111,6 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={"mysql-connector-python": [">=8.0", latest]},
-                ),
-            ],
-        ),
-        Venv(
-            name="opensearch",
-            command="pytest {cmdargs} tests/contrib/opensearch/test_opensearch.py",
-            venvs=[
-                Venv(
-                    pys=select_pys(),
-                    pkgs={"opensearch-py[requests]": ["~=1.0.0", "~=1.1.0"]},
-                ),
-                Venv(
-                    pys=select_pys(),
-                    pkgs={"opensearch-py": [latest]},
                 ),
             ],
         ),

@@ -151,7 +151,6 @@ class TestRuntimeWorker(TracerTestCase):
                 "kombu",
                 "http",
                 "memcached",
-                "opensearch",
                 "redis",
                 "sql",
                 "vertica",
