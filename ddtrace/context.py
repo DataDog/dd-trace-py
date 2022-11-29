@@ -33,6 +33,7 @@ if TYPE_CHECKING:  # pragma: no cover
         _MetricDictType,  # _metrics
     ]
 
+INVALID_TRACESTATE_TAG_VALUE_CHARS = r",|;|:|[^\x20-\x7E]+"
 
 log = get_logger(__name__)
 
@@ -154,11 +155,11 @@ class Context(object):
         sampling_decision = self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
         if sampling_decision:
             # replace characters ",", "=", and characters outside the ASCII range 0x20 to 0x7E
-            dd += "t.dm:{};".format(re.sub(r",|=|[^\x20-\x7E]+", "_", sampling_decision))
+            dd += "t.dm:{};".format(re.sub(INVALID_TRACESTATE_TAG_VALUE_CHARS, "_", sampling_decision))
         # since this can change, we need to grab the value off the current span
         usr_id_key = self._meta.get(USER_ID_KEY)
         if usr_id_key:
-            dd += "t.usr.id:{};".format(re.sub(r",|=|[^\x20-\x7E]+", "_", usr_id_key))
+            dd += "t.usr.id:{};".format(re.sub(INVALID_TRACESTATE_TAG_VALUE_CHARS, "_", usr_id_key))
 
         # grab all other _dd.p values out of meta since we need to propagate all of them
         for k, v in self._meta.items():
@@ -172,7 +173,7 @@ class Context(object):
                 # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
                 next_tag = "{}:{};".format(
                     re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)),
-                    re.sub(r",|;|:|[^\x20-\x7E]+", "_", v),
+                    re.sub(INVALID_TRACESTATE_TAG_VALUE_CHARS, "_", v),
                 )
                 if not (len(dd) + len(next_tag)) > 256:
                     dd += next_tag
@@ -183,11 +184,13 @@ class Context(object):
         # If there's a preexisting tracestate we need to update it to preserve other vendor data
         ts = self._meta.get(_TRACESTATE_KEY, "")
         if ts and dd:
+            # cut out the original dd list member from tracestate so we can replace it with the new one we created
             ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
             if ts_w_out_dd:
                 ts = "dd={},{}".format(dd, ts_w_out_dd)
             else:
                 ts = "dd={}".format(dd)
+        # if there is no original tracestate value then tracestate is just the dd list member we created
         elif dd:
             ts = "dd={}".format(dd)
         return ts
