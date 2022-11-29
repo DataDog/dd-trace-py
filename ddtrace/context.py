@@ -32,8 +32,8 @@ if TYPE_CHECKING:  # pragma: no cover
         _MetaDictType,  # _meta
         _MetricDictType,  # _metrics
     ]
-
-INVALID_TRACESTATE_TAG_VALUE_CHARS = r",|;|:|[^\x20-\x7E]+"
+# regex matches ",", ";", ":", and characters outside the ASCII range 0x20 to 0x7E
+TRACESTATE_INVALID_CHARS_REGEX = r",|;|:|[^\x20-\x7E]+"
 
 log = get_logger(__name__)
 
@@ -131,29 +131,27 @@ class Context(object):
     def _traceparent(self):
         # type: () -> str
         tp = self._meta.get(_TRACEPARENT_KEY)
-        dd_trace_id = self.trace_id
-        span_id = self.span_id
 
         # if we only have a traceparent then we'll forward it
-        if tp and (span_id is None or dd_trace_id is None):
+        if tp and (self.span_id is None or self.trace_id is None):
             return tp
+
+        # if we don't have a span id value we can't build a valid traceparent
+        elif not self.span_id:
+            return ""
 
         # determine the trace_id value
         if tp:
             # grab the original traceparent trace id, not the converted value
             trace_id = tp.split("-")[1]
-        elif dd_trace_id:
-            trace_id = "{:032x}".format(dd_trace_id)
+        elif self.trace_id:
+            trace_id = "{:032x}".format(self.trace_id)
         else:
-            # if we don't have trace id value we can't build a traceparent
-            trace_id = ""
-
-        # if we don't have trace id value or a span id value we can't build a traceparent
-        if not trace_id or not span_id:
+            # if we don't have trace id value we can't build a valid traceparent
             return ""
 
         sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
-        return "00-{}-{:016x}-{:02x}".format(trace_id, span_id, sampled)
+        return "00-{}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
 
     @property
     def _tracestate(self):
@@ -166,11 +164,11 @@ class Context(object):
         sampling_decision = self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
         if sampling_decision:
             # replace characters ",", "=", and characters outside the ASCII range 0x20 to 0x7E
-            dd += "t.dm:{};".format(re.sub(INVALID_TRACESTATE_TAG_VALUE_CHARS, "_", sampling_decision))
+            dd += "t.dm:{};".format(re.sub(TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision))
         # since this can change, we need to grab the value off the current span
         usr_id_key = self._meta.get(USER_ID_KEY)
         if usr_id_key:
-            dd += "t.usr.id:{};".format(re.sub(INVALID_TRACESTATE_TAG_VALUE_CHARS, "_", usr_id_key))
+            dd += "t.usr.id:{};".format(re.sub(TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key))
 
         # grab all other _dd.p values out of meta since we need to propagate all of them
         for k, v in self._meta.items():
@@ -184,7 +182,7 @@ class Context(object):
                 # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
                 next_tag = "{}:{};".format(
                     re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)),
-                    re.sub(INVALID_TRACESTATE_TAG_VALUE_CHARS, "_", v),
+                    re.sub(TRACESTATE_INVALID_CHARS_REGEX, "_", v),
                 )
                 if not (len(dd) + len(next_tag)) > 256:
                     dd += next_tag
