@@ -6,6 +6,8 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
@@ -27,6 +29,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 12000,
        "start": 1631827407420838000
      }],
@@ -38,6 +42,8 @@
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
@@ -59,6 +65,8 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "duration": 13000,
        "start": 1631827407415968000
      }]]
