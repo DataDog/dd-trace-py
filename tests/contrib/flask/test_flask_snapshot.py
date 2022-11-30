@@ -103,11 +103,15 @@ def test_flask_200(flask_client):
 
 
 @pytest.mark.snapshot(
-    ignores=["meta.flask.version"], variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)}
+    ignores=["meta.flask.version"],
+    variants={"220": flask_version >= (2, 2, 0), "": flask_version < (2, 2, 0)},
 )
 def test_flask_stream(flask_client):
     # type: (Client) -> None
-    assert flask_client.get("/stream", headers=DEFAULT_HEADERS, stream=True).status_code == 200
+    resp = flask_client.get("/stream", headers=DEFAULT_HEADERS, stream=True)
+    # read streamed reasponse, this will close the flask.response span
+    assert list(resp.iter_lines()) == [b"0123456789"]
+    assert resp.status_code == 200
 
 
 @pytest.mark.snapshot(
