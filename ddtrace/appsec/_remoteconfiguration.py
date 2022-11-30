@@ -7,6 +7,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+from ddtrace.internal.remoteconfig.constants import ASM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -27,6 +28,7 @@ def enable_appsec_rc(tracer):
     if _appsec_rc_features_is_enabled():
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
         RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
+        RemoteConfig.register(ASM_PRODUCT, appsec_rc_reload_features(tracer))
 
 
 def appsec_rc_reload_features(tracer):
@@ -49,9 +51,13 @@ def appsec_rc_reload_features(tracer):
 
         if features is not None:
             log.debug("Reloading appsec RC: %s", features)
+            custom_rules = features.get("custom_rules", [])
             rules_data = features.get("rules_data", [])
-            if rules_data and tracer._appsec_processor:
-                tracer._appsec_processor.update_rules(rules_data)
+            if tracer._appsec_processor:
+                if rules_data:
+                    tracer._appsec_processor.update_rules(rules_data)
+                if custom_rules:
+                    tracer._appsec_processor.update_custom_rules(custom_rules)
             else:
                 rc_appsec_enabled = features.get("asm", {}).get("enabled") if features is not False else False
 

@@ -77,9 +77,9 @@ if _DDWAF_LOADED:
                 "version": "",
             }
 
-        def update_rules(self, new_rules):
+        def update_rule_data(self, new_rule_data):
             # type: (DDWafRulesType) -> int
-            rules = ddwaf_object(new_rules)
+            rules = ddwaf_object(new_rule_data)
             result = ddwaf_update_rule_data(self._handle, rules)
             return result
 
