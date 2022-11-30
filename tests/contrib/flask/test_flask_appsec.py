@@ -8,6 +8,7 @@ from ddtrace import constants
 from ddtrace.constants import APPSEC_JSON
 from ddtrace.ext import http
 from ddtrace.internal import _context
+from ddtrace.internal.compat import six
 from ddtrace.internal.compat import urlencode
 from tests.appsec.test_processor import RULES_GOOD_PATH
 from tests.contrib.flask import BaseFlaskTestCase
@@ -266,7 +267,10 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/", headers={"X-REAL-IP": "8.8.8.8"})
             assert resp.status_code == 200
-            assert resp.text == "Ok"
+            if hasattr(resp, "text"):
+                assert resp.text == "Ok"
+            else:
+                assert resp.data == six.ensure_binary("Ok")
 
     def test_request_ipblock_match_403(self):
         @self.app.route("/")
@@ -279,7 +283,10 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4"})
             assert resp.status_code == 403
-            assert resp.text == constants.APPSEC_IPBLOCK_403_DEFAULT
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_IPBLOCK_403_DEFAULT
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_IPBLOCK_403_DEFAULT)
 
             root = self.pop_spans()[0]
             assert root.get_tag("actor.ip") == "8.8.4.4"
