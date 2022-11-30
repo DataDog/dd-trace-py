@@ -658,6 +658,35 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pylons",
+            command="python -m pytest {cmdargs} tests/contrib/pylons",
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "pylons": [
+                            ">=0.9.6,<0.9.7",
+                            ">=0.9.7,<0.9.8",
+                            ">=0.10,<0.11",
+                        ],
+                        "decorator": "<5",
+                        "pastedeploy": "<3",
+                        "webob": "<1.1",
+                    },
+                ),
+                Venv(
+                    pys="2.7",
+                    pkgs={
+                        "pylons": [
+                            ">=1.0,<1.1",
+                        ],
+                        "decorator": "<5",
+                        "pastedeploy": "<3",
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="cherrypy",
             command="python -m pytest {cmdargs} tests/contrib/cherrypy",
             venvs=[
