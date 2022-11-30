@@ -254,13 +254,13 @@ below:
 
          Overridden by ``DD_TRACE_PROPAGATION_STYLE_INJECT`` for injection.
 
-         The supported values are ``datadog``, ``b3``, and ``b3 single header``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
 
          All provided styles are injected into the headers of outbound requests.
 
-         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
+         Example: ``DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context.
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
@@ -271,11 +271,11 @@ below:
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
 
-         The supported values are ``datadog``, ``b3``, and ``b3 single header``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
 
-         Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
+         Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3multi"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
 
@@ -287,11 +287,11 @@ below:
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style.
 
-         The supported values are ``datadog``, ``b3``, and ``b3 single header``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``.
 
          All provided styles are injected into the headers of outbound requests.
 
-         Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3"`` to inject both ``x-datadog-*`` and ``x-b3-*``
+         Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3_multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
 
    DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH:

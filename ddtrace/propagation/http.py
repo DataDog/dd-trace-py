@@ -20,7 +20,7 @@ from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_str
 from ..internal.compat import ensure_text
-from ..internal.constants import PROPAGATION_STYLE_B3
+from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
