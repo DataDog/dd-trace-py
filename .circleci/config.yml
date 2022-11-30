@@ -164,15 +164,15 @@ commands:
           condition:
               << parameters.snapshot >>
           steps:
+            - setup_riot
             - when:
                 condition:
                   << parameters.wait >>
                 steps:
-                  - setup_tox
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: tox -e 'wait' << parameters.wait >>
-            - setup_riot
+                      command: riot -v run 'wait' << parameters.wait >>
+
             - run:
                 command: "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
       - save_pip_cache
@@ -201,9 +201,10 @@ commands:
           condition:
             << parameters.wait >>
           steps:
+            - setup_riot
             - run:
                 name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
+                command: riot -v run 'wait' << parameters.wait >>
       - start_docker_services:
           env: SNAPSHOT_CI=1
           services: memcached redis testagent
@@ -233,9 +234,10 @@ commands:
           condition:
             << parameters.wait >>
           steps:
+            - setup_riot
             - run:
                 name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
+                command: riot -v run 'wait' << parameters.wait >>
       - run:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
@@ -623,14 +625,14 @@ jobs:
   tornado:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^tornado_contrib-'
+      - run_test:
+          pattern: 'tornado'
 
   bottle:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^bottle_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: 'bottle'
 
   cassandra:
     <<: *contrib_job
@@ -913,14 +915,9 @@ jobs:
       - run_test:
           pattern: "requests"
 
-  requestsgevent:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^requests_gevent_contrib-'
-
   sanic:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: "sanic"
@@ -1078,9 +1075,9 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: rabbitmq
-          pattern: '^kombu_contrib-'
+          pattern: 'kombu'
 
   benchmarks:
     <<: *contrib_job
