@@ -190,6 +190,38 @@ below:
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
 
+   DD_SPAN_SAMPLING_RULES:
+     type: string
+     description: |
+         A JSON array of objects. Each object must have a "name" and/or "service" field, while the "max_per_second" and "sample_rate" fields are optional. 
+         The "sample_rate" value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
+         The "max_per_second" value must be >= 0 and will default to no limit. 
+         The "service" and "name" fields can be glob patterns: 
+         "*" matches any substring, including the empty string,
+         "?" matches exactly one of any character, and any other character matches exactly one of itself.
+
+         **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.re?uest"}]'``
+
+         version_added:
+            v1.4.0:
+    
+   DD_SPAN_SAMPLING_RULES_FILE:
+     type: string
+     description: |
+         A path to a JSON file containing span sampling rules organized as JSON array of objects. 
+         For the rules each object must have a "name" and/or "service" field, and the "sample_rate" field is optional. 
+         The "sample_rate" value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
+         The "max_per_second" value must be >= 0 and will default to no limit. 
+         The "service" and "name" fields are glob patterns, where "glob" means: 
+         "*" matches any substring, including the empty string,
+         "?" matches exactly one of any character, and any other character matches exactly one of itself.
+
+         **Example:** ``DD_SPAN_SAMPLING_RULES_FILE="data/span_sampling_rules.json"'``
+         **Example File Contents:** ``[{"sample_rate":0.5,"service":"*-service","name":"my-name-????", "max_per_second":"20"}, {"service":"xy?","name":"a*c"}]``
+
+         version_added:
+            v1.4.0:
+
    DD_TRACE_HEADER_TAGS:
      description: |
          A map of case-insensitive header keys to tag names. Automatically applies matching header values as tags on root spans.
