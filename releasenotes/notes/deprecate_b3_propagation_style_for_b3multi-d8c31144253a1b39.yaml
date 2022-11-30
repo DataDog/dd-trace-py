@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    propagation: ``b3`` propagation style is deprecated in favor of ``b3multi`` to better align with 
+    OpenTelemetry SDK[https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/sdk-environment-variables.md#general-sdk-configuration]
+    Example: ``DD_TRACE_PROPAGATION_STYLE=b3multi``
