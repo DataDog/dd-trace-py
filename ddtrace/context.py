@@ -153,7 +153,7 @@ class Context(object):
         if self.sampling_priority:
             dd += "s:{};".format(self.sampling_priority)
         if self.dd_origin:
-            dd += "o:{};".format(self.dd_origin)
+            dd += "o:{};".format(re.sub(r",|;|=|[^\x20-\x7E]+", "_", self.dd_origin))
         sampling_decision = self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
         if sampling_decision:
             # replace characters ",", "=", and characters outside the ASCII range 0x20 to 0x7E

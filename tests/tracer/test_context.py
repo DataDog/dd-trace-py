@@ -297,6 +297,18 @@ def test_traceparent(context, expected_traceparent):
             ),
             "dd=s:1;o:rum;t.dm:5;t.usr.id:bz64;t.unk_:2",
         ),
+        (
+            Context(
+                trace_id=11803532876627986230,
+                span_id=67667974448284343,
+                sampling_priority=1,
+                meta={
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64",
+                },
+                dd_origin=";r,um=",
+            ),
+            "dd=s:1;o:_r_um_",
+        ),
     ],
     ids=[
         "basic_ts_with_extra_listmember",
@@ -307,6 +319,7 @@ def test_traceparent(context, expected_traceparent):
         "no values",
         "equals_and_comma_chars_replaced",
         "key_outside_range_replaced_w_underscore",
+        "test_origin_specific_replacement",
     ],
 )
 def test_tracestate(context, expected_tracestate):
