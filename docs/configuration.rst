@@ -291,7 +291,7 @@ below:
 
          All provided styles are injected into the headers of outbound requests.
 
-         Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3_multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
+         Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
 
    DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH:
