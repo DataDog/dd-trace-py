@@ -2504,5 +2504,23 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="mysqldb",
+            command="pytest {cmdargs} tests/contrib/mysqldb",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.9"),
+                    pkgs={
+                        "mysqlclient": [">=1.3,<1.4", ">=1.4,<1.5", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "mysqlclient": [">=1.4,<1.5", latest],
+                    },
+                ),
+            ],
+        ),
     ],
 )
