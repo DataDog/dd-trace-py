@@ -183,9 +183,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
             raise
         except json.decoder.JSONDecodeError:
-            log.error(
-                "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules
-            )
+            log.error("[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules)
             raise
         except Exception:
             # TODO: try to log reasons
@@ -195,9 +193,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def _init_waf(self, rules):
         try:
-            self._ddwaf = DDWaf(
-                rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
-            )
+            self._ddwaf = DDWaf(rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp)
         except ValueError:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed")
