@@ -132,11 +132,9 @@ class Context(object):
         # type: () -> str
         tp = self._meta.get(_TRACEPARENT_KEY)
         if self.span_id is None or self.trace_id is None:
-            if tp:
-                # if we only have a traceparent then we'll forward it
-                return tp
+            # if we only have a traceparent then we'll forward it
             # if we don't have a span id or trace id value we can't build a valid traceparent
-            return ""
+            return tp or ""
 
         # determine the trace_id value
         if tp:
