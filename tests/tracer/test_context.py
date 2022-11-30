@@ -292,12 +292,10 @@ def test_traceparent(context, expected_traceparent):
                     "_dd.p.dm": "5",
                     "_dd.p.usr.id": "bz64",
                     "_dd.p.unk¢": "2",
-                    "_dd.p.another ": "2",
-                    "_dd.p.one_more=": "2",
                 },
                 dd_origin="rum",
             ),
-            "dd=s:1;o:rum;t.dm:5;t.usr.id:bz64;t.unk_:2;t.another_:2;t.one_more_:2",
+            "dd=s:1;o:rum;t.dm:5;t.usr.id:bz64;t.unk_:2",
         ),
     ],
     ids=[
@@ -308,7 +306,7 @@ def test_traceparent(context, expected_traceparent):
         "propagate_unknown_dd.p_values",
         "no values",
         "equals_and_comma_chars_replaced",
-        "key_outside_range_replaced_w_underscored",
+        "key_outside_range_replaced_w_underscore",
     ],
 )
 def test_tracestate(context, expected_tracestate):
