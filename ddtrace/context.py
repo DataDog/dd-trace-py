@@ -32,7 +32,6 @@ if TYPE_CHECKING:  # pragma: no cover
         _MetaDictType,  # _meta
         _MetricDictType,  # _metrics
     ]
-# regex matches ",", ";", ":", and characters outside the ASCII range 0x20 to 0x7E
 _TRACESTATE_INVALID_CHARS_REGEX = r",|;|:|[^\x20-\x7E]+"
 
 log = get_logger(__name__)
