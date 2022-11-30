@@ -23,6 +23,7 @@ from ..internal.compat import ensure_text
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
@@ -679,11 +680,24 @@ class _TraceContext:
         )
 
 
+class _None_Propagation:
+    @staticmethod
+    def _extract(headers):
+        return None
+
+    # this method technically isn't needed with the current way we have HTTPPropagator.inject setup
+    # but if it changes then we might want it
+    @staticmethod
+    def _inject(span_context, headers):
+        return headers
+
+
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
     PROPAGATION_STYLE_B3: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
+    _PROPAGATION_STYLE_NONE: _None_Propagation,
 }
 
 
@@ -720,6 +734,8 @@ class HTTPPropagator(object):
             _DatadogMultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3 in config._propagation_style_inject:
             _B3MultiHeader._inject(span_context, headers)
+        if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_inject:
+            _B3SingleHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_inject:
             _B3SingleHeader._inject(span_context, headers)
 
