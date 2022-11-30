@@ -444,3 +444,46 @@ jobs:
           
           pip install -e .
           pytest -p no:warnings -k "not test_import" tests/
+
+  uwsgi-testsuite-2_0_21:
+    name: uwsgi 2.0.21
+    runs-on: "ubuntu-18.04"
+    env:
+      DD_TESTING_RAISE: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: uwsgi
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: unbit/uwsgi
+          ref: master
+          path: uwsgi
+      - name: Install dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt install --no-install-recommends -qqyf python3-dev \
+            libpcre3-dev libjansson-dev libcap2-dev \
+            curl check
+      - name: Install distutils
+        run: sudo apt install --no-install-recommends -qqyf python3-distutils
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Build uwsgi binary
+        run: make
+      - name: Build Python plugin
+        run: |
+          PYTHON_VERSION=3.9
+          PYTHON_VERSION=python${PYTHON_VERSION//.}
+          /usr/bin/python3 -V
+          /usr/bin/python3 uwsgiconfig.py --plugin plugins/python base $PYTHON_VERSION
+      - name: Run tests
+        run: |
+          ddtrace-run ./tests/gh-python.sh python39
