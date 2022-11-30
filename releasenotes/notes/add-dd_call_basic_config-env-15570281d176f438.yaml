@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add ``DD_CALL_BASIC_CONFIG={true,false}`` environment variable to control whether ``ddtrace`` calls ``logging.basicConfig``.
+    By default when using ``ddtrace-run`` or running in debug mode ``logging.basicConfig`` is called to ensure there is always a
+    root handler. This has compatibility issues for some logging configurations. ``DD_CALL_BASIC_CONFIG=false`` can be used to
+    skip calling ``logging.basicConfig``. The default value is ``true`` to maintain existing behavior.

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The profiler won't deadlock on fork when gevent monkey patch is enabled.

@@ -1,0 +1,9 @@
+---
+upgrade:
+  - ".. _remove-clone-context:
+
+
+    ``ddrace.context.Context.clone`` is removed. This is no longer needed since the
+    tracer now supports asynchronous frameworks out of the box.
+
+    "

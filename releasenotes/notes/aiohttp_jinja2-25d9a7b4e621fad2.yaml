@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    aiohttp_jinja2: move into new integration. Formerly the aiohttp_jinja2 instrumentation was enabled using the aiohttp
+    integration. Use ``patch(aiohttp_jinja2=True)`` instead of ``patch(aiohttp=True)``. To support legacy
+    behavior ``patch(aiohttp=True)`` will still enable aiohttp_jinja2.

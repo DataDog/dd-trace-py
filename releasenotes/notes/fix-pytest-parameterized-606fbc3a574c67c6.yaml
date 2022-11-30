@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed JSON encoding errors in the pytest plugin for parameterized tests with complex Python object parameters.
+    The pytest plugin now defaults to encoding the string representations of non-JSON serializable test parameters.

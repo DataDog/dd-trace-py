@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpc: handle IPv6 addresses and no port in target.

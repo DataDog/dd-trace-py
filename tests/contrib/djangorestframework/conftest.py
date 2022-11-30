@@ -1,11 +1,15 @@
-__all__ = ["pytest_configure", "test_spans", "tracer", "patch_django"]
+__all__ = ["pytest_configure", "test_spans", "tracer"]
 
 import os
+
 import django
 from django.conf import settings
 
 from ddtrace.contrib.django import patch
-from ..django.conftest import test_spans, tracer, patch_django
+
+from ..django.conftest import test_spans
+from ..django.conftest import tracer
+
 
 # We manually designate which settings we will be using in an environment variable
 # This is similar to what occurs in the `manage.py`

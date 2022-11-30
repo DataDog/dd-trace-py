@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add yaaredis ≥ 2.0.0 support.

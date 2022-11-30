@@ -1,91 +1,89 @@
+"""Ensure that helpers set the ``Context`` properly when creating new ``Task`` or threads."""
 import asyncio
+
 import pytest
 
 from ddtrace.context import Context
-from ddtrace.internal.context_manager import CONTEXTVARS_IS_AVAILABLE
+from ddtrace.contrib.asyncio import context_provider
 from ddtrace.contrib.asyncio import helpers
-from .utils import AsyncioTestCase, mark_asyncio
+from ddtrace.internal.compat import CONTEXTVARS_IS_AVAILABLE
 
 
-@pytest.mark.skipif(
-    CONTEXTVARS_IS_AVAILABLE,
-    reason='only applicable to legacy asyncio integration'
-)
-class TestAsyncioHelpers(AsyncioTestCase):
-    """
-    Ensure that helpers set the ``Context`` properly when creating
-    new ``Task`` or threads.
-    """
-    @mark_asyncio
-    def test_set_call_context(self):
-        # a different Context is set for the current logical execution
-        task = asyncio.Task.current_task()
-        ctx = Context()
-        helpers.set_call_context(task, ctx)
-        assert ctx == self.tracer.get_call_context()
+pytestmark = pytest.mark.skipif(CONTEXTVARS_IS_AVAILABLE, reason="only applicable to legacy asyncio integration")
 
-    @mark_asyncio
-    def test_ensure_future(self):
-        # the wrapper should create a new Future that has the Context attached
-        @asyncio.coroutine
-        def future_work():
-            # the ctx is available in this task
-            ctx = self.tracer.get_call_context()
-            assert 1 == len(ctx._trace)
-            assert 'coroutine' == ctx._trace[0].name
-            return ctx._trace[0].name
 
-        self.tracer.trace('coroutine')
-        # schedule future work and wait for a result
-        delayed_task = helpers.ensure_future(future_work(), tracer=self.tracer)
-        result = yield from asyncio.wait_for(delayed_task, timeout=1)
-        assert 'coroutine' == result
+@pytest.mark.asyncio
+async def test_set_call_context(tracer):
+    tracer.configure(context_provider=context_provider)
+    # a different Context is set for the current logical execution
+    task = asyncio.Task.current_task()
+    ctx = Context()
+    helpers.set_call_context(task, ctx)
+    assert ctx == tracer.current_trace_context()
 
-    @mark_asyncio
-    def test_run_in_executor_proxy(self):
-        # the wrapper should pass arguments and results properly
-        def future_work(number, name):
-            assert 42 == number
-            assert 'john' == name
-            return True
 
-        future = helpers.run_in_executor(self.loop, None, future_work, 42, 'john', tracer=self.tracer)
-        result = yield from future
-        assert result
+@pytest.mark.asyncio
+async def test_ensure_future(tracer):
+    # the wrapper should create a new Future that has the Context attached
+    async def future_work():
+        return tracer.trace("child")
 
-    @mark_asyncio
-    def test_run_in_executor_traces(self):
-        # the wrapper should create a different Context when the Thread
-        # is started; the new Context creates a new trace
-        def future_work():
-            # the Context is empty but the reference to the latest
-            # span is here to keep the parenting
-            ctx = self.tracer.get_call_context()
-            assert 0 == len(ctx._trace)
-            assert 'coroutine' == ctx._current_span.name
-            return True
+    s1 = tracer.trace("coroutine")
+    # schedule future work and wait for a result
+    delayed_task = helpers.ensure_future(future_work(), tracer=tracer)
+    s2 = await asyncio.wait_for(delayed_task, timeout=1)
+    s2.finish()
+    s1.finish()
+    assert s2.name == "child"
+    assert s1.parent_id is None
+    assert s2.parent_id == s1.span_id
+    assert s1.trace_id == s2.trace_id
 
-        span = self.tracer.trace('coroutine')
-        future = helpers.run_in_executor(self.loop, None, future_work, tracer=self.tracer)
-        # we close the Context
-        span.finish()
-        result = yield from future
-        assert result
 
-    @mark_asyncio
-    def test_create_task(self):
-        # the helper should create a new Task that has the Context attached
-        @asyncio.coroutine
-        def future_work():
-            # the ctx is available in this task
-            ctx = self.tracer.get_call_context()
-            assert 0 == len(ctx._trace)
-            child_span = self.tracer.trace('child_task')
-            return child_span
+@pytest.mark.asyncio
+async def test_run_in_executor_proxy(event_loop, tracer):
+    # the wrapper should pass arguments and results properly
+    def future_work(number, name):
+        assert 42 == number
+        assert "john" == name
+        return True
 
-        root_span = self.tracer.trace('main_task')
-        # schedule future work and wait for a result
-        task = helpers.create_task(future_work())
-        result = yield from task
-        assert root_span.trace_id == result.trace_id
-        assert root_span.span_id == result.parent_id
+    future = helpers.run_in_executor(event_loop, None, future_work, 42, "john", tracer=tracer)
+    result = await future
+    assert result
+
+
+@pytest.mark.asyncio
+async def test_run_in_executor_traces(event_loop, tracer):
+    # the wrapper should create a different Context when the Thread
+    # is started; the new Context creates a new trace
+    def future_work():
+        # the Context is empty but the reference to the latest
+        # span is here to keep the parenting
+        return tracer.trace("child")
+
+    span = tracer.trace("coroutine")
+    future = helpers.run_in_executor(event_loop, None, future_work, tracer=tracer)
+    span.finish()
+    s2 = await future
+    s2.finish()
+    assert s2.name == "child"
+    assert s2.trace_id == span.trace_id
+    assert span.parent_id is None
+    assert s2.parent_id == span.span_id
+
+
+@pytest.mark.asyncio
+async def test_create_task(tracer):
+    # the helper should create a new Task that has the Context attached
+    async def future_work():
+        child_span = tracer.trace("child_task")
+        return child_span
+
+    root_span = tracer.trace("main_task")
+    # schedule future work and wait for a result
+    task = helpers.create_task(future_work())
+    result = await task
+    assert result.name == "child_task"
+    assert root_span.trace_id == result.trace_id
+    assert root_span.span_id == result.parent_id

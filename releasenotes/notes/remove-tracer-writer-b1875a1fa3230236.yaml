@@ -1,0 +1,9 @@
+---
+upgrade:
+  - ".. _remove-tracer-writer:
+
+
+    ``ddtrace.Tracer.writer`` is removed. To force flushing of buffered traces
+    to the agent, use :py:meth:`ddtrace.Tracer.flush` instead.
+
+    "

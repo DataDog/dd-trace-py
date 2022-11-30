@@ -15,13 +15,13 @@ Instrument aiopg to report a span for each executed Postgres queries::
     # Use a pin to specify metadata related to this connection
     Pin.override(db, service='postgres-users')
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
-required_modules = ['aiopg']
+required_modules = ["aiopg"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .patch import patch
 
-        __all__ = ['patch']
+        __all__ = ["patch"]

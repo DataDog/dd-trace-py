@@ -8,6 +8,10 @@ library.
 
 ### Which version of dd-trace-py are you using?
 
+### Which version of pip are you using?
+
+_ddtrace requires pip>=18 to install one of our pre-built wheels_
+
 ### Which version of the libraries are you using?
 
 You can copy/paste the output of `pip freeze` here.

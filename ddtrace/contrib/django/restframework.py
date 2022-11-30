@@ -1,15 +1,15 @@
-from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
-
 import rest_framework.views
 
-from ...utils.wrappers import iswrapped
-from .patch import with_traced_module
+from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
+
+from ..trace_utils import iswrapped
+from ..trace_utils import with_traced_module
 
 
 @with_traced_module
 def _traced_handle_exception(django, pin, wrapped, instance, args, kwargs):
     """Sets the error message, error type and exception stack trace to the current span
-        before calling the original exception handler.
+    before calling the original exception handler.
     """
     span = pin.tracer.current_span()
 

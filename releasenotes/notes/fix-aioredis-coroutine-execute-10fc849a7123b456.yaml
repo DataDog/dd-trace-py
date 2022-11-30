@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixes issue with aioredis when empty pool is not available and execute
+    returns a coroutine instead of a future. When patch tries to add callback
+    for the span using add_done_callback function it crashes because this
+    function is only for futures.

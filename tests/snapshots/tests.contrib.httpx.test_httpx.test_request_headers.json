@@ -1,0 +1,30 @@
+[[
+  {
+    "name": "http.request",
+    "service": null,
+    "resource": "http.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.request.headers.some-request-header": "Request-Value",
+      "http.response.headers.some-response-header": "Response-Value",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/response-headers?Some-Response-Header=Response-Value",
+      "http.useragent": "python-httpx/x.xx.x",
+      "runtime-id": "0c15188ec3454af48be672464b951d64"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 85259
+    },
+    "duration": 5992000,
+    "start": 1633032093842293000
+  }]]

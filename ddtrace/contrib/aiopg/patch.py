@@ -4,12 +4,13 @@ import asyncio
 import aiopg.connection
 import aiopg.pool
 import psycopg2.extensions
-from ddtrace.vendor import wrapt
 
-# project
-from .connection import AIOTracedConnection, AIOPG_1X
-from ..psycopg.patch import _patch_extensions, \
-    _unpatch_extensions
+from ddtrace.contrib.aiopg.connection import AIOTracedConnection, AIOPG_1X
+from ddtrace.contrib.psycopg.patch import _patch_extensions
+from ddtrace.contrib.psycopg.patch import _unpatch_extensions
+from ddtrace.contrib.psycopg.patch import patch_conn as psycopg_patch_conn
+from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.vendor import wrapt
 from ...utils.wrappers import unwrap as _u
 from ddtrace.ext import sql, net, db
 from ddtrace import Pin
@@ -131,9 +132,7 @@ def _extensions_register_type(func, _, args, kwargs):
 
 # extension hooks
 _aiopg_extensions = [
-    (psycopg2.extensions.register_type,
-     psycopg2.extensions, 'register_type',
-     _extensions_register_type),
+    (psycopg2.extensions.register_type, psycopg2.extensions, "register_type", _extensions_register_type),
 ]
 
 
@@ -195,34 +194,34 @@ def patch():
     """ Patch monkey patches psycopg's connection function
         so that the connection's functions are traced.
     """
-    if getattr(aiopg, '_datadog_patch', False):
+    if getattr(aiopg, "_datadog_patch", False):
         return
 
-    setattr(aiopg, '_datadog_patch', True)
+    setattr(aiopg, "_datadog_patch", True)
 
     if AIOPG_1X:
-        wrapt.wrap_object(aiopg.connection, 'Connection', _patched_v1_connect)
+        wrapt.wrap_object(aiopg.connection, "Connection", _patched_v1_connect)
     else:
-        wrapt.wrap_function_wrapper(aiopg.connection, '_connect', _patched_connect)
+        wrapt.wrap_function_wrapper(aiopg.connection, "_connect", _patched_connect)
 
     # tracing acquire since it may block waiting for a connection from the pool
-    wrapt.wrap_function_wrapper(aiopg.pool.Pool, '_acquire', _patched_acquire)
+    wrapt.wrap_function_wrapper(aiopg.pool.Pool, "_acquire", _patched_acquire)
 
     # tracing release to match acquire
-    wrapt.wrap_function_wrapper(aiopg.pool.Pool, 'release', _patched_release)
+    wrapt.wrap_function_wrapper(aiopg.pool.Pool, "release", _patched_release)
 
     _patch_extensions(_aiopg_extensions)  # do this early just in case
 
 
 def unpatch():
-    if getattr(aiopg, '_datadog_patch', False):
-        setattr(aiopg, '_datadog_patch', False)
+    if getattr(aiopg, "_datadog_patch", False):
+        setattr(aiopg, "_datadog_patch", False)
 
         if AIOPG_1X:
-            _u(aiopg.connection, 'Connection')
+            _u(aiopg.connection, "Connection")
         else:
-            _u(aiopg.connection, '_connect')
+            _u(aiopg.connection, "_connect")
 
-        _u(aiopg.pool.Pool, '_acquire')
-        _u(aiopg.pool.Pool, 'release')
+        _u(aiopg.pool.Pool, "_acquire")
+        _u(aiopg.pool.Pool, "release")
         _unpatch_extensions(_aiopg_extensions)

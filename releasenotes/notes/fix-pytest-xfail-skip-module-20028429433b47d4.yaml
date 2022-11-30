@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes a bug in the pytest plugin where xfail test cases in a test file with a
+    module-wide skip raises attribute errors and are marked as xfail rather than skipped.

@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    The ``ddtrace.payload`` submodule has been removed.

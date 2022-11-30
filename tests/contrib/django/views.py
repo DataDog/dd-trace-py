@@ -3,13 +3,21 @@ Class based views used for Django tests.
 """
 
 from functools import partial
+import hashlib
 
 from django.contrib.auth.models import User
 from django.contrib.syndication.views import Feed
+from django.http import Http404
 from django.http import HttpResponse
 from django.template import loader
 from django.template.response import TemplateResponse
-from django.views.generic import ListView, TemplateView, View
+from django.utils.safestring import mark_safe
+from django.views.generic import ListView
+from django.views.generic import TemplateView
+from django.views.generic import View
+
+from ddtrace import tracer
+from ddtrace.contrib.trace_utils import set_user
 
 
 class UserList(ListView):
@@ -20,6 +28,11 @@ class UserList(ListView):
 class TemplateCachedUserList(ListView):
     model = User
     template_name = "cached_list.html"
+
+
+class SafeTemplateUserList(ListView):
+    model = User
+    template_name = mark_safe("cached_list.html")
 
 
 class BasicView(View):
@@ -86,6 +99,13 @@ def index(request):
     return response
 
 
+def alter_resource(request):
+    root = tracer.current_root_span()
+    root.resource = "custom django.request resource"
+
+    return HttpResponse("")
+
+
 def template_view(request):
     """
     View that uses a template instance
@@ -148,7 +168,6 @@ DISPATCH_CALLED = False
 
 
 class CustomDispatchView(View):
-
     def dispatch(self, request):
         global DISPATCH_CALLED
         DISPATCH_CALLED = True
@@ -157,3 +176,47 @@ class CustomDispatchView(View):
 
 class ComposedView(TemplateView, CustomDispatchView):
     template_name = "custom_dispatch.html"
+
+
+def not_found_view(request):
+    raise Http404("DNE")
+
+
+def path_params_view(request, year, month):
+    return HttpResponse(status=200)
+
+
+def identify(request):
+    set_user(
+        tracer,
+        user_id="usr.id",
+        email="usr.email",
+        name="usr.name",
+        session_id="usr.session_id",
+        role="usr.role",
+        scope="usr.scope",
+    )
+    return HttpResponse(status=200)
+
+
+def body_view(request):
+    # Django >= 3
+    if hasattr(request, "headers"):
+        content_type = request.headers["Content-Type"]
+    else:
+        # Django < 3
+        content_type = request.META["CONTENT_TYPE"]
+    if content_type in ("application/json", "application/xml", "text/xml"):
+        data = request.body
+        return HttpResponse(data, status=200)
+    else:
+        data = request.POST
+        return HttpResponse(str(dict(data)), status=200)
+
+
+def weak_hash_view(request):
+    m = hashlib.md5()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    m.digest()
+    return HttpResponse("OK", status=200)

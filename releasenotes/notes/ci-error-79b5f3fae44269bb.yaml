@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pytest: report exception details directly instead of through a `RuntimeWarning` exception.

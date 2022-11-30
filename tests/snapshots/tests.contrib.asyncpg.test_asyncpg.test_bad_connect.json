@@ -1,0 +1,27 @@
+[[
+  {
+    "name": "postgres.connect",
+    "service": "postgres",
+    "resource": "postgres.connect",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "error.msg": "Multiple exceptions: [Errno 111] Connect call failed ('::1', 5433, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5433)",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/asyncpg/patch.py\", line 100, in _traced_connect\n    conn = _TracedConnection(await func(*args, **kwargs), pin)\n  File \"/root/project/.riot/venv_py3812_pytest-asyncio_asyncpg/lib/python3.8/site-packages/asyncpg/connection.py\", line 2085, in connect\n    return await connect_utils._connect(\n  File \"/root/project/.riot/venv_py3812_pytest-asyncio_asyncpg/lib/python3.8/site-packages/asyncpg/connect_utils.py\", line 895, in _connect\n    raise last_error\n  File \"/root/project/.riot/venv_py3812_pytest-asyncio_asyncpg/lib/python3.8/site-packages/asyncpg/connect_utils.py\", line 881, in _connect\n    return await _connect_addr(\n  File \"/root/project/.riot/venv_py3812_pytest-asyncio_asyncpg/lib/python3.8/site-packages/asyncpg/connect_utils.py\", line 781, in _connect_addr\n    return await __connect_addr(params, timeout, True, *args)\n  File \"/root/project/.riot/venv_py3812_pytest-asyncio_asyncpg/lib/python3.8/site-packages/asyncpg/connect_utils.py\", line 825, in __connect_addr\n    tr, pr = await compat.wait_for(connector, timeout=timeout)\n  File \"/root/project/.riot/venv_py3812_pytest-asyncio_asyncpg/lib/python3.8/site-packages/asyncpg/compat.py\", line 66, in wait_for\n    return await asyncio.wait_for(fut, timeout)\n  File \"/root/.pyenv/versions/3.8.12/lib/python3.8/asyncio/tasks.py\", line 494, in wait_for\n    return fut.result()\n  File \"/root/project/.riot/venv_py3812_pytest-asyncio_asyncpg/lib/python3.8/site-packages/asyncpg/connect_utils.py\", line 691, in _create_ssl_connection\n    tr, pr = await loop.create_connection(\n  File \"/root/.pyenv/versions/3.8.12/lib/python3.8/asyncio/base_events.py\", line 1033, in create_connection\n    raise OSError('Multiple exceptions: {}'.format(\nOSError: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5433, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5433)\n",
+      "error.type": "builtins.OSError",
+      "runtime-id": "b0bde09048cb4673b20dde71719550fc"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 1236
+    },
+    "duration": 9436561,
+    "start": 1647014837642364058
+  }]]

@@ -7,16 +7,18 @@ import redis
 
 from ddtrace import Pin
 from tests.contrib.config import REDIS_CONFIG
-from tests import DummyWriter
+from tests.utils import DummyWriter
+
 
 if __name__ == "__main__":
     r = redis.Redis(port=REDIS_CONFIG["port"])
     pin = Pin.get_from(r)
     assert pin
 
-    pin.tracer.writer = DummyWriter()
+    writer = DummyWriter()
+    pin.tracer.configure(writer=writer)
     r.flushall()
-    spans = pin.tracer.writer.pop()
+    spans = writer.pop()
 
     assert len(spans) == 1
     assert spans[0].service == "redis"
@@ -25,7 +27,7 @@ if __name__ == "__main__":
     long_cmd = "mget %s" % " ".join(map(str, range(1000)))
     us = r.execute_command(long_cmd)
 
-    spans = pin.tracer.writer.pop()
+    spans = writer.pop()
     assert len(spans) == 1
     span = spans[0]
     assert span.service == "redis"

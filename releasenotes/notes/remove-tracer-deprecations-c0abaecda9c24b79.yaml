@@ -1,0 +1,30 @@
+---
+upgrade:
+  - ".. _remove-tracer-debug-logging:\n\nRemove deprecated attribute ``ddtrace.Tracer.debug_logging``.
+    Set the logging level for the ``ddtrace.tracer`` logger instead::\n\n  import logging\n
+    \ log = logging.getLogger(\"ddtrace.tracer\")\n  log.setLevel(logging.DEBUG)\n"
+  - ".. _remove-tracer-call:
+
+
+    ``ddtrace.Tracer.__call__`` is removed.
+
+    "
+  - ".. _remove-tracer-global-excepthook:
+
+
+    ``ddtrace.Tracer.global_excepthook`` is removed.
+
+    "
+  - ".. _remove-tracer-get-call-context:
+
+
+    ``ddtrace.Tracer.get_call_context`` is removed. Use :py:meth:`ddtrace.Tracer.current_trace_context`
+    instead.
+
+    "
+  - ".. _remove-tracer-set-service-info:
+
+
+    ``ddtrace.Tracer.set_service_info`` is removed.
+
+    "

@@ -1,66 +1,71 @@
-from ddtrace.vendor import wrapt
-from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
+import os
 
 import molten
 
-from ... import Pin, config
-from ...compat import urlencode
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
-from ...propagation.http import HTTPPropagator
-from ...utils.formats import asbool, get_env
-from ...utils.importlib import func_name
-from ...utils.wrappers import unwrap as _u
-from .wrappers import WrapperComponent, WrapperRenderer, WrapperMiddleware, WrapperRouter, MOLTEN_ROUTE
+from ddtrace.vendor import wrapt
+from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-MOLTEN_VERSION = tuple(map(int, molten.__version__.split()[0].split('.')))
+from .. import trace_utils
+from ... import Pin
+from ... import config
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...internal.compat import urlencode
+from ...internal.utils.formats import asbool
+from ...internal.utils.importlib import func_name
+from ...internal.utils.version import parse_version
+from ..trace_utils import unwrap as _u
+from .wrappers import MOLTEN_ROUTE
+from .wrappers import WrapperComponent
+from .wrappers import WrapperMiddleware
+from .wrappers import WrapperRenderer
+from .wrappers import WrapperRouter
+
+
+MOLTEN_VERSION = parse_version(molten.__version__)
 
 # Configure default configuration
-config._add('molten', dict(
-    service_name=config.service or get_env("molten", "service_name", default="molten"),
-    app='molten',
-    distributed_tracing=asbool(get_env('molten', 'distributed_tracing', default=True)),
-))
+config._add(
+    "molten",
+    dict(
+        _default_service="molten",
+        distributed_tracing=asbool(os.getenv("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
+    ),
+)
 
 
 def patch():
-    """Patch the instrumented methods
-    """
-    if getattr(molten, '_datadog_patch', False):
+    """Patch the instrumented methods"""
+    if getattr(molten, "_datadog_patch", False):
         return
-    setattr(molten, '_datadog_patch', True)
+    setattr(molten, "_datadog_patch", True)
 
-    pin = Pin(
-        service=config.molten['service_name'],
-        app=config.molten['app']
-    )
+    pin = Pin()
 
     # add pin to module since many classes use __slots__
     pin.onto(molten)
 
-    _w(molten.BaseApp, '__init__', patch_app_init)
-    _w(molten.App, '__call__', patch_app_call)
+    _w(molten.BaseApp, "__init__", patch_app_init)
+    _w(molten.App, "__call__", patch_app_call)
 
 
 def unpatch():
-    """Remove instrumentation
-    """
-    if getattr(molten, '_datadog_patch', False):
-        setattr(molten, '_datadog_patch', False)
+    """Remove instrumentation"""
+    if getattr(molten, "_datadog_patch", False):
+        setattr(molten, "_datadog_patch", False)
 
         # remove pin
         pin = Pin.get_from(molten)
         if pin:
             pin.remove_from(molten)
 
-        _u(molten.BaseApp, '__init__')
-        _u(molten.App, '__call__')
-        _u(molten.Router, 'add_route')
+        _u(molten.BaseApp, "__init__")
+        _u(molten.App, "__call__")
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
-    """Patch wsgi interface for app
-    """
+    """Patch wsgi interface for app"""
     pin = Pin.get_from(molten)
 
     if not pin or not pin.enabled():
@@ -73,33 +78,31 @@ def patch_app_call(wrapped, instance, args, kwargs):
     request = molten.http.Request.from_environ(environ)
     resource = func_name(wrapped)
 
-    # Configure distributed tracing
-    if config.molten.get('distributed_tracing', True):
-        propagator = HTTPPropagator()
-        # request.headers is type Iterable[Tuple[str, str]]
-        context = propagator.extract(dict(request.headers))
-        # Only need to activate the new context if something was propagated
-        if context.trace_id:
-            pin.tracer.context_provider.activate(context)
+    # request.headers is type Iterable[Tuple[str, str]]
+    trace_utils.activate_distributed_headers(
+        pin.tracer, int_config=config.molten, request_headers=dict(request.headers)
+    )
 
-    with pin.tracer.trace('molten.request', service=pin.service, resource=resource, span_type=SpanTypes.WEB) as span:
+    with pin.tracer.trace(
+        "molten.request",
+        service=trace_utils.int_service(pin, config.molten),
+        resource=resource,
+        span_type=SpanTypes.WEB,
+    ) as span:
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled
-        span.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.molten.get_analytics_sample_rate(use_global_config=True)
-        )
+        span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.molten.get_analytics_sample_rate(use_global_config=True))
 
         @wrapt.function_wrapper
         def _w_start_response(wrapped, instance, args, kwargs):
-            """ Patch respond handling to set metadata """
+            """Patch respond handling to set metadata"""
 
             pin = Pin.get_from(molten)
             if not pin or not pin.enabled():
                 return wrapped(*args, **kwargs)
 
             status, headers, exc_info = args
-            code, _, _ = status.partition(' ')
+            code, _, _ = status.partition(" ")
 
             try:
                 code = int(code)
@@ -108,32 +111,32 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
             if not span.get_tag(MOLTEN_ROUTE):
                 # if route never resolve, update root resource
-                span.resource = u'{} {}'.format(request.method, code)
+                span.resource = u"{} {}".format(request.method, code)
 
-            span.set_tag(http.STATUS_CODE, code)
-
-            # mark 5xx spans as error
-            if 500 <= code < 600:
-                span.error = 1
+            trace_utils.set_http_meta(span, config.molten, status_code=code)
 
             return wrapped(*args, **kwargs)
 
         # patching for extracting response code
         start_response = _w_start_response(start_response)
 
-        span.set_tag(http.METHOD, request.method)
-        span.set_tag(http.URL, '%s://%s:%s%s' % (
-            request.scheme, request.host, request.port, request.path,
-        ))
-        if config.molten.trace_query_string:
-            span.set_tag(http.QUERY_STRING, urlencode(dict(request.params)))
-        span.set_tag('molten.version', molten.__version__)
+        url = "%s://%s:%s%s" % (
+            request.scheme,
+            request.host,
+            request.port,
+            request.path,
+        )
+        query = urlencode(dict(request.params))
+        trace_utils.set_http_meta(
+            span, config.molten, method=request.method, url=url, query=query, request_headers=request.headers
+        )
+
+        span.set_tag("molten.version", molten.__version__)
         return wrapped(environ, start_response, **kwargs)
 
 
 def patch_app_init(wrapped, instance, args, kwargs):
-    """Patch app initialization of middleware, components and renderers
-    """
+    """Patch app initialization of middleware, components and renderers"""
     # allow instance to be initialized before wrapping them
     wrapped(*args, **kwargs)
 
@@ -150,21 +153,12 @@ def patch_app_init(wrapped, instance, args, kwargs):
     instance.router = WrapperRouter(instance.router)
 
     # wrap middleware functions/callables
-    instance.middleware = [
-        WrapperMiddleware(mw)
-        for mw in instance.middleware
-    ]
+    instance.middleware = [WrapperMiddleware(mw) for mw in instance.middleware]
 
     # wrap components objects within injector
     # NOTE: the app instance also contains a list of components but it does not
     # appear to be used for anything passing along to the dependency injector
-    instance.injector.components = [
-        WrapperComponent(c)
-        for c in instance.injector.components
-    ]
+    instance.injector.components = [WrapperComponent(c) for c in instance.injector.components]
 
     # but renderers objects
-    instance.renderers = [
-        WrapperRenderer(r)
-        for r in instance.renderers
-    ]
+    instance.renderers = [WrapperRenderer(r) for r in instance.renderers]

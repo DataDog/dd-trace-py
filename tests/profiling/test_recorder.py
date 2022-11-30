@@ -1,9 +1,13 @@
 # -*- encoding: utf-8 -*-
-from ddtrace.profiling import event
-from ddtrace.profiling import recorder
-from ddtrace.profiling.collector import stack
+import os
+import sys
 
 import pytest
+
+from ddtrace.profiling import event
+from ddtrace.profiling import recorder
+from ddtrace.profiling.collector import stack_event
+from tests.utils import call_program
 
 
 def test_defaultdictkey():
@@ -41,6 +45,17 @@ def test_push_events_empty():
 
 
 def test_limit():
-    r = recorder.Recorder(default_max_events=12, max_events={stack.StackSampleEvent: 24,})
-    assert r.events[stack.StackExceptionSampleEvent].maxlen == 12
-    assert r.events[stack.StackSampleEvent].maxlen == 24
+    r = recorder.Recorder(
+        default_max_events=12,
+        max_events={
+            stack_event.StackSampleEvent: 24,
+        },
+    )
+    assert r.events[stack_event.StackExceptionSampleEvent].maxlen == 12
+    assert r.events[stack_event.StackSampleEvent].maxlen == 24
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
+def test_fork():
+    stdout, stderr, exitcode, pid = call_program("python", os.path.join(os.path.dirname(__file__), "recorder_fork.py"))
+    assert exitcode == 0, (stdout, stderr)

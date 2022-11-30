@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes cases where a pytest test parameter object string representation includes the ``id()``
+    of the object, causing the test fingerprint to constantly change across executions.

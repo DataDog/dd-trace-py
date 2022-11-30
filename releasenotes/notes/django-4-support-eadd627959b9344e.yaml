@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add django 4.0 support.

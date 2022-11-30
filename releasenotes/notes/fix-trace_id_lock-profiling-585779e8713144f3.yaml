@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes span id tagging in lock profiling.

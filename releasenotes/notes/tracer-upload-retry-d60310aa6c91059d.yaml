@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Added retry logic to the tracer to mitigate potential networking issues,
+    like timeouts or dropped connections.

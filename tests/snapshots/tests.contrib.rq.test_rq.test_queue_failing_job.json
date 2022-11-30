@@ -1,0 +1,43 @@
+[[
+  {
+    "name": "rq.queue.enqueue_job",
+    "service": "rq",
+    "resource": "tests.contrib.rq.jobs.job_fail",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "job.func_name": "tests.contrib.rq.jobs.job_fail",
+      "job.id": "b916a7ab-9289-4c07-a40d-260e96c69f63",
+      "queue.name": "sync-q",
+      "runtime-id": "5b62413a62ad44468e21e09f3dc941d6"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 4083
+    },
+    "duration": 9563000,
+    "start": 1638903827586533000
+  },
+     {
+       "name": "rq.job.perform",
+       "service": "rq",
+       "resource": "tests.contrib.rq.jobs.job_fail",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "error": 1,
+       "meta": {
+         "error.msg": "error",
+         "error.stack": "Traceback (most recent call last):\n  File \"/Users/brett.langdon/datadog/dd-trace-py/ddtrace/contrib/rq/__init__.py\", line 193, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/Users/brett.langdon/datadog/dd-trace-py/.riot/venv_py3100_rq_click712/lib/python3.10/site-packages/rq/job.py\", line 821, in perform\n    self._result = self._execute()\n  File \"/Users/brett.langdon/datadog/dd-trace-py/.riot/venv_py3100_rq_click712/lib/python3.10/site-packages/rq/job.py\", line 844, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/Users/brett.langdon/datadog/dd-trace-py/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",
+         "error.type": "tests.contrib.rq.jobs.MyException",
+         "job.id": "b916a7ab-9289-4c07-a40d-260e96c69f63"
+       },
+       "duration": 2109000,
+       "start": 1638903827592392000
+     }]]

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    The new memory profiler for Python is now enabled by default. This improves
+    the profiler memory consumption and performance impact. It can still be
+    disabled by setting `DD_PROFILING_MEMALLOC=0` as an environment variable.

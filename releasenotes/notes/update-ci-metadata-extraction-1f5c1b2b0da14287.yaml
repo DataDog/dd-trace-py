@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Only for CI Visibility (``pytest`` integration): Extract stage and job name from environment data in Azure Pipelines.
+fixes:
+  - |
+    Only for CI Visibility (``pytest`` integration): Fix extraction of branch in GitLab CI.

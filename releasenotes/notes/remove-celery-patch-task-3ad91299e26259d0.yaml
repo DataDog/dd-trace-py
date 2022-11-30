@@ -1,0 +1,16 @@
+---
+upgrade:
+  - ".. _remove-celery-patch-task:
+
+
+    celery: ``ddtrace.contrib.celery.patch_task`` is removed.
+    Use ``ddtrace.patch(celery=True)`` or ``ddtrace.patch_all()`` instead.
+
+    "
+  - ".. _remove-celery-unpatch-task:
+
+
+    celery: ``ddtrace.contrib.celery.unpatch_task`` is removed.
+    Use ``ddtrace.contrib.celery.unpatch()`` instead.
+
+    "

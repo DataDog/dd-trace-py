@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixes an issue with the Django integration where if the ``urlconf`` changes at
+    any point during the handling of the request then the resource name will only be
+    ``<METHOD> 404``.
+    This fix moves resource name resolution to the end of the request.

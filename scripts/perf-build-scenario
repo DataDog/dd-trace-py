@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -e
+
+
+if [ $# != 2 ]; then
+    echo "Usage: perf-build-scenario <scenario> <imagetag>"
+    exit 1
+fi
+
+SCENARIO="$1"
+shift
+TAG="$1"
+shift
+
+docker build -t "${TAG}" --build-arg SCENARIO="${SCENARIO}" benchmarks/

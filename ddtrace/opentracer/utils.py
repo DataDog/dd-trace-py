@@ -1,22 +1,31 @@
+from opentracing import ScopeManager
+
+from ddtrace.provider import BaseContextProvider
+
+
 # DEV: If `asyncio` or `gevent` are unavailable we do not throw an error,
 #    `context_provider` will just not be set and we'll get an `AttributeError` instead
 
 
 def get_context_provider_for_scope_manager(scope_manager):
+    # type: (ScopeManager) -> BaseContextProvider
     """Returns the context_provider to use with a given scope_manager."""
 
     scope_manager_type = type(scope_manager).__name__
 
     # avoid having to import scope managers which may not be compatible
     # with the version of python being used
-    if scope_manager_type == 'AsyncioScopeManager':
+    if scope_manager_type == "AsyncioScopeManager":
         import ddtrace.contrib.asyncio
-        dd_context_provider = ddtrace.contrib.asyncio.context_provider
-    elif scope_manager_type == 'GeventScopeManager':
+
+        dd_context_provider = ddtrace.contrib.asyncio.context_provider  # type: BaseContextProvider
+    elif scope_manager_type == "GeventScopeManager":
         import ddtrace.contrib.gevent
+
         dd_context_provider = ddtrace.contrib.gevent.context_provider
     else:
         from ddtrace.provider import DefaultContextProvider
+
         dd_context_provider = DefaultContextProvider()
 
     _patch_scope_manager(scope_manager, dd_context_provider)
@@ -25,6 +34,7 @@ def get_context_provider_for_scope_manager(scope_manager):
 
 
 def _patch_scope_manager(scope_manager, context_provider):
+    # type: (ScopeManager, BaseContextProvider) -> None
     """
     Patches a scope manager so that any time a span is activated
     it'll also activate the underlying ddcontext with the underlying
@@ -36,14 +46,14 @@ def _patch_scope_manager(scope_manager, context_provider):
     :param scope_manager: Something that implements `opentracing.ScopeManager`
     :param context_provider: Something that implements `datadog.provider.BaseContextProvider`
     """
-    if getattr(scope_manager, '_datadog_patch', False):
+    if getattr(scope_manager, "_datadog_patch", False):
         return
-    setattr(scope_manager, '_datadog_patch', True)
+    setattr(scope_manager, "_datadog_patch", True)
 
     old_method = scope_manager.activate
 
     def _patched_activate(*args, **kwargs):
-        otspan = kwargs.get('span', args[0])
+        otspan = kwargs.get("span", args[0])
         context_provider.activate(otspan._dd_context)
         return old_method(*args, **kwargs)
 

@@ -1,0 +1,8 @@
+---
+upgrade:
+  - ".. _remove-ddtrace-encoding:
+
+
+    The deprecated module ``ddtrace.encoding`` is removed.
+
+    "

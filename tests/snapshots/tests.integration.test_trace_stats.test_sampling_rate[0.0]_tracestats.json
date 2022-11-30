@@ -1,0 +1,21 @@
+[
+  {
+    "Start": 0,
+    "Duration": 10000000000,
+    "Stats": [
+      {
+        "Name": "operation",
+        "Resource": "operation",
+        "Type": null,
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 10,
+        "TopLevelHits": 10,
+        "Duration": 86000,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      }
+    ]
+  }
+]

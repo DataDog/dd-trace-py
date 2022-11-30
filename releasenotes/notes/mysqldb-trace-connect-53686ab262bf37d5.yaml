@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    MySQLdb: Added optional tracing for MySQLdb.connect, using the configuration option
+    :ref:`here<mysqldb_config_trace_connect>`.
+

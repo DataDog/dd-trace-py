@@ -1,0 +1,46 @@
+[[
+  {
+    "name": "starlette.request",
+    "service": "starlette",
+    "resource": "GET /sub-app/hello/{name}",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://testserver/sub-app/hello/name",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "runtime-id": "9e83e62bb7684737bb8c4aed8e8a0614"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 71492
+    },
+    "duration": 271000,
+    "start": 1653313985950011000
+  },
+     {
+       "name": "starlette.request",
+       "service": "starlette",
+       "resource": "GET /hello/{name}",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "web",
+       "meta": {
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.url": "http://testserver/sub-app/hello/name",
+         "http.useragent": "testclient",
+         "http.version": "1.1"
+       },
+       "duration": 117000,
+       "start": 1653313985950151000
+     }]]

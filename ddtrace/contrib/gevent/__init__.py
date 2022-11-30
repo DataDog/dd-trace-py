@@ -1,9 +1,19 @@
 """
 The gevent integration adds support for tracing across greenlets.
 
+
 The integration patches the gevent internals to add context management logic.
-It also configures the global tracer instance to use a gevent context
-provider to utilize the context management logic.
+
+.. note::
+    If :ref:`ddtrace-run<ddtracerun>` is being used set ``DD_GEVENT_PATCH_ALL=true`` and
+    ``gevent.monkey.patch_all()`` will be called as early as possible in the application
+    to avoid patching conflicts.
+    If ``ddtrace-run`` is not being used then be sure to call ``gevent.monkey.patch_all``
+    before importing ``ddtrace`` and calling ``ddtrace.patch`` or ``ddtrace.patch_all``.
+
+
+The integration also configures the global tracer instance to use a gevent
+context provider to utilize the context management logic.
 
 If custom tracer instances are being used in a gevent application, then
 configure it with::
@@ -17,15 +27,13 @@ Enabling
 ~~~~~~~~
 
 The integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
 
-Or use :ref:`patch()<patch>` to manually enable the integration::
+Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(gevent=True)
 
-
-**Note:** these calls need to be performed before calling the gevent patching.
 
 Example of the context propagation::
 
@@ -44,15 +52,16 @@ Example of the context propagation::
             with tracer.trace("greenlet.child_call") as child:
                 ...
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["gevent"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
+        from .patch import patch
+        from .patch import unpatch
         from .provider import GeventContextProvider
-        from .patch import patch, unpatch
 
         context_provider = GeventContextProvider()
 

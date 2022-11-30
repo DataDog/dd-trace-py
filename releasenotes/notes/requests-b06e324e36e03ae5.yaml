@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    requests: add global config support. This enables the requests service name to be
+    configured with ``ddtrace.config.requests['service']`` or the ``DD_REQUESTS_SERVICE``
+    environment variable.
+upgrade:
+  - |
+    requests: spans will no longer inherit the service name from the parent.

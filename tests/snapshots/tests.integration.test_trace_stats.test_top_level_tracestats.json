@@ -1,0 +1,34 @@
+[
+  {
+    "Start": 0,
+    "Duration": 10000000000,
+    "Stats": [
+      {
+        "Name": "child",
+        "Resource": "child",
+        "Type": null,
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 100,
+        "TopLevelHits": 100,
+        "Duration": 266000,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      },
+      {
+        "Name": "parent",
+        "Resource": "parent",
+        "Type": null,
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 100,
+        "TopLevelHits": 100,
+        "Duration": 1572000,
+        "Errors": 0,
+        "OkSummary": 1046,
+        "ErrorSummary": 15
+      }
+    ]
+  }
+]

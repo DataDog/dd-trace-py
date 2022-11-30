@@ -1,0 +1,9 @@
+---
+upgrade:
+  - |
+     Instead of using system constants from ``ddtrace.ext.system``. Use constants from ``ddtrace.constants`` module. 
+     For Example:: ``ddtrace.ext.system.PID`` -> ``ddtrace.constants.PID``
+      
+deprecations:
+  - |
+    Moved ``ddtrace.ext.system`` constants into ``ddtrace.constants`` module. 

@@ -23,25 +23,21 @@ Configuration
 
    Default: ``True``
 
-.. py:data:: ddtrace.config.molten['analytics_enabled']
-
-   Whether to analyze spans for Molten in App Analytics.
-
-   Can also be enabled with the ``DD_TRACE_MOLTEN_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
-
 .. py:data:: ddtrace.config.molten['service_name']
 
    The service name reported for your Molten app.
 
-   Can also be configured via the ``DD_SERVICE`` or ``DD_MOLTEN_SERVICE_NAME`` environment variables.
+   Can also be configured via the ``DD_SERVICE`` or ``DD_MOLTEN_SERVICE`` environment variables.
 
    Default: ``'molten'``
-"""
-from ...utils.importlib import require_modules
 
-required_modules = ['molten']
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
+"""
+from ...internal.utils.importlib import require_modules
+
+
+required_modules = ["molten"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
@@ -50,4 +46,4 @@ with require_modules(required_modules) as missing_modules:
         patch = _patch.patch
         unpatch = _patch.unpatch
 
-        __all__ = ['patch', 'unpatch']
+        __all__ = ["patch", "unpatch"]

@@ -21,15 +21,12 @@ def _wrap_submit(func, instance, args, kwargs):
     if ddtrace.tracer.context_provider._has_active_context():
         current_ctx = ddtrace.tracer.context_provider.active()
 
-        # If we have a context then make sure we clone it
-        # DEV: We don't know if the future will finish executing before the parent span finishes
-        #      so we clone to ensure we properly collect/report the future's spans
-        current_ctx = current_ctx.clone()
-
-    # extract the target function that must be executed in
-    # a new thread and the `target` arguments
-    fn = args[0]
-    fn_args = args[1:]
+    # The target function can be provided as a kwarg argument "fn" or the first positional argument
+    if "fn" in kwargs:
+        fn = kwargs.pop("fn")
+        fn_args = args
+    else:
+        fn, fn_args = args[0], args[1:]
     return func(_wrap_execution, current_ctx, fn, fn_args, kwargs)
 
 

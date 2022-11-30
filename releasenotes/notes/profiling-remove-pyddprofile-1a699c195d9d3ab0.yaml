@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    The deprecated ``pyddprofile`` wrapper has been removed. Use
+    ``ddtrace-run`` with ``DD_PROFILING_ENABLED=1`` set instead.

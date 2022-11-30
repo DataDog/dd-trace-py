@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ``tracer.get_log_correlation_context()``: use active context in addition to
+      active span. Formerly just the span was used and this would break cross
+      execution log correlation as a context object is used for the propagation.

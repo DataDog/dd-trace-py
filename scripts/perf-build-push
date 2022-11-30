@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -ex
+
+if [ $# != 1 ]; then
+    echo "Usage: scripts/perf-build-push <repository>"
+    exit 1
+fi
+
+REPOSITORY="$1"
+shift
+
+IMAGES=()
+
+for SCENARIO in "encoder" "span" "tracer" "django_simple" "flask_simple" "threading" "sampling_rule_matches"; do
+    TAG="${REPOSITORY}/perf-${SCENARIO}"
+    scripts/perf-build-scenario "${SCENARIO}" "${TAG}"
+    IMAGE="${TAG}:latest"
+    docker push -q "${IMAGE}"
+    IMAGES+=("${IMAGE}")
+done
+
+# Print out repository digests
+for IMAGE in "${IMAGES[@]}"; do
+    docker inspect --format='{{.RepoDigests}}' "${IMAGE}"
+done

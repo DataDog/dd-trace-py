@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The ``Records`` parameter to ``Firehose`` endpoint calls is being excluded from the
+    tags to avoid generating traces with a large payload.

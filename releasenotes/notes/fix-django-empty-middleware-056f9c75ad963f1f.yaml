@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django: handle erroneous middleware gracefully.

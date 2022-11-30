@@ -1,0 +1,29 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "redis",
+    "resource": "GET \ud83d\ude10",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "out.host": "localhost",
+      "redis.raw_command": "GET \ud83d\ude10",
+      "runtime-id": "cbe1640ba87d4f10b17f215d7ae38eed"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 6379,
+      "out.redis_db": 0,
+      "redis.args_length": 2,
+      "system.pid": 65274
+    },
+    "duration": 3470000,
+    "start": 1650032338898765000
+  }]]

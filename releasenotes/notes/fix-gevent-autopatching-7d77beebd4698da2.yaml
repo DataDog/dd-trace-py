@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Ensure ``gevent`` is automatically patched.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dogpile.cache: handle both kwargs and args in the wrapper functions (using
+      only kwargs would result in an IndexError.

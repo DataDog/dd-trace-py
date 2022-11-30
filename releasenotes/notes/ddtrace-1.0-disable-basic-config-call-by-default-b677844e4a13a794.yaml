@@ -1,0 +1,14 @@
+---
+upgrade:
+  - |
+    .. _disable-basic-config-call-by-default:
+
+
+    Default value of ``DD_CALL_BASIC_CONFIG`` was updated from ``True`` to ``False``.
+    Call ``logging.basicConfig()`` to configure logging in your application.
+deprecations:
+  - |
+    .. _deprecate-basic-config-call:
+
+
+    ``DD_CALL_BASIC_CONFIG`` is deprecated.

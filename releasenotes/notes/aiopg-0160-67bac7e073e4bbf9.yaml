@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Added support for ``aiopg~=0.16.0``.

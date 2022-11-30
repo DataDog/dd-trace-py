@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix application crash on startup when using ``channels >= 3.0``.

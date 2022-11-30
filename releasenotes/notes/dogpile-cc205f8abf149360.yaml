@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    dogpile.cache: is now automatically instrumented by default.

@@ -2,24 +2,25 @@
 import binascii
 import datetime
 import gzip
+import itertools
+import json
 import os
 import platform
+import typing
 
+import attr
+import six
+from six.moves import http_client
 import tenacity
 
-from ddtrace.internal.runtime import container
-from ddtrace.utils.formats import parse_tags_str
-from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import http_client
-from ddtrace.vendor.six.moves.urllib import error
-from ddtrace.vendor.six.moves.urllib import request
-
 import ddtrace
+from ddtrace.internal import agent
 from ddtrace.internal import runtime
-from ddtrace.profiling import _attr
-from ddtrace.profiling import _traceback
+from ddtrace.internal.runtime import container
+from ddtrace.internal.utils import attr as attr_utils
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.profiling import exporter
-from ddtrace.vendor import attr
+from ddtrace.profiling import recorder
 from ddtrace.profiling.exporter import pprof
 
 
@@ -28,35 +29,79 @@ PYTHON_IMPLEMENTATION = platform.python_implementation().encode()
 PYTHON_VERSION = platform.python_version().encode()
 
 
-class UploadFailed(exporter.ExportError):
+class UploadFailed(tenacity.RetryError, exporter.ExportError):
     """Upload failure."""
 
-    def __init__(self, exception, msg=None):
-        """Create a failed upload error based on raised exceptions."""
-        self.exception = exception
-        msg = _traceback.format_exception(exception) if msg is None else msg
-        super(UploadFailed, self).__init__("Unable to upload profile: " + msg)
+    def __str__(self):
+        return str(self.last_attempt.exception())
 
 
 @attr.s
 class PprofHTTPExporter(pprof.PprofExporter):
     """PProf HTTP exporter."""
 
-    endpoint = attr.ib()
-    api_key = attr.ib(default=None)
-    timeout = attr.ib(factory=_attr.from_env("DD_PROFILING_API_TIMEOUT", 10, float), type=float)
-    service = attr.ib(default=None)
-    env = attr.ib(default=None)
-    version = attr.ib(default=None)
+    # repeat this to please mypy
+    enable_code_provenance = attr.ib(default=True, type=bool)
+
+    endpoint = attr.ib(type=str, factory=agent.get_trace_url)
+    api_key = attr.ib(default=None, type=typing.Optional[str])
+    # Do not use the default agent timeout: it is too short, the agent is just a unbuffered proxy and the profiling
+    # backend is not as fast as the tracer one.
+    timeout = attr.ib(
+        factory=attr_utils.from_env("DD_PROFILING_API_TIMEOUT", 10.0, float),
+        type=float,
+    )
+    service = attr.ib(default=None, type=typing.Optional[str])
+    env = attr.ib(default=None, type=typing.Optional[str])
+    version = attr.ib(default=None, type=typing.Optional[str])
+    tags = attr.ib(factory=dict, type=typing.Dict[str, bytes])
     max_retry_delay = attr.ib(default=None)
     _container_info = attr.ib(factory=container.get_container_info, repr=False)
+    _retry_upload = attr.ib(init=False, eq=False)
+    endpoint_path = attr.ib(default="/profiling/v1/input")
 
     def __attrs_post_init__(self):
         if self.max_retry_delay is None:
             self.max_retry_delay = self.timeout * 3
+        self._retry_upload = tenacity.Retrying(
+            # Retry after 1s, 2s, 4s, 8s with some randomness
+            wait=tenacity.wait_random_exponential(multiplier=0.5),
+            stop=tenacity.stop_after_delay(self.max_retry_delay),
+            retry_error_cls=UploadFailed,
+            retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError)),
+        )
+        tags = {
+            k: six.ensure_binary(v)
+            for k, v in itertools.chain(
+                parse_tags_str(os.environ.get("DD_TAGS")).items(),
+                parse_tags_str(os.environ.get("DD_PROFILING_TAGS")).items(),
+            )
+        }
+        tags.update({k: six.ensure_binary(v) for k, v in self.tags.items()})
+        tags.update(
+            {
+                "host": HOSTNAME.encode("utf-8"),
+                "language": b"python",
+                "runtime": PYTHON_IMPLEMENTATION,
+                "runtime_version": PYTHON_VERSION,
+                "profiler_version": ddtrace.__version__.encode("ascii"),
+            }
+        )
+        if self.version:
+            tags["version"] = self.version.encode("utf-8")
+
+        if self.env:
+            tags["env"] = self.env.encode("utf-8")
+
+        self.tags = tags
 
     @staticmethod
-    def _encode_multipart_formdata(fields, tags):
+    def _encode_multipart_formdata(
+        fields,  # type: typing.Dict[str, bytes]
+        tags,  # type: typing.Dict[str, bytes]
+        data,  # type: typing.Dict[bytes, bytes]
+    ):
+        # type: (...) -> typing.Tuple[bytes, bytes]
         boundary = binascii.hexlify(os.urandom(16))
 
         # The body that is generated is very sensitive and must perfectly match what the server expects.
@@ -76,48 +121,43 @@ class PprofHTTPExporter(pprof.PprofExporter):
                 b"%s:%s\r\n" % (boundary, tag.encode(), value)
                 for tag, value in tags.items()
             )
-            + b"--"
-            + boundary
-            + b"\r\n"
-            b'Content-Disposition: form-data; name="chunk-data"; filename="profile.pb.gz"\r\n'
-            + b"Content-Type: application/octet-stream\r\n\r\n"
-            + fields["chunk-data"]
-            + b"\r\n--%s--\r\n" % boundary
+            + b"".join(
+                (
+                    b'--%s\r\nContent-Disposition: form-data; name="data[%s]"; filename="%s"\r\n'
+                    % (boundary, field_name, field_name)
+                )
+                + b"Content-Type: application/octet-stream\r\n\r\n"
+                + field_data
+                + b"\r\n"
+                for field_name, field_data in data.items()
+            )
+            + b"--%s--" % boundary
         )
 
         content_type = b"multipart/form-data; boundary=%s" % boundary
 
         return content_type, body
 
-    def _get_tags(self, service):
+    def _get_tags(
+        self, service  # type: str
+    ):
+        # type: (...) -> typing.Dict[str, bytes]
         tags = {
             "service": service.encode("utf-8"),
-            "host": HOSTNAME.encode("utf-8"),
             "runtime-id": runtime.get_runtime_id().encode("ascii"),
-            "language": b"python",
-            "runtime": PYTHON_IMPLEMENTATION,
-            "runtime_version": PYTHON_VERSION,
-            "profiler_version": ddtrace.__version__.encode("utf-8"),
         }
 
-        if self.version:
-            tags["version"] = self.version.encode("utf-8")
+        tags.update(self.tags)
 
-        if self.env:
-            tags["env"] = self.env.encode("utf-8")
-
-        user_tags = parse_tags_str(os.environ.get("DD_TAGS", {}))
-        user_tags.update(parse_tags_str(os.environ.get("DD_PROFILING_TAGS", {})))
-        tags.update({k: six.ensure_binary(v) for k, v in user_tags.items()})
         return tags
 
-    @staticmethod
-    def _retry_on_http_5xx(exception):
-        if isinstance(exception, error.HTTPError):
-            return 500 <= exception.code < 600
-        return True
-
-    def export(self, events, start_time_ns, end_time_ns):
+    def export(
+        self,
+        events,  # type: recorder.EventsType
+        start_time_ns,  # type: int
+        end_time_ns,  # type: int
+    ):
+        # type: (...) -> typing.Tuple[pprof.pprof_ProfileType, typing.List[pprof.Package]]
         """Export events to an HTTP endpoint.
 
         :param events: The event dictionary from a `ddtrace.profiling.recorder.Recorder`.
@@ -134,52 +174,73 @@ class PprofHTTPExporter(pprof.PprofExporter):
         if self._container_info and self._container_info.container_id:
             headers["Datadog-Container-Id"] = self._container_info.container_id
 
-        profile = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
-        s = six.BytesIO()
-        with gzip.GzipFile(fileobj=s, mode="wb") as gz:
+        profile, libs = super(PprofHTTPExporter, self).export(events, start_time_ns, end_time_ns)
+        pprof = six.BytesIO()
+        with gzip.GzipFile(fileobj=pprof, mode="wb") as gz:
             gz.write(profile.SerializeToString())
         fields = {
+            "version": b"3",
+            "family": b"python",
             "runtime-id": runtime.get_runtime_id().encode("ascii"),
-            "recording-start": (
+            "start": (
                 datetime.datetime.utcfromtimestamp(start_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"
             ).encode(),
-            "recording-end": (
+            "end": (
                 datetime.datetime.utcfromtimestamp(end_time_ns / 1e9).replace(microsecond=0).isoformat() + "Z"
             ).encode(),
-            "runtime": PYTHON_IMPLEMENTATION,
-            "format": b"pprof",
-            "type": b"cpu+alloc+exceptions",
-            "chunk-data": s.getvalue(),
         }
 
         service = self.service or os.path.basename(profile.string_table[profile.mapping[0].filename])
 
-        content_type, body = self._encode_multipart_formdata(fields, tags=self._get_tags(service),)
+        data = {b"auto.pprof": pprof.getvalue()}
+
+        if self.enable_code_provenance:
+            code_provenance = six.BytesIO()
+            with gzip.GzipFile(fileobj=code_provenance, mode="wb") as gz:
+                gz.write(
+                    json.dumps(
+                        {
+                            "v1": libs,
+                        }
+                    ).encode("utf-8")
+                )
+            data[b"code-provenance.json"] = code_provenance.getvalue()
+
+        content_type, body = self._encode_multipart_formdata(
+            fields,
+            tags=self._get_tags(service),
+            data=data,
+        )
         headers["Content-Type"] = content_type
 
-        # urllib uses `POST` if `data` is supplied (Python 2 version does not handle `method` kwarg)
-        req = request.Request(self.endpoint, data=body, headers=headers)
+        client = agent.get_connection(self.endpoint, self.timeout)
+        self._upload(client, self.endpoint_path, body, headers)
 
-        retry = tenacity.Retrying(
-            # Retry after 1s, 2s, 4s, 8s with some randomness
-            wait=tenacity.wait_random_exponential(multiplier=0.5),
-            stop=tenacity.stop_after_delay(self.max_retry_delay),
-            retry=tenacity.retry_if_exception_type((http_client.HTTPException, OSError, IOError))
-            & tenacity.retry_if_exception(self._retry_on_http_5xx),
-        )
+        return profile, libs
 
+    def _upload(self, client, path, body, headers):
+        self._retry_upload(self._upload_once, client, path, body, headers)
+
+    def _upload_once(self, client, path, body, headers):
         try:
-            retry(request.urlopen, req, timeout=self.timeout)
-        except tenacity.RetryError as e:
-            raise UploadFailed(e.last_attempt.exception())
-        except error.HTTPError as e:
-            if e.code == 400:
-                msg = "Server returned 400, check your API key"
-            elif e.code == 404 and not self.api_key:
-                msg = (
-                    "Datadog Agent is not accepting profiles. "
-                    "Agent-based profiling deployments require Datadog Agent >= 7.20"
-                )
-            else:
-                msg = None
-            raise UploadFailed(e, msg)
+            client.request("POST", path, body=body, headers=headers)
+            response = client.getresponse()
+            response.read()  # reading is mandatory
+        finally:
+            client.close()
+
+        if 200 <= response.status < 300:
+            return
+
+        if 500 <= response.status < 600:
+            raise tenacity.TryAgain
+
+        if response.status == 400:
+            raise exporter.ExportError("Server returned 400, check your API key")
+        elif response.status == 404 and not self.api_key:
+            raise exporter.ExportError(
+                "Datadog Agent is not accepting profiles. "
+                "Agent-based profiling deployments require Datadog Agent >= 7.20"
+            )
+
+        raise exporter.ExportError("HTTP Error %d" % response.status)

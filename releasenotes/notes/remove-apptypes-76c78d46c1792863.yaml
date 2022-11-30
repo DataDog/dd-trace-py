@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Removed `ddtrace.ext.AppTypes` and its usages in the tracer library.

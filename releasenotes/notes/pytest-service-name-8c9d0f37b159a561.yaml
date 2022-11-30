@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The pytest integration now uses the name of the repository being tested as the default test service name.

@@ -1,1 +1,1 @@
-DEFAULT_TEMPLATE_NAME = '<memory>'
+DEFAULT_TEMPLATE_NAME = "<memory>"

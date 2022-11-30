@@ -1,0 +1,66 @@
+[[
+  {
+    "name": "mysql.query",
+    "service": null,
+    "resource": "select 'Jellysmack'",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "test",
+      "db.user": "test",
+      "out.host": "127.0.0.1",
+      "runtime-id": "456ee87f2df64003ac7d14012c2cd357",
+      "sql.query": "select 'Jellysmack'"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": 1,
+      "db.rownumber": 0,
+      "out.port": 3306,
+      "system.pid": 51883
+    },
+    "duration": 2268000,
+    "start": 1651818987387319000
+  }],
+[
+  {
+    "name": "mysql.query",
+    "service": null,
+    "resource": "select * from some_non_existant_table",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "test",
+      "db.user": "test",
+      "error.msg": "(1146, \"Table 'test.some_non_existant_table' doesn't exist\")",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/kverhoog/dev/dd-trace-py/ddtrace/contrib/aiomysql/patch.py\", line 69, in _trace_method\n    result = await method(*args, **kwargs)\n  File \"/Users/kverhoog/dev/dd-trace-py/.venv/lib/python3.10/site-packages/aiomysql/cursors.py\", line 239, in execute\n    await self._query(query)\n  File \"/Users/kverhoog/dev/dd-trace-py/.venv/lib/python3.10/site-packages/aiomysql/cursors.py\", line 457, in _query\n    await conn.query(q)\n  File \"/Users/kverhoog/dev/dd-trace-py/.venv/lib/python3.10/site-packages/aiomysql/connection.py\", line 469, in query\n    await self._read_query_result(unbuffered=unbuffered)\n  File \"/Users/kverhoog/dev/dd-trace-py/.venv/lib/python3.10/site-packages/aiomysql/connection.py\", line 672, in _read_query_result\n    await result.read()\n  File \"/Users/kverhoog/dev/dd-trace-py/.venv/lib/python3.10/site-packages/aiomysql/connection.py\", line 1157, in read\n    first_packet = await self.connection._read_packet()\n  File \"/Users/kverhoog/dev/dd-trace-py/.venv/lib/python3.10/site-packages/aiomysql/connection.py\", line 641, in _read_packet\n    packet.raise_for_error()\n  File \"/Users/kverhoog/dev/dd-trace-py/.venv/lib/python3.10/site-packages/pymysql/protocol.py\", line 221, in raise_for_error\n    err.raise_mysql_exception(self._data)\n  File \"/Users/kverhoog/dev/dd-trace-py/.venv/lib/python3.10/site-packages/pymysql/err.py\", line 143, in raise_mysql_exception\n    raise errorclass(errno, errval)\npymysql.err.ProgrammingError: (1146, \"Table 'test.some_non_existant_table' doesn't exist\")\n",
+      "error.type": "pymysql.err.ProgrammingError",
+      "out.host": "127.0.0.1",
+      "runtime-id": "456ee87f2df64003ac7d14012c2cd357",
+      "sql.query": "select * from some_non_existant_table"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": 0,
+      "db.rownumber": 0,
+      "out.port": 3306,
+      "system.pid": 51883
+    },
+    "duration": 3759000,
+    "start": 1651818987389794000
+  }]]

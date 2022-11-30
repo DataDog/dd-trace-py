@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    The return value of ``Span.pprint()`` has been changed to a single line in the tracer debug logs rather than the previous custom multiline format.

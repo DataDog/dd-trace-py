@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Add support for injecting and extracting B3 propagation headers.
+
+    See :ref:`DD_TRACE_PROPAGATION_STYLE_EXTRACT <dd-trace-propagation-style-extract>` and
+    :ref:`DD_TRACE_PROPAGATION_STYLE_INJECT <dd-trace-propagation-style-inject>`
+    configuration documentation to enable.

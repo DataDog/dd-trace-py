@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes cases in which ``aiohttp_jinja2`` is imported while patching an integration and an exception is raised which isn't an ``ImportError``.  

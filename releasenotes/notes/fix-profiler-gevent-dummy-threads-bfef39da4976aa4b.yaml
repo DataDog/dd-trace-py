@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed an issue with gevent worker processes that caused them to crash and
+    stop.

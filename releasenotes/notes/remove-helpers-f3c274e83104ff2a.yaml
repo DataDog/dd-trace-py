@@ -1,0 +1,9 @@
+---
+upgrade:
+  - ".. _remove-helpers:
+
+
+    The deprecated method ``ddtrace.helpers.get_correlation_ids`` is removed. Use :py:meth:`ddtrace.Tracer.get_log_correlation_context`
+    instead.
+
+    "

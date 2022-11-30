@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    The default connection timeout for the profiling agent has now been reduced
+    from 10 to 2 seconds to match the tracer behavior.

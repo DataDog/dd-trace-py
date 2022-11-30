@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The exception profiler now gathers and exports the traces and spans information.

@@ -1,12 +1,12 @@
 """
 Instrument dogpile.cache__ to report all cached lookups.
 
-This will add spans around the calls to your cache backend (eg. redis, memory,
+This will add spans around the calls to your cache backend (e.g. redis, memory,
 etc). The spans will also include the following tags:
 
 - key/keys: The key(s) dogpile passed to your backend. Note that this will be
   the output of the region's ``function_key_generator``, but before any key
-  mangling is applied (ie. the region's ``key_mangler``).
+  mangling is applied (i.e. the region's ``key_mangler``).
 - region: Name of the region.
 - backend: Name of the backend class.
 - hit: If the key was found in the cache.
@@ -36,13 +36,14 @@ hashing with memcached - the key(s) will appear as a mangled hash.
 
 .. __: https://dogpilecache.sqlalchemy.org/
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
-required_modules = ['dogpile.cache']
+required_modules = ["dogpile.cache"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
+        from .patch import patch
+        from .patch import unpatch
 
-        __all__ = ['patch', 'unpatch']
+        __all__ = ["patch", "unpatch"]

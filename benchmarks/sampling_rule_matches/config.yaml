@@ -1,0 +1,23 @@
+# Every iteration should match, high cache hit rate
+high_match:
+  num_iterations: 100
+  num_services: 1
+  num_operations: 1
+
+# Low number of variations, hit rate of about 25%
+average_match:
+  num_iterations: 100
+  num_services: 2
+  num_operations: 2
+
+# High number of variations, hit rate of 0% or 1%
+low_match:
+  num_iterations: 100
+  num_services: 25
+  num_operations: 25
+
+# This variation has performance issues due to the cache max size
+very_low_match:
+  num_iterations: 1000
+  num_services: 250
+  num_operations: 100

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    fastapi/starlette: when using sub-apps, formerly a call to ``/sub-app/hello/{name}`` would give a resource name of ``/sub-app``. Now the full path ``/sub-app/hello/{name}`` is used for the resource name.

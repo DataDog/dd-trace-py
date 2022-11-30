@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The profiler now supports profiling ``asyncio.Lock`` objects.

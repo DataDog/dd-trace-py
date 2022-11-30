@@ -1,0 +1,9 @@
+---
+deprecations:
+  - |
+    ``monkey.patch_module`` is deprecated. 
+  - |
+    ``monkey.get_patch_module`` is deprecated. 
+
+
+

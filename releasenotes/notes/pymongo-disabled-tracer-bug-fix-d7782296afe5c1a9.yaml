@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Pymongo instrumentation raises an AttributeError when ``tracer.enabled == False``

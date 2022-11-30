@@ -1,0 +1,8 @@
+---
+upgrade:
+  - ".. _remove-span-types-enum:
+
+
+    ``ddtrace.ext.SpanTypes`` is no longer an ``Enum``. Use ``SpanTypes.<TYPE>`` instead of ``SpanTypes.<TYPE>.value``.
+
+    "

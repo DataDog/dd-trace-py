@@ -1,0 +1,12 @@
+---
+upgrade:
+  - |
+     Instead of using error constants from ``ddtrace.ext.errors``. Use constants from ``ddtrace.constants`` module. 
+     For example: ``ddtrace.ext.errors.ERROR_MSG`` -> ``ddtrace.constants.ERROR_MSG``
+      
+deprecations:
+  - |
+    Moved ``ddtrace.ext.errors`` constants into the ``ddtrace.constants`` module. ``ddtrace.ext.errors`` will be removed in v1.0. 
+    Shorthand error constant (MSG,TYPE,STACK) in ``ddtrace.ext.errors`` will be removed in v1.0.
+    Function ``get_traceback()`` in ddtrace.ext.errors is now deprecated and will be removed v1.0.
+

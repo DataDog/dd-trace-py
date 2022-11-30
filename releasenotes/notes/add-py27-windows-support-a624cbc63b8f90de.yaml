@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix broken builds for Python 2.7 on windows where ``<stdint.h>`` was not available.
+    This change also ensures we build and publish ``cp27-win`` wheels.

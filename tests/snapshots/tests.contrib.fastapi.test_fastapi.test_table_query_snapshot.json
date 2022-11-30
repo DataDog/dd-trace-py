@@ -1,0 +1,76 @@
+[[
+  {
+    "name": "fastapi.request",
+    "service": "fastapi",
+    "resource": "POST /items/",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "POST",
+      "http.status_code": "200",
+      "http.url": "http://testserver/items/",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "runtime-id": "bdffe0368afa4d3c8cb5be8af75b25a4"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 2060
+    },
+    "duration": 405000,
+    "start": 1656543965510660000
+  },
+     {
+       "name": "fastapi.serialize_response",
+       "service": "fastapi",
+       "resource": "fastapi.serialize_response",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 80000,
+       "start": 1656543965510900000
+     }],
+[
+  {
+    "name": "fastapi.request",
+    "service": "fastapi",
+    "resource": "GET /items/{item_id}",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://testserver/items/test_id",
+      "http.useragent": "testclient",
+      "http.version": "1.1",
+      "runtime-id": "bdffe0368afa4d3c8cb5be8af75b25a4"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 2060
+    },
+    "duration": 273000,
+    "start": 1656543965512049000
+  },
+     {
+       "name": "fastapi.serialize_response",
+       "service": "fastapi",
+       "resource": "fastapi.serialize_response",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 65000,
+       "start": 1656543965512188000
+     }]]

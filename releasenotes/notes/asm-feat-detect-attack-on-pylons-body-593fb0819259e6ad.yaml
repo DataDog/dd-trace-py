@@ -1,0 +1,3 @@
+features:
+  - |
+    ASM: Detect attacks on Pylons body.

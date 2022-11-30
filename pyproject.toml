@@ -1,16 +1,39 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >= 4", "cython"]
+requires = ["setuptools >= 40.6.0", "setuptools_scm[toml] >=4,<6.1", "cython", "cmake >= 3.14", "ninja"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 version_scheme = "release-branch-semver"
 
+[tool.isort]
+force_single_line = true
+lines_after_imports = 2
+force_sort_within_sections = true
+known_first_party = "ddtrace"
+default_section = "THIRDPARTY"
+skip = ["ddtrace/vendor/", ".riot", ".ddriot", ".tox", ".ddtox", ".eggs", "build", "setup.py"]
+skip_glob = [".venv*", "ddtrace/profiling/exporter/pprof_*pb2.py"]
+line_length = 120
+
 [tool.black]
 line-length = 120
 target_version = ['py27', 'py35', 'py36', 'py37', 'py38']
+include = '''\.py[ix]?$'''
 exclude = '''
 (
-  \.eggs
+  .venv*
+  | \.riot/
+  | ddtrace/appsec/_ddwaf.pyx$
+  | ddtrace/internal/_encoding.pyx$
+  | ddtrace/internal/_rand.pyx$
+  | ddtrace/internal/_tagset.pyx$
+  | ddtrace/profiling/collector/_traceback.pyx$
+  | ddtrace/profiling/collector/_task.pyx$
+  | ddtrace/profiling/_threading.pyx$
+  | ddtrace/profiling/collector/stack.pyx$
+  | ddtrace/profiling/exporter/pprof_.*pb2.py$
+  | ddtrace/vendor/
+  | \.eggs
   | \.git
   | \.hg
   | \.mypy_cache
@@ -21,148 +44,32 @@ exclude = '''
   | buck-out/
   | build/
   | dist/
-  | ddtrace/(
-    (?!(compat|monkey|span|__init__|_hooks)\.py$)[^/]+\.py$
-    | commands/
-    | contrib/
-    (
-      aiobotocore
-      | aiohttp
-      | aiopg
-      | algoliasearch
-      | asyncio
-      | boto
-      | botocore
-      | bottle
-      | cassandra
-      | celery
-      | consul
-      | dbapi
-      | dogpile_cache
-      | falcon
-      | flask
-      | flask_cache
-      | futures
-      | gevent
-      | grpc/
-      (
-        __init__.py
-        | constants.py
-        | patch.py
-        | server_interceptor.py
-        | utils.py
-      )
-      | httplib
-      | jinja2
-      | kombu
-      | mako
-      | molten
-      | mongoengine
-      | mysql
-      | mysqldb
-      | psycopg
-      | pylibmc
-      | pylons
-      | pymemcache
-      | pymongo
-      | pymysql
-      | pyramid
-      | rediscluster
-      | requests/
-      (
-        __init__.py
-        | constants.py
-        | legacy.py
-        | patch.py
-        | session.py
-      )
-      | sqlalchemy
-      | sqlite3
-      | tornado
-      | util.py
-      | vertica
-    )
-    | ext/
-    (
-       cassandra.py
-       | consul.py
-       | db.py
-       | elasticsearch.py
-       | errors.py
-       | http.py
-       | kombu.py
-       | memcached.py
-       | mongo.py
-       | net.py
-       | priority.py
-       | sql.py
-       | system.py
-    )
-    | http/
-    | opentracer/
-    | profiling/exporter/pprof_pb2.py$
-    | propagation/
-    | vendor/
-  )
-  | tests/
-  (
-    | contrib/
-    (
-      aiobotocore
-      | aiohttp
-      | aiopg
-      | algoliasearch
-      | asyncio
-      | boto
-      | botocore
-      | bottle
-      | cassandra
-      | config.py
-      | consul
-      | dbapi
-      | falcon
-      | flask
-      | flask_autopatch
-      | flask_cache
-      | futures
-      | gevent
-      | grpc
-      | httplib
-      | jinja2
-      | kombu
-      | mako
-      | molten
-      | mongoengine
-      | mysql
-      | mysqldb
-      | patch.py
-      | psycopg
-      | pylibmc
-      | pylons
-      | pymemcache
-      | pymongo
-      | pymysql
-      | pyramid/
-      (
-        app/web.py
-        | __init__.py
-        | test_pyramid.py
-        | test_pyramid_autopatch.py
-      )
-      | rediscluster
-      | requests
-      | sqlalchemy
-      | sqlite3
-      | test_utils.py
-      | tornado
-      | vertica
-    )
-    | ddtrace_run.py
-    | profiling/_ast_test_file.py
-    | subprocesstest.py
-    | tracer/
-    | vendor
-    | wait-for-services.py
-  )
+)
+'''
+
+[tool.pyright]
+exclude = [
+  "**/__pycache__",
+  ".git",
+  ".ddriot",
+  ".ddtox",
+  ".riot",
+  ".tox",
+  ".venv",
+]
+
+[tool.slotscheck]
+exclude-modules = '''
+(
+  ^ddtrace.(contrib|vendor)
+  | ^tests.(contrib|vendor)
+  # avoid sitecustomize modules as they start services
+  | ddtrace.bootstrap.sitecustomize
+  | ddtrace.profiling.bootstrap.sitecustomize
+  | ddtrace.profiling.auto
+  # protobuf file fails to import
+  | ddtrace.profiling.exporter.pprof_pre312_pb2
+  # TODO: resolve slot inheritance issues with profiling
+  | ddtrace.profiling.collector
 )
 '''

@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    :py:attr:`ddtrace.Tracer.tags` is deprecated. Use the environment variable :ref:`DD_TAGS<dd-tags>` to set the global tags instead.

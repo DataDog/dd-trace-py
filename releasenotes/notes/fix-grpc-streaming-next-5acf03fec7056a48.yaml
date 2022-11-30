@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpc: fix wrapper for streaming response to support libraries that call an internal method directly.

@@ -1,0 +1,84 @@
+[[
+  {
+    "name": "graphql.request",
+    "service": "graphql",
+    "resource": "{ patron { id name age } }",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "graphql",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "error.msg": "exception was raised in a graphene query",
+      "error.type": "graphql.error.base.GraphQLError",
+      "runtime-id": "9203e2a344a64d8da2a34d37d8fe3900"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 80357
+    },
+    "duration": 3562000,
+    "start": 1659643443310553000
+  },
+     {
+       "name": "graphql.parse",
+       "service": "graphql",
+       "resource": "graphql.parse",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "graphql",
+       "meta": {
+         "graphql.source": "{ patron { id name age } }"
+       },
+       "duration": 225000,
+       "start": 1659643443310716000
+     },
+     {
+       "name": "graphql.validate",
+       "service": "graphql",
+       "resource": "graphql.validate",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "graphql",
+       "meta": {
+         "graphql.source": "{ patron { id name age } }"
+       },
+       "duration": 1047000,
+       "start": 1659643443311052000
+     },
+     {
+       "name": "graphql.execute",
+       "service": "graphql",
+       "resource": "{ patron { id name age } }",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "graphql",
+       "error": 1,
+       "meta": {
+         "error.msg": "exception was raised in a graphene query",
+         "error.type": "graphql.error.base.GraphQLError",
+         "graphql.operation.type": "query",
+         "graphql.source": "{ patron { id name age } }"
+       },
+       "duration": 1877000,
+       "start": 1659643443312186000
+     },
+        {
+          "name": "graphql.resolve",
+          "service": "graphql",
+          "resource": "patron",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 4,
+          "type": "graphql",
+          "duration": 48000,
+          "start": 1659643443312350000
+        }]]

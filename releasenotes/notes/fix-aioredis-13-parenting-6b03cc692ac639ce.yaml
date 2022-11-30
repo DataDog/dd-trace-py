@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix parenting of Redis command spans when using aioredis 1.3. Redis spans
+    should now be correctly attributed as child of any active parent spans.

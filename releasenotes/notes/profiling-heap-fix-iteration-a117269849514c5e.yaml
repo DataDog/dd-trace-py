@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix an issue in the heap profiler where it would iterate on the wrong heap
+    allocation tracker.

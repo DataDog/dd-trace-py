@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    :py:attr:`ddtrace.Span.tracer` is deprecated.

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    starlette integration resource aggregation
+    This aggregates endpoints to the starlette application resource that was accessed.
+    It occurs by default but it is configurable through config.starlette["aggregate_resources"].

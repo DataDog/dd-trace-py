@@ -3,45 +3,41 @@ import logging
 
 from ddtrace import config
 from ddtrace.vendor import wrapt
+from ddtrace.internal.logger import get_logger
 
-from ...utils.wrappers import unwrap, get_root_wrapped
+from ...utils.wrappers import get_root_wrapped
 from ...propagation.http import HTTPPropagator
 from ...pin import Pin
 from ...ext import http as ext_http
 from ..httplib.patch import should_skip_request
+from ..trace_utils import unwrap
+from ..trace_utils import wrap
 
-import aiohttp
 from yarl import URL
 
-try:
-    # instrument external packages only if they're available
-    import aiohttp_jinja2
-    from .template import _trace_render_template
-except ImportError:
-    _trace_render_template = None
 
+log = get_logger(__name__)
 
-log = logging.getLogger(__name__)
+# Server config
+config._add(
+    "aiohttp",
+    dict(distributed_tracing=True),
+)
 
-propagator = HTTPPropagator()
+config._add(
+    "aiohttp_client",
+    dict(
+        distributed_tracing=asbool(os.getenv("DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING", True)),
+        default_http_tag_query_string=os.getenv("DD_HTTP_CLIENT_TAG_QUERY_STRING", "true"),
+        redact_query_keys=set(),
+
+    ),
+)
 
 # Set these on the ClientSession instance to override the settings
 # from the patch method
 ENABLE_DISTRIBUTED_ATTR_NAME = '_dd_enable_distributed'
 TRACE_HEADERS_ATTR_NAME = '_dd_trace_headers'
-
-
-config._add("aiohttp_client", dict(
-    service="aiohttp.client",
-    trace_headers=[],
-    trace_context=False,
-    trace_query_string=False,
-    redact_query_keys=set(),
-))
-
-config._add("aiohttp_jinja", dict(
-    service="aiohttp"
-))
 
 
 def _get_url_obj(obj):
@@ -53,26 +49,19 @@ def _get_url_obj(obj):
     return url_obj
 
 
-def _redacted_query_value(key: str, value: str):
-    if key not in config.aiohttp_client.redact_query_keys:
-        return value
+def _set_request_tags(span: Span, req: Union[ClientRequest, ClientResponse]):
+    url_str = str(req.url)
+    parsed_url = parse.urlparse(url_str)
 
-    return '--redacted--'
+    set_http_meta(
+        span,
+        config.aiohttp_client,
+        method=req.method,
+        url=url_str,
+        query=parsed_url.query,
+        request_headers=req.headers,
+    )
 
-
-def _set_request_tags(span, url: URL, params=None):
-    if config.aiohttp_client['trace_query_string']:
-        if params:
-            url = url.with_query(**{**url.query, **params})
-
-        if url.query and config.aiohttp_client.redact_query_keys:
-            url = url.with_query({k: _redacted_query_value(k, v) for k, v in url.query.items()})
-
-        span.set_tag(ext_http.QUERY_STRING, url.query_string)
-
-    sanitized_url = url.with_query(dict())
-    span.set_tag(ext_http.URL, str(sanitized_url))
-    span.resource = url.path
 
 
 class _WrappedConnectorClass(wrapt.ObjectProxy):
@@ -82,9 +71,9 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
 
     async def connect(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
-        with pin.tracer.trace('{}.connect'.format(self.__class__.__name__),
+        with pin.tracer.trace("%s.connect" % self.__class__.__name__,
                               span_type=ext_http.TYPE, service=pin.service) as span:
-            _set_request_tags(span, _get_url_obj(req))
+            _set_request_tags(span, req)
             # We call this way so "self" will not get sliced and call
             # _create_connection on us first
             result = await self.__wrapped__.__class__.connect(self, req, *args, **kwargs)
@@ -93,9 +82,9 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
     async def _create_connection(self, req, *args, **kwargs):
         pin = Pin.get_from(self)
         with pin.tracer.trace(
-                '{}._create_connection'.format(self.__class__.__name__),
+                "%s._create_connection" % self.__class__.__name__,
                 span_type=ext_http.TYPE, service=pin.service) as span:
-            _set_request_tags(span, _get_url_obj(req))
+            _set_request_tags(span, req)
             result = await self.__wrapped__._create_connection(req, *args, **kwargs)
             return result
 
@@ -180,24 +169,18 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
         # This will parent correctly as we'll always have an enclosing span
         with pin.tracer.trace('{}.start'.format(self.__class__.__name__),
                               span_type=ext_http.TYPE, service=pin.service) as span:
-            _set_request_tags(span, _get_url_obj(self))
+            _set_request_tags(span, self)
 
             wrapped = get_root_wrapped(self)
             await wrapped.start(*args, **kwargs)
 
-            if self._self_trace_headers:
-                tags = {hdr: self.headers[hdr]
-                        for hdr in self._self_trace_headers
-                        if hdr in self.headers}
-                span.set_tags(tags)
-            else:
-                tags = {}
-
-            span.set_tag(ext_http.STATUS_CODE, self.status)
-            span.set_tag(ext_http.METHOD, self.method)
-
-            for tag in {ext_http.URL, ext_http.STATUS_CODE, ext_http.METHOD}:
-                tags[tag] = span.get_tag(tag)
+            set_http_meta(
+                span,
+                config.aiohttp_client,
+                response_headers=self.headers,
+                status_code=self.status,
+                status_msg=self.reason
+            )
 
         # after start, self.__wrapped__.content is set
         pin = pin.clone(tags=tags)
@@ -215,67 +198,12 @@ class _WrappedResponseClass(wrapt.ObjectProxy):
         return result
 
 
-class _WrappedRequestContext(wrapt.ObjectProxy):
-    def __init__(self, obj, pin, span, trace_headers, trace_context):
-        super().__init__(obj)
-        pin.onto(self)
-        self._self_span = span
-        self._self_trace_headers = trace_headers
-        self._self_trace_context = trace_context
-        self._self_have_context = False
-
-    async def _handle_response(self, coro):
-        try:
-            resp = await coro
-
-            if self._self_trace_headers:
-                tags = {hdr: resp.headers[hdr]
-                        for hdr in self._self_trace_headers
-                        if hdr in resp.headers}
-                self._self_span.set_tags(tags)
-
-            self._self_span.set_tag(ext_http.STATUS_CODE, resp.status)
-            self._self_span.error = int(500 <= resp.status)
-            return resp
-        except BaseException:
-            self._self_span.set_traceback()
-            raise
-        finally:
-            if not self._self_have_context or not self._self_trace_context:
-                self._self_span.finish()
-
-    # this will get when called without a context
-    def __iter__(self):
-        return self.__await__()
-
-    def __await__(self):
-        resp = self._handle_response(self.__wrapped__).__await__()
-        return resp
-
-    async def __aenter__(self):
-        self._self_have_context = True
-        resp = await self._handle_response(self.__wrapped__.__aenter__())
-        return resp
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        try:
-            resp = await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
-        finally:
-            if self._self_have_context and self._self_trace_context:
-                self._self_span.finish()
-        return resp
-
-
-def _create_wrapped_request(method, enable_distributed, trace_headers, trace_context, func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-
-    if not pin.tracer.enabled:
-        return func(*args, **kwargs)
-
-    if method == "REQUEST":
-        url = URL(kwargs.get("url") or args[1])
-    else:
-        url = URL(kwargs.get("url") or args[0])
+@with_traced_module
+async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwargs):
+    method = get_argument_value(args, kwargs, 0, "method")  # type: str
+    url = URL(get_argument_value(args, kwargs, 1, "url"))  # type: URL
+    params = kwargs.get("params")
+    headers = kwargs.get("headers") or {}
 
     if should_skip_request(pin, url):
         result = func(*args, **kwargs)
@@ -284,102 +212,83 @@ def _create_wrapped_request(method, enable_distributed, trace_headers, trace_con
     # Create a new span and attach to this instance (so we can
     # retrieve/update/close later on the response)
     # Note that we aren't tracing redirects
-    span = pin.tracer.trace('ClientSession.request', span_type=ext_http.TYPE, service=pin.service)
+    with pin.tracer.trace(
+        "aiohttp.request", span_type=SpanTypes.HTTP, service=ext_service(pin, config.aiohttp_client)
+    ) as span:
+        enabled_distributed = pin._config["distributed_tracing"]
+        if hasattr(instance, ENABLE_DISTRIBUTED_ATTR_NAME):
+            enable_distributed |= getattr(instance, ENABLE_DISTRIBUTED_ATTR_NAME)
 
-    if hasattr(instance, ENABLE_DISTRIBUTED_ATTR_NAME):
-        enable_distributed = getattr(instance, ENABLE_DISTRIBUTED_ATTR_NAME)
+        if enabled_distributed:
+            HTTPPropagator.inject(span.context, headers)
+            kwargs["headers"] = headers
 
-    if hasattr(instance, TRACE_HEADERS_ATTR_NAME):
-        trace_headers = getattr(instance, TRACE_HEADERS_ATTR_NAME)
+        # Params can be included separate of the URL so the URL has to be constructed
+        # with the passed params.
+        url_str = str(url.update_query(params) if params else url)
+        parsed_url = parse.urlparse(url_str)
+        set_http_meta(
+            span,
+            config.aiohttp_client,
+            method=method,
+            url=url_str,
+            query=parsed_url.query,
+            request_headers=headers,
+        )
 
-    if enable_distributed:
-        headers = kwargs.get('headers', {})
-        if headers is None:
-            headers = {}
-        propagator.inject(span.context, headers)
-        kwargs["headers"] = headers
-
-    _set_request_tags(span, url, kwargs.get('params'))
-    span.set_tag(ext_http.METHOD, method)
-
-    obj = _WrappedRequestContext(func(*args, **kwargs), pin, span, trace_headers, trace_context)
-    return obj
+        resp = await func(*args, **kwargs)  # type: aiohttp.ClientResponse
+        set_http_meta(
+            span, config.aiohttp_client, response_headers=resp.headers, status_code=resp.status, status_msg=resp.reason
+        )
+        return resp
 
 
-def _create_wrapped_response(trace_headers, client_session, cls, instance, args, kwargs):
+def _create_wrapped_response(client_session, cls, instance, args, kwargs):
     obj = _WrappedResponseClass(cls(*args, **kwargs), Pin.get_from(client_session), trace_headers)
     return obj
 
 
-def _wrap_clientsession_init(trace_headers, func, instance, args, kwargs):
-    # Use any attached tracer if available, otherwise use the global tracer
-    pin = Pin.get_from(instance)
-
-    if not pin.tracer.enabled:
-        return func(*args, **kwargs)
-
-    # note init doesn't really return anything
-    ret = func(*args, **kwargs)
-
-    # replace properties with our wrappers
-    wrapper = functools.partial(_create_wrapped_response, trace_headers, instance)
+@with_traced_module_sync
+def _traced_clientsession_init(aiohttp, pin, func, instance, args, kwargs):
+    func(*args, **kwargs)
+    wrapper = functools.partial(_create_wrapped_response, instance)
     instance._response_class = wrapt.FunctionWrapper(instance._response_class, wrapper)
-
     instance._connector = _WrappedConnectorClass(instance._connector, pin)
-    return ret
 
 
-_clientsession_wrap_methods = {
-    'get', 'options', 'head', 'post', 'put', 'patch', 'delete', 'request'
-}
+def _patch_client(aiohttp):
+    Pin().onto(aiohttp)
+    pin = Pin(_config=config.aiohttp_client.copy())
+    pin.onto(aiohttp.ClientSession)
+
+    wrap("aiohttp", "ClientSession.__init__", _traced_clientsession_init(aiohttp))
+    wrap("aiohttp", "ClientSession._request", _traced_clientsession_request(aiohttp))
 
 
-def patch(enable_distributed=False, trace_headers=None, trace_context=False):
-    """
-    Patch aiohttp third party modules:
-        * aiohttp_jinja2
-        * aiohttp ClientSession request
+def patch():
+    import aiohttp
 
-    :param enable_distributed: enable aiohttp client to set parent span IDs in
-    :param trace_headers: set of headers to trace requests
-    :param trace_context: set to true to expand span to life of response context
-    """
+    if getattr(aiohttp, "_datadog_patch", False):
+        return
 
-    _w = wrapt.wrap_function_wrapper
-    if not getattr(aiohttp, '__datadog_patch', False):
-        setattr(aiohttp, '__datadog_patch', True)
-        pin = Pin(config.aiohttp_client.service, app="aiohttp", _config=config.aiohttp_client)
-        pin.onto(aiohttp.ClientSession)
+    _patch_client(aiohttp)
 
-        wrapper = functools.partial(_wrap_clientsession_init, trace_headers)
-        _w("aiohttp", "ClientSession.__init__", wrapper)
-
-        # The reason we wrap each method is so we can trace the context class that these methods return
-        for method in _clientsession_wrap_methods:
-            wrapper = functools.partial(_create_wrapped_request,
-                                        method.upper(), enable_distributed,
-                                        trace_headers, trace_context)
-            _w('aiohttp', 'ClientSession.{}'.format(method), wrapper)
-
-    if _trace_render_template and not getattr(aiohttp_jinja2, '__datadog_patch', False):
-        setattr(aiohttp_jinja2, '__datadog_patch', True)
-
-        _w('aiohttp_jinja2', 'render_template', _trace_render_template)
-        Pin(config.aiohttp_jinja.service, app="aiohttp", _config=config.aiohttp_jinja).onto(aiohttp_jinja2)
+    setattr(aiohttp, "_datadog_patch", True)
 
 
 def unpatch():
-    """
-    Remove tracing from patched modules.
-    """
-    if getattr(aiohttp, '__datadog_patch', False):
-        unwrap(aiohttp.ClientSession, '__init__')
+    import aiohttp
 
-        for method in _clientsession_wrap_methods:
-            unwrap(aiohttp.ClientSession, method)
+    if not getattr(aiohttp, "_datadog_patch", False):
+        return
 
-        setattr(aiohttp, '__datadog_patch', False)
+    unwrap(aiohttp.ClientSession, '__init__')
 
-    if _trace_render_template and getattr(aiohttp_jinja2, '__datadog_patch', False):
-        setattr(aiohttp_jinja2, '__datadog_patch', False)
-        unwrap(aiohttp_jinja2, 'render_template')
+    for method in _clientsession_wrap_methods:
+        unwrap(aiohttp.ClientSession, method)
+
+    setattr(aiohttp, '__datadog_patch', False)
+
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool

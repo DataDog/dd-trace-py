@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    The ``ddtrace.Tracer.get_log_correlation_context`` method has been added to replace
+    ``ddtrace.helpers.get_correlation_ids``. It now returns a dictionary which includes the current span's
+    trace and span ids, as well as the configured service, version, and environment names.

@@ -1,21 +1,22 @@
-import threading
 import asyncio
 import aiohttp
-import aiohttp_jinja2
-
+import threading
 from urllib import request
 
 from ddtrace import config
-from ddtrace.pin import Pin
-from ddtrace.contrib.aiohttp.patch import patch, unpatch
+from ddtrace import config
 from ddtrace.contrib.aiohttp.middlewares import trace_app
-
-from .utils import TraceTestCase
+from ddtrace.contrib.aiohttp.patch import patch
+from ddtrace.contrib.aiohttp.patch import unpatch
+from tests.utils import assert_is_measured
+from tests.utils import TestSpan
 from ..asyncio.utils import mark_asyncio_no_close as mark_asyncio
-from ... import TestSpan
-from ... import assert_is_measured
+from tests.utils import override_global_config
+from .utils import TraceTestCase
+from .app.web import setup_app
 
 
+# TODO: move to new client test file
 class TestRequestTracing(TraceTestCase):
     """
     Ensures that the trace includes all traced components.
@@ -115,24 +116,23 @@ class TestRequestTracing(TraceTestCase):
             trace_id=root_trace_id,
         )
 
-    @mark_asyncio
-    async def test_full_request(self):
-        config.aiohttp_client.trace_query_string = False
 
-        # it should create a root span when there is a handler hit
-        # with the proper tags
-        trace_url = self.client.make_url('/template/')
-        request = await self.client.request("GET", '/template/?foo=bar')
-        assert 200 == request.status
+async def test_full_request(patched_app_tracer, aiohttp_client, loop):
+    app, tracer = patched_app_tracer
+    client = await aiohttp_client(app)
+    # it should create a root span when there is a handler hit
+    # with the proper tags
+    request = await client.request("GET", "/")
+    assert 200 == request.status
         await request.text()
-        # the trace is created
-        traces = self.tracer.writer.pop_traces()
-        assert 3 == len(traces)
-        assert 2 == len(traces[0])
+    # the trace is created
+    traces = tracer.pop_traces()
+    assert 3 == len(traces)
+    assert 1 == len(traces[0])
 
         # request
-        request_span = traces[0][0]
-        assert_is_measured(request_span)
+    request_span = traces[0][0]
+    assert_is_measured(request_span)
         TestSpan(request_span).assert_matches(
             name="aiohttp.request",
             service="aiohttp-web",
@@ -140,59 +140,93 @@ class TestRequestTracing(TraceTestCase):
             meta={'http.url': str(trace_url), 'http.method': 'GET', 'http.status_code': str(200)}
         )
 
-        # template
-        template_span = traces[0][1]
-        TestSpan(template_span).assert_matches(
-            name="aiohttp.template",
-            service="aiohttp-web",
-            resource="aiohttp.template",
-        )
+    # request
+    assert "aiohttp-web" == request_span.service
+    assert "aiohttp.request" == request_span.name
+    assert "GET /" == request_span.resource
 
-        # client spans
-        assert 4 == len(traces[1])  # these are tested via client tests
-        assert 1 == len(traces[2])  # these are tested via client tests
 
-    @mark_asyncio
-    async def test_multiple_full_request(self):
-        # it should handle multiple requests using the same loop
-        def make_requests():
-            url = self.client.make_url("/delayed/")
-            response = request.urlopen(str(url)).read().decode("utf-8")
-            assert "Done" == response
+async def test_multiple_full_request(patched_app_tracer, aiohttp_client, loop):
+    app, tracer = patched_app_tracer
+    client = await aiohttp_client(app)
 
-        # blocking call executed in different threads
-        threads = [threading.Thread(target=make_requests) for _ in range(10)]
-        for t in threads:
-            t.daemon = True
-            t.start()
+    # it should handle multiple requests using the same loop
+    def make_requests():
+        url = client.make_url("/delayed/")
+        response = request.urlopen(str(url)).read().decode("utf-8")
+        assert "Done" == response
 
-        # we should yield so that this loop can handle
-        # threads' requests
+    # blocking call executed in different threads
+    threads = [threading.Thread(target=make_requests) for _ in range(10)]
+    for t in threads:
+        t.daemon = True
+        t.start()
+
+    # we should yield so that this loop can handle
+    # threads' requests
         await asyncio.sleep(0.5)
-        for t in threads:
-            t.join(timeout=0.5)
+    for t in threads:
+        t.join(timeout=0.5)
 
-        # the trace is created
-        traces = self.tracer.writer.pop_traces()
-        assert 10 == len(traces)
-        assert 1 == len(traces[0])
+    # the trace is created
+    traces = tracer.pop_traces()
+    assert 10 == len(traces)
+    assert 1 == len(traces[0])
 
-    async def _test_user_specified_service(self):
-        """
-        When a service name is specified by the user
-            The aiohttp integration should use it as the service name
-        """
-        request = await self.client.request("GET", "/template/")
+
+async def _test_user_specified_service(tracer, aiohttp_client, loop):
+    """
+    When a service name is specified by the user
+        The aiohttp integration should use it as the service name
+    """
+    unpatch()
+    with override_global_config(dict(service="mysvc")):
+        patch()
+        app = setup_app()
+        trace_app(app, tracer)
+        client = await aiohttp_client(app)
+        request = await client.request("GET", "/")
         await request.text()
-        traces = self.tracer.writer.pop_traces()
-        assert len(traces) == 2
-        assert len(traces[0]) == 2
+        traces = tracer.pop_traces()
+        assert 1 == len(traces)
+        assert 1 == len(traces[0])
 
         request_span = traces[0][0]
         assert request_span.service == "mysvc"
 
-        template_span = traces[0][1]
-        assert template_span.service == "mysvc"
+
+async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client, loop):
+    app, tracer = patched_app_tracer
+    client = await aiohttp_client(app)
+
+    config.aiohttp.http.trace_headers(["my-header"])
+    request = await client.request("GET", "/", headers={"my-header": "my_value"})
+    await request.text()
+
+    traces = tracer.pop_traces()
+    assert 1 == len(traces)
+    assert 1 == len(traces[0])
+
+    request_span = traces[0][0]
+    assert request_span.service == "aiohttp-web"
+    assert request_span.get_tag("http.request.headers.my-header") == "my_value"
+
+
+async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client, loop):
+    app, tracer = patched_app_tracer
+    client = await aiohttp_client(app)
+
+    config.aiohttp.http.trace_headers(["my-response-header"])
+    request = await client.request("GET", "/response_headers/")
+    await request.text()
+
+    traces = tracer.pop_traces()
+    assert 1 == len(traces)
+    assert 1 == len(traces[0])
+
+    request_span = traces[0][0]
+    assert request_span.service == "aiohttp-web"
+    assert request_span.get_tag("http.response.headers.my-response-header") == "my_response_value"
 
         # client spans
         assert len(traces[1]) == 4  # these are tested via client tests

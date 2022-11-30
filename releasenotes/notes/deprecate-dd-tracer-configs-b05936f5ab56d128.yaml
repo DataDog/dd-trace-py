@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    Replace DD_TRACER_PARTIAL_FLUSH_ENABLED with DD_TRACE_PARTIAL_FLUSH_ENABLED
+    Replace DD_TRACER_PARTIAL_FLUSH_MIN_SPANS with DD_TRACE_PARTIAL_FLUSH_MIN_SPANS
+deprecations:
+  - |
+    The DD_TRACER_PARTIAL_FLUSH_ENABLED and DD_TRACER_PARTIAL_FLUSH_MIN_SPANS environment variables have been deprecated and will be removed in version 1.0 of the library.

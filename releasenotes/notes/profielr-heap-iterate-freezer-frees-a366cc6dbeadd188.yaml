@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a bug in the heap profiler that could be triggered if more than 2^16
+    memory items were freed during heap data collection.

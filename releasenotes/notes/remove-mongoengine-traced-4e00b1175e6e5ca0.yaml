@@ -1,0 +1,9 @@
+---
+upgrade:
+  - ".. _remove-mongoengine-traced:
+
+
+    mongoengine: The deprecated method ``ddtrace.contrib.mongoengine.trace_mongoengine``
+    is removed. Use ``ddtrace.patch(mongoengine=True)`` or ``ddtrace.patch()`` instead.
+
+    "

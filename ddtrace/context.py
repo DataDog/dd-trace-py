@@ -1,217 +1,197 @@
-import logging
+import base64
 import threading
+from typing import Any
+from typing import Optional
+from typing import TYPE_CHECKING
+from typing import Text
 
-from .constants import HOSTNAME_KEY, SAMPLING_PRIORITY_KEY, ORIGIN_KEY, LOG_SPAN_KEY
+from .constants import ORIGIN_KEY
+from .constants import SAMPLING_PRIORITY_KEY
+from .constants import USER_ID_KEY
+from .internal.compat import NumericType
+from .internal.compat import PY2
 from .internal.logger import get_logger
-from .internal import hostname
-from .settings import config
-from .utils.formats import asbool, get_env
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Tuple
+
+    from .span import Span
+    from .span import _MetaDictType
+    from .span import _MetricDictType
+
+    _ContextState = Tuple[
+        Optional[int],  # trace_id
+        Optional[int],  # span_id
+        _MetaDictType,  # _meta
+        _MetricDictType,  # _metrics
+    ]
+
 
 log = get_logger(__name__)
 
 
 class Context(object):
+    """Represents the state required to propagate a trace across execution
+    boundaries.
     """
-    Context is used to keep track of a hierarchy of spans for the current
-    execution flow. During each logical execution, the same ``Context`` is
-    used to represent a single logical trace, even if the trace is built
-    asynchronously.
 
-    A single code execution may use multiple ``Context`` if part of the execution
-    must not be related to the current tracing. As example, a delayed job may
-    compose a standalone trace instead of being related to the same trace that
-    generates the job itself. On the other hand, if it's part of the same
-    ``Context``, it will be related to the original trace.
+    __slots__ = [
+        "trace_id",
+        "span_id",
+        "_lock",
+        "_meta",
+        "_metrics",
+    ]
 
-    This data structure is thread-safe.
-    """
-    _partial_flush_enabled = asbool(get_env('tracer', 'partial_flush_enabled', default=False))
-    _partial_flush_min_spans = int(get_env('tracer', 'partial_flush_min_spans', default=500))
+    def __init__(
+        self,
+        trace_id=None,  # type: Optional[int]
+        span_id=None,  # type: Optional[int]
+        dd_origin=None,  # type: Optional[str]
+        sampling_priority=None,  # type: Optional[float]
+        meta=None,  # type: Optional[_MetaDictType]
+        metrics=None,  # type: Optional[_MetricDictType]
+        lock=None,  # type: Optional[threading.RLock]
+    ):
+        self._meta = meta if meta is not None else {}  # type: _MetaDictType
+        self._metrics = metrics if metrics is not None else {}  # type: _MetricDictType
 
-    def __init__(self, trace_id=None, span_id=None, sampling_priority=None, _dd_origin=None):
-        """
-        Initialize a new thread-safe ``Context``.
+        self.trace_id = trace_id  # type: Optional[int]
+        self.span_id = span_id  # type: Optional[int]
 
-        :param int trace_id: trace_id of parent span
-        :param int span_id: span_id of parent span
-        """
-        self._trace = []
-        self._finished_spans = 0
-        self._current_span = None
-        self._lock = threading.Lock()
+        if dd_origin is not None:
+            self._meta[ORIGIN_KEY] = dd_origin
+        if sampling_priority is not None:
+            self._metrics[SAMPLING_PRIORITY_KEY] = sampling_priority
 
-        self._parent_trace_id = trace_id
-        self._parent_span_id = span_id
-        self._sampling_priority = sampling_priority
-        self._dd_origin = _dd_origin
+        if lock is not None:
+            self._lock = lock
+        else:
+            # DEV: A `forksafe.RLock` is not necessary here since Contexts
+            # are recreated by the tracer after fork
+            # https://github.com/DataDog/dd-trace-py/blob/a1932e8ddb704d259ea8a3188d30bf542f59fd8d/ddtrace/tracer.py#L489-L508
+            self._lock = threading.RLock()
 
-    @property
-    def trace_id(self):
-        """Return current context trace_id."""
+    def __getstate__(self):
+        # type: () -> _ContextState
+        return (
+            self.trace_id,
+            self.span_id,
+            self._meta,
+            self._metrics,
+            # Note: self._lock is not serializable
+        )
+
+    def __setstate__(self, state):
+        # type: (_ContextState) -> None
+        self.trace_id, self.span_id, self._meta, self._metrics = state
+        # We cannot serialize and lock, so we must recreate it unless we already have one
+        self._lock = threading.RLock()
+
+    def _with_span(self, span):
+        # type: (Span) -> Context
+        """Return a shallow copy of the context with the given span."""
+        return self.__class__(
+            trace_id=span.trace_id, span_id=span.span_id, meta=self._meta, metrics=self._metrics, lock=self._lock
+        )
+
+    def _update_tags(self, span):
+        # type: (Span) -> None
         with self._lock:
-            return self._parent_trace_id
-
-    @property
-    def span_id(self):
-        """Return current context span_id."""
-        with self._lock:
-            return self._parent_span_id
+            for tag in self._meta:
+                span._meta.setdefault(tag, self._meta[tag])
+            for metric in self._metrics:
+                span._metrics.setdefault(metric, self._metrics[metric])
 
     @property
     def sampling_priority(self):
-        """Return current context sampling priority."""
-        with self._lock:
-            return self._sampling_priority
+        # type: () -> Optional[NumericType]
+        """Return the context sampling priority for the trace."""
+        return self._metrics.get(SAMPLING_PRIORITY_KEY)
 
     @sampling_priority.setter
     def sampling_priority(self, value):
-        """Set sampling priority."""
+        # type: (Optional[NumericType]) -> None
         with self._lock:
-            self._sampling_priority = value
+            if value is None:
+                if SAMPLING_PRIORITY_KEY in self._metrics:
+                    del self._metrics[SAMPLING_PRIORITY_KEY]
+                return
+            self._metrics[SAMPLING_PRIORITY_KEY] = value
 
-    def clone(self):
-        """
-        Partially clones the current context.
-        It copies everything EXCEPT the registered and finished spans.
-        """
+    @property
+    def _traceparent(self):
+        # type: () -> str
+        if self.trace_id is None or self.span_id is None:
+            return ""
+
+        sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
+        return "00-{:032x}-{:016x}-{:02x}".format(self.trace_id, self.span_id, sampled)
+
+    @property
+    def dd_origin(self):
+        # type: () -> Optional[Text]
+        """Get the origin of the trace."""
+        return self._meta.get(ORIGIN_KEY)
+
+    @dd_origin.setter
+    def dd_origin(self, value):
+        # type: (Optional[Text]) -> None
+        """Set the origin of the trace."""
         with self._lock:
-            new_ctx = Context(
-                trace_id=self._parent_trace_id,
-                span_id=self._parent_span_id,
-                sampling_priority=self._sampling_priority,
-            )
-            new_ctx._current_span = self._current_span
-            return new_ctx
+            if value is None:
+                if ORIGIN_KEY in self._meta:
+                    del self._meta[ORIGIN_KEY]
+                return
+            self._meta[ORIGIN_KEY] = value
 
-    def get_current_root_span(self):
-        """
-        Return the root span of the context or None if it does not exist.
-        """
-        return self._trace[0] if len(self._trace) > 0 else None
+    @property
+    def dd_user_id(self):
+        # type: () -> Optional[Text]
+        """Get the user ID of the trace."""
+        user_id = self._meta.get(USER_ID_KEY)
+        if user_id:
+            if not PY2:
+                return str(base64.b64decode(user_id), encoding="utf-8")
+            else:
+                return str(base64.b64decode(user_id))
+        return None
 
-    def get_current_span(self):
-        """
-        Return the last active span that corresponds to the last inserted
-        item in the trace list. This cannot be considered as the current active
-        span in asynchronous environments, because some spans can be closed
-        earlier while child spans still need to finish their traced execution.
-        """
+    @dd_user_id.setter
+    def dd_user_id(self, value):
+        # type: (Optional[Text]) -> None
+        """Set the user ID of the trace."""
         with self._lock:
-            return self._current_span
+            if value is None:
+                if USER_ID_KEY in self._meta:
+                    del self._meta[USER_ID_KEY]
+                return
+            if not PY2:
+                value = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
+            else:
+                value = str(base64.b64encode(bytes(value)))
+            self._meta[USER_ID_KEY] = value
 
-    def _set_current_span(self, span):
-        """
-        Set current span internally.
+    def __eq__(self, other):
+        # type: (Any) -> bool
+        if isinstance(other, Context):
+            with self._lock:
+                return (
+                    self.trace_id == other.trace_id
+                    and self.span_id == other.span_id
+                    and self._meta == other._meta
+                    and self._metrics == other._metrics
+                )
+        return False
 
-        Non-safe if not used with a lock. For internal Context usage only.
-        """
-        self._current_span = span
-        if span:
-            self._parent_trace_id = span.trace_id
-            self._parent_span_id = span.span_id
-        else:
-            self._parent_span_id = None
+    def __repr__(self):
+        # type: () -> str
+        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s)" % (
+            self.trace_id,
+            self.span_id,
+            self._meta,
+            self._metrics,
+        )
 
-    def add_span(self, span):
-        """
-        Add a span to the context trace list, keeping it as the last active span.
-        """
-        with self._lock:
-            self._set_current_span(span)
-
-            self._trace.append(span)
-            span._context = self
-
-    def close_span(self, span):
-        """
-        Mark a span as a finished, increasing the internal counter to prevent
-        cycles inside _trace list.
-        """
-        with self._lock:
-            self._finished_spans += 1
-            self._set_current_span(span._parent)
-
-            # notify if the trace is not closed properly; this check is executed only
-            # if the debug logging is enabled and when the root span is closed
-            # for an unfinished trace. This logging is meant to be used for debugging
-            # reasons, and it doesn't mean that the trace is wrongly generated.
-            # In asynchronous environments, it's legit to close the root span before
-            # some children. On the other hand, asynchronous web frameworks still expect
-            # to close the root span after all the children.
-            if span.tracer and span.tracer.log.isEnabledFor(logging.DEBUG) and span._parent is None:
-                extra = {LOG_SPAN_KEY: span}
-                unfinished_spans = [x for x in self._trace if not x.finished]
-                if unfinished_spans:
-                    log.debug('Root span "%s" closed, but the trace has %d unfinished spans:',
-                              span.name, len(unfinished_spans), extra=extra)
-                    for wrong_span in unfinished_spans:
-                        log.debug('\n%s', wrong_span.pprint(), extra=extra)
-
-    def _is_sampled(self):
-        return any(span.sampled for span in self._trace)
-
-    def get(self):
-        """
-        Returns a tuple containing the trace list generated in the current context and
-        if the context is sampled or not. It returns (None, None) if the ``Context`` is
-        not finished. If a trace is returned, the ``Context`` will be reset so that it
-        can be re-used immediately.
-
-        This operation is thread-safe.
-        """
-        with self._lock:
-            # All spans are finished?
-            if self._finished_spans == len(self._trace):
-                # get the trace
-                trace = self._trace
-                sampled = self._is_sampled()
-                sampling_priority = self._sampling_priority
-                # attach the sampling priority to the context root span
-                if sampled and sampling_priority is not None and trace:
-                    trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
-                origin = self._dd_origin
-                # attach the origin to the root span tag
-                if sampled and origin is not None and trace:
-                    trace[0].set_tag(ORIGIN_KEY, origin)
-
-                # Set hostname tag if they requested it
-                if config.report_hostname:
-                    # DEV: `get_hostname()` value is cached
-                    trace[0].set_tag(HOSTNAME_KEY, hostname.get_hostname())
-
-                # clean the current state
-                self._trace = []
-                self._finished_spans = 0
-                self._parent_trace_id = None
-                self._parent_span_id = None
-                self._sampling_priority = None
-                return trace, sampled
-
-            elif self._partial_flush_enabled:
-                finished_spans = [t for t in self._trace if t.finished]
-                if len(finished_spans) >= self._partial_flush_min_spans:
-                    # partial flush when enabled and we have more than the minimal required spans
-                    trace = self._trace
-                    sampled = self._is_sampled()
-                    sampling_priority = self._sampling_priority
-                    # attach the sampling priority to the context root span
-                    if sampled and sampling_priority is not None and trace:
-                        trace[0].set_metric(SAMPLING_PRIORITY_KEY, sampling_priority)
-                    origin = self._dd_origin
-                    # attach the origin to the root span tag
-                    if sampled and origin is not None and trace:
-                        trace[0].set_tag(ORIGIN_KEY, origin)
-
-                    # Set hostname tag if they requested it
-                    if config.report_hostname:
-                        # DEV: `get_hostname()` value is cached
-                        trace[0].set_tag(HOSTNAME_KEY, hostname.get_hostname())
-
-                    self._finished_spans = 0
-
-                    # Any open spans will remain as `self._trace`
-                    # Any finished spans will get returned to be flushed
-                    self._trace = [t for t in self._trace if not t.finished]
-
-                    return finished_spans, sampled
-            return None, None
+    __str__ = __repr__

@@ -1,6 +1,6 @@
 """Instrument Consul to trace KV queries.
 
-Only supports tracing for the syncronous client.
+Only supports tracing for the synchronous client.
 
 ``patch_all`` will automatically patch your Consul client to make it work.
 ::
@@ -19,11 +19,14 @@ Only supports tracing for the syncronous client.
     Pin.override(client, service='consul-kv')
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
-required_modules = ['consul']
+
+required_modules = ["consul"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
-        __all__ = ['patch', 'unpatch']
+        from .patch import patch
+        from .patch import unpatch
+
+        __all__ = ["patch", "unpatch"]

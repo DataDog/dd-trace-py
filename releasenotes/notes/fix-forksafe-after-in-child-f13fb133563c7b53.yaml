@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixed the support for Celery workers that fork sub-processes with Python
+    3.6 and earlier versions.

@@ -1,0 +1,114 @@
+[[
+  {
+    "name": "grpc",
+    "service": "grpc-client",
+    "resource": "/Servicer/Handler",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "grpc",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "grpc.host": "::",
+      "grpc.method.kind": "unary",
+      "grpc.method.name": "Handler",
+      "grpc.method.path": "/Servicer/Handler",
+      "grpc.method.service": "Servicer",
+      "grpc.port": "58143",
+      "grpc.status.code": "StatusCode.OK",
+      "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 4211
+    },
+    "duration": 2526500,
+    "start": 1632161554730027200
+  },
+     {
+       "name": "grpc",
+       "service": "grpc-server",
+       "resource": "/Servicer/Handler",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "grpc",
+       "meta": {
+         "grpc.method.kind": "unary",
+         "grpc.method.name": "Handler",
+         "grpc.method.path": "/Servicer/Handler",
+         "grpc.method.service": "Servicer",
+         "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+         "span.kind": "server"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "system.pid": 4211
+       },
+       "duration": 87500,
+       "start": 1632161554732181000
+     }],
+[
+  {
+    "name": "grpc",
+    "service": "grpc-client",
+    "resource": "/pkg.Servicer/Handler",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "grpc",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "grpc.host": "::",
+      "grpc.method.kind": "unary",
+      "grpc.method.name": "Handler",
+      "grpc.method.package": "pkg",
+      "grpc.method.path": "/pkg.Servicer/Handler",
+      "grpc.method.service": "Servicer",
+      "grpc.port": "58143",
+      "grpc.status.code": "StatusCode.OK",
+      "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 4211
+    },
+    "duration": 1253200,
+    "start": 1632161554733222900
+  },
+     {
+       "name": "grpc",
+       "service": "grpc-server",
+       "resource": "/pkg.Servicer/Handler",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "grpc",
+       "meta": {
+         "grpc.method.kind": "unary",
+         "grpc.method.name": "Handler",
+         "grpc.method.package": "pkg",
+         "grpc.method.path": "/pkg.Servicer/Handler",
+         "grpc.method.service": "Servicer",
+         "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
+         "span.kind": "server"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "system.pid": 4211
+       },
+       "duration": 72800,
+       "start": 1632161554734204000
+     }]]

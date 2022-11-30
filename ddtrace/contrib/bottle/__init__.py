@@ -9,15 +9,38 @@ plugin to your app::
     app = bottle.Bottle()
     plugin = TracePlugin(service="my-web-app")
     app.install(plugin)
+
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.bottle['distributed_tracing']
+
+   Whether to parse distributed tracing headers from requests received by your bottle app.
+
+   Can also be enabled with the ``DD_BOTTLE_DISTRIBUTED_TRACING`` environment variable.
+
+   Default: ``True``
+
+
+Example::
+
+    from ddtrace import config
+
+    # Enable distributed tracing
+    config.bottle['distributed_tracing'] = True
+
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
-required_modules = ['bottle']
+
+required_modules = ["bottle"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .trace import TracePlugin
         from .patch import patch
+        from .trace import TracePlugin
 
-        __all__ = ['TracePlugin', 'patch']
+        __all__ = ["TracePlugin", "patch"]

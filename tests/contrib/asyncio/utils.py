@@ -1,10 +1,8 @@
 import asyncio
-
 from functools import wraps, partial
 
 from ddtrace.contrib.asyncio import context_provider
-
-from ... import TracerTestCase
+from tests.utils import TracerTestCase
 
 
 class AsyncioTestCase(TracerTestCase):
@@ -13,6 +11,7 @@ class AsyncioTestCase(TracerTestCase):
     for each test, preserving the original (not started) main
     loop.
     """
+
     def setUp(self):
         super(AsyncioTestCase, self).setUp()
 
@@ -38,6 +37,7 @@ def mark_asyncio(f, close_loop: bool = True):
     as an asynchronous coroutine. This uses the event loop set in the
     ``TestCase`` class, and runs the loop until it's completed.
     """
+
     @wraps(f)
     def wrapper(*args, **kwargs):
         coro = asyncio.coroutine(f)
@@ -47,6 +47,7 @@ def mark_asyncio(f, close_loop: bool = True):
 
         if close_loop:
             loop.close()
+
     return wrapper
 
 

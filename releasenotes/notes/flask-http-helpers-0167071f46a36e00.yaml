@@ -1,0 +1,7 @@
+---
+deprecations:
+  - |
+    flask: Use :ref:`HTTP Custom Error Codes <http-custom-error>` instead of ``ddtrace.config.flask['extra_error_codes']``.
+features:
+  - |
+    flask: store request and response headers when auto-instrumented.

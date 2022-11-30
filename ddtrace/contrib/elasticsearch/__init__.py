@@ -1,14 +1,18 @@
-"""Instrument Elasticsearch to report Elasticsearch queries.
+"""
+The Elasticsearch integration will trace Elasticsearch queries.
 
-``patch_all`` will automatically patch your Elasticsearch instance to make it work.
-::
+Enabling
+~~~~~~~~
 
-    from ddtrace import Pin, patch
+The elasticsearch integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
+
+Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
+
+    from ddtrace import patch
     from elasticsearch import Elasticsearch
 
-    # If not patched yet, you can patch elasticsearch specifically
     patch(elasticsearch=True)
-
     # This will report spans with the default instrumentation
     es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
     # Example of instrumented query
@@ -18,16 +22,25 @@
     es = Elasticsearch(port=ELASTICSEARCH_CONFIG['port'])
     Pin.override(es.transport, service='elasticsearch-videos')
     es.indices.create(index='videos', ignore=400)
+
+
+
+Configuration
+~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.elasticsearch['service']
+
+   The service name reported for your elasticsearch app.
+
+
+Example::
+
+    from ddtrace import config
+
+    # Override service name
+    config.elasticsearch['service'] = 'custom-service-name'
 """
-from ...utils.importlib import require_modules
+from .patch import patch
 
-# DEV: We only require one of these modules to be available
-required_modules = ["elasticsearch", "elasticsearch1", "elasticsearch2", "elasticsearch5", "elasticsearch6"]
 
-with require_modules(required_modules) as missing_modules:
-    # We were able to find at least one of the required modules
-    if set(missing_modules) != set(required_modules):
-        from .transport import get_traced_transport
-        from .patch import patch
-
-        __all__ = ["get_traced_transport", "patch"]
+__all__ = ["patch"]

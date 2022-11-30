@@ -1,13 +1,14 @@
+from ddtrace import config
 import functools
 
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import http
+from ...internal.compat import stringify
 from ..asyncio import context_provider
-from ...compat import stringify
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
-from ...propagation.http import HTTPPropagator
 from ...pin import Pin
-from ...settings import config
-from ...context import Context
 from ...utils.wrappers import iswrapped
 from .patch import _WrappedStreamReader
 
@@ -29,8 +30,6 @@ REQUEST_CONTEXT_KEY = "datadog_context"
 REQUEST_CONFIG_KEY = "__datadog_trace_config"
 REQUEST_SPAN_KEY = "__datadog_request_span"
 
-propagator = HTTPPropagator()
-
 
 config._add("aiohttp_server", dict(
     service="aiohttp.server",
@@ -39,6 +38,14 @@ config._add("aiohttp_server", dict(
 
 @middleware
 async def trace_middleware_2x(request, handler, app=None):
+    """
+    ``aiohttp`` middleware that traces the handler execution.
+    Because handlers are run in different tasks for each request, we attach the Context
+    instance both to the Task and to the Request objects. In this way:
+
+    * the Task is used by the internal automatic instrumentation
+    * the ``Context`` attached to the request can be freely used in the application code
+    """
     # application configs
     if app is None:
         app = request.app
@@ -46,20 +53,20 @@ async def trace_middleware_2x(request, handler, app=None):
     tracer = app[CONFIG_KEY]["tracer"]
     service = app[CONFIG_KEY]["service"]
     distributed_tracing = app[CONFIG_KEY]["distributed_tracing_enabled"]
-
     # Create a new context based on the propagated information.
-    if distributed_tracing:
-        context = propagator.extract(request.headers)
-
-        if context.trace_id:
-            tracer.context_provider.activate(context)
-        else:
-            # In case a non-distributed request comes after a distributed request we need to clear out
-            # the previous context
-            tracer.context_provider.activate(Context())
+    trace_utils.activate_distributed_headers(
+        tracer,
+        int_config=config.aiohttp,
+        request_headers=request.headers,
+        override=distributed_tracing,
+    )
 
     # trace the handler
-    request_span = tracer.trace("aiohttp.request", service=service, span_type=SpanTypes.WEB)
+    request_span = tracer.trace(
+        "aiohttp.request",
+        service=service,
+        span_type=SpanTypes.WEB,
+    )
     # Unset resource as we'll be setting this in all cases
     request_span.resource = None
 
@@ -102,8 +109,11 @@ async def trace_middleware_2x(request, handler, app=None):
         request_span.set_tag(http.QUERY_STRING, request.query_string)
 
     if not iswrapped(request._payload) and isinstance(request._payload, aiohttp.streams.StreamReader):
-        tags = {tag: request_span.get_tag(tag) for tag in {http.URL, http.METHOD, http.QUERY_STRING}
-                if request_span.get_tag(tag)}
+        tags = {
+            tag: request_span.get_tag(tag)
+            for tag in {http.URL, http.METHOD, http.QUERY_STRING}
+            if request_span.get_tag(tag)
+        }
 
         pin = Pin(service, tracer=tracer, tags=tags, _config=config.aiohttp_server)
         request._payload = _WrappedStreamReader(request._payload, pin, request_span.trace_id, request_span.span_id,
@@ -148,8 +158,16 @@ async def on_prepare(request, response):
 
     request_span.set_tag(http.STATUS_CODE, response.status)
 
-    if 500 <= response.status < 600:
-        request_span.error = 1
+    # TOOD: normally we'd do this but we want to pin the tags to the stream response via middleware
+    # trace_utils.set_http_meta(
+    #     request_span,
+    #     config.aiohttp,
+    #     method=request.method,
+    #     url=str(request.url),  # DEV: request.url is a yarl's URL object
+    #     status_code=response.status,
+    #     request_headers=request.headers,
+    #     response_headers=response.headers,
+    # )
 
     request_span.finish()
 

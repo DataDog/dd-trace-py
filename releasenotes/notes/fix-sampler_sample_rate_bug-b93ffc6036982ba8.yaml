@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    sampler: removed bug causing sample_rate of 0 to be reset to 1, and raise ValueError instead of logging.

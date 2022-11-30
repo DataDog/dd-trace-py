@@ -1,49 +1,56 @@
-# 3p
-from bottle import response, request, HTTPError, HTTPResponse
+from bottle import HTTPError
+from bottle import HTTPResponse
+from bottle import request
+from bottle import response
 
-# stdlib
 import ddtrace
+from ddtrace import config
 
-# project
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
-from ...propagation.http import HTTPPropagator
-from ...settings import config
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...internal.utils.formats import asbool
 
 
 class TracePlugin(object):
-    name = 'trace'
+    name = "trace"
     api = 2
 
-    def __init__(self, service='bottle', tracer=None, distributed_tracing=True):
-        self.service = ddtrace.config.service or service
+    def __init__(self, service="bottle", tracer=None, distributed_tracing=None):
+        self.service = config.service or service
         self.tracer = tracer or ddtrace.tracer
-        self.distributed_tracing = distributed_tracing
+        if distributed_tracing is not None:
+            config.bottle.distributed_tracing = distributed_tracing
+
+    @property
+    def distributed_tracing(self):
+        return config.bottle.distributed_tracing
+
+    @distributed_tracing.setter
+    def distributed_tracing(self, distributed_tracing):
+        config.bottle["distributed_tracing"] = asbool(distributed_tracing)
 
     def apply(self, callback, route):
-
         def wrapped(*args, **kwargs):
             if not self.tracer or not self.tracer.enabled:
                 return callback(*args, **kwargs)
 
-            resource = '{} {}'.format(request.method, route.rule)
+            resource = "{} {}".format(request.method, route.rule)
 
-            # Propagate headers such as x-datadog-trace-id.
-            if self.distributed_tracing:
-                propagator = HTTPPropagator()
-                context = propagator.extract(request.headers)
-                if context.trace_id:
-                    self.tracer.context_provider.activate(context)
+            trace_utils.activate_distributed_headers(
+                self.tracer, int_config=config.bottle, request_headers=request.headers
+            )
 
             with self.tracer.trace(
-                'bottle.request', service=self.service, resource=resource, span_type=SpanTypes.WEB,
+                "bottle.request",
+                service=self.service,
+                resource=resource,
+                span_type=SpanTypes.WEB,
             ) as s:
                 s.set_tag(SPAN_MEASURED_KEY)
                 # set analytics sample rate with global config enabled
-                s.set_tag(
-                    ANALYTICS_SAMPLE_RATE_KEY,
-                    config.bottle.get_analytics_sample_rate(use_global_config=True)
-                )
+                s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.bottle.get_analytics_sample_rate(use_global_config=True))
 
                 code = None
                 result = None
@@ -72,13 +79,17 @@ class TracePlugin(object):
                         # will be default
                         response_code = response.status_code
 
-                    if 500 <= response_code < 600:
-                        s.error = 1
-
-                    s.set_tag(http.STATUS_CODE, response_code)
-                    s.set_tag(http.URL, request.urlparts._replace(query='').geturl())
-                    s.set_tag(http.METHOD, request.method)
-                    if config.bottle.trace_query_string:
-                        s.set_tag(http.QUERY_STRING, request.query_string)
+                    method = request.method
+                    url = request.urlparts._replace(query="").geturl()
+                    trace_utils.set_http_meta(
+                        s,
+                        config.bottle,
+                        method=method,
+                        url=url,
+                        status_code=response_code,
+                        query=request.query_string,
+                        request_headers=request.headers,
+                        response_headers=response.headers,
+                    )
 
         return wrapped

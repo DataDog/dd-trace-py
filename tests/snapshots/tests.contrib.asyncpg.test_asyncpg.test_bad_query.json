@@ -1,0 +1,59 @@
+[[
+  {
+    "name": "postgres.connect",
+    "service": "postgres",
+    "resource": "postgres.connect",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "0805bf5850674d35a8fd7d06c7a99ed8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 377
+    },
+    "duration": 3651297,
+    "start": 1647029709815726380
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "malformed; query;dfaskjfd",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "error.msg": "syntax error at or near \"malformed\"",
+      "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/asyncpg/patch.py\", line 106, in _traced_query\n    return await method(*args, **kwargs)\n  File \"asyncpg/protocol/protocol.pyx\", line 338, in query\nasyncpg.exceptions.PostgresSyntaxError: syntax error at or near \"malformed\"\n",
+      "error.type": "asyncpg.exceptions.PostgresSyntaxError",
+      "out.host": "127.0.0.1",
+      "runtime-id": "0805bf5850674d35a8fd7d06c7a99ed8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 377
+    },
+    "duration": 1757057,
+    "start": 1647029709821607347
+  }]]

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Added support for ``jinja2~=3.0.0``.

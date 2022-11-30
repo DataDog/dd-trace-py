@@ -17,13 +17,13 @@
     Pin.override(client, service="mongo-master")
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
-required_modules = ['mongoengine']
+required_modules = ["mongoengine"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, trace_mongoengine
+        from .patch import patch
 
-        __all__ = ['patch', 'trace_mongoengine']
+        __all__ = ["patch"]

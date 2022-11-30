@@ -1,5 +1,6 @@
 import django
 
+
 if django.VERSION >= (1, 10, 1):
     from django.urls import get_resolver
 

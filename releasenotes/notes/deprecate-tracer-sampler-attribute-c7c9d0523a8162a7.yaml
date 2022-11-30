@@ -1,0 +1,5 @@
+deprecations:
+  - |
+    :py:attr:`ddtrace.Tracer.sampler` is deprecated.
+  - |
+    :py:attr:`ddtrace.Tracer.priority_sampler` is deprecated.

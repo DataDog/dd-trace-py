@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    HttpServerConfig is no longer part of the public API.

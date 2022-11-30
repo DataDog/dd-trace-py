@@ -5,4 +5,12 @@ shift
 
 # CircleCI has a bug in its workspace code where it can't handle filenames with some chars
 CLEANED_PATTERN=`echo $PATTERN | tr '^?()$' '_'`
-exec tox -l | grep "$PATTERN" | tr '\n' ',' | xargs -I ARGS tox --result-json /tmp/"$CLEANED_PATTERN".results -e ARGS -- $@
+
+# If no match -> grep returns 1 -> script stops
+ENVLIST=$(tox -l | grep "$PATTERN")
+
+if [[ -z "${CIRCLE_NODE_TOTAL}" && -z "${CIRCLE_NODE_INDEX}" ]]; then
+    exec echo "$ENVLIST" | tr '\n' ',' | xargs -I ARGS tox -e ARGS -- $@
+else
+    exec echo "$ENVLIST" | sort | python -c "import os, sys; t, i = int(os.getenv('CIRCLE_NODE_TOTAL')), int(os.getenv('CIRCLE_NODE_INDEX')); inp = sys.stdin.readlines(); s = len(inp)//t; print(''.join(inp[i*s:(i+1)*s] if i+1<t else inp[i*s:]).strip())" | tr '\n' ',' | xargs -I ARGS tox -e ARGS -- $@
+fi

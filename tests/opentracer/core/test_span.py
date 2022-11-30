@@ -1,6 +1,7 @@
 import pytest
+
 from ddtrace.opentracer.span import Span
-from tests.tracer.test_tracer import get_dummy_tracer
+from tests.utils import DummyTracer
 
 
 @pytest.fixture
@@ -9,13 +10,13 @@ def nop_tracer():
 
     tracer = Tracer(service_name="mysvc", config={})
     # use the same test tracer used by the primary tests
-    tracer._tracer = get_dummy_tracer()
+    tracer._tracer = DummyTracer()
     return tracer
 
 
 @pytest.fixture
 def nop_span_ctx():
-    from ddtrace.ext.priority import AUTO_KEEP
+    from ddtrace.constants import AUTO_KEEP
     from ddtrace.opentracer.span_context import SpanContext
 
     return SpanContext(sampling_priority=AUTO_KEEP)
@@ -36,8 +37,9 @@ class TestSpan(object):
 
     def test_tags(self, nop_span):
         """Set a tag and get it back."""
-        nop_span.set_tag("test", 23)
+        r = nop_span.set_tag("test", 23)
         assert nop_span._get_metric("test") == 23
+        assert r is nop_span
 
     def test_set_baggage(self, nop_span):
         """Test setting baggage."""
@@ -68,27 +70,36 @@ class TestSpan(object):
         nop_span.log_kv({"myval": 2})
 
     def test_log_dd_kv(self, nop_span):
-        """Ensure keys that can be handled by our impl. are indeed handled. """
+        """Ensure keys that can be handled by our impl. are indeed handled."""
         import traceback
-        from ddtrace.ext import errors
+
+        from ddtrace.constants import ERROR_MSG
+        from ddtrace.constants import ERROR_STACK
+        from ddtrace.constants import ERROR_TYPE
 
         stack_trace = str(traceback.format_stack())
         nop_span.log_kv(
-            {"event": "error", "error": 3, "message": "my error message", "stack": stack_trace,}
+            {
+                "event": "error",
+                "error": 3,
+                "message": "my error message",
+                "stack": stack_trace,
+            }
         )
 
         # Ensure error flag is set...
         assert nop_span._dd_span.error
         # ...and that error tags are set with the correct key
-        assert nop_span._get_tag(errors.ERROR_STACK) == stack_trace
-        assert nop_span._get_tag(errors.ERROR_MSG) == "my error message"
-        assert nop_span._get_metric(errors.ERROR_TYPE) == 3
+        assert nop_span._get_tag(ERROR_STACK) == stack_trace
+        assert nop_span._get_tag(ERROR_MSG) == "my error message"
+        assert nop_span._get_metric(ERROR_TYPE) == 3
 
     def test_operation_name(self, nop_span):
         """Sanity check for setting the operation name."""
         # just try setting the operation name
-        nop_span.set_operation_name("new_op_name")
+        r = nop_span.set_operation_name("new_op_name")
         assert nop_span._dd_span.name == "new_op_name"
+        assert r is nop_span
 
     def test_context_manager(self, nop_span):
         """Test the span context manager."""
@@ -104,7 +115,7 @@ class TestSpan(object):
         assert nop_span.finished
 
         # there should be no traces (see above comment)
-        spans = nop_span.tracer._tracer.writer.pop()
+        spans = nop_span.tracer._tracer.pop()
         assert len(spans) == 0
 
     def test_immutable_span_context(self, nop_span):
@@ -117,8 +128,7 @@ class TestSpan(object):
 
 
 class TestSpanCompatibility(object):
-    """Ensure our opentracer spans features correspond to datadog span features.
-    """
+    """Ensure our opentracer spans features correspond to datadog span features."""
 
     def test_set_tag(self, nop_span):
         nop_span.set_tag("test", 2)
@@ -150,4 +160,4 @@ class TestSpanCompatibility(object):
 
     def test_tag_sampling_priority(self, nop_span):
         nop_span.set_tag("sampling.priority", "2")
-        assert nop_span._dd_span.context._sampling_priority == "2"
+        assert nop_span._dd_span.context.sampling_priority == "2"

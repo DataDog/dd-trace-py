@@ -3,7 +3,7 @@ The Tornado integration traces all ``RequestHandler`` defined in a Tornado web a
 Auto instrumentation is available using the ``patch`` function that **must be called before**
 importing the tornado library.
 
-**Note:** Tornado 5 and 6 supported only for Python 3.7.
+**Note:** This integration requires Python 3.7 and above for Tornado 5 and 6.
 
 The following is an example::
 
@@ -76,7 +76,6 @@ Tornado settings can be used to change some tracing configuration, like::
             'default_service': 'my-tornado-app',
             'tags': {'env': 'production'},
             'distributed_tracing': False,
-            'analytics_enabled': False,
             'settings': {
                 'FILTERS':  [
                     FilterRequestsOnUrl(r'http://test\\.example\\.com'),
@@ -97,31 +96,33 @@ The available settings are:
 * ``tags`` (default: `{}`): set global tags that should be applied to all spans.
 * ``enabled`` (default: `True`): define if the tracer is enabled or not. If set to `false`, the
   code is still instrumented but no spans are sent to the APM agent.
-* ``distributed_tracing`` (default: `True`): enable distributed tracing if this is called
-  remotely from an instrumented application.
+* ``distributed_tracing`` (default: `None`): enable distributed tracing if this is called
+  remotely from an instrumented application. Overrides the integration config which is configured via the
+  ``DD_TORNADO_DISTRIBUTED_TRACING`` environment variable.
   We suggest to enable it only for internal services where headers are under your control.
-* ``analytics_enabled`` (default: `None`):  analyze spans for Tornado in App Analytics.
 * ``agent_hostname`` (default: `localhost`): define the hostname of the APM agent.
 * ``agent_port`` (default: `8126`): define the port of the APM agent.
 * ``settings`` (default: ``{}``): Tracer extra settings used to change, for instance, the filtering behavior.
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
-required_modules = ['tornado']
+required_modules = ["tornado"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .stack_context import run_with_trace_context, TracerStackContext
+        from .stack_context import TracerStackContext
+        from .stack_context import run_with_trace_context
 
         context_provider = TracerStackContext()
 
-        from .patch import patch, unpatch
+        from .patch import patch
+        from .patch import unpatch
 
         __all__ = [
-            'patch',
-            'unpatch',
-            'context_provider',
-            'run_with_trace_context',
-            'TracerStackContext',
+            "patch",
+            "unpatch",
+            "context_provider",
+            "run_with_trace_context",
+            "TracerStackContext",
         ]

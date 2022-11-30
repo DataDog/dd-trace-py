@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    The profiler now supports most operation mode from uWSGI without much
+    configuration. It will automatically plug itself in post fork hooks when
+    multiprocess mode is used.
+upgrade:
+  - |
+    The profiler now automatically sets up uWSGI compatibility in auto mode
+    or with `profile_children=True`. Make sure that you don't have custom code
+    instrumenting the profiler in those cases.

@@ -1,0 +1,8 @@
+---
+deprecations:
+  - |
+    ``ddtrace.constants.FILTERS_KEY`` is deprecated. Use ``settings={"FILTERS": ...}`` instead when calling ``tracer.configure``.
+  - |
+    ``ddtrace.constants.NUMERIC_TAGS`` is deprecated.
+  - |
+    ``ddtrace.constants.LOG_SPAN_KEY`` is deprecated.

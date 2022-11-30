@@ -1,19 +1,17 @@
-# 3p
 import redis
+from six import PY3
+
+from ddtrace import config
 from ddtrace.vendor import wrapt
 
-# project
-from ddtrace import config
-from ddtrace.utils.formats import get_env
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
+from ...internal.utils.formats import stringify_cache_args
 from ...pin import Pin
-from ...ext import SpanTypes, redis as redisx
-from ...utils.wrappers import unwrap
-from ... import utils
-from .util import format_command_args, _extract_conn_tags
+from ..trace_utils import unwrap
+from .util import _trace_redis_cmd
+from .util import _trace_redis_execute_pipeline
 
 
-config._add("redis", dict(service=get_env("redis", "service") or redisx.DEFAULT_SERVICE,))
+config._add("redis", dict(_default_service="redis"))
 
 
 def patch():
@@ -29,17 +27,27 @@ def patch():
     _w = wrapt.wrap_function_wrapper
 
     if redis.VERSION < (3, 0, 0):
-        _w("redis", "StrictRedis.execute_command", traced_execute_command)
+        _w("redis", "StrictRedis.execute_command", traced_execute_command(config.redis))
         _w("redis", "StrictRedis.pipeline", traced_pipeline)
         _w("redis", "Redis.pipeline", traced_pipeline)
-        _w("redis.client", "BasePipeline.execute", traced_execute_pipeline)
-        _w("redis.client", "BasePipeline.immediate_execute_command", traced_execute_command)
+        _w("redis.client", "BasePipeline.execute", traced_execute_pipeline(config.redis))
+        _w("redis.client", "BasePipeline.immediate_execute_command", traced_execute_command(config.redis))
     else:
-        _w("redis", "Redis.execute_command", traced_execute_command)
+        _w("redis", "Redis.execute_command", traced_execute_command(config.redis))
         _w("redis", "Redis.pipeline", traced_pipeline)
-        _w("redis.client", "Pipeline.execute", traced_execute_pipeline)
-        _w("redis.client", "Pipeline.immediate_execute_command", traced_execute_command)
-    Pin(service=None, app=redisx.APP).onto(redis.StrictRedis)
+        _w("redis.client", "Pipeline.execute", traced_execute_pipeline(config.redis))
+        _w("redis.client", "Pipeline.immediate_execute_command", traced_execute_command(config.redis))
+        # Avoid mypy invalid syntax errors when parsing Python 2 files
+        if PY3 and redis.VERSION >= (4, 2, 0):
+            from .asyncio_patch import traced_async_execute_command
+            from .asyncio_patch import traced_async_execute_pipeline
+
+            _w("redis.asyncio.client", "Redis.execute_command", traced_async_execute_command)
+            _w("redis.asyncio.client", "Redis.pipeline", traced_pipeline)
+            _w("redis.asyncio.client", "Pipeline.execute", traced_async_execute_pipeline)
+            _w("redis.asyncio.client", "Pipeline.immediate_execute_command", traced_async_execute_command)
+            Pin(service=None).onto(redis.asyncio.Redis)
+    Pin(service=None).onto(redis.StrictRedis)
 
 
 def unpatch():
@@ -57,31 +65,26 @@ def unpatch():
             unwrap(redis.Redis, "pipeline")
             unwrap(redis.client.Pipeline, "execute")
             unwrap(redis.client.Pipeline, "immediate_execute_command")
+            if redis.VERSION >= (4, 2, 0):
+                unwrap(redis.asyncio.client.Redis, "execute_command")
+                unwrap(redis.asyncio.client.Redis, "pipeline")
+                unwrap(redis.asyncio.client.Pipeline, "execute")
+                unwrap(redis.asyncio.client.Pipeline, "immediate_execute_command")
 
 
 #
 # tracing functions
 #
-def traced_execute_command(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
+def traced_execute_command(integration_config):
+    def _traced_execute_command(func, instance, args, kwargs):
+        pin = Pin.get_from(instance)
+        if not pin or not pin.enabled():
+            return func(*args, **kwargs)
 
-    with pin.tracer.trace(
-        redisx.CMD, service=utils.integration_service(config.redis, pin), span_type=SpanTypes.REDIS
-    ) as s:
-        s.set_tag(SPAN_MEASURED_KEY)
-        query = format_command_args(args)
-        s.resource = query
-        s.set_tag(redisx.RAWCMD, query)
-        if pin.tags:
-            s.set_tags(pin.tags)
-        s.set_tags(_get_tags(instance))
-        s.set_metric(redisx.ARGS_LEN, len(args))
-        # set analytics sample rate if enabled
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.redis.get_analytics_sample_rate())
-        # run the command
-        return func(*args, **kwargs)
+        with _trace_redis_cmd(pin, integration_config, instance, args):
+            return func(*args, **kwargs)
+
+    return _traced_execute_command
 
 
 def traced_pipeline(func, instance, args, kwargs):
@@ -92,28 +95,15 @@ def traced_pipeline(func, instance, args, kwargs):
     return pipeline
 
 
-def traced_execute_pipeline(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
+def traced_execute_pipeline(integration_config):
+    def _traced_execute_pipeline(func, instance, args, kwargs):
+        pin = Pin.get_from(instance)
+        if not pin or not pin.enabled():
+            return func(*args, **kwargs)
 
-    # FIXME[matt] done in the agent. worth it?
-    cmds = [format_command_args(c) for c, _ in instance.command_stack]
-    resource = "\n".join(cmds)
-    tracer = pin.tracer
-    with tracer.trace(
-        redisx.CMD, resource=resource, service=utils.integration_service(config.redis, pin), span_type=SpanTypes.REDIS
-    ) as s:
-        s.set_tag(SPAN_MEASURED_KEY)
-        s.set_tag(redisx.RAWCMD, resource)
-        s.set_tags(_get_tags(instance))
-        s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
+        cmds = [stringify_cache_args(c) for c, _ in instance.command_stack]
+        resource = "\n".join(cmds)
+        with _trace_redis_execute_pipeline(pin, integration_config, resource, instance):
+            return func(*args, **kwargs)
 
-        # set analytics sample rate if enabled
-        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.redis.get_analytics_sample_rate())
-
-        return func(*args, **kwargs)
-
-
-def _get_tags(conn):
-    return _extract_conn_tags(conn.connection_pool.connection_kwargs)
+    return _traced_execute_pipeline

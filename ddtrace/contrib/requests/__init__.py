@@ -1,52 +1,90 @@
 """
-The ``requests`` integration traces all HTTP calls to internal or external services.
-Auto instrumentation is available using the ``patch`` function that **must be called
-before** importing the ``requests`` library. The following is an example::
+The ``requests`` integration traces all HTTP requests made with the ``requests``
+library.
+
+The default service name used is `requests` but it can be configured to match
+the services that the specific requests are made to.
+
+Enabling
+~~~~~~~~
+
+The requests integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
+
+Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(requests=True)
 
-    import requests
-    requests.get("https://www.datadoghq.com")
+    # use requests like usual
 
-If you would prefer finer grained control, use a ``TracedSession`` object as you would a
-``requests.Session``::
 
-    from ddtrace.contrib.requests import TracedSession
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
 
-    session = TracedSession()
-    session.get("https://www.datadoghq.com")
+.. py:data:: ddtrace.config.requests['service']
 
-The library can be configured globally and per instance, using the Configuration API::
+   The service name reported by default for requests queries. This value will
+   be overridden by an instance override or if the split_by_domain setting is
+   enabled.
+
+   This option can also be set with the ``DD_REQUESTS_SERVICE`` environment
+   variable.
+
+   Default: ``"requests"``
+
+
+    .. _requests-config-distributed-tracing:
+.. py:data:: ddtrace.config.requests['distributed_tracing']
+
+   Whether or not to parse distributed tracing headers.
+
+   Default: ``True``
+
+
+.. py:data:: ddtrace.config.requests['trace_query_string']
+
+   Whether or not to include the query string as a tag.
+
+   Default: ``False``
+
+
+.. py:data:: ddtrace.config.requests['split_by_domain']
+
+   Whether or not to use the domain name of requests as the service name. This
+   setting can be overridden with session overrides (described in the Instance
+   Configuration section).
+
+   Default: ``False``
+
+
+Instance Configuration
+~~~~~~~~~~~~~~~~~~~~~~
+
+To set configuration options for all requests made with a ``requests.Session`` object
+use the config API::
 
     from ddtrace import config
+    from requests import Session
 
-    # disable distributed tracing globally
-    config.requests['distributed_tracing'] = False
-
-    # enable trace analytics globally
-    config.requests['analytics_enabled'] = True
-
-    # change the service name/distributed tracing only for this session
     session = Session()
     cfg = config.get_from(session)
     cfg['service_name'] = 'auth-api'
-    cfg['analytics_enabled'] = True
-
-:ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
+    cfg['distributed_tracing'] = False
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
-required_modules = ['requests']
+required_modules = ["requests"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
+        from .patch import patch
+        from .patch import unpatch
         from .session import TracedSession
 
         __all__ = [
-            'patch',
-            'unpatch',
-            'TracedSession',
+            "patch",
+            "unpatch",
+            "TracedSession",
         ]

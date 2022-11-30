@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    fastapi: add support for tracing ``fastapi.routing.serialize_response``.
+
+    This will give an insight into how much time is spent calling ``jsonable_encoder``
+    within a given request. This does not provide visibility into how long it takes for
+    ``Response.render``/``json.dumps``.

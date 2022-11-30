@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix UDS upload for profiling not using the correct path.

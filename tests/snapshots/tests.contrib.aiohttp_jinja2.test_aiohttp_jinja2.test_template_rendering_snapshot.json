@@ -1,0 +1,24 @@
+[[
+  {
+    "name": "aiohttp.template",
+    "service": null,
+    "resource": "aiohttp.template",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "template",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "aiohttp.template": "/template.jinja2",
+      "runtime-id": "fc39cf5f50814b4699d5c4259c7b788c"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 96725
+    },
+    "duration": 1153000,
+    "start": 1646201180998266000
+  }]]

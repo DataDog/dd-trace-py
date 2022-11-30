@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: implement ``__aenter__`` and ``__aexit__`` methods on ``asyncio.Lock`` wrapper.

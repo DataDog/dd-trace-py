@@ -1,13 +1,14 @@
 from gevent import monkey
 
+
 monkey.patch_all()
 
 import threading
 
-# do not use pyddprofile; the monkey-patching would be done too late
-import ddtrace.profiling.auto
 from ddtrace.profiling import bootstrap
-from ddtrace.profiling.collector import stack
+# do not use ddtrace-run; the monkey-patching would be done too late
+import ddtrace.profiling.auto
+from ddtrace.profiling.collector import stack_event
 
 
 def fibonacci(n):
@@ -19,11 +20,9 @@ def fibonacci(n):
         return fibonacci(n - 1) + fibonacci(n - 2)
 
 
-recorder = list(bootstrap.profiler.recorders)[0]
-
 # When not using our special PeriodicThread based on real threads, there's 0 event captured.
 i = 1
-while len(recorder.events[stack.StackSampleEvent]) < 10:
+while len(bootstrap.profiler._profiler._recorder.events[stack_event.StackSampleEvent]) < 10:
     threads = []
     for _ in range(10):
         t = threading.Thread(target=fibonacci, args=(i,))

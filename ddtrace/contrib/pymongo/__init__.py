@@ -23,13 +23,25 @@ network calls. Pymongo 3.0 and greater are the currently supported versions.
     # Use a pin to specify metadata related to this client
     client = pymongo.MongoClient()
     pin = Pin.override(client, service="mongo-master")
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.pymongo["service"]
+   The service name reported by default for pymongo spans
+
+   The option can also be set with the ``DD_PYMONGO_SERVICE`` environment variable
+
+   Default: ``"pymongo"``
+
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
-required_modules = ['pymongo']
+required_modules = ["pymongo"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import trace_mongo_client, patch
-        __all__ = ['trace_mongo_client', 'patch']
+        from .patch import patch
+
+        __all__ = ["patch"]

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Profiler raises a typing error when ``Span.resource`` is unicode on Python 2.7.

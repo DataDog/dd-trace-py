@@ -5,6 +5,7 @@ class Resource200(object):
     """Throw a handled exception here to ensure our use of
     set_traceback() doesn't affect 200s
     """
+
     def on_get(self, req, resp, **kwargs):
         try:
             1 / 0
@@ -12,25 +13,25 @@ class Resource200(object):
             pass
 
         resp.status = falcon.HTTP_200
-        resp.body = 'Success'
-        resp.append_header('my-response-header', 'my_response_value')
+        resp.body = "Success"
+        resp.append_header("my-response-header", "my_response_value")
 
 
 class Resource201(object):
     def on_post(self, req, resp, **kwargs):
         resp.status = falcon.HTTP_201
-        resp.body = 'Success'
+        resp.body = "Success"
 
 
 class Resource500(object):
     def on_get(self, req, resp, **kwargs):
         resp.status = falcon.HTTP_500
-        resp.body = 'Failure'
+        resp.body = "Failure"
 
 
 class ResourceException(object):
     def on_get(self, req, resp, **kwargs):
-        raise Exception('Ouch!')
+        raise Exception("Ouch!")
 
 
 class ResourceNotFound(object):

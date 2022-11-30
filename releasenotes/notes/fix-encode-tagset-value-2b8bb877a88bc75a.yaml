@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing/internal: fix encoding of propagated internal tags.

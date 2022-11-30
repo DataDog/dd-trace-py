@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django: fix a bug when postgres query is composable sql object.

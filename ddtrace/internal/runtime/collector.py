@@ -1,6 +1,11 @@
 import importlib
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
 
 from ..logger import get_logger
+
 
 log = get_logger(__name__)
 
@@ -19,11 +24,12 @@ class ValueCollector(object):
 
     enabled = True
     periodic = False
-    required_modules = []
-    value = None
+    required_modules = []  # type: List[str]
+    value = None  # type: Optional[List[Tuple[str, str]]]
     value_loaded = False
 
     def __init__(self, enabled=None, periodic=None, required_modules=None):
+        # type: (Optional[bool], Optional[bool], Optional[List[str]]) -> None
         self.enabled = self.enabled if enabled is None else enabled
         self.periodic = self.periodic if periodic is None else periodic
         self.required_modules = self.required_modules if required_modules is None else required_modules
@@ -34,8 +40,7 @@ class ValueCollector(object):
             self._on_modules_load()
 
     def _on_modules_load(self):
-        """Hook triggered after all required_modules have been successfully loaded.
-        """
+        """Hook triggered after all required_modules have been successfully loaded."""
 
     def _load_modules(self):
         modules = {}
@@ -51,6 +56,7 @@ class ValueCollector(object):
         return modules
 
     def collect(self, keys=None):
+        # type: (Optional[Set[str]]) -> Optional[List[Tuple[str, str]]]
         """Returns metrics as collected by `collect_fn`.
 
         :param keys: The keys of the metrics to collect.
@@ -64,7 +70,8 @@ class ValueCollector(object):
             return self.value
 
         # call underlying collect function and filter out keys not requested
-        self.value = self.collect_fn(keys)
+        # TODO: provide base method collect_fn() in ValueCollector
+        self.value = self.collect_fn(keys)  # type: ignore[attr-defined]
 
         # filter values for keys
         if len(keys) > 0 and isinstance(self.value, list):
@@ -75,5 +82,8 @@ class ValueCollector(object):
 
     def __repr__(self):
         return "<{}(enabled={},periodic={},required_modules={})>".format(
-            self.__class__.__name__, self.enabled, self.periodic, self.required_modules,
+            self.__class__.__name__,
+            self.enabled,
+            self.periodic,
+            self.required_modules,
         )

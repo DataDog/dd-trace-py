@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes issue of unfinished spans when response is not a `grpc.Future` but has the same interface, as is the case with the base future class in `google-api-core`.

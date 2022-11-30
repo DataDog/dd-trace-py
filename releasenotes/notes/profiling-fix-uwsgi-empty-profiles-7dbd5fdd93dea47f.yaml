@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    In certain circumstances, the profiles generated in a uWSGI application
+    could have been empty. This is now fixed and the profiler records correctly
+    the generated events.

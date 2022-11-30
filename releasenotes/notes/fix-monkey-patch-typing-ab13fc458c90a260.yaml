@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes type hinting for ``**patch_modules`` parameter for ``patch``/``patch_all`` functions.

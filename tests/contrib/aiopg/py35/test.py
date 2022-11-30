@@ -1,22 +1,23 @@
-# 3p
+import asyncio
+
 import aiopg
 
 # project
-from ddtrace.contrib.aiopg.patch import patch, unpatch
 from ddtrace import Pin
-
-# testing
+from ddtrace.contrib.aiopg.patch import patch
+from ddtrace.contrib.aiopg.patch import unpatch
+from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.contrib.asyncio.utils import AsyncioTestCase, mark_asyncio
 from ..test import ConnCtx
 
 
-TEST_PORT = str(POSTGRES_CONFIG['port'])
+TEST_PORT = str(POSTGRES_CONFIG["port"])
 
 
 class TestPsycopgPatch(AsyncioTestCase):
     # default service
-    TEST_SERVICE = 'postgres'
+    TEST_SERVICE = "postgres"
 
     def setUp(self):
         super().setUp()
@@ -40,17 +41,17 @@ class TestPsycopgPatch(AsyncioTestCase):
                 t = type(cur)
 
             async with conn.cursor() as cur:
-                assert t == type(cur), '%s != %s' % (t, type(cur))
-                await cur.execute(operation='select \'blah\'')
+            assert t == type(cur), "%s != %s" % (t, type(cur))
+            await cur.execute(operation="select 'blah'")
                 rows = await cur.fetchall()
                 assert len(rows) == 1
-                assert rows[0][0] == 'blah'
+            assert rows[0][0] == "blah"
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 3
-        assert spans[0].name == 'postgres.connect'
-        assert spans[1].name == 'postgres.execute'
-        assert spans[2].name == 'postgres.fetchall'
+        assert spans[0].name == "postgres.connect"
+        assert spans[1].name == "postgres.execute"
+        assert spans[2].name == "postgres.fetchall"
 
     @mark_asyncio
     async def test_pool(self):
@@ -62,10 +63,10 @@ class TestPsycopgPatch(AsyncioTestCase):
                 async with conn.cursor() as cur:
                     await cur.execute('select 1;')
 
-        spans = self.tracer.writer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 4
 
-        assert spans[0].name == 'postgres.connect'
-        assert spans[1].name == 'postgres.pool.acquire'
-        assert spans[2].name == 'postgres.execute'
-        assert spans[3].name == 'postgres.pool.release'
+        assert spans[0].name == "postgres.connect"
+        assert spans[1].name == "postgres.pool.acquire"
+        assert spans[2].name == "postgres.execute"
+        assert spans[3].name == "postgres.pool.release"

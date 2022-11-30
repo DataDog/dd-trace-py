@@ -1,0 +1,29 @@
+[[
+  {
+    "name": "snowflake.connection.commit",
+    "service": "snowflake",
+    "resource": "snowflake.connection.commit",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.application": "PythonConnector",
+      "db.name": "mock-db-name",
+      "db.schema": "mock-schema-name",
+      "db.user": "mock-user",
+      "db.warehouse": "mock-warehouse-name",
+      "out.host": "mock-account.snowflakecomputing.com",
+      "runtime-id": "441ecb845fa54dc18d63e7f4e83860bf"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 443,
+      "system.pid": 79541
+    },
+    "duration": 3395000,
+    "start": 1634218666469654000
+  }]]

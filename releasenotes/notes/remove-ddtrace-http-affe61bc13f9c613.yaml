@@ -1,0 +1,10 @@
+---
+upgrade:
+  - ".. _remove-http:
+
+
+    The deprecated modules ``ddtrace.http`` and ``ddtrace.http.headers`` are removed.
+    Use ``ddtrace.contrib.trace_utils.set_http_meta`` to store request and response
+    headers on a span.
+
+    "

@@ -1,21 +1,18 @@
-import functools
 import socket
-
-_hostname = None
-
-
-def _cached(func):
-    @functools.wraps(func)
-    def wrapper():
-        global _hostname
-        if not _hostname:
-            _hostname = func()
-
-        return _hostname
-
-    return wrapper
+from typing import Optional
 
 
-@_cached
+_hostname = None  # type: Optional[str]
+
+
 def get_hostname():
-    return socket.gethostname()
+    # type: () -> str
+    global _hostname
+    if not _hostname:
+        _hostname = socket.gethostname()
+    return _hostname
+
+
+def _reset():
+    global _hostname
+    _hostname = None

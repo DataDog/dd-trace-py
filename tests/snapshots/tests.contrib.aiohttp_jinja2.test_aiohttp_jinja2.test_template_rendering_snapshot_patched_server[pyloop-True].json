@@ -1,0 +1,42 @@
+[[
+  {
+    "name": "aiohttp.request",
+    "service": "aiohttp-web",
+    "resource": "GET /template/",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://127.0.0.1:50990/template/",
+      "http.useragent": "Python/3.8 aiohttp/3.8.1",
+      "runtime-id": "68477617920b46dab609769e527c1c22"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 7893
+    },
+    "duration": 5193000,
+    "start": 1648585854492416000
+  },
+     {
+       "name": "aiohttp.template",
+       "service": "aiohttp-web",
+       "resource": "aiohttp.template",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "template",
+       "meta": {
+         "aiohttp.template": "/template.jinja2"
+       },
+       "duration": 4019000,
+       "start": 1648585854492859000
+     }]]

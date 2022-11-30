@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Profiling now supports tracing greenlets with gevent version prior to 1.3.

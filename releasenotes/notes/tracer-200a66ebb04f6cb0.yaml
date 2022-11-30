@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    The ``Tracer`` class properties DEFAULT_HOSTNAME, DEFAULT_PORT,
+    DEFAULT_DOGSTATSD_PORT, DEFAULT_DOGSTATSD_URL, DEFAULT_AGENT_URL have been
+    removed.

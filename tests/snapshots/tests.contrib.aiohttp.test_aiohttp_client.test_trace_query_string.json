@@ -1,0 +1,38 @@
+[[
+  {
+    "name": "aiohttp.request",
+    "service": null,
+    "resource": "aiohttp.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.query.string": "k1=v1&k2=v2&k3=v3&k4=v4",
+      "http.status_code": "404",
+      "http.status_msg": "NOT FOUND",
+      "http.url": "http://localhost:8001/status/200/?k1=v1&k2=v2&k3=v3&k4=v4",
+      "runtime-id": "61df78e7f89c4a8f90049e780be97e8f"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 83844
+    },
+    "duration": 5072000,
+    "start": 1646853117219334000
+  },
+     {
+       "name": "TCPConnector.connect",
+       "service": null,
+       "resource": "TCPConnector.connect",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 1803000,
+       "start": 1646853117220225000
+     }]]

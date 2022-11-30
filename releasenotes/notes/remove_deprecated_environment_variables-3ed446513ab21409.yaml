@@ -1,0 +1,30 @@
+---
+upgrade:
+  - ".. _remove-datadog-envs:
+
+
+    The environment variables prefixed with ``DATADOG_`` are removed. Use
+    environment variables prefixed with ``DD_`` instead.
+
+    "
+  - ".. _remove-logging-env:
+
+
+    The environment variable ``DD_LOGGING_RATE_LIMIT`` is removed. Use ``DD_TRACE_LOGGING_RATE``
+    instead.
+
+    "
+  - ".. _remove-partial-flush-enabled-env:
+
+
+    The environment variable ``DD_TRACER_PARTIAL_FLUSH_ENABLED`` is removed.
+    Use ``DD_TRACE_PARTIAL_FLUSH_ENABLED`` instead.
+
+    "
+  - ".. _remove-partial-flush-min-envs:
+
+
+    The environment variable ``DD_TRACER_PARTIAL_FLUSH_MIN_SPANS`` is removed.
+    Use ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS`` instead.
+
+    "

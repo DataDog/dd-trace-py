@@ -6,9 +6,9 @@ Enabling
 ~~~~~~~~
 
 The gRPC integration is enabled automatically when using
-:ref:`ddtrace-run<ddtracerun>` or :ref:`patch_all()<patch_all>`.
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
 
-Or use :ref:`patch()<patch>` to manually enable the integration::
+Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(grpc=True)
@@ -19,7 +19,7 @@ Or use :ref:`patch()<patch>` to manually enable the integration::
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.grpc["service_name"]
+.. py:data:: ddtrace.config.grpc["service"]
 
    The service name reported by default for gRPC client instances.
 
@@ -27,6 +27,15 @@ Global Configuration
    variable.
 
    Default: ``"grpc-client"``
+
+.. py:data:: ddtrace.config.grpc_server["service"]
+
+   The service name reported by default for gRPC server instances.
+
+   This option can also be set with the ``DD_SERVICE`` or
+   ``DD_GRPC_SERVER_SERVICE`` environment variables.
+
+   Default: ``"grpc-server"``
 
 
 Instance Configuration
@@ -66,12 +75,14 @@ To configure the gRPC integration on the server use the ``Pin`` API::
 """
 
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
-required_modules = ['grpc']
+
+required_modules = ["grpc"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
+        from .patch import patch
+        from .patch import unpatch
 
-        __all__ = ['patch', 'unpatch']
+        __all__ = ["patch", "unpatch"]

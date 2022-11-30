@@ -1,0 +1,7 @@
+---
+deprecations:
+  - |
+    The contents of ``monkey.py`` have been moved into ``_monkey.py`` in an
+    effort to internalize the module. Public methods have been imported back
+    into ``monkey.py`` in order to retain compatibility, but monkey.py will be
+    removed entirely in version 1.0.0.

@@ -1,0 +1,167 @@
+[[
+  {
+    "name": "postgres.connect",
+    "service": "postgres",
+    "resource": "postgres.connect",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "71de7f95efa842e48e4951fb67b5895e"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 48233
+    },
+    "duration": 6413000,
+    "start": 1646947004185128000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "\n        CREATE TEMP TABLE test (id serial PRIMARY KEY, name varchar(12) NOT NULL UNIQUE);\n    ",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "71de7f95efa842e48e4951fb67b5895e"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 48233
+    },
+    "duration": 3970000,
+    "start": 1646947004193056000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "\n        INSERT INTO test (name) VALUES ($1), ($2), ($3);\n    ",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "71de7f95efa842e48e4951fb67b5895e"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 48233
+    },
+    "duration": 2545000,
+    "start": 1646947004197646000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "SELECT * FROM test;",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "71de7f95efa842e48e4951fb67b5895e"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 48233
+    },
+    "duration": 2735000,
+    "start": 1646947004200770000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "SELECT * FROM test LIMIT 1;",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "71de7f95efa842e48e4951fb67b5895e"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 48233
+    },
+    "duration": 2635000,
+    "start": 1646947004204060000
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "SELECT * FROM test LIMIT 1;",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "71de7f95efa842e48e4951fb67b5895e"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 48233
+    },
+    "duration": 1256000,
+    "start": 1646947004207259000
+  }]]

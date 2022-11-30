@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    A warning has been added to alert when gevent monkey patching is done after
+    ddtrace has been imported.

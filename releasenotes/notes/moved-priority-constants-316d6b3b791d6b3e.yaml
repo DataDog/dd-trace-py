@@ -1,0 +1,9 @@
+---
+upgrade:
+  - |
+     Instead of using priority constants from ``ddtrace.ext.priority``. Use constants from ``ddtrace.constants`` module. 
+     For Example:: ``ddtrace.ext.priority.AUTO_KEEP`` -> ``ddtrace.constants.AUTO_KEEP``
+      
+deprecations:
+  - |
+    Moved ``ddtrace.ext.priority`` constants into ``ddtrace.constants`` module.

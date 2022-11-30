@@ -1,18 +1,29 @@
+import os
+
 import celery
 
 from ddtrace import config
+import ddtrace.internal.forksafe as forksafe
+from ddtrace.internal.utils.formats import asbool
 
-from .app import patch_app, unpatch_app
-from .constants import PRODUCER_SERVICE, WORKER_SERVICE
-from ...utils.formats import get_env
+from .app import patch_app
+from .app import unpatch_app
+from .constants import PRODUCER_SERVICE
+from .constants import WORKER_SERVICE
+
+
+forksafe._soft = True
 
 
 # Celery default settings
-config._add('celery', {
-    'distributed_tracing': get_env('celery', 'distributed_tracing', default=False),
-    'producer_service_name': get_env('celery', 'producer_service_name', default=PRODUCER_SERVICE),
-    'worker_service_name': get_env('celery', 'worker_service_name', default=WORKER_SERVICE),
-})
+config._add(
+    "celery",
+    {
+        "distributed_tracing": asbool(os.getenv("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
+        "producer_service_name": os.getenv("DD_CELERY_PRODUCER_SERVICE_NAME", default=PRODUCER_SERVICE),
+        "worker_service_name": os.getenv("DD_CELERY_WORKER_SERVICE_NAME", default=WORKER_SERVICE),
+    },
+)
 
 
 def patch():

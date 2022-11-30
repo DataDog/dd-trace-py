@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The thread safety of the custom buffered encoder was fixed in order to eliminate a potential cause of decoding errors of trace payloads (missing trace data) in the agent.

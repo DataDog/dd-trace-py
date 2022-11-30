@@ -1,24 +1,25 @@
 # stdlib
 import asyncio
-import pkg_resources
 
-# 3p
-import aiopg
+from aiopg import __version__
 from aiopg.utils import _ContextManager
 
-from ddtrace.vendor import wrapt
-from .. import dbapi
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...pin import Pin
-from ...settings import config
+from ddtrace import config
+from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import SPAN_MEASURED_KEY
+from ddtrace.contrib import dbapi
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import sql
+from ddtrace.internal.utils.version import parse_version
+from ddtrace.pin import Pin
+from ddtrace.vendor import wrapt
 
 
-AIOPG_1X = pkg_resources.parse_version(aiopg.__version__) >= pkg_resources.parse_version('1.0.0')
+AIOPG_1X = parse_version(aiopg.__version__) >= parse_version('1.0.0')
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
-    """ TracedCursor wraps a psql cursor and traces its queries. """
+    """TracedCursor wraps a psql cursor and traces its queries."""
 
     def __init__(self, cursor, pin):
         super(AIOTracedCursor, self).__init__(cursor)
@@ -32,31 +33,26 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         service = pin.service
 
         name = (pin.app or 'sql') + '.' + method.__name__
-        with pin.tracer.trace(name, service=service,
-                              resource=query or self.query.decode('utf-8'),
+        with pin.tracer.trace(name, service=service, resource=query or self.query.decode('utf-8'),
                               span_type=sql.TYPE) as s:
             s.set_tag(SPAN_MEASURED_KEY)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
             # set analytics sample rate
-            s.set_tag(
-                ANALYTICS_SAMPLE_RATE_KEY,
-                config.aiopg.get_analytics_sample_rate()
-            )
+            s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiopg.get_analytics_sample_rate())
 
             try:
                 result = await method(*args, **kwargs)
                 return result
             finally:
-                s.set_metric('db.rowcount', self.rowcount)
+                s.set_metric("db.rowcount", self.rowcount)
 
     async def executemany(self, operation, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
         result = await self._trace_method(
-            self.__wrapped__.executemany, operation, {'sql.executemany': 'true'},
-            operation, *args, **kwargs)
+            self.__wrapped__.executemany, operation, {"sql.executemany": "true"}, operation, *args, **kwargs)
         return result
 
     async def execute(self, operation, *args, **kwargs):
@@ -85,8 +81,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         return result
 
     async def fetchall(self):
-        result = await self._trace_method(
-            self.__wrapped__.fetchall, None, {})
+        result = await self._trace_method(self.__wrapped__.fetchall, None, {})
         return result
 
     async def scroll(self, value, mode='relative'):
@@ -95,8 +90,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         return result
 
     async def nextset(self):
-        result = await self._trace_method(
-            self.__wrapped__.nextset, None, {})
+        result = await self._trace_method(self.__wrapped__.nextset, None, {})
         return result
 
     def __aiter__(self):

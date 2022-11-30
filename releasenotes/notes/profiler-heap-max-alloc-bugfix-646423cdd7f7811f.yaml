@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a possible bug in the heap memory profiler that could trigger an
+    overflow when too many allocations were being tracked.

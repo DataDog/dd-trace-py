@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Add support for ``DD_PROFILING_ENDPOINT_COLLECTION_ENABLED`` env variable
+    to disable endpoint name collection in profiler.

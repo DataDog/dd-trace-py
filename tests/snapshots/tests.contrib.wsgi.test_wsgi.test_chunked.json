@@ -1,0 +1,61 @@
+[[
+  {
+    "name": "wsgi.request",
+    "service": "wsgi",
+    "resource": "GET /chunked",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://localhost:80/chunked",
+      "runtime-id": "95c79fa6df0d4378985caf03beebf928"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 55611
+    },
+    "duration": 1533000,
+    "start": 1631829206122936000
+  },
+     {
+       "name": "wsgi.application",
+       "service": "wsgi",
+       "resource": "wsgi.application",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 20000,
+       "start": 1631829206122994000
+     },
+     {
+       "name": "wsgi.response",
+       "service": "wsgi",
+       "resource": "wsgi.response",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "meta": {
+         "result_class": "generator"
+       },
+       "duration": 1342000,
+       "start": 1631829206123038000
+     },
+        {
+          "name": "wsgi.start_response",
+          "service": "wsgi",
+          "resource": "wsgi.start_response",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 3,
+          "type": "web",
+          "duration": 39000,
+          "start": 1631829206123121000
+        }]]

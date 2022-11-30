@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    ``ddtrace.sampler.DatadogSampler.default_sampler`` property is deprecated and will be removed in 1.0.

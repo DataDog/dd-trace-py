@@ -4,16 +4,24 @@ import json
 
 # 3p
 import pymongo
-from ddtrace.vendor.wrapt import ObjectProxy
 
 # project
 import ddtrace
-from ...compat import iteritems
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, mongo as mongox, net as netx
+from ddtrace import config
+from ddtrace.vendor.wrapt import ObjectProxy
+
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...ext import mongo as mongox
+from ...ext import net as netx
+from ...internal.compat import iteritems
 from ...internal.logger import get_logger
-from ...settings import config
-from .parse import parse_spec, parse_query, parse_msg
+from ...internal.utils import get_argument_value
+from .parse import parse_msg
+from .parse import parse_query
+from .parse import parse_spec
+
 
 # Original Client class
 _MongoClient = pymongo.MongoClient
@@ -21,8 +29,10 @@ _MongoClient = pymongo.MongoClient
 log = get_logger(__name__)
 
 
-class TracedMongoClient(ObjectProxy):
+VERSION = pymongo.version_tuple
 
+
+class TracedMongoClient(ObjectProxy):
     def __init__(self, client=None, *args, **kwargs):
         # To support the former trace_mongo_client interface, we have to keep this old interface
         # TODO(Benjamin): drop it in a later version
@@ -49,10 +59,11 @@ class TracedMongoClient(ObjectProxy):
         # calls in the trace library. This is good because it measures the
         # actual network time. It's bad because it uses a private API which
         # could change. We'll see how this goes.
-        client._topology = TracedTopology(client._topology)
+        if not isinstance(client._topology, TracedTopology):
+            client._topology = TracedTopology(client._topology)
 
         # Default Pin
-        ddtrace.Pin(service=mongox.SERVICE, app=mongox.SERVICE).onto(self)
+        ddtrace.Pin(service="pymongo").onto(self)
 
     def __setddpin__(self, pin):
         pin.onto(self._topology)
@@ -62,7 +73,6 @@ class TracedMongoClient(ObjectProxy):
 
 
 class TracedTopology(ObjectProxy):
-
     def __init__(self, topology):
         super(TracedTopology, self).__init__(topology)
 
@@ -76,7 +86,6 @@ class TracedTopology(ObjectProxy):
 
 
 class TracedServer(ObjectProxy):
-
     def __init__(self, server):
         super(TracedServer, self).__init__(server)
 
@@ -87,14 +96,14 @@ class TracedServer(ObjectProxy):
             try:
                 cmd = parse_query(operation)
             except Exception:
-                log.exception('error parsing query')
+                log.exception("error parsing query")
 
         pin = ddtrace.Pin.get_from(self)
         # if we couldn't parse or shouldn't trace the message, just go.
         if not cmd or not pin or not pin.enabled():
             return None
 
-        span = pin.tracer.trace('pymongo.cmd', span_type=SpanTypes.MONGODB, service=pin.service)
+        span = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tag(mongox.DB, cmd.db)
         span.set_tag(mongox.COLLECTION, cmd.coll)
@@ -109,53 +118,44 @@ class TracedServer(ObjectProxy):
             span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
         return span
 
-    # Pymongo >= 3.9
-    def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
-        span = self._datadog_trace_operation(operation)
-        if not span:
-            return self.__wrapped__.run_operation_with_response(
-                sock_info,
-                operation,
-                *args,
-                **kwargs
-            )
+    # Pymongo >= 3.12
+    if VERSION >= (3, 12, 0):
 
-        try:
-            result = self.__wrapped__.run_operation_with_response(
-                sock_info,
-                operation,
-                *args,
-                **kwargs
-            )
+        def run_operation(self, sock_info, operation, *args, **kwargs):
+            span = self._datadog_trace_operation(operation)
+            if span is None:
+                return self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
+            with span:
+                result = self.__wrapped__.run_operation(sock_info, operation, *args, **kwargs)
+                if result and result.address:
+                    set_address_tags(span, result.address)
+                return result
 
-            if result and result.address:
-                set_address_tags(span, result.address)
-            return result
-        finally:
-            span.finish()
+    # Pymongo >= 3.9, <3.12
+    elif (3, 9, 0) <= VERSION < (3, 12, 0):
+
+        def run_operation_with_response(self, sock_info, operation, *args, **kwargs):
+            span = self._datadog_trace_operation(operation)
+            if span is None:
+                return self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
+            with span:
+                result = self.__wrapped__.run_operation_with_response(sock_info, operation, *args, **kwargs)
+                if result and result.address:
+                    set_address_tags(span, result.address)
+                return result
 
     # Pymongo < 3.9
-    def send_message_with_response(self, operation, *args, **kwargs):
-        span = self._datadog_trace_operation(operation)
-        if not span:
-            return self.__wrapped__.send_message_with_response(
-                operation,
-                *args,
-                **kwargs
-            )
+    else:
 
-        try:
-            result = self.__wrapped__.send_message_with_response(
-                operation,
-                *args,
-                **kwargs
-            )
-
-            if result and result.address:
-                set_address_tags(span, result.address)
-            return result
-        finally:
-            span.finish()
+        def send_message_with_response(self, operation, *args, **kwargs):
+            span = self._datadog_trace_operation(operation)
+            if span is None:
+                return self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
+            with span:
+                result = self.__wrapped__.send_message_with_response(operation, *args, **kwargs)
+                if result and result.address:
+                    set_address_tags(span, result.address)
+                return result
 
     @contextlib.contextmanager
     def get_socket(self, *args, **kwargs):
@@ -167,12 +167,11 @@ class TracedServer(ObjectProxy):
 
     @staticmethod
     def _is_query(op):
-        # NOTE: _Query should alwyas have a spec field
-        return hasattr(op, 'spec')
+        # NOTE: _Query should always have a spec field
+        return hasattr(op, "spec")
 
 
 class TracedSocket(ObjectProxy):
-
     def __init__(self, socket):
         super(TracedSocket, self).__init__(socket)
 
@@ -181,7 +180,7 @@ class TracedSocket(ObjectProxy):
         try:
             cmd = parse_spec(spec, dbname)
         except Exception:
-            log.exception('error parsing spec. skipping trace')
+            log.exception("error parsing spec. skipping trace")
 
         pin = ddtrace.Pin.get_from(self)
         # skip tracing if we don't have a piece of data we need
@@ -192,30 +191,28 @@ class TracedSocket(ObjectProxy):
         with self.__trace(cmd):
             return self.__wrapped__.command(dbname, spec, *args, **kwargs)
 
-    def write_command(self, request_id, msg):
+    def write_command(self, *args, **kwargs):
+        msg = get_argument_value(args, kwargs, 1, "msg")
         cmd = None
         try:
             cmd = parse_msg(msg)
         except Exception:
-            log.exception('error parsing msg')
+            log.exception("error parsing msg")
 
         pin = ddtrace.Pin.get_from(self)
         # if we couldn't parse it, don't try to trace it.
         if not cmd or not pin or not pin.enabled():
-            return self.__wrapped__.write_command(request_id, msg)
+            return self.__wrapped__.write_command(*args, **kwargs)
 
         with self.__trace(cmd) as s:
-            result = self.__wrapped__.write_command(request_id, msg)
+            result = self.__wrapped__.write_command(*args, **kwargs)
             if result:
-                s.set_metric(mongox.ROWS, result.get('n', -1))
+                s.set_metric(mongox.ROWS, result.get("n", -1))
             return result
 
     def __trace(self, cmd):
         pin = ddtrace.Pin.get_from(self)
-        s = pin.tracer.trace(
-            'pymongo.cmd',
-            span_type=SpanTypes.MONGODB,
-            service=pin.service)
+        s = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
 
         s.set_tag(SPAN_MEASURED_KEY)
         if cmd.db:
@@ -229,10 +226,7 @@ class TracedSocket(ObjectProxy):
         _set_query_metadata(s, cmd)
 
         # set analytics sample rate
-        s.set_tag(
-            ANALYTICS_SAMPLE_RATE_KEY,
-            config.pymongo.get_analytics_sample_rate()
-        )
+        s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.pymongo.get_analytics_sample_rate())
 
         if self.address:
             set_address_tags(s, self.address)
@@ -251,15 +245,15 @@ def normalize_filter(f=None):
         #   {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
         out = {}
         for k, v in iteritems(f):
-            if k == '$in' or k == '$nin':
+            if k == "$in" or k == "$nin":
                 # special case $in queries so we don't loop over lists.
-                out[k] = '?'
+                out[k] = "?"
             elif isinstance(v, list) or isinstance(v, dict):
                 # RECURSION ALERT: needs to move to the agent
                 out[k] = normalize_filter(v)
             else:
                 # NOTE: this shouldn't happen, but let's have a safeguard.
-                out[k] = '?'
+                out[k] = "?"
         return out
     else:
         # FIXME[matt] unexpected type. not sure this should ever happen, but at
@@ -275,13 +269,13 @@ def set_address_tags(span, address):
 
 
 def _set_query_metadata(span, cmd):
-    """ Sets span `mongodb.query` tag and resource given command query """
+    """Sets span `mongodb.query` tag and resource given command query"""
     if cmd.query:
         nq = normalize_filter(cmd.query)
-        span.set_tag('mongodb.query', nq)
+        span.set_tag("mongodb.query", nq)
         # needed to dump json so we don't get unicode
         # dict keys like {u'foo':'bar'}
         q = json.dumps(nq)
-        span.resource = '{} {} {}'.format(cmd.name, cmd.coll, q)
+        span.resource = "{} {} {}".format(cmd.name, cmd.coll, q)
     else:
-        span.resource = '{} {}'.format(cmd.name, cmd.coll)
+        span.resource = "{} {}".format(cmd.name, cmd.coll)

@@ -1,0 +1,9 @@
+---
+deprecations:
+  - |
+    The reuse of a tracer that has been shut down has been deprecated. A new
+    tracer should be created for generating new traces.
+fixes:
+  - |
+    The shutdown task is re-registered when a tracer is reused after it has been
+    shut down.

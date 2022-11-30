@@ -19,7 +19,7 @@ import inspect
 import types
 import warnings
 
-from .. import six
+import six
 
 try:
     _TYPE_TYPE = types.TypeType

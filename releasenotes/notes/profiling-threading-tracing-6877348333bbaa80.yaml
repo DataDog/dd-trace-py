@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The profiler now captures the traces information with the lock profiling.

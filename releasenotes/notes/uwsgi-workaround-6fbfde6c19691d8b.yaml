@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    **uWSGI** is no longer supported with ``ddtrace-run`` due to a limitation of how tracer initialization occurs. See the updated instructions for enabling tracing in the library :ref:`uWSGI documentation<uwsgi>`.
+fixes:
+  - |
+    A workaround is provided for the problem with uWSGI worker processes failing to respawn. This can occur when using ``ddtrace-run`` for automatic instrumentation and configuration or manual instrumentation and configuration without the necessary uWSGI options. The problem is caused by how the tracer can end up starting threads in the master process before uWSGI forks to initialize the workers processes. To avoid this, we have provided updated instructions for enabling tracing in the library :ref:`uWSGI documentation<uwsgi>`.

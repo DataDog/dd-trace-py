@@ -1,0 +1,111 @@
+[[
+  {
+    "name": "aiohttp.request",
+    "service": null,
+    "resource": "aiohttp.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://localhost:8001/status/200",
+      "runtime-id": "2d042941bd8e4cd18a0bcb6ea7c9b80f"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 27506
+    },
+    "duration": 29211000,
+    "start": 1646794505597988000
+  },
+     {
+       "name": "TCPConnector.connect",
+       "service": null,
+       "resource": "TCPConnector.connect",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 26278000,
+       "start": 1646794505598411000
+     }],
+[
+  {
+    "name": "aiohttp.request",
+    "service": null,
+    "resource": "aiohttp.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://localhost:8001/status/200",
+      "runtime-id": "2d042941bd8e4cd18a0bcb6ea7c9b80f"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 27506
+    },
+    "duration": 3596000,
+    "start": 1646794505627424000
+  },
+     {
+       "name": "TCPConnector.connect",
+       "service": null,
+       "resource": "TCPConnector.connect",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 70000,
+       "start": 1646794505627940000
+     }],
+[
+  {
+    "name": "aiohttp.request",
+    "service": null,
+    "resource": "aiohttp.request",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://localhost:8001/status/200",
+      "runtime-id": "2d042941bd8e4cd18a0bcb6ea7c9b80f"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 27506
+    },
+    "duration": 3312000,
+    "start": 1646794505631290000
+  },
+     {
+       "name": "TCPConnector.connect",
+       "service": null,
+       "resource": "TCPConnector.connect",
+       "trace_id": 2,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 136000,
+       "start": 1646794505631851000
+     }]]

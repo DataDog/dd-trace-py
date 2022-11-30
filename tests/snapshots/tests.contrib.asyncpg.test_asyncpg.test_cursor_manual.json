@@ -1,0 +1,167 @@
+[[
+  {
+    "name": "postgres.connect",
+    "service": "postgres",
+    "resource": "postgres.connect",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "0805bf5850674d35a8fd7d06c7a99ed8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 377
+    },
+    "duration": 4490335,
+    "start": 1647029709883897087
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "BEGIN;",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "0805bf5850674d35a8fd7d06c7a99ed8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 377
+    },
+    "duration": 526049,
+    "start": 1647029709890692119
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "MOVE FORWARD 10 __asyncpg_portal_9__",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "0805bf5850674d35a8fd7d06c7a99ed8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 377
+    },
+    "duration": 521311,
+    "start": 1647029709893314580
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "SELECT generate_series(0, 100)",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "0805bf5850674d35a8fd7d06c7a99ed8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 377
+    },
+    "duration": 745668,
+    "start": 1647029709894685523
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "SELECT generate_series(0, 100)",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "0805bf5850674d35a8fd7d06c7a99ed8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 377
+    },
+    "duration": 560607,
+    "start": 1647029709896300173
+  }],
+[
+  {
+    "name": "postgres.query",
+    "service": "postgres",
+    "resource": "COMMIT;",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "postgres",
+      "db.user": "postgres",
+      "out.host": "127.0.0.1",
+      "runtime-id": "0805bf5850674d35a8fd7d06c7a99ed8"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "out.port": 5432,
+      "system.pid": 377
+    },
+    "duration": 931270,
+    "start": 1647029709897887329
+  }]]

@@ -1,10 +1,14 @@
 import gevent
 import gevent.pool
+
 import ddtrace
 
-from .greenlet import TracedGreenlet, TracedIMap, TracedIMapUnordered, GEVENT_VERSION
-from .provider import GeventContextProvider
 from ...provider import DefaultContextProvider
+from .greenlet import GEVENT_VERSION
+from .greenlet import TracedGreenlet
+from .greenlet import TracedIMap
+from .greenlet import TracedIMapUnordered
+from .provider import GeventContextProvider
 
 
 __Greenlet = gevent.Greenlet

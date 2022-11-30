@@ -1,11 +1,17 @@
 from tornado.web import HTTPError
 
-from .constants import CONFIG_KEY, REQUEST_CONTEXT_KEY, REQUEST_SPAN_KEY
+from ddtrace import config
+
+from .. import trace_utils
+from ...constants import ANALYTICS_SAMPLE_RATE_KEY
+from ...constants import SPAN_MEASURED_KEY
+from ...ext import SpanTypes
+from ...internal.utils import ArgumentError
+from ...internal.utils import get_argument_value
+from ..trace_utils import set_http_meta
+from .constants import CONFIG_KEY
+from .constants import REQUEST_SPAN_KEY
 from .stack_context import TracerStackContext
-from ...constants import ANALYTICS_SAMPLE_RATE_KEY, SPAN_MEASURED_KEY
-from ...ext import SpanTypes, http
-from ...propagation.http import HTTPPropagator
-from ...settings import config
 
 
 def execute(func, handler, args, kwargs):
@@ -16,36 +22,27 @@ def execute(func, handler, args, kwargs):
     """
     # retrieve tracing settings
     settings = handler.settings[CONFIG_KEY]
-    tracer = settings['tracer']
-    service = settings['default_service']
-    distributed_tracing = settings['distributed_tracing']
+    tracer = settings["tracer"]
+    service = settings["default_service"]
+    distributed_tracing = settings["distributed_tracing"]
 
     with TracerStackContext():
-        # attach the context to the request
-        setattr(handler.request, REQUEST_CONTEXT_KEY, tracer.get_call_context())
-
-        # Read and use propagated context from HTTP headers
-        if distributed_tracing:
-            propagator = HTTPPropagator()
-            context = propagator.extract(handler.request.headers)
-            if context.trace_id:
-                tracer.context_provider.activate(context)
+        trace_utils.activate_distributed_headers(
+            tracer, int_config=config.tornado, request_headers=handler.request.headers, override=distributed_tracing
+        )
 
         # store the request span in the request so that it can be used later
         request_span = tracer.trace(
-            'tornado.request',
+            "tornado.request",
             service=service,
             span_type=SpanTypes.WEB,
         )
         request_span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate
         # DEV: tornado is special case maintains separate configuration from config api
-        analytics_enabled = settings['analytics_enabled']
+        analytics_enabled = settings["analytics_enabled"]
         if (config.analytics_enabled and analytics_enabled is not False) or analytics_enabled is True:
-            request_span.set_tag(
-                ANALYTICS_SAMPLE_RATE_KEY,
-                settings.get('analytics_sample_rate', True)
-            )
+            request_span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, settings.get("analytics_sample_rate", True))
 
         setattr(handler.request, REQUEST_SPAN_KEY, request_span)
 
@@ -65,12 +62,15 @@ def on_finish(func, handler, args, kwargs):
         # default handler class will be used so we don't pollute the resource
         # space here
         klass = handler.__class__
-        request_span.resource = '{}.{}'.format(klass.__module__, klass.__name__)
-        request_span.set_tag('http.method', request.method)
-        request_span.set_tag('http.status_code', handler.get_status())
-        request_span.set_tag(http.URL, request.full_url().rsplit('?', 1)[0])
-        if config.tornado.trace_query_string:
-            request_span.set_tag(http.QUERY_STRING, request.query)
+        request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
+        set_http_meta(
+            request_span,
+            config.tornado,
+            method=request.method,
+            url=request.full_url().rsplit("?", 1)[0],
+            status_code=handler.get_status(),
+            query=request.query,
+        )
         request_span.finish()
 
     return func(*args, **kwargs)
@@ -84,13 +84,20 @@ def log_exception(func, handler, args, kwargs):
     will not be called because ``Finish`` is not an exception.
     """
     # safe-guard: expected arguments -> log_exception(self, typ, value, tb)
-    value = args[1] if len(args) == 3 else None
+    try:
+        value = get_argument_value(args, kwargs, 1, "value")
+    except ArgumentError:
+        value = None
+
     if not value:
         return func(*args, **kwargs)
 
     # retrieve the current span
-    tracer = handler.settings[CONFIG_KEY]['tracer']
+    tracer = handler.settings[CONFIG_KEY]["tracer"]
     current_span = tracer.current_span()
+
+    if not current_span:
+        return func(*args, **kwargs)
 
     if isinstance(value, HTTPError):
         # Tornado uses HTTPError exceptions to stop and return a status code that

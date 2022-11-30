@@ -1,0 +1,31 @@
+[[
+  {
+    "name": "cherrypy.request",
+    "service": "test.cherrypy.service",
+    "resource": "GET /fatal",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "error.msg": "division by zero",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/_cprequest.py\", line 634, in respond\n    self._do_respond(path_info)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/_cprequest.py\", line 693, in _do_respond\n    response.body = self.handler()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/lib/encoding.py\", line 221, in __call__\n    self.body = self.oldhandler(*args, **kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/_cpdispatch.py\", line 60, in __call__\n    return self.callable(*self.args, **self.kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/tests/contrib/cherrypy/web.py\", line 64, in fatal\n    1 / 0\nZeroDivisionError: division by zero\n",
+      "error.type": "<class 'ZeroDivisionError'>",
+      "http.method": "GET",
+      "http.request.headers.host": "127.0.0.1:54583",
+      "http.status_code": "500",
+      "http.url": "http://127.0.0.1:54583/fatal",
+      "runtime-id": "8cbf3566774347d39dcfc241879cbf84"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 54385
+    },
+    "duration": 1428000,
+    "start": 1631828602413273000
+  }]]

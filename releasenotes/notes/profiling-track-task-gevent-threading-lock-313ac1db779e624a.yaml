@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The gevent tasks are now tracked by the threading lock events

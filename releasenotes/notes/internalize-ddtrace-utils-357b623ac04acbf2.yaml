@@ -1,0 +1,6 @@
+---
+deprecations:
+  - |
+    The ``ddtrace.utils`` module and all of its submodules have been copied over
+    into ``ddtrace.internal`` in an effort to internalize these modules. Their
+    public counterparts will be removed entirely in version 1.0.0.

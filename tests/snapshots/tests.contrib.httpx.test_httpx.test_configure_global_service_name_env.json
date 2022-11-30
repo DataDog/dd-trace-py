@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "http.request",
+    "service": "global-service-name",
+    "resource": "http.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "http.useragent": "python-httpx/x.xx.x",
+      "runtime-id": "e967975172d744389b32bd04c236270c"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 85267
+    },
+    "duration": 8271000,
+    "start": 1633032093621943000
+  }]]

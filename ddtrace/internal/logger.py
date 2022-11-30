@@ -1,10 +1,14 @@
 import collections
 import logging
-
-from ..utils.formats import get_env
+import os
+from typing import Any
+from typing import DefaultDict
+from typing import Tuple
+from typing import cast
 
 
 def get_logger(name):
+    # type: (str) -> DDLogger
     """
     Retrieve or create a ``DDLogger`` instance.
 
@@ -32,11 +36,12 @@ def get_logger(name):
     # DEV: `Manager.loggerDict` is a dict mapping logger name to logger
     # DEV: This is a simplified version of `logging.Manager.getLogger`
     #   https://github.com/python/cpython/blob/48769a28ad6ef4183508951fa6a378531ace26a4/Lib/logging/__init__.py#L1221-L1253  # noqa
-    if name not in manager.loggerDict:
+    # DEV: _fixupParents could be adding a placeholder, we want to replace it if that's the case
+    if name not in manager.loggerDict or isinstance(manager.loggerDict[name], logging.PlaceHolder):
         manager.loggerDict[name] = DDLogger(name=name)
 
     # Get our logger
-    logger = manager.loggerDict[name]
+    logger = cast(DDLogger, manager.loggerDict[name])
 
     # If this log manager has a `_fixupParents` method then call it on our logger
     # DEV: This helper is used to ensure our logger has an appropriate `Logger.parent` set,
@@ -46,11 +51,12 @@ def get_logger(name):
     if hasattr(manager, "_fixupParents"):
         manager._fixupParents(logger)
 
-    # Return out logger
+    # Return our logger
     return logger
 
 
 def hasHandlers(self):
+    # type: (DDLogger) -> bool
     """
     See if this logger has any handlers configured.
     Loop through all handlers for this logger and its parents in the
@@ -70,7 +76,7 @@ def hasHandlers(self):
         if not c.propagate:
             break
         else:
-            c = c.parent
+            c = c.parent  # type: ignore
     return rv
 
 
@@ -82,24 +88,31 @@ class DDLogger(logging.Logger):
     log messages from within the ``ddtrace`` package.
     """
 
-    __slots__ = ("buckets", "rate_limit")
-
     # Named tuple used for keeping track of a log lines current time bucket and the number of log lines skipped
     LoggingBucket = collections.namedtuple("LoggingBucket", ("bucket", "skipped"))
 
     def __init__(self, *args, **kwargs):
+        # type: (*Any, **Any) -> None
         """Constructor for ``DDLogger``"""
         super(DDLogger, self).__init__(*args, **kwargs)
 
         # Dict to keep track of the current time bucket per name/level/pathname/lineno
-        self.buckets = collections.defaultdict(lambda: DDLogger.LoggingBucket(0, 0))
+        self.buckets = collections.defaultdict(
+            lambda: DDLogger.LoggingBucket(0, 0)
+        )  # type: DefaultDict[Tuple[str, int, str, int], DDLogger.LoggingBucket]
 
         # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
-        # Allow configuring via `DD_LOGGING_RATE_LIMIT`
-        # DEV: `DD_LOGGING_RATE_LIMIT=0` means to disable all rate limiting
-        self.rate_limit = int(get_env("logging", "rate_limit", default=60))
+        # Allow configuring via `DD_TRACE_LOGGING_RATE`
+        # DEV: `DD_TRACE_LOGGING_RATE=0` means to disable all rate limiting
+        rate_limit = os.getenv("DD_TRACE_LOGGING_RATE", default=None)
+
+        if rate_limit is not None:
+            self.rate_limit = int(rate_limit)
+        else:
+            self.rate_limit = 60
 
     def handle(self, record):
+        # type: (logging.LogRecord) -> None
         """
         Function used to call the handlers for a log line.
 
@@ -112,8 +125,9 @@ class DDLogger(logging.Logger):
         :param record: The log record being logged
         :type record: ``logging.LogRecord``
         """
-        # If rate limiting has been disabled (`DD_LOGGING_RATE_LIMIT=0`) then apply no rate limit
-        if not self.rate_limit:
+        # If rate limiting has been disabled (`DD_TRACE_LOGGING_RATE=0`) then apply no rate limit
+        # If the logging is in debug, then do not apply any limits to any log
+        if not self.rate_limit or self.getEffectiveLevel() == logging.DEBUG:
             super(DDLogger, self).handle(record)
             return
 
@@ -136,7 +150,7 @@ class DDLogger(logging.Logger):
             # Append count of skipped messages if we have skipped some since our last logging
             if logging_bucket.skipped:
                 record.msg = "{}, %s additional messages skipped".format(record.msg)
-                record.args = record.args + (logging_bucket.skipped,)
+                record.args = record.args + (logging_bucket.skipped,)  # type: ignore
 
             # Reset our bucket
             self.buckets[key] = DDLogger.LoggingBucket(current_bucket, 0)

@@ -1,27 +1,27 @@
 import os
+from typing import List
+from typing import Tuple
 
 from .collector import ValueCollector
-from .constants import (
-    GC_COUNT_GEN0,
-    GC_COUNT_GEN1,
-    GC_COUNT_GEN2,
-    THREAD_COUNT,
-    MEM_RSS,
-    CTX_SWITCH_VOLUNTARY,
-    CTX_SWITCH_INVOLUNTARY,
-    CPU_TIME_SYS,
-    CPU_TIME_USER,
-    CPU_PERCENT,
-)
+from .constants import CPU_PERCENT
+from .constants import CPU_TIME_SYS
+from .constants import CPU_TIME_USER
+from .constants import CTX_SWITCH_INVOLUNTARY
+from .constants import CTX_SWITCH_VOLUNTARY
+from .constants import GC_COUNT_GEN0
+from .constants import GC_COUNT_GEN1
+from .constants import GC_COUNT_GEN2
+from .constants import MEM_RSS
+from .constants import THREAD_COUNT
 
 
 class RuntimeMetricCollector(ValueCollector):
-    value = []
+    value = []  # type: List[Tuple[str, str]]
     periodic = True
 
 
 class GCRuntimeMetricCollector(RuntimeMetricCollector):
-    """ Collector for garbage collection generational counts
+    """Collector for garbage collection generational counts
 
     More information at https://docs.python.org/3/library/gc.html
     """
@@ -51,7 +51,10 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
 
     required_modules = ["ddtrace.vendor.psutil"]
     stored_value = dict(
-        CPU_TIME_SYS_TOTAL=0, CPU_TIME_USER_TOTAL=0, CTX_SWITCH_VOLUNTARY_TOTAL=0, CTX_SWITCH_INVOLUNTARY_TOTAL=0,
+        CPU_TIME_SYS_TOTAL=0,
+        CPU_TIME_USER_TOTAL=0,
+        CTX_SWITCH_VOLUNTARY_TOTAL=0,
+        CTX_SWITCH_INVOLUNTARY_TOTAL=0,
     )
 
     def _on_modules_load(self):

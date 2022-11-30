@@ -1,18 +1,24 @@
-import pkg_resources
+from ddtrace.internal.module import ModuleWatchdog
 
-from .monkey import patch, patch_all  # noqa: E402
+
+ModuleWatchdog.install()
+
+from ._logger import configure_ddtrace_logger  # noqa: E402
+
+
+# configure ddtrace logger before other modules log
+configure_ddtrace_logger()  # noqa: E402
+from ._monkey import patch  # noqa: E402
+from ._monkey import patch_all  # noqa: E402
+from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .pin import Pin  # noqa: E402
+from .settings import _config as config  # noqa: E402
 from .span import Span  # noqa: E402
 from .tracer import Tracer  # noqa: E402
-from .settings import config  # noqa: E402
-from .utils.deprecation import deprecated  # noqa: E402
+from .version import get_version  # noqa: E402
 
-try:
-    __version__ = pkg_resources.get_distribution(__name__).version
-except pkg_resources.DistributionNotFound:
-    # package is not installed
-    __version__ = "dev"
 
+__version__ = get_version()
 
 # a global tracer instance with integration settings
 tracer = Tracer()
@@ -25,14 +31,5 @@ __all__ = [
     "tracer",
     "Tracer",
     "config",
+    "DDTraceDeprecationWarning",
 ]
-
-
-@deprecated("This method will be removed altogether", "1.0.0")
-def install_excepthook():
-    """Install a hook that intercepts unhandled exception and send metrics about them."""
-
-
-@deprecated("This method will be removed altogether", "1.0.0")
-def uninstall_excepthook():
-    """Uninstall the global tracer except hook."""

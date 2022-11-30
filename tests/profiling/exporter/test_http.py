@@ -1,24 +1,30 @@
 # -*- encoding: utf-8 -*-
 import collections
-import errno
 import email.parser
 import platform
 import socket
+import sys
 import threading
 import time
 
 import pytest
-
-from ddtrace import compat
-from ddtrace.vendor import six
-from ddtrace.vendor.six.moves import BaseHTTPServer
-from ddtrace.vendor.six.moves import http_client
-from ddtrace.vendor.six.moves.urllib import error
+import six
+from six.moves import BaseHTTPServer
+from six.moves import http_client
 
 import ddtrace
+from ddtrace.internal import compat
+from ddtrace.profiling import exporter
 from ddtrace.profiling.exporter import http
 
 from . import test_pprof
+
+
+# Skip this test on Windows:
+# they add little value and the HTTP server shutdown seems unreliable and crashes
+# TODO: rewrite those test with another HTTP server that works on win32?
+if sys.platform == "win32":
+    pytestmark = pytest.mark.skip
 
 
 _API_KEY = "my-api-key"
@@ -27,6 +33,7 @@ _API_KEY = "my-api-key"
 class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
     error_message_format = "%(message)s\n"
     error_content_type = "text/plain"
+    path_prefix = "/profiling/v1"
 
     @staticmethod
     def log_message(format, *args):  # noqa: A002
@@ -47,6 +54,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
         )
 
     def do_POST(self):
+        assert self.path.startswith(self.path_prefix)
         api_key = self.headers["DD-API-KEY"]
         if api_key != _API_KEY:
             self.send_error(400, "Wrong API Key")
@@ -65,13 +73,13 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
         for part in msg.get_payload():
             items[part.get_param("name", header="content-disposition")].append(part.get_payload(decode=True))
         for key, check in {
-            "recording-start": lambda x: x[0] == b"1970-01-01T00:00:00Z",
-            "recording-end": lambda x: x[0].startswith(b"20"),
-            "runtime": lambda x: x[0] == platform.python_implementation().encode(),
-            "format": lambda x: x[0] == b"pprof",
-            "type": lambda x: x[0] == b"cpu+alloc+exceptions",
+            "start": lambda x: x[0] == b"1970-01-01T00:00:00Z",
+            "end": lambda x: x[0].startswith(b"20"),
+            "family": lambda x: x[0] == b"python",
+            "version": lambda x: x[0] == b"3",
             "tags[]": self._check_tags,
-            "chunk-data": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
+            "data[auto.pprof]": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
+            "data[code-provenance.json]": lambda x: x[0].startswith(b"\x1f\x8b\x08\x00"),
         }.items():
             if not check(items[key]):
                 self.send_error(400, "Wrong value for %s: %r" % (key, items[key]))
@@ -157,74 +165,77 @@ def endpoint_test_unknown_server():
 
 def test_wrong_api_key(endpoint_test_server):
     # This is mostly testing our test server, not the exporter
-    exp = http.PprofHTTPExporter(_ENDPOINT, "this is not the right API key", max_retry_delay=2)
-    with pytest.raises(http.UploadFailed) as t:
+    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT, api_key="this is not the right API key", max_retry_delay=2)
+    with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
-    assert isinstance(e, error.HTTPError)
-    assert e.code == 400
-    assert e.reason == "Wrong API Key"
-    assert str(t.value) == "Unable to upload profile: Server returned 400, check your API key"
+    assert str(t.value) == "Server returned 400, check your API key"
 
 
 def test_export(endpoint_test_server):
-    exp = http.PprofHTTPExporter(_ENDPOINT, _API_KEY)
+    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT, api_key=_API_KEY)
     exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
 def test_export_server_down():
-    exp = http.PprofHTTPExporter("http://localhost:2", _API_KEY, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(endpoint="http://localhost:2", api_key=_API_KEY, max_retry_delay=2)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
-    assert isinstance(e, error.URLError)
-    assert isinstance(e.reason, (IOError, OSError))
-    assert e.reason.errno in (errno.ECONNREFUSED, errno.EADDRNOTAVAIL)
+    e = t.value.last_attempt.exception()
+    assert isinstance(e, (IOError, OSError))
+    assert str(t.value).startswith("[Errno ") or str(t.value).startswith("[WinError ")
 
 
 def test_export_timeout(endpoint_test_timeout_server):
-    exp = http.PprofHTTPExporter(_TIMEOUT_ENDPOINT, _API_KEY, timeout=1, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(endpoint=_TIMEOUT_ENDPOINT, api_key=_API_KEY, timeout=1, max_retry_delay=2)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
+    e = t.value.last_attempt.exception()
     assert isinstance(e, socket.timeout)
+    assert str(t.value) == "timed out"
 
 
 def test_export_reset(endpoint_test_reset_server):
-    exp = http.PprofHTTPExporter(_RESET_ENDPOINT, _API_KEY, timeout=1, max_retry_delay=2)
+    exp = http.PprofHTTPExporter(endpoint=_RESET_ENDPOINT, api_key=_API_KEY, timeout=1, max_retry_delay=2)
     with pytest.raises(http.UploadFailed) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
+    e = t.value.last_attempt.exception()
     if six.PY3:
         assert isinstance(e, ConnectionResetError)
     else:
         assert isinstance(e, http_client.BadStatusLine)
+        assert str(e) == "No status line received - the server has closed the connection"
 
 
 def test_export_404_agent(endpoint_test_unknown_server):
-    exp = http.PprofHTTPExporter(_UNKNOWN_ENDPOINT)
-    with pytest.raises(http.UploadFailed) as t:
+    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT)
+    with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
-    assert isinstance(e, error.HTTPError)
-    assert e.code == 404
     assert str(t.value) == (
-        "Unable to upload profile: Datadog Agent is not accepting profiles. "
-        "Agent-based profiling deployments require Datadog Agent >= 7.20"
+        "Datadog Agent is not accepting profiles. " "Agent-based profiling deployments require Datadog Agent >= 7.20"
     )
 
 
 def test_export_404_agentless(endpoint_test_unknown_server):
-    exp = http.PprofHTTPExporter(_UNKNOWN_ENDPOINT, api_key="123", timeout=1)
-    with pytest.raises(http.UploadFailed) as t:
+    exp = http.PprofHTTPExporter(endpoint=_UNKNOWN_ENDPOINT, api_key="123", timeout=1)
+    with pytest.raises(exporter.ExportError) as t:
         exp.export(test_pprof.TEST_EVENTS, 0, 1)
-    e = t.value.exception
-    assert isinstance(e, error.HTTPError)
-    assert e.code == 404
-    if six.PY2:
-        assert str(t.value) == "Unable to upload profile: HTTPError: HTTP Error 404: Argh\n"
-    else:
-        assert str(t.value) == "Unable to upload profile: urllib.error.HTTPError: HTTP Error 404: Argh\n"
+    assert str(t.value) == "HTTP Error 404"
+
+
+def test_export_tracer_base_path(endpoint_test_server):
+    # Base path is prepended to the endpoint path because
+    # it does not start with a slash.
+    exp = http.PprofHTTPExporter(endpoint=_ENDPOINT + "/profiling/", api_key=_API_KEY, endpoint_path="v1/input")
+    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
+
+
+def test_export_tracer_base_path_agent_less(endpoint_test_server):
+    # Base path is ignored by the profiling HTTP exporter
+    # because the endpoint path starts with a slash.
+    exp = http.PprofHTTPExporter(
+        endpoint=_ENDPOINT + "/profiling/", api_key=_API_KEY, endpoint_path="/profiling/v1/input"
+    )
+    exp.export(test_pprof.TEST_EVENTS, 0, compat.time_ns())
 
 
 def _check_tags_types(tags):
@@ -385,6 +396,20 @@ def test_get_tags_override(monkeypatch):
     assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
     assert tags["version"] == b"123"
     assert tags["env"] == b"prod"
+
+    tags = http.PprofHTTPExporter(endpoint="", version="123", env="prod", tags={"mytag": "123"})._get_tags("foobar")
+    _check_tags_types(tags)
+    assert len(tags) == 11
+    assert tags["service"] == u"🤣".encode("utf-8")
+    assert len(tags["host"])
+    assert len(tags["runtime-id"])
+    assert tags["language"] == b"python"
+    assert tags["runtime"] == b"CPython"
+    assert tags["foobar"] == b"baz"
+    assert tags["profiler_version"] == ddtrace.__version__.encode("utf-8")
+    assert tags["version"] == b"123"
+    assert tags["env"] == b"prod"
+    assert tags["mytag"] == b"123"
 
 
 def test_get_tags_legacy(monkeypatch):

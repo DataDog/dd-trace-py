@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    `ddtrace.compat` has been deprecated and will be removed from the public API in ddtrace version 1.0.0.

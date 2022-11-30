@@ -558,7 +558,12 @@ static inline int msgpack_pack_double(msgpack_packer* x, double d)
 {
     unsigned char buf[9];
     buf[0] = 0xcb;
-    _PyFloat_Pack8(d, &buf[1], 0);
+    // Python 3.11 introduced PyFloat_Pack8() to the public C API and moved _PyFloat_Pack8() to the internal C API
+    #if PY_VERSION_HEX <= 0x030B0000
+        _PyFloat_Pack8(d, &buf[1], 0);
+    #else
+        PyFloat_Pack8(d, &buf[1], 0);
+    #endif
     msgpack_pack_append_buffer(x, buf, 9);
 }
 
@@ -572,6 +577,26 @@ static inline int msgpack_pack_nil(msgpack_packer* x)
     static const unsigned char d = 0xc0;
     msgpack_pack_append_buffer(x, &d, 1);
 }
+
+
+
+/*
+ * Boolean
+ */
+
+static inline int msgpack_pack_true(msgpack_packer* x)
+{
+    static const unsigned char d = 0xc3;
+    msgpack_pack_append_buffer(x, &d, 1);
+}
+
+
+static inline int msgpack_pack_false(msgpack_packer* x)
+{
+    static const unsigned char d = 0xc2;
+    msgpack_pack_append_buffer(x, &d, 1);
+}
+
 
 
 /*
@@ -625,6 +650,9 @@ static inline int msgpack_pack_raw(msgpack_packer* x, size_t l)
     if (l < 32) {
         unsigned char d = 0xa0 | (uint8_t)l;
         msgpack_pack_append_buffer(x, &TAKE8_8(d), 1);
+    } else if (l < 256) {
+        unsigned char buf[2] = {0xd9, (uint8_t)l};
+        msgpack_pack_append_buffer(x, buf, 2);
     } else if (l < 65536) {
         unsigned char buf[3];
         buf[0] = 0xda; _msgpack_store16(&buf[1], (uint16_t)l);
@@ -632,6 +660,27 @@ static inline int msgpack_pack_raw(msgpack_packer* x, size_t l)
     } else {
         unsigned char buf[5];
         buf[0] = 0xdb; _msgpack_store32(&buf[1], (uint32_t)l);
+        msgpack_pack_append_buffer(x, buf, 5);
+    }
+}
+
+
+
+/*
+ * bin
+ */
+static inline int msgpack_pack_bin(msgpack_packer *x, size_t l)
+{
+    if (l < 256) {
+        unsigned char buf[2] = {0xc4, (unsigned char)l};
+        msgpack_pack_append_buffer(x, buf, 2);
+    } else if (l < 65536) {
+        unsigned char buf[3] = {0xc5};
+        _msgpack_store16(&buf[1], (uint16_t)l);
+        msgpack_pack_append_buffer(x, buf, 3);
+    } else {
+        unsigned char buf[5] = {0xc6};
+        _msgpack_store32(&buf[1], (uint32_t)l);
         msgpack_pack_append_buffer(x, buf, 5);
     }
 }

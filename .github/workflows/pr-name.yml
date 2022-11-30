@@ -1,0 +1,54 @@
+name: pr-name
+on:
+  pull_request:
+    types: ['opened', 'edited', 'reopened', 'synchronize']
+
+jobs:
+  pr_name_lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v3
+        name: Install Node.js
+        with:
+          node-version: 16
+      - name: Install dependencies
+        run: |
+          npm install @commitlint/lint @commitlint/load @commitlint/config-conventional @actions/core
+      - name: Lint PR name
+        uses: actions/github-script@v6.2.0
+        with:
+          script: |
+            const load = require('@commitlint/load').default;
+            const lint = require('@commitlint/lint').default;
+
+            const CONFIG = {
+              extends: ['./commitlint.config.js'],
+            };
+
+            const title = context.payload.pull_request.title;
+
+            core.info(`Linting: ${title}`);
+
+            load(CONFIG)
+              .then((opts) => {
+                lint(
+                  title,
+                  opts.rules,
+                  opts.parserPreset ? {parserOpts: opts.parserPreset.parserOpts} : {}
+                ).then((report) => {
+                  report.warnings.forEach((warning) => {
+                    core.warning(warning.message);
+                  });
+
+                  report.errors.forEach((error) => {
+                    core.error(error.message);
+                  });
+
+                  if (!report.valid) {
+                    core.setFailed("PR title linting failed");
+                  }
+                });
+              });

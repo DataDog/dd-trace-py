@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Resolves an issue in Django tracing where,
+    if `query_string` is not present in request.META, a KeyError is raised, causing the request to 500

@@ -20,7 +20,6 @@ Available settings are:
 * ``datadog_trace_service``: change the `pyramid` service name
 * ``datadog_trace_enabled``: sets if the Tracer is enabled or not
 * ``datadog_distributed_tracing``: set it to ``False`` to disable Distributed Tracing
-* ``datadog_analytics_enabled``: set it to ``True`` to analyze spans for Pyramid in App Analytics
 
 If you use the ``pyramid.tweens`` settings value to set the tweens for your
 application, you need to add ``ddtrace.contrib.pyramid:trace_tween_factory``
@@ -37,21 +36,25 @@ explicitly to the list. For example::
     # use your config as normal.
     config.add_route('index', '/')
 
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
-required_modules = ['pyramid']
+required_modules = ["pyramid"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .trace import trace_pyramid, trace_tween_factory, includeme
         from .patch import patch
+        from .trace import includeme
+        from .trace import trace_pyramid
+        from .trace import trace_tween_factory
 
         __all__ = [
-            'patch',
-            'trace_pyramid',
-            'trace_tween_factory',
-            'includeme',
+            "patch",
+            "trace_pyramid",
+            "trace_tween_factory",
+            "includeme",
         ]

@@ -1,3 +1,9 @@
+from typing import TYPE_CHECKING
+
+from ddtrace import Pin
+from ddtrace import config
+from ddtrace.vendor import wrapt
+
 import inspect
 import warnings
 
@@ -7,13 +13,20 @@ import asyncpg.protocol
 import asyncpg.connect_utils
 import asyncpg.pool
 
-# project
-from ddtrace.vendor import wrapt
-from ddtrace.ext import net, db
+from ...ext import db
+from ...ext import net
 from ddtrace.pin import Pin
 from .connection import AIOTracedProtocol
 from ...utils.wrappers import unwrap as _u
 from ...ext import sql
+
+
+config._add(
+    "asyncpg",
+    dict(
+        _default_service="postgres",
+    ),
+)
 
 
 def _create_pin(tags):

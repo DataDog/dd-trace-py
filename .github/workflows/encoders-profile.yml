@@ -1,0 +1,42 @@
+name: encoders-profile
+on:
+  push:
+    branches:
+      - master
+      - 0.x
+      - 1.x
+  pull_request:
+jobs:
+  encoders-profile:
+    runs-on: ubuntu-latest
+    env:
+      PREFIX: ${{ github.workspace }}/prefix
+    defaults:
+      run:
+        working-directory: ddtrace
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: ddtrace
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+
+      - name: Setup
+        run: |
+          bash scripts/profiles/encoders/setup.sh ${PREFIX}
+
+      - name: Run
+        run: |
+          bash scripts/profiles/encoders/run.sh ${PREFIX}
+          for a in `ls ${PREFIX}/artifacts`
+          do
+            sed -i 's|${{ github.workspace }}/ddtrace/||g' ${PREFIX}/artifacts/$a
+          done
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: encoders-profile
+          path: ${{ github.workspace }}/prefix/artifacts
+

@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    When extracting context information from HTTP headers, a new context is
+    created when the trace ID is either 0 or not available within the headers.

@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.44.0+
+
+Changelogs are now managed automatically by reno and located at https://ddtrace.readthedocs.io/en/stable/release_notes.html.
+
+---
+
+## 0.43.0 (5/10/2020)
+
+- fix(django): avoid mixing str and non-str args for uri helper
+- fix(asgi): tag 500-level responses as errors
+- fix(asgi): set http status when exception raised
+- fix(rediscluster): support rediscluster==2.1.0
+- fix(asyncio): enable patch by default
+- fix(asyncio): patch base event loop class
+- fix(vertica): use strings in `__all__`
+- feat(core): backport contextvars
+- fix(sanic): fix patching for sanic async http server (#1659)
+- fix(flask): make template patching idempotent
+- fix(core): Do not rate limit log lines when in debug
+- fix(profiling): Fix a potential deadlock on profiler restart after fork()
+
+---
+
+## 0.42.0 (14/09/2020)
+
+- feat(django): add database_service_name config option
+- feat: add global service name configuration for dbapi integrations
+- fix(falcon): set span error for 5xx responses
+- fix(core): always store span_type as str on span
+- feat(pymongo): trace tcp connections
+- fix(logging): cast span_id and trace_id as string when adding to the record. 
+- fix(gevent): patch ssl modules on import
+- feat(core): add trace_utils module
+- fix(core): expose http setting on global config
+- feat(core): consolidate fork checks
+
+---
+
+## 0.41.2 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
+## 0.41.1 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
+---
+
 ## 0.41 (05/08/2020)
 
 ### Changes
@@ -22,6 +72,22 @@
 https://github.com/DataDog/dd-trace-py/compare/v0.40.0...v0.41.0
 
 
+---
+
+
+## 0.40.2 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
+
+## 0.40.1 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
+---
+
 ## 0.40 (17/07/2020)
 
 # Upgrading to 0.40.0
@@ -36,7 +102,7 @@ This release includes performance improvements in the core library, updates prof
 
 * Use `ddtrace.config.redis["service"]` to set the service name for the `redis` integration. The environment variable `DD_REDIS_SERVICE` can also be used.
 
-## httplib 
+## httplib
 
 * To enable distributed tracing, use `ddtrace.config.httplib["distributed_tracing"]`. By default, distributed tracing for `httplib` is disabled.
 
@@ -67,6 +133,18 @@ This release includes performance improvements in the core library, updates prof
 ## Full changeset
 
 Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.39.0...v0.40.0).
+
+---
+
+## 0.39.2 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
+## 0.39.1 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
 
 ---
 
@@ -161,6 +239,19 @@ https://github.com/DataDog/dd-trace-py/milestone/57?closed=1
 
 ---
 
+
+## 0.38.4 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
+## 0.38.3 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
+---
+
 ## 0.38.2 (11/06/2020)
 This patch release disables span linkage by default in the profiler which was causing some threading lock up issues in gevent. See #1488 and #1485 for the details.
 
@@ -241,6 +332,18 @@ version. (#1468)
 - update tests to latest versions of libraries (#1434, #1433, #1432, #1424, #1423, #1422, #1421, #1420, #1419, #1418, #1417, #1416, #1412, #1411, #1410, #1409, #1408, #1407, #1406, #1405)
 - circleci: remove unused busybox (#1426)
 
+---
+
+## 0.37.3 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
+## 0.37.2 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
 
 ---
 
@@ -309,6 +412,18 @@ New environment variables have been added to allow you to easily configure and d
 - aiobotocore: pin to <1.0 (#1330)
 - ci: allow to use latest pytest version (#1326)
 - fix(tests/profiling): use a string with setenv, not an int (#1321)
+
+---
+
+## 0.36.3 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
+## 0.36.2 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
 
 ---
 
@@ -392,6 +507,18 @@ If you are using the profiler, please note that `ddtrace.profile` has been renam
 
 ---
 
+## 0.35.2 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
+## 0.35.1 (25/08/2020)
+
+- reintroduce wrapt for patching Django view methods. ([#1622](https://github.com/DataDog/dd-trace-py/pull/1622))
+
+---
+
 ## 0.35.0 (13/03/2020)
 ## Upgrading to 0.35.0
 
@@ -452,6 +579,12 @@ This release adds:
 Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.34.1...v0.35.0).
 ---
 
+## 0.34.2 (25/08/2020)
+
+- Fix for an issue introduced by patching classes in the MRO of a Django View class (#1625).
+
+---
+
 ## 0.34.1 (09/03/2020)
 ## Changes
 
@@ -469,7 +602,7 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.34.0
 ## 0.34.0 (21/02/2020)
 ## Upgrading to 0.34.0
 
-This release adds a new integration for Django. The goal of this effort was to make the Django integration more consistent with our other integrations, simplifying configuration and patching. See the [Django documentation](http://pypi.datadoghq.com/trace/docs/web_integrations.html#django) for details on how to get started with the integration. For existing Django applications, be sure to consult the [migration section](http://pypi.datadoghq.com/trace/docs/web_integrations.html#migration-from-ddtrace-0-33-0) of the documentation. 
+This release adds a new integration for Django. The goal of this effort was to make the Django integration more consistent with our other integrations, simplifying configuration and patching. See the [Django documentation](https://ddtrace.readthedocs.io/en/latest/integrations.html#django) for details on how to get started with the integration. For existing Django applications, be sure to consult the [migration section](https://ddtrace.readthedocs.io/en/v0.50.3/integrations.html#migration-from-ddtrace-0-33-0) of the documentation. 
 
 While we are now vendoring `psutil`, `msgpack` will no longer be vendored and instead specified as a requirement. 
 
@@ -862,7 +995,7 @@ This release includes several core improvements and addresses pain points in our
 - [writer] Enhance Q implementation with a wait based one (#862)
 - [core] Add Span 'manual.keep' and 'manual.drop' tag support (#849)
 - [core] Vendor msgpack dependency (#848)
-- Fix http.url tag inconsitency (#899)
+- Fix http.url tag inconsistency (#899)
 - aiohttp: do not set query string in http.url tag (#923)
 - tornado: do not include query string in the http.url tag (#922)
 - bottle: fix query string embedded in URL (#921)
@@ -1700,7 +1833,7 @@ Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.5.4.
 - documentation fixes
 - send less data to the agent in the SQL and redis integrations.
 
-Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.5.3...master)
+Read the [full changeset](https://github.com/DataDog/dd-trace-py/compare/v0.5.3...v0.5.4)
 
 ---
 

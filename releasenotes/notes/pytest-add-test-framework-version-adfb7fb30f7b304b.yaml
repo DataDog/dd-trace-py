@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Only for CI Visibility (``pytest`` integration): include ``pytest`` version as a tag in the test span.

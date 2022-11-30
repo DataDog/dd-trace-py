@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    fastapi: add integration.

@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add :py:attr:`ddtrace.Tracer.agent_trace_url` and :py:meth:`ddtrace.Tracer.flush`.
+deprecations:
+  - |
+    :py:attr:`ddtrace.Tracer.writer` is deprecated. To force flushing of buffered traces to the agent, use :py:meth:`ddtrace.Tracer.flush` instead.

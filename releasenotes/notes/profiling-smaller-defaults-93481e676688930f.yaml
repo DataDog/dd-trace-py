@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    The default number of events kept by the profiler has been reduced to
+    decreased CPU and memory overhead.

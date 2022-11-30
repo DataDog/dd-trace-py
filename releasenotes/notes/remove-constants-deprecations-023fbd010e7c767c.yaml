@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    ``ddtrace.constants.FILTERS_KEY`` is removed.
+  - |
+    ``ddtrace.constants.NUMERIC_TAGS`` is removed.
+  - |
+    ``ddtrace.constants.LOG_SPAN_KEY`` is removed.

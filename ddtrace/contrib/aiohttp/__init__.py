@@ -1,13 +1,48 @@
 """
-The ``aiohttp`` integration traces all requests defined in the application handlers.
-Auto instrumentation is available using the ``trace_app`` function::
+The ``aiohttp`` integration traces requests made with the client or to the server.
+
+The client is automatically instrumented while the server must be manually instrumented using middleware.
+
+Client
+******
+
+Enabling
+~~~~~~~~
+
+The client integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
+
+Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
+
+    from ddtrace import patch
+    patch(aiohttp=True)
+
+
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.aiohttp_client['distributed_tracing']
+
+   Include distributed tracing headers in requests sent from the aiohttp client.
+
+   This option can also be set with the ``DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING``
+   environment variable.
+
+   Default: ``True``
+
+
+Server
+******
+
+Enabling
+~~~~~~~~
+
+Automatic instrumentation is not available for the server, instead
+the provided ``trace_app`` function must be used::
 
     from aiohttp import web
     from ddtrace import tracer, patch
     from ddtrace.contrib.aiohttp import trace_app
-
-    # patch third-party modules like aiohttp_jinja2
-    patch(aiohttp=True)
 
     # create your application
     app = web.Application()
@@ -32,11 +67,6 @@ Available settings are:
 * ``distributed_tracing_enabled`` (default: ``True``): enable distributed tracing during
   the middleware execution, so that a new span is created with the given ``trace_id`` and
   ``parent_id`` injected via request headers.
-* ``analytics_enabled`` (default: ``None``): analyze spans for AioHTTP in App Analytics.
-
-Third-party modules that are currently supported by the ``patch()`` method are:
-
-* ``aiohttp_jinja2``
 
 When a request span is created, a new ``Context`` for this logical execution is attached
 to the ``request`` object, so that it can be used in the application code::
@@ -44,18 +74,23 @@ to the ``request`` object, so that it can be used in the application code::
     async def home_handler(request):
         ctx = request['datadog_context']
         # do something with the tracing Context
-"""
-from ...utils.importlib import require_modules
 
-required_modules = ['aiohttp']
+:ref:`All HTTP tags <http-tagging>` are supported for this integration.
+
+"""
+from ...internal.utils.importlib import require_modules
+
+
+required_modules = ["aiohttp"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
         from .middlewares import trace_app
+        from .patch import patch
+        from .patch import unpatch
 
         __all__ = [
-            'patch',
-            'unpatch',
-            'trace_app',
+            "patch",
+            "unpatch",
+            "trace_app",
         ]

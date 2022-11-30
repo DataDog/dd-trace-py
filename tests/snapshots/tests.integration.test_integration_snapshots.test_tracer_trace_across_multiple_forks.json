@@ -1,0 +1,60 @@
+[[
+  {
+    "name": "parent",
+    "service": null,
+    "resource": "parent",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "7fcf456c657a442d8e637e5adda7270d"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 52166
+    },
+    "duration": 861500000,
+    "start": 1631827407768929000
+  },
+     {
+       "name": "child1",
+       "service": null,
+       "resource": "child1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "meta": {
+         "runtime-id": "da86c61045c247d78f3484fe9e693377"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1,
+         "system.pid": 52181
+       },
+       "duration": 660665000,
+       "start": 1631827407811098000
+     },
+        {
+          "name": "child2",
+          "service": null,
+          "resource": "child2",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "meta": {
+            "runtime-id": "9181d9085f7e47f5a3eb66709923c2f6"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "_dd.tracer_kr": 1.0,
+            "_sampling_priority_v1": 1,
+            "system.pid": 52186
+          },
+          "duration": 162000,
+          "start": 1631827408305852000
+        }]]

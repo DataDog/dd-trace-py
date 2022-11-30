@@ -19,23 +19,37 @@ enabled before using the middleware::
     from ddtrace import tracer  # Or whichever tracer instance you plan to use
     tracer.configure(context_provider=AsyncioContextProvider())
 
+The middleware also supports using a custom function for handling exceptions for a trace::
+
+    from ddtrace.contrib.asgi import TraceMiddleware
+
+    def custom_handle_exception_span(exc, span):
+        span.set_tag("http.status_code", 501)
+
+    # app = <your asgi app>
+    app = TraceMiddleware(app, handle_exception_span=custom_handle_exception_span)
+
+
+To retrieve the request span from the scope of an ASGI request use the ``span_from_scope``
+function::
+
+    from ddtrace.contrib.asgi import span_from_scope
+
+    def handle_request(scope, send):
+        span = span_from_scope(scope)
+        if span:
+            span.set_tag(...)
+        ...
+
 
 Configuration
 ~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.asgi['distributed_tracing_enabled']
+.. py:data:: ddtrace.config.asgi['distributed_tracing']
 
    Whether to use distributed tracing headers from requests received by your Asgi app.
 
    Default: ``True``
-
-.. py:data:: ddtrace.config.asgi['analytics_enabled']
-
-   Whether to analyze spans for Asgi in App Analytics.
-
-   Can also be enabled with the ``DD_TRACE_ASGI_ANALYTICS_ENABLED`` environment variable.
-
-   Default: ``None``
 
 .. py:data:: ddtrace.config.asgi['service_name']
 
@@ -48,7 +62,7 @@ Configuration
 .. __: https://asgi.readthedocs.io/
 """
 
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = []
@@ -56,5 +70,6 @@ required_modules = []
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
         from .middleware import TraceMiddleware
+        from .middleware import span_from_scope
 
-        __all__ = ["TraceMiddleware"]
+        __all__ = ["TraceMiddleware", "span_from_scope"]

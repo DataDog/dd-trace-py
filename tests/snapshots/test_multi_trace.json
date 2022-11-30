@@ -1,0 +1,64 @@
+[[
+  {
+    "name": "root0",
+    "service": null,
+    "resource": "root0",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "bcc8589f1d534d2abf2bd7eb4a8eba2d"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 80474
+    },
+    "duration": 373000,
+    "start": 1633030641740454000
+  },
+     {
+       "name": "child0",
+       "service": null,
+       "resource": "child0",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 29000,
+       "start": 1633030641740720000
+     }],
+[
+  {
+    "name": "root1",
+    "service": null,
+    "resource": "root1",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "bcc8589f1d534d2abf2bd7eb4a8eba2d"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 80474
+    },
+    "duration": 91000,
+    "start": 1633030641741211000
+  },
+     {
+       "name": "child1",
+       "service": null,
+       "resource": "child1",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "duration": 15000,
+       "start": 1633030641741273000
+     }]]

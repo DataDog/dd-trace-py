@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    The profiler now reports asyncio tasks as part as the task field in
+    profiles. This is enabled by default by replacing the default asyncio loop
+    policy. CPU time, wall time and threading lock times are supported.

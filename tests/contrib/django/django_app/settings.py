@@ -1,19 +1,53 @@
 import os
 
+import django
+
+from ddtrace import tracer
+from tests.webclient import PingFilter
+
+
+tracer.configure(
+    settings={
+        "FILTERS": [PingFilter()],
+    }
+)
+
+
 ALLOWED_HOSTS = [
     "testserver",
+    "localhost",
 ]
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
+DATABASES = {
+    "default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"},
+    "postgres": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "postgres",
+        "USER": "postgres",
+        "PASSWORD": "postgres",
+        "HOST": "127.0.0.1",
+        "PORT": 5432,
+    },
+}
+
+django_cache = "django_redis.cache.RedisCache"
+if django.VERSION >= (4, 0, 0):
+    django_cache = "django.core.cache.backends.redis.RedisCache"
+
 
 CACHES = {
-    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": "unique-snowflake",},
-    "redis": {"BACKEND": "django_redis.cache.RedisCache", "LOCATION": "redis://127.0.0.1:6379/1",},
-    "pylibmc": {"BACKEND": "django.core.cache.backends.memcached.PyLibMCCache", "LOCATION": "127.0.0.1:11211",},
-    "python_memcached": {
-        "BACKEND": "django.core.cache.backends.memcached.MemcachedCache",
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "unique-snowflake",
+    },
+    "redis": {
+        "BACKEND": django_cache,
+        "LOCATION": "redis://127.0.0.1:6379/1",
+    },
+    "pylibmc": {
+        "BACKEND": "django.core.cache.backends.memcached.PyLibMCCache",
         "LOCATION": "127.0.0.1:11211",
     },
 }
@@ -28,7 +62,9 @@ ROOT_URLCONF = "tests.contrib.django.django_app.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [os.path.join(BASE_DIR, "templates"),],
+        "DIRS": [
+            os.path.join(BASE_DIR, "templates"),
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -60,25 +96,3 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
 ]
-
-# Allows for testing django instrumentation before migration to tracer config api
-if os.environ.get("TEST_DATADOG_DJANGO_MIGRATION"):
-    INSTALLED_APPS.append("ddtrace.contrib.django")
-    DATADOG_TRACE = {
-        "AGENT_HOSTNAME": "host-test",
-        "AGENT_PORT": 1234,
-        "AUTO_INSTRUMENT": True,
-        "INSTRUMENT_CACHE": True,
-        "INSTRUMENT_DATABASE": True,
-        "INSTRUMENT_TEMPLATE": True,
-        "DEFAULT_DATABASE_PREFIX": "db-test-",
-        "DEFAULT_SERVICE": "django-test",
-        "DEFAULT_CACHE_SERVICE": "cache-test",
-        "ENABLED": True,
-        "DISTRIBUTED_TRACING": True,
-        "ANALYTICS_ENABLED": True,
-        "ANALYTICS_SAMPLE_RATE": True,
-        "TRACE_QUERY_STRING": True,
-        "TAGS": {"env": "env-test"},
-        "TRACER": "ddtrace.tracer",
-    }

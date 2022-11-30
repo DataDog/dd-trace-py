@@ -1,0 +1,14 @@
+---
+upgrade:
+  - |
+    Spans are now processed per tracer instance. Formerly spans were stored
+    per-Context which could be shared between tracer instances. Note that
+    context management is not affected. Tracers will still share active spans.
+
+  - |
+    Spans from asynchronous executions (asyncio, gevent, tornado) will now be
+    processed and flushed together. Formerly the spans were handled per-task.
+
+  - |
+    ``tracer.write()`` will no longer have filters applied to the spans passed
+    to it.

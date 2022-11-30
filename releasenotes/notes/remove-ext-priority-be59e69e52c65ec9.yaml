@@ -1,0 +1,6 @@
+---
+upgrade:
+  - ".. _remove-ext-priority:\n\nThe deprecated module ``ddtrace.ext.priority`` is
+    removed. Use the ``ddtrace.constants`` module instead for setting sampling priority
+    tags::\n\n  from ddtrace.constants import USER_KEEP\n  from ddtrace.constants import
+    USER_REJECT\n"

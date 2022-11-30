@@ -1,0 +1,42 @@
+[[
+  {
+    "name": "work",
+    "service": null,
+    "resource": "work",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "f706b29e0e8049178c7f1e0ac8d01ab7"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 25193
+    },
+    "duration": 259538000,
+    "start": 1667237294717521000
+  },
+     {
+       "name": "proc",
+       "service": null,
+       "resource": "proc",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "runtime-id": "38ca0ac0547f4097b2e030ebff1064c7"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1,
+         "system.pid": 25194
+       },
+       "duration": 100317000,
+       "start": 1667237294727339000
+     }]]

@@ -5,9 +5,10 @@ import time
 
 import pytest
 
-from ddtrace import compat
+from ddtrace.internal import compat
 from ddtrace.profiling import profiler
-from ddtrace.profiling.collector import stack
+from ddtrace.profiling.collector import stack_event
+
 
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
@@ -52,9 +53,9 @@ def spend_cpu_3():
         pass
 
 
-# We allow 3% error:
+# We allow 4% error:
 # The profiler might not be precise, but time.sleep is not either.
-TOLERANCE = 0.03
+TOLERANCE = 0.04
 # Use 5% accuracy for CPU usage, it's way less precise
 CPU_TOLERANCE = 0.05
 
@@ -72,15 +73,16 @@ def total_time(time_data, funcname):
 def test_accuracy(monkeypatch):
     # Set this to 100 so we don't sleep too often and mess with the precision.
     monkeypatch.setenv("DD_PROFILING_MAX_TIME_USAGE_PCT", "100")
-    p = profiler.Profiler(exporters=[])
+    p = profiler.Profiler()
+    # don't export data
+    p._profiler._scheduler = None
     p.start()
     spend_16()
     p.stop()
-    recorder = list(p.recorders)[0]
     # First index is the stack position, second is the function name
     time_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
     cpu_spent_ns = collections.defaultdict(lambda: collections.defaultdict(lambda: 0))
-    for event in recorder.events[stack.StackSampleEvent]:
+    for event in p._profiler._recorder.events[stack_event.StackSampleEvent]:
         for idx, frame in enumerate(reversed(event.frames)):
             time_spent_ns[idx][frame[2]] += event.wall_time_ns
             cpu_spent_ns[idx][frame[2]] += event.cpu_time_ns

@@ -1,15 +1,15 @@
-from abc import ABCMeta, abstractmethod
+import abc
 
-# ref: https://stackoverflow.com/a/38668373
-ABC = ABCMeta('ABC', (object,), {'__slots__': ()})
+import six
 
 
-class Propagator(ABC):
-
-    @abstractmethod
-    def inject(self, span_context, carrier):
+class Propagator(six.with_metaclass(abc.ABCMeta)):
+    @staticmethod
+    @abc.abstractmethod
+    def inject(span_context, carrier):
         pass
 
-    @abstractmethod
-    def extract(self, carrier):
+    @staticmethod
+    @abc.abstractmethod
+    def extract(carrier):
         pass

@@ -1,0 +1,6 @@
+-r requirements_scenario.txt
+
+pyperf
+pyyaml
+attrs
+httpretty==0.9.7

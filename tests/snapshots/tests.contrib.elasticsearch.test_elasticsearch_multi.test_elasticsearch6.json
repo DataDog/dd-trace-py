@@ -1,0 +1,54 @@
+[[
+  {
+    "name": "elasticsearch.query",
+    "service": "elasticsearch",
+    "resource": "PUT /ddtrace_index",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "elasticsearch",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "elasticsearch.method": "PUT",
+      "elasticsearch.params": "ignore=400",
+      "elasticsearch.url": "/ddtrace_index",
+      "runtime-id": "87b450ba30ec4f2e8fd734e998aaaa85"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 1309
+    },
+    "duration": 97388500,
+    "start": 1632159160791219000
+  }],
+[
+  {
+    "name": "elasticsearch.query",
+    "service": "elasticsearch",
+    "resource": "DELETE /ddtrace_index",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "elasticsearch",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "elasticsearch.method": "DELETE",
+      "elasticsearch.params": "ignore=%5B400%2C+404%5D",
+      "elasticsearch.url": "/ddtrace_index",
+      "runtime-id": "87b450ba30ec4f2e8fd734e998aaaa85"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 1309
+    },
+    "duration": 106286200,
+    "start": 1632159160889071100
+  }]]

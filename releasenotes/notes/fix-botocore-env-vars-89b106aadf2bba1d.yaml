@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes parsing of ``botocore`` env variables to ensure they are parsed as booleans.

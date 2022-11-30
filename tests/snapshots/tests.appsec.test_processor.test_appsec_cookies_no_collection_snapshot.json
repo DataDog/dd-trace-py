@@ -1,0 +1,35 @@
+[[
+  {
+    "name": "test",
+    "service": null,
+    "resource": "test",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "meta": {
+      "_dd.appsec.event_rules.version": "1.3.1",
+      "_dd.appsec.json": "{\"triggers\":[{\"rule\":{\"id\":\"nfd-000-006\",\"name\":\"Detect failed attempt to fetch sensitive files\",\"tags\":{\"type\":\"security_scanner\",\"category\":\"attack_attempt\"}},\"rule_matches\":[{\"operator\":\"match_regex\",\"operator_value\":\"^404$\",\"parameters\":[{\"address\":\"server.response.status\",\"key_path\":[],\"value\":\"404\",\"highlight\":[\"404\"]}]},{\"operator\":\"match_regex\",\"operator_value\":\"\\\\.(cgi|bat|dll|exe|key|cert|crt|pem|der|pkcs|pkcs|pkcs[0-9]*|nsf|jsa|war|java|class|vb|vba|so|git|svn|hg|cvs)([^a-zA-Z0-9_]|$)\",\"parameters\":[{\"address\":\"server.request.uri.raw\",\"key_path\":[],\"value\":\"http://example.com/.git\",\"highlight\":[\".git\"]}]}]}]}",
+      "_dd.appsec.waf.version": "1.4.1",
+      "_dd.origin": "appsec",
+      "_dd.p.dm": "-4",
+      "_dd.runtime_family": "python",
+      "appsec.event": "true",
+      "http.status_code": "404",
+      "runtime-id": "b44d726d3934445494896dd3496aafa4"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.appsec.enabled": 1.0,
+      "_dd.appsec.event_rules.error_count": 0,
+      "_dd.appsec.event_rules.loaded": 126,
+      "_dd.appsec.waf.duration": 177.566,
+      "_dd.appsec.waf.duration_ext": 232.4,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "system.pid": 920596
+    },
+    "duration": 527860,
+    "start": 1661957009273085957
+  }]]

@@ -1,0 +1,31 @@
+[[
+  {
+    "name": "mysql.query",
+    "service": "my-service-name",
+    "resource": "select 'dba4x4'",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "db.name": "test",
+      "db.user": "test",
+      "out.host": "127.0.0.1",
+      "runtime-id": "d5a7e8ff0f0240c3956ef39b84a8da5d",
+      "sql.query": "select 'dba4x4'"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.rowcount": 1,
+      "db.rownumber": 0,
+      "out.port": 3306,
+      "system.pid": 41643
+    },
+    "duration": 6676000,
+    "start": 1651805453245648000
+  }]]

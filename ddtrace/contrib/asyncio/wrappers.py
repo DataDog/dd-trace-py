@@ -1,7 +1,5 @@
-import ddtrace
-
 from .compat import asyncio_current_task
-from .provider import CONTEXT_ATTR
+from .provider import AsyncioContextProvider
 
 
 def wrapped_create_task(wrapped, instance, args, kwargs):
@@ -20,32 +18,8 @@ def wrapped_create_task(wrapped, instance, args, kwargs):
     new_task = wrapped(*args, **kwargs)
     current_task = asyncio_current_task()
 
-    ctx = getattr(current_task, CONTEXT_ATTR, None)
+    ctx = getattr(current_task, AsyncioContextProvider._CONTEXT_ATTR, None)
     if ctx:
-        setattr(new_task, CONTEXT_ATTR, ctx.clone())
+        setattr(new_task, AsyncioContextProvider._CONTEXT_ATTR, ctx)
 
     return new_task
-
-
-def wrapped_create_task_contextvars(wrapped, instance, args, kwargs):
-    """Wrapper for ``create_task(coro)`` that propagates the current active
-    ``Context`` to the new ``Task``. This function is useful to connect traces
-    of detached executions. Uses contextvars for task-local storage.
-    """
-    current_task_ctx = ddtrace.tracer.get_call_context()
-
-    if not current_task_ctx:
-        # no current context exists so nothing special to be done in handling
-        # context for new task
-        return wrapped(*args, **kwargs)
-
-    # clone and activate current task's context for new task to support
-    # detached executions
-    new_task_ctx = current_task_ctx.clone()
-    ddtrace.tracer.context_provider.activate(new_task_ctx)
-    try:
-        # activated context will now be copied to new task
-        return wrapped(*args, **kwargs)
-    finally:
-        # reactivate current task context
-        ddtrace.tracer.context_provider.activate(current_task_ctx)

@@ -1,26 +1,59 @@
 """
-Instrument `asyncpg` to report a span for each executed Postgres queries::
+The ``asyncpg`` integration traces database requests made using connection
+and cursor objects.
 
-    from ddtrace import Pin, patch
-    import asyncpg
 
-    # If not patched yet, you can patch asyncpg specifically
+Enabling
+~~~~~~~~
+
+The integration is enabled automatically when using
+:ref:`ddtrace-run<ddtracerun>` or :func:`patch_all()<ddtrace.patch_all>`.
+
+Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
+
+    from ddtrace import patch
     patch(asyncpg=True)
 
-    # This will report a span with the default settings
-    db = await asyncpg.connect(DSN)
-    values = await db.fetch('''SELECT * FROM mytable''')
 
-    # Use a pin to specify metadata related to this connection
-    Pin.override(db, service='postgres-users')
+Global Configuration
+~~~~~~~~~~~~~~~~~~~~
+
+.. py:data:: ddtrace.config.asyncpg['service']
+
+   The service name reported by default for asyncpg connections.
+
+   This option can also be set with the ``DD_ASYNCPG_SERVICE``
+   environment variable.
+
+   Default: ``postgres``
+
+
+Instance Configuration
+~~~~~~~~~~~~~~~~~~~~~~
+
+Service
+^^^^^^^
+
+To configure the service name used by the asyncpg integration on a per-instance
+basis use the ``Pin`` API::
+
+    import asyncpg
+    from ddtrace import Pin
+
+    conn = asyncpg.connect("postgres://localhost:5432")
+    Pin.override(conn, service="custom-service")
 """
-from ...utils.importlib import require_modules
+from ...internal.utils.importlib import require_modules
 
 
 required_modules = ["asyncpg"]
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .patch import patch, unpatch
+        from .patch import patch
+        from .patch import unpatch
 
-        __all__ = ["patch", "unpatch"]
+        __all__ = [
+            "patch",
+            "unpatch",
+        ]

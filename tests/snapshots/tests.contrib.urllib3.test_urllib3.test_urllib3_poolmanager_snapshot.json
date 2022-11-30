@@ -1,0 +1,26 @@
+[[
+  {
+    "name": "urllib3.request",
+    "service": "urllib3",
+    "resource": "urllib3.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "runtime-id": "93c662e37e8b484289b27fecf12b65e2"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "system.pid": 6354
+    },
+    "duration": 208639000,
+    "start": 1632168735673120400
+  }]]

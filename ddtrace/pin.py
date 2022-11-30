@@ -1,9 +1,16 @@
-import ddtrace
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import TYPE_CHECKING
 
-from ddtrace.vendor import debtcollector
+import ddtrace
 
 from .internal.logger import get_logger
 from .vendor import wrapt
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .tracer import Tracer
 
 
 log = get_logger(__name__)
@@ -11,8 +18,8 @@ log = get_logger(__name__)
 
 # To set attributes on wrapt proxy objects use this prefix:
 # http://wrapt.readthedocs.io/en/latest/wrappers.html
-_DD_PIN_NAME = '_datadog_pin'
-_DD_PIN_PROXY_NAME = '_self_' + _DD_PIN_NAME
+_DD_PIN_NAME = "_datadog_pin"
+_DD_PIN_PROXY_NAME = "_self_" + _DD_PIN_NAME
 
 
 class Pin(object):
@@ -26,45 +33,52 @@ class Pin(object):
         >>> pin = Pin.override(conn, service='user-db')
         >>> conn = sqlite.connect('/tmp/image.db')
     """
-    __slots__ = ['app', 'tags', 'tracer', '_target', '_config', '_initialized']
 
-    @debtcollector.removals.removed_kwarg("app_type")
-    def __init__(self, service=None, app=None, app_type=None, tags=None, tracer=None, _config=None):
+    __slots__ = ["tags", "tracer", "_target", "_config", "_initialized"]
+
+    def __init__(
+        self,
+        service=None,  # type: Optional[str]
+        tags=None,  # type: Optional[Dict[str, str]]
+        tracer=None,  # type: Optional[Tracer]
+        _config=None,  # type: Optional[Dict[str, Any]]
+    ):
+        # type: (...) -> None
         tracer = tracer or ddtrace.tracer
-        self.app = app
         self.tags = tags
         self.tracer = tracer
-        self._target = None
+        self._target = None  # type: Optional[int]
         # keep the configuration attribute internal because the
         # public API to access it is not the Pin class
-        self._config = _config or {}
+        self._config = _config or {}  # type: Dict[str, Any]
         # [Backward compatibility]: service argument updates the `Pin` config
-        self._config['service_name'] = service
+        self._config["service_name"] = service
         self._initialized = True
 
     @property
     def service(self):
+        # type: () -> str
         """Backward compatibility: accessing to `pin.service` returns the underlying
         configuration value.
         """
-        return self._config['service_name']
+        return self._config["service_name"]
 
     def __setattr__(self, name, value):
-        if getattr(self, '_initialized', False) and name != '_target':
+        if getattr(self, "_initialized", False) and name != "_target":
             raise AttributeError("can't mutate a pin, use override() or clone() instead")
         super(Pin, self).__setattr__(name, value)
 
     def __repr__(self):
-        return 'Pin(service=%s, app=%s, tags=%s, tracer=%s)' % (
-            self.service, self.app, self.tags, self.tracer)
+        return "Pin(service=%s, tags=%s, tracer=%s)" % (self.service, self.tags, self.tracer)
 
     @staticmethod
     def _find(*objs):
+        # type: (Any) -> Optional[Pin]
         """
         Return the first :class:`ddtrace.pin.Pin` found on any of the provided objects or `None` if none were found
 
 
-            >>> pin = Pin._find(wrapper, instance, conn, app)
+            >>> pin = Pin._find(wrapper, instance, conn)
 
         :param objs: The objects to search for a :class:`ddtrace.pin.Pin` on
         :type objs: List of objects
@@ -79,6 +93,7 @@ class Pin(object):
 
     @staticmethod
     def get_from(obj):
+        # type: (Any) -> Optional[Pin]
         """Return the pin associated with the given object. If a pin is attached to
         `obj` but the instance is not the owner of the pin, a new pin is cloned and
         attached. This ensures that a pin inherited from a class is a copy for the new
@@ -91,7 +106,7 @@ class Pin(object):
         :rtype: :class:`ddtrace.pin.Pin`, None
         :returns: :class:`ddtrace.pin.Pin` associated with the object, or None if none was found
         """
-        if hasattr(obj, '__getddpin__'):
+        if hasattr(obj, "__getddpin__"):
             return obj.__getddpin__()
 
         pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
@@ -103,8 +118,14 @@ class Pin(object):
         return pin
 
     @classmethod
-    @debtcollector.removals.removed_kwarg("app_type")
-    def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
+    def override(
+        cls,
+        obj,  # type: Any
+        service=None,  # type: Optional[str]
+        tags=None,  # type: Optional[Dict[str, str]]
+        tracer=None,  # type: Optional[Tracer]
+    ):
+        # type: (...) -> None
         """Override an object with the given attributes.
 
         That's the recommended way to customize an already instrumented client, without
@@ -118,27 +139,24 @@ class Pin(object):
             return
 
         pin = cls.get_from(obj)
-        if not pin:
-            pin = Pin(service)
-
-        pin.clone(
-            service=service,
-            app=app,
-            tags=tags,
-            tracer=tracer,
-        ).onto(obj)
+        if pin is None:
+            Pin(service=service, tags=tags, tracer=tracer).onto(obj)
+        else:
+            pin.clone(service=service, tags=tags, tracer=tracer).onto(obj)
 
     def enabled(self):
-        """Return true if this pin's tracer is enabled. """
+        # type: () -> bool
+        """Return true if this pin's tracer is enabled."""
         return bool(self.tracer) and self.tracer.enabled
 
     def onto(self, obj, send=True):
+        # type: (Any, bool) -> None
         """Patch this pin onto the given object. If send is true, it will also
         queue the metadata to be sent to the server.
         """
         # Actually patch it on the object.
         try:
-            if hasattr(obj, '__setddpin__'):
+            if hasattr(obj, "__setddpin__"):
                 return obj.__setddpin__(self)
 
             pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
@@ -150,6 +168,7 @@ class Pin(object):
             log.debug("can't pin onto object. skipping", exc_info=True)
 
     def remove_from(self, obj):
+        # type: (Any) -> None
         # Remove pin from the object.
         try:
             pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
@@ -160,8 +179,13 @@ class Pin(object):
         except AttributeError:
             log.debug("can't remove pin from object. skipping", exc_info=True)
 
-    @debtcollector.removals.removed_kwarg("app_type")
-    def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
+    def clone(
+        self,
+        service=None,  # type: Optional[str]
+        tags=None,  # type: Optional[Dict[str, str]]
+        tracer=None,  # type: Optional[Tracer]
+    ):
+        # type: (...) -> Pin
         """Return a clone of the pin with the given attributes replaced."""
         # do a shallow copy of Pin dicts
         if not tags and self.tags:
@@ -177,7 +201,6 @@ class Pin(object):
 
         return Pin(
             service=service or self.service,
-            app=app or self.app,
             tags=tags,
             tracer=tracer or self.tracer,  # do not clone the Tracer
             _config=config,

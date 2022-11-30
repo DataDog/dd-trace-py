@@ -1,0 +1,4 @@
+other:
+  - |
+    The logic behind the header extraction for distributed tracing has been
+    improved.

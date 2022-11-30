@@ -1,0 +1,16 @@
+---
+features:
+  - |
+    Only for CI Visibility (`pytest` integration): It is now possible to specify any of the following git metadata through environment variables:
+    * `DD_GIT_REPOSITORY_URL`: The url of the repository where the code is stored 
+    * `DD_GIT_TAG`: The tag of the commit, if it has one
+    * `DD_GIT_BRANCH`: The branch where this commit belongs to
+    * `DD_GIT_COMMIT_SHA`: The commit hash of the current code
+    * `DD_GIT_COMMIT_MESSAGE`: Commit message
+    * `DD_GIT_COMMIT_AUTHOR_NAME`: Commit author name
+    * `DD_GIT_COMMIT_AUTHOR_EMAIL`: Commit author email
+    * `DD_GIT_COMMIT_AUTHOR_DATE`: The commit author date (ISO 8601)
+    * `DD_GIT_COMMIT_COMMITTER_NAME`: Commit committer name
+    * `DD_GIT_COMMIT_COMMITTER_EMAIL`: Commit committer email
+    * `DD_GIT_COMMIT_COMMITTER_DATE`: The commit committer date (ISO 8601)
+
