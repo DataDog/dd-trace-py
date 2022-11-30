@@ -8,6 +8,7 @@ from typing import Tuple
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
@@ -46,7 +47,7 @@ def _parse_propagation_styles(name, default):
     The allowed values are:
 
     - "datadog"
-    - "b3"
+    - "b3multi"
     - "b3 single header"
 
 
@@ -56,10 +57,10 @@ def _parse_propagation_styles(name, default):
     Examples::
 
         # Extract and inject b3 headers:
-        DD_TRACE_PROPAGATION_STYLE="b3"
+        DD_TRACE_PROPAGATION_STYLE="b3multi"
 
         # Extract trace context from "x-datadog-*" or "x-b3-*" headers from upstream headers
-        DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"
+        DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"
 
         # Inject the "b3: *" header into downstream requests headers
         DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
@@ -77,6 +78,12 @@ def _parse_propagation_styles(name, default):
                 "Unknown style {!r} provided for {!r}, allowed values are {!r}".format(
                     style, name, PROPAGATION_STYLE_ALL
                 )
+            )
+        if style == "b3":
+            deprecate(
+                "ddtrace.propagation.http",
+                message="propgation style `b3` has been deprecated in favor of `b3multi`"
+                " propgation style `b3` will be removed in a future version.",
             )
         styles.append(style)
     return styles
