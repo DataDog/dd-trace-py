@@ -736,8 +736,6 @@ class HTTPPropagator(object):
             _B3MultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_inject:
             _B3SingleHeader._inject(span_context, headers)
-        if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_inject:
-            _B3SingleHeader._inject(span_context, headers)
 
     @staticmethod
     def extract(headers):
