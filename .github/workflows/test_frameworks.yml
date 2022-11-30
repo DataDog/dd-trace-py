@@ -53,7 +53,7 @@ jobs:
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
 
   django-testsuite-3_1:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     env:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
@@ -382,7 +382,8 @@ jobs:
 
   pylons-testsuite-1_0_3:
     name: Pylons 1.0.3
-    runs-on: "ubuntu-latest"
+    runs-on: "ubuntu-20.04"
+    # Ubuntu 20.04 is the last version of ubuntu on github setup actions to provide Python 2.7.
     env:
       DD_TESTING_RAISE: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
