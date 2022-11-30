@@ -418,7 +418,7 @@ jobs:
         run: nosetests
 
   gunicorn-testsuite-20_1_0:
-    name: gunicon 20.1.0
+    name: gunicorn 20.1.0
     runs-on: "ubuntu-latest"
     env:
       DD_TESTING_RAISE: true
