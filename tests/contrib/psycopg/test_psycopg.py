@@ -416,7 +416,7 @@ class PsycopgCore(TracerTestCase):
         # test string queries
         cursor.execute("select 'blah'")
         cursor.executemany("select %s", (("foo",), ("bar",)))
-        dbm_comment = " /*dddbs='postgres',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
+        dbm_comment = "/*dddbs='postgres',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/ "
         cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
         cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
         # test composed queries
