@@ -22,7 +22,7 @@
       "_dd.agent_psr": 1.0,
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0,
-      "_dd.appsec.event_rules.loaded": 130,
+      "_dd.appsec.event_rules.loaded": 132,
       "_dd.appsec.waf.duration": 187.46,
       "_dd.appsec.waf.duration_ext": 210.5236053466797,
       "_dd.top_level": 1,
