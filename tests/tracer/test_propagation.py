@@ -863,6 +863,17 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
+        "test_deprecated_b3_style_still_works",
+        ["b3"],
+        B3_HEADERS_VALID,
+        {
+            "trace_id": 5208512171318403364,
+            "span_id": 11744061942159299346,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
         "valid_b3_wsgi",
         [PROPAGATION_STYLE_B3_MULTI],
         {get_wsgi_header(name): value for name, value in B3_HEADERS_VALID.items()},

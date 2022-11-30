@@ -11,6 +11,7 @@ from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
+from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.logger import get_logger
 from ..internal.utils.formats import asbool
@@ -73,17 +74,18 @@ def _parse_propagation_styles(name, default):
         style = style.strip().lower()
         if not style:
             continue
+        if style == "b3":
+            deprecate(
+                "ddtrace.settings.config._parse_propagation_styles",
+                message="propagation style `b3` has been deprecated in favor of `b3multi`"
+                " propagation style `b3` will be removed in a future version.",
+            )
+            style = PROPAGATION_STYLE_B3_MULTI
         if style not in PROPAGATION_STYLE_ALL:
             raise ValueError(
                 "Unknown style {!r} provided for {!r}, allowed values are {!r}".format(
                     style, name, PROPAGATION_STYLE_ALL
                 )
-            )
-        if style == "b3":
-            deprecate(
-                "ddtrace.propagation.http",
-                message="propgation style `b3` has been deprecated in favor of `b3multi`"
-                " propgation style `b3` will be removed in a future version.",
             )
         styles.append(style)
     return styles
