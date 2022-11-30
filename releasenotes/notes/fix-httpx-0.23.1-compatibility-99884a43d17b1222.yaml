@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    httpx: Fixes an incompatibility from ``httpx==0.23.1`` when the ``URL.raw`` property is not available.

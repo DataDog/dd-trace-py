@@ -25,7 +25,7 @@ AGENT_VERSION = os.environ.get("AGENT_VERSION")
 
 
 def allencodings(f):
-    return pytest.mark.parametrize("encoding", ["", "v0.5"] if AGENT_VERSION != "v5" else [""])(f)
+    return pytest.mark.parametrize("encoding", ["v0.5", "v0.4"])(f)
 
 
 def test_configure_keeps_api_hostname_and_port():
@@ -140,7 +140,7 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s",
-            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.4"),
+            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
             exc_info=True,
         )
     ]
@@ -348,7 +348,7 @@ def test_trace_bad_url(encoding, monkeypatch):
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s",
-            "http://bad:1111/{}/traces".format(encoding if encoding else "v0.4"),
+            "http://bad:1111/{}/traces".format(encoding if encoding else "v0.5"),
             exc_info=True,
         )
     ]
@@ -469,7 +469,7 @@ def test_bad_payload():
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s",
-            "http://localhost:8126/v0.4/traces",
+            "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
         )
@@ -502,7 +502,7 @@ def test_bad_payload_log_payload(monkeypatch):
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
-            "http://localhost:8126/v0.4/traces",
+            "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
             "6261645f7061796c6f6164",
@@ -546,7 +546,7 @@ def test_bad_payload_log_payload_non_bytes(monkeypatch):
     calls = [
         mock.call(
             "failed to send traces to Datadog Agent at %s: HTTP error status %s, reason %s, payload %s",
-            "http://localhost:8126/v0.4/traces",
+            "http://localhost:8126/v0.5/traces",
             400,
             "Bad Request",
             "bad_payload",
@@ -586,7 +586,7 @@ def test_downgrade(encoding, monkeypatch):
 
     t = Tracer()
     t._writer._downgrade(None, None)
-    assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.4"]
+    assert t._writer._endpoint == {"v0.5": "v0.4/traces", "v0.4": "v0.3/traces"}[encoding or "v0.5"]
     with mock.patch("ddtrace.internal.writer.log") as log:
         s = t.trace("operation", service="my-svc")
         s.finish()

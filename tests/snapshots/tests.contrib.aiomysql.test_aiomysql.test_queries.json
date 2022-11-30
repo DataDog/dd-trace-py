@@ -1,12 +1,13 @@
 [[
   {
     "name": "mysql.query",
-    "service": null,
+    "service": "",
     "resource": "select 'Jellysmack'",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "test",
@@ -24,7 +25,7 @@
       "db.rowcount": 1,
       "db.rownumber": 0,
       "out.port": 3306,
-      "system.pid": 51883
+      "process_id": 51883
     },
     "duration": 2268000,
     "start": 1651818987387319000
@@ -32,7 +33,7 @@
 [
   {
     "name": "mysql.query",
-    "service": null,
+    "service": "",
     "resource": "select * from some_non_existant_table",
     "trace_id": 1,
     "span_id": 1,
@@ -59,7 +60,7 @@
       "db.rowcount": 0,
       "db.rownumber": 0,
       "out.port": 3306,
-      "system.pid": 51883
+      "process_id": 51883
     },
     "duration": 3759000,
     "start": 1651818987389794000

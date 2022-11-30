@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "test",
@@ -22,8 +23,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 3,
       "out.port": 3306,
-      "sql.rows": 3,
-      "system.pid": 9677
+      "process_id": 9677,
+      "sql.rows": 3
     },
     "duration": 956800,
     "start": 1656521264386625100
@@ -37,6 +38,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "test",
@@ -51,8 +53,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 3,
       "out.port": 3306,
-      "sql.rows": 3,
-      "system.pid": 9677
+      "process_id": 9677,
+      "sql.rows": 3
     },
     "duration": 132500,
     "start": 1656521264388572600
