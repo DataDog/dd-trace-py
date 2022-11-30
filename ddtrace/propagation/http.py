@@ -551,7 +551,7 @@ class _TraceContext:
         """
 
         version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
-        # check version is a valid hexadecimal
+        # check version is a valid hexadecimal, if not it's invalid we will move on to the next prop method
         int(version, 16)
         # currently 00 is the only version format, but if future versions come up we may need to add changes
         if version != "00":
