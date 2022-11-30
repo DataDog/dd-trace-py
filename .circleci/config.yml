@@ -259,13 +259,13 @@ executors:
     docker:
       - image: *python310_image
     resource_class: large
-#  ddtrace_dev:
-#    docker:
-#      - image: *ddtrace_dev_image
+  ddtrace_dev:
+    docker:
+      - image: *ddtrace_dev_image
     resource_class: *default_resource_class
-#  ddtrace_dev_small:
-#    docker:
-#      - image: *ddtrace_dev_image
+  ddtrace_dev_small:
+    docker:
+      - image: *ddtrace_dev_image
     resource_class: small
 
 # Common configuration blocks as YAML anchors

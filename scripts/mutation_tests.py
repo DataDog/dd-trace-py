@@ -1,3 +1,4 @@
+from datetime import datetime
 import html.parser
 import math
 from multiprocessing import Pool
@@ -107,8 +108,8 @@ def find_all_local_passing_tests(dirname="tests"):
 
 def main():
     # run_io(["mutmut", "run", "--paths-to-mutate=ddtrace/tracer.py:ddtrace/appsec/iast"])
-    # print(">> Generating html")
-    # run_io(["mutmut", "html"])
+    print(">> Generating html")
+    run_io(["mutmut", "html"])
     df = load_html_report("html/index.html")
     figure = df.plot(
         hover_data={"filename": True, "size": False, "mutants": True, "%Coverage": True, "coverage": False},
@@ -120,9 +121,10 @@ def main():
         log_x=True,
         color_continuous_scale=[(0, "orange"), (0.3, "red"), (0.8, "blue"), (1, "green")],
     )  # hover_data=['petal_width']
-    figure.write_html("fig.html")
+    figure.write_html(f"fig_{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}.html")
 
 
 # main()
 if __name__ == "__main__":
-    print(find_all_local_passing_tests())
+    # print(find_all_local_passing_tests())
+    main()
