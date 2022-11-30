@@ -119,8 +119,8 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
 
         if config._appsec_enabled and _context.get_item("http.request.blocked", span=req_span):
             request = flask.request
-            start_response(403, request.headers)
-            raise IPBlockedException(constants.APPSEC_IPBLOCK_403_DEFAULT, request)
+            start_response("403 FORBIDDEN", request.headers)
+            raise IPBlockedException(constants.APPSEC_IPBLOCK_403_DEFAULT)
 
         return start_response(status_code, headers)
 

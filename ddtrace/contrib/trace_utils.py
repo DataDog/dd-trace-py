@@ -165,6 +165,8 @@ def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
             user_agent = _get_header_value_case_insensitive(headers, key_pattern)
         else:
             user_agent = headers.get(key_pattern)
+        if user_agent:
+            break
 
     return user_agent if user_agent else ""
 

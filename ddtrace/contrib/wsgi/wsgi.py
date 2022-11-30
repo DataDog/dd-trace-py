@@ -42,10 +42,8 @@ config._add(
 
 
 class BlockedException(Exception):
-    def __init__(self, message, request):
+    def __init__(self, message):
         super(BlockedException, self).__init__(message)
-        self.code = 403
-        self.request = request
 
 
 class IPBlockedException(BlockedException):
