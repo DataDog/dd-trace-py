@@ -623,14 +623,14 @@ jobs:
   tornado:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^tornado_contrib-'
+      - run_test:
+          pattern: 'tornado'
 
   bottle:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^bottle_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: 'bottle'
 
   cassandra:
     <<: *contrib_job
@@ -915,6 +915,7 @@ jobs:
 
   sanic:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: "sanic"
@@ -1072,9 +1073,9 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: rabbitmq
-          pattern: '^kombu_contrib-'
+          pattern: 'kombu'
 
   benchmarks:
     <<: *contrib_job
