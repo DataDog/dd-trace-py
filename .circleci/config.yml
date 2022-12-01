@@ -871,7 +871,7 @@ jobs:
 
   mongoengine:
     <<: *machine_executor
-    parallelism: 1
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'mongoengine'
