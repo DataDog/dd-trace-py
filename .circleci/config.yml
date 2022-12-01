@@ -528,7 +528,6 @@ jobs:
 
   integration_agent:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - attach_workspace:
           at: .
@@ -542,7 +541,6 @@ jobs:
 
   integration_testagent:
     <<: *machine_executor
-    parallelism: 4
     steps:
       - attach_workspace:
           at: .
@@ -613,7 +611,7 @@ jobs:
 
   aiohttp:
     <<: *machine_executor
-    parallelism: 8
+    parallelism: 7
     steps:
       - run_test:
           pattern: 'aiohttp'  # includes aiohttp_jinja2
@@ -969,7 +967,7 @@ jobs:
 
   aiobotocore:
     <<: *contrib_job
-    parallelism: 8
+    parallelism: 7
     docker:
       - image: *ddtrace_dev_image
       - image: *moto_image
