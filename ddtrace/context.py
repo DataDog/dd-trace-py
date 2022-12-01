@@ -13,11 +13,8 @@ from .internal.compat import NumericType
 from .internal.compat import PY2
 from .internal.constants import _TRACEPARENT_KEY
 from .internal.constants import _TRACESTATE_KEY
-from .internal.constants import _W3C_TRACESTATE_ORIGIN_KEY
-from .internal.constants import _W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
-from .internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
-from .internal.utils.formats import _W3C_TRACESTATE_INVALID_CHARS_REGEX
+from .internal.utils.formats import _w3c_format_known_propagated_tags
 from .internal.utils.formats import _w3c_format_unknown_propagated_tags
 
 
@@ -150,21 +147,9 @@ class Context(object):
     @property
     def _tracestate(self):
         # type: () -> str
-        dd = []
-        if self.sampling_priority:
-            dd.append("{}:{}".format(_W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, self.sampling_priority))
-        if self.dd_origin:
-            # the origin value has specific values that are allowed.
-            dd.append("{}:{}".format(_W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|=|[^\x20-\x7E]+", "_", self.dd_origin)))
-        sampling_decision = self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
-        if sampling_decision:
-            dd.append("t.dm:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
-        # since this can change, we need to grab the value off the current span
-        usr_id_key = self._meta.get(USER_ID_KEY)
-        if usr_id_key:
-            dd.append("t.usr.id:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key)))
+        dd = _w3c_format_known_propagated_tags(self)
 
-        # grab all other _dd.p values out of meta since we need to propagate all of them
+        # get and format all other _dd.p values out of meta since we need to propagate all of them
         dd = _w3c_format_unknown_propagated_tags(dd, self._meta)
 
         dd_list_member = ";".join(dd)

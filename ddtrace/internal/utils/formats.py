@@ -12,6 +12,8 @@ from typing import Union
 import six
 
 from ddtrace.constants import USER_ID_KEY
+from ddtrace.internal.constants import _W3C_TRACESTATE_ORIGIN_KEY
+from ddtrace.internal.constants import _W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 
 from ..compat import binary_type
@@ -188,4 +190,25 @@ def _w3c_format_unknown_propagated_tags(current_tags, potential_tags):
             current_tags_len += len(next_tag)
             if not current_tags_len > 256:
                 current_tags.append(next_tag)
+            else:
+                log.debug("tracestate would exceed 256 char limit with tag: %s. Tag will not be added.", next_tag)
     return current_tags
+
+
+def _w3c_format_known_propagated_tags(context):
+    # Context -> List[str]
+    tags = []
+    if context.sampling_priority:
+        tags.append("{}:{}".format(_W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
+    if context.dd_origin:
+        # the origin value has specific values that are allowed.
+        tags.append("{}:{}".format(_W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|=|[^\x20-\x7E]+", "_", context.dd_origin)))
+    sampling_decision = context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
+    if sampling_decision:
+        tags.append("t.dm:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
+    # since this can change, we need to grab the value off the current span
+    usr_id_key = context._meta.get(USER_ID_KEY)
+    if usr_id_key:
+        tags.append("t.usr.id:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key)))
+
+    return tags
