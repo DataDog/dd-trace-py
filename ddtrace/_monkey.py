@@ -237,6 +237,11 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
             if module in sys.modules:
                 del sys.modules[module]
 
+                # Also remove any child modules
+                module_prefix = module + "."
+                for k in list(_ for _ in sys.modules if _.startswith(module_prefix)):
+                    del sys.modules[k]
+
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
             when_imported(module)(_on_import_factory(contrib, raise_errors=False))
 

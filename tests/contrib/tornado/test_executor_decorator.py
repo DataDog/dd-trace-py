@@ -1,13 +1,15 @@
+import sys
 import unittest
 
 from tornado import version_info
 
-from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.tornado.compat import futures_available
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
 
 from .utils import TornadoTestCase
+
+
+futures_available = "concurrent.futures" in sys.modules
 
 
 class TestTornadoExecutor(TornadoTestCase):
