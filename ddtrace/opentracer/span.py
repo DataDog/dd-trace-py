@@ -123,11 +123,11 @@ class Span(OpenTracingSpan):
                 self._dd_span.error = 1
                 self.set_tag("error", 1)
             elif key == "error" or key == "error.object":
-                self.set_tag(ERROR_TYPE, val)
+                self.set_tag_str(ERROR_TYPE, val)
             elif key == "message":
-                self.set_tag(ERROR_MSG, val)
+                self.set_tag_str(ERROR_MSG, val)
             elif key == "stack":
-                self.set_tag(ERROR_STACK, val)
+                self.set_tag_str(ERROR_STACK, val)
             else:
                 pass
 
@@ -146,7 +146,7 @@ class Span(OpenTracingSpan):
         elif key == Tags.RESOURCE_NAME or key == OTTags.DATABASE_STATEMENT:
             self._dd_span.resource = value
         elif key == OTTags.PEER_HOSTNAME:
-            self._dd_span.set_tag(Tags.TARGET_HOST, value)
+            self._dd_span.set_tag_str(Tags.TARGET_HOST, value)
         elif key == OTTags.PEER_PORT:
             self._dd_span.set_tag(Tags.TARGET_PORT, value)
         elif key == Tags.SAMPLING_PRIORITY:
