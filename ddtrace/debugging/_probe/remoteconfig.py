@@ -116,6 +116,7 @@ def probe(_id, _type, attribs):
             line=int(attribs["where"]["lines"][0]),
             name=attribs["metricName"],
             kind=attribs["kind"],
+            value=_compile_condition(attribs.get("value")),
         )
 
     raise ValueError("Unknown probe type: %s" % _type)
