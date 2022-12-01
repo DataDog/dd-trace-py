@@ -467,4 +467,5 @@ def test_callonce_signature():
     ],
 )
 def test_w3c_format_unknown_propagated_tags(current_tags, potential_tags, expected_list):
-    assert expected_list == _w3c_format_unknown_propagated_tags(current_tags, potential_tags)
+    for tag in _w3c_format_unknown_propagated_tags(current_tags, potential_tags):
+        assert tag in expected_list
