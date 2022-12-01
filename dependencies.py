@@ -1,4 +1,4 @@
-# This file is updated by manage_depencies.py
+# This file is updated by manage_dependencies.py
 # Any new dependency can be added directly in this file
 
 LATEST_VERSIONS = {

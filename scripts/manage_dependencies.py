@@ -81,7 +81,7 @@ def update_versions(time, up_days):
     """
     new_versions = read_versions(time)
     with open("dependencies.py", "w") as dep_file:
-        print("# This file is updated by manage_depencies.py", file=dep_file)
+        print("# This file is updated by manage_dependencies.py", file=dep_file)
         print("# Any new dependency can be added directly in this file\n", file=dep_file)
         print("LATEST_VERSIONS = {", file=dep_file)
         for package, (version, days) in sorted(new_versions.items(), key=lambda s: s[0].lower()):
