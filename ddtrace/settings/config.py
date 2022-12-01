@@ -59,7 +59,7 @@ def _parse_propagation_styles(name, default):
         # Extract and inject b3 headers:
         DD_TRACE_PROPAGATION_STYLE="b3"
 
-        # Extract and inject no headers:
+        # Disable header propagation:
         DD_TRACE_PROPAGATION_STYLE="none"
 
         # Extract trace context from "x-datadog-*" or "x-b3-*" headers from upstream headers
