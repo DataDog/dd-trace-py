@@ -430,6 +430,19 @@ venv = Venv(
             },
         ),
         Venv(
+            name="wait",
+            command="python tests/wait-for-services.py {cmdargs}",
+            # Default Python 3 (3.10) collections package breaks with kombu/vertica, so specify Python 3.9 instead.
+            pys="3.9",
+            pkgs={
+                "cassandra-driver": latest,
+                "psycopg2-binary": latest,
+                "mysql-connector-python": "!=8.0.18",
+                "vertica-python": ">=0.6.0,<0.7.0",
+                "kombu": ">=4.2.0,<4.3.0",
+            },
+        ),
+        Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
             pys=select_pys(),
@@ -2487,6 +2500,24 @@ venv = Venv(
                     pys=select_pys(min_version="3.10", max_version="3.11"),
                     pkgs={
                         "tornado": [">=6.0,<6.1", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="mysqldb",
+            command="pytest {cmdargs} tests/contrib/mysqldb",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.9"),
+                    pkgs={
+                        "mysqlclient": [">=1.3,<1.4", ">=1.4,<1.5", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "mysqlclient": [">=1.4,<1.5", latest],
                     },
                 ),
             ],
