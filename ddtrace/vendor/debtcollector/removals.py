@@ -330,12 +330,12 @@ def removed_module(
     _utils.deprecation(out_message, stacklevel=stacklevel, category=category)
 
 
-def create_warning(
+def removed_constant(
     deprecated, replacement_name=None, message=None, version=None, removal_version=None, stacklevel=3, category=None
 ):
     """Helper to be called with a constant to emit a deprecation warning
 
-    :param str constant_name: The name of the constant being deprecated
+    :param str deprecated: The name of the constant being deprecated
     :param str replacement_name: The name (if any) of the new replacement
                                 constant.
     :param str message: A message to include in the deprecation warning
