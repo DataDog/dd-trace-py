@@ -1861,6 +1861,14 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/cassandra",
         ),
         Venv(
+            name="algoliasearch",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/algoliasearch",
+            pkgs={
+                "algoliasearch": [">=1.2,<2", ">=2,<3", latest],
+            },
+        ),
+        Venv(
             name="aiopg",
             venvs=[
                 Venv(
