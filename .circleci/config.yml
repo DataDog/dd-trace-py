@@ -1102,8 +1102,8 @@ jobs:
   algoliasearch:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^algoliasearch_contrib-'
+      - run_test:
+          pattern: 'algoliasearch'
 
   build_docs:
     # build documentation and store as an artifact
