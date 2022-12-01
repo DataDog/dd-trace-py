@@ -39,11 +39,9 @@ def _fetch_first_result(fget, fset, fdel, apply_func, value_not_found=None):
 
 class removed_property(object):
     """Property descriptor that deprecates a property.
-
     This works like the ``@property`` descriptor but can be used instead to
     provide the same functionality and also interact with the :mod:`warnings`
     module to warn when a property is accessed, set and/or deleted.
-
     :param message: string used as ending contents of the deprecate message
     :param version: version string (represents the version this deprecation
                     was created in)
@@ -169,13 +167,11 @@ class removed_property(object):
 
 def remove(f=None, message=None, version=None, removal_version=None, stacklevel=3, category=None):
     """Decorates a function, method, or class to emit a deprecation warning
-
     Due to limitations of the wrapt library (and python) itself, if this
     is applied to subclasses of metaclasses then it likely will not work
     as expected. More information can be found at bug #1520397 to see if
     this situation affects your usage of this *universal* decorator, for
     this specific scenario please use :py:func:`.removed_class` instead.
-
     :param str message: A message to include in the deprecation warning
     :param str version: Specify what version the removed function is present in
     :param str removal_version: What version the function will be removed. If
@@ -299,7 +295,6 @@ def removed_module(
     module, replacement=None, message=None, version=None, removal_version=None, stacklevel=3, category=None
 ):
     """Helper to be called inside a module to emit a deprecation warning
-
     :param str replacement: A location (or information about) of any potential
                            replacement for the removed module (if applicable)
     :param str message: A message to include in the deprecation warning
