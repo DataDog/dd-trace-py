@@ -2541,5 +2541,11 @@ venv = Venv(
                 "molten": [">=0.6,<0.7", ">=0.7,<0.8", ">=1.0,<1.1", latest],
             },
         ),
+        Venv(
+            name="gunicorn",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/gunicorn",
+            pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest], "requests": [latest]},
+        ),
     ],
 )

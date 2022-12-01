@@ -781,6 +781,13 @@ jobs:
           pattern: "grpc"
           snapshot: true
 
+  gunicorn:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "gunicorn"
+          snapshot: true
+
   httplib:
     <<: *machine_executor
     steps:
@@ -1170,6 +1177,7 @@ requires_tests: &requires_tests
     - gevent
     - graphql
     - grpc
+    - gunicorn
     - httplib
     - httpx
     - integration_agent
@@ -1269,6 +1277,7 @@ workflows:
       - graphene: *requires_base_venvs
       - graphql: *requires_base_venvs
       - grpc: *requires_base_venvs
+      - gunicorn: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
       - integration_agent: *requires_base_venvs
