@@ -203,7 +203,7 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: () -> None
         if self._ddwaf is None:
             rules = self._read_rules_file()
-            self.init_waf(rules)
+            self._init_waf(rules)
         for address in self._ddwaf.required_data:
             self._mark_needed(address)
         # we always need the request headers
