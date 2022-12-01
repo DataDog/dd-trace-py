@@ -1,3 +1,7 @@
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import removals
+
+
 SAMPLE_RATE_METRIC_KEY = "_sample_rate"
 SAMPLING_PRIORITY_KEY = "_sampling_priority_v1"
 ANALYTICS_SAMPLE_RATE_KEY = "_dd1.sr.eausr"
@@ -45,6 +49,11 @@ MANUAL_KEEP_KEY = "manual.keep"
 
 
 ERROR_MESSAGE = "error.message"  # a string representing the error message
+ERROR_MSG = ERROR_MESSAGE
+removals.removed_constant(
+    constant_name="ERROR_MSG", replacement_name="ERROR_MESSAGE", category=DDTraceDeprecationWarning
+)
+
 ERROR_TYPE = "error.type"  # a string representing the type of the error
 ERROR_STACK = "error.stack"  # a human readable version of the stack.
 

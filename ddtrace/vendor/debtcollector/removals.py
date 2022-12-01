@@ -57,14 +57,23 @@ class removed_property(object):
 
     # Message templates that will be turned into real messages as needed.
     _PROPERTY_GONE_TPLS = {
-        'set': "Setting the '%s' property is deprecated",
-        'get': "Reading the '%s' property is deprecated",
-        'delete': "Deleting the '%s' property is deprecated",
+        "set": "Setting the '%s' property is deprecated",
+        "get": "Reading the '%s' property is deprecated",
+        "delete": "Deleting the '%s' property is deprecated",
     }
 
-    def __init__(self, fget=None, fset=None, fdel=None, doc=None,
-                 stacklevel=3, category=DeprecationWarning,
-                 version=None, removal_version=None, message=None):
+    def __init__(
+        self,
+        fget=None,
+        fset=None,
+        fdel=None,
+        doc=None,
+        stacklevel=3,
+        category=DeprecationWarning,
+        version=None,
+        removal_version=None,
+        message=None,
+    ):
         self.fset = fset
         self.fget = fget
         self.fdel = fdel
@@ -74,7 +83,7 @@ class removed_property(object):
         self.removal_version = removal_version
         self.message = message
         if doc is None and inspect.isfunction(fget):
-            doc = getattr(fget, '__doc__', None)
+            doc = getattr(fget, "__doc__", None)
         self._message_cache = {}
         self.__doc__ = doc
 
@@ -84,24 +93,22 @@ class removed_property(object):
         except KeyError:
             prefix_tpl = self._PROPERTY_GONE_TPLS[kind]
             prefix = prefix_tpl % _fetch_first_result(
-                self.fget, self.fset, self.fdel, _get_qualified_name,
-                value_not_found="???")
+                self.fget, self.fset, self.fdel, _get_qualified_name, value_not_found="???"
+            )
             out_message = _utils.generate_message(
-                prefix, message=self.message, version=self.version,
-                removal_version=self.removal_version)
+                prefix, message=self.message, version=self.version, removal_version=self.removal_version
+            )
             self._message_cache[kind] = out_message
         return out_message
 
     def __call__(self, fget, **kwargs):
         self.fget = fget
-        self.message = kwargs.get('message', self.message)
-        self.version = kwargs.get('version', self.version)
-        self.removal_version = kwargs.get('removal_version',
-                                          self.removal_version)
-        self.stacklevel = kwargs.get('stacklevel', self.stacklevel)
-        self.category = kwargs.get('category', self.category)
-        self.__doc__ = kwargs.get('doc',
-                                  getattr(fget, '__doc__', self.__doc__))
+        self.message = kwargs.get("message", self.message)
+        self.version = kwargs.get("version", self.version)
+        self.removal_version = kwargs.get("removal_version", self.removal_version)
+        self.stacklevel = kwargs.get("stacklevel", self.stacklevel)
+        self.category = kwargs.get("category", self.category)
+        self.__doc__ = kwargs.get("doc", getattr(fget, "__doc__", self.__doc__))
         # Regenerate all the messages...
         self._message_cache.clear()
         return self
@@ -109,17 +116,15 @@ class removed_property(object):
     def __delete__(self, obj):
         if self.fdel is None:
             raise AttributeError("can't delete attribute")
-        out_message = self._fetch_message_from_cache('delete')
-        _utils.deprecation(out_message, stacklevel=self.stacklevel,
-                           category=self.category)
+        out_message = self._fetch_message_from_cache("delete")
+        _utils.deprecation(out_message, stacklevel=self.stacklevel, category=self.category)
         self.fdel(obj)
 
     def __set__(self, obj, value):
         if self.fset is None:
             raise AttributeError("can't set attribute")
-        out_message = self._fetch_message_from_cache('set')
-        _utils.deprecation(out_message, stacklevel=self.stacklevel,
-                           category=self.category)
+        out_message = self._fetch_message_from_cache("set")
+        _utils.deprecation(out_message, stacklevel=self.stacklevel, category=self.category)
         self.fset(obj, value)
 
     def __get__(self, obj, value):
@@ -127,9 +132,8 @@ class removed_property(object):
             return self
         if self.fget is None:
             raise AttributeError("unreadable attribute")
-        out_message = self._fetch_message_from_cache('get')
-        _utils.deprecation(out_message, stacklevel=self.stacklevel,
-                           category=self.category)
+        out_message = self._fetch_message_from_cache("get")
+        _utils.deprecation(out_message, stacklevel=self.stacklevel, category=self.category)
         return self.fget(obj)
 
     def getter(self, fget):
@@ -160,8 +164,7 @@ class removed_property(object):
         return o
 
 
-def remove(f=None, message=None, version=None, removal_version=None,
-           stacklevel=3, category=None):
+def remove(f=None, message=None, version=None, removal_version=None, stacklevel=3, category=None):
     """Decorates a function, method, or class to emit a deprecation warning
 
     Due to limitations of the wrapt library (and python) itself, if this
@@ -181,11 +184,14 @@ def remove(f=None, message=None, version=None, removal_version=None,
                           ``DeprecationWarning`` when none is provided)
     """
     if f is None:
-        return functools.partial(remove, message=message,
-                                 version=version,
-                                 removal_version=removal_version,
-                                 stacklevel=stacklevel,
-                                 category=category)
+        return functools.partial(
+            remove,
+            message=message,
+            version=version,
+            removal_version=removal_version,
+            stacklevel=stacklevel,
+            category=category,
+        )
 
     @wrapt.decorator
     def wrapper(f, instance, args, kwargs):
@@ -193,10 +199,10 @@ def remove(f=None, message=None, version=None, removal_version=None,
         if qualified:
             if inspect.isclass(f):
                 prefix_pre = "Using class"
-                thing_post = ''
+                thing_post = ""
             else:
                 prefix_pre = "Using function/method"
-                thing_post = '()'
+                thing_post = "()"
         if not qualified:
             prefix_pre = "Using function/method"
             base_name = None
@@ -204,25 +210,22 @@ def remove(f=None, message=None, version=None, removal_version=None,
                 # Decorator was used on a class
                 if inspect.isclass(f):
                     prefix_pre = "Using class"
-                    thing_post = ''
+                    thing_post = ""
                     module_name = _get_qualified_name(inspect.getmodule(f))
-                    if module_name == '__main__':
-                        f_name = _utils.get_class_name(
-                            f, fully_qualified=False)
+                    if module_name == "__main__":
+                        f_name = _utils.get_class_name(f, fully_qualified=False)
                     else:
-                        f_name = _utils.get_class_name(
-                            f, fully_qualified=True)
+                        f_name = _utils.get_class_name(f, fully_qualified=True)
                 # Decorator was a used on a function
                 else:
-                    thing_post = '()'
+                    thing_post = "()"
                     module_name = _get_qualified_name(inspect.getmodule(f))
-                    if module_name != '__main__':
+                    if module_name != "__main__":
                         f_name = _utils.get_callable_name(f)
             # Decorator was used on a classmethod or instancemethod
             else:
-                thing_post = '()'
-                base_name = _utils.get_class_name(instance,
-                                                  fully_qualified=False)
+                thing_post = "()"
+                base_name = _utils.get_class_name(instance, fully_qualified=False)
             if base_name:
                 thing_name = ".".join([base_name, f_name])
             else:
@@ -232,48 +235,39 @@ def remove(f=None, message=None, version=None, removal_version=None,
         if thing_post:
             thing_name += thing_post
         prefix = prefix_pre + " '%s' is deprecated" % (thing_name)
-        out_message = _utils.generate_message(
-            prefix,
-            version=version,
-            removal_version=removal_version,
-            message=message)
-        _utils.deprecation(out_message,
-                           stacklevel=stacklevel, category=category)
+        out_message = _utils.generate_message(prefix, version=version, removal_version=removal_version, message=message)
+        _utils.deprecation(out_message, stacklevel=stacklevel, category=category)
         return f(*args, **kwargs)
+
     return wrapper(f)
 
 
-def removed_kwarg(old_name, message=None,
-                  version=None, removal_version=None, stacklevel=3,
-                  category=None):
+def removed_kwarg(old_name, message=None, version=None, removal_version=None, stacklevel=3, category=None):
     """Decorates a kwarg accepting function to deprecate a removed kwarg."""
 
     prefix = "Using the '%s' argument is deprecated" % old_name
     out_message = _utils.generate_message(
-        prefix, postfix=None, message=message, version=version,
-        removal_version=removal_version)
+        prefix, postfix=None, message=message, version=version, removal_version=removal_version
+    )
 
     @wrapt.decorator
     def wrapper(f, instance, args, kwargs):
         if old_name in kwargs:
-            _utils.deprecation(out_message,
-                               stacklevel=stacklevel, category=category)
+            _utils.deprecation(out_message, stacklevel=stacklevel, category=category)
         return f(*args, **kwargs)
 
     return wrapper
 
 
-def removed_class(cls_name, replacement=None, message=None,
-                  version=None, removal_version=None, stacklevel=3,
-                  category=None):
+def removed_class(
+    cls_name, replacement=None, message=None, version=None, removal_version=None, stacklevel=3, category=None
+):
     """Decorates a class to denote that it will be removed at some point."""
 
     def _wrap_it(old_init, out_message):
-
         @six.wraps(old_init, assigned=_utils.get_assigned(old_init))
         def new_init(self, *args, **kwargs):
-            _utils.deprecation(out_message, stacklevel=stacklevel,
-                               category=category)
+            _utils.deprecation(out_message, stacklevel=stacklevel, category=category)
             return old_init(self, *args, **kwargs)
 
         return new_init
@@ -281,27 +275,29 @@ def removed_class(cls_name, replacement=None, message=None,
     def _check_it(cls):
         if not inspect.isclass(cls):
             _qual, type_name = _utils.get_qualified_name(type(cls))
-            raise TypeError("Unexpected class type '%s' (expected"
-                            " class type only)" % type_name)
+            raise TypeError("Unexpected class type '%s' (expected" " class type only)" % type_name)
 
     def _cls_decorator(cls):
         _check_it(cls)
         out_message = _utils.generate_message(
-            "Using class '%s' (either directly or via inheritance)"
-            " is deprecated" % cls_name, postfix=None, message=message,
-            version=version, removal_version=removal_version)
+            "Using class '%s' (either directly or via inheritance)" " is deprecated" % cls_name,
+            postfix=None,
+            message=message,
+            version=version,
+            removal_version=removal_version,
+        )
         cls.__init__ = _wrap_it(cls.__init__, out_message)
         return cls
 
     return _cls_decorator
 
 
-def removed_module(module, replacement=None, message=None,
-                   version=None, removal_version=None, stacklevel=3,
-                   category=None):
+def removed_module(
+    module, replacement=None, message=None, version=None, removal_version=None, stacklevel=3, category=None
+):
     """Helper to be called inside a module to emit a deprecation warning
 
-    :param str replacment: A location (or information about) of any potential
+    :param str replacement: A location (or information about) of any potential
                            replacement for the removed module (if applicable)
     :param str message: A message to include in the deprecation warning
     :param str version: Specify what version the removed module is present in
@@ -319,16 +315,44 @@ def removed_module(module, replacement=None, message=None,
         module_name = module
     else:
         _qual, type_name = _utils.get_qualified_name(type(module))
-        raise TypeError("Unexpected module type '%s' (expected string or"
-                        " module type only)" % type_name)
+        raise TypeError("Unexpected module type '%s' (expected string or" " module type only)" % type_name)
     prefix = "The '%s' module usage is deprecated" % module_name
     if replacement:
         postfix = ", please use %s instead" % replacement
     else:
         postfix = None
-    out_message = _utils.generate_message(prefix,
-                                          postfix=postfix, message=message,
-                                          version=version,
-                                          removal_version=removal_version)
-    _utils.deprecation(out_message,
-                       stacklevel=stacklevel, category=category)
+    out_message = _utils.generate_message(
+        prefix, postfix=postfix, message=message, version=version, removal_version=removal_version
+    )
+    _utils.deprecation(out_message, stacklevel=stacklevel, category=category)
+
+
+def removed_constant(
+    constant_name, replacement_name=None, message=None, version=None, removal_version=None, stacklevel=3, category=None
+):
+    """Helper to be called with a constant to emit a deprecation warning
+
+    :param str constant_name: The name of the constant being deprecated
+    :param str replacement_name: The name (if any) of the new replacement
+                                constant.
+    :param str message: A message to include in the deprecation warning
+    :param str version: Specify what version the removed module is present in
+    :param str removal_version: What version the module will be removed. If
+                                '?' is used this implies an undefined future
+                                version
+    :param int stacklevel: How many entries deep in the call stack before
+                           ignoring
+    :param type category: warnings message category (this defaults to
+                          ``DeprecationWarning`` when none is provided)
+    """
+    if not isinstance(constant_name, str) or (replacement_name and not isinstance(replacement_name, str)):
+        raise TypeError("Unexpected type of for inputted constant and/or replacement name (expected string type only)")
+    prefix = "The '%s' constant usage is deprecated" % constant_name
+    if replacement_name:
+        postfix = ", please use '%s' instead" % replacement_name
+    else:
+        postfix = None
+    out_message = _utils.generate_message(
+        prefix, postfix=postfix, message=message, version=version, removal_version=removal_version
+    )
+    _utils.deprecation(out_message, stacklevel=stacklevel, category=category)
