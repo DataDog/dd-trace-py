@@ -72,8 +72,6 @@ def _parse_propagation_styles(name, default):
         return None
     for style in envvar.split(","):
         style = style.strip().lower()
-        if not style:
-            continue
         if style == "b3":
             deprecate(
                 "ddtrace.settings.config._parse_propagation_styles",
@@ -81,6 +79,8 @@ def _parse_propagation_styles(name, default):
                 " propagation style `b3` will be removed in a future version.",
             )
             style = PROPAGATION_STYLE_B3_MULTI
+        if not style:
+            continue
         if style not in PROPAGATION_STYLE_ALL:
             raise ValueError(
                 "Unknown style {!r} provided for {!r}, allowed values are {!r}".format(
@@ -88,6 +88,7 @@ def _parse_propagation_styles(name, default):
                 )
             )
         styles.append(style)
+        # print(styles)
     return styles
 
 
