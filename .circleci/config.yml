@@ -798,8 +798,8 @@ jobs:
   molten:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^molten_contrib-'
+      - run_test:
+          pattern: 'molten'
 
   mysqlconnector:
     <<: *contrib_job
@@ -842,6 +842,7 @@ jobs:
 
   pytest:
     executor: ddtrace_dev
+    parallelism: 8
     steps:
       - run_test:
           pattern: 'pytest$'
@@ -869,7 +870,7 @@ jobs:
 
   mongoengine:
     <<: *machine_executor
-    parallelism: 1
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'mongoengine'
@@ -1101,8 +1102,8 @@ jobs:
   algoliasearch:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^algoliasearch_contrib-'
+      - run_test:
+          pattern: 'algoliasearch'
 
   build_docs:
     # build documentation and store as an artifact
