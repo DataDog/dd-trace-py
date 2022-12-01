@@ -88,7 +88,6 @@ def _parse_propagation_styles(name, default):
                 )
             )
         styles.append(style)
-        # print(styles)
     return styles
 
 
