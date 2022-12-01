@@ -1,3 +1,19 @@
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import removals
+
+
+_deprecated_names = {"ERROR_MSG": "ERROR_MESSAGE"}
+
+
+def __getattr__(name):
+    if name in _deprecated_names.keys():
+        removals.create_warning(
+            deprecated=name, replacement_name=_deprecated_names[name], category=DDTraceDeprecationWarning
+        )
+        return globals()[f"_DEPRECATED_{name}"]
+    raise AttributeError(f"module {__name__} has no attribute {name}")
+
+
 SAMPLE_RATE_METRIC_KEY = "_sample_rate"
 SAMPLING_PRIORITY_KEY = "_sampling_priority_v1"
 ANALYTICS_SAMPLE_RATE_KEY = "_dd1.sr.eausr"
@@ -45,6 +61,7 @@ MANUAL_KEEP_KEY = "manual.keep"
 
 
 ERROR_MESSAGE = "error.message"  # a string representing the error message
+_DEPRECATED_ERROR_MSG = ERROR_MESSAGE  # DEPRECATED: USE 'ERROR_MESSAGE' INSTEAD
 ERROR_TYPE = "error.type"  # a string representing the type of the error
 ERROR_STACK = "error.stack"  # a human readable version of the stack.
 
