@@ -484,6 +484,8 @@ jobs:
           PYTHON_VERSION=python${PYTHON_VERSION//.}
           /usr/bin/python3 -V
           /usr/bin/python3 uwsgiconfig.py --plugin plugins/python base $PYTHON_VERSION
-      - name: Run tests
+      - name: Run Python tests
         run: |
           ddtrace-run ./tests/gh-python.sh python39
+      - name: Run deadlock tests
+          ddtrace-run ./tests/gh-deadlocks.sh python39
