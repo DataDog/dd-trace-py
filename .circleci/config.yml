@@ -842,6 +842,7 @@ jobs:
 
   pytest:
     executor: ddtrace_dev
+    parallelism: 8
     steps:
       - run_test:
           pattern: 'pytest$'
