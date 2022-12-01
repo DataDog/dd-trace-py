@@ -14,6 +14,7 @@ from ddtrace import Tracer
 from ddtrace.internal import agent
 from ddtrace.internal.runtime import container
 from ddtrace.internal.writer import AgentWriter
+from tests.utils import AnyExc
 from tests.utils import AnyFloat
 from tests.utils import AnyInt
 from tests.utils import AnyStr
@@ -139,9 +140,11 @@ def test_uds_wrong_socket_path(encoding, monkeypatch):
         t.shutdown()
     calls = [
         mock.call(
-            "failed to send traces to Datadog Agent at %s",
+            "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+            1,
             "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
-            exc_info=True,
+            3,
+            AnyExc(),
         )
     ]
     log.error.assert_has_calls(calls)
@@ -347,9 +350,11 @@ def test_trace_bad_url(encoding, monkeypatch):
 
     calls = [
         mock.call(
-            "failed to send traces to Datadog Agent at %s",
+            "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+            1,
             "http://bad:1111/{}/traces".format(encoding if encoding else "v0.5"),
-            exc_info=True,
+            3,
+            AnyExc(),
         )
     ]
     log.error.assert_has_calls(calls)

@@ -1014,6 +1014,11 @@ class AnyInt(object):
         return isinstance(other, int)
 
 
+class AnyExc(object):
+    def __eq__(self, other):
+        return isinstance(other, Exception)
+
+
 class AnyFloat(object):
     def __eq__(self, other):
         return isinstance(other, float)
