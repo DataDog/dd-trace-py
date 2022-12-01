@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any
 from typing import Dict
 from typing import List
@@ -7,6 +8,11 @@ from typing import Text
 from typing import Tuple
 from typing import TypeVar
 from typing import Union
+
+import six
+
+from ddtrace.constants import USER_ID_KEY
+from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 
 from ..compat import binary_type
 from ..compat import ensure_text
@@ -18,7 +24,7 @@ VALUE_PLACEHOLDER = "?"
 VALUE_MAX_LEN = 100
 VALUE_TOO_LONG_MARK = "..."
 CMD_MAX_LEN = 1000
-
+_W3C_TRACESTATE_INVALID_CHARS_REGEX = r",|;|:|[^\x20-\x7E]+"
 
 T = TypeVar("T")
 
@@ -160,3 +166,26 @@ def stringify_cache_args(args):
             break
 
     return " ".join(out)
+
+
+def _w3c_format_unknown_propagated_tags(current_tags, potential_tags):
+    # type: (List[str], dict) -> List[str]
+    current_tags_len = sum(len(i) for i in current_tags)
+    for k, v in potential_tags.items():
+        if (
+            isinstance(k, six.string_types)
+            and k.startswith("_dd.p")
+            # we've already added sampling decision and user id
+            and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
+        ):
+            # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
+            # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
+            next_tag = "{}:{}".format(
+                re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)),
+                re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", v),
+            )
+            # we need to keep the total length under 256 char
+            current_tags_len += len(next_tag)
+            if not current_tags_len > 256:
+                current_tags.append(next_tag)
+    return current_tags

@@ -6,8 +6,6 @@ from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Text
 
-import six
-
 from .constants import ORIGIN_KEY
 from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
@@ -15,8 +13,12 @@ from .internal.compat import NumericType
 from .internal.compat import PY2
 from .internal.constants import _TRACEPARENT_KEY
 from .internal.constants import _TRACESTATE_KEY
+from .internal.constants import _W3C_TRACESTATE_ORIGIN_KEY
+from .internal.constants import _W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from .internal.logger import get_logger
 from .internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
+from .internal.utils.formats import _W3C_TRACESTATE_INVALID_CHARS_REGEX
+from .internal.utils.formats import _w3c_format_unknown_propagated_tags
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -33,7 +35,6 @@ if TYPE_CHECKING:  # pragma: no cover
         _MetricDictType,  # _metrics
     ]
 
-_W3C_TRACESTATE_INVALID_CHARS_REGEX = r",|;|:|[^\x20-\x7E]+"
 
 log = get_logger(__name__)
 
@@ -149,52 +150,37 @@ class Context(object):
     @property
     def _tracestate(self):
         # type: () -> str
-        dd = ""
+        dd = []
         if self.sampling_priority:
-            dd += "s:{};".format(self.sampling_priority)
+            dd.append("{}:{}".format(_W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, self.sampling_priority))
         if self.dd_origin:
-            dd += "o:{};".format(re.sub(r",|;|=|[^\x20-\x7E]+", "_", self.dd_origin))
+            # the origin value has specific values that are allowed.
+            dd.append("{}:{}".format(_W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|=|[^\x20-\x7E]+", "_", self.dd_origin)))
         sampling_decision = self._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
         if sampling_decision:
-            # replace characters ",", "=", and characters outside the ASCII range 0x20 to 0x7E
-            dd += "t.dm:{};".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision))
+            dd.append("t.dm:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
         # since this can change, we need to grab the value off the current span
         usr_id_key = self._meta.get(USER_ID_KEY)
         if usr_id_key:
-            dd += "t.usr.id:{};".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key))
+            dd.append("t.usr.id:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key)))
 
         # grab all other _dd.p values out of meta since we need to propagate all of them
-        for k, v in self._meta.items():
-            if (
-                isinstance(k, six.string_types)
-                and k.startswith("_dd.p")
-                # we've already added sampling decision and user id
-                and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
-            ):
-                # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
-                # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
-                next_tag = "{}:{};".format(
-                    re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)),
-                    re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", v),
-                )
-                if not (len(dd) + len(next_tag)) > 256:
-                    dd += next_tag
-        # remove final ;
-        if dd:
-            dd = dd[:-1]
+        dd = _w3c_format_unknown_propagated_tags(dd, self._meta)
+
+        dd_list_member = ";".join(dd)
 
         # If there's a preexisting tracestate we need to update it to preserve other vendor data
         ts = self._meta.get(_TRACESTATE_KEY, "")
-        if ts and dd:
+        if ts and dd_list_member:
             # cut out the original dd list member from tracestate so we can replace it with the new one we created
             ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
             if ts_w_out_dd:
-                ts = "dd={},{}".format(dd, ts_w_out_dd)
+                ts = "dd={},{}".format(dd_list_member, ts_w_out_dd)
             else:
-                ts = "dd={}".format(dd)
+                ts = "dd={}".format(dd_list_member)
         # if there is no original tracestate value then tracestate is just the dd list member we created
-        elif dd:
-            ts = "dd={}".format(dd)
+        elif dd_list_member:
+            ts = "dd={}".format(dd_list_member)
         return ts
 
     @property

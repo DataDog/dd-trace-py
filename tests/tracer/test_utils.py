@@ -12,6 +12,7 @@ from ddtrace.internal.utils import time
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.cache import callonce
+from ddtrace.internal.utils.formats import _w3c_format_unknown_propagated_tags
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.importlib import func_name
@@ -398,3 +399,71 @@ def test_callonce_signature():
         @callonce
         def _():
             yield 42
+
+
+@pytest.mark.parametrize(
+    "current_tags, potential_tags, expected_list",
+    [
+        (
+            [],
+            {
+                "_dd.p.unk": "-4",
+                "_dd.p.unknown": "baz64",
+            },
+            ["t.unk:-4", "t.unknown:baz64"],
+        ),
+        (
+            [],
+            {
+                "_dd.p.dm": "-4",
+                "_dd.p.usr.id": "baz64",
+            },
+            [],
+        ),
+        (
+            ["tag1", "tag2"],
+            {
+                "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                "_dd.p.dm": "-4",
+                "_dd.p.usr.id": "baz64",
+                "_dd.p.unk": "-4",
+                "_dd.p.unknown": "baz64",
+            },
+            ["tag1", "tag2", "t.unk:-4", "t.unknown:baz64"],
+        ),
+        (
+            ["a" for i in range(256)],
+            {
+                "_dd.p.unk": "-4",
+                "_dd.p.unknown": "baz64",
+            },
+            ["a" for i in range(256)],
+        ),
+        (
+            [],
+            {},
+            [],
+        ),
+        (  # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E with _
+            # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E with _
+            [],
+            {
+                "_dd.p.unk": "-4",
+                "_dd.p.unknown": "baz64",
+                "_dd.p.¢": ";4",
+                "_dd.p.u=,": "ba:,¢",
+            },
+            ["t.unk:-4", "t.unknown:baz64", "t._:_4", "t.u__:ba___"],
+        ),
+    ],
+    ids=[
+        "basic",
+        "does_not_add_known_tags",
+        "adds_to_other_tags",
+        "does_not_add_more_than_256_char",
+        "handles_no_tags",
+        "char_replacement",
+    ],
+)
+def test_w3c_format_unknown_propagated_tags(current_tags, potential_tags, expected_list):
+    assert expected_list == _w3c_format_unknown_propagated_tags(current_tags, potential_tags)
