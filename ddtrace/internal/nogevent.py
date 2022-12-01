@@ -10,7 +10,16 @@ from ddtrace.internal import forksafe
 
 
 try:
+    import sys
+
     import gevent.monkey
+
+    # DEV: We grab a reference to gevent.monkey and then unload gevent modules.
+    # This allows patch on import to trigger the patch hook. This won't be
+    # necessary once we unload all modules in the sitecustomize script.
+    for k in list(sys.modules):
+        if k.startswith("gevent"):
+            del sys.modules[k]
 except ImportError:
 
     def get_original(module, func):
