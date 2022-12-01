@@ -799,8 +799,8 @@ jobs:
   molten:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^molten_contrib-'
+      - run_test:
+          pattern: 'molten'
 
   mysqlconnector:
     <<: *contrib_job
