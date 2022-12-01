@@ -217,9 +217,9 @@ class AppSecSpanProcessor(SpanProcessor):
         self._init_waf(all_rules)
         # TODO: need to reupdate rule data here?
 
-    def update_rules_data(self, new_rule_data):
+    def update_rule_data(self, new_rule_data):
         # type: (List[Dict[str, Any]]) -> None
-        self._ddwaf.update_rules_data(new_rule_data)
+        self._ddwaf.update_rule_data(new_rule_data)
 
     def on_span_start(self, span, *args, **kwargs):
         # type: (Span, Any, Any) -> None
