@@ -14,8 +14,8 @@ from .internal.compat import PY2
 from .internal.constants import _TRACEPARENT_KEY
 from .internal.constants import _TRACESTATE_KEY
 from .internal.logger import get_logger
-from .internal.utils.formats import _w3c_format_known_propagated_tags
-from .internal.utils.formats import _w3c_format_unknown_propagated_tags
+from .internal.utils.http import w3c_format_known_propagated_tags
+from .internal.utils.http import w3c_format_unknown_propagated_tags
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -147,10 +147,10 @@ class Context(object):
     @property
     def _tracestate(self):
         # type: () -> str
-        dd = _w3c_format_known_propagated_tags(self)
+        dd = w3c_format_known_propagated_tags(self)
 
         # get and format all other _dd.p values out of meta since we need to propagate all of them
-        dd = _w3c_format_unknown_propagated_tags(dd, self._meta)
+        dd = w3c_format_unknown_propagated_tags(dd, self._meta)
 
         dd_list_member = ";".join(dd)
 

@@ -13,9 +13,9 @@ from ddtrace.internal.utils import time
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.cache import callonce
-from ddtrace.internal.utils.formats import _w3c_format_unknown_propagated_tags
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.http import w3c_format_unknown_propagated_tags
 from ddtrace.internal.utils.importlib import func_name
 
 
@@ -467,5 +467,5 @@ def test_callonce_signature():
     ],
 )
 def test_w3c_format_unknown_propagated_tags(current_tags, potential_tags, expected_list):
-    for tag in _w3c_format_unknown_propagated_tags(current_tags, potential_tags):
+    for tag in w3c_format_unknown_propagated_tags(current_tags, potential_tags):
         assert tag in expected_list
