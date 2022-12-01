@@ -202,7 +202,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def __attrs_post_init__(self):
         # type: () -> None
         if self._ddwaf is None:
-            rules = self._read_rules_file(self.rules)
+            rules = self._read_rules_file()
             self.init_waf(rules)
         for address in self._ddwaf.required_data:
             self._mark_needed(address)
