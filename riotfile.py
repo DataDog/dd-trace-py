@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 latest = object()  # sentinel value
 
 
-def find_workflow(workflow_id):
+def find_workflow(workflow_id: str) -> str:
     """Use CircleCI API to retrieve current workflow name"""
     try:
         url = f"https://circleci.com/api/v2/workflow/{workflow_id}"
@@ -24,7 +24,7 @@ def find_workflow(workflow_id):
         body = res.read().decode()
         return json.loads(body)["name"]
     except HTTPError:
-        logger.error("Error loading workflow information from the CircleC: %s", url)
+        logger.error("Error loading workflow information from CircleC: %s", url)
         raise
 
 
@@ -36,6 +36,8 @@ if "CIRCLE_WORKFLOW_ID" not in os.environ:
     else:
         logger.warning("not in CircleCI. Use fixed dependencies versions.")
 else:
+    # CircleCI has no environment variable for the workflow name and no possibility
+    # to set it at the workflow level. We use the CircleCI API to do it.
     PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
     logger.info("Set latest versions of packages: %s", ["FIXED", "LATEST"][PY_Latest])
 
