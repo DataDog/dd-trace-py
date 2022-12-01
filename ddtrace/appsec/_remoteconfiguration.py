@@ -53,7 +53,7 @@ def appsec_rc_reload_features(tracer):
             log.debug("Reloading appsec RC: %s", features)
             custom_rules = features.get("custom_rules", [])
             rules_data = features.get("rules_data", [])
-            if tracer._appsec_processor:
+            if (rules_data or custom_rules) and tracer._appsec_processor:
                 if rules_data:
                     tracer._appsec_processor.update_rule_data(rules_data)
                 if custom_rules:
