@@ -74,4 +74,4 @@ def __getattr__(name):
             deprecated=name, replacement_name=deprecated_replacement, category=DDTraceDeprecationWarning
         )
         return globals()["__DEPRECATED_" + name]
-    raise AttributeError(f"module {__name__} has no attribute {name}")
+    raise AttributeError("module %s has no attribute %s" % (__name__, name))
