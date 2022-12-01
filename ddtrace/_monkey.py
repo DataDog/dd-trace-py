@@ -84,7 +84,14 @@ PATCH_MODULES = {
     "dogpile_cache": True,
     "yaaredis": True,
     "asyncpg": True,
+    "tornado": False,
 }
+
+
+CONTRIB_DEPENDENCIES = {
+    "tornado": ("futures",),
+}
+
 
 _LOCK = threading.Lock()
 _PATCHED_MODULES = set()
@@ -102,6 +109,12 @@ _MODULES_FOR_CONTRIB = {
         "opensearchpy",
     ),
     "psycopg": ("psycopg2",),
+    "snowflake": ("snowflake.connector",),
+    "cassandra": ("cassandra.cluster",),
+    "dogpile_cache": ("dogpile.cache",),
+    "mysqldb": ("MySQLdb",),
+    "futures": ("concurrent.futures",),
+    "vertica": ("vertica_python",),
 }
 
 IAST_PATCH = {
@@ -169,11 +182,13 @@ def patch_all(**patch_modules):
     # The enabled setting can be overridden by environment variables
     for module, enabled in modules.items():
         env_var = "DD_TRACE_%s_ENABLED" % module.upper()
-        if env_var not in os.environ:
-            continue
+        if env_var in os.environ:
+            modules[module] = formats.asbool(os.environ[env_var])
 
-        override_enabled = formats.asbool(os.environ[env_var])
-        modules[module] = override_enabled
+        # Enable all dependencies for the module
+        if modules[module]:
+            for dep in CONTRIB_DEPENDENCIES.get(module, ()):
+                modules[dep] = True
 
     # Arguments take precedence over the environment and the defaults.
     modules.update(patch_modules)
@@ -217,14 +232,13 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
                 )
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
-            # If the module has already been imported then patch immediately
+            # If the module has already been imported remove it from sys.modules.
+            # It will be patched when reloaded by the tracee.
             if module in sys.modules:
-                _patch_module(contrib, patch_modules_prefix=patch_modules_prefix, raise_errors=raise_errors)
-                break
-            # Otherwise, add a hook to patch when it is imported for the first time
-            else:
-                # Use factory to create handler to close over `module` and `raise_errors` values from this loop
-                when_imported(module)(_on_import_factory(contrib, raise_errors=False))
+                del sys.modules[module]
+
+            # Use factory to create handler to close over `module` and `raise_errors` values from this loop
+            when_imported(module)(_on_import_factory(contrib, raise_errors=False))
 
         # manually add module to patched modules
         with _LOCK:

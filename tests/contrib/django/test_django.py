@@ -1624,6 +1624,7 @@ def test_django_use_handler_with_url_name_resource_format_env(client, test_spans
                 "-c",
                 (
                     "from ddtrace import config, patch_all; patch_all(); "
+                    "import django; "
                     "assert config.django.use_handler_with_url_name_resource_format; print('Test success')"
                 ),
             ]
