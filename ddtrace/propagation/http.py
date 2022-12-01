@@ -680,7 +680,7 @@ class _TraceContext:
         )
 
 
-class _None_Propagation:
+class _NOP_Propagator:
     @staticmethod
     def _extract(headers):
         return None
@@ -697,7 +697,7 @@ _PROP_STYLES = {
     PROPAGATION_STYLE_B3: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
-    _PROPAGATION_STYLE_NONE: _None_Propagation,
+    _PROPAGATION_STYLE_NONE: _NOP_Propagator,
 }
 
 
