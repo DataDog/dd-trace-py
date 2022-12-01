@@ -3,6 +3,7 @@ import os
 import pytest
 
 from ddtrace.appsec._remoteconfiguration import appsec_rc_reload_features
+from ddtrace.appsec.utils import _appsec_rc_capabilities
 from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import APPSEC_JSON
@@ -62,3 +63,15 @@ def test_rc_activation_states(tracer, appsec_enabled, rc_value, expected):
             assert "triggers" in result
         else:
             assert result is None
+
+
+@pytest.mark.parametrize(
+    "rc_enabled, capability",
+    [
+        ("true", "Bg=="),
+        ("false", ""),
+    ],
+)
+def test_rc_capabilities(rc_enabled, capability):
+    with override_env({"DD_REMOTE_CONFIGURATION_ENABLED": rc_enabled}):
+        assert _appsec_rc_capabilities() == capability
