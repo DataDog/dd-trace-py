@@ -64,14 +64,13 @@ AUTO_KEEP = 1
 # Use this to explicitly inform the backend that a trace should be kept and stored.
 USER_KEEP = 2
 
-__deprecated__ = {"ERROR_MSG": {"replacement": "ERROR_MESSAGE"}}
-
+__deprecated__ = {
+    "ERROR_MSG": {"replacement": "ERROR_MESSAGE"}
+}
 
 def __getattr__(name):
     if name in __deprecated__.keys():
         deprecated_replacement = __deprecated__[name].get("replacement")
-        removals.removed_constant(
-            deprecated=name, replacement_name=deprecated_replacement, category=DDTraceDeprecationWarning
-        )
+        removals.removed_constant(deprecated=name, replacement_name=deprecated_replacement, category=DDTraceDeprecationWarning)
         return globals()["__DEPRECATED_" + name]
     raise AttributeError(f"module {__name__} has no attribute {name}")
