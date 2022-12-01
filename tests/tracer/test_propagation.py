@@ -1230,7 +1230,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
     ),
     (
         # tracecontext propagation sets additional meta data that
-        # can't be tested correctly via test_propagation_extract_w_config. It is tested separetely
+        # can't be tested correctly via test_propagation_extract_w_config. It is tested separately
         "valid_tracecontext_simple",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         TRACECONTEXT_HEADERS_VALID_BASIC,
