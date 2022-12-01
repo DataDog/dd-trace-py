@@ -14,14 +14,11 @@
 
 import functools
 import inspect
-import warnings
 
 import six
 from .. import wrapt
 
 from . import _utils
-
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 
 def _get_qualified_name(obj):
