@@ -451,9 +451,9 @@ def test_callonce_signature():
                 "_dd.p.unk": "-4",
                 "_dd.p.unknown": "baz64",
                 "_dd.p.¢": ";4",
-                "_dd.p.u=,": "ba:,¢",
+                "_dd.p.u=,": "b:,¢a",
             },
-            ["t.unk:-4", "t.unknown:baz64", "t._:_4", "t.u__:ba___"],
+            ["t.unk:-4", "t.unknown:baz64", "t._:_4", "t.u__:b___a"],
         ),
     ],
     ids=[
