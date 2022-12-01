@@ -450,6 +450,7 @@ jobs:
     runs-on: "ubuntu-18.04"
     env:
       DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: true
       PYTHONPATH: ../ddtrace/tests/debugging/exploration/
     defaults:
       run:
@@ -464,7 +465,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: unbit/uwsgi
-          ref: master
+          ref: 2.0.21
           path: uwsgi
       - name: Install dependencies
         run: |
@@ -480,12 +481,9 @@ jobs:
         run: make
       - name: Build Python plugin
         run: |
-          PYTHON_VERSION=3.9
-          PYTHON_VERSION=python${PYTHON_VERSION//.}
-          /usr/bin/python3 -V
-          /usr/bin/python3 uwsgiconfig.py --plugin plugins/python base $PYTHON_VERSION
+          python -V
+          python uwsgiconfig.py --plugin plugins/python base python39
       - name: Run Python tests
-        run: |
-          ddtrace-run ./tests/gh-python.sh python39
+        run: ddtrace-run ./tests/gh-python.sh python39
       - name: Run deadlock tests
-          ddtrace-run ./tests/gh-deadlocks.sh python39
+        run: ddtrace-run ./tests/gh-deadlocks.sh python39
