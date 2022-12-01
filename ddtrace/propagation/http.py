@@ -677,6 +677,13 @@ class _TraceContext:
             dd_origin=origin,
             meta=meta,
         )
+    
+    @staticmethod
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
+        headers[_HTTP_HEADER_TRACEPARENT] = span_context._traceparent
+
+        headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
 
 _PROP_STYLES = {

@@ -1559,6 +1559,21 @@ INJECT_FIXTURES = [
         },
         {_HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370"},
     ),
+    # name,styles,context,expected_headers
+    # tracecontext
+        (
+        "valid_tracecontext",
+        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        {
+            "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
+            "span_id": VALID_DATADOG_CONTEXT["span_id"],
+        },
+        {_HTTP_HEADER_TRACEPARENT: "b5a2814f70060771-7197677932a62370",
+        _HTTP_HEADER_TRACESTATE : ""
+
+        
+        },
+    ),
     # All styles
     (
         "valid_all_styles",
