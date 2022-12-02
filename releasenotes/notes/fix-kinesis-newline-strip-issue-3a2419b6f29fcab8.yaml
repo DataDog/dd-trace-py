@@ -26,4 +26,4 @@
 #    * Use dynamic links (``stable/latest/1.x`` URLs). Instead, use static links (specific version, commit hash) whenever possible so that they don't break in the future.
 fixes:
   - |
-    This fix resolves an issue where any `\n` at the end of a kinesis record is stripped by the json library.
+    botocore: This fix resolves an issue where any ``\n`` at the end of a kinesis record is stripped by the json library.
