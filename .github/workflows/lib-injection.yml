@@ -21,8 +21,7 @@ jobs:
         rsync -av . lib-injection/dd-trace-py/ --exclude lib-injection
         echo "DESPUES DE COPIAR. LS lib-injection"
         ls lib-injection/
-        
-
+     
     - name: Available platforms
       run: echo ${{ steps.buildx.outputs.platforms }}
 
@@ -72,7 +71,6 @@ jobs:
         with:
           repository: 'DataDog/system-tests'
           ref: 'robertomonteromiguel/lib_injection_integration'
-          path: './system-tests'
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -94,11 +92,9 @@ jobs:
 
       - name: Build and push images
         run: |
-          cd system-tests   
           ./lib-injection/run.sh build-and-push-test-app-image  
           ./lib-injection/build.sh
  
       - name: Run lib injection tests
         run: |
-          cd system-tests   
           ./lib-injection/run-lib-injection.sh
