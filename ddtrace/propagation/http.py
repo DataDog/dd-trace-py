@@ -32,8 +32,8 @@ from ._utils import get_wsgi_header
 
 log = get_logger(__name__)
 
-_TRACEPARENT_KEY = "traceparent"
-_TRACESTATE_KEY = "tracestate"
+W3C_TRACEPARENT_KEY = "traceparent"
+W3C_TRACESTATE_KEY = "tracestate"
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
@@ -645,7 +645,7 @@ class _TraceContext:
             log.exception("received invalid w3c traceparent: %s ", tp)
             return None
         origin = None
-        meta = {_TRACEPARENT_KEY: tp}  # type: _MetaDictType
+        meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
@@ -655,7 +655,7 @@ class _TraceContext:
                 log.debug("received invalid tracestate header: %r", ts)
             else:
                 # store tracestate so we keep other vendor data for injection, even if dd ends up being invalid
-                meta[_TRACESTATE_KEY] = ts
+                meta[W3C_TRACESTATE_KEY] = ts
                 try:
                     tracestate_values = _TraceContext._get_tracestate_values(ts)
                 except (TypeError, ValueError):
