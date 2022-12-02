@@ -2,11 +2,15 @@
 Bootstrapping code that is run when using the `ddtrace-run` Python entrypoint
 Add all monkey-patching that needs to run by default here
 """
-import logging
-import os
 import sys
-from typing import Any
-from typing import Dict
+
+
+LOADED_MODULES = frozenset(sys.modules.keys())
+
+import logging  # noqa
+import os  # noqa
+from typing import Any  # noqa
+from typing import Dict  # noqa
 
 
 # Perform gevent patching as early as possible in the application before
@@ -18,14 +22,16 @@ if os.environ.get("DD_GEVENT_PATCH_ALL", "false").lower() in ("true", "1"):
 
 
 from ddtrace import config  # noqa
-from ddtrace.debugging._config import config as debugger_config
+from ddtrace import constants  # noqa
+from ddtrace.debugging._config import config as debugger_config  # noqa
+from ddtrace.internal.compat import PY2  # noqa
 from ddtrace.internal.logger import get_logger  # noqa
-from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa
 from ddtrace.internal.utils.formats import asbool  # noqa
-from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.formats import parse_tags_str  # noqa
 from ddtrace.tracer import DD_LOG_FORMAT  # noqa
-from ddtrace.tracer import debug_mode
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.tracer import debug_mode  # noqa
+from ddtrace.vendor.debtcollector import deprecate  # noqa
 
 
 if config.logs_injection:
@@ -74,6 +80,30 @@ def update_patched_modules():
         EXTRA_PATCHED_MODULES[module] = asbool(should_patch)
 
 
+if PY2:
+    _unloaded_modules = []
+
+
+def cleanup_loaded_modules():
+    # Unload all the modules that we have imported, expect for the ddtrace one.
+    for m in list(_ for _ in sys.modules if _ not in LOADED_MODULES):
+        if m.startswith("atexit"):
+            continue
+        if m.startswith("typing"):  # reguired by Python < 3.7
+            continue
+        if m.startswith("ddtrace"):
+            continue
+
+        if PY2:
+            if "encodings" in m:
+                continue
+            # Store a reference to deleted modules to avoid them being garbage
+            # collected
+            _unloaded_modules.append(sys.modules[m])
+
+        del sys.modules[m]
+
+
 try:
     from ddtrace import tracer
 
@@ -111,7 +141,17 @@ try:
         update_patched_modules()
         from ddtrace import patch_all
 
+        # We need to clean up after we have imported everything we need from
+        # ddtrace, but before we register the patch-on-import hooks for the
+        # integrations.
+        cleanup_loaded_modules()
+
         patch_all(**EXTRA_PATCHED_MODULES)
+    else:
+        cleanup_loaded_modules()
+
+    # Only the import of the original sitecustomize.py is allowed after this
+    # point.
 
     if "DD_TRACE_GLOBAL_TAGS" in os.environ:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
@@ -156,6 +196,8 @@ try:
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.
     loaded = True
+
+
 except Exception:
     loaded = False
     log.warning("error configuring Datadog tracing", exc_info=True)

@@ -683,13 +683,7 @@ class PatchTestCase(object):
                         """
                         import sys
 
-                        from ddtrace.internal.module import ModuleWatchdog
                         from ddtrace.vendor.wrapt import wrap_function_wrapper as wrap
-
-                        try:
-                            ModuleWatchdog.install()
-                        except RuntimeError:
-                            pass
 
                         def patch_hook(module):
                             def patch_wrapper(wrapped, _, args, kwrags):
@@ -699,9 +693,10 @@ class PatchTestCase(object):
 
                             wrap(module.__name__, module.patch.__name__, patch_wrapper)
 
-                        ModuleWatchdog.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
+                        sys.modules.register_module_hook("ddtrace.contrib.%s.patch", patch_hook)
 
                         sys.stdout.write("O")
+
                         import %s
                         """
                         % (self.__integration_name__, self.__module_name__)
