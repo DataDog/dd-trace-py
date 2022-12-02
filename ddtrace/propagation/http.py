@@ -677,7 +677,7 @@ class _TraceContext:
             dd_origin=origin,
             meta=meta,
         )
-    
+
     @staticmethod
     def _inject(span_context, headers):
         # type: (Context, Dict[str, str]) -> None

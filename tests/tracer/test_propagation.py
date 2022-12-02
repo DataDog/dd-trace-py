@@ -1560,73 +1560,76 @@ INJECT_FIXTURES = [
         {_HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370"},
     ),
     # tracecontext
-        (
+    (
         "valid_tracecontext",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
-                "trace_id": 11803532876627986230,
-                "span_id": 67667974448284343,
-                "meta": {
-                    "tracestate": "dd=s:2;o:rum",
-                    "_dd.origin": "rum",
-                    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-                },
-                "metrics": {"_sampling_priority_v1": 2},
+            "trace_id": 11803532876627986230,
+            "span_id": 67667974448284343,
+            "meta": {
+                "tracestate": "dd=s:2;o:rum",
+                "_dd.origin": "rum",
+                "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             },
+            "metrics": {"_sampling_priority_v1": 2},
+        },
         TRACECONTEXT_HEADERS_VALID_BASIC,
     ),
-            (
+    (
         "only_traceparent",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
-                "trace_id": 11803532876627986230,
-                "span_id": 67667974448284343,
-                "meta": {
-                    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-                },
+            "trace_id": 11803532876627986230,
+            "span_id": 67667974448284343,
+            "meta": {
+                "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             },
+        },
         {_HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"},
     ),
-            (
+    (
         "no_context_traceparent",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
-                "trace_id": 11803532876627986230,
-                "span_id": 67667974448284343,
-                "meta": {
-                    "tracestate": "dd=s:2;o:rum",
-                    "_dd.origin": "rum",
-                },
-                "metrics": {"_sampling_priority_v1": 2},
+            "trace_id": 11803532876627986230,
+            "span_id": 67667974448284343,
+            "meta": {
+                "tracestate": "dd=s:2;o:rum",
+                "_dd.origin": "rum",
             },
-            
-{
-    _HTTP_HEADER_TRACEPARENT: "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
-    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
-}
+            "metrics": {"_sampling_priority_v1": 2},
+        },
+        {
+            _HTTP_HEADER_TRACEPARENT: "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
+        },
     ),
-                (
+    (
         "tracestate_additional_list_members",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
-                "trace_id": 11803532876627986230,
-                "span_id": 67667974448284343,
-                "meta": {
-                    "tracestate": "dd=s:2;o:rum,congo=baz123",
-                    "_dd.origin": "rum",
-                },
-                "metrics": {"_sampling_priority_v1": 2},
+            "trace_id": 11803532876627986230,
+            "span_id": 67667974448284343,
+            "meta": {
+                "tracestate": "dd=s:2;o:rum,congo=baz123",
+                "_dd.origin": "rum",
             },
-            
-{
-    _HTTP_HEADER_TRACEPARENT: "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
-    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum,congo=baz123",
-}
+            "metrics": {"_sampling_priority_v1": 2},
+        },
+        {
+            _HTTP_HEADER_TRACEPARENT: "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum,congo=baz123",
+        },
     ),
     # All styles
     (
         "valid_all_styles",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3,
+            PROPAGATION_STYLE_B3_SINGLE_HEADER,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
         VALID_DATADOG_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1643,7 +1646,12 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_user_keep",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3,
+            PROPAGATION_STYLE_B3_SINGLE_HEADER,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
         VALID_USER_KEEP_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1653,13 +1661,18 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SPAN_ID: "7197677932a62370",
             _HTTP_HEADER_B3_FLAGS: "1",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-d",
-                        _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
+            _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
             _HTTP_HEADER_TRACESTATE: "dd=s:2",
         },
     ),
     (
         "valid_all_styles_auto_reject",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3,
+            PROPAGATION_STYLE_B3_SINGLE_HEADER,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
         VALID_AUTO_REJECT_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1675,7 +1688,12 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_no_sampling_priority",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [
+            PROPAGATION_STYLE_DATADOG,
+            PROPAGATION_STYLE_B3,
+            PROPAGATION_STYLE_B3_SINGLE_HEADER,
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+        ],
         {
             "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
             "span_id": VALID_DATADOG_CONTEXT["span_id"],
