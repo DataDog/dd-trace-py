@@ -458,12 +458,25 @@ def test_callonce_signature():
             ),
             ["s:2", "o:synthetics", "t.unk:-4", "t.unknown:baz64", "t._:_4", "t.u__:b___a"],
         ),
+        (
+            Context(
+                trace_id=1234,
+                sampling_priority=0,
+                dd_origin="synthetics",
+                meta={
+                    "_dd.p.unk": "-4",
+                    "_dd.p.unknown": "baz64",
+                },
+            ),
+            ["s:0", "o:synthetics", "t.unk:-4", "t.unknown:baz64"],
+        ),
     ],
     ids=[
         "basic",
         "does_not_add_non_prefixed_tags",
         "does_not_add_more_than_256_char",
         "char_replacement",
+        "sampling_priority_0",
     ],
 )
 # since we are looping through a dict, we can't predict the order of some of the tags

@@ -154,7 +154,7 @@ def connector(url, **kwargs):
 def w3c_get_dd_list_member(context):
     # Context -> str
     tags = []
-    if context.sampling_priority:
+    if context.sampling_priority is not None:
         tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
     if context.dd_origin:
         # the origin value has specific values that are allowed.
