@@ -1861,6 +1861,14 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/cassandra",
         ),
         Venv(
+            name="algoliasearch",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/algoliasearch",
+            pkgs={
+                "algoliasearch": [">=1.2,<2", ">=2,<3", latest],
+            },
+        ),
+        Venv(
             name="aiopg",
             venvs=[
                 Venv(
@@ -2521,6 +2529,14 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="molten",
+            command="pytest {cmdargs} tests/contrib/molten",
+            pys=select_pys(min_version="3.6"),
+            pkgs={
+                "molten": [">=0.6,<0.7", ">=0.7,<0.8", ">=1.0,<1.1", latest],
+            },
         ),
     ],
 )
