@@ -18,9 +18,7 @@ jobs:
     - name: Copy python tracer
       run: |
         mkdir lib-injection/dd-trace-py/
-        rsync -av . lib-injection/dd-trace-py/ --exclude lib-injection
-        echo "DESPUES DE COPIAR. LS lib-injection"
-        ls lib-injection/
+        rsync -a . lib-injection/dd-trace-py/ --exclude lib-injection
      
     - name: Available platforms
       run: echo ${{ steps.buildx.outputs.platforms }}
