@@ -131,7 +131,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
             span, config.molten, method=request.method, url=url, query=query, request_headers=request.headers
         )
 
-        span.set_tag("molten.version", molten.__version__)
+        span.set_tag_str("molten.version", molten.__version__)
         return wrapped(environ, start_response, **kwargs)
 
 

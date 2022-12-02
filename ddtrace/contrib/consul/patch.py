@@ -54,8 +54,8 @@ def wrap_function(name):
             rate = config.consul.get_analytics_sample_rate()
             if rate is not None:
                 span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
-            span.set_tag(consulx.KEY, path)
-            span.set_tag(consulx.CMD, resource)
+            span.set_tag_str(consulx.KEY, path)
+            span.set_tag_str(consulx.CMD, resource)
             return wrapped(*args, **kwargs)
 
     return trace_func

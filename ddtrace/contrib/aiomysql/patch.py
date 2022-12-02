@@ -58,7 +58,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             self._self_datadog_name, service=service, resource=resource, span_type=SpanTypes.SQL
         ) as s:
             s.set_tag(SPAN_MEASURED_KEY)
-            s.set_tag(sql.QUERY, resource)
+            s.set_tag_str(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
