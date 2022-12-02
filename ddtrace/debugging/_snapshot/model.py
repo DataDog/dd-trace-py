@@ -33,8 +33,8 @@ class Snapshot(object):
     thread = attr.ib(type=Thread)
     exc_info = attr.ib(type=ExcInfoType)
     context = attr.ib(type=Optional[Context])
-    entry_capture = attr.ib(type=Optional[Any], default=None)
-    return_capture = attr.ib(type=Optional[Any], default=None)
+    entry_capture = attr.ib(type=Optional[dict], default=None)
+    return_capture = attr.ib(type=Optional[dict], default=None)
     duration = attr.ib(type=Optional[int], default=None)  # nanoseconds
     timestamp = attr.ib(type=float, factory=time.time)
     snapshot_id = attr.ib(type=str, init=False, factory=lambda: str(uuid4()))
