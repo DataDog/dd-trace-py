@@ -1,6 +1,5 @@
 import importlib
 import os
-import sys
 import threading
 from typing import TYPE_CHECKING
 
@@ -10,7 +9,6 @@ from .constants import IAST_ENV
 from .internal.logger import get_logger
 from .internal.telemetry import telemetry_writer
 from .internal.utils import formats
-from .internal.utils.importlib import require_modules
 from .settings import _config as config
 
 
@@ -231,16 +229,6 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
                 )
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
         for module in modules_to_patch:
-            # If the module has already been imported remove it from sys.modules.
-            # It will be patched when reloaded by the tracee.
-            if module in sys.modules:
-                del sys.modules[module]
-
-                # Also remove any child modules
-                module_prefix = module + "."
-                for k in list(_ for _ in sys.modules if _.startswith(module_prefix)):
-                    del sys.modules[k]
-
             # Use factory to create handler to close over `module` and `raise_errors` values from this loop
             when_imported(module)(_on_import_factory(contrib, raise_errors=False))
 
@@ -257,69 +245,8 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
     )
 
 
-def _patch_module(module, patch_modules_prefix=DEFAULT_MODULES_PREFIX, raise_errors=True):
-    # type: (str, str, bool) -> bool
-    """Patch a single module
-
-    Returns if the module got properly patched.
-    """
-    try:
-        return _attempt_patch_module(module, patch_modules_prefix=patch_modules_prefix)
-    except ModuleNotFoundException:
-        if raise_errors:
-            raise
-        return False
-    except IntegrationNotAvailableException as e:
-        if raise_errors:
-            raise
-        log.debug("integration %s not enabled (%s)", module, str(e))  # noqa: G200
-        return False
-    except Exception:
-        if raise_errors:
-            raise
-        log.debug("failed to patch %s", module, exc_info=True)
-        return False
-
-
 def _get_patched_modules():
     # type: () -> List[str]
     """Get the list of patched modules"""
     with _LOCK:
         return sorted(_PATCHED_MODULES)
-
-
-def _attempt_patch_module(module, patch_modules_prefix=DEFAULT_MODULES_PREFIX):
-    # type: (str, str) -> bool
-    """_patch_module will attempt to monkey patch the module.
-
-    Returns if the module got patched.
-    Can also raise errors if it fails.
-    """
-    path = "%s.%s" % (patch_modules_prefix, module)
-    with _LOCK:
-        if module in _PATCHED_MODULES and module not in _MODULES_FOR_CONTRIB:
-            log.debug("already patched: %s", path)
-            return False
-
-        try:
-            imported_module = importlib.import_module(path)
-        except ImportError:
-            # if the import fails, the integration is not available
-            raise ModuleNotFoundException(
-                "integration module %s does not exist, module will not have tracing available" % path
-            )
-
-        # if patch() is not available in the module, it means
-        # that the library is not installed in the environment
-        if not hasattr(imported_module, "patch"):
-            required_mods = getattr(imported_module, "required_modules", [])
-            with require_modules(required_mods) as not_avail_mods:
-                pass
-            raise IntegrationNotAvailableException(
-                "missing required module%s: %s" % ("s" if len(not_avail_mods) > 1 else "", ",".join(not_avail_mods))
-            )
-
-        imported_module.patch()
-        _PATCHED_MODULES.add(module)
-        telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
-        return True
