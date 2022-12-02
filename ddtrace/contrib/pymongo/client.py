@@ -105,8 +105,8 @@ class TracedServer(ObjectProxy):
 
         span = pin.tracer.trace("pymongo.cmd", span_type=SpanTypes.MONGODB, service=pin.service)
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(mongox.DB, cmd.db)
-        span.set_tag(mongox.COLLECTION, cmd.coll)
+        span.set_tag_str(mongox.DB, cmd.db)
+        span.set_tag_str(mongox.COLLECTION, cmd.coll)
         span.set_tags(cmd.tags)
 
         # set `mongodb.query` tag and resource for span
@@ -216,9 +216,9 @@ class TracedSocket(ObjectProxy):
 
         s.set_tag(SPAN_MEASURED_KEY)
         if cmd.db:
-            s.set_tag(mongox.DB, cmd.db)
+            s.set_tag_str(mongox.DB, cmd.db)
         if cmd:
-            s.set_tag(mongox.COLLECTION, cmd.coll)
+            s.set_tag_str(mongox.COLLECTION, cmd.coll)
             s.set_tags(cmd.tags)
             s.set_metrics(cmd.metrics)
 
@@ -264,7 +264,7 @@ def normalize_filter(f=None):
 def set_address_tags(span, address):
     # the address is only set after the cursor is done.
     if address:
-        span.set_tag(netx.TARGET_HOST, address[0])
+        span.set_tag_str(netx.TARGET_HOST, address[0])
         span.set_tag(netx.TARGET_PORT, address[1])
 
 
@@ -272,7 +272,7 @@ def _set_query_metadata(span, cmd):
     """Sets span `mongodb.query` tag and resource given command query"""
     if cmd.query:
         nq = normalize_filter(cmd.query)
-        span.set_tag("mongodb.query", nq)
+        span.set_tag_str("mongodb.query", nq)
         # needed to dump json so we don't get unicode
         # dict keys like {u'foo':'bar'}
         q = json.dumps(nq)
