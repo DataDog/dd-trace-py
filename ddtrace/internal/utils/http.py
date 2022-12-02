@@ -5,7 +5,6 @@ from typing import Any
 from typing import Callable
 from typing import ContextManager
 from typing import Generator
-from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -14,8 +13,8 @@ import six
 
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
-from ddtrace.internal.constants import _W3C_TRACESTATE_ORIGIN_KEY
-from ddtrace.internal.constants import _W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.utils.cache import cached
 
@@ -152,10 +151,24 @@ def connector(url, **kwargs):
     return _connector_context
 
 
-def w3c_format_unknown_propagated_tags(current_tags, potential_tags):
-    # type: (List[str], dict) -> List[str]
-    current_tags_len = sum(len(i) for i in current_tags)
-    for k, v in potential_tags.items():
+def w3c_get_dd_list_member(context):
+    # Context -> str
+    tags = []
+    if context.sampling_priority:
+        tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
+    if context.dd_origin:
+        # the origin value has specific values that are allowed.
+        tags.append("{}:{}".format(W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|=|[^\x20-\x7E]+", "_", context.dd_origin)))
+    sampling_decision = context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
+    if sampling_decision:
+        tags.append("t.dm:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
+    # since this can change, we need to grab the value off the current span
+    usr_id_key = context._meta.get(USER_ID_KEY)
+    if usr_id_key:
+        tags.append("t.usr.id:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key)))
+
+    current_tags_len = sum(len(i) for i in tags)
+    for k, v in context._meta.items():
         if (
             isinstance(k, six.string_types)
             and k.startswith("_dd.p")
@@ -169,28 +182,11 @@ def w3c_format_unknown_propagated_tags(current_tags, potential_tags):
                 re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", v),
             )
             # we need to keep the total length under 256 char
-            current_tags_len += len(next_tag)
-            if not current_tags_len > 256:
-                current_tags.append(next_tag)
+            potential_current_tags_len = current_tags_len + len(next_tag)
+            if not potential_current_tags_len > 256:
+                tags.append(next_tag)
+                current_tags_len += len(next_tag)
             else:
-                log.debug("tracestate would exceed 256 c har limit with tag: %s. Tag will not be added.", next_tag)
-    return current_tags
+                log.debug("tracestate would exceed 256 char limit with tag: %s. Tag will not be added.", next_tag)
 
-
-def w3c_format_known_propagated_tags(context):
-    # Context -> List[str]
-    tags = []
-    if context.sampling_priority:
-        tags.append("{}:{}".format(_W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
-    if context.dd_origin:
-        # the origin value has specific values that are allowed.
-        tags.append("{}:{}".format(_W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|=|[^\x20-\x7E]+", "_", context.dd_origin)))
-    sampling_decision = context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
-    if sampling_decision:
-        tags.append("t.dm:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
-    # since this can change, we need to grab the value off the current span
-    usr_id_key = context._meta.get(USER_ID_KEY)
-    if usr_id_key:
-        tags.append("t.usr.id:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key)))
-
-    return tags
+    return ";".join(tags)

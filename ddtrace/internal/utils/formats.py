@@ -19,6 +19,7 @@ VALUE_MAX_LEN = 100
 VALUE_TOO_LONG_MARK = "..."
 CMD_MAX_LEN = 1000
 
+
 T = TypeVar("T")
 
 log = logging.getLogger(__name__)

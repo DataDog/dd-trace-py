@@ -1564,15 +1564,17 @@ INJECT_FIXTURES = [
         (
         "valid_tracecontext",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
-        {
-            "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
-            "span_id": VALID_DATADOG_CONTEXT["span_id"],
-        },
-        {_HTTP_HEADER_TRACEPARENT: "b5a2814f70060771-7197677932a62370",
-        _HTTP_HEADER_TRACESTATE : ""
-
-        
-        },
+                    {
+                "trace_id": 11803532876627986230,
+                "span_id": 67667974448284343,
+                "meta": {
+                    "tracestate": "dd=s:2;o:rum",
+                    "_dd.origin": "rum",
+                    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                },
+                "metrics": {"_sampling_priority_v1": 2},
+            },
+        TRACECONTEXT_HEADERS_VALID_BASIC,
     ),
     # All styles
     (

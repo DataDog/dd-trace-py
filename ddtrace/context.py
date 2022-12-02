@@ -11,11 +11,10 @@ from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
 from .internal.compat import NumericType
 from .internal.compat import PY2
-from .internal.constants import _TRACEPARENT_KEY
-from .internal.constants import _TRACESTATE_KEY
+from .internal.constants import W3C_TRACEPARENT_KEY
+from .internal.constants import W3C_TRACESTATE_KEY
 from .internal.logger import get_logger
-from .internal.utils.http import w3c_format_known_propagated_tags
-from .internal.utils.http import w3c_format_unknown_propagated_tags
+from .internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -128,7 +127,7 @@ class Context(object):
     @property
     def _traceparent(self):
         # type: () -> str
-        tp = self._meta.get(_TRACEPARENT_KEY)
+        tp = self._meta.get(W3C_TRACEPARENT_KEY)
         if self.span_id is None or self.trace_id is None:
             # if we only have a traceparent then we'll forward it
             # if we don't have a span id or trace id value we can't build a valid traceparent
@@ -147,15 +146,10 @@ class Context(object):
     @property
     def _tracestate(self):
         # type: () -> str
-        dd = w3c_format_known_propagated_tags(self)
+        dd_list_member = _w3c_get_dd_list_member(self)
 
-        # get and format all other _dd.p values out of meta since we need to propagate all of them
-        dd = w3c_format_unknown_propagated_tags(dd, self._meta)
-
-        dd_list_member = ";".join(dd)
-
-        # If there's a preexisting tracestate we need to update it to preserve other vendor data
-        ts = self._meta.get(_TRACESTATE_KEY, "")
+        # if there's a preexisting tracestate we need to update it to preserve other vendor data
+        ts = self._meta.get(W3C_TRACESTATE_KEY, "")
         if ts and dd_list_member:
             # cut out the original dd list member from tracestate so we can replace it with the new one we created
             ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
