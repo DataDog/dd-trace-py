@@ -28,6 +28,7 @@ LATEST_VERSIONS = {
     "click": "8.1.3",
     "codespell": "2.2.2",
     "coverage": "6.5.0",
+    "cryptography": "38.0.4",
     "cython": "0.29.32",
     "daphne": "4.0.0",
     "databases": "0.6.2",
