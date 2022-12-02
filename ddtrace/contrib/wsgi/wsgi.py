@@ -228,7 +228,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         status_code, status_msg = status.split(" ", 1)
-        request_span.set_tag("http.status_msg", status_msg)
+        request_span.set_tag_str("http.status_msg", status_msg)
         trace_utils.set_http_meta(request_span, self._config, status_code=status_code, response_headers=environ)
 
         with self.tracer.start_span(
