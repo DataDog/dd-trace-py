@@ -430,6 +430,19 @@ venv = Venv(
             },
         ),
         Venv(
+            name="wait",
+            command="python tests/wait-for-services.py {cmdargs}",
+            # Default Python 3 (3.10) collections package breaks with kombu/vertica, so specify Python 3.9 instead.
+            pys="3.9",
+            pkgs={
+                "cassandra-driver": latest,
+                "psycopg2-binary": latest,
+                "mysql-connector-python": "!=8.0.18",
+                "vertica-python": ">=0.6.0,<0.7.0",
+                "kombu": ">=4.2.0,<4.3.0",
+            },
+        ),
+        Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
             pys=select_pys(),
@@ -1848,6 +1861,14 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/cassandra",
         ),
         Venv(
+            name="algoliasearch",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/algoliasearch",
+            pkgs={
+                "algoliasearch": [">=1.2,<2", ">=2,<3", latest],
+            },
+        ),
+        Venv(
             name="aiopg",
             venvs=[
                 Venv(
@@ -2490,6 +2511,32 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="mysqldb",
+            command="pytest {cmdargs} tests/contrib/mysqldb",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.9"),
+                    pkgs={
+                        "mysqlclient": [">=1.3,<1.4", ">=1.4,<1.5", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "mysqlclient": [">=1.4,<1.5", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="molten",
+            command="pytest {cmdargs} tests/contrib/molten",
+            pys=select_pys(min_version="3.6"),
+            pkgs={
+                "molten": [">=0.6,<0.7", ">=0.7,<0.8", ">=1.0,<1.1", latest],
+            },
         ),
     ],
 )
