@@ -218,7 +218,7 @@ class TracedSocket(ObjectProxy):
         if cmd.db:
             s.set_tag_str(mongox.DB, cmd.db)
         if cmd:
-            s.set_tag_str(mongox.COLLECTION, cmd.coll)
+            s.set_tag(mongox.COLLECTION, cmd.coll)
             s.set_tags(cmd.tags)
             s.set_metrics(cmd.metrics)
 
@@ -272,7 +272,7 @@ def _set_query_metadata(span, cmd):
     """Sets span `mongodb.query` tag and resource given command query"""
     if cmd.query:
         nq = normalize_filter(cmd.query)
-        span.set_tag_str("mongodb.query", nq)
+        span.set_tag("mongodb.query", nq)
         # needed to dump json so we don't get unicode
         # dict keys like {u'foo':'bar'}
         q = json.dumps(nq)
