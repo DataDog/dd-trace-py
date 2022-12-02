@@ -23,6 +23,8 @@ from ..internal.compat import ensure_text
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import W3C_TRACEPARENT_KEY
+from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
@@ -32,8 +34,6 @@ from ._utils import get_wsgi_header
 
 log = get_logger(__name__)
 
-W3C_TRACEPARENT_KEY = "traceparent"
-W3C_TRACESTATE_KEY = "tracestate"
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
