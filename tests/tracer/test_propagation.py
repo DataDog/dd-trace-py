@@ -1564,7 +1564,7 @@ INJECT_FIXTURES = [
         (
         "valid_tracecontext",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
-                    {
+        {
                 "trace_id": 11803532876627986230,
                 "span_id": 67667974448284343,
                 "meta": {
@@ -1575,6 +1575,18 @@ INJECT_FIXTURES = [
                 "metrics": {"_sampling_priority_v1": 2},
             },
         TRACECONTEXT_HEADERS_VALID_BASIC,
+    ),
+            (
+        "only_traceparent",
+        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        {
+                "trace_id": 11803532876627986230,
+                "span_id": 67667974448284343,
+                "meta": {
+                    "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                },
+            },
+        {_HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"},
     ),
     # All styles
     (
