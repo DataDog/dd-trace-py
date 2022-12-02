@@ -84,7 +84,7 @@ class TraceTool(cherrypy.Tool):
             return
 
         span.error = 1
-        span.set_tag_str(ERROR_TYPE, cherrypy._cperror._exc_info()[0])
+        span.set_tag(ERROR_TYPE, cherrypy._cperror._exc_info()[0])
         span.set_tag_str(ERROR_MSG, str(cherrypy._cperror._exc_info()[1]))
         span.set_tag_str(ERROR_STACK, cherrypy._cperror.format_exc())
 
