@@ -15,11 +15,13 @@ class RemoteConfig(object):
     def enable(cls):
         # type: () -> None
         with cls._worker_lock:
+            log.warning("::>::>:>::>:>:CREATING WORKER ")
             if cls._worker is None:
                 cls._worker = RemoteConfigWorker()
                 cls._worker.start()
 
                 forksafe.register(cls._restart)
+                # forksafe.register(cls.disable)
                 atexit.register(cls.disable)
 
     @classmethod

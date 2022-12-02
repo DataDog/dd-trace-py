@@ -241,6 +241,7 @@ class Tracer(object):
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
+        # forksafe.register_parent(lambda: sys.exit(1))
 
         self._shutdown_lock = RLock()
 
@@ -498,6 +499,11 @@ class Tracer(object):
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
                     self._log_compat(logging.WARNING, msg)
 
+        # Workaround for remote-config with gevent
+        # TODO: Remove when it is fixed
+        if isinstance(self._writer, AgentWriter):
+            self._writer.write([])
+
     def _child_after_fork(self):
         self._pid = getpid()
 
@@ -518,9 +524,9 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
         )
-        from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
+        # from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 
-        enable_appsec_rc()
+        # disable_appsec_rc()
 
         self._new_process = True
 

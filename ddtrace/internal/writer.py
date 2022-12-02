@@ -255,6 +255,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         api_version=None,  # type: Optional[str]
         reuse_connections=None,  # type: Optional[bool]
         headers=None,  # type: Optional[Dict[str, str]]
+        enable_rc=True,  # type: bool
     ):
         # type: (...) -> None
         # Pre-conditions:
@@ -329,6 +330,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         )
         self._log_error_payloads = asbool(os.environ.get("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False))
         self._reuse_connections = get_writer_reuse_connections() if reuse_connections is None else reuse_connections
+        self._enable_rc = enable_rc
 
     @property
     def _agent_endpoint(self):
@@ -365,8 +367,11 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         if trace:
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
-    def recreate(self):
-        # type: () -> AgentWriter
+    def recreate(
+        self,
+        # enable_rc=True,  # type: bool
+    ):
+        # type: (bool) -> AgentWriter
         return self.__class__(
             agent_url=self.agent_url,
             sampler=self._sampler,
@@ -379,6 +384,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             report_metrics=self._report_metrics,
             sync_mode=self._sync_mode,
             api_version=self._api_version,
+            # enable_rc=enable_rc,
         )
 
     def _reset_connection(self):
@@ -516,7 +522,9 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                         telemetry_writer.enable()
                     # appsec remote config should be enabled/started after the global tracer and configs
                     # are initialized
-                    enable_appsec_rc()
+                    log.warning("ENABLE_APPSEC_RC")
+                    if self._enable_rc:
+                        enable_appsec_rc()
             except service.ServiceStatusError:
                 pass
 
