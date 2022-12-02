@@ -38,15 +38,14 @@ def generate_sql_comment(**meta):
 
     # Sort the keywords to ensure that caching works and that testing is
     # deterministic. It eases visual inspection as well.
-    # DDTRACE NOTE: sql comment should have a trailing whitespace and NOT a leading whitespace
     return (
-        "/*"
+        " /*"
         + KEY_VALUE_DELIMITER.join(
             "{}={!r}".format(url_quote(key), url_quote(value))
             for key, value in sorted(meta.items())
             if value is not None
         )
-        + "*/ "
+        + "*/"
     )
 
 
