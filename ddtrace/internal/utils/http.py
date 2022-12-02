@@ -154,13 +154,13 @@ def connector(url, **kwargs):
 def w3c_get_dd_list_member(context):
     # Context -> str
     tags = []
-    if context.sampling_priority:
+    if context.sampling_priority is not None:
         tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
     if context.dd_origin:
         # the origin value has specific values that are allowed.
         tags.append("{}:{}".format(W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|=|[^\x20-\x7E]+", "_", context.dd_origin)))
     sampling_decision = context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
-    if sampling_decision is not None:
+    if sampling_decision:
         tags.append("t.dm:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
     # since this can change, we need to grab the value off the current span
     usr_id_key = context._meta.get(USER_ID_KEY)
