@@ -58,8 +58,7 @@ def _get_dbm_comment(db_span):
         dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
     sql_comment = _generate_sql_comment(**dbm_tags)
-    if sql_comment and sql_comment[0] == " " and sql_comment[-1] != " ":
+    if sql_comment:
         # replace leading whitespace with trailing whitespace
-        sql_comment.strip()
-        sql_comment += " "
+        return sql_comment.strip() + " "
     return sql_comment
