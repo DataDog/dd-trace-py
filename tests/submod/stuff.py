@@ -135,3 +135,7 @@ def durationstuff(ns):
 
 def mutator(arg):
     arg.append(42)
+
+
+def ageChecker(people, age, name=None):
+    return filter(lambda person: person.age > age, people)
