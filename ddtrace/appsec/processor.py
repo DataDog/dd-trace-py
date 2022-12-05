@@ -166,44 +166,53 @@ class AppSecSpanProcessor(SpanProcessor):
     def enabled(self):
         return self._ddwaf is not None
 
+    def _read_rules_file(self):
+        try:
+            with open(self.rules, "r") as f:
+                rules = json.load(f)
+        except EnvironmentError as err:
+            if err.errno == errno.ENOENT:
+                log.error(
+                    "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: file does not exist", self.rules
+                )
+            else:
+                # TODO: try to log reasons
+                log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
+            raise
+        except json.decoder.JSONDecodeError:
+            log.error("[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules)
+            raise
+        except Exception:
+            # TODO: try to log reasons
+            log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
+            raise
+        return rules
+
+    def _init_waf(self, rules):
+        try:
+            self._ddwaf = DDWaf(rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp)
+        except ValueError:
+            # Partial of DDAS-0005-00
+            log.warning("[DDAS-0005-00] WAF initialization failed")
+            raise
+
     def __attrs_post_init__(self):
         # type: () -> None
         if self._ddwaf is None:
-            try:
-                with open(self.rules, "r") as f:
-                    rules = json.load(f)
-            except EnvironmentError as err:
-                if err.errno == errno.ENOENT:
-                    log.error(
-                        "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: file does not exist", self.rules
-                    )
-                else:
-                    # TODO: try to log reasons
-                    log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
-                raise
-            except json.decoder.JSONDecodeError:
-                log.error(
-                    "[DDAS-0001-03] AppSec could not read the rule file %s. Reason: invalid JSON file", self.rules
-                )
-                raise
-            except Exception:
-                # TODO: try to log reasons
-                log.error("[DDAS-0001-03] AppSec could not read the rule file %s.", self.rules)
-                raise
-            try:
-                self._ddwaf = DDWaf(
-                    rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp
-                )
-            except ValueError:
-                # Partial of DDAS-0005-00
-                log.warning("[DDAS-0005-00] WAF initialization failed")
-                raise
+            rules = self._read_rules_file()
+            self._init_waf(rules)
         for address in self._ddwaf.required_data:
             self._mark_needed(address)
         # we always need the request headers
         self._mark_needed(_Addresses.SERVER_REQUEST_HEADERS_NO_COOKIES)
         # we always need the response headers
         self._mark_needed(_Addresses.SERVER_RESPONSE_HEADERS_NO_COOKIES)
+
+    def update_custom_rules(self, new_custom_rules):
+        default_rules = self._read_rules_file()
+        default_rules['rules'].extend(new_custom_rules)
+        self._init_waf(default_rules)
+        # TODO: need to reupdate rule data here?
 
     def on_span_start(self, span):
         # type: (Span) -> None

@@ -6,6 +6,7 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+from ddtrace.internal.remoteconfig.constants import ASM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -25,6 +26,7 @@ def enable_appsec_rc(tracer):
     # type: (Tracer) -> None
     if _appsec_rc_features_is_enabled():
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
+        RemoteConfig.register(ASM_PRODUCT, appsec_rc_reload_features(tracer))
 
 
 def appsec_rc_reload_features(tracer):
@@ -47,15 +49,20 @@ def appsec_rc_reload_features(tracer):
 
         if features is not None:
             log.debug("Reloading appsec rc: %s", features)
-            rc_appsec_enabled = features.get("asm", {}).get("enabled") if features is not False else False
 
-            _appsec_enabled = True
+            custom_rules = features.get("custom_rules", [])
+            if custom_rules and tracer._appsec_processor:
+                tracer._appsec_processor.update_custom_rules(custom_rules)
+            else:
+                rc_appsec_enabled = features.get("asm", {}).get("enabled") if features is not False else False
 
-            if not (APPSEC_ENV not in os.environ and rc_appsec_enabled is True) and (
-                asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
-            ):
-                _appsec_enabled = False
+                _appsec_enabled = True
 
-            tracer.configure(appsec_enabled=_appsec_enabled)
+                if not (APPSEC_ENV not in os.environ and rc_appsec_enabled is True) and (
+                    asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
+                ):
+                    _appsec_enabled = False
+
+                tracer.configure(appsec_enabled=_appsec_enabled)
 
     return _reload_features

@@ -7,7 +7,8 @@ from ddtrace.internal.utils.formats import asbool
 def _appsec_rc_features_is_enabled():
     # type: () -> bool
     if asbool(os.environ.get("DD_REMOTE_CONFIGURATION_ENABLED", "false")):
-        return APPSEC_ENV not in os.environ
+        return True
+        #return APPSEC_ENV not in os.environ
     return False
 
 
