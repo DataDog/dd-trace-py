@@ -8,10 +8,11 @@ from typing import Tuple
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
-from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
+from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.logger import get_logger
 from ..internal.utils.formats import asbool
@@ -74,12 +75,12 @@ def _parse_propagation_styles(name, default):
         style = style.strip().lower()
         if style == "b3":
             deprecate(
-                "ddtrace.settings.config",
-                message="The following configuration value has been deprecated: `DD_TRACE_PROPAGATION_STYLE=b3`." 
-                " Use `DD_TRACE_PROPAGATION_STYLE=b3multi` instead. "
-                "  Support for setting the propagation style to `b3` will be removed in a future version.",
+                'Using DD_TRACE_PROPAGATION_STYLE="b3" is deprecated',
+                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3multi\"' instead",
+                removal_version="2.0.0",
+                category=DDTraceDeprecationWarning,
             )
-            style = PROPAGATION_STYLE_B3_MULTI
+            style = PROPAGATION_STYLE_B3
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:

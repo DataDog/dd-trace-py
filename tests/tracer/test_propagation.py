@@ -6,7 +6,7 @@ import os
 import pytest
 
 from ddtrace.context import Context
-from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
+from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
@@ -824,7 +824,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_datadog_all_styles",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         DATADOG_HEADERS_VALID,
         {
             "trace_id": 13088165645273925489,
@@ -835,14 +835,14 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_datadog_no_datadog_style",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         DATADOG_HEADERS_VALID,
         CONTEXT_EMPTY,
     ),
     # B3 headers
     (
         "valid_b3_simple",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         B3_HEADERS_VALID,
         {
             "trace_id": 5208512171318403364,
@@ -853,7 +853,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_wsgi",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         {get_wsgi_header(name): value for name, value in B3_HEADERS_VALID.items()},
         {
             "trace_id": 5208512171318403364,
@@ -864,7 +864,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_flags",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         {
             _HTTP_HEADER_B3_TRACE_ID: B3_HEADERS_VALID[_HTTP_HEADER_B3_TRACE_ID],
             _HTTP_HEADER_B3_SPAN_ID: B3_HEADERS_VALID[_HTTP_HEADER_B3_SPAN_ID],
@@ -879,7 +879,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_with_parent_id",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         {
             _HTTP_HEADER_B3_TRACE_ID: B3_HEADERS_VALID[_HTTP_HEADER_B3_TRACE_ID],
             _HTTP_HEADER_B3_SPAN_ID: B3_HEADERS_VALID[_HTTP_HEADER_B3_SPAN_ID],
@@ -895,7 +895,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_only_trace_and_span_id",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         {
             _HTTP_HEADER_B3_TRACE_ID: B3_HEADERS_VALID[_HTTP_HEADER_B3_TRACE_ID],
             _HTTP_HEADER_B3_SPAN_ID: B3_HEADERS_VALID[_HTTP_HEADER_B3_SPAN_ID],
@@ -909,7 +909,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_only_trace_id",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         {
             _HTTP_HEADER_B3_TRACE_ID: B3_HEADERS_VALID[_HTTP_HEADER_B3_TRACE_ID],
         },
@@ -922,7 +922,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "invalid_b3",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         B3_HEADERS_INVALID,
         CONTEXT_EMPTY,
     ),
@@ -940,7 +940,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_all_styles",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         B3_HEADERS_VALID,
         {
             "trace_id": 5208512171318403364,
@@ -1021,7 +1021,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_single_header_all_styles",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         B3_SINGLE_HEADERS_VALID,
         {
             "trace_id": 7277407061855694839,
@@ -1049,7 +1049,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_b3_single_header_no_b3_single_header_style",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         B3_SINGLE_HEADERS_VALID,
         CONTEXT_EMPTY,
     ),
@@ -1066,10 +1066,10 @@ EXTRACT_FIXTURES = [
         },
     ),
     (
-        # Since Datadog format comes first in [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI,
+        # Since Datadog format comes first in [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3,
         #  PROPAGATION_STYLE_B3_SINGLE_HEADER] we use it
         "valid_all_headers_all_styles",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
             "trace_id": 13088165645273925489,
@@ -1080,7 +1080,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_all_headers_all_styles_wsgi",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         {
             "trace_id": 13088165645273925489,
@@ -1113,7 +1113,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_all_headers_b3_style",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         ALL_HEADERS,
         {
             "trace_id": 5208512171318403364,
@@ -1124,7 +1124,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_all_headers_b3_style_wsgi",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
         {
             "trace_id": 5208512171318403364,
@@ -1135,7 +1135,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_all_headers_both_b3_styles",
-        [PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
             "trace_id": 5208512171318403364,
@@ -1158,7 +1158,7 @@ EXTRACT_FIXTURES = [
     # Testing that order matters
     (
         "order_matters_B3_SINGLE_HEADER_first",
-        [PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_DATADOG],
+        [PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_DATADOG],
         B3_SINGLE_HEADERS_VALID,
         {
             "trace_id": 7277407061855694839,
@@ -1169,7 +1169,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "order_matters_B3_first",
-        [PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_DATADOG],
+        [PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER, PROPAGATION_STYLE_DATADOG],
         B3_HEADERS_VALID,
         {
             "trace_id": 5208512171318403364,
@@ -1180,7 +1180,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "order_matters_B3_second_no_Datadog_headers",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3],
         B3_HEADERS_VALID,
         {
             "trace_id": 5208512171318403364,
@@ -1292,7 +1292,7 @@ def test_propagation_extract_w_config(name, styles, headers, expected_context, r
 EXTRACT_OVERRIDE_FIXTURES = [
     (
         "valid_all_headers_b3_single_override",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         [PROPAGATION_STYLE_B3_SINGLE_HEADER],
         ALL_HEADERS,
         {
@@ -1304,7 +1304,7 @@ EXTRACT_OVERRIDE_FIXTURES = [
     ),
     (
         "valid_all_headers_datadog_override",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         [PROPAGATION_STYLE_DATADOG],
         ALL_HEADERS,
         {
@@ -1318,7 +1318,7 @@ EXTRACT_OVERRIDE_FIXTURES = [
     #  the b3 value for DD_TRACE_PROPAGATION_STYLE
     (
         "valid_all_headers_no_style_override",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         [],
         ALL_HEADERS,
         CONTEXT_EMPTY,
@@ -1415,7 +1415,7 @@ INJECT_FIXTURES = [
     ),
     (
         "invalid_b3_style",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         {},
         {},
     ),
@@ -1427,7 +1427,7 @@ INJECT_FIXTURES = [
     ),
     (
         "invalid_all_styles",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {},
         {},
     ),
@@ -1509,7 +1509,7 @@ INJECT_FIXTURES = [
     # B3 only
     (
         "valid_b3_style",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         VALID_DATADOG_CONTEXT,
         {
             _HTTP_HEADER_B3_TRACE_ID: "b5a2814f70060771",
@@ -1519,7 +1519,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_b3_style_user_keep",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         VALID_USER_KEEP_CONTEXT,
         {
             _HTTP_HEADER_B3_TRACE_ID: "b5a2814f70060771",
@@ -1529,7 +1529,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_b3_style_auto_reject",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         VALID_AUTO_REJECT_CONTEXT,
         {
             _HTTP_HEADER_B3_TRACE_ID: "b5a2814f70060771",
@@ -1539,7 +1539,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_b3_style_no_sampling_priority",
-        [PROPAGATION_STYLE_B3_MULTI],
+        [PROPAGATION_STYLE_B3],
         {
             "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
             "span_id": VALID_DATADOG_CONTEXT["span_id"],
@@ -1580,7 +1580,7 @@ INJECT_FIXTURES = [
     # All styles
     (
         "valid_all_styles",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         VALID_DATADOG_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1595,7 +1595,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_user_keep",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         VALID_USER_KEEP_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1609,7 +1609,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_auto_reject",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         VALID_AUTO_REJECT_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1623,7 +1623,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_all_styles_no_sampling_priority",
-        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE_HEADER],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_B3, PROPAGATION_STYLE_B3_SINGLE_HEADER],
         {
             "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
             "span_id": VALID_DATADOG_CONTEXT["span_id"],
