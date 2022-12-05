@@ -5,6 +5,7 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace.internal import compat
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
@@ -385,5 +386,36 @@ def test_profiler_serverless(monkeypatch):
     # type: (...) -> None
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
+    # simulate set_tags call in datadog-lambda-python wrapper for setting function_arn
+    p.set_tags({"function_arn": "arn:aws:foo:bar:1234:5678"})
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
     assert p.tags["functionname"] == b"foobar"
+    assert p.tags["serverless"] == b"lambda"
+    assert p.tags["function_arn"] == b"arn:aws:foo:bar:1234:5678"
+
+def test_serverless_num_invocations(monkeypatch):
+    # type: (...) -> None
+    def force_flush():
+        p._profiler._scheduler._last_export = compat.time_ns() - 65
+        p._profiler._scheduler._profiled_intervals = 65
+        p._profiler._scheduler.periodic()
+
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
+    p = profiler.Profiler()
+    # simulate flushing in middle of invocation
+    p.invocation_started()
+    p.increment_invocations()
+    force_flush()
+    # starts next profile before invocation ends
+    p.invocation_ended()
+    assert p.tags["serverless_function_calls"] == b"1"
+    # 1 because started next profile in middle of invocation
+    assert p._profiler._num_invocations == 1
+
+    # simulate flushing at end of invocation
+    p.invocation_started()
+    p.increment_invocations()
+    p.invocation_ended()
+    force_flush()
+    assert p.tags["serverless_function_calls"] == b"2"
+    assert p._profiler._num_invocations == 0

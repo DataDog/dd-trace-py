@@ -46,7 +46,6 @@ class Scheduler(periodic.PeriodicService):
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
         if self.exporters:
-            self.profiler.reset_num_invocations()
             events = self.recorder.reset()
             start = self._last_export
             self._last_export = compat.time_ns()
@@ -92,6 +91,8 @@ class ServerlessScheduler(Scheduler):
             self.FORCED_INTERVAL * self.FLUSH_AFTER_INTERVALS
         ):
             try:
+                self.profiler.reset_num_invocations()
+                print('[Amy:dd-trace-py:scheduler.py:ServerlessScheduler:periodic] FLUSHING PROFILE')
                 super(ServerlessScheduler, self).periodic()
             finally:
                 # Override interval so it's always back to the value we n
@@ -99,3 +100,4 @@ class ServerlessScheduler(Scheduler):
                 self._profiled_intervals = 0
         else:
             self._profiled_intervals += 1
+            print(f'[Amy:ServerlessScheduler:periodic] profiled_intervals: {self._profiled_intervals}')
