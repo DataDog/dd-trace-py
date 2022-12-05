@@ -44,7 +44,7 @@ else:
 # Import fixed version if needed
 if not PY_Latest:
     try:
-        sys.path.append(".")
+        sys.path.extend([".", ".circleci"])
         from dependencies import LATEST_VERSIONS
     except ModuleNotFoundError:
         logger.error("missing dependencies.py")
