@@ -16,7 +16,7 @@ except ModuleNotFoundError:
     sys.exit(-1)
 
 
-def latest_version(packages):
+def latest_version(packages: list[str]) -> dict[str, tuple[str, int, int]]:
     """
     Connect to pypi.org and retrieve information about the last available version
     and time elapsed since the current and last release
@@ -52,11 +52,12 @@ def latest_version(packages):
     return res
 
 
-def read_versions(time):
+def read_versions(time: int) -> dict[str, tuple[str, int]]:
     """
     Show the latest version of packages that are not yet into LATEST_VERSIONS.
     May be used to understand why a test from the "latest" workflow is failing.
-    Also show the packages with no update for more than 3 years (in blue)
+    Also show the packages with no update for more time days (in blue)
+    return a dict, keys are package names, values are tuple of (version, days since this update)
     """
     new_versions = {}
     for package in LATEST_VERSIONS:
@@ -74,7 +75,7 @@ def read_versions(time):
     return new_versions
 
 
-def update_versions(time, up_days):
+def update_versions(time: int, up_days: int) -> None:
     """
     Use versions retrieved in read_versions to update the file dependencies.py
     Use ONLY if the test_latest workflow is completely validated on the CI
