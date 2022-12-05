@@ -1,6 +1,4 @@
 ---
 deprecations:
   - |
-    propagation: ``b3`` propagation style is deprecated in favor of ``b3multi`` to better align with 
-    OpenTelemetry SDK[https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/sdk-environment-variables.md#general-sdk-configuration]
-    Example: ``DD_TRACE_PROPAGATION_STYLE=b3multi``
+    propagation: Configuration of propagation style with ``DD_TRACE_PROPAGATION_STYLE=b3`` is deprecated and will be removed in version 2.0.0. Please use ``DD_TRACE_PROPAGATION_STYLE="b3multi"`` instead. This change adopts the values used for OpenTelemetry propagators.
