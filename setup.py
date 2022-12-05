@@ -277,6 +277,7 @@ setup(
         # users can include opentracing by having:
         # install_requires=['ddtrace[opentracing]', ...]
         "opentracing": ["opentracing>=2.0.0"],
+        "opentelemetry": ["opentelemetry>=1.0"],
     },
     # plugin tox
     tests_require=["tox", "flake8"],
@@ -292,6 +293,7 @@ setup(
         "gevent.plugins.monkey.did_patch_all": [
             "ddtrace_gevent_check = ddtrace_gevent_check:gevent_patch_all",
         ],
+        "opentelemetry_context": ["contextvars_context = ddtrace.opentelemetry:_OtelRuntimeContext"],
     },
     classifiers=[
         "Programming Language :: Python",
