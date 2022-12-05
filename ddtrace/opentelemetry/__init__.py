@@ -112,22 +112,12 @@ class Tracer(OTelTracer):
             The newly-created span.
         """
         # End result is to get a Datadog Context/Span to use as the parent (or None)
-        dd_context = None  #  type: Optional[Union[ddtrace.context.Context, ddtrace.Span]]
-
-        # Get the currently active OTel span context
-        parent_context = get_current_span(context).get_span_context()
-        # Determine if we have a context and if it is a valid context
-        #   (they have a dummy context/non-recording span type that is a default)
-        if parent_context is not None and parent_context.is_valid:
-            # TODO: What do we do about tracestate/traceflags?
-            dd_context = ddtrace.context.Context(trace_id=parent_context.trace_id, span_id=parent_context.span_id)
-
-        # If we could not resolve a current active OTel span/context, then use the current active Datadog span
-        # TODO: This might be where the context management problem is...
-        #   Should we only care about spans that exist in our context manager?
-        if dd_context is None:
-            dd_context = self._tracer.context_provider.active()
-
+        if context:
+            dd_context = Context(context.trace_id, context.span_id)
+        else:
+            dd_context = (
+                self._tracer.context_provider.active()
+            )  #  type: Optional[Union[ddtrace.context.Context, ddtrace.Span]]
         # Create a new Datadog span (not activated), then return an OTel span wrapper
         dd_span = self._tracer.start_span(name, child_of=dd_context, activate=False)
         return Span(dd_span, kind=kind, attributes=attributes, start_time=start_time)
