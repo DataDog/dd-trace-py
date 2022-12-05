@@ -55,6 +55,7 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_datadog_name = "{}.query".format(span_name_prefix)
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
+        self._self_dbm_propagation_supported = getattr(self._self_config, "_dbm_propagation_supported", False)
 
     def __iter__(self):
         return self.__wrapped__.__iter__()
@@ -100,7 +101,7 @@ class TracedCursor(wrapt.ObjectProxy):
                 s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
 
             if dbm_operation:
-                args = _propagate_dbm_context(s, args)
+                args = self._propagate_dbm_context(s, args)
 
             try:
                 return method(*args, **kwargs)
@@ -121,7 +122,7 @@ class TracedCursor(wrapt.ObjectProxy):
             self._self_datadog_name,
             query,
             {"sql.executemany": "true"},
-            True,
+            self._self_dbm_propagation_supported,
             query,
             *args,
             **kwargs
@@ -135,13 +136,20 @@ class TracedCursor(wrapt.ObjectProxy):
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
         return self._trace_method(
-            self.__wrapped__.execute, self._self_datadog_name, query, {}, True, query, *args, **kwargs
+            self.__wrapped__.execute,
+            self._self_datadog_name,
+            query,
+            {},
+            self._self_dbm_propagation_supported,
+            query,
+            *args,
+            **kwargs
         )
 
     def callproc(self, proc, *args):
         """Wraps the cursor.callproc method"""
         self._self_last_execute_operation = proc
-        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, True, proc, *args)
+        return self._trace_method(self.__wrapped__.callproc, self._self_datadog_name, proc, {}, False, proc, *args)
 
     def _set_post_execute_tags(self, span):
         row_count = self.__wrapped__.rowcount
@@ -153,6 +161,30 @@ class TracedCursor(wrapt.ObjectProxy):
         # Check row count is an integer type to avoid comparison type error
         if isinstance(row_count, six.integer_types) and row_count >= 0:
             span.set_tag(sql.ROWS, row_count)
+
+    def _propagate_dbm_context(self, dbspan, args):
+        # type: (...) -> Tuple[Tuple[Any, ...]]
+        dbm_comment = _database_monitoring._get_dbm_comment(dbspan)
+        if dbm_comment is None:
+            return args
+        # add DBM comment to query arg
+        sql_with_dbm_tags = self._dbm_sql_injector(dbm_comment, args[0])
+        # replace the original query or procedure with query_with_dbm_tags
+        args = (sql_with_dbm_tags,) + args[1:]
+        return args
+
+    def _dbm_sql_injector(self, dbm_comment, sql_statement):
+        try:
+            return dbm_comment + sql_statement
+        except TypeError:
+            log.warning(
+                "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "
+                "To disable this feature please set the following environment variable: "
+                "DD_DBM_PROPAGATION_MODE=disabled",
+                type(sql_statement),
+                exc_info=True,
+            )
+        return sql_statement
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's
@@ -307,18 +339,3 @@ def _get_vendor(conn):
 
 def _get_module_name(conn):
     return conn.__class__.__module__.split(".")[0]
-
-
-def _propagate_dbm_context(dbspan, args):
-    # type: (...) -> Tuple[Tuple[Any, ...]]
-    dbm_comment = _database_monitoring._get_dbm_comment(dbspan)
-    if dbm_comment is None:
-        return args
-    # If dbm propagation supported and enabled the first arg must be a sql query or a procedure.
-    assert len(args) > 0 and isinstance(args[0], str)
-    # get query or procedure from args
-    sql_statement = args[0]
-    sql_with_dbm_tags = dbm_comment + sql_statement
-    # replace the original query or procedure with query_with_dbm_tags
-    args = (sql_with_dbm_tags,) + args[1:]
-    return args

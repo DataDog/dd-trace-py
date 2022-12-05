@@ -221,6 +221,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec",
             pkgs={
                 "pycryptodome": latest,
+                "cryptography": latest,
             },
         ),
         Venv(
@@ -262,7 +263,6 @@ venv = Venv(
                     pkgs={
                         "msgpack": latest,
                         "attrs": ["==20.1.0", latest],
-                        "packaging": ["==17.1", latest],
                         "structlog": latest,
                         # httpretty v1.0 drops python 2.7 support
                         "httpretty": "==0.9.7",
@@ -293,12 +293,6 @@ venv = Venv(
             pkgs={"msgpack": [latest]},
             venvs=[
                 Venv(
-                    name="integration-v5",
-                    env={
-                        "AGENT_VERSION": "v5",
-                    },
-                ),
-                Venv(
                     name="integration-latest",
                     env={
                         "AGENT_VERSION": "latest",
@@ -319,6 +313,7 @@ venv = Venv(
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
+                "packaging": ["==17.1", latest],
             },
             env={
                 "DD_REMOTE_CONFIGURATION_ENABLED": "false",
@@ -435,6 +430,19 @@ venv = Venv(
             },
         ),
         Venv(
+            name="wait",
+            command="python tests/wait-for-services.py {cmdargs}",
+            # Default Python 3 (3.10) collections package breaks with kombu/vertica, so specify Python 3.9 instead.
+            pys="3.9",
+            pkgs={
+                "cassandra-driver": latest,
+                "psycopg2-binary": latest,
+                "mysql-connector-python": "!=8.0.18",
+                "vertica-python": ">=0.6.0,<0.7.0",
+                "kombu": ">=4.2.0,<4.3.0",
+            },
+        ),
+        Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
             pys=select_pys(),
@@ -481,6 +489,39 @@ venv = Venv(
                             latest,
                         ]
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="bottle",
+            pkgs={"WebTest": latest},
+            venvs=[
+                Venv(
+                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.9"),
+                            pkgs={"bottle": [">=0.11,<0.12", ">=0.12,<0.13", latest]},
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={"bottle": latest},
+                        ),
+                    ],
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    env={"DD_SERVICE": "bottle-app"},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.9"),
+                            pkgs={"bottle": [">=0.11,<0.12", ">=0.12,<0.13", latest]},
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={"bottle": latest},
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -735,7 +776,6 @@ venv = Venv(
                         "django": [
                             "~=3.0",
                             "~=3.0.0",
-                            "~=3.1.0",
                             "~=3.2.0",
                         ],
                         "channels": ["~=3.0", latest],
@@ -748,7 +788,7 @@ venv = Venv(
                             "~=4.0.0",
                             latest,
                         ],
-                        "channels": ["~=3.0", latest],
+                        "channels": [latest],
                     },
                 ),
                 Venv(
@@ -758,7 +798,7 @@ venv = Venv(
                             "~=4.1.0",
                             latest,
                         ],
-                        "channels": ["~=3.0", latest],
+                        "channels": [latest],
                     },
                 ),
             ],
@@ -1780,7 +1820,7 @@ venv = Venv(
                     "~=0.16.0",
                     "~=0.17.0",
                     "~=0.18.0",
-                    "<1.0.0",
+                    "~=0.22.0",
                     latest,
                 ],
             },
@@ -1819,6 +1859,14 @@ venv = Venv(
                 ),
             ],
             command="pytest {cmdargs} tests/contrib/cassandra",
+        ),
+        Venv(
+            name="algoliasearch",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/algoliasearch",
+            pkgs={
+                "algoliasearch": [">=1.2,<2", ">=2,<3", latest],
+            },
         ),
         Venv(
             name="aiopg",
@@ -2385,6 +2433,110 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="kombu",
+            command="pytest {cmdargs} tests/contrib/kombu",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={
+                        "kombu": [
+                            ">=4.0,<4.1",
+                            ">=4.1,<4.2",
+                            ">=4.2,<4.3",
+                            ">=4.3,<4.4",
+                            ">=4.4,<4.5",
+                            ">=4.5,<4.6",
+                            ">=4.6,<4.7",
+                            latest,
+                        ],
+                        # kombu using deprecated shims removed in importlib-metadata 5.0 pre-Python 3.8
+                        "importlib_metadata": "<5.0",
+                    },
+                ),
+                # Kombu>=4.2 only supports Python 3.7+
+                Venv(
+                    pys="3.7",
+                    pkgs={
+                        "kombu": [">=4.2,<4.3", ">=4.3,<4.4", ">=4.4,<4.5", ">=4.5,<4.6", ">=4.6,<4.7", latest],
+                        # kombu using deprecated shims removed in importlib-metadata 5.0 pre-Python 3.8
+                        "importlib_metadata": "<5.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "kombu": [">=4.2,<4.3", ">=4.3,<4.4", ">=4.4,<4.5", ">=4.5,<4.6", ">=4.6,<4.7", latest],
+                    },
+                ),
+                Venv(
+                    pys="3.10",
+                    pkgs={
+                        "kombu": [">=4.3,<4.4", ">=4.4,<4.5", ">=4.5,<4.6", ">=4.6,<4.7", latest],
+                    },
+                ),
+                Venv(
+                    pys="3.11",
+                    pkgs={
+                        "kombu": [">=5.0,<5.1", ">=5.1,<5.2", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="tornado",
+            command="python -m pytest {cmdargs} tests/contrib/tornado",
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={"tornado": [">=4.4,<4.5", ">=4.5,<4.6"], "futures": ["~=3.0", "~=3.1", "~=3.2", latest]},
+                ),
+                Venv(
+                    pys=select_pys(max_version="3.9"),
+                    pkgs={
+                        "tornado": [">=4.4,<4.5", ">=4.5,<4.6"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "tornado": [">=5.0,<5.1", ">=5.1,<5.2", ">=6.0,<6.1", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.11"),
+                    pkgs={
+                        "tornado": [">=6.0,<6.1", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="mysqldb",
+            command="pytest {cmdargs} tests/contrib/mysqldb",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.9"),
+                    pkgs={
+                        "mysqlclient": [">=1.3,<1.4", ">=1.4,<1.5", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "mysqlclient": [">=1.4,<1.5", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="molten",
+            command="pytest {cmdargs} tests/contrib/molten",
+            pys=select_pys(min_version="3.6"),
+            pkgs={
+                "molten": [">=0.6,<0.7", ">=0.7,<0.8", ">=1.0,<1.1", latest],
+            },
         ),
     ],
 )

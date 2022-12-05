@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Ensures that encoding errors due to wrong span tag types will be logged. Previously, if non-text span tags
+    were set, this resulted in v0.5 encoding errors to be output to ``stderr`` instead of to a logger. 

@@ -154,10 +154,7 @@ After installing the `circleci` CLI, you can run jobs by name. For example:
 ### Release Notes
 
 This project follows [semver](https://semver.org/) and so bug fixes, breaking
-changes, new features, etc must be accompanied by a release note. To generate a
-release note:
+changes, new features, etc must be accompanied by a release note. 
 
-    $ riot run reno new <short-description-of-change>
-
-Document the changes in the generated file, remove the irrelevant sections and
-commit the release note with the change.
+See the [contributing docs](https://ddtrace.readthedocs.io/en/stable/contributing.html) for
+instructions on generating, writing, formatting, and styling release notes.
