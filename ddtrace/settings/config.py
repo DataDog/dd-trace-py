@@ -74,9 +74,10 @@ def _parse_propagation_styles(name, default):
         style = style.strip().lower()
         if style == "b3":
             deprecate(
-                "ddtrace.settings.config._parse_propagation_styles",
-                message="propagation style `b3` has been deprecated in favor of `b3multi`"
-                " propagation style `b3` will be removed in a future version.",
+                "ddtrace.settings.config",
+                message="The following configuration value has been deprecated: `DD_TRACE_PROPAGATION_STYLE=b3`." 
+                " Use `DD_TRACE_PROPAGATION_STYLE=b3multi` instead. "
+                "  Support for setting the propagation style to `b3` will be removed in a future version.",
             )
             style = PROPAGATION_STYLE_B3_MULTI
         if not style:
