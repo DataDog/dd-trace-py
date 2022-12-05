@@ -1588,6 +1588,19 @@ INJECT_FIXTURES = [
         {_HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"},
     ),
     (
+        "only_tracestate",
+        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        {
+            "meta": {
+                "tracestate": "dd=s:2;o:rum",
+                "_dd.origin": "rum",
+                "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            },
+            "metrics": {"_sampling_priority_v1": 2},
+        },
+        {},
+    ),
+    (
         "no_context_traceparent",
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {

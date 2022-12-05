@@ -684,9 +684,10 @@ class _TraceContext:
         tp = span_context._traceparent
         if tp:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
-        ts = span_context._tracestate
-        if ts:
-            headers[_HTTP_HEADER_TRACESTATE] = ts
+            # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
+            ts = span_context._tracestate
+            if ts:
+                headers[_HTTP_HEADER_TRACESTATE] = ts
 
 
 _PROP_STYLES = {
