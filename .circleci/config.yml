@@ -1028,16 +1028,6 @@ jobs:
           pattern: 'yaaredis$'
           snapshot: true
 
-  asyncpg:
-    executor: ddtrace_dev
-    docker:
-      - image: *ddtrace_dev_image
-      - *postgres_server
-    steps:
-      - run_tox_scenario:
-          wait: postgres
-          pattern: '^asyncpg_contrib-'
-
   redis:
     <<: *machine_executor
     parallelism: 4
