@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "django.db.alias": "postgres",
@@ -34,6 +35,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
+       "error": 0,
        "meta": {
          "db.application": "None",
          "db.name": "test_postgres",
