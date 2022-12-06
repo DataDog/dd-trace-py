@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from functools import partial
 import sys
 import unittest
@@ -5,6 +6,7 @@ import unittest
 import mock
 import pytest
 
+from ddtrace.context import Context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -14,6 +16,7 @@ from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.http import w3c_get_dd_list_member
 from ddtrace.internal.utils.importlib import func_name
 
 
@@ -398,3 +401,86 @@ def test_callonce_signature():
         @callonce
         def _():
             yield 42
+
+
+@pytest.mark.parametrize(
+    "context, expected_strs",
+    [
+        (
+            Context(
+                trace_id=1234,
+                sampling_priority=2,
+                dd_origin="synthetics",
+                meta={
+                    "_dd.p.unk": "-4",
+                    "_dd.p.unknown": "baz64",
+                },
+            ),
+            ["s:2", "o:synthetics", "t.unk:-4", "t.unknown:baz64"],
+        ),
+        (
+            Context(
+                trace_id=1234,
+                sampling_priority=2,
+                dd_origin="synthetics",
+                meta={
+                    "_dd.p.unk": "-4",
+                    "_dd.p.unknown": "baz64",
+                    "no_add": "is_not_added",
+                },
+            ),
+            ["s:2", "o:synthetics", "t.unk:-4", "t.unknown:baz64"],
+        ),
+        (
+            Context(
+                trace_id=1234,
+                sampling_priority=2,
+                dd_origin="synthetics",
+                meta={
+                    "_dd.p.256_char": "".join(["a" for i in range(256)]),
+                    "_dd.p.unknown": "baz64",
+                },
+            ),
+            ["s:2", "o:synthetics", "t.unknown:baz64"],
+        ),
+        (  # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E with _
+            # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E with _
+            Context(
+                trace_id=1234,
+                sampling_priority=2,
+                dd_origin="synthetics",
+                meta={
+                    "_dd.p.unk": "-4",
+                    "_dd.p.unknown": "baz64",
+                    "_dd.p.¢": ";4",
+                    "_dd.p.u=,": "b:,¢a",
+                },
+            ),
+            ["s:2", "o:synthetics", "t.unk:-4", "t.unknown:baz64", "t._:_4", "t.u__:b___a"],
+        ),
+        (
+            Context(
+                trace_id=1234,
+                sampling_priority=0,
+                dd_origin="synthetics",
+                meta={
+                    "_dd.p.unk": "-4",
+                    "_dd.p.unknown": "baz64",
+                },
+            ),
+            ["s:0", "o:synthetics", "t.unk:-4", "t.unknown:baz64"],
+        ),
+    ],
+    ids=[
+        "basic",
+        "does_not_add_non_prefixed_tags",
+        "does_not_add_more_than_256_char",
+        "char_replacement",
+        "sampling_priority_0",
+    ],
+)
+# since we are looping through a dict, we can't predict the order of some of the tags
+# therefore we test by looping through a list of tags we expect to be in the dd list member str
+def test_w3c_get_dd_list_member(context, expected_strs):
+    for tag in expected_strs:
+        assert tag in w3c_get_dd_list_member(context)
