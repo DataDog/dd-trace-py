@@ -1567,7 +1567,7 @@ INJECT_FIXTURES = [
             "trace_id": 11803532876627986230,
             "span_id": 67667974448284343,
             "meta": {
-                "tracestate": "dd=s:2;o:rum",
+                "tracestate": "dd=s~2;o~rum",
                 "_dd.origin": "rum",
                 "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             },
@@ -1592,7 +1592,7 @@ INJECT_FIXTURES = [
         [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
             "meta": {
-                "tracestate": "dd=s:2;o:rum",
+                "tracestate": "dd=s~2;o~rum",
                 "_dd.origin": "rum",
                 "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             },
@@ -1607,14 +1607,14 @@ INJECT_FIXTURES = [
             "trace_id": 11803532876627986230,
             "span_id": 67667974448284343,
             "meta": {
-                "tracestate": "dd=s:2;o:rum",
+                "tracestate": "dd=s~2;o~rum",
                 "_dd.origin": "rum",
             },
             "metrics": {"_sampling_priority_v1": 2},
         },
         {
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
-            _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
+            _HTTP_HEADER_TRACESTATE: "dd=s~2;o~rum",
         },
     ),
     (
@@ -1624,14 +1624,14 @@ INJECT_FIXTURES = [
             "trace_id": 11803532876627986230,
             "span_id": 67667974448284343,
             "meta": {
-                "tracestate": "dd=s:2;o:rum,congo=baz123",
+                "tracestate": "dd=s~2;o~rum,congo=baz123",
                 "_dd.origin": "rum",
             },
             "metrics": {"_sampling_priority_v1": 2},
         },
         {
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000a3ce929d0e0e4736-00f067aa0ba902b7-01",
-            _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum,congo=baz123",
+            _HTTP_HEADER_TRACESTATE: "dd=s~2;o~rum,congo=baz123",
         },
     ),
     # All styles
@@ -1654,7 +1654,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SAMPLED: "1",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-1",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
-            _HTTP_HEADER_TRACESTATE: "dd=s:1;o:synthetics",
+            _HTTP_HEADER_TRACESTATE: "dd=s~1;o~synthetics",
         },
     ),
     (
@@ -1675,7 +1675,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_FLAGS: "1",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-d",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
-            _HTTP_HEADER_TRACESTATE: "dd=s:2",
+            _HTTP_HEADER_TRACESTATE: "dd=s~2",
         },
     ),
     (
@@ -1696,7 +1696,7 @@ INJECT_FIXTURES = [
             _HTTP_HEADER_B3_SAMPLED: "0",
             _HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370-0",
             _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
-            _HTTP_HEADER_TRACESTATE: "dd=s:0",
+            _HTTP_HEADER_TRACESTATE: "dd=s~0",
         },
     ),
     (
