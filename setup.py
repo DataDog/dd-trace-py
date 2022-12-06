@@ -293,7 +293,7 @@ setup(
         "gevent.plugins.monkey.did_patch_all": [
             "ddtrace_gevent_check = ddtrace_gevent_check:gevent_patch_all",
         ],
-        "opentelemetry_context": ["contextvars_context = ddtrace.opentelemetry:_OtelRuntimeContext"],
+        "opentelemetry_context": ["ddcontextvars_context = ddtrace.opentelemetry:_OtelRuntimeContext"],
     },
     classifiers=[
         "Programming Language :: Python",

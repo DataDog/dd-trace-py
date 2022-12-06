@@ -3,9 +3,10 @@ import time
 from opentelemetry import trace
 
 import ddtrace
-from ddtrace.opentelemetry import TracerProvider
+from ddtrace.opentelemetry import OtelTracerProvider
 
-provider = TracerProvider()
+
+provider = OtelTracerProvider()
 trace.set_tracer_provider(provider)
 
 tracer = trace.get_tracer(__name__)
@@ -20,7 +21,7 @@ with ddtrace.tracer.trace("ddtrace-single-context") as root:
         with ddtrace.tracer.trace("ddtrace-child") as dd_child:
             time.sleep(0.04)
 
-# Doesn't work
+# # Works Now!!!
 with ddtrace.tracer.trace("ddtrace-mixed-context") as root:
     with ddtrace.tracer.trace("ddtrace-child") as dd_child1:
         time.sleep(0.04)
