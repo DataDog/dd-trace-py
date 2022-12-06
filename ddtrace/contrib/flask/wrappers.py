@@ -42,7 +42,7 @@ def wrap_signal(app, signal, func):
             return wrapped(*args, **kwargs)
 
         with pin.tracer.trace(name, service=trace_utils.int_service(pin, config.flask)) as span:
-            span.set_tag("flask.signal", signal)
+            span.set_tag_str("flask.signal", signal)
             return wrapped(*args, **kwargs)
 
     return trace_func(func)
