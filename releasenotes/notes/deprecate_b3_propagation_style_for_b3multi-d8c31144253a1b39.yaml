@@ -1,4 +1,4 @@
 ---
 deprecations:
   - |
-    propagation: Configuration of propagation style with ``DD_TRACE_PROPAGATION_STYLE=b3`` is deprecated and will be removed in version 2.0.0. Please use ``DD_TRACE_PROPAGATION_STYLE="b3multi"`` instead. This change adopts the values used for OpenTelemetry propagators.
+    propagation: Configuration of propagation style with ``DD_TRACE_PROPAGATION_STYLE=b3`` is deprecated and will be removed in version 2.0.0. Please use ``DD_TRACE_PROPAGATION_STYLE=b3multi`` instead. This change adopts the values used for OpenTelemetry propagators.
