@@ -416,7 +416,7 @@ def test_callonce_signature():
                     "_dd.p.unknown": "baz64",
                 },
             ),
-            ["s:2", "o:synthetics", "t.unk:-4", "t.unknown:baz64"],
+            ["s~2", "o~synthetics", "t.unk~-4", "t.unknown~baz64"],
         ),
         (
             Context(
@@ -429,7 +429,7 @@ def test_callonce_signature():
                     "no_add": "is_not_added",
                 },
             ),
-            ["s:2", "o:synthetics", "t.unk:-4", "t.unknown:baz64"],
+            ["s~2", "o~synthetics", "t.unk~-4", "t.unknown~baz64"],
         ),
         (
             Context(
@@ -441,10 +441,10 @@ def test_callonce_signature():
                     "_dd.p.unknown": "baz64",
                 },
             ),
-            ["s:2", "o:synthetics", "t.unknown:baz64"],
+            ["s~2", "o~synthetics", "t.unknown~baz64"],
         ),
         (  # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E with _
-            # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E with _
+            # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E with _
             Context(
                 trace_id=1234,
                 sampling_priority=2,
@@ -453,10 +453,10 @@ def test_callonce_signature():
                     "_dd.p.unk": "-4",
                     "_dd.p.unknown": "baz64",
                     "_dd.p.¢": ";4",
-                    "_dd.p.u=,": "b:,¢a",
+                    "_dd.p.u=,": "b~,¢a",
                 },
             ),
-            ["s:2", "o:synthetics", "t.unk:-4", "t.unknown:baz64", "t._:_4", "t.u__:b___a"],
+            ["s~2", "o~synthetics", "t.unk~-4", "t.unknown~baz64", "t._~_4", "t.u__~b___a"],
         ),
         (
             Context(
@@ -468,7 +468,7 @@ def test_callonce_signature():
                     "_dd.p.unknown": "baz64",
                 },
             ),
-            ["s:0", "o:synthetics", "t.unk:-4", "t.unknown:baz64"],
+            ["s~0", "o~synthetics", "t.unk~-4", "t.unknown~baz64"],
         ),
     ],
     ids=[
