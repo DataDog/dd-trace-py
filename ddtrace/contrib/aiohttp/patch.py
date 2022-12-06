@@ -40,15 +40,6 @@ ENABLE_DISTRIBUTED_ATTR_NAME = '_dd_enable_distributed'
 TRACE_HEADERS_ATTR_NAME = '_dd_trace_headers'
 
 
-def _get_url_obj(obj):
-    url_obj = obj.url
-
-    if not isinstance(url_obj, URL):
-        url_obj = getattr(obj, 'url_obj', None)  # 1.x
-
-    return url_obj
-
-
 def _set_request_tags(span: Span, req: Union[ClientRequest, ClientResponse]):
     url_str = str(req.url)
     parsed_url = parse.urlparse(url_str)
@@ -276,19 +267,17 @@ def patch():
     setattr(aiohttp, "_datadog_patch", True)
 
 
+def _unpatch_client(aiohttp):
+    unwrap(aiohttp.ClientSession, "__init__")
+    unwrap(aiohttp.ClientSession, "_request")
+
+
 def unpatch():
     import aiohttp
 
     if not getattr(aiohttp, "_datadog_patch", False):
         return
 
-    unwrap(aiohttp.ClientSession, '__init__')
+    _unpatch_client(aiohttp)
 
-    for method in _clientsession_wrap_methods:
-        unwrap(aiohttp.ClientSession, method)
-
-    setattr(aiohttp, '__datadog_patch', False)
-
-from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.formats import asbool
+    setattr(aiohttp, "__datadog_patch", False)
