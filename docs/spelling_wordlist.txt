@@ -171,6 +171,7 @@ stringable
 subdomains
 submodule
 submodules
+substring
 timestamp
 tweens
 uWSGI

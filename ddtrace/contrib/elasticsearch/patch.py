@@ -85,14 +85,14 @@ def _get_perform_request(elasticsearch):
             encoded_params = urlencode(params)
             body = kwargs.get("body")
 
-            span.set_tag(metadata.METHOD, method)
-            span.set_tag(metadata.URL, url)
-            span.set_tag(metadata.PARAMS, encoded_params)
+            span.set_tag_str(metadata.METHOD, method)
+            span.set_tag_str(metadata.URL, url)
+            span.set_tag_str(metadata.PARAMS, encoded_params)
             if config.elasticsearch.trace_query_string:
-                span.set_tag(http.QUERY_STRING, encoded_params)
+                span.set_tag_str(http.QUERY_STRING, encoded_params)
 
             if method in ["GET", "POST"]:
-                span.set_tag(metadata.BODY, instance.serializer.dumps(body))
+                span.set_tag_str(metadata.BODY, instance.serializer.dumps(body))
             status = None
 
             # set analytics sample rate
