@@ -131,7 +131,7 @@ class _DDWSGIMiddlewareBase(object):
 
             # set component tag equal to name of integration
             app_span.set_tag_str("component", self._config.integration_name)
-            
+
             intercept_start_response = functools.partial(
                 self._traced_start_response, start_response, req_span, app_span
             )
