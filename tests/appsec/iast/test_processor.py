@@ -5,6 +5,7 @@ import pytest
 from ddtrace._monkey import IAST_PATCH
 from ddtrace._monkey import patch_iast
 from ddtrace.constants import IAST_CONTEXT_KEY
+from ddtrace.constants import IAST_ENABLED
 from ddtrace.constants import IAST_JSON
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
@@ -38,6 +39,7 @@ def test_appsec_iast_processor():
 
         span_report = _context.get_item(IAST_CONTEXT_KEY, span=span)
         result = span.get_tag(IAST_JSON)
+        assert span.get_metric(IAST_ENABLED) == 1.0
 
         assert len(span_report.vulnerabilities) == 1
         assert len(json.loads(result)["vulnerabilities"]) == 1
