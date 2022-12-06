@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    profiler: add support for Python 3.11.
+    profiler: Adds support for Python 3.11.
