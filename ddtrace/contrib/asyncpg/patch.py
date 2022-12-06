@@ -4,7 +4,6 @@ from ddtrace import Pin
 from ddtrace import config
 from ddtrace.vendor import wrapt
 
-from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...ext import db
@@ -76,7 +75,7 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
+        span.set_tag_str("component", config.asyncpg.integration_name)
 
         # Need an ObjectProxy since Connection uses slots
         conn = _TracedConnection(await func(*args, **kwargs), pin)
@@ -89,7 +88,7 @@ async def _traced_query(pin, method, query, args, kwargs):
         "postgres.query", resource=query, service=ext_service(pin, config.asyncpg), span_type=SpanTypes.SQL
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.asyncpg.integration_name)
+        span.set_tag_str("component", config.asyncpg.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
         span.set_tags(pin.tags)

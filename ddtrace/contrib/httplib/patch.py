@@ -8,7 +8,6 @@ from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import COMPONENT
 from ...ext import SpanTypes
 from ...internal.compat import PY2
 from ...internal.compat import httplib
@@ -78,7 +77,7 @@ def _wrap_request(func, instance, args, kwargs):
         span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.httplib.integration_name)
+        span.set_tag_str("component", config.httplib.integration_name)
 
         setattr(instance, "_datadog_span", span)
 
@@ -121,7 +120,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
             span = pin.tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
             # set component tag equal to name of integration
-            span.set_tag_str(COMPONENT, config.httplib.integration_name)
+            span.set_tag_str("component", config.httplib.integration_name)
 
             setattr(instance, "_datadog_span", span)
 

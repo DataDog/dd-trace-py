@@ -5,7 +5,6 @@ import jinja2
 from ddtrace import config
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
-from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.compat import stringify
@@ -59,7 +58,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
     template_name = stringify(instance.name or DEFAULT_TEMPLATE_NAME)
     with pin.tracer.trace("jinja2.render", pin.service, span_type=SpanTypes.TEMPLATE) as span:
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.jinja2.integration_name)
+        span.set_tag_str("component", config.jinja2.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
         try:
@@ -84,7 +83,7 @@ def _wrap_compile(wrapped, instance, args, kwargs):
             return wrapped(*args, **kwargs)
         finally:
             # set component tag equal to name of integration
-            span.set_tag_str(COMPONENT, config.jinja2.integration_name)
+            span.set_tag_str("component", config.jinja2.integration_name)
 
             span.resource = template_name
             span.set_tag("jinja2.template_name", template_name)

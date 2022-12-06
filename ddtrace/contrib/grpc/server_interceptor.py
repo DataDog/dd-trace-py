@@ -7,7 +7,6 @@ from ddtrace.vendor import wrapt
 from . import constants
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import COMPONENT
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
@@ -75,7 +74,7 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         )
 
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.grpc_server.integration_name)
+        span.set_tag_str("component", config.grpc_server.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

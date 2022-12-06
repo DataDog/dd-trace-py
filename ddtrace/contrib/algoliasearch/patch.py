@@ -5,7 +5,6 @@ from ddtrace.pin import Pin
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
-from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 
 
@@ -110,7 +109,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         span_type=SpanTypes.HTTP,
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.algoliasearch.integration_name)
+        span.set_tag_str("component", config.algoliasearch.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

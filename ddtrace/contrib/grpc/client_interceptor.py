@@ -12,7 +12,6 @@ from . import constants
 from . import utils
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import COMPONENT
 from ...constants import ERROR_MSG
 from ...constants import ERROR_STACK
 from ...constants import ERROR_TYPE
@@ -182,7 +181,7 @@ class _ClientInterceptor(
         )
 
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.grpc.integration_name)
+        span.set_tag_str("component", config.grpc.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

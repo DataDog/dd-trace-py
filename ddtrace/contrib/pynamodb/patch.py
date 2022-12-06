@@ -9,7 +9,6 @@ from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.utils import ArgumentError
@@ -56,7 +55,7 @@ def patched_api_call(original_func, instance, args, kwargs):
     ) as span:
 
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.pynamodb.integration_name)
+        span.set_tag_str("component", config.pynamodb.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
 

@@ -8,7 +8,6 @@ import cassandra.cluster
 from ddtrace import config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import COMPONENT
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
@@ -174,7 +173,7 @@ def _start_span_and_set_tags(pin, query, session, cluster):
     span = tracer.trace("cassandra.query", service=service, span_type=SpanTypes.CASSANDRA)
 
     # set component tag equal to name of integration
-    span.set_tag_str(COMPONENT, config.cassandra.integration_name)
+    span.set_tag_str("component", config.cassandra.integration_name)
 
     span.set_tag(SPAN_MEASURED_KEY)
     _sanitize_query(span, query)

@@ -9,7 +9,6 @@ from .. import trace_utils
 from ... import Pin
 from ... import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.compat import urlencode
@@ -92,7 +91,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
     ) as span:
 
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.molten.integration_name)
+        span.set_tag_str("component", config.molten.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
         # set analytics sample rate with global config enabled

@@ -19,7 +19,6 @@ from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import COMPONENT
 from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
@@ -173,7 +172,7 @@ def _create_span(pin, handler_call_details, method_kind):
     )
 
     # set component tag equal to name of integration
-    span.set_tag_str(COMPONENT, config.grpc_aio_server.integration_name)
+    span.set_tag_str("component", config.grpc_aio_server.integration_name)
 
     span.set_tag(SPAN_MEASURED_KEY)
 

@@ -1,6 +1,5 @@
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace.constants import COMPONENT
 
 from ...ext import SpanTypes
 from ...internal.utils import get_argument_value
@@ -32,7 +31,7 @@ def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
 
     with pin.tracer.trace("aiohttp.template", span_type=SpanTypes.TEMPLATE) as span:
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.aiohttp_jinja2.integration_name)
+        span.set_tag_str("component", config.aiohttp_jinja2.integration_name)
 
         span.set_tag("aiohttp.template", template_meta)
         return func(*args, **kwargs)

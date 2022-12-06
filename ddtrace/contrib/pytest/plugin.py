@@ -7,7 +7,6 @@ import pytest
 
 import ddtrace
 from ddtrace.constants import AUTO_KEEP
-from ddtrace.constants import COMPONENT
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.pytest.constants import FRAMEWORK
 from ddtrace.contrib.pytest.constants import HELP_MSG
@@ -147,7 +146,7 @@ def pytest_runtest_protocol(item, nextitem):
         span_type=SpanTypes.TEST,
     ) as span:
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, "pytest")
+        span.set_tag_str("component", "pytest")
 
         span.context.dd_origin = ci.CI_APP_TEST_ORIGIN
         span.context.sampling_priority = AUTO_KEEP

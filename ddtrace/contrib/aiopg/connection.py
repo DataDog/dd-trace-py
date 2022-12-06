@@ -5,7 +5,6 @@ from aiopg.utils import _ContextManager
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import COMPONENT
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.ext import SpanTypes
@@ -36,7 +35,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
         with pin.tracer.trace(self._datadog_name, service=service, resource=resource, span_type=SpanTypes.SQL) as s:
             # set component tag equal to name of integration
-            s.set_tag_str(COMPONENT, config.aiopg.integration_name)
+            s.set_tag_str("component", config.aiopg.integration_name)
 
             s.set_tag(SPAN_MEASURED_KEY)
             s.set_tag(sql.QUERY, resource)

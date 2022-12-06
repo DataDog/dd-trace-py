@@ -9,7 +9,6 @@ from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import COMPONENT
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
 from ...internal.logger import get_logger
@@ -52,7 +51,7 @@ def trace_render(func, instance, args, kwargs):
 
     with tracer.trace("pyramid.render", span_type=SpanTypes.TEMPLATE) as span:
         # set component tag equal to name of integration
-        span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+        span.set_tag_str("component", config.pyramid.integration_name)
 
         return func(*args, **kwargs)
 
@@ -74,7 +73,7 @@ def trace_tween_factory(handler, registry):
 
             with tracer.trace("pyramid.request", service=service, resource="404", span_type=SpanTypes.WEB) as span:
                 # set component tag equal to name of integration
-                span.set_tag_str(COMPONENT, config.pyramid.integration_name)
+                span.set_tag_str("component", config.pyramid.integration_name)
 
                 span.set_tag(SPAN_MEASURED_KEY)
                 # Configure trace search sample rate
