@@ -376,12 +376,12 @@ def test_get_wsgi_header(tracer):
 # for testing with other propagation styles
 TRACECONTEXT_HEADERS_VALID_BASIC = {
     _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum",
+    _HTTP_HEADER_TRACESTATE: "dd=s~2;o~rum",
 }
 
 TRACECONTEXT_HEADERS_VALID = {
     _HTTP_HEADER_TRACEPARENT: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-    _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+    _HTTP_HEADER_TRACESTATE: "dd=s~2;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE",
 }
 
 
@@ -497,7 +497,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
     "ts_string,expected_tuple,expected_logging,expected_exception",
     [
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
+            "dd=s~2;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE,mako=s~2;o~rum;",
             # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
@@ -511,7 +511,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             None,
         ),
         (
-            "dd=s:0;o:rum;t.dm:-4;t.usr.id:baz64",
+            "dd=s~0;o~rum;t.dm~-4;t.usr.id~baz64",
             # sampling_priority_ts, other_propagated_tags, origin
             (
                 0,
@@ -525,7 +525,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64",
+            "dd=s~2;o~rum;t.dm~-4;t.usr.id~baz64",
             # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
@@ -539,7 +539,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             None,
         ),
         (
-            "dd=o:rum;t.dm:-4;t.usr.id:baz64",
+            "dd=o~rum;t.dm~-4;t.usr.id~baz64",
             # sampling_priority_ts, other_propagated_tags, origin
             (
                 None,
@@ -553,7 +553,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             None,
         ),
         (
-            "dd=s:-1;o:rum;t.dm:-4;t.usr.id:baz64",
+            "dd=s~-1;o~rum;t.dm~-4;t.usr.id~baz64",
             # sampling_priority_ts, other_propagated_tags, origin
             (
                 -1,
@@ -567,7 +567,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             None,
         ),
         (
-            "dd=s:2;t.dm:-4;t.usr.id:baz64",
+            "dd=s~2;t.dm~-4;t.usr.id~baz64",
             # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
@@ -581,7 +581,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.unk:unk,congo=t61rcWkgMzE,mako=s:2;o:rum;",
+            "dd=s~2;o~rum;t.dm~-4;t.usr.id~baz64;t.unk~unk,congo=t61rcWkgMzE,mako=s:2;o~rum;",
             # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
@@ -596,14 +596,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             None,
         ),
         (
-            "congo=t61rcWkgMzE,mako=s:2;o:rum;",
+            "congo=t61rcWkgMzE,mako=s:2;o~rum;",
             # sampling_priority_ts, other_propagated_tags, origin
             (None, {}, None),
             None,
             None,
         ),
         (
-            "dd=s:2;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,mako=s:2;o:rum;",
+            "dd=s~2;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE,mako=s~2;o~rum;",
             # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
@@ -666,7 +666,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                 "trace_id": 11803532876627986230,
                 "span_id": 67667974448284343,
                 "meta": {
-                    "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                    "tracestate": "dd=s~2;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                     "_dd.origin": "rum",
@@ -681,7 +681,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
                 "trace_id": 11803532876627986230,
                 "span_id": 67667974448284343,
                 "meta": {
-                    "tracestate": "dd=s:2;o:rum",
+                    "tracestate": "dd=s~2;o~rum",
                     "_dd.origin": "rum",
                     "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
                 },
@@ -691,7 +691,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
         (
             {
                 _HTTP_HEADER_TRACEPARENT: "00-4bae0e4736-00f067aa0ba902b7-01",
-                _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                _HTTP_HEADER_TRACESTATE: "dd=s~2;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE",
             },
             {"trace_id": None, "span_id": None, "meta": {}, "metrics": {}},
         ),
@@ -710,7 +710,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
         ),
         (
             {
-                _HTTP_HEADER_TRACESTATE: "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
+                _HTTP_HEADER_TRACESTATE: "dd=s~2;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE",
             },
             {"trace_id": None, "span_id": None, "meta": {}, "metrics": {}},
         ),
