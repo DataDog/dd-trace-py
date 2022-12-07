@@ -690,7 +690,7 @@ jobs:
       - run_test:
           pattern: 'elasticsearch'
           snapshot: true
-          docker_services: 'elasticsearch'
+          docker_services: 'elasticsearch opensearch'
 
   falcon:
     <<: *contrib_job
@@ -821,15 +821,6 @@ jobs:
       - run_test:
           wait: mysql
           pattern: 'mysqldb'
-
-  opensearch:
-    <<: *machine_executor
-    parallelism: 4
-    steps:
-      - run_test:
-          pattern: 'opensearch'
-          snapshot: true
-          docker_services: 'opensearch'
 
   pymysql:
     <<: *contrib_job
@@ -1183,7 +1174,6 @@ requires_tests: &requires_tests
     - mongoengine
     - mysqlconnector
     - mysqlpython
-    - opensearch
     - opentracer
     - psycopg
     - pylibmc
@@ -1283,7 +1273,6 @@ workflows:
       - mongoengine: *requires_base_venvs
       - mysqlconnector: *requires_base_venvs
       - mysqlpython: *requires_base_venvs
-      - opensearch: *requires_base_venvs
       - opentracer: *requires_base_venvs
       - psycopg: *requires_base_venvs
       - pylibmc: *requires_base_venvs

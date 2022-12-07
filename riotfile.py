@@ -950,7 +950,8 @@ venv = Venv(
         ),
         Venv(
             name="elasticsearch-opensearch",
-            command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py",
+            # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
+            command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
             venvs=[
                 # `opensearch-py<2` needs the `requests` extra; later versions include `requests` by default
                 Venv(
