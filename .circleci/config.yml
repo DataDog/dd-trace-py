@@ -159,22 +159,22 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY ./scripts/ddtest riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 ./scripts/ddtest riot -v run --exitfirst --pass-env -s
       - unless:
           condition:
               << parameters.snapshot >>
           steps:
+            - setup_riot
             - when:
                 condition:
                   << parameters.wait >>
                 steps:
-                  - setup_tox
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: tox -e 'wait' << parameters.wait >>
-            - setup_riot
+                      command: riot -v run 'wait' << parameters.wait >>
+
             - run:
-                command: "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                command: "riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 riot -v run --exitfirst --pass-env -s"
       - save_pip_cache
       - when:
           condition:
@@ -201,9 +201,10 @@ commands:
           condition:
             << parameters.wait >>
           steps:
+            - setup_riot
             - run:
                 name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
+                command: riot -v run 'wait' << parameters.wait >>
       - start_docker_services:
           env: SNAPSHOT_CI=1
           services: memcached redis testagent
@@ -233,9 +234,10 @@ commands:
           condition:
             << parameters.wait >>
           steps:
+            - setup_riot
             - run:
                 name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
+                command: riot -v run 'wait' << parameters.wait >>
       - run:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
@@ -623,14 +625,14 @@ jobs:
   tornado:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^tornado_contrib-'
+      - run_test:
+          pattern: 'tornado'
 
   bottle:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^bottle_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: 'bottle'
 
   cassandra:
     <<: *contrib_job
@@ -779,6 +781,7 @@ jobs:
 
   httpx:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'httpx'
@@ -796,8 +799,8 @@ jobs:
   molten:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^molten_contrib-'
+      - run_test:
+          pattern: 'molten'
 
   mysqlconnector:
     <<: *contrib_job
@@ -815,9 +818,9 @@ jobs:
       - image: *ddtrace_dev_image
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: mysql
-          pattern: '^mysqldb_contrib-.*-mysqlclient'
+          pattern: 'mysqldb'
 
   pymysql:
     <<: *contrib_job
@@ -840,6 +843,7 @@ jobs:
 
   pytest:
     executor: ddtrace_dev
+    parallelism: 8
     steps:
       - run_test:
           pattern: 'pytest$'
@@ -867,7 +871,7 @@ jobs:
 
   mongoengine:
     <<: *machine_executor
-    parallelism: 1
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'mongoengine'
@@ -913,14 +917,9 @@ jobs:
       - run_test:
           pattern: "requests"
 
-  requestsgevent:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^requests_gevent_contrib-'
-
   sanic:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: "sanic"
@@ -1078,9 +1077,9 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: rabbitmq
-          pattern: '^kombu_contrib-'
+          pattern: 'kombu'
 
   benchmarks:
     <<: *contrib_job
@@ -1104,8 +1103,8 @@ jobs:
   algoliasearch:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^algoliasearch_contrib-'
+      - run_test:
+          pattern: 'algoliasearch'
 
   build_docs:
     # build documentation and store as an artifact

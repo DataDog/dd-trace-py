@@ -190,6 +190,38 @@ below:
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
 
+   DD_SPAN_SAMPLING_RULES:
+     type: string
+     description: |
+         A JSON array of objects. Each object must have a "name" and/or "service" field, while the "max_per_second" and "sample_rate" fields are optional. 
+         The "sample_rate" value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
+         The "max_per_second" value must be >= 0 and will default to no limit. 
+         The "service" and "name" fields can be glob patterns: 
+         "*" matches any substring, including the empty string,
+         "?" matches exactly one of any character, and any other character matches exactly one of itself.
+
+         **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.re?uest"}]'``
+
+         version_added:
+            v1.4.0:
+    
+   DD_SPAN_SAMPLING_RULES_FILE:
+     type: string
+     description: |
+         A path to a JSON file containing span sampling rules organized as JSON array of objects. 
+         For the rules each object must have a "name" and/or "service" field, and the "sample_rate" field is optional. 
+         The "sample_rate" value must be between 0.0 and 1.0 (inclusive), and will default to 1.0 (100% sampled).
+         The "max_per_second" value must be >= 0 and will default to no limit. 
+         The "service" and "name" fields are glob patterns, where "glob" means: 
+         "*" matches any substring, including the empty string,
+         "?" matches exactly one of any character, and any other character matches exactly one of itself.
+
+         **Example:** ``DD_SPAN_SAMPLING_RULES_FILE="data/span_sampling_rules.json"'``
+         **Example File Contents:** ``[{"sample_rate":0.5,"service":"*-service","name":"my-name-????", "max_per_second":"20"}, {"service":"xy?","name":"a*c"}]``
+
+         version_added:
+            v1.4.0:
+
    DD_TRACE_HEADER_TAGS:
      description: |
          A map of case-insensitive header keys to tag names. Automatically applies matching header values as tags on root spans.
@@ -198,11 +230,14 @@ below:
 
    DD_TRACE_API_VERSION:
      default: |
-         ``v0.4`` if priority sampling is enabled, else ``v0.3``
+         ``v0.5`` if priority sampling is enabled, else ``v0.3``
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
          Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
+     version_added:
+       v0.56.0:
+       v1.7.0: default changed to ``v0.5``.
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN:
      default: |
@@ -295,8 +330,10 @@ below:
 
    DD_PROFILING_ENABLE_CODE_PROVENANCE:
      type: Boolean
-     default: False
+     default: True
      description: Whether to enable code provenance.
+     version_added:
+       v1.7.0:
 
    DD_PROFILING_MEMORY_ENABLED:
      type: Boolean
@@ -390,6 +427,11 @@ below:
      type: String
      default: "MD5,SHA1"
      description: Weak hashing algorithms that should be reported, comma separated.
+
+   DD_IAST_WEAK_CIPHER_ALGORITHMS:
+     type: String
+     default: "DES,Blowfish,RC2,RC4,IDEA"
+     description: Weak cipher algorithms that should be reported, comma separated.
 
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
