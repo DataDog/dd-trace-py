@@ -126,7 +126,7 @@ class _ProfilerInstance(service.Service):
         factory=lambda: formats.asbool(os.environ.get("DD_PROFILING_MEMORY_ENABLED", "True")), type=bool
     )
     enable_code_provenance = attr.ib(
-        factory=attr_utils.from_env("DD_PROFILING_ENABLE_CODE_PROVENANCE", True, formats.asbool),
+        factory=attr_utils.from_env("DD_PROFILING_CODEHOTSPOTS_ENABLED", True, formats.asbool),
         type=bool,
     )
 

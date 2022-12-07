@@ -328,10 +328,10 @@ below:
      default: 64
      description: The maximum number of frames to capture in stack execution tracing.
 
-   DD_PROFILING_ENABLE_CODE_PROVENANCE:
+   DD_PROFILING_CODEHOTSPOTS_ENABLED:
      type: Boolean
      default: True
-     description: Whether to enable code provenance.
+     description: Whether to enable Code Hotspots.
      version_added:
        v1.7.0:
 

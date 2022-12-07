@@ -1,4 +1,7 @@
 ---
 features:
   - |
-      profiling: Enables code provenance by default. To keep the feature disabled use ``DD_PROFILING_ENABLE_CODE_PROVENANCE=false``.
+      profiling: Enables Code Hotspots by default. To keep the feature disabled, set the environment variable ``DD_PROFILING_CODEHOTSPOTS_ENABLED=false``.
+updates:
+  - |
+      profiling: The environment variable for enabling Code Hotspots (formerly known as Code Provenance Reporting) is renamed to ``DD_PROFILING_CODEHOTSPOTS_ENABLED`` from ``DD_PROFILING_ENABLE_CODE_PROVENANCE`` and the former will no longer be supported.
