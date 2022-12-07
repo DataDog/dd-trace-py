@@ -14,14 +14,14 @@ from typing import cast
 
 import six
 
-from ddtrace.debugging import safety
+from ddtrace.debugging._capture import utils
+from ddtrace.debugging._capture.model import CapturedEvent
+from ddtrace.debugging._capture.snapshot import Snapshot
+from ddtrace.debugging._capture.snapshot import _capture_context
 from ddtrace.debugging._config import config
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
-from ddtrace.debugging._snapshot import utils
-from ddtrace.debugging._snapshot.model import Snapshot
-from ddtrace.debugging._snapshot.model import _capture_context
 from ddtrace.internal import forksafe
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
@@ -109,9 +109,6 @@ def _probe_details(probe):
 def _snapshot_data(snapshot):
     # type (Snapshot) -> Dict[str, Any]
     frame = snapshot.frame
-    args = list(safety.get_args(frame))
-    _locals = list(safety.get_locals(frame))
-
     probe = snapshot.probe
 
     captures = {
@@ -120,13 +117,14 @@ def _snapshot_data(snapshot):
     }
     if isinstance(probe, LineLocationMixin):
         captures["lines"] = {
-            probe.line: _capture_context(args, _locals, snapshot.exc_info),
+            probe.line: snapshot.line_capture or _EMPTY_CAPTURED_CONTEXT,
         }
     return {
-        "id": snapshot.snapshot_id,
+        "id": snapshot.event_id,
         "timestamp": int(snapshot.timestamp * 1e3),  # milliseconds
         "duration": snapshot.duration,  # nanoseconds
         "stack": utils.capture_stack(frame),
+        "evaluationErrors": [{"expr": e.expr, "message": e.message} for e in snapshot.errors],
         "captures": captures,
         "probe": _probe_details(snapshot.probe),
         "language": "python",
@@ -190,6 +188,10 @@ def format_message(function, args, retval=None):
 def snapshot_message(snapshot, snapshot_data):
     # type: (Snapshot, Dict[str,Any]) -> str
 
+    # if snapshot has generated message, return it
+    if snapshot.message:
+        return snapshot.message
+
     # create default
     top_frame = snapshot_data["stack"][0]
     if isinstance(snapshot.probe, LineLocationMixin):
@@ -199,12 +201,12 @@ def snapshot_message(snapshot, snapshot_data):
         arguments = snapshot_data["captures"]["entry"]["arguments"]
         retval = snapshot.return_capture["locals"].get("@return") if snapshot.return_capture else None
         return format_message(cast(str, snapshot.probe.func_qname), arguments, retval)
-    return "snapshot " + snapshot.snapshot_id
+    return "snapshot " + snapshot.event_id
 
 
 def _build_log_track_payload(
     service,  # type: str
-    event,  # type: Snapshot
+    event,  # type: CapturedEvent
     message,  # type: str
     snapshot_data,  # type: Dict[str,Any]
     host,  # type: Optional[str]

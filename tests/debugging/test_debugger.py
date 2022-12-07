@@ -10,10 +10,13 @@ import pytest
 from ddtrace.debugging._expressions import dd_compile
 from ddtrace.debugging._probe.model import DDExpression
 from ddtrace.debugging._probe.model import MetricProbeKind
+from ddtrace.debugging._probe.model import ProbeEvaluateTimingForMethod
 from ddtrace.debugging._probe.registry import _get_probe_location
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
+from tests.debugging.utils import compile_template
+from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_metric_line_probe
 from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
@@ -27,7 +30,6 @@ def good_probe():
         probe_id="probe-instance-method",
         source_file="tests/submod/stuff.py",
         line=36,
-        condition=None,
     )
 
 
@@ -763,6 +765,28 @@ def test_debugger_condition_eval_then_rate_limit():
         assert "42" == snapshot["debugger.snapshot"]["captures"]["lines"]["36"]["arguments"]["bar"]["value"], snapshot
 
 
+def test_debugger_function_probe_eval_on_enter():
+    from tests.submod.stuff import mutator
+
+    with debugger() as d:
+        d.add_probes(
+            create_snapshot_function_probe(
+                probe_id="duration-probe",
+                module="tests.submod.stuff",
+                func_qname="mutator",
+                evaluate_at=ProbeEvaluateTimingForMethod.ENTER,
+                condition=DDExpression(
+                    dsl="contains(arg,42)", callable=dd_compile({"not": {"contains": [{"ref": "arg"}, 42]}})
+                ),
+            )
+        )
+
+        mutator(arg=[])
+
+        (snapshot,) = d.test_queue
+        assert snapshot, d.test_queue
+
+
 def test_debugger_function_probe_eval_on_exit():
     from tests.submod.stuff import mutator
 
@@ -772,6 +796,7 @@ def test_debugger_function_probe_eval_on_exit():
                 probe_id="duration-probe",
                 module="tests.submod.stuff",
                 func_qname="mutator",
+                evaluate_at=ProbeEvaluateTimingForMethod.EXIT,
                 condition=DDExpression(dsl="contains(arg,42)", callable=dd_compile({"contains": [{"ref": "arg"}, 42]})),
             )
         )
@@ -813,3 +838,40 @@ def test_debugger_lambda_fuction_access_locals():
 
         (snapshot,) = d.test_queue
         assert snapshot, d.test_queue
+
+
+def test_debugger_log_live_probe_generate_messages():
+    from tests.submod.stuff import Stuff
+
+    with debugger(upload_flush_interval=0.1) as d:
+        d.add_probes(
+            create_log_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                **compile_template(
+                    "hello world ",
+                    {"dsl": "foo", "json": {"ref": "foo"}},
+                    " ",
+                    {"dsl": "bar", "json": {"ref": "bar"}},
+                    "!",
+                )
+            ),
+        )
+
+        Stuff().instancestuff(123)
+        Stuff().instancestuff(456)
+
+        sleep(0.5)
+
+        (msgs,) = d.uploader.payloads
+        (
+            msg1,
+            msg2,
+        ) = msgs
+        assert "hello world ERROR 123!" == msg1["message"], msg1
+        assert "hello world ERROR 456!" == msg2["message"], msg2
+
+        assert "foo" == msg1["debugger.snapshot"]["evaluationErrors"][0]["expr"], msg1
+        # not amazing error message for a missing variable
+        assert "'foo'" == msg1["debugger.snapshot"]["evaluationErrors"][0]["message"], msg1

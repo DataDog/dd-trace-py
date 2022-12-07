@@ -1,13 +1,13 @@
 import os
 import sys
-from threading import Thread
-from types import FrameType
 from types import ModuleType
 import typing as t
 
 from _config import config
 
-from ddtrace.context import Context
+from ddtrace.debugging._capture.collector import CapturedEventCollector
+from ddtrace.debugging._capture.collector import CapturedEventWithContext
+from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._config import config as debugger_config
 import ddtrace.debugging._debugger as _debugger
 from ddtrace.debugging._debugger import Debugger
@@ -17,9 +17,6 @@ from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
-from ddtrace.debugging._snapshot.collector import SnapshotCollector
-from ddtrace.debugging._snapshot.collector import SnapshotContext
-from ddtrace.debugging._snapshot.model import Snapshot
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.module import origin
 from ddtrace.internal.remoteconfig import RemoteConfig
@@ -176,9 +173,9 @@ class NoopSnapshotJsonEncoder(SnapshotJsonEncoder):
         return b""
 
 
-class ExplorationSnapshotCollector(SnapshotCollector):
+class ExplorationCapturedEventCollector(CapturedEventCollector):
     def __init__(self, *args, **kwargs):
-        super(ExplorationSnapshotCollector, self).__init__(*args, **kwargs)
+        super(ExplorationCapturedEventCollector, self).__init__(*args, **kwargs)
         encoder_class = SnapshotJsonEncoder if config.encode else NoopSnapshotJsonEncoder
         self._encoder = encoder_class("exploration")
         self._encoder._encoders = {Snapshot: self._encoder}
@@ -199,16 +196,9 @@ class ExplorationSnapshotCollector(SnapshotCollector):
         if self.on_snapshot:
             self.on_snapshot(snapshot)
 
-    def collect(
-        self,
-        probe,  # type: ProbeConditionMixin
-        frame,  # type: FrameType
-        thread,  # type: Thread
-        args,  # type: t.List[t.Tuple[str, t.Any]]
-        context=None,  # type: t.Optional[Context]
-    ):
-        # type: (...) -> SnapshotContext
-        return SnapshotContext(self, probe, frame, thread, args, context)
+    def attach(self, event):
+        # type: (...) -> CapturedEventWithContext
+        return CapturedEventWithContext(self, event)
 
     @property
     def snapshots(self):
@@ -224,7 +214,7 @@ class ExplorationSnapshotCollector(SnapshotCollector):
 class ExplorationDebugger(Debugger):
     __rc__ = NoopDebuggerRC
     __uploader__ = NoopLogsIntakeUploader
-    __collector__ = ExplorationSnapshotCollector
+    __collector__ = ExplorationCapturedEventCollector
     __watchdog__ = ModuleCollector
     __logger__ = NoopProbeStatusLogger
     __poller__ = NoopProbePoller

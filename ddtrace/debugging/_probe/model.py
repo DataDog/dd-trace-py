@@ -8,6 +8,7 @@ from os.path import splitdrive
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -136,10 +137,18 @@ class LineLocationMixin(ProbeLocationMixin):
         return (self.source_file, self.line)
 
 
+# TODO: make this an Enum once Python 2 support is dropped.
+class ProbeEvaluateTimingForMethod(object):
+    DEFAULT = "DEFAULT"
+    ENTER = "ENTER"
+    EXIT = "EXIT"
+
+
 @attr.s
 class FunctionLocationMixin(ProbeLocationMixin):
     module = attr.ib(type=str)
     func_qname = attr.ib(type=str)
+    evaluate_at = attr.ib(type=ProbeEvaluateTimingForMethod)
 
     def location(self):
         return (self.module, self.func_qname)
@@ -171,19 +180,48 @@ class MetricFunctionProbe(Probe, FunctionLocationMixin, MetricProbeMixin, ProbeC
 
 
 @attr.s
-class SnapshotProbeMixin(object):
-    limits = attr.ib(type=CaptureLimits, eq=False)
+class TemplateSegment(six.with_metaclass(abc.ABCMeta)):
+    @abc.abstractmethod
+    def eval(self, _locals):
+        # type: (Dict[str,Any]) -> str
+        pass
 
 
 @attr.s
-class SnapshotLineProbe(Probe, LineLocationMixin, SnapshotProbeMixin, ProbeConditionMixin):
+class LiteralTemplateSegment(TemplateSegment):
+    str_value = attr.ib(type=str, default=None)
+
+    def eval(self, _locals):
+        # type: (Dict[str,Any]) -> Any
+        return self.str_value
+
+
+@attr.s
+class ExpressionTemplateSegment(TemplateSegment):
+    expr = attr.ib(type=DDExpression, default=None)  # type: DDExpression
+
+    def eval(self, _locals):
+        # type: (Dict[str,Any]) -> Any
+        return self.expr.eval(_locals)
+
+
+@attr.s
+class LogProbeMixin(object):
+    template = attr.ib(type=str)
+    segments = attr.ib(type=List[TemplateSegment])
+    take_snapshot = attr.ib(type=bool)
+    limits = attr.ib(type=CaptureLimits, eq=False)  # type: CaptureLimits
+
+
+@attr.s
+class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin):
     pass
 
 
 @attr.s
-class SnapshotFunctionProbe(Probe, FunctionLocationMixin, SnapshotProbeMixin, ProbeConditionMixin):
+class LogFunctionProbe(Probe, FunctionLocationMixin, LogProbeMixin, ProbeConditionMixin):
     pass
 
 
-LineProbe = Union[SnapshotLineProbe, MetricLineProbe]
-FunctionProbe = Union[SnapshotFunctionProbe, MetricFunctionProbe]
+LineProbe = Union[LogLineProbe, MetricLineProbe]
+FunctionProbe = Union[LogFunctionProbe, MetricFunctionProbe]

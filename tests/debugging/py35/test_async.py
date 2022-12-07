@@ -3,7 +3,7 @@ import pytest
 from ddtrace.debugging._async import dd_coroutine_wrapper
 
 
-class MockSnapshotContext:
+class MockCapturedEventWithcontext:
     def __init__(self):
         self.retval = None
         self.exc_info = None
@@ -18,7 +18,7 @@ class MockSnapshotContext:
 @pytest.mark.asyncio
 async def test_dd_coroutine_wrapper_return():
     # type: () -> None
-    contexts = [MockSnapshotContext() for _ in range(10)]
+    contexts = [MockCapturedEventWithcontext() for _ in range(10)]
 
     async def coro():
         return 1
@@ -33,7 +33,7 @@ async def test_dd_coroutine_wrapper_return():
 @pytest.mark.asyncio
 async def test_dd_coroutine_wrapper_exc():
     # type: () -> None
-    contexts = [MockSnapshotContext() for _ in range(10)]
+    contexts = [MockCapturedEventWithcontext() for _ in range(10)]
 
     class MyException(Exception):
         pass

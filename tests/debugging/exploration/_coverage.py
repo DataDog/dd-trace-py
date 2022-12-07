@@ -11,10 +11,11 @@ from debugger import ModuleCollector
 from debugger import config
 from debugger import status
 
+from ddtrace.debugging._capture.snapshot import Snapshot
 from ddtrace.debugging._function.discovery import FunctionDiscovery
-from ddtrace.debugging._probe.model import LineLocationMixin
-from ddtrace.debugging._snapshot.model import Snapshot
+from ddtrace.debugging._probe.model import LogLineProbe
 from ddtrace.internal.module import origin
+from tests.debugging.utils import create_snapshot_line_probe
 from tests.debugging.utils import create_snapshot_line_probe
 
 
@@ -49,7 +50,7 @@ class LineCoverage(ExplorationDebugger):
     def report_coverage(cls):
         # type: () -> None
         seen_lines_map = defaultdict(set)
-        for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, LineLocationMixin)):
+        for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, LogLineProbe)):
             seen_lines_map[probe.source_file].add(probe.line)
 
         try:

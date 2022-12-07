@@ -3,12 +3,12 @@ from contextlib import contextmanager
 import json
 from typing import Any
 
+from ddtrace.debugging._capture.collector import CapturedEventCollector
 from ddtrace.debugging._config import config
 from ddtrace.debugging._debugger import Debugger
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
-from ddtrace.debugging._snapshot.collector import SnapshotCollector
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from tests.debugging.probe.test_status import DummyProbeStatusLogger
 
@@ -52,7 +52,7 @@ class MockProbeStatusLogger(DummyProbeStatusLogger):
         self.queue = []
 
 
-class TestSnapshotCollector(SnapshotCollector):
+class TestSnapshotCollector(CapturedEventCollector):
     def __init__(self, *args, **kwargs):
         # type: (*Any, **Any) -> None
         super(TestSnapshotCollector, self).__init__(*args, **kwargs)
