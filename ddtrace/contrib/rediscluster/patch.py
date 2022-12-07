@@ -77,7 +77,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         span_type=SpanTypes.REDIS,
     ) as s:
         s.set_tag(SPAN_MEASURED_KEY)
-        s.set_tag(redisx.RAWCMD, resource)
+        s.set_tag_str(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
 
         # set analytics sample rate if enabled

@@ -85,8 +85,8 @@ def _close_span_on_error(exc, future):
         # handling the exception manually because we
         # don't have an ongoing exception here
         span.error = 1
-        span.set_tag(ERROR_MSG, exc.args[0])
-        span.set_tag(ERROR_TYPE, exc.__class__.__name__)
+        span.set_tag_str(ERROR_MSG, exc.args[0])
+        span.set_tag_str(ERROR_TYPE, exc.__class__.__name__)
     except Exception:
         log.debug("traced_set_final_exception was not able to set the error, failed with error", exc_info=True)
     finally:
@@ -264,7 +264,7 @@ def _sanitize_query(span, query):
         #   raises an error in python3 around joining bytes to unicode, so this
         #   just filters out prepared statements from this tag value
         q = "; ".join(q[1] for q in query._statements_and_parameters[:2] if not q[0])
-        span.set_tag("cassandra.query", q)
+        span.set_tag_str("cassandra.query", q)
         span.set_metric("cassandra.batch_size", len(query._statements_and_parameters))
     elif t == "BoundStatement":
         ps = getattr(query, "prepared_statement", None)
