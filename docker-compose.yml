@@ -13,7 +13,7 @@ services:
             - "DISABLE_SECURITY_PLUGIN=true"
             - "discovery.type=single-node"
         ports:
-            - "127.0.0.1:9200:9200"
+            - "127.0.0.1:9201:9201"
     cassandra:
         image: cassandra:3.11.7
         environment:

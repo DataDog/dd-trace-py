@@ -14,7 +14,7 @@ ELASTICSEARCH_CONFIG = {
 }
 
 OPENSEARCH_CONFIG = {
-    "port": int(os.getenv("TEST_OPENSEARCH_PORT", 9200)),
+    "port": int(os.getenv("TEST_OPENSEARCH_PORT", 9201)),
 }
 
 CASSANDRA_CONFIG = {
