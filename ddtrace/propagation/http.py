@@ -542,6 +542,15 @@ class _TraceContext:
         ``_dd.p.`` prefix = ``t.``
     """
 
+    # incoming traceparent header name and tracestate header name may be in any case (upper, lower, mixed)
+    # they may also have leading or trailing whitespace
+    def _extract_header_value_tracecontext(possible_header_names, headers, default=None):
+        # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
+        headers_lower = {k.lower().strip(): v for k, v in headers.items()}
+        _extract_header_value(possible_header_names, headers_lower, default=None)
+
+        return _extract_header_value(possible_header_names, headers_lower, default=None)
+
     @staticmethod
     def _get_traceparent_values(tp):
         # type: (str) -> Tuple[int, int, int]
@@ -553,6 +562,9 @@ class _TraceContext:
         version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
         # check version is a valid hexadecimal, if not it's invalid we will move on to the next prop method
         int(version, 16)
+        # https://www.w3.org/TR/trace-context/#version
+        if version == "ff":
+            raise ValueError("'ff' is an invalid traceparent version")
         # currently 00 is the only version format, but if future versions come up we may need to add changes
         if version != "00":
             log.warning("unsupported traceparent version:%r, still attempting to parse", version)
@@ -636,10 +648,13 @@ class _TraceContext:
         # type: (Dict[str, str]) -> Optional[Context]
 
         try:
-            tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
+            tp = _TraceContext._extract_header_value_tracecontext(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
             if tp is None:
                 log.debug("no traceparent header")
                 return None
+            # uppercase char in tp makes it invalid
+            if tp.isupper():
+                raise ValueError("uppercase characters are not allowed in traceparent")
             trace_id, span_id, sampling_priority = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s ", tp)
@@ -647,7 +662,7 @@ class _TraceContext:
         origin = None
         meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
-        ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
+        ts = _TraceContext._extract_header_value_tracecontext(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
             # the value MUST contain only ASCII characters in the
             # range of 0x20 to 0x7E
