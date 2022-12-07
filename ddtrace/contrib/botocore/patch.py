@@ -54,6 +54,8 @@ config._add(
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
+        "tags_allow_api": os.getenv("DD_BOTOCORE_TAG_ALLOW_API", default="").split(","),
+        "tags_allow_params": os.getenv("DD_BOTOCORE_TAG_ALLOW_PARAMS", default="").split(","),
     },
 )
 
@@ -328,7 +330,15 @@ def patched_api_call(original_func, instance, args, kwargs):
         else:
             span.resource = endpoint_name
 
-        aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
+        aws.add_span_arg_tags(
+            span,
+            endpoint_name,
+            args,
+            ARGS_NAME,
+            TRACED_ARGS,
+            _allow_api=config.botocore["tags_allow_api"],
+            _allow_params=config.botocore["tags_allow_param"],
+        )
 
         region_name = deep_getattr(instance, "meta.region_name")
 

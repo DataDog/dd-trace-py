@@ -35,14 +35,15 @@ def add_span_arg_tags(
     args,  # type: Tuple[Any]
     args_names,  # type: Tuple[str]
     args_traced,  # type: Set[str]
+    _allow_api=set(), # type: Set[str]
+    _allow_api_params=set(), # type: Set[str]
 ):
     # type: (...) -> None
-    if endpoint_name not in EXCLUDED_ENDPOINT:
-        exclude_set = EXCLUDED_ENDPOINT_TAGS.get(endpoint_name, frozenset())  # type: FrozenSet[str]
+    if endpoint_name in _allow_api:
         set_flattened_tags(
             span,
             items=((name, value) for (name, value) in zip(args_names, args) if name in args_traced),
-            exclude_policy=lambda tag: tag in exclude_set or tag.endswith("Body"),
+            exclude_policy=lambda tag: tag not in _allow_api_params or tag.endswith("Body"),
             processor=truncate_arg_value,
         )
 
