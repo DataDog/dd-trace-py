@@ -134,6 +134,9 @@ below:
            Example for IPv6: ``DD_AGENT_HOST=2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF``
 
            Example for domain name: ``DD_AGENT_HOST=host``
+     version_added:
+       v0.17.0:
+       v1.7.0: IPv6 support added
 
    DD_TRACE_AGENT_URL:
      type: URL
