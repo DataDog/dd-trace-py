@@ -117,7 +117,7 @@ class BotoTest(TracerTestCase):
         assert_is_measured(span)
         assert_span_http_status_code(span, 200)
         self.assertEqual(span.get_tag(http.METHOD), "PUT")
-        self.assertEqual(span.get_tag("path"), "/")
+        self.assertIsNone(span.get_tag("path"))
         self.assertEqual(span.get_tag("aws.operation"), "create_bucket")
 
         # Get the created bucket
@@ -142,6 +142,57 @@ class BotoTest(TracerTestCase):
             assert spans
             span = spans[0]
             self.assertEqual(span.resource, "s3.head")
+
+    @mock_s3
+    def test_s3_client_deprecated(self):
+        with self.override_config("boto", dict(aws_enable_allowed_tags=False)):
+            s3 = boto.s3.connect_to_region("us-east-1")
+            Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(s3)
+
+            s3.get_all_buckets()
+            spans = self.pop_spans()
+            assert spans
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            assert_is_measured(span)
+            assert_span_http_status_code(span, 200)
+            self.assertEqual(span.get_tag(http.METHOD), "GET")
+            self.assertEqual(span.get_tag("aws.operation"), "get_all_buckets")
+
+            # Create a bucket command
+            s3.create_bucket("cheese")
+            spans = self.pop_spans()
+            assert spans
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            assert_is_measured(span)
+            assert_span_http_status_code(span, 200)
+            self.assertEqual(span.get_tag(http.METHOD), "PUT")
+            self.assertEqual(span.get_tag("path"), "/")
+            self.assertEqual(span.get_tag("aws.operation"), "create_bucket")
+
+            # Get the created bucket
+            s3.get_bucket("cheese")
+            spans = self.pop_spans()
+            assert spans
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            assert_is_measured(span)
+            assert_span_http_status_code(span, 200)
+            self.assertEqual(span.get_tag(http.METHOD), "HEAD")
+            self.assertEqual(span.get_tag("aws.operation"), "head_bucket")
+            self.assertEqual(span.service, "test-boto-tracing.s3")
+            self.assertEqual(span.resource, "s3.head")
+            self.assertEqual(span.name, "s3.command")
+
+            # Checking for resource in case of error
+            try:
+                s3.get_bucket("big_bucket")
+            except Exception:
+                spans = self.pop_spans()
+                assert spans
+                span = spans[0]
+                self.assertEqual(span.resource, "s3.head")
 
     @mock_s3
     def test_s3_put(self):

@@ -54,6 +54,7 @@ config._add(
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
+        "aws_enable_allowed_tags": asbool(os.getenv("DD_AWS_ENABLE_ALLOWED_TAGS", default=True)),
     },
 )
 
@@ -325,10 +326,14 @@ def patched_api_call(original_func, instance, args, kwargs):
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 
+            if params and config.botocore["aws_enable_allowed_tags"]:
+                aws._add_api_param_span_tags(span, endpoint_name, params)
+
         else:
             span.resource = endpoint_name
 
-        aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
+        if not config.botocore["aws_enable_allowed_tags"]:
+            aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, "meta.region_name")
 

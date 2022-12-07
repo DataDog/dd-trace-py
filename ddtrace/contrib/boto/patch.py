@@ -1,4 +1,5 @@
 import inspect
+import os
 
 import boto.connection
 
@@ -13,6 +14,7 @@ from ddtrace.pin import Pin
 from ddtrace.vendor import wrapt
 
 from ...internal.utils import get_argument_value
+from ...internal.utils.formats import asbool
 
 
 # Original boto client class
@@ -30,6 +32,14 @@ AWS_AUTH_ARGS_NAME = (
 )
 AWS_QUERY_TRACED_ARGS = {"operation_name", "params", "path"}
 AWS_AUTH_TRACED_ARGS = {"path", "data", "host"}
+
+
+config._add(
+    "boto",
+    {
+        "aws_enable_allowed_tags": asbool(os.getenv("DD_AWS_ENABLE_ALLOWED_TAGS", default=True)),
+    },
+)
 
 
 def patch():
@@ -72,7 +82,12 @@ def patched_query_request(original_func, instance, args, kwargs):
         operation_name = None
         if args:
             operation_name = get_argument_value(args, kwargs, 0, "action")
+            params = get_argument_value(args, kwargs, 1, "params")
+
             span.resource = "%s.%s" % (endpoint_name, operation_name.lower())
+
+            if params and config.boto["aws_enable_allowed_tags"]:
+                aws._add_api_param_span_tags(span, endpoint_name, params)
         else:
             span.resource = endpoint_name
 
@@ -140,7 +155,8 @@ def patched_auth_request(original_func, instance, args, kwargs):
         else:
             span.resource = endpoint_name
 
-        aws.add_span_arg_tags(span, endpoint_name, args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS)
+        if not config.boto["aws_enable_allowed_tags"]:
+            aws.add_span_arg_tags(span, endpoint_name, args, AWS_AUTH_ARGS_NAME, AWS_AUTH_TRACED_ARGS)
 
         # Obtaining region name
         region_name = _get_instance_region_name(instance)

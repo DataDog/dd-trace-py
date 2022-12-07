@@ -96,9 +96,36 @@ async def test_s3_put(tracer):
     assert_is_measured(spans[1])
     assert spans[1].get_tag("aws.operation") == "PutObject"
     assert spans[1].resource == "s3.putobject"
-    assert spans[1].get_tag("params.Key") == stringify(params["Key"])
-    assert spans[1].get_tag("params.Bucket") == stringify(params["Bucket"])
+    assert spans[1].get_tag("params.Key") is None
+    assert spans[1].get_tag("params.Bucket") is None
     assert spans[1].get_tag("params.Body") is None
+
+
+@pytest.mark.asyncio
+async def test_s3_put_deprecated(tracer):
+    with override_config("aiobotocore", dict(aws_enable_allowed_tags=False)):
+        params = dict(Key="foo", Bucket="mybucket", Body=b"bar")
+
+        async with aiobotocore_client("s3", tracer) as s3:
+            await s3.create_bucket(Bucket="mybucket")
+            await s3.put_object(**params)
+
+        spans = [trace[0] for trace in tracer.pop_traces()]
+        assert spans
+        assert len(spans) == 2
+        assert spans[0].get_tag("aws.operation") == "CreateBucket"
+
+        assert_is_measured(spans[0])
+        assert_span_http_status_code(spans[0], 200)
+        assert spans[0].service == "aws.s3"
+        assert spans[0].resource == "s3.createbucket"
+
+        assert_is_measured(spans[1])
+        assert spans[1].get_tag("aws.operation") == "PutObject"
+        assert spans[1].resource == "s3.putobject"
+        assert spans[1].get_tag("params.Key") == stringify(params["Key"])
+        assert spans[1].get_tag("params.Bucket") == stringify(params["Bucket"])
+        assert spans[1].get_tag("params.Body") is None
 
 
 @pytest.mark.asyncio

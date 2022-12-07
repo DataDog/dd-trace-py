@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Dict
 from typing import FrozenSet
 from typing import Set
 from typing import TYPE_CHECKING
@@ -29,6 +30,7 @@ def truncate_arg_value(value, max_len=1024):
     return value
 
 
+# TODO: We should deprecate the legacy exclusion list
 def add_span_arg_tags(
     span,  # type: Span
     endpoint_name,  # type: str
@@ -45,6 +47,45 @@ def add_span_arg_tags(
             exclude_policy=lambda tag: tag in exclude_set or tag.endswith("Body"),
             processor=truncate_arg_value,
         )
+
+
+def _add_api_param_span_tags(span, endpoint_name, params):
+    # type: (Span, str, Dict[str, Any]) -> None
+    if endpoint_name == "cloudwatch":
+        log_group_name = params.get("logGroupName")
+        if log_group_name:
+            span.set_tag_str("aws.cloudwatch.logs.log_group_name", log_group_name)
+    elif endpoint_name == "dynamodb":
+        table_name = params.get("TableName")
+        if table_name:
+            span.set_tag_str("aws.dynamodb.table_name", table_name)
+    elif endpoint_name == "eventbridge":
+        # FIXME: dd-trace-js uses Params["Source"] whereas we use Params["Entries"]["Source"]
+        entries = params.get("Entries")
+        if entries:
+            source = entries.get("Source")
+            if source:
+                span.set_tag_str("aws.eventbridge.source", source)
+    elif endpoint_name == "kinesis":
+        stream_name = params.get("StreamName")
+        if stream_name:
+            span.set_tag_str("aws.kinesis.stream_name", stream_name)
+    elif endpoint_name == "redshift":
+        cluster_identifier = params.get("ClusterIdentifier")
+        if cluster_identifier:
+            span.set_tag_str("aws.redshift.cluster_identifier", cluster_identifier)
+    elif endpoint_name == "s3":
+        bucket_name = params.get("Bucket")
+        if bucket_name:
+            span.set_tag_str("aws.s3.bucket_name", bucket_name)
+    elif endpoint_name == "sns":
+        topic_arn = params.get("TopicArn")
+        if topic_arn:
+            span.set_tag_str("aws.sns.topic_arn", topic_arn)
+    elif endpoint_name == "sqs":
+        queue_name = params.get("QueueName") or params.get("QueueUrl")
+        if queue_name:
+            span.set_tag_str("aws.sqs.queue_name", queue_name)
 
 
 REGION = "aws.region"

@@ -1,3 +1,5 @@
+import os
+
 import aiobotocore.client
 
 from ddtrace import config
@@ -12,6 +14,7 @@ from ...ext import http
 from ...internal.compat import PYTHON_VERSION_INFO
 from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
+from ...internal.utils.formats import asbool
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
 from ..trace_utils import unwrap
@@ -29,6 +32,14 @@ elif AIOBOTOCORE_VERSION >= (0, 11, 0) and AIOBOTOCORE_VERSION < (2, 3, 0):
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
+
+
+config._add(
+    "aiobotocore",
+    {
+        "aws_enable_allowed_tags": asbool(os.getenv("DD_AWS_ENABLE_ALLOWED_TAGS", default=True)),
+    },
+)
 
 
 def patch():
@@ -94,13 +105,20 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         span.set_tag(SPAN_MEASURED_KEY)
 
         try:
+
             operation = get_argument_value(args, kwargs, 0, "operation_name")
+            params = get_argument_value(args, kwargs, 1, "params")
+
             span.resource = "{}.{}".format(endpoint_name, operation.lower())
+
+            if params and config.aiobotocore["aws_enable_allowed_tags"]:
+                aws._add_api_param_span_tags(span, endpoint_name, params)
         except ArgumentError:
             operation = None
             span.resource = endpoint_name
 
-        aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
+        if not config.aiobotocore["aws_enable_allowed_tags"]:
+            aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, "meta.region_name")
 
