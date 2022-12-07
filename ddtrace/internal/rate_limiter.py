@@ -111,15 +111,17 @@ class RateLimiter(object):
 
     def _replenish(self, timestamp_ns):
         # type: (int) -> None
-        # If we are at the max, we do not need to add any more
-        if self.tokens == self.max_tokens:
-            self.last_update_ns = timestamp_ns
-            return
+        try:
+            # If we are at the max, we do not need to add any more
+            if self.tokens == self.max_tokens:
+                return
 
-        # Add more available tokens based on how much time has passed
-        # DEV: We store as nanoseconds, convert to seconds
-        elapsed = (timestamp_ns - self.last_update_ns) / 1e9
-        self.last_update_ns = timestamp_ns
+            # Add more available tokens based on how much time has passed
+            # DEV: We store as nanoseconds, convert to seconds
+            elapsed = (timestamp_ns - self.last_update_ns) / 1e9
+        finally:
+            # always update the timestamp
+            self.last_update_ns = timestamp_ns
 
         # Update the number of available tokens, but ensure we do not exceed the max
         self.tokens = min(
