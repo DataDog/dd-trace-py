@@ -9,7 +9,7 @@ from urllib.request import urlopen
 ETERNITY = 0x7FFFFFFFFFFFFFFF
 
 try:
-    sys.path.extend(["."])
+    sys.path.extend([".", ".circleci"])
     from dependencies import LATEST_VERSIONS
 except ModuleNotFoundError:
     print("usage (from the root directory of the project):\npython scripts/manage_dependencies.py", file=sys.stderr)
@@ -81,7 +81,7 @@ def update_versions(time: int, up_days: int) -> None:
     Use ONLY if the test_latest workflow is completely validated on the CI
     """
     new_versions = read_versions(time)
-    with open("dependencies.py", "w") as dep_file:
+    with open(".circleci/dependencies.py", "w") as dep_file:
         print("# This file is updated by manage_dependencies.py", file=dep_file)
         print("# Any new dependency can be added directly in this file\n", file=dep_file)
         print("LATEST_VERSIONS = {", file=dep_file)
