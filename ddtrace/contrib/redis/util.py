@@ -41,7 +41,7 @@ def _trace_redis_cmd(pin, config_integration, instance, args):
         span.set_tag(SPAN_MEASURED_KEY)
         query = stringify_cache_args(args)
         span.resource = query
-        span.set_tag(redisx.RAWCMD, query)
+        span.set_tag_str(redisx.RAWCMD, query)
         if pin.tags:
             span.set_tags(pin.tags)
         # some redis clients do not have a connection_pool attribute (ex. aioredis v1.3)
@@ -64,7 +64,7 @@ def _trace_redis_execute_pipeline(pin, config_integration, resource, instance):
     ) as span:
         span.set_tag_str("component", config_integration.integration_name)
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(redisx.RAWCMD, resource)
+        span.set_tag_str(redisx.RAWCMD, resource)
         span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
         span.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
         # set analytics sample rate if enabled

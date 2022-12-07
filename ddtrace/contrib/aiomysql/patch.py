@@ -61,7 +61,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             s.set_tag_str("component", config.aiomysql.integration_name)
 
             s.set_tag(SPAN_MEASURED_KEY)
-            s.set_tag(sql.QUERY, resource)
+            s.set_tag_str(sql.QUERY, resource)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 

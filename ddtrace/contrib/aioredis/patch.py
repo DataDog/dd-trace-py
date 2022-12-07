@@ -122,7 +122,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
     span.set_tag(SPAN_MEASURED_KEY)
     query = stringify_cache_args(args)
     span.resource = query
-    span.set_tag(redisx.RAWCMD, query)
+    span.set_tag_str(redisx.RAWCMD, query)
     if pin.tags:
         span.set_tags(pin.tags)
 
@@ -185,7 +185,7 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
         )
 
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(redisx.RAWCMD, resource)
+        span.set_tag_str(redisx.RAWCMD, resource)
         span.set_metric(redisx.PIPELINE_LEN, len(instance._pipeline))
         # set analytics sample rate if enabled
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aioredis.get_analytics_sample_rate())

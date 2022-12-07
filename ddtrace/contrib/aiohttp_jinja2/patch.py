@@ -33,7 +33,7 @@ def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
         # set component tag equal to name of integration
         span.set_tag_str("component", config.aiohttp_jinja2.integration_name)
 
-        span.set_tag("aiohttp.template", template_meta)
+        span.set_tag_str("aiohttp.template", template_meta)
         return func(*args, **kwargs)
 
 

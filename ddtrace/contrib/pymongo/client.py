@@ -109,8 +109,8 @@ class TracedServer(ObjectProxy):
         span.set_tag_str("component", config.pymongo.integration_name)
 
         span.set_tag(SPAN_MEASURED_KEY)
-        span.set_tag(mongox.DB, cmd.db)
-        span.set_tag(mongox.COLLECTION, cmd.coll)
+        span.set_tag_str(mongox.DB, cmd.db)
+        span.set_tag_str(mongox.COLLECTION, cmd.coll)
         span.set_tags(cmd.tags)
 
         # set `mongodb.query` tag and resource for span
@@ -223,7 +223,7 @@ class TracedSocket(ObjectProxy):
 
         s.set_tag(SPAN_MEASURED_KEY)
         if cmd.db:
-            s.set_tag(mongox.DB, cmd.db)
+            s.set_tag_str(mongox.DB, cmd.db)
         if cmd:
             s.set_tag(mongox.COLLECTION, cmd.coll)
             s.set_tags(cmd.tags)
@@ -271,7 +271,7 @@ def normalize_filter(f=None):
 def set_address_tags(span, address):
     # the address is only set after the cursor is done.
     if address:
-        span.set_tag(netx.TARGET_HOST, address[0])
+        span.set_tag_str(netx.TARGET_HOST, address[0])
         span.set_tag(netx.TARGET_PORT, address[1])
 
 

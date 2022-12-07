@@ -160,7 +160,7 @@ class WrappedClient(wrapt.ObjectProxy):
                 span.set_tags(p.tags)
                 vals = _get_query_string(args)
                 query = "{}{}{}".format(method_name, " " if vals else "", vals)
-                span.set_tag(memcachedx.QUERY, query)
+                span.set_tag_str(memcachedx.QUERY, query)
             except Exception:
                 log.debug("Error setting relevant pymemcache tags")
 

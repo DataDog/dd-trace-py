@@ -134,7 +134,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         span.set_tag_str("component", config.rq.integration_name)
 
         span.set_tag_str("queue.name", instance.name)
-        span.set_tag("job.id", job.get_id())
+        span.set_tag_str("job.id", job.get_id())
         span.set_tag_str("job.func_name", job.func_name)
 
         # If the queue is_async then add distributed tracing headers to the job
@@ -150,7 +150,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
         span.set_tag_str("component", config.rq.integration_name)
 
         job_id = get_argument_value(args, kwargs, 0, "job_id")
-        span.set_tag("job.id", job_id)
+        span.set_tag_str("job.id", job_id)
         return func(*args, **kwargs)
 
 
@@ -175,12 +175,12 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             # set component tag equal to name of integration
             span.set_tag_str("component", config.rq.integration_name)
 
-            span.set_tag("job.id", job.get_id())
+            span.set_tag_str("job.id", job.get_id())
             try:
                 return func(*args, **kwargs)
             finally:
-                span.set_tag("job.status", job.get_status())
-                span.set_tag("job.origin", job.origin)
+                span.set_tag_str("job.status", job.get_status())
+                span.set_tag_str("job.origin", job.origin)
                 if job.is_failed:
                     span.error = 1
     finally:

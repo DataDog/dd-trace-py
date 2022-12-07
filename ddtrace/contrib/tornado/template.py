@@ -31,5 +31,5 @@ def generate(func, renderer, args, kwargs):
         # set component tag equal to name of integration
         span.set_tag_str("component", config.tornado.integration_name)
 
-        span.set_tag("tornado.template_name", template_name)
+        span.set_tag_str("tornado.template_name", template_name)
         return func(*args, **kwargs)

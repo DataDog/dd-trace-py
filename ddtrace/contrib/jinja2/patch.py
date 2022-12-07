@@ -65,7 +65,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
             return wrapped(*args, **kwargs)
         finally:
             span.resource = template_name
-            span.set_tag("jinja2.template_name", template_name)
+            span.set_tag_str("jinja2.template_name", template_name)
 
 
 def _wrap_compile(wrapped, instance, args, kwargs):
@@ -86,7 +86,7 @@ def _wrap_compile(wrapped, instance, args, kwargs):
             span.set_tag_str("component", config.jinja2.integration_name)
 
             span.resource = template_name
-            span.set_tag("jinja2.template_name", template_name)
+            span.set_tag_str("jinja2.template_name", template_name)
 
 
 def _wrap_load_template(wrapped, instance, args, kwargs):
@@ -102,6 +102,6 @@ def _wrap_load_template(wrapped, instance, args, kwargs):
             return template
         finally:
             span.resource = template_name
-            span.set_tag("jinja2.template_name", template_name)
+            span.set_tag_str("jinja2.template_name", template_name)
             if template:
-                span.set_tag("jinja2.template_path", template.filename)
+                span.set_tag_str("jinja2.template_path", template.filename)

@@ -37,5 +37,5 @@ def _traced_renderer(wrapped, instance, args, kwargs):
         span.set_tag_str("component", ddconfig.pylons.integration_name)
 
         template_name = get_argument_value(args, kwargs, 0, "template_name")
-        span.set_tag("template.name", template_name)
+        span.set_tag_str("template.name", template_name)
         return wrapped(*args, **kwargs)

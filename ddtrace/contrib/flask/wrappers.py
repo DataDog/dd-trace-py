@@ -48,7 +48,7 @@ def wrap_signal(app, signal, func):
             # set component tag equal to name of integration
             span.set_tag_str("component", config.flask.integration_name)
 
-            span.set_tag("flask.signal", signal)
+            span.set_tag_str("flask.signal", signal)
             return wrapped(*args, **kwargs)
 
     return trace_func(func)

@@ -73,7 +73,7 @@ def trace_postrun(*args, **kwargs):
         return
     else:
         # request context tags
-        span.set_tag(c.TASK_TAG_KEY, c.TASK_RUN)
+        span.set_tag_str(c.TASK_TAG_KEY, c.TASK_RUN)
         set_tags_from_context(span, kwargs)
         set_tags_from_context(span, task.request.__dict__)
         span.finish()
@@ -113,8 +113,8 @@ def trace_before_publish(*args, **kwargs):
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, rate)
 
     span.set_tag(SPAN_MEASURED_KEY)
-    span.set_tag(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
-    span.set_tag("celery.id", task_id)
+    span.set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
+    span.set_tag_str("celery.id", task_id)
     set_tags_from_context(span, kwargs)
 
     # Note: adding tags from `traceback` or `state` calls will make an
@@ -198,4 +198,4 @@ def trace_retry(*args, **kwargs):
 
     # Add retry reason metadata to span
     # DEV: Use `str(reason)` instead of `reason.message` in case we get something that isn't an `Exception`
-    span.set_tag(c.TASK_RETRY_REASON_KEY, str(reason))
+    span.set_tag_str(c.TASK_RETRY_REASON_KEY, str(reason))

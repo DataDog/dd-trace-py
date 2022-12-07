@@ -20,6 +20,7 @@ from tests.utils import snapshot
 
 
 if PSYCOPG2_VERSION >= (2, 7):
+    from psycopg2.sql import Composed
     from psycopg2.sql import Identifier
     from psycopg2.sql import Literal
     from psycopg2.sql import SQL
@@ -393,8 +394,12 @@ class PsycopgCore(TracerTestCase):
         """generates snapshot to check whether execution of SQL string sets dbm propagation tag"""
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         cursor = conn.cursor()
-        cursor.execute("select 'blah'")
-        cursor.executemany("select %s", (("foo",), ("bar",)))
+        # test string queries
+        cursor.execute("select 'str blah'")
+        cursor.executemany("select %s", (("str_foo",), ("str_bar",)))
+        # test composed queries
+        cursor.execute(SQL("select 'composed_blah'"))
+        cursor.executemany(SQL("select %s"), (("composed_foo",), ("composed_bar",)))
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
@@ -409,11 +414,34 @@ class PsycopgCore(TracerTestCase):
         conn = psycopg2.connect(**POSTGRES_CONFIG)
         cursor = conn.cursor()
         cursor.__wrapped__ = mock.Mock()
+        # test string queries
         cursor.execute("select 'blah'")
         cursor.executemany("select %s", (("foo",), ("bar",)))
         dbm_comment = " /*dddbs='postgres',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
         cursor.__wrapped__.execute.assert_called_once_with(dbm_comment + "select 'blah'")
         cursor.__wrapped__.executemany.assert_called_once_with(dbm_comment + "select %s", (("foo",), ("bar",)))
+        # test composed queries
+        cursor.__wrapped__.reset_mock()
+        cursor.execute(SQL("select 'blah'"))
+        cursor.executemany(SQL("select %s"), (("foo",), ("bar",)))
+        dbm_comment = " /*dddbs='postgres',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"
+        cursor.__wrapped__.execute.assert_called_once_with(
+            Composed(
+                [
+                    SQL(" /*dddbs='postgres',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"),
+                    SQL("select 'blah'"),
+                ]
+            )
+        )
+        cursor.__wrapped__.executemany.assert_called_once_with(
+            Composed(
+                [
+                    SQL(" /*dddbs='postgres',dde='staging',ddps='orders-app',ddpv='v7343437-d7ac743'*/"),
+                    SQL("select %s"),
+                ]
+            ),
+            (("foo",), ("bar",)),
+        )
 
 
 @skipIf(PSYCOPG2_VERSION < (2, 7), "quote_ident not available in psycopg2<2.7")
