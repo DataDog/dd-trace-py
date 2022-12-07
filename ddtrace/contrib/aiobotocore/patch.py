@@ -130,11 +130,11 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         request_id = response_meta.get("RequestId")
         if request_id:
-            span.set_tag("aws.requestid", request_id)
+            span.set_tag_str("aws.requestid", request_id)
 
         request_id2 = response_headers.get("x-amz-id-2")
         if request_id2:
-            span.set_tag("aws.requestid2", request_id2)
+            span.set_tag_str("aws.requestid2", request_id2)
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.aiobotocore.get_analytics_sample_rate())
