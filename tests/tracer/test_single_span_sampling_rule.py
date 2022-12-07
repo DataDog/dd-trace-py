@@ -170,3 +170,14 @@ def test_match_max_per_sec():
     rate_limited_span = traced_function(rule)
 
     assert_sampling_decision_tags(rate_limited_span, sample_rate=None, mechanism=None, limit=None)
+
+
+def test_max_per_sec_3():
+    rule = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=2)
+    for i in range(3):
+        span = traced_function(rule)
+        # the first two spans should be sampled, the third should not
+        if i in range(2):
+            assert_sampling_decision_tags(span, limit=2)
+        else:
+            assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)

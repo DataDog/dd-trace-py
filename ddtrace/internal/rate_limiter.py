@@ -113,6 +113,7 @@ class RateLimiter(object):
         # type: (int) -> None
         # If we are at the max, we do not need to add any more
         if self.tokens == self.max_tokens:
+            self.last_update_ns = timestamp_ns
             return
 
         # Add more available tokens based on how much time has passed
