@@ -3,7 +3,6 @@ from datetime import datetime
 import hashlib
 import json
 import logging
-import os
 import re
 import sys
 from typing import Any
@@ -259,14 +258,6 @@ class RemoteConfigClient(object):
         if resp.status < 200 or resp.status >= 300:
             log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
             return None
-
-        log.warning("ALL OK")
-        from ddtrace import tracer
-
-        log.warning(getattr(tracer, "_parent_pid", None))
-        log.warning("pid: %d", os.getpid())
-        log.warning("ppid: %d", os.getppid())
-        log.warning(data)
 
         return json.loads(data)
 

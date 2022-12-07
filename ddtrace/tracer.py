@@ -241,7 +241,6 @@ class Tracer(object):
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
-        # forksafe.register_parent(lambda: sys.exit(1))
 
         self._shutdown_lock = RLock()
 
@@ -524,9 +523,6 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
         )
-        # from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
-
-        # disable_appsec_rc()
 
         self._new_process = True
 

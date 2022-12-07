@@ -16,7 +16,6 @@ log = logging.getLogger(__name__)
 
 
 _registry = []  # type: typing.List[typing.Callable[[], None]]
-_parent_registry = []  # type: typing.List[typing.Callable[[], None]]
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -59,20 +58,6 @@ def ddtrace_after_in_child():
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
-def ddtrace_after_in_parent():
-    # type: () -> None
-    global _parent_registry
-
-    # DEV: we make a copy of the registry to prevent hook execution from
-    # introducing new hooks, potentially causing an infinite loop.
-    for hook in list(_parent_registry):
-        try:
-            hook()
-        except Exception:
-            # Mimic the behaviour of Python's fork hooks.
-            log.exception("Exception ignored in forksafe hook %r", hook)
-
-
 def register(after_in_child):
     # type: (typing.Callable[[], None]) -> typing.Callable[[], None]
     """Register a function to be called after fork in the child process.
@@ -82,17 +67,6 @@ def register(after_in_child):
     """
     _registry.append(after_in_child)
     return after_in_child
-
-
-def register_parent(after_in_parent):
-    # type: (typing.Callable[[], None]) -> typing.Callable[[], None]
-    """Register a function to be called after fork in the child process.
-
-    Note that ``after_in_child`` will be called in all child processes across
-    multiple forks unless it is unregistered.
-    """
-    _parent_registry.append(after_in_parent)
-    return after_in_parent
 
 
 def unregister(after_in_child):
@@ -105,7 +79,7 @@ def unregister(after_in_child):
 
 
 if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=ddtrace_after_in_child, after_in_parent=ddtrace_after_in_parent)
+    os.register_at_fork(after_in_child=ddtrace_after_in_child)
 elif hasattr(os, "fork"):
     # DEV: This "should" be the correct way of implementing this, but it doesn't
     # work if hooks create new threads.

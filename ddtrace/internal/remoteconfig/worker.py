@@ -8,8 +8,7 @@ from ddtrace.internal.utils.time import StopWatch
 
 
 log = get_logger(__name__)
-import threading
-import os
+
 
 DEFAULT_REMOTECONFIG_POLL_SECONDS = 5.0  # seconds
 
@@ -23,14 +22,12 @@ class RemoteConfigWorker(periodic.PeriodicService):
     def __init__(self):
         super(RemoteConfigWorker, self).__init__(interval=get_poll_interval_seconds())
         self._client = RemoteConfigClient()
-        log.warning("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
+        log.debug("RemoteConfigWorker created with polling interval %d", get_poll_interval_seconds())
 
     def periodic(self):
         # type: () -> None
         with StopWatch() as sw:
             self._client.request()
-
-        # log.warning(threading.currentThread().ident)
 
         t = sw.elapsed()
         if t >= self.interval:

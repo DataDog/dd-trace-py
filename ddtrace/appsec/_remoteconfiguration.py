@@ -22,7 +22,7 @@ log = get_logger(__name__)
 
 
 def disable_appsec_rc():
-    log.warning("Calling remoteconfig disable")
+    log.warning("Disabling remote configuration")
     RemoteConfig.disable()
 
 
@@ -31,18 +31,6 @@ def enable_appsec_rc():
     from ddtrace import tracer
 
     if _appsec_rc_features_is_enabled():
-        log.warning("::::::::::::REGISTERING REMOTECONFIG ")
-        log.warning(tracer._pid)
-        log.warning(os.getpid())
-
-        if hasattr(tracer, "_parent_pid") and tracer._pid != tracer._parent_pid:
-            log.warning("CHILD DETECTED")
-            return
-        log.warning("PARENT DETECTED")
-        # import pdb
-
-        # pdb.set_trace()
-
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
 
 
