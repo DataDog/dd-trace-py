@@ -61,4 +61,4 @@ def _get_dbm_comment(db_span):
     if sql_comment:
         # replace leading whitespace with trailing whitespace
         return sql_comment.strip() + " "
-    return sql_comment
+    return ""
