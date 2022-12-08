@@ -683,12 +683,14 @@ class _TraceContext:
 class _NOP_Propagator:
     @staticmethod
     def _extract(headers):
+        # type: (Dict[str, str]) -> Optional[Context]
         return None
 
     # this method technically isn't needed with the current way we have HTTPPropagator.inject setup
     # but if it changes then we might want it
     @staticmethod
     def _inject(span_context, headers):
+        # type: (Context , Dict[str, str]) -> None
         return headers
 
 
