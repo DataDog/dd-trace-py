@@ -202,8 +202,8 @@ below:
 
          **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.re?uest"}]'``
 
-         version_added:
-            v1.4.0:
+     version_added:
+        v1.4.0:
     
    DD_SPAN_SAMPLING_RULES_FILE:
      type: string
@@ -219,8 +219,8 @@ below:
          **Example:** ``DD_SPAN_SAMPLING_RULES_FILE="data/span_sampling_rules.json"'``
          **Example File Contents:** ``[{"sample_rate":0.5,"service":"*-service","name":"my-name-????", "max_per_second":"20"}, {"service":"xy?","name":"a*c"}]``
 
-         version_added:
-            v1.4.0:
+     version_added:
+        v1.4.0:
 
    DD_TRACE_HEADER_TAGS:
      description: |
