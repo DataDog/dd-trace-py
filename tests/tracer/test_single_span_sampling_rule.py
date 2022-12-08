@@ -177,7 +177,7 @@ def test_max_per_sec_3():
     for i in range(3):
         span = traced_function(rule)
         # the first two spans should be sampled, the third should not
-        if i in range(2):
+        if i < 2:
             assert_sampling_decision_tags(span, limit=2)
         else:
             assert_sampling_decision_tags(span, sample_rate=None, mechanism=None, limit=None)
