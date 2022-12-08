@@ -1239,7 +1239,8 @@ EXTRACT_FIXTURES = [
     ),
 ]
 
-
+# Only add fixtures here if they can't pass both test_propagation_extract_env
+#  and test_propagation_extract_w_config
 EXTRACT_FIXTURES_ENV_ONLY = [
     (
         # b3 will only override to b3multi when set via envar
