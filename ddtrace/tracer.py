@@ -704,6 +704,7 @@ class Tracer(object):
 
         if config.env:
             span.set_tag_str(ENV_KEY, config.env)
+
         # Only set the version tag on internal spans.
         if config.version:
             root_span = self.current_root_span()

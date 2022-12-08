@@ -121,6 +121,8 @@ class RateLimiter(object):
             elapsed = (timestamp_ns - self.last_update_ns) / 1e9
         finally:
             # always update the timestamp
+            # we can't update at the beginning of the function, since if we did, our calculation for
+            # elapsed would be incorrect
             self.last_update_ns = timestamp_ns
 
         # Update the number of available tokens, but ensure we do not exceed the max
