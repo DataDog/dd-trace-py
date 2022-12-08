@@ -313,7 +313,7 @@ venv = Venv(
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
-                "packaging": ["==17.1", latest],
+                "packaging": ["==17.1", "==22.0", latest],
             },
             env={
                 "DD_REMOTE_CONFIGURATION_ENABLED": "false",
