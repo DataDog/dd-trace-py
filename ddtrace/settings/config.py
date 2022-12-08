@@ -51,6 +51,7 @@ def _parse_propagation_styles(name, default):
     - "datadog"
     - "b3multi"
     - "b3 single header"
+    - "none"
 
 
     The default value is ``"datadog"``.
@@ -60,6 +61,9 @@ def _parse_propagation_styles(name, default):
 
         # Extract and inject b3 headers:
         DD_TRACE_PROPAGATION_STYLE="b3multi"
+
+        # Disable header propagation:
+        DD_TRACE_PROPAGATION_STYLE="none"
 
         # Extract trace context from "x-datadog-*" or "x-b3-*" headers from upstream headers
         DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"

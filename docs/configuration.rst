@@ -254,9 +254,11 @@ below:
 
          Overridden by ``DD_TRACE_PROPAGATION_STYLE_INJECT`` for injection.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
+
+         When ``none`` is the only propagator listed, propagation is disabled. 
 
          All provided styles are injected into the headers of outbound requests.
 
@@ -271,11 +273,13 @@ below:
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
 
-         Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3multi"`` to check for both ``x-datadog-*`` and ``x-b3-*``
+         When ``none`` is the only propagator listed, extraction is disabled. 
+
+         Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
 
@@ -287,9 +291,11 @@ below:
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style.
 
-         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``.
+         The supported values are ``datadog``, ``b3multi``, and ``b3 single header``, and ``none``.
 
          All provided styles are injected into the headers of outbound requests.
+         
+         When ``none`` is the only propagator listed, injection is disabled. 
 
          Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3multi"`` to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.

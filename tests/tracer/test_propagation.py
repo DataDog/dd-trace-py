@@ -9,6 +9,7 @@ from ddtrace.context import Context
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
 from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
@@ -1155,6 +1156,30 @@ EXTRACT_FIXTURES = [
             "dd_origin": None,
         },
     ),
+    (
+        # name, styles, headers, expected_context,
+        "none_style",
+        [_PROPAGATION_STYLE_NONE],
+        ALL_HEADERS,
+        {
+            "trace_id": None,
+            "span_id": None,
+            "sampling_priority": None,
+            "dd_origin": None,
+        },
+    ),
+    (
+        # name, styles, headers, expected_context,
+        "none_and_other_prop_style_still_extracts",
+        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
+        ALL_HEADERS,
+        {
+            "trace_id": 13088165645273925489,
+            "span_id": 5678,
+            "sampling_priority": 1,
+            "dd_origin": "synthetics",
+        },
+    ),
     # Testing that order matters
     (
         "order_matters_B3_SINGLE_HEADER_first",
@@ -1576,6 +1601,28 @@ INJECT_FIXTURES = [
             "span_id": VALID_DATADOG_CONTEXT["span_id"],
         },
         {_HTTP_HEADER_B3_SINGLE: "b5a2814f70060771-7197677932a62370"},
+    ),
+    # None style
+    (
+        "none_propagation_style_does_not_modify_header",
+        [_PROPAGATION_STYLE_NONE],
+        {
+            "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
+            "span_id": VALID_DATADOG_CONTEXT["span_id"],
+        },
+        {},
+    ),
+    # if another propagation style is specified in addition to none, we should inject those headers
+    (
+        "none_propgagtion_with_valid_datadog_style",
+        [_PROPAGATION_STYLE_NONE, PROPAGATION_STYLE_DATADOG],
+        VALID_DATADOG_CONTEXT,
+        {
+            HTTP_HEADER_TRACE_ID: "13088165645273925489",
+            HTTP_HEADER_PARENT_ID: "8185124618007618416",
+            HTTP_HEADER_SAMPLING_PRIORITY: "1",
+            HTTP_HEADER_ORIGIN: "synthetics",
+        },
     ),
     # tracecontext
     (
