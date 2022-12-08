@@ -583,14 +583,14 @@ class _TraceContext:
     def _get_tracestate_values(ts):
         # type: (str) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
 
-        # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
+        # tracestate parsing, example: dd=s~2;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE
         dd = None
         ts_l = ts.split(",")
         for list_mem in ts_l:
             if list_mem.startswith("dd="):
                 # cut out dd= before turning into dict
                 list_mem = list_mem[3:]
-                dd = dict(item.split(":") for item in list_mem.split(";"))
+                dd = dict(item.split("~") for item in list_mem.split(";"))
 
         # parse out values
         if dd:
