@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Adds support for IPv6 agent host names for `DD_AGENT_HOST`.
