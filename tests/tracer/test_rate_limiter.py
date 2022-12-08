@@ -182,7 +182,7 @@ def test_rate_limiter_3():
     for i in range(3):
         decision = limiter.is_allowed(compat.monotonic_ns())
         # the first two should be allowed, the third should not
-        if i in range(2):
+        if i < 2:
             assert decision is True
         else:
             assert decision is False
