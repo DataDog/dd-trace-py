@@ -544,6 +544,7 @@ class _TraceContext:
 
     # incoming traceparent header name and tracestate header name may be in any case (upper, lower, mixed)
     # they may also have leading or trailing whitespace
+    @staticmethod
     def _extract_header_value_tracecontext(possible_header_names, headers, default=None):
         # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
         headers_lower = {k.lower().strip(): v for k, v in headers.items()}
