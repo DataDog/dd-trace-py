@@ -745,7 +745,7 @@ def test_debugger_function_probe_eval_on_exit():
 
 
 def test_debugger_lamba_fuction_access_locals():
-    from tests.submod.stuff import ageChecker
+    from tests.submod.stuff import age_checker
 
     class Person(object):
         def __init__(self, age, name):
@@ -757,16 +757,16 @@ def test_debugger_lamba_fuction_access_locals():
             FunctionProbe(
                 probe_id="duration-probe",
                 module="tests.submod.stuff",
-                func_qname="ageChecker",
+                func_qname="age_checker",
                 condition=dd_compile({"any": ["#people", {"eq": ["#name", "@it.name"]}]}),
             )
         )
 
         # should capture as alice is in people list
-        ageChecker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="alice")
+        age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="alice")
 
         # should skip as david is not in people list
-        ageChecker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="david")
+        age_checker(people=[Person(10, "alice"), Person(20, "bob"), Person(30, "charile")], age=18, name="david")
 
         (snapshot,) = d.test_queue
         assert snapshot, d.test_queue

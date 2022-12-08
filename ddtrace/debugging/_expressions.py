@@ -69,23 +69,6 @@ def _make_lambda(ast):
     return _make_function(ast, ("_dd_it", "_locals"), "<lambda>")
 
 
-def _wrap_labdma_with_locals(_locals, _fb):
-    # type: (Any, Callable[[Any, Any], Any]) -> Callable[[Any], Any]
-    # inject compiled lmabda with a given locals
-    return lambda it: _fb(it, _locals)
-
-
-def _compile_lambda_with_locals(ast):
-    # type: (DDASTType) -> Optional[List[Instr]]
-    # lambda predicate => lambda it: Any
-    return [
-        Instr("LOAD_CONST", _wrap_labdma_with_locals),
-        Instr("LOAD_FAST", "_locals"),
-        Instr("LOAD_CONST", _make_lambda(ast)),
-        Instr("CALL_FUNCTION", 2),
-    ]
-
-
 def _compile_direct_predicate(ast):
     # type: (DDASTType) -> Optional[List[Instr]]
     # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
@@ -149,14 +132,20 @@ def _compile_arg_predicate(ast):
     if _type in {"any", "all"}:
         a, b = args
         f = __builtins__[_type]  # type: ignore[index]
-        ca, cb = _compile_predicate(a), _compile_lambda_with_locals(b)
+        ca, fb = _compile_predicate(a), _make_lambda(b)
 
         if ca is None:
             raise ValueError("Invalid argument: %r" % a)
-        if cb is None:
-            raise ValueError("Invalid lmabda: %r" % b)
 
-        return [Instr("LOAD_CONST", lambda i, c: f(c(_) for _ in i))] + ca + cb + [Instr("CALL_FUNCTION", 2)]
+        return (
+            [Instr("LOAD_CONST", lambda i, c, _locals: f(c(_, _locals) for _ in i))]
+            + ca
+            + [
+                Instr("LOAD_CONST", fb),
+                Instr("LOAD_FAST", "_locals"),
+                Instr("CALL_FUNCTION", 3),
+            ]
+        )
 
     if _type in {"startsWith", "endsWith"}:
         a, b = args
@@ -222,14 +211,20 @@ def _compile_arg_operation(ast):
 
     if _type == "filter":
         a, b = args
-        ca, cb = _compile_predicate(a), _compile_lambda_with_locals(b)
+        ca, fb = _compile_predicate(a), _make_lambda(b)
 
         if ca is None:
             raise ValueError("Invalid argument: %r" % a)
-        if cb is None:
-            raise ValueError("Invalid lmabda: %r" % b)
 
-        return [Instr("LOAD_CONST", lambda i, c: type(i)(_ for _ in i if c(_)))] + ca + cb + [Instr("CALL_FUNCTION", 2)]
+        return (
+            [Instr("LOAD_CONST", lambda i, c, _locals: type(i)(_ for _ in i if c(_, _locals)))]
+            + ca
+            + [
+                Instr("LOAD_CONST", fb),
+                Instr("LOAD_FAST", "_locals"),
+                Instr("CALL_FUNCTION", 3),
+            ]
+        )
 
     return None
 
