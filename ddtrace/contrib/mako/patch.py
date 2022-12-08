@@ -56,4 +56,4 @@ def _wrap_render(wrapped, instance, args, kwargs):
             return wrapped(*args, **kwargs)
         finally:
             span.resource = template_name
-            span.set_tag_str("mako.template_name", template_name)
+            span.set_tag("mako.template_name", template_name)
