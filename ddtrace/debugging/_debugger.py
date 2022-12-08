@@ -255,11 +255,7 @@ class Debugger(Service):
                 # TODO: Handle value expressions
                 assert probe.kind is not None and probe.name is not None
 
-                value = (
-                    float(probe.value(cast(FrameType, currentframe().f_back).f_locals))
-                    if probe.value is not None
-                    else 1
-                )
+                value = float(probe.value(sys._getframe(1).f_locals)) if probe.value is not None else 1
 
                 # TODO[perf]: We know the tags in advance so we can avoid the
                 # list comprehension.
