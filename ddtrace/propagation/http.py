@@ -693,6 +693,17 @@ class _TraceContext:
             meta=meta,
         )
 
+    @staticmethod
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
+        tp = span_context._traceparent
+        if tp:
+            headers[_HTTP_HEADER_TRACEPARENT] = tp
+            # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
+            ts = span_context._tracestate
+            if ts:
+                headers[_HTTP_HEADER_TRACESTATE] = ts
+
 
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
@@ -737,6 +748,8 @@ class HTTPPropagator(object):
             _B3MultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_inject:
             _B3SingleHeader._inject(span_context, headers)
+        if _PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
+            _TraceContext._inject(span_context, headers)
 
     @staticmethod
     def extract(headers):
