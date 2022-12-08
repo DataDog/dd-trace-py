@@ -744,7 +744,7 @@ def test_debugger_function_probe_eval_on_exit():
         assert snapshot, d.test_queue
 
 
-def test_debugger_lamba_fuction_access_locals():
+def test_debugger_lambda_fuction_access_locals():
     from tests.submod.stuff import age_checker
 
     class Person(object):
