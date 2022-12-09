@@ -654,7 +654,8 @@ class _TraceContext:
             if tp is None:
                 log.debug("no traceparent header")
                 return None
-            # uppercase char in tp makes it invalid: https://www.w3.org/TR/trace-context/#traceparent-header-field-values
+            # uppercase char in tp makes it invalid:
+            # https://www.w3.org/TR/trace-context/#traceparent-header-field-values
             if not tp.islower():
                 raise ValueError("uppercase characters are not allowed in traceparent")
             trace_id, span_id, sampling_priority = _TraceContext._get_traceparent_values(tp)
