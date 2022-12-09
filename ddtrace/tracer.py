@@ -102,6 +102,7 @@ def _default_span_processors_factory(
     compute_stats_enabled,  # type: bool
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
+    tracer,  # type: Tracer
 ):
     # type: (...) -> List[SpanProcessor]
     """Construct the default list of span processors to use."""
@@ -112,23 +113,27 @@ def _default_span_processors_factory(
 
     span_processors = []  # type: List[SpanProcessor]
     span_processors += [TopLevelSpanProcessor()]
+    ROOT_SPAN_APPSEC_LOCK = "root_span_appsec_lock"
 
     if appsec_enabled:
-        try:
-            from .appsec.processor import AppSecSpanProcessor
+        root_span = tracer.current_root_span()
+        if root_span is not None and root_span.get_tag(ROOT_SPAN_APPSEC_LOCK) is None:
+            root_span.set_tag(ROOT_SPAN_APPSEC_LOCK, 1.0)
+            try:
+                from .appsec.processor import AppSecSpanProcessor
 
-            appsec_span_processor = AppSecSpanProcessor()
-            span_processors.append(appsec_span_processor)
-        except Exception as e:
-            # DDAS-001-01
-            log.error(
-                "[DDAS-001-01] "
-                "AppSec could not start because of an unexpected error. No security activities will be collected. "
-                "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
-                repr(e),
-            )
-            if config._raise:
-                raise
+                appsec_span_processor = AppSecSpanProcessor()
+                span_processors.append(appsec_span_processor)
+            except Exception as e:
+                # DDAS-001-01
+                log.error(
+                    "[DDAS-001-01] "
+                    "AppSec could not start because of an unexpected error. No security activities will be collected. "
+                    "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
+                    repr(e),
+                )
+                if config._raise:
+                    raise
 
     if iast_enabled:
         from .appsec.iast.processor import AppSecIastSpanProcessor
@@ -237,6 +242,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self,
         )
         enable_appsec_rc(self)
 
@@ -474,6 +480,7 @@ class Tracer(object):
                 self._compute_stats,
                 self._single_span_sampling_rules,
                 self._agent_url,
+                self,
             )
 
         if context_provider is not None:
@@ -519,6 +526,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self,
         )
         enable_appsec_rc(self)
 
