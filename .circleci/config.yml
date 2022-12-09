@@ -62,7 +62,7 @@ commands:
   setup_tox:
     description: "Install tox"
     steps:
-      - run: pip install -U tox
+      - run: pip install -U "tox<4"
 
   setup_riot:
     description: "Install riot"
