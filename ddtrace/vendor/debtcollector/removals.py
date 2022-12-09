@@ -332,33 +332,3 @@ def removed_module(module, replacement=None, message=None,
                                           removal_version=removal_version)
     _utils.deprecation(out_message,
                        stacklevel=stacklevel, category=category)
-
-
-def removed_constant(
-    deprecated, replacement_name=None, message=None, version=None, removal_version=None, stacklevel=3, category=None
-):
-    """Helper to be called with a constant to emit a deprecation warning
-
-    :param str deprecated: The name of the constant being deprecated
-    :param str replacement_name: The name (if any) of the new replacement
-                                constant.
-    :param str message: A message to include in the deprecation warning
-    :param str version: Specify what version the removed module is present in
-    :param str removal_version: What version the module will be removed. If
-                                '?' is used this implies an undefined future
-                                version
-    :param int stacklevel: How many entries deep in the call stack before
-                           ignoring
-    :param type category: warnings message category (this defaults to
-                          ``DeprecationWarning`` when none is provided)"""
-
-    prefix = "The '%s' constant usage is deprecated" % deprecated
-    if replacement_name:
-        postfix = ", please use '%s' instead" % replacement_name
-    else:
-        postfix = None
-    out_message = _utils.generate_message(
-        prefix, postfix=postfix, message=message, version=version, removal_version=removal_version
-    )
-    warnings.simplefilter("always", DDTraceDeprecationWarning)
-    _utils.deprecation(out_message, stacklevel=stacklevel, category=category)
