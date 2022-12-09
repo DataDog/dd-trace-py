@@ -21,11 +21,6 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def disable_appsec_rc():
-    log.warning("Disabling remote configuration")
-    RemoteConfig.disable()
-
-
 def enable_appsec_rc():
     # type: () -> None
     from ddtrace import tracer
