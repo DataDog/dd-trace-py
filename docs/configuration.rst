@@ -202,8 +202,8 @@ below:
 
          **Example:** ``DD_SPAN_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-serv*","name":"flask.re?uest"}]'``
 
-         version_added:
-            v1.4.0:
+     version_added:
+        v1.4.0:
     
    DD_SPAN_SAMPLING_RULES_FILE:
      type: string
@@ -219,8 +219,8 @@ below:
          **Example:** ``DD_SPAN_SAMPLING_RULES_FILE="data/span_sampling_rules.json"'``
          **Example File Contents:** ``[{"sample_rate":0.5,"service":"*-service","name":"my-name-????", "max_per_second":"20"}, {"service":"xy?","name":"a*c"}]``
 
-         version_added:
-            v1.4.0:
+     version_added:
+        v1.4.0:
 
    DD_TRACE_HEADER_TAGS:
      description: |
@@ -254,9 +254,11 @@ below:
 
          Overridden by ``DD_TRACE_PROPAGATION_STYLE_INJECT`` for injection.
 
-         The supported values are ``datadog``, ``b3``, and ``b3 single header``.
+         The supported values are ``datadog``, ``b3``, ``b3 single header``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
+
+         When ``none`` is the only propagator listed, propagation is disabled. 
 
          All provided styles are injected into the headers of outbound requests.
 
@@ -271,9 +273,11 @@ below:
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for extraction propagation style.
 
-         The supported values are ``datadog``, ``b3``, and ``b3 single header``.
+         The supported values are ``datadog``, ``b3``, ``b3 single header``, and ``none``.
 
          When checking inbound request headers we will take the first valid trace context in the order provided.
+
+         When ``none`` is the only propagator listed, extraction is disabled. 
 
          Example: ``DD_TRACE_PROPAGATION_STYLE="datadog,b3"`` to check for both ``x-datadog-*`` and ``x-b3-*``
          headers when parsing incoming request headers for a trace context. In addition, to inject both ``x-datadog-*`` and ``x-b3-*``
@@ -287,9 +291,11 @@ below:
 
          Overrides ``DD_TRACE_PROPAGATION_STYLE`` for injection propagation style.
 
-         The supported values are ``datadog``, ``b3``, and ``b3 single header``.
+         The supported values are ``datadog``, ``b3``, ``b3 single header``, and ``none``.
 
          All provided styles are injected into the headers of outbound requests.
+
+         When ``none`` is the only propagator listed, injection is disabled. 
 
          Example: ``DD_TRACE_PROPAGATION_STYLE_INJECT="datadog,b3"`` to inject both ``x-datadog-*`` and ``x-b3-*``
          headers into outbound requests.
