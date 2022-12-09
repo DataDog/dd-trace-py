@@ -1,0 +1,24 @@
+[[
+  {
+    "name": "rename-start-current-span",
+    "service": "",
+    "resource": "test-start-current-span-defaults",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "37fa604430a1480b89a63fbbf8ca254b"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 61182
+    },
+    "duration": 58000,
+    "start": 1671991990066287000
+  }]]

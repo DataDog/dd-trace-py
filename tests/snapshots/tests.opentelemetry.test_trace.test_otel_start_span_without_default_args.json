@@ -1,0 +1,50 @@
+[[
+  {
+    "name": "rename-start-span",
+    "service": "",
+    "resource": "test-start-span",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "bbef8f4e4fe64b17984b4effabbba2c2",
+      "span.kind": "client",
+      "start_span_tag": "start_span_val"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 63454
+    },
+    "duration": 0,
+    "start": 0
+  }],
+[
+  {
+    "name": "root-span",
+    "service": "",
+    "resource": "root-span",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "bbef8f4e4fe64b17984b4effabbba2c2"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 63454
+    },
+    "duration": 171000,
+    "start": 1671992789952204000
+  }]]

@@ -1,0 +1,124 @@
+[[
+  {
+    "name": "otel-client",
+    "service": "",
+    "resource": "otel-client",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "238aa2606bfc4dc0854f87a4f1b78a61",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 58674
+    },
+    "duration": 51000,
+    "start": 1671991097142106000
+  }],
+[
+  {
+    "name": "otel-server",
+    "service": "",
+    "resource": "otel-server",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "238aa2606bfc4dc0854f87a4f1b78a61",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 58674
+    },
+    "duration": 85000,
+    "start": 1671991097173023000
+  }],
+[
+  {
+    "name": "otel-producer",
+    "service": "",
+    "resource": "otel-producer",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "238aa2606bfc4dc0854f87a4f1b78a61",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 58674
+    },
+    "duration": 24000,
+    "start": 1671991097173170000
+  }],
+[
+  {
+    "name": "otel-consumer",
+    "service": "",
+    "resource": "otel-consumer",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "238aa2606bfc4dc0854f87a4f1b78a61",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 58674
+    },
+    "duration": 21000,
+    "start": 1671991097173220000
+  }],
+[
+  {
+    "name": "otel-internal",
+    "service": "",
+    "resource": "otel-internal",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "238aa2606bfc4dc0854f87a4f1b78a61"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 58674
+    },
+    "duration": 17000,
+    "start": 1671991097173266000
+  }]]
