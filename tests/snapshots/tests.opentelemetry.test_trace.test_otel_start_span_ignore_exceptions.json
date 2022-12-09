@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "otel-error-span",
+    "service": "",
+    "resource": "otel-error-span",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "error.message": "Sorry Friend, I failed you",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/munirabdinur/go/src/github.com/DataDog/dd-trace-py/tests/opentelemetry/test_trace.py\", line 72, in test_otel_start_span_ignore_exceptions\n    raise Exception(\"Sorry Friend, I failed you\")\nException: Sorry Friend, I failed you\n",
+      "error.type": "builtins.Exception",
+      "language": "python",
+      "runtime-id": "86d94e107de5452e80709b37ac12b380"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 32782
+    },
+    "duration": 294000,
+    "start": 1675884475345037000
+  }]]
