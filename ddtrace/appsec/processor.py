@@ -208,7 +208,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def on_span_start(self, span):
         # type: (Span) -> None
         root_span = span._local_root
-        if root_span.get_tag(ROOT_SPAN_APPSEC_LOCK) is None:
+        if root_span and root_span.get_tag(ROOT_SPAN_APPSEC_LOCK) is None:
             self._active = True
             root_span.set_tag(ROOT_SPAN_APPSEC_LOCK, 1.0)
         else:
