@@ -358,17 +358,20 @@ venv = Venv(
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
-                "packaging": ["==17.1", latest],
             },
             env={
                 "DD_REMOTE_CONFIGURATION_ENABLED": "false",
             },
             venvs=[
-                Venv(pys="2.7"),
+                Venv(pys="2.7", pkgs={"packaging": ["==17.1", latest]}),
                 Venv(
-                    # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
-                    pys=select_pys(min_version="3.5"),
-                    pkgs={"pytest-asyncio": latest},
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    pkgs={"pytest-asyncio": latest, "packaging": ["==17.1", latest]},
+                ),
+                # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={"pytest-asyncio": latest, "packaging": ["==17.1", "==22.0", latest]},
                 ),
             ],
         ),

@@ -25,6 +25,7 @@ from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
+from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
@@ -678,12 +679,38 @@ class _TraceContext:
             meta=meta,
         )
 
+    @staticmethod
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
+        tp = span_context._traceparent
+        if tp:
+            headers[_HTTP_HEADER_TRACEPARENT] = tp
+            # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
+            ts = span_context._tracestate
+            if ts:
+                headers[_HTTP_HEADER_TRACESTATE] = ts
+
+
+class _NOP_Propagator:
+    @staticmethod
+    def _extract(headers):
+        # type: (Dict[str, str]) -> None
+        return None
+
+    # this method technically isn't needed with the current way we have HTTPPropagator.inject setup
+    # but if it changes then we might want it
+    @staticmethod
+    def _inject(span_context, headers):
+        # type: (Context , Dict[str, str]) -> Dict[str, str]
+        return headers
+
 
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
     PROPAGATION_STYLE_B3: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
+    _PROPAGATION_STYLE_NONE: _NOP_Propagator,
 }
 
 
@@ -722,6 +749,8 @@ class HTTPPropagator(object):
             _B3MultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_inject:
             _B3SingleHeader._inject(span_context, headers)
+        if _PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
+            _TraceContext._inject(span_context, headers)
 
     @staticmethod
     def extract(headers):
