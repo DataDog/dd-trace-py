@@ -55,6 +55,7 @@ DEFAULT_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP = (
     r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
 )
 
+ROOT_SPAN_APPSEC_LOCK = "root_span_appsec_lock"
 
 log = get_logger(__name__)
 
@@ -153,7 +154,6 @@ def _get_waf_timeout():
 
 @attr.s(eq=False)
 class AppSecSpanProcessor(SpanProcessor):
-
     rules = attr.ib(type=str, factory=get_rules)
     obfuscation_parameter_key_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_key_regexp)
     obfuscation_parameter_value_regexp = attr.ib(type=bytes, factory=get_appsec_obfuscation_parameter_value_regexp)
@@ -207,7 +207,12 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_start(self, span):
         # type: (Span) -> None
-        pass
+        root_span = span._local_root
+        if root_span.get_tag(ROOT_SPAN_APPSEC_LOCK) is None:
+            self._active = True
+            root_span.set_tag(ROOT_SPAN_APPSEC_LOCK, 1.0)
+        else:
+            self._active = False
 
     def _mark_needed(self, address):
         # type: (str) -> None
@@ -219,6 +224,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def on_span_finish(self, span):
         # type: (Span) -> None
+        if not self._active:
+            return
         if span.span_type != SpanTypes.WEB:
             return
         span.set_metric(APPSEC_ENABLED, 1.0)

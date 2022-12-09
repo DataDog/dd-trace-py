@@ -75,8 +75,10 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 if debug_mode and not hasHandlers(log) and call_basic_config:
     debtcollector.deprecate(
         "ddtrace.tracer.logging.basicConfig",
-        message="`logging.basicConfig()` should be called in a user's application."
-        " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version.",
+        message=(
+            "`logging.basicConfig()` should be called in a user's application."
+            " ``DD_CALL_BASIC_CONFIG`` will be removed in a future version."
+        ),
     )
     if config.logs_injection:
         # We need to ensure logging is patched in case the tracer logs during initialization
@@ -113,27 +115,27 @@ def _default_span_processors_factory(
 
     span_processors = []  # type: List[SpanProcessor]
     span_processors += [TopLevelSpanProcessor()]
-    ROOT_SPAN_APPSEC_LOCK = "root_span_appsec_lock"
+    # ROOT_SPAN_APPSEC_LOCK = "root_span_appsec_lock"
 
     if appsec_enabled:
-        root_span = tracer.current_root_span()
-        if root_span is not None and root_span.get_tag(ROOT_SPAN_APPSEC_LOCK) is None:
-            root_span.set_tag(ROOT_SPAN_APPSEC_LOCK, 1.0)
-            try:
-                from .appsec.processor import AppSecSpanProcessor
+        # root_span = tracer.current_root_span()
+        # if root_span is not None and root_span.get_tag(ROOT_SPAN_APPSEC_LOCK) is None:
+        #     root_span.set_tag(ROOT_SPAN_APPSEC_LOCK, 1.0)
+        try:
+            from .appsec.processor import AppSecSpanProcessor
 
-                appsec_span_processor = AppSecSpanProcessor()
-                span_processors.append(appsec_span_processor)
-            except Exception as e:
-                # DDAS-001-01
-                log.error(
-                    "[DDAS-001-01] "
-                    "AppSec could not start because of an unexpected error. No security activities will be collected. "
-                    "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
-                    repr(e),
-                )
-                if config._raise:
-                    raise
+            appsec_span_processor = AppSecSpanProcessor()
+            span_processors.append(appsec_span_processor)
+        except Exception as e:
+            # DDAS-001-01
+            log.error(
+                "[DDAS-001-01] "
+                "AppSec could not start because of an unexpected error. No security activities will be collected. "
+                "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: \n%s",
+                repr(e),
+            )
+            if config._raise:
+                raise
 
     if iast_enabled:
         from .appsec.iast.processor import AppSecIastSpanProcessor
