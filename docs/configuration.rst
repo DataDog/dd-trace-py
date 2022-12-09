@@ -265,7 +265,7 @@ below:
          headers when parsing incoming request headers for a trace context.
 
      version_added:
-         v1.7.0: ``b3multi`` was added and ``b3`` was deprecated in favor it.
+       v1.7.0: ``b3multi`` was added and ``b3`` was deprecated in favor it.
 
    DD_TRACE_PROPAGATION_STYLE_EXTRACT:
      default: |
@@ -285,7 +285,7 @@ below:
          headers into outbound requests.
 
      version_added:
-         v1.7.0: ``b3multi`` was added and ``b3`` was deprecated in favor it.
+       v1.7.0: ``b3multi`` was added and ``b3`` was deprecated in favor it.
 
    DD_TRACE_PROPAGATION_STYLE_INJECT:
      default: |
@@ -304,7 +304,7 @@ below:
          headers into outbound requests.
 
      version_added:
-         v1.7.0: ``b3multi`` was added and ``b3`` was deprecated in favor it.
+       v1.7.0: ``b3multi`` was added and ``b3`` was deprecated in favor it.
 
    DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH:
      type: Integer
