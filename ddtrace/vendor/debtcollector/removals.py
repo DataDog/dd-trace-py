@@ -300,8 +300,8 @@ def removed_module(module, replacement=None, message=None,
                    version=None, removal_version=None, stacklevel=3,
                    category=None):
     """Helper to be called inside a module to emit a deprecation warning
-    
-    :param str replacement: A location (or information about) of any potential
+
+    :param str replacment: A location (or information about) of any potential
                            replacement for the removed module (if applicable)
     :param str message: A message to include in the deprecation warning
     :param str version: Specify what version the removed module is present in
