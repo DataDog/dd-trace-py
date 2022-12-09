@@ -7,7 +7,7 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.context import Context
 from ddtrace.contrib.celery import patch
 from ddtrace.contrib.celery import unpatch
@@ -249,7 +249,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.action") == "run"
         assert span.get_tag("celery.state") == "FAILURE"
         assert span.error == 1
-        assert span.get_tag(ERROR_MESSAGE) == "Task class is failing"
+        assert span.get_tag(ERROR_MSG) == "Task class is failing"
         assert "Traceback (most recent call last)" in span.get_tag("error.stack")
         assert "Task class is failing" in span.get_tag("error.stack")
 
@@ -303,7 +303,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
         # This type of retrying should not be marked as an exception
         assert span.error == 0
-        assert not span.get_tag(ERROR_MESSAGE)
+        assert not span.get_tag(ERROR_MSG)
         assert not span.get_tag("error.stack")
 
     def test_class_task(self):
@@ -365,7 +365,7 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
         assert span.get_tag("celery.action") == "run"
         assert span.get_tag("celery.state") == "FAILURE"
         assert span.error == 1
-        assert span.get_tag(ERROR_MESSAGE) == "Task class is failing"
+        assert span.get_tag(ERROR_MSG) == "Task class is failing"
         assert "Traceback (most recent call last)" in span.get_tag("error.stack")
         assert "Task class is failing" in span.get_tag("error.stack")
 

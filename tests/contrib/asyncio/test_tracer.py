@@ -3,7 +3,7 @@ import asyncio
 
 import pytest
 
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.asyncio.compat import asyncio_current_task
 
 
@@ -84,7 +84,7 @@ async def test_exception(tracer):
     assert 1 == len(spans)
     span = spans[0]
     assert 1 == span.error
-    assert "f1 error" == span.get_tag(ERROR_MESSAGE)
+    assert "f1 error" == span.get_tag(ERROR_MSG)
     assert "Exception: f1 error" in span.get_tag("error.stack")
 
 
@@ -108,12 +108,12 @@ async def test_nested_exceptions(tracer):
     span = spans[0]
     assert "f2" == span.name
     assert 1 == span.error  # f2 did not catch the exception
-    assert "f1 error" == span.get_tag(ERROR_MESSAGE)
+    assert "f1 error" == span.get_tag(ERROR_MSG)
     assert "Exception: f1 error" in span.get_tag("error.stack")
     span = spans[1]
     assert "f1" == span.name
     assert 1 == span.error
-    assert "f1 error" == span.get_tag(ERROR_MESSAGE)
+    assert "f1 error" == span.get_tag(ERROR_MSG)
     assert "Exception: f1 error" in span.get_tag("error.stack")
 
 
@@ -142,7 +142,7 @@ async def test_handled_nested_exceptions(tracer):
     span = spans[1]
     assert "f1" == span.name
     assert 1 == span.error
-    assert "f1 error" == span.get_tag(ERROR_MESSAGE)
+    assert "f1 error" == span.get_tag(ERROR_MSG)
     assert "Exception: f1 error" in span.get_tag("error.stack")
 
 

@@ -18,7 +18,7 @@ from six import ensure_text
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -388,7 +388,7 @@ def test_middleware_trace_error_500(client, test_spans):
         assert span.resource == "GET ^error-500/$"
     else:
         assert span.resource == "GET tests.contrib.django.views.error_500"
-    assert span.get_tag(ERROR_MESSAGE) is None
+    assert span.get_tag(ERROR_MSG) is None
     assert span.get_tag(ERROR_TYPE) is None
     assert span.get_tag(ERROR_STACK) is None
 
@@ -406,7 +406,7 @@ def test_middleware_trace_error_500(client, test_spans):
     assert mw_span.error == 1
     # Make sure the message is somewhere in the stack trace
     assert "Error 500" in view_span.get_tag(ERROR_STACK)
-    assert mw_span.get_tag(ERROR_MESSAGE) is not None
+    assert mw_span.get_tag(ERROR_MSG) is not None
     assert mw_span.get_tag(ERROR_TYPE) is not None
     assert mw_span.get_tag(ERROR_STACK) is not None
 
@@ -434,7 +434,7 @@ def test_middleware_handled_view_exception_success(client, test_spans):
     root_span = test_spans.get_root_span()
     assert root_span.error == 0
     assert root_span.get_tag(ERROR_STACK) is None
-    assert root_span.get_tag(ERROR_MESSAGE) is None
+    assert root_span.get_tag(ERROR_MSG) is None
     assert root_span.get_tag(ERROR_TYPE) is None
 
     # Test the view span (where the exception is generated)

@@ -9,7 +9,7 @@ from six.moves.urllib.parse import quote as url_quote
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
@@ -196,7 +196,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.error == 1
         assert s.get_tag(http.METHOD) == "GET"
         assert "ZeroDivisionError" in s.get_tag(ERROR_TYPE), s.get_tags()
-        assert "by zero" in s.get_tag(ERROR_MESSAGE)
+        assert "by zero" in s.get_tag(ERROR_MSG)
         assert re.search('File ".*/contrib/cherrypy/web.py", line [0-9]+, in fatal', s.get_tag(ERROR_STACK))
 
     def test_unicode(self):

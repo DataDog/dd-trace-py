@@ -14,7 +14,7 @@ import six
 
 from . import config
 from .constants import ANALYTICS_SAMPLE_RATE_KEY
-from .constants import ERROR_MESSAGE
+from .constants import ERROR_MSG
 from .constants import ERROR_STACK
 from .constants import ERROR_TYPE
 from .constants import MANUAL_DROP_KEY
@@ -449,7 +449,7 @@ class Span(object):
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
 
-        self._meta[ERROR_MESSAGE] = stringify(exc_val)
+        self._meta[ERROR_MSG] = stringify(exc_val)
         self._meta[ERROR_TYPE] = exc_type_str
         self._meta[ERROR_STACK] = tb
 
@@ -457,7 +457,7 @@ class Span(object):
         # type: () -> None
         """Remove all exception related information from the span."""
         self.error = 0
-        self._remove_tag(ERROR_MESSAGE)
+        self._remove_tag(ERROR_MSG)
         self._remove_tag(ERROR_TYPE)
         self._remove_tag(ERROR_STACK)
 

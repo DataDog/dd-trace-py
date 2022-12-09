@@ -2,7 +2,7 @@ import unittest
 
 from tornado import version_info
 
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.tornado.compat import futures_available
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
@@ -94,7 +94,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert_span_http_status_code(request_span, 500)
         assert self.get_url("/executor_exception/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "Ouch!" == request_span.get_tag(ERROR_MESSAGE)
+        assert "Ouch!" == request_span.get_tag(ERROR_MSG)
         assert "Exception: Ouch!" in request_span.get_tag("error.stack")
 
         # this trace is executed in a different thread
@@ -103,7 +103,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert "tornado.executor.with" == executor_span.name
         assert executor_span.parent_id == request_span.span_id
         assert 1 == executor_span.error
-        assert "Ouch!" == executor_span.get_tag(ERROR_MESSAGE)
+        assert "Ouch!" == executor_span.get_tag(ERROR_MSG)
         assert "Exception: Ouch!" in executor_span.get_tag("error.stack")
 
     @unittest.skipIf(
@@ -163,7 +163,7 @@ class TestTornadoExecutor(TornadoTestCase):
         assert_span_http_status_code(request_span, 500)
         assert self.get_url("/executor_custom_args_handler/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "cannot combine positional and keyword args" == request_span.get_tag(ERROR_MESSAGE)
+        assert "cannot combine positional and keyword args" == request_span.get_tag(ERROR_MSG)
         assert "ValueError" in request_span.get_tag("error.stack")
 
     @unittest.skipUnless(futures_available, "Futures must be available to test direct submit")

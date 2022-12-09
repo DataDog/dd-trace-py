@@ -4,7 +4,7 @@ import ddtrace
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.vertica.patch import patch
@@ -245,7 +245,7 @@ class TestVertica(TracerTestCase):
         # check all the metadata
         assert spans[0].service == "vertica"
         assert spans[0].error == 1
-        assert "INVALID QUERY" in spans[0].get_tag(ERROR_MESSAGE)
+        assert "INVALID QUERY" in spans[0].get_tag(ERROR_MSG)
         error_type = "vertica_python.errors.VerticaSyntaxError"
         assert spans[0].get_tag(ERROR_TYPE) == error_type
         assert spans[0].get_tag(ERROR_STACK)

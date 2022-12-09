@@ -4,7 +4,7 @@ import urllib3
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.urllib3 import patch
@@ -198,7 +198,7 @@ class TestUrllib3(BaseUrllib3TestCase):
             if i > 0:
                 assert s.get_tag(http.RETRIES_REMAIN) == str(retries - i)
             assert s.error == 1
-            assert "Failed to establish a new connection" in s.get_tag(ERROR_MESSAGE)
+            assert "Failed to establish a new connection" in s.get_tag(ERROR_MSG)
             assert "Failed to establish a new connection" in s.get_tag(ERROR_STACK)
             assert "Traceback (most recent call last)" in s.get_tag(ERROR_STACK)
             assert "urllib3.exceptions.MaxRetryError" in s.get_tag(ERROR_TYPE)

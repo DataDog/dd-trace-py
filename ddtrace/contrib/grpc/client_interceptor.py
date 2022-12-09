@@ -12,7 +12,7 @@ from . import constants
 from . import utils
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import ERROR_MESSAGE
+from ...constants import ERROR_MSG
 from ...constants import ERROR_STACK
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
@@ -94,7 +94,7 @@ def _handle_error(span, response_error, status_code):
         # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
         span.error = 1
         exc_val = to_unicode(response_error.details())
-        span.set_tag_str(ERROR_MESSAGE, exc_val)
+        span.set_tag_str(ERROR_MSG, exc_val)
         span.set_tag_str(ERROR_TYPE, status_code)
         return
 
@@ -107,7 +107,7 @@ def _handle_error(span, response_error, status_code):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
             exc_val = to_unicode(response_error.details())
-            span.set_tag_str(ERROR_MESSAGE, exc_val)
+            span.set_tag_str(ERROR_MSG, exc_val)
             span.set_tag_str(ERROR_TYPE, status_code)
             span.set_tag_str(ERROR_STACK, stringify(traceback))
         else:

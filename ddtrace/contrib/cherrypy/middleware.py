@@ -8,7 +8,7 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 from ddtrace import config
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 
@@ -85,7 +85,7 @@ class TraceTool(cherrypy.Tool):
 
         span.error = 1
         span.set_tag(ERROR_TYPE, cherrypy._cperror._exc_info()[0])
-        span.set_tag(ERROR_MESSAGE, str(cherrypy._cperror._exc_info()[1]))
+        span.set_tag(ERROR_MSG, str(cherrypy._cperror._exc_info()[1]))
         span.set_tag(ERROR_STACK, cherrypy._cperror.format_exc())
 
         self._close_span(span)

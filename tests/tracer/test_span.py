@@ -10,7 +10,7 @@ import six
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import ENV_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SERVICE_VERSION_KEY
@@ -188,14 +188,14 @@ class SpanTestCase(TracerTestCase):
             assert 0, "should have failed"
 
         assert s.error
-        assert "by zero" in s.get_tag(ERROR_MESSAGE)
+        assert "by zero" in s.get_tag(ERROR_MSG)
         assert "ZeroDivisionError" in s.get_tag(ERROR_TYPE)
 
     def test_traceback_without_error(self):
         s = Span("test.span")
         s.set_traceback()
         assert not s.error
-        assert not s.get_tag(ERROR_MESSAGE)
+        assert not s.get_tag(ERROR_MSG)
         assert not s.get_tag(ERROR_TYPE)
         assert "in test_traceback_without_error" in s.get_tag(ERROR_STACK)
 
@@ -213,7 +213,7 @@ class SpanTestCase(TracerTestCase):
             assert out == e
             assert s.duration > 0, s.duration
             assert s.error
-            assert s.get_tag(ERROR_MESSAGE) == "boo"
+            assert s.get_tag(ERROR_MSG) == "boo"
             assert "Exception" in s.get_tag(ERROR_TYPE)
             assert s.get_tag(ERROR_STACK)
 
@@ -477,7 +477,7 @@ def test_span_ignored_exceptions():
             raise ValueError()
 
     assert s.error == 0
-    assert s.get_tag(ERROR_MESSAGE) is None
+    assert s.get_tag(ERROR_MSG) is None
     assert s.get_tag(ERROR_TYPE) is None
     assert s.get_tag(ERROR_STACK) is None
 
@@ -493,7 +493,7 @@ def test_span_ignored_exceptions():
             raise RuntimeError()
 
     assert s.error == 1
-    assert s.get_tag(ERROR_MESSAGE) is not None
+    assert s.get_tag(ERROR_MSG) is not None
     assert "RuntimeError" in s.get_tag(ERROR_TYPE)
     assert s.get_tag(ERROR_STACK) is not None
 
@@ -512,7 +512,7 @@ def test_span_ignored_exception_multi():
             raise RuntimeError()
 
     assert s.error == 0
-    assert s.get_tag(ERROR_MESSAGE) is None
+    assert s.get_tag(ERROR_MSG) is None
     assert s.get_tag(ERROR_TYPE) is None
     assert s.get_tag(ERROR_STACK) is None
 
@@ -530,7 +530,7 @@ def test_span_ignored_exception_subclass():
             raise RuntimeError()
 
     assert s.error == 0
-    assert s.get_tag(ERROR_MESSAGE) is None
+    assert s.get_tag(ERROR_MSG) is None
     assert s.get_tag(ERROR_TYPE) is None
     assert s.get_tag(ERROR_STACK) is None
 
@@ -622,8 +622,8 @@ def test_set_exc_info_with_unicode():
         return span
 
     exception_span = get_exception_span(Exception(u"DataDog/水"))
-    assert u"DataDog/水" == exception_span.get_tag(ERROR_MESSAGE)
+    assert u"DataDog/水" == exception_span.get_tag(ERROR_MSG)
 
     if six.PY3:
         exception_span = get_exception_span(Exception("DataDog/水"))
-        assert "DataDog/水" == exception_span.get_tag(ERROR_MESSAGE)
+        assert "DataDog/水" == exception_span.get_tag(ERROR_MSG)

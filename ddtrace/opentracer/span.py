@@ -9,7 +9,7 @@ from typing import Union
 from opentracing import Span as OpenTracingSpan
 from opentracing.ext import tags as OTTags
 
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.context import Context as DatadogContext
@@ -125,7 +125,7 @@ class Span(OpenTracingSpan):
             elif key == "error" or key == "error.object":
                 self.set_tag(ERROR_TYPE, val)
             elif key == "message":
-                self.set_tag(ERROR_MESSAGE, val)
+                self.set_tag(ERROR_MSG, val)
             elif key == "stack":
                 self.set_tag(ERROR_STACK, val)
             else:

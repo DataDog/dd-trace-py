@@ -8,7 +8,7 @@ import pytest
 import ddtrace
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.sqlite3.patch import TracedSQLiteCursor
@@ -90,7 +90,7 @@ class TestSQLite(TracerTestCase):
             self.assertIsNone(root.get_tag("sql.query"))
             self.assertIsNotNone(root.get_tag(ERROR_STACK))
             self.assertIn("OperationalError", root.get_tag(ERROR_TYPE))
-            self.assertIn("no such table", root.get_tag(ERROR_MESSAGE))
+            self.assertIn("no such table", root.get_tag(ERROR_MSG))
             self.reset()
 
     def test_sqlite_fetchall_is_traced(self):

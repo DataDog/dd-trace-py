@@ -10,7 +10,7 @@ import six
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.grpc import constants
@@ -340,7 +340,7 @@ class GrpcTestCase(TracerTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHello"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MESSAGE) == "aborted"
+        assert client_span.get_tag(ERROR_MSG) == "aborted"
         assert client_span.get_tag(ERROR_TYPE) == "StatusCode.ABORTED"
         assert client_span.get_tag("grpc.status.code") == "StatusCode.ABORTED"
 
@@ -359,7 +359,7 @@ class GrpcTestCase(TracerTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHello"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MESSAGE) == "custom"
+        assert client_span.get_tag(ERROR_MSG) == "custom"
         assert client_span.get_tag(ERROR_TYPE) == "tests.contrib.grpc.test_grpc._CustomException"
         assert client_span.get_tag(ERROR_STACK) is not None
         assert client_span.get_tag("grpc.status.code") == "StatusCode.INTERNAL"
@@ -367,7 +367,7 @@ class GrpcTestCase(TracerTestCase):
         # no exception on server end
         assert server_span.resource == "/helloworld.Hello/SayHello"
         assert server_span.error == 0
-        assert server_span.get_tag(ERROR_MESSAGE) is None
+        assert server_span.get_tag(ERROR_MSG) is None
         assert server_span.get_tag(ERROR_TYPE) is None
         assert server_span.get_tag(ERROR_STACK) is None
 
@@ -401,7 +401,7 @@ class GrpcTestCase(TracerTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MESSAGE) == "Locally cancelled by application!"
+        assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
         assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
         assert client_span.get_tag(ERROR_STACK) is None
         assert client_span.get_tag("grpc.status.code") == "StatusCode.CANCELLED"
@@ -417,13 +417,13 @@ class GrpcTestCase(TracerTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHello"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MESSAGE) == "exception"
+        assert client_span.get_tag(ERROR_MSG) == "exception"
         assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         assert client_span.get_tag("grpc.status.code") == "StatusCode.INVALID_ARGUMENT"
 
         assert server_span.resource == "/helloworld.Hello/SayHello"
         assert server_span.error == 1
-        assert server_span.get_tag(ERROR_MESSAGE) == "exception"
+        assert server_span.get_tag(ERROR_MSG) == "exception"
         assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         assert "Traceback" in server_span.get_tag(ERROR_STACK)
         assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span.get_tag(ERROR_STACK)
@@ -441,13 +441,13 @@ class GrpcTestCase(TracerTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHelloLast"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MESSAGE) == "exception"
+        assert client_span.get_tag(ERROR_MSG) == "exception"
         assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         assert client_span.get_tag("grpc.status.code") == "StatusCode.INVALID_ARGUMENT"
 
         assert server_span.resource == "/helloworld.Hello/SayHelloLast"
         assert server_span.error == 1
-        assert server_span.get_tag(ERROR_MESSAGE) == "exception"
+        assert server_span.get_tag(ERROR_MSG) == "exception"
         assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         assert "Traceback" in server_span.get_tag(ERROR_STACK)
         assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span.get_tag(ERROR_STACK)
@@ -472,13 +472,13 @@ class GrpcTestCase(TracerTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHelloTwice"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MESSAGE) == "exception"
+        assert client_span.get_tag(ERROR_MSG) == "exception"
         assert client_span.get_tag(ERROR_TYPE) == "StatusCode.RESOURCE_EXHAUSTED"
         assert client_span.get_tag("grpc.status.code") == "StatusCode.RESOURCE_EXHAUSTED"
 
         assert server_span.resource == "/helloworld.Hello/SayHelloTwice"
         assert server_span.error == 1
-        assert server_span.get_tag(ERROR_MESSAGE) == "exception"
+        assert server_span.get_tag(ERROR_MSG) == "exception"
         assert server_span.get_tag(ERROR_TYPE) == "StatusCode.RESOURCE_EXHAUSTED"
         assert "Traceback" in server_span.get_tag(ERROR_STACK)
         assert "grpc.StatusCode.RESOURCE_EXHAUSTED" in server_span.get_tag(ERROR_STACK)

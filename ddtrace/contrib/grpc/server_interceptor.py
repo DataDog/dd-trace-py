@@ -7,7 +7,7 @@ from ddtrace.vendor import wrapt
 from . import constants
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import ERROR_MESSAGE
+from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -38,7 +38,7 @@ def _handle_server_exception(server_context, span):
         code = to_unicode(server_context._state.code)
         details = to_unicode(server_context._state.details)
         span.error = 1
-        span.set_tag_str(ERROR_MESSAGE, details)
+        span.set_tag_str(ERROR_MSG, details)
         span.set_tag_str(ERROR_TYPE, code)
 
 

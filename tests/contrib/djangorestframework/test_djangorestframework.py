@@ -1,7 +1,7 @@
 import django
 import pytest
 
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.internal import _context
 from ddtrace.internal.compat import urlencode
 from tests.utils import assert_span_http_status_code
@@ -33,7 +33,7 @@ def test_trace_exceptions(client, test_spans):  # noqa flake8 complains about sh
     assert len(view_dispatch_spans) == 1
     err_span = view_dispatch_spans[0]
     assert err_span.error == 1
-    assert err_span.get_tag(ERROR_MESSAGE) == "Authentication credentials were not provided."
+    assert err_span.get_tag(ERROR_MSG) == "Authentication credentials were not provided."
     assert "NotAuthenticated" in err_span.get_tag("error.stack")
 
 

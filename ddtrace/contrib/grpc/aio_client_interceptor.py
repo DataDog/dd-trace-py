@@ -16,7 +16,7 @@ from ... import Pin
 from ... import Span
 from ... import config
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import ERROR_MESSAGE
+from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -55,7 +55,7 @@ def _done_callback(span, code, details):
 def _handle_error(span, call, code, details):
     # type: (Span, aio.Call, grpc.StatusCode, str) -> None
     span.error = 1
-    span.set_tag_str(ERROR_MESSAGE, details)
+    span.set_tag_str(ERROR_MSG, details)
     span.set_tag_str(ERROR_TYPE, to_unicode(code))
 
 
@@ -64,7 +64,7 @@ def _handle_rpc_error(span, rpc_error):
     code = to_unicode(rpc_error.code())
     span.error = 1
     span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
-    span.set_tag_str(ERROR_MESSAGE, rpc_error.details())
+    span.set_tag_str(ERROR_MSG, rpc_error.details())
     span.set_tag_str(ERROR_TYPE, code)
     span.finish()
 
@@ -74,7 +74,7 @@ async def _handle_cancelled_error(call, span):
     code = to_unicode(await call.code())
     span.error = 1
     span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
-    span.set_tag_str(ERROR_MESSAGE, await call.details())
+    span.set_tag_str(ERROR_MSG, await call.details())
     span.set_tag_str(ERROR_TYPE, code)
     span.finish()
 

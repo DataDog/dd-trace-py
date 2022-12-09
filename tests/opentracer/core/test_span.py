@@ -73,7 +73,7 @@ class TestSpan(object):
         """Ensure keys that can be handled by our impl. are indeed handled."""
         import traceback
 
-        from ddtrace.constants import ERROR_MESSAGE
+        from ddtrace.constants import ERROR_MSG
         from ddtrace.constants import ERROR_STACK
         from ddtrace.constants import ERROR_TYPE
 
@@ -91,7 +91,7 @@ class TestSpan(object):
         assert nop_span._dd_span.error
         # ...and that error tags are set with the correct key
         assert nop_span._get_tag(ERROR_STACK) == stack_trace
-        assert nop_span._get_tag(ERROR_MESSAGE) == "my error message"
+        assert nop_span._get_tag(ERROR_MSG) == "my error message"
         assert nop_span._get_metric(ERROR_TYPE) == 3
 
     def test_operation_name(self, nop_span):

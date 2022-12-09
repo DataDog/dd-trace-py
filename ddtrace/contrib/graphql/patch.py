@@ -22,7 +22,7 @@ from graphql.language.source import Source
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.compat import stringify
@@ -281,7 +281,7 @@ def _set_span_errors(errors, span):
     # Since we do not support adding and visualizing multiple tracebacks to one span
     # we will not set the error.stack tag on graphql spans. Setting only one traceback
     # could be misleading and might obfuscate errors.
-    span.set_tag_str(ERROR_MESSAGE, error_msgs)
+    span.set_tag_str(ERROR_MSG, error_msgs)
 
 
 def _set_span_operation_tags(span, document):

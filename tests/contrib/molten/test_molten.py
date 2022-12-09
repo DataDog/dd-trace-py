@@ -4,7 +4,7 @@ from molten.testing import TestClient
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.molten import patch
 from ddtrace.contrib.molten import unpatch
 from ddtrace.contrib.molten.patch import MOLTEN_VERSION
@@ -198,8 +198,8 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.resource, "GET /error")
         self.assertEqual(span.error, 1)
         # error tags only set for route function span and not root span
-        self.assertIsNone(span.get_tag(ERROR_MESSAGE))
-        self.assertEqual(route_error_span.get_tag(ERROR_MESSAGE), "Error message")
+        self.assertIsNone(span.get_tag(ERROR_MSG))
+        self.assertEqual(route_error_span.get_tag(ERROR_MSG), "Error message")
 
     def test_resources(self):
         """Tests request has expected span resources"""

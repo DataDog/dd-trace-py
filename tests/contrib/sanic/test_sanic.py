@@ -14,7 +14,7 @@ from sanic.server import HttpProtocol
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.propagation import http as http_propagation
@@ -305,7 +305,7 @@ async def test_error_app(tracer, client, test_spans, status_code, url, content):
 
     # We do not attach exception info for 404s
     assert request_span.error == 0
-    assert request_span.get_tag(ERROR_MESSAGE) is None
+    assert request_span.get_tag(ERROR_MSG) is None
     assert request_span.get_tag(ERROR_TYPE) is None
     assert request_span.get_tag(ERROR_STACK) is None
 

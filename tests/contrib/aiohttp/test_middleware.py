@@ -2,7 +2,7 @@ from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.aiohttp.middlewares import trace_app
@@ -218,7 +218,7 @@ async def test_exception(app_tracer, aiohttp_client):
     span = spans[0]
     assert 1 == span.error
     assert "GET /exception" == span.resource
-    assert "error" == span.get_tag(ERROR_MESSAGE)
+    assert "error" == span.get_tag(ERROR_MSG)
     assert "Exception: error" in span.get_tag("error.stack")
 
 
@@ -236,7 +236,7 @@ async def test_async_exception(app_tracer, aiohttp_client):
     span = spans[0]
     assert 1 == span.error
     assert "GET /async_exception" == span.resource
-    assert "error" == span.get_tag(ERROR_MESSAGE)
+    assert "error" == span.get_tag(ERROR_MSG)
     assert "Exception: error" in span.get_tag("error.stack")
 
 

@@ -1,7 +1,7 @@
 from flask.views import MethodView
 from flask.views import View
 
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import http
 from ddtrace.internal.compat import PY2
 from tests.utils import assert_span_http_status_code
@@ -87,14 +87,14 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         # flask.dispatch_request
         self.assertEqual(dispatch_span.error, 1)
-        self.assertEqual(dispatch_span.get_tag(ERROR_MESSAGE), "an error")
+        self.assertEqual(dispatch_span.get_tag(ERROR_MSG), "an error")
         self.assertTrue(dispatch_span.get_tag("error.stack").startswith("Traceback (most recent call last):"))
         self.assertEqual(dispatch_span.get_tag("error.type"), base_exception_name)
 
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 1)
-        self.assertEqual(handler_span.get_tag(ERROR_MESSAGE), "an error")
+        self.assertEqual(handler_span.get_tag(ERROR_MSG), "an error")
         self.assertTrue(handler_span.get_tag("error.stack").startswith("Traceback (most recent call last):"))
         self.assertEqual(handler_span.get_tag("error.type"), base_exception_name)
 
@@ -166,13 +166,13 @@ class FlaskViewTestCase(BaseFlaskTestCase):
 
         # flask.dispatch_request
         self.assertEqual(dispatch_span.error, 1)
-        self.assertEqual(dispatch_span.get_tag(ERROR_MESSAGE), "an error")
+        self.assertEqual(dispatch_span.get_tag(ERROR_MSG), "an error")
         self.assertTrue(dispatch_span.get_tag("error.stack").startswith("Traceback (most recent call last):"))
         self.assertEqual(dispatch_span.get_tag("error.type"), base_exception_name)
 
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 1)
-        self.assertEqual(handler_span.get_tag(ERROR_MESSAGE), "an error")
+        self.assertEqual(handler_span.get_tag(ERROR_MSG), "an error")
         self.assertTrue(handler_span.get_tag("error.stack").startswith("Traceback (most recent call last):"))
         self.assertEqual(handler_span.get_tag("error.type"), base_exception_name)

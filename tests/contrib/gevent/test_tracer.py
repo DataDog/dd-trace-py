@@ -5,7 +5,7 @@ import gevent.pool
 from opentracing.scope_managers.gevent import GeventScopeManager
 
 import ddtrace
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.context import Context
@@ -288,7 +288,7 @@ class TestGeventTracer(TracerTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
         assert 1 == span.error
-        assert "Custom exception" == span.get_tag(ERROR_MESSAGE)
+        assert "Custom exception" == span.get_tag(ERROR_MSG)
         assert "Traceback (most recent call last)" in span.get_tag("error.stack")
 
     def _assert_spawn_multiple_greenlets(self, spans):

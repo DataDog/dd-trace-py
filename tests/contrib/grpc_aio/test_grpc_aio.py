@@ -9,7 +9,7 @@ import pytest
 
 from ddtrace import Pin
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.grpc import patch
@@ -252,7 +252,7 @@ async def test_invalid_target(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHello"
     assert client_span.error == 1
-    assert "failed to connect to all addresses" in client_span.get_tag(ERROR_MESSAGE)
+    assert "failed to connect to all addresses" in client_span.get_tag(ERROR_MSG)
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.UNAVAILABLE"
     assert client_span.get_tag(ERROR_STACK) is None
 
@@ -414,7 +414,7 @@ async def test_unary_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHello"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MESSAGE) == "abort_details"
+    assert client_span.get_tag(ERROR_MSG) == "abort_details"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     assert client_span.get_tag(ERROR_STACK) is None
 
@@ -423,12 +423,12 @@ async def test_unary_exception(server_info, tracer):
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
         if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
-            assert server_span.get_tag(ERROR_MESSAGE) == "abort_details"
+            assert server_span.get_tag(ERROR_MSG) == "abort_details"
             assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
-            assert server_span.get_tag(ERROR_MESSAGE) == "Locally aborted."
+            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
             assert "AbortError" in server_span.get_tag(ERROR_TYPE)
-        assert server_span.get_tag(ERROR_MESSAGE) in server_span.get_tag(ERROR_STACK)
+        assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
 
@@ -491,7 +491,7 @@ async def test_server_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloTwice"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MESSAGE) == "abort_details"
+    assert client_span.get_tag(ERROR_MSG) == "abort_details"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     assert client_span.get_tag(ERROR_STACK) is None
 
@@ -499,12 +499,12 @@ async def test_server_streaming_exception(server_info, tracer):
     assert server_span.error == 1
     # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
     if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
-        assert server_span.get_tag(ERROR_MESSAGE) == "abort_details"
+        assert server_span.get_tag(ERROR_MSG) == "abort_details"
         assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     else:
-        assert server_span.get_tag(ERROR_MESSAGE) == "Locally aborted."
+        assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
         assert "AbortError" in server_span.get_tag(ERROR_TYPE)
-    assert server_span.get_tag(ERROR_MESSAGE) in server_span.get_tag(ERROR_STACK)
+    assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
     assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
 
@@ -547,7 +547,7 @@ async def test_server_streaming_cancelled_during_rpc(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloTwice"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MESSAGE) == "Locally cancelled by application!"
+    assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
     assert client_span.get_tag(ERROR_STACK) is None
 
@@ -613,7 +613,7 @@ async def test_client_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloLast"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MESSAGE) == "abort_details"
+    assert client_span.get_tag(ERROR_MSG) == "abort_details"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     assert client_span.get_tag(ERROR_STACK) is None
 
@@ -622,12 +622,12 @@ async def test_client_streaming_exception(server_info, tracer):
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
         if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
-            assert server_span.get_tag(ERROR_MESSAGE) == "abort_details"
+            assert server_span.get_tag(ERROR_MSG) == "abort_details"
             assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
-            assert server_span.get_tag(ERROR_MESSAGE) == "Locally aborted."
+            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
             assert "AbortError" in server_span.get_tag(ERROR_TYPE)
-        assert server_span.get_tag(ERROR_MESSAGE) in server_span.get_tag(ERROR_STACK)
+        assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
 
@@ -707,7 +707,7 @@ async def test_bidi_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MESSAGE) == "abort_details"
+    assert client_span.get_tag(ERROR_MSG) == "abort_details"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     assert client_span.get_tag(ERROR_STACK) is None
 
@@ -716,12 +716,12 @@ async def test_bidi_streaming_exception(server_info, tracer):
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
         if packaging.version.parse(grpc.__version__) >= packaging.version.parse("1.38.0-pre1"):
-            assert server_span.get_tag(ERROR_MESSAGE) == "abort_details"
+            assert server_span.get_tag(ERROR_MSG) == "abort_details"
             assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
-            assert server_span.get_tag(ERROR_MESSAGE) == "Locally aborted."
+            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
             assert "AbortError" in server_span.get_tag(ERROR_TYPE)
-        assert server_span.get_tag(ERROR_MESSAGE) in server_span.get_tag(ERROR_STACK)
+        assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
         assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
 
 
@@ -772,7 +772,7 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MESSAGE) == "Locally cancelled by application!"
+    assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
     assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
     assert client_span.get_tag(ERROR_STACK) is None
 

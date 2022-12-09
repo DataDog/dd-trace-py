@@ -27,7 +27,7 @@ except ImportError:
 from ddtrace import Pin
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.botocore.patch import patch
@@ -168,7 +168,7 @@ class BotocoreTest(TracerTestCase):
         assert head_object.name == "s3.command"
         assert head_object.resource == "s3.headobject"
         assert head_object.error == 0
-        for t in (ERROR_MESSAGE, ERROR_STACK, ERROR_TYPE):
+        for t in (ERROR_MSG, ERROR_STACK, ERROR_TYPE):
             assert head_object.get_tag(t) is None
 
     @mock_s3
@@ -201,7 +201,7 @@ class BotocoreTest(TracerTestCase):
         assert head_object.name == "s3.command"
         assert head_object.resource == "s3.headobject"
         assert head_object.error == 1
-        for t in (ERROR_MESSAGE, ERROR_STACK, ERROR_TYPE):
+        for t in (ERROR_MSG, ERROR_STACK, ERROR_TYPE):
             assert head_object.get_tag(t) is not None
 
     @mock_s3

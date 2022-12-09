@@ -7,7 +7,7 @@ import pytest
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import ERROR_MESSAGE
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.fastapi import patch as fastapi_patch
 from ddtrace.contrib.fastapi import unpatch as fastapi_unpatch
 from ddtrace.contrib.starlette.patch import patch as patch_starlette
@@ -310,7 +310,7 @@ def test_500_error_raised(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/500"
     assert request_span.get_tag("http.status_code") == "500"
-    assert request_span.get_tag(ERROR_MESSAGE) == "Server error"
+    assert request_span.get_tag(ERROR_MSG) == "Server error"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert 'raise RuntimeError("Server error")' in request_span.get_tag("error.stack")
 

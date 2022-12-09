@@ -19,7 +19,7 @@ from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import ERROR_MESSAGE
+from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -81,7 +81,7 @@ def _handle_server_exception(
     if servicer_context is None:
         return
     if hasattr(servicer_context, "details"):
-        span.set_tag_str(ERROR_MESSAGE, to_unicode(servicer_context.details()))
+        span.set_tag_str(ERROR_MSG, to_unicode(servicer_context.details()))
     if hasattr(servicer_context, "code") and servicer_context.code() != 0 and servicer_context.code() in _INT2CODE:
         span.set_tag_str(ERROR_TYPE, to_unicode(_INT2CODE[servicer_context.code()]))
 

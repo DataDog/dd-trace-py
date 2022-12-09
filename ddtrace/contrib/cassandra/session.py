@@ -8,7 +8,7 @@ import cassandra.cluster
 from ddtrace import config
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
-from ...constants import ERROR_MESSAGE
+from ...constants import ERROR_MSG
 from ...constants import ERROR_TYPE
 from ...constants import SPAN_MEASURED_KEY
 from ...ext import SpanTypes
@@ -81,7 +81,7 @@ def _close_span_on_error(exc, future):
         # handling the exception manually because we
         # don't have an ongoing exception here
         span.error = 1
-        span.set_tag_str(ERROR_MESSAGE, exc.args[0])
+        span.set_tag_str(ERROR_MSG, exc.args[0])
         span.set_tag_str(ERROR_TYPE, exc.__class__.__name__)
     except Exception:
         log.debug("traced_set_final_exception was not able to set the error, failed with error", exc_info=True)
