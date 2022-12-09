@@ -81,7 +81,7 @@ def _close_span_on_error(exc, future):
         # handling the exception manually because we
         # don't have an ongoing exception here
         span.error = 1
-        span.set_tag(ERROR_MSG, exc.args[0])
+        span.set_tag_str(ERROR_MSG, exc.args[0])
         span.set_tag_str(ERROR_TYPE, exc.__class__.__name__)
     except Exception:
         log.debug("traced_set_final_exception was not able to set the error, failed with error", exc_info=True)
