@@ -655,7 +655,7 @@ class _TraceContext:
                 log.debug("no traceparent header")
                 return None
             # uppercase char in tp makes it invalid
-            if tp.isupper():
+            if not tp.islower():
                 raise ValueError("uppercase characters are not allowed in traceparent")
             trace_id, span_id, sampling_priority = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
