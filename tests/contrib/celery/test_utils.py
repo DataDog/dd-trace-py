@@ -19,7 +19,7 @@ class CeleryTagsTest(CeleryBaseTestCase):
         # it should extract only relevant keys
         context = {
             "correlation_id": "44b7f305",
-            "delivery_info": '{"eager": "True"}',
+            "delivery_info": '{"eager": "True", "priority": 0}',
             "eta": "soon",
             "expires": "later",
             "hostname": "localhost",
@@ -36,7 +36,8 @@ class CeleryTagsTest(CeleryBaseTestCase):
         metrics = span.get_metrics()
         sentinel = object()
         assert metas["celery.correlation_id"] == "44b7f305"
-        assert metas["celery.delivery_info"] == '{"eager": "True"}'
+        assert metas["celery.delivery_info.eager"] == "True"
+        assert metas["celery.delivery_info.priority"] == 0
         assert metas["celery.eta"] == "soon"
         assert metas["celery.expires"] == "later"
         assert metas["celery.hostname"] == "localhost"
