@@ -551,9 +551,12 @@ class _TraceContext:
         traceparent header.
         """
 
-        version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
+        version, trace_id_hex, span_id_hex, trace_flags_hex = tp.strip().split("-")
         # check version is a valid hexadecimal, if not it's invalid we will move on to the next prop method
         int(version, 16)
+        # https://www.w3.org/TR/trace-context/#version
+        if version == "ff":
+            raise ValueError("'ff' is an invalid traceparent version")
         # currently 00 is the only version format, but if future versions come up we may need to add changes
         if version != "00":
             log.warning("unsupported traceparent version:%r, still attempting to parse", version)
@@ -585,7 +588,7 @@ class _TraceContext:
 
         # tracestate parsing, example: dd=s~2;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE
         dd = None
-        ts_l = ts.split(",")
+        ts_l = ts.strip().split(",")
         for list_mem in ts_l:
             if list_mem.startswith("dd="):
                 # cut out dd= before turning into dict
@@ -641,6 +644,10 @@ class _TraceContext:
             if tp is None:
                 log.debug("no traceparent header")
                 return None
+            # uppercase char in tp makes it invalid:
+            # https://www.w3.org/TR/trace-context/#traceparent-header-field-values
+            if not tp.islower():
+                raise ValueError("uppercase characters are not allowed in traceparent")
             trace_id, span_id, sampling_priority = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s ", tp)
