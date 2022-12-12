@@ -63,7 +63,7 @@ async def test_connect(snapshot_context):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(
-    ignores=["meta.error.stack", "meta.error.msg", "meta.error.type"]
+    ignores=["meta.error.stack", "meta.error.message", "meta.error.type"]
 )  # stack is noisy between releases
 async def test_bad_connect():
     with pytest.raises(OSError):
