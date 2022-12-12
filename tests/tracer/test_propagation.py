@@ -840,17 +840,6 @@ EXTRACT_FIXTURES = [
         DATADOG_HEADERS_VALID,
         CONTEXT_EMPTY,
     ),
-    (
-        "valid_tracecontext_simple",
-        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
-        TRACECONTEXT_HEADERS_VALID_BASIC,
-        {
-            "trace_id": 11803532876627986230,
-            "span_id": 67667974448284343,
-            "sampling_priority": 2,
-            "dd_origin": "rum",
-        },
-    ),
     # B3 headers
     (
         "valid_b3_simple",
@@ -1250,9 +1239,39 @@ EXTRACT_FIXTURES = [
     ),
 ]
 
+# Only add fixtures here if they can't pass both test_propagation_extract_env
+#  and test_propagation_extract_w_config
+EXTRACT_FIXTURES_ENV_ONLY = [
+    (
+        # b3 will only override to b3multi when set via envar
+        "test_deprecated_b3_style_still_works",
+        ["b3"],
+        B3_HEADERS_VALID,
+        {
+            "trace_id": 5208512171318403364,
+            "span_id": 11744061942159299346,
+            "sampling_priority": 1,
+            "dd_origin": None,
+        },
+    ),
+    (
+        # tracecontext propagation sets additional meta data that
+        # can't be tested correctly via test_propagation_extract_w_config. It is tested separately
+        "valid_tracecontext_simple",
+        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        TRACECONTEXT_HEADERS_VALID_BASIC,
+        {
+            "trace_id": 11803532876627986230,
+            "span_id": 67667974448284343,
+            "sampling_priority": 2,
+            "dd_origin": "rum",
+        },
+    ),
+]
 
-@pytest.mark.parametrize("name,styles,headers,expected_context", EXTRACT_FIXTURES)
-def test_propagation_extract(name, styles, headers, expected_context, run_python_code_in_subprocess):
+
+@pytest.mark.parametrize("name,styles,headers,expected_context", EXTRACT_FIXTURES + EXTRACT_FIXTURES_ENV_ONLY)
+def test_propagation_extract_env(name, styles, headers, expected_context, run_python_code_in_subprocess):
     # Execute the test code in isolation to ensure env variables work as expected
     code = """
 import json
@@ -1273,7 +1292,6 @@ else:
     """.format(
         headers
     )
-
     env = os.environ.copy()
     if styles is not None:
         env["DD_TRACE_PROPAGATION_STYLE"] = ",".join(styles)
@@ -1284,12 +1302,13 @@ else:
     result = json.loads(stdout.decode())
     assert result == expected_context
 
+
+@pytest.mark.parametrize("name,styles,headers,expected_context", EXTRACT_FIXTURES)
+def test_propagation_extract_w_config(name, styles, headers, expected_context, run_python_code_in_subprocess):
     # Setting via ddtrace.config works as expected too
     # DEV: This also helps us get code coverage reporting
     overrides = {}
-    # we skip context verification for tracecontext propagation style since it adds values to meta which
-    # this testing style cannot account for. Tracecontext propagation style context values are tested separately.
-    if styles is not None and _PROPAGATION_STYLE_W3C_TRACECONTEXT not in styles:
+    if styles is not None:
         overrides["_propagation_style_extract"] = styles
         with override_global_config(overrides):
             context = HTTPPropagator.extract(headers)
