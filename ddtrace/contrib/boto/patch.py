@@ -93,7 +93,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
-        span.set_tag(http.METHOD, getattr(result, "_method"))
+        span.set_tag_str(http.METHOD, getattr(result, "_method"))
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())
@@ -157,7 +157,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         # Original func returns a boto.connection.HTTPResponse object
         result = original_func(*args, **kwargs)
         span.set_tag(http.STATUS_CODE, getattr(result, "status"))
-        span.set_tag(http.METHOD, getattr(result, "_method"))
+        span.set_tag_str(http.METHOD, getattr(result, "_method"))
 
         # set analytics sample rate
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.boto.get_analytics_sample_rate())

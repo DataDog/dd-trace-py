@@ -395,4 +395,4 @@ def _set_response_metadata_tags(span, result):
         span.set_tag("retry_attempts", response_meta["RetryAttempts"])
 
     if "RequestId" in response_meta:
-        span.set_tag("aws.requestid", response_meta["RequestId"])
+        span.set_tag_str("aws.requestid", response_meta["RequestId"])
