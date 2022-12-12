@@ -33,7 +33,7 @@ jobs:
         echo "PRIMERO ES ANTES"
         echo "ANTEST ${GITHUB_HEAD_REF}"
         echo "ANTEST222 ${GITHUB_REF##*/}"
-         echo "ANTEST3333333 ${GITHUB_REF}"
+        echo "ANTEST3333333 ${GITHUB_REF#refs/heads/}"
         echo $(echo ${GITHUB_HEAD_REF-${GITHUB_REF##*/}} | tr / -) 
         echo "DESPUES"
 
