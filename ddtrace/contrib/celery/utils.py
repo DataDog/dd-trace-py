@@ -34,7 +34,7 @@ TAG_KEYS = frozenset(
 )
 
 
-def exclude_context_filter(key, value):
+def should_skip_context_value(key, value):
     # Skip this key if it is not set
     if value is None or value == "":
         return True
@@ -55,9 +55,13 @@ def set_tags_from_context(span, context):
     # type: (Span, Dict[str, Any]) -> None
     """Helper to extract meta values from a Celery Context"""
 
-    context_tags = [
-        (tag_name, context.get(key)) for key, tag_name in TAG_KEYS if not exclude_context_filter(key, context.get(key))
-    ]
+    context_tags = []
+    for key, tag_name in TAG_KEYS:
+        value = context.get(key)
+        if should_skip_context_value(key, value):
+            continue
+
+        context_tags.append((tag_name, value))
 
     set_flattened_tags(span, context_tags)
 
