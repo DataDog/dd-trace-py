@@ -1327,14 +1327,3 @@ workflows:
       # - profile-windows-311: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
-
-  test_nightly:
-    <<: *workflow_test
-    triggers:
-      - schedule:
-          cron: "0 0 * * *"
-          filters:
-            branches:
-              only:
-                - 0.x
-                - 1.x
