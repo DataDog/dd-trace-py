@@ -37,8 +37,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "a": "b",
-         "language": "python"
+         "a": "b"
        },
        "duration": 47000,
        "start": 1631828602147987000

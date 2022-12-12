@@ -34,8 +34,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "graphql.source": "query HELLO { hello }",
-         "language": "python"
+         "graphql.source": "query HELLO { hello }"
        },
        "duration": 147000,
        "start": 1658848788444365000
@@ -50,8 +49,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "graphql.source": "query HELLO { hello }",
-         "language": "python"
+         "graphql.source": "query HELLO { hello }"
        },
        "duration": 674000,
        "start": 1658848788444620000
@@ -68,8 +66,7 @@
        "meta": {
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
-         "graphql.source": "query HELLO { hello }",
-         "language": "python"
+         "graphql.source": "query HELLO { hello }"
        },
        "duration": 399000,
        "start": 1658848788445460000

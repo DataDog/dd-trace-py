@@ -38,8 +38,7 @@
        "type": "template",
        "error": 0,
        "meta": {
-         "aiohttp.template": "/template.jinja2",
-         "language": "python"
+         "aiohttp.template": "/template.jinja2"
        },
        "duration": 4019000,
        "start": 1648585854492859000

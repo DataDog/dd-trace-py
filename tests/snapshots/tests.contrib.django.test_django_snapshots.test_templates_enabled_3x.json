@@ -299,8 +299,7 @@
                                         "error": 0,
                                         "meta": {
                                           "django.template.engine.class": "django.template.engine.Engine",
-                                          "django.template.name": "basic.html",
-                                          "language": "python"
+                                          "django.template.name": "basic.html"
                                         },
                                         "duration": 2957600,
                                         "start": 1656021933374302000

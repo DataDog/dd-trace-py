@@ -13,7 +13,6 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
-      "language": "python",
       "runtime-id": "2aff5fc210494b30af54c7548c3425fa"
     },
     "metrics": {
@@ -49,8 +48,7 @@
             "http.method": "GET",
             "http.status_code": "200",
             "http.status_msg": "OK",
-            "http.url": "http://localhost:80/",
-            "language": "python"
+            "http.url": "http://localhost:80/"
           },
           "duration": 234000,
           "start": 1665504040161066000
@@ -89,7 +87,6 @@
              "type": "",
              "error": 0,
              "meta": {
-               "language": "python",
                "result_class": "list"
              },
              "duration": 67000,
@@ -117,7 +114,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "language": "python",
          "result_class": "list_iterator"
        },
        "duration": 54000,

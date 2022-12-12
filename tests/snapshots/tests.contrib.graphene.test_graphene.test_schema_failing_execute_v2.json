@@ -36,8 +36,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "graphql.source": "{ patron { id name age } }",
-         "language": "python"
+         "graphql.source": "{ patron { id name age } }"
        },
        "duration": 225000,
        "start": 1659643443310716000
@@ -52,8 +51,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "graphql.source": "{ patron { id name age } }",
-         "language": "python"
+         "graphql.source": "{ patron { id name age } }"
        },
        "duration": 1047000,
        "start": 1659643443311052000
@@ -71,8 +69,7 @@
          "error.message": "exception was raised in a graphene query",
          "error.type": "graphql.error.base.GraphQLError",
          "graphql.operation.type": "query",
-         "graphql.source": "{ patron { id name age } }",
-         "language": "python"
+         "graphql.source": "{ patron { id name age } }"
        },
        "duration": 1877000,
        "start": 1659643443312186000

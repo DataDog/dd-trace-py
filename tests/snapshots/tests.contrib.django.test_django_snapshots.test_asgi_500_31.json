@@ -263,8 +263,7 @@
                                      "meta": {
                                        "error.message": "Error 500",
                                        "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/django/patch.py\", line 213, in wrapped\n    return func(*args, **kwargs)\n  File \"./tests/contrib/django/views.py\", line 66, in error_500\n    raise Exception(\"Error 500\")\nException: Error 500\n",
-                                       "error.type": "builtins.Exception",
-                                       "language": "python"
+                                       "error.type": "builtins.Exception"
                                      },
                                      "duration": 3377000,
                                      "start": 1633585516929318000
@@ -327,8 +326,7 @@
                                      "type": "template",
                                      "error": 0,
                                      "meta": {
-                                       "django.template.engine.class": "django.template.engine.Engine",
-                                       "language": "python"
+                                       "django.template.engine.class": "django.template.engine.Engine"
                                      },
                                      "duration": 696512000,
                                      "start": 1633585517003019000

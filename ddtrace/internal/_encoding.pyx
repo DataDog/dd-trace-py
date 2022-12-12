@@ -524,7 +524,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
 
-    cdef inline int _pack_meta(self, object meta, char *dd_origin, bool has_parent_id) except? -1:
+    cdef inline int _pack_meta(self, object meta, char *dd_origin, int has_parent_id) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -550,7 +550,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                     ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
                     if ret == 0:
                         ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
-                if not has_parent_id:
+                if has_parent_id != 1:
                     ret = pack_bytes(&self.pk, "language", 8)
                     if ret != 0: return ret
                     ret = pack_bytes(&self.pk, "python", 6)
@@ -655,7 +655,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0: return ret
-                ret = self._pack_meta(span._meta, <char *> dd_origin, <bool> has_parent_id)
+                ret = self._pack_meta(span._meta, <char *> dd_origin, <int> has_parent_id)
                 if ret != 0: return ret
 
             if has_metrics:

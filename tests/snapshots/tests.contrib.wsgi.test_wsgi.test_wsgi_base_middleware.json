@@ -36,8 +36,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "app_tag": "app test tag set",
-         "language": "python"
+         "app_tag": "app test tag set"
        },
        "metrics": {
          "app_metric": 2
@@ -55,7 +54,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "language": "python",
          "response_tag": "resp test tag set"
        },
        "metrics": {

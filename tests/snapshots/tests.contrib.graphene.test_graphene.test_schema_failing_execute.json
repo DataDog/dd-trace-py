@@ -36,8 +36,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "graphql.source": "{ patron { id name age } }",
-         "language": "python"
+         "graphql.source": "{ patron { id name age } }"
        },
        "duration": 321000,
        "start": 1659643456601818000
@@ -52,8 +51,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "graphql.source": "{ patron { id name age } }",
-         "language": "python"
+         "graphql.source": "{ patron { id name age } }"
        },
        "duration": 2488000,
        "start": 1659643456602231000
@@ -71,8 +69,7 @@
          "error.message": "exception was raised in a graphene query\n\nGraphQL request:3:7\n2 |     {\n3 |       patron {\n  |       ^\n4 |         id",
          "error.type": "graphql.error.graphql_error.GraphQLError",
          "graphql.operation.type": "query",
-         "graphql.source": "{ patron { id name age } }",
-         "language": "python"
+         "graphql.source": "{ patron { id name age } }"
        },
        "duration": 1104000,
        "start": 1659643456604870000
@@ -89,8 +86,7 @@
           "meta": {
             "error.message": "exception was raised in a graphene query",
             "error.stack": "Traceback (most recent call last):\n  File \"/Users/munir.abdinur/Documents/ApmPython/dd-trace-py/ddtrace/contrib/graphql/patch.py\", line 219, in _resolver_middleware\n    return next_middleware(root, info, **args)\n  File \"/Users/munir.abdinur/Documents/ApmPython/dd-trace-py/tests/contrib/graphene/test_graphene.py\", line 26, in resolve_patron\n    raise Exception(\"exception was raised in a graphene query\")\nException: exception was raised in a graphene query\n",
-            "error.type": "builtins.Exception",
-            "language": "python"
+            "error.type": "builtins.Exception"
           },
           "duration": 757000,
           "start": 1659643456605007000

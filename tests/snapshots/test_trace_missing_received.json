@@ -28,9 +28,6 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "meta": {
-         "language": "python"
-       },
        "duration": 11000,
        "start": 1633030777324740000
      }]]

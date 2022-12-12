@@ -36,8 +36,7 @@
          "http.method": "GET",
          "http.status_code": "200",
          "http.status_msg": "OK",
-         "http.url": "http://localhost:8001/status/200",
-         "language": "python"
+         "http.url": "http://localhost:8001/status/200"
        },
        "duration": 5716000,
        "start": 1646794413226273000

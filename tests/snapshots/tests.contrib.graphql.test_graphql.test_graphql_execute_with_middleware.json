@@ -33,8 +33,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "graphql.source": "query HELLO { hello }",
-         "language": "python"
+         "graphql.source": "query HELLO { hello }"
        },
        "metrics": {
          "_dd.top_level": 1
@@ -54,8 +53,7 @@
        "meta": {
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
-         "graphql.source": "query HELLO { hello }",
-         "language": "python"
+         "graphql.source": "query HELLO { hello }"
        },
        "metrics": {
          "_dd.top_level": 1
@@ -99,8 +97,7 @@
        "meta": {
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
-         "graphql.source": "query HELLO { hello }",
-         "language": "python"
+         "graphql.source": "query HELLO { hello }"
        },
        "metrics": {
          "_dd.top_level": 1

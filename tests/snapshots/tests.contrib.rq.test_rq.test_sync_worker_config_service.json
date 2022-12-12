@@ -40,7 +40,6 @@
          "job.id": "f50905a0-6b45-4942-bf8a-d64291eac28e",
          "job.origin": "q",
          "job.status": "finished",
-         "language": "python",
          "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
        },
        "metrics": {
@@ -62,8 +61,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "job.id": "f50905a0-6b45-4942-bf8a-d64291eac28e",
-            "language": "python"
+            "job.id": "f50905a0-6b45-4942-bf8a-d64291eac28e"
           },
           "duration": 1644000,
           "start": 1632150771021906000

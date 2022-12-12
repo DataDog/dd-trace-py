@@ -78,6 +78,8 @@ class _EncoderBase(object):
 
         if span._meta:
             d["meta"] = span._meta
+            if not d["parent_id"] or d["parent_id"] == 0:
+                d["meta"]["language"] = "python"
 
         if span._metrics:
             d["metrics"] = span._metrics

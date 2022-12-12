@@ -46,7 +46,6 @@
          "grpc.method.name": "Handler",
          "grpc.method.path": "/Servicer/Handler",
          "grpc.method.service": "Servicer",
-         "language": "python",
          "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
          "span.kind": "server"
        },
@@ -108,7 +107,6 @@
          "grpc.method.package": "pkg",
          "grpc.method.path": "/pkg.Servicer/Handler",
          "grpc.method.service": "Servicer",
-         "language": "python",
          "runtime-id": "caedab5f1c2241329f6c693d7fa2c4e7",
          "span.kind": "server"
        },

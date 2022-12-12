@@ -34,8 +34,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "boop": "beep",
-         "language": "python"
+         "boop": "beep"
        },
        "duration": 11000,
        "start": 1631827407294827000

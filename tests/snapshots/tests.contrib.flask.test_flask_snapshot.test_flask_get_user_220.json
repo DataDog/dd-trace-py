@@ -18,6 +18,7 @@
       "http.status_code": "200",
       "http.url": "http://0.0.0.0:8000/identify",
       "http.useragent": "python-requests/2.28.1",
+      "language": "python",
       "runtime-id": "de444aea42b64d7cbcc09d475741421e",
       "usr.email": "usr.email",
       "usr.id": "usr.id",

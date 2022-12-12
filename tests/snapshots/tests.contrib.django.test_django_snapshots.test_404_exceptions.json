@@ -306,8 +306,7 @@
                                      "type": "template",
                                      "error": 0,
                                      "meta": {
-                                       "django.template.engine.class": "django.template.engine.Engine",
-                                       "language": "python"
+                                       "django.template.engine.class": "django.template.engine.Engine"
                                      },
                                      "duration": 150000,
                                      "start": 1633584864929684000

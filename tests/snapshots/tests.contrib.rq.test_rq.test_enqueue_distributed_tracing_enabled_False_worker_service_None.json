@@ -36,8 +36,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "job.id": "cb601426-9ba6-4ff7-baff-4af051664698",
-         "language": "python"
+         "job.id": "cb601426-9ba6-4ff7-baff-4af051664698"
        },
        "duration": 3202000,
        "start": 1632150774369990000

@@ -36,8 +36,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "graphql.source": "{ invalid_schema }",
-         "language": "python"
+         "graphql.source": "{ invalid_schema }"
        },
        "duration": 112000,
        "start": 1658848788529771000
@@ -54,8 +53,7 @@
        "meta": {
          "error.message": "Cannot query field \"invalid_schema\" on type \"RootQueryType\".",
          "error.type": "graphql.error.base.GraphQLError",
-         "graphql.source": "{ invalid_schema }",
-         "language": "python"
+         "graphql.source": "{ invalid_schema }"
        },
        "duration": 768000,
        "start": 1658848788530031000

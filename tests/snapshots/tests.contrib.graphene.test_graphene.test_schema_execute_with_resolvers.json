@@ -34,8 +34,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "graphql.source": "{ patron { id name age } }",
-         "language": "python"
+         "graphql.source": "{ patron { id name age } }"
        },
        "duration": 319000,
        "start": 1659643443277207000
@@ -50,8 +49,7 @@
        "type": "graphql",
        "error": 0,
        "meta": {
-         "graphql.source": "{ patron { id name age } }",
-         "language": "python"
+         "graphql.source": "{ patron { id name age } }"
        },
        "duration": 1043000,
        "start": 1659643443277626000
@@ -67,8 +65,7 @@
        "error": 0,
        "meta": {
          "graphql.operation.type": "query",
-         "graphql.source": "{ patron { id name age } }",
-         "language": "python"
+         "graphql.source": "{ patron { id name age } }"
        },
        "duration": 1093000,
        "start": 1659643443278749000

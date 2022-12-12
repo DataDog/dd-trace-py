@@ -38,7 +38,6 @@
        "type": "sql",
        "error": 0,
        "meta": {
-         "language": "python",
          "sql.db": "test.db"
        },
        "metrics": {
@@ -89,7 +88,6 @@
        "type": "sql",
        "error": 0,
        "meta": {
-         "language": "python",
          "sql.db": "test.db"
        },
        "metrics": {

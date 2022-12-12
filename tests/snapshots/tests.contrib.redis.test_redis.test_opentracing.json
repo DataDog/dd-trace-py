@@ -33,7 +33,6 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "language": "python",
          "out.host": "localhost",
          "redis.raw_command": "GET cheese"
        },

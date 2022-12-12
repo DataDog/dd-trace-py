@@ -61,7 +61,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "language": "python",
          "result_class": "list"
        },
        "duration": 21000,

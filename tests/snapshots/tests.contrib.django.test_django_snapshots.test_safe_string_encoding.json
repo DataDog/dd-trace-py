@@ -333,8 +333,7 @@
                                         "error": 0,
                                         "meta": {
                                           "django.template.engine.class": "django.template.engine.Engine",
-                                          "django.template.name": "cached_list.html",
-                                          "language": "python"
+                                          "django.template.name": "cached_list.html"
                                         },
                                         "duration": 2089000,
                                         "start": 1633584842771608000
@@ -350,8 +349,7 @@
                                            "error": 0,
                                            "meta": {
                                              "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
-                                             "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
-                                             "language": "python"
+                                             "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e"
                                            },
                                            "duration": 214000,
                                            "start": 1633584842773402000

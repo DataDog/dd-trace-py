@@ -33,7 +33,6 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "language": "python",
          "out.host": "127.0.0.1",
          "redis.raw_command": "SET blah boo"
        },
@@ -57,7 +56,6 @@
        "type": "redis",
        "error": 0,
        "meta": {
-         "language": "python",
          "out.host": "127.0.0.1",
          "redis.raw_command": "GET blah"
        },

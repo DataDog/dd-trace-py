@@ -49,7 +49,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "language": "python",
          "result_class": "generator"
        },
        "duration": 1702000,

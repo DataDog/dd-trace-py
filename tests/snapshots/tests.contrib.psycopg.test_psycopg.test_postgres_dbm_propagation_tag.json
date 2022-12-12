@@ -14,6 +14,7 @@
       "db.application": "None",
       "db.name": "postgres",
       "db.user": "postgres",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d"
     },
@@ -47,6 +48,7 @@
       "db.application": "None",
       "db.name": "postgres",
       "db.user": "postgres",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d",
       "sql.executemany": "true"
@@ -81,6 +83,7 @@
       "db.application": "None",
       "db.name": "postgres",
       "db.user": "postgres",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d"
     },
@@ -114,6 +117,7 @@
       "db.application": "None",
       "db.name": "postgres",
       "db.user": "postgres",
+      "language": "python",
       "out.host": "127.0.0.1",
       "runtime-id": "6759aca0ce8d4ff6a328ff125e50c51d",
       "sql.executemany": "true"
