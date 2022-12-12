@@ -135,8 +135,7 @@ below:
 
            Example for domain name: ``DD_AGENT_HOST=host``
      version_added:
-       v0.17.0:
-       v1.7.0: IPv6 support added
+        v1.7.0:
 
    DD_TRACE_AGENT_URL:
      type: URL
