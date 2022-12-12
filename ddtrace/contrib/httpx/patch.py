@@ -24,8 +24,6 @@ if typing.TYPE_CHECKING:
     from ddtrace import Span
     from ddtrace.vendor.wrapt import BoundFunctionWrapper
 
-HTTPX_VERSION = tuple(map(int, httpx.__version__.split(".")))
-
 config._add(
     "httpx",
     {
