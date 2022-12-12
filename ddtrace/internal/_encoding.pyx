@@ -641,16 +641,16 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 ret = pack_text(&self.pk, span.span_type)
                 if ret != 0: return ret
 
-            ret = pack_bytes(&self.pk, <char *> b"meta", 4)
-            if ret != 0: return ret
-            ret = pack_bytes(&self.pk, <char *> b"language", 8)
-            if ret != 0: return ret
-            ret = pack_bytes(&self.pk, <char *> b"python", 6)
-            if ret != 0: return ret
-
             if has_meta:
+                ret = pack_bytes(&self.pk, <char *> b"meta", 4)
+                if ret != 0: return ret
                 ret = self._pack_meta(span._meta, <char *> dd_origin)
                 if ret != 0: return ret
+                if not has_parent_id:
+                    ret = pack_bytes(span._meta, <char *> b"language", 8)
+                    if ret != 0: return ret
+                    ret = pack_bytes(span._meta, <char *> b"python", 6)
+                    if ret != 0: return ret
 
             if has_metrics:
                 ret = pack_bytes(&self.pk, <char *> b"metrics", 7)
@@ -717,8 +717,8 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
         
-        _ = span.parent_id
-        ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
+        parent = span.parent_id
+        ret = msgpack_pack_uint64(&self.pk, parent if parent is not None else 0)
         if ret != 0: return ret
         
         _ = span.start_ns
@@ -728,13 +728,20 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         _ = span.duration_ns
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.error
         ret = msgpack_pack_int32(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
 
-        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL))
+        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (parent is None))
         if ret != 0: return ret
+
+        if parent is None:
+            ret = self._pack_string('language')
+            if ret != 0: return ret
+            ret = self._pack_string('python')
+            if ret != 0: return ret
+
         if span._meta:
             for k, v in span._meta.items():
                 ret = self._pack_string(k)
