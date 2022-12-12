@@ -156,6 +156,9 @@ IF UNAME_SYSNAME != "Windows" and PY_MAJOR_VERSION >= 3 and PY_MINOR_VERSION >= 
     from cpython.pythread cimport PyThread_type_lock
     from cpython.pythread cimport WAIT_LOCK
 
+    IF PY_MINOR_VERSION >= 11:
+        from cpython.ref cimport Py_XDECREF
+
     cdef extern from "<Python.h>":
         # This one is provided as an opaque struct from Cython's cpython/pystate.pxd,
         # but we need to access some of its fields so we redefine it here.
@@ -246,13 +249,14 @@ cdef collect_threads(thread_id_ignore_list, thread_time, thread_span_links) with
                             if frame:
                                 running_threads[tstate.thread_id] = <object>frame
                             exc_info = _PyErr_GetTopmostException(tstate)
-                            if exc_info and exc_info.exc_value:
+                            if exc_info and exc_info.exc_value and <object> exc_info.exc_value is not None:
                                 # Python 3.11 removed exc_type, exc_traceback from exception representations,
                                 # can instead derive exc_type and exc_traceback from remaining exc_value field
                                 exc_type = Py_TYPE(exc_info.exc_value)
                                 exc_tb = PyException_GetTraceback(exc_info.exc_value)
-                                if exc_type and exc_tb:
+                                if exc_tb:
                                     current_exceptions[tstate.thread_id] = (<object>exc_type, <object>exc_tb)
+                                Py_XDECREF(exc_tb)
                         ELSE:
                             frame = tstate.frame
                             if frame:

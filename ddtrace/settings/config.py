@@ -8,8 +8,11 @@ from typing import Tuple
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.constants import IAST_ENV
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
+from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.logger import get_logger
 from ..internal.utils.formats import asbool
@@ -46,8 +49,9 @@ def _parse_propagation_styles(name, default):
     The allowed values are:
 
     - "datadog"
-    - "b3"
+    - "b3multi"
     - "b3 single header"
+    - "none"
 
 
     The default value is ``"datadog"``.
@@ -56,10 +60,13 @@ def _parse_propagation_styles(name, default):
     Examples::
 
         # Extract and inject b3 headers:
-        DD_TRACE_PROPAGATION_STYLE="b3"
+        DD_TRACE_PROPAGATION_STYLE="b3multi"
+
+        # Disable header propagation:
+        DD_TRACE_PROPAGATION_STYLE="none"
 
         # Extract trace context from "x-datadog-*" or "x-b3-*" headers from upstream headers
-        DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3"
+        DD_TRACE_PROPAGATION_STYLE_EXTRACT="datadog,b3multi"
 
         # Inject the "b3: *" header into downstream requests headers
         DD_TRACE_PROPAGATION_STYLE_INJECT="b3 single header"
@@ -70,6 +77,14 @@ def _parse_propagation_styles(name, default):
         return None
     for style in envvar.split(","):
         style = style.strip().lower()
+        if style == "b3":
+            deprecate(
+                'Using DD_TRACE_PROPAGATION_STYLE="b3" is deprecated',
+                message="Please use 'DD_TRACE_PROPAGATION_STYLE=\"b3multi\"' instead",
+                removal_version="2.0.0",
+                category=DDTraceDeprecationWarning,
+            )
+            style = PROPAGATION_STYLE_B3
         if not style:
             continue
         if style not in PROPAGATION_STYLE_ALL:

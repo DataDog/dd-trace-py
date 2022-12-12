@@ -260,7 +260,7 @@
                                      "type": "",
                                      "error": 1,
                                      "meta": {
-                                       "error.msg": "Error 500",
+                                       "error.message": "Error 500",
                                        "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/django/patch.py\", line 213, in wrapped\n    return func(*args, **kwargs)\n  File \"./tests/contrib/django/views.py\", line 66, in error_500\n    raise Exception(\"Error 500\")\nException: Error 500\n",
                                        "error.type": "builtins.Exception"
                                      },
