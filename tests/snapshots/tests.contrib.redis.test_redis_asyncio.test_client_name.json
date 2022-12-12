@@ -6,6 +6,8 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -16,7 +18,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 37340
+      "process_id": 37340
     },
     "duration": 1782000,
     "start": 1659992894496460000
@@ -29,6 +31,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "redis",
+       "error": 0,
        "meta": {
          "language": "python",
          "out.host": "127.0.0.1",

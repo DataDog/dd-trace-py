@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "job_on_class",
@@ -20,7 +21,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67067
+      "process_id": 67067
     },
     "duration": 5544000,
     "start": 1632150771353770000
@@ -33,6 +34,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "job.id": "ee41ad50-92e6-41ec-9a10-1b76f5f078f2",
@@ -45,7 +47,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "system.pid": 67067
+         "process_id": 67067
        },
        "duration": 10248000,
        "start": 1632150771378857000
@@ -57,6 +59,8 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "job.id": "ee41ad50-92e6-41ec-9a10-1b76f5f078f2",
             "language": "python"
@@ -73,6 +77,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "__call__",
@@ -86,7 +91,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67067
+      "process_id": 67067
     },
     "duration": 1906000,
     "start": 1632150771359518000
@@ -99,6 +104,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "job.id": "e987ec6b-9670-4fc4-8478-ea8ddc830222",
@@ -111,7 +117,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "system.pid": 67067
+         "process_id": 67067
        },
        "duration": 9641000,
        "start": 1632150771412118000
@@ -123,6 +129,8 @@
           "trace_id": 1,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "job.id": "e987ec6b-9670-4fc4-8478-ea8ddc830222",
             "language": "python"

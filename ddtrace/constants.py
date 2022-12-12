@@ -44,11 +44,11 @@ MANUAL_DROP_KEY = "manual.drop"
 MANUAL_KEEP_KEY = "manual.keep"
 
 
-ERROR_MSG = "error.msg"  # a string representing the error message
+ERROR_MSG = "error.message"  # a string representing the error message
 ERROR_TYPE = "error.type"  # a string representing the type of the error
 ERROR_STACK = "error.stack"  # a human readable version of the stack.
 
-PID = "system.pid"
+PID = "process_id"
 
 # Use this to explicitly inform the backend that a trace should be rejected and not stored.
 USER_REJECT = -1

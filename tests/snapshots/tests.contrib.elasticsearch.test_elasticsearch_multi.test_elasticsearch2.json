@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "elasticsearch",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "elasticsearch.method": "PUT",
@@ -21,7 +22,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 1305
+      "process_id": 1305
     },
     "duration": 92891900,
     "start": 1632159157368117100
@@ -35,6 +36,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "elasticsearch",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "elasticsearch.method": "DELETE",
@@ -49,7 +51,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 1305
+      "process_id": 1305
     },
     "duration": 78931600,
     "start": 1632159157461442000

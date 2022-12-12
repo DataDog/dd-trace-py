@@ -33,5 +33,5 @@ def _traced_renderer(wrapped, instance, args, kwargs):
     tracer = config[CONFIG_MIDDLEWARE]._tracer
     with tracer.trace("pylons.render") as span:
         template_name = get_argument_value(args, kwargs, 0, "template_name")
-        span.set_tag("template.name", template_name)
+        span.set_tag_str("template.name", template_name)
         return wrapped(*args, **kwargs)

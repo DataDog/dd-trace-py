@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "grpc",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "grpc.host": "::",
@@ -26,7 +27,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 4211
+      "process_id": 4211
     },
     "duration": 2526500,
     "start": 1632161554730027200
@@ -39,6 +40,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "grpc",
+       "error": 0,
        "meta": {
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
@@ -51,7 +53,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "system.pid": 4211
+         "process_id": 4211
        },
        "duration": 87500,
        "start": 1632161554732181000
@@ -65,6 +67,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "grpc",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "grpc.host": "::",
@@ -85,7 +88,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 4211
+      "process_id": 4211
     },
     "duration": 1253200,
     "start": 1632161554733222900
@@ -98,6 +101,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "grpc",
+       "error": 0,
        "meta": {
          "grpc.method.kind": "unary",
          "grpc.method.name": "Handler",
@@ -111,7 +115,7 @@
        "metrics": {
          "_dd.measured": 1,
          "_dd.top_level": 1,
-         "system.pid": 4211
+         "process_id": 4211
        },
        "duration": 72800,
        "start": 1632161554734204000

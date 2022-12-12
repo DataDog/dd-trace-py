@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "test",
@@ -25,7 +26,7 @@
       "db.rowcount": 1,
       "db.rownumber": 0,
       "out.port": 3306,
-      "system.pid": 41643
+      "process_id": 41643
     },
     "duration": 6676000,
     "start": 1651805453245648000

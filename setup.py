@@ -271,7 +271,6 @@ setup(
         "xmltodict>=0.12",
         "ipaddress; python_version<'3.7'",
         "envier",
-        "forbiddenfruit>=0.1.4",
     ]
     + bytecode,
     extras_require={

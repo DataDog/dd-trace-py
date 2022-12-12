@@ -64,11 +64,14 @@ def test_debugger_line_probe_on_instance_method():
     )
 
     (snapshot,) = snapshots
-    assert snapshot["message"] in ("instancestuff(self=Stuff(), bar=None)", "instancestuff(bar=None, self=Stuff())")
+    assert snapshot["message"] in (
+        "instancestuff(self=Stuff(), bar=None)",
+        "instancestuff(bar=None, self=Stuff())",
+    ), snapshot["message"]
+
     captures = snapshot["debugger.snapshot"]["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
-    assert captures["fields"] == {}
     assert snapshot["debugger.snapshot"]["duration"] is None
 
 
@@ -89,7 +92,6 @@ def test_debugger_line_probe_on_imported_module_function():
     captures = snapshot["debugger.snapshot"]["captures"]["lines"][str(lineno)]
     assert set(captures["arguments"].keys()) == {"snafu"}
     assert captures["locals"] == {}
-    assert captures["fields"] == {}
 
 
 @pytest.mark.parametrize(
@@ -231,20 +233,18 @@ def test_debugger_function_probe_on_instance_method():
 
     (snapshot,) = snapshots
     assert snapshot["message"] in (
-        "Stuff.instancestuff(self=Stuff(), bar=42)",
-        "Stuff.instancestuff(bar=42, self=Stuff())",
+        "Stuff.instancestuff(self=Stuff(), bar=42)\n@return=42",
+        "Stuff.instancestuff(bar=42, self=Stuff())\n@return=42",
     )
 
     entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
     assert set(entry_capture["arguments"].keys()) == {"self", "bar"}
     assert entry_capture["locals"] == {}
-    assert entry_capture["fields"] == {}
     assert entry_capture["throwable"] is None
 
     return_capture = snapshot["debugger.snapshot"]["captures"]["return"]
     assert set(return_capture["arguments"].keys()) == {"self", "bar"}
     assert set(return_capture["locals"].keys()) == {"@return"}
-    assert return_capture["fields"] == {}
     assert return_capture["throwable"] is None
 
 
@@ -267,13 +267,11 @@ def test_debugger_function_probe_on_function_with_exception():
     entry_capture = snapshot["debugger.snapshot"]["captures"]["entry"]
     assert entry_capture["arguments"] == {}
     assert entry_capture["locals"] == {}
-    assert entry_capture["fields"] == {}
     assert entry_capture["throwable"] is None
 
     return_capture = snapshot["debugger.snapshot"]["captures"]["return"]
     assert return_capture["arguments"] == {}
     assert return_capture["locals"] == {}
-    assert return_capture["fields"] == {}
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"
 
@@ -315,7 +313,6 @@ def test_debugger_conditional_line_probe_on_instance_method():
     captures = snapshot["debugger.snapshot"]["captures"]["lines"]["36"]
     assert set(captures["arguments"].keys()) == {"self", "bar"}
     assert captures["locals"] == {}
-    assert captures["fields"] == {}
 
 
 def test_debugger_invalid_line():
@@ -698,7 +695,7 @@ def test_debugger_function_probe_duration(duration):
         durationstuff(duration)
 
         (snapshot,) = d.test_queue
-        assert 0.9 * duration <= snapshot.duration <= 2.5 * duration, snapshot
+        assert 0.9 * duration <= snapshot.duration <= 10.0 * duration, snapshot
 
 
 def test_debugger_condition_eval_then_rate_limit():

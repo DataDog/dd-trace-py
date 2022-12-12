@@ -6,6 +6,8 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "language": "python",
@@ -16,7 +18,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2,
-      "system.pid": 7058
+      "process_id": 7058
     },
     "duration": 61125,
     "start": 1657658221605847634
@@ -28,9 +30,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "meta": {
-         "language": "python"
-       },
+       "type": "",
+       "error": 0,
        "metrics": {
          "_dd.span_sampling.mechanism": 8
        },

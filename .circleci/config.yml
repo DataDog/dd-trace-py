@@ -62,7 +62,7 @@ commands:
   setup_tox:
     description: "Install tox"
     steps:
-      - run: pip install -U tox
+      - run: pip install -U "tox<4"
 
   setup_riot:
     description: "Install riot"
@@ -159,22 +159,22 @@ commands:
 
                 command: |
                   mv .riot .ddriot
-                  riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY ./scripts/ddtest riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'
+                  riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 ./scripts/ddtest riot -v run --exitfirst --pass-env -s
       - unless:
           condition:
               << parameters.snapshot >>
           steps:
+            - setup_riot
             - when:
                 condition:
                   << parameters.wait >>
                 steps:
-                  - setup_tox
                   - run:
                       name: "Waiting for << parameters.wait >>"
-                      command: tox -e 'wait' << parameters.wait >>
-            - setup_riot
+                      command: riot -v run 'wait' << parameters.wait >>
+
             - run:
-                command: "riot list -i '<<parameters.pattern>>' | circleci tests split | xargs -I PY riot -v run --python=PY --exitfirst --pass-env -s '<< parameters.pattern >>'"
+                command: "riot list --hash-only '<<parameters.pattern>>' | shuf | circleci tests split | xargs -n 1 riot -v run --exitfirst --pass-env -s"
       - save_pip_cache
       - when:
           condition:
@@ -201,9 +201,10 @@ commands:
           condition:
             << parameters.wait >>
           steps:
+            - setup_riot
             - run:
                 name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
+                command: riot -v run 'wait' << parameters.wait >>
       - start_docker_services:
           env: SNAPSHOT_CI=1
           services: memcached redis testagent
@@ -233,9 +234,10 @@ commands:
           condition:
             << parameters.wait >>
           steps:
+            - setup_riot
             - run:
                 name: "Waiting for << parameters.wait >>"
-                command: tox -e 'wait' << parameters.wait >>
+                command: riot -v run 'wait' << parameters.wait >>
       - run:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
@@ -311,8 +313,14 @@ jobs:
           name: "Codespell check"
           command: riot run -s codespell
       - run:
+          name: "Run riotfile.py tests"
+          command: riot run -s riot-helpers
+      - run:
           name: "Test agent snapshot check"
           command: riot run -s snapshot-fmt && git diff --exit-code
+      - run:
+          name: "Run scripts/*.py tests"
+          command: riot run -s scripts
 
   ccheck:
     executor: cimg_base
@@ -365,12 +373,6 @@ jobs:
       - checkout
       - setup_riot
       - run:
-          name: "Run riotfile.py tests"
-          command: riot run -s riot-helpers
-      - run:
-          name: "Run scripts/*.py tests"
-          command: riot run -s scripts
-      - run:
           name: "Generate base virtual environments."
           # DEV: riot list -i tracer lists all supported Python versions
           command: "riot list -i tracer | circleci tests split | xargs -I PY riot -v generate --python=PY"
@@ -420,10 +422,9 @@ jobs:
 
   opentracer:
     <<: *contrib_job
-    parallelism: 8
     steps:
-      - run_tox_scenario:
-          pattern: '^py.\+-opentracer'
+      - run_test:
+          pattern: 'opentracer'
 
   # Building gevent (for which we never want wheels because they crash)
   # on Python 2.7 requires Microsoft Visual C++ 9.0 which is not installed. :(
@@ -432,6 +433,8 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   # This is the number of tox envs for this job
+  #   parallelism: 4
   #   steps:
   #     - run: choco install python2
   #     - run_tox_scenario:
@@ -442,6 +445,8 @@ jobs:
     executor:
       name: win/default
       shell: bash.exe
+    # This is the number of tox envs for this job
+    parallelism: 4
     steps:
       - run: choco install -y python --version=3.5.4 --side-by-side
       - run_tox_scenario:
@@ -452,6 +457,8 @@ jobs:
     executor:
       name: win/default
       shell: bash.exe
+    # This is the number of tox envs for this job
+    parallelism: 4
     steps:
       - run: choco install -y python --version=3.6.8 --side-by-side
       - run_tox_scenario:
@@ -463,6 +470,8 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   # This is the number of tox envs for this job
+  #   parallelism: 5
   #   steps:
   #     - run: choco install python --version=3.7.9
   #     - run_tox_scenario:
@@ -474,6 +483,8 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   # This is the number of tox envs for this job
+  #   parallelism: 5
   #   steps:
   #     - run: choco install -y python --version=3.8.10 --side-by-side
   #     - run_tox_scenario:
@@ -485,6 +496,8 @@ jobs:
   #   executor:
   #     name: win/default
   #     shell: bash.exe
+  #   # This is the number of tox envs for this job
+  #   parallelism: 5
   #   steps:
   #     - run: choco install -y python --version=3.9.12 --side-by-side
   #     - run_tox_scenario:
@@ -495,33 +508,32 @@ jobs:
     executor:
       name: win/default
       shell: bash.exe
+    # This is the number of tox envs for this job
+    parallelism: 5
     steps:
       # circleci/windows@5.0 orb includes python 3.10.6
       - run_tox_scenario:
           store_coverage: false
           pattern: '^py310-profile'
 
+  profile-windows-311:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install -y python --version=3.11.0 --side-by-side
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py311-profile'
+
   profile:
     <<: *contrib_job
     resource_class: large
-    parallelism: 7
+    parallelism: 15
     steps:
       - run_tox_scenario:
           store_coverage: false
           pattern: '^py.\+-profile'
-
-  integration_agent5:
-    <<: *machine_executor
-    steps:
-      - attach_workspace:
-          at: .
-      - checkout
-      - start_docker_services:
-          services: ddagent5
-      - run:
-          command: |
-            mv .riot .ddriot
-            ./scripts/ddtest riot -v run --pass-env -s 'integration-v5'
 
   integration_agent:
     <<: *machine_executor
@@ -560,12 +572,6 @@ jobs:
       - run_test:
           pattern: 'vendor'
 
-  futures:
-    <<: *contrib_job_small
-    steps:
-      - run_tox_scenario:
-          pattern: '^futures_contrib-'
-
   boto:
     <<: *machine_executor
     parallelism: 4
@@ -591,11 +597,11 @@ jobs:
       - run_test:
           pattern: 'test_logging'
 
-  asyncio:
+  stdlib:
     <<: *contrib_job_small
     steps:
-      - run_tox_scenario:
-          pattern: '^asyncio_contrib-'
+      - run_test:
+          pattern: 'asyncio$|sqlite3$|futures$|dbapi$'
 
   asyncpg:
     <<: *machine_executor
@@ -629,14 +635,14 @@ jobs:
   tornado:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^tornado_contrib-'
+      - run_test:
+          pattern: 'tornado'
 
   bottle:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^bottle_contrib\(_autopatch\)\?-'
+      - run_test:
+          pattern: 'bottle'
 
   cassandra:
     <<: *contrib_job
@@ -678,14 +684,14 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *consul_image
     steps:
-      - run_tox_scenario:
-          pattern: '^consul_contrib-'
+      - run_test:
+          pattern: 'consul'
 
   dogpile_cache:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^dogpile_contrib-'
+      - run_test:
+          pattern: 'dogpile_cache'
 
   elasticsearch:
     <<: *machine_executor
@@ -704,7 +710,7 @@ jobs:
 
   django:
     <<: *machine_executor
-    parallelism: 6
+    parallelism: 8
     steps:
       - run_test:
           pattern: 'django$'
@@ -750,8 +756,8 @@ jobs:
     <<: *contrib_job
     parallelism: 8
     steps:
-      - run_tox_scenario:
-          pattern: '^gevent_contrib-'
+      - run_test:
+          pattern: 'gevent'
 
   graphene:
     <<: *machine_executor
@@ -785,6 +791,7 @@ jobs:
 
   httpx:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'httpx'
@@ -802,8 +809,8 @@ jobs:
   molten:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^molten_contrib-'
+      - run_test:
+          pattern: 'molten'
 
   mysqlconnector:
     <<: *contrib_job
@@ -821,9 +828,9 @@ jobs:
       - image: *ddtrace_dev_image
       - *mysql_server
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: mysql
-          pattern: '^mysqldb_contrib-.*-mysqlclient'
+          pattern: 'mysqldb'
 
   pymysql:
     <<: *contrib_job
@@ -841,11 +848,12 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *memcached_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pylibmc_contrib-'
+      - run_test:
+          pattern: 'pylibmc'
 
   pytest:
     executor: ddtrace_dev
+    parallelism: 8
     steps:
       - run_test:
           pattern: 'pytest$'
@@ -873,7 +881,7 @@ jobs:
 
   mongoengine:
     <<: *machine_executor
-    parallelism: 1
+    parallelism: 4
     steps:
       - run_test:
           pattern: 'mongoengine'
@@ -900,8 +908,8 @@ jobs:
     docker:
       - image: *ddtrace_dev_image
     steps:
-      - run_tox_scenario:
-          pattern: '^pyodbc_contrib-'
+      - run_test:
+          pattern: 'pyodbc'
 
   pyramid:
     <<: *machine_executor
@@ -919,14 +927,9 @@ jobs:
       - run_test:
           pattern: "requests"
 
-  requestsgevent:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^requests_gevent_contrib-'
-
   sanic:
     <<: *machine_executor
+    parallelism: 4
     steps:
       - run_test:
           pattern: "sanic"
@@ -957,12 +960,6 @@ jobs:
       - run_test:
           wait: postgres mysql
           pattern: "sqlalchemy"
-
-  dbapi:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^dbapi_contrib-'
 
   psycopg:
     <<: *machine_executor
@@ -1090,15 +1087,9 @@ jobs:
       - image: *ddtrace_dev_image
       - image: *rabbitmq_image
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: rabbitmq
-          pattern: '^kombu_contrib-'
-
-  sqlite3:
-    <<: *contrib_job
-    steps:
-      - run_tox_scenario:
-          pattern: '^sqlite3_contrib-'
+          pattern: 'kombu'
 
   benchmarks:
     <<: *contrib_job
@@ -1122,8 +1113,8 @@ jobs:
   algoliasearch:
     <<: *contrib_job
     steps:
-      - run_tox_scenario:
-          pattern: '^algoliasearch_contrib-'
+      - run_test:
+          pattern: 'algoliasearch'
 
   build_docs:
     # build documentation and store as an artifact
@@ -1157,7 +1148,6 @@ requires_tests: &requires_tests
     - aiomysql
     - aiopg
     - aioredis
-    - asyncio
     - asyncpg
     - algoliasearch
     - asgi
@@ -1168,7 +1158,6 @@ requires_tests: &requires_tests
     - celery
     - cherrypy
     - consul
-    - dbapi
     - ddtracerun
     - dogpile_cache
     - django
@@ -1178,13 +1167,11 @@ requires_tests: &requires_tests
     - falcon
     - fastapi
     - flask
-    - futures
     - gevent
     - graphql
     - grpc
     - httplib
     - httpx
-    - integration_agent5
     - integration_agent
     - integration_testagent
     - vendor
@@ -1219,8 +1206,8 @@ requires_tests: &requires_tests
     - sanic
     - snowflake
     - sqlalchemy
-    - sqlite3
     - starlette
+    - stdlib
     - test_logging
     - tracer
     - telemetry
@@ -1231,12 +1218,13 @@ requires_tests: &requires_tests
     - vertica
     - wsgi
     # - profile-windows-27
-    - profile-windows-35
-    - profile-windows-36
+    # - profile-windows-35
+    # - profile-windows-36
     # - profile-windows-37
     # - profile-windows-38
     # - profile-windows-39
-    - profile-windows-310
+    # - profile-windows-310
+    # - profile-windows-311
 
 workflows:
   version: 2
@@ -1258,7 +1246,6 @@ workflows:
       - aiomysql: *requires_base_venvs
       - aiopg: *requires_base_venvs
       - aioredis: *requires_base_venvs
-      - asyncio: *requires_base_venvs
       - asyncpg: *requires_base_venvs
       - algoliasearch: *requires_base_venvs
       - asgi: *requires_base_venvs
@@ -1269,7 +1256,6 @@ workflows:
       - celery: *requires_base_venvs
       - cherrypy: *requires_base_venvs
       - consul: *requires_base_venvs
-      - dbapi: *requires_base_venvs
       - ddtracerun: *requires_base_venvs
       - django: *requires_base_venvs
       - django_hosts: *requires_base_venvs
@@ -1279,14 +1265,12 @@ workflows:
       - falcon: *requires_base_venvs
       - fastapi: *requires_base_venvs
       - flask: *requires_base_venvs
-      - futures: *requires_base_venvs
       - gevent: *requires_base_venvs
       - graphene: *requires_base_venvs
       - graphql: *requires_base_venvs
       - grpc: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
-      - integration_agent5: *requires_base_venvs
       - integration_agent: *requires_base_venvs
       - integration_testagent: *requires_base_venvs
       - internal: *requires_base_venvs
@@ -1322,8 +1306,8 @@ workflows:
       - sanic: *requires_base_venvs
       - snowflake: *requires_base_venvs
       - starlette: *requires_base_venvs
+      - stdlib: *requires_base_venvs
       - sqlalchemy: *requires_base_venvs
-      - sqlite3: *requires_base_venvs
       - test_logging: *requires_base_venvs
       - tornado: *requires_base_venvs
       - tracer: *requires_base_venvs
@@ -1334,22 +1318,12 @@ workflows:
       - vertica: *requires_base_venvs
       - wsgi: *requires_base_venvs
       # - profile-windows-27: *requires_pre_check
-      - profile-windows-35: *requires_pre_check
-      - profile-windows-36: *requires_pre_check
+      # - profile-windows-35: *requires_pre_check
+      # - profile-windows-36: *requires_pre_check
       # - profile-windows-37: *requires_pre_check
       # - profile-windows-38: *requires_pre_check
       # - profile-windows-39: *requires_pre_check
-      - profile-windows-310: *requires_pre_check
+      # - profile-windows-310: *requires_pre_check
+      # - profile-windows-311: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
-
-  test_nightly:
-    <<: *workflow_test
-    triggers:
-      - schedule:
-          cron: "0 0 * * *"
-          filters:
-            branches:
-              only:
-                - 0.x
-                - 1.x

@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "django.request.class": "django.core.handlers.asgi.ASGIRequest",
@@ -28,7 +29,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 909
+      "process_id": 909
     },
     "duration": 41514500,
     "start": 1656021988885007500
@@ -40,9 +41,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "meta": {
-         "language": "python"
-       },
+       "type": "",
+       "error": 0,
        "duration": 41211300,
        "start": 1656021988885117000
      },
@@ -53,9 +53,8 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "meta": {
-            "language": "python"
-          },
+          "type": "",
+          "error": 0,
           "duration": 55700,
           "start": 1656021988885139100
         },
@@ -66,9 +65,8 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
-          "meta": {
-            "language": "python"
-          },
+          "type": "",
+          "error": 0,
           "duration": 41008500,
           "start": 1656021988885241100
         },
@@ -79,9 +77,8 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 4,
-             "meta": {
-               "language": "python"
-             },
+             "type": "",
+             "error": 0,
              "duration": 54300,
              "start": 1656021988885276900
            },
@@ -92,9 +89,8 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 4,
-             "meta": {
-               "language": "python"
-             },
+             "type": "",
+             "error": 0,
              "duration": 40785500,
              "start": 1656021988885367800
            },
@@ -105,9 +101,8 @@
                 "trace_id": 0,
                 "span_id": 9,
                 "parent_id": 7,
-                "meta": {
-                  "language": "python"
-                },
+                "type": "",
+                "error": 0,
                 "duration": 25500,
                 "start": 1656021988885402800
               },
@@ -118,9 +113,8 @@
                 "trace_id": 0,
                 "span_id": 10,
                 "parent_id": 7,
-                "meta": {
-                  "language": "python"
-                },
+                "type": "",
+                "error": 0,
                 "duration": 40546700,
                 "start": 1656021988885461200
               },
@@ -131,9 +125,8 @@
                    "trace_id": 0,
                    "span_id": 12,
                    "parent_id": 10,
-                   "meta": {
-                     "language": "python"
-                   },
+                   "type": "",
+                   "error": 0,
                    "duration": 27600,
                    "start": 1656021988885489200
                  },
@@ -144,9 +137,8 @@
                    "trace_id": 0,
                    "span_id": 13,
                    "parent_id": 10,
-                   "meta": {
-                     "language": "python"
-                   },
+                   "type": "",
+                   "error": 0,
                    "duration": 40437600,
                    "start": 1656021988885551200
                  },
@@ -157,9 +149,8 @@
                       "trace_id": 0,
                       "span_id": 14,
                       "parent_id": 13,
-                      "meta": {
-                        "language": "python"
-                      },
+                      "type": "",
+                      "error": 0,
                       "duration": 47800,
                       "start": 1656021988885586200
                     },
@@ -170,9 +161,8 @@
                       "trace_id": 0,
                       "span_id": 15,
                       "parent_id": 13,
-                      "meta": {
-                        "language": "python"
-                      },
+                      "type": "",
+                      "error": 0,
                       "duration": 40243300,
                       "start": 1656021988885672500
                     },
@@ -183,9 +173,8 @@
                          "trace_id": 0,
                          "span_id": 17,
                          "parent_id": 15,
-                         "meta": {
-                           "language": "python"
-                         },
+                         "type": "",
+                         "error": 0,
                          "duration": 40126800,
                          "start": 1656021988885707400
                        },
@@ -196,9 +185,8 @@
                             "trace_id": 0,
                             "span_id": 19,
                             "parent_id": 17,
-                            "meta": {
-                              "language": "python"
-                            },
+                            "type": "",
+                            "error": 0,
                             "duration": 23600,
                             "start": 1656021988885816600
                           },
@@ -209,9 +197,8 @@
                             "trace_id": 0,
                             "span_id": 20,
                             "parent_id": 17,
-                            "meta": {
-                              "language": "python"
-                            },
+                            "type": "",
+                            "error": 0,
                             "duration": 39826900,
                             "start": 1656021988885869700
                           },
@@ -222,9 +209,8 @@
                                "trace_id": 0,
                                "span_id": 22,
                                "parent_id": 20,
-                               "meta": {
-                                 "language": "python"
-                               },
+                               "type": "",
+                               "error": 0,
                                "duration": 39773200,
                                "start": 1656021988885904700
                              },
@@ -235,9 +221,8 @@
                                   "trace_id": 0,
                                   "span_id": 23,
                                   "parent_id": 22,
-                                  "meta": {
-                                    "language": "python"
-                                  },
+                                  "type": "",
+                                  "error": 0,
                                   "duration": 39711700,
                                   "start": 1656021988885942700
                                 },
@@ -248,9 +233,8 @@
                                      "trace_id": 0,
                                      "span_id": 24,
                                      "parent_id": 23,
-                                     "meta": {
-                                       "language": "python"
-                                     },
+                                     "type": "",
+                                     "error": 0,
                                      "duration": 23500,
                                      "start": 1656021988886564500
                                    },
@@ -261,9 +245,8 @@
                                      "trace_id": 0,
                                      "span_id": 25,
                                      "parent_id": 23,
-                                     "meta": {
-                                       "language": "python"
-                                     },
+                                     "type": "",
+                                     "error": 0,
                                      "duration": 22100,
                                      "start": 1656021988886620300
                                    },
@@ -274,9 +257,8 @@
                                      "trace_id": 0,
                                      "span_id": 26,
                                      "parent_id": 23,
-                                     "meta": {
-                                       "language": "python"
-                                     },
+                                     "type": "",
+                                     "error": 0,
                                      "duration": 35328400,
                                      "start": 1656021988886708100
                                    },
@@ -287,9 +269,8 @@
                                      "trace_id": 0,
                                      "span_id": 27,
                                      "parent_id": 23,
-                                     "meta": {
-                                       "language": "python"
-                                     },
+                                     "type": "",
+                                     "error": 0,
                                      "duration": 23100,
                                      "start": 1656021988922117400
                                    },
@@ -300,9 +281,8 @@
                                      "trace_id": 0,
                                      "span_id": 28,
                                      "parent_id": 23,
-                                     "meta": {
-                                       "language": "python"
-                                     },
+                                     "type": "",
+                                     "error": 0,
                                      "duration": 3445800,
                                      "start": 1656021988922172500
                                    },
@@ -313,9 +293,8 @@
                             "trace_id": 0,
                             "span_id": 21,
                             "parent_id": 17,
-                            "meta": {
-                              "language": "python"
-                            },
+                            "type": "",
+                            "error": 0,
                             "duration": 35700,
                             "start": 1656021988925775400
                           },
@@ -326,9 +305,8 @@
                          "trace_id": 0,
                          "span_id": 18,
                          "parent_id": 15,
-                         "meta": {
-                           "language": "python"
-                         },
+                         "type": "",
+                         "error": 0,
                          "duration": 28800,
                          "start": 1656021988925872800
                        },
@@ -339,9 +317,8 @@
                       "trace_id": 0,
                       "span_id": 16,
                       "parent_id": 13,
-                      "meta": {
-                        "language": "python"
-                      },
+                      "type": "",
+                      "error": 0,
                       "duration": 26100,
                       "start": 1656021988925941500
                     },
@@ -352,9 +329,8 @@
                 "trace_id": 0,
                 "span_id": 11,
                 "parent_id": 7,
-                "meta": {
-                  "language": "python"
-                },
+                "type": "",
+                "error": 0,
                 "duration": 30200,
                 "start": 1656021988926035900
               },
@@ -365,9 +341,8 @@
              "trace_id": 0,
              "span_id": 8,
              "parent_id": 4,
-             "meta": {
-               "language": "python"
-             },
+             "type": "",
+             "error": 0,
              "duration": 21700,
              "start": 1656021988926219100
            },
@@ -378,9 +353,8 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 2,
-          "meta": {
-            "language": "python"
-          },
+          "type": "",
+          "error": 0,
           "duration": 33000,
           "start": 1656021988926273100
         }]]

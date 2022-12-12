@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
@@ -20,7 +21,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67067
+      "process_id": 67067
     },
     "duration": 4841000,
     "start": 1632150770804143000
@@ -33,6 +34,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "job.id": "380429de-bfb1-4967-a134-7857d94d0d42",
@@ -45,7 +47,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "system.pid": 67067
+         "process_id": 67067
        },
        "duration": 12852000,
        "start": 1632150770834874000
@@ -57,6 +59,8 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "job.id": "380429de-bfb1-4967-a134-7857d94d0d42",
             "language": "python"
@@ -73,6 +77,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
@@ -86,7 +91,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67067
+      "process_id": 67067
     },
     "duration": 3705000,
     "start": 1632150770809237000
@@ -99,6 +104,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "job.id": "898c9c2c-b587-4eb4-992e-eb5886acf9d2",
@@ -111,7 +117,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "system.pid": 67067
+         "process_id": 67067
        },
        "duration": 14460000,
        "start": 1632150770878438000
@@ -123,6 +129,8 @@
           "trace_id": 1,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "job.id": "898c9c2c-b587-4eb4-992e-eb5886acf9d2",
             "language": "python"
@@ -139,6 +147,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "job.func_name": "tests.contrib.rq.jobs.job_add1",
@@ -152,7 +161,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 67067
+      "process_id": 67067
     },
     "duration": 2661000,
     "start": 1632150770813160000
@@ -165,6 +174,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "worker",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-0",
          "job.id": "13dc2e21-6d00-41e3-95d9-27a56ced8f2f",
@@ -177,7 +187,7 @@
          "_dd.top_level": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "system.pid": 67067
+         "process_id": 67067
        },
        "duration": 14518000,
        "start": 1632150770915787000
@@ -189,6 +199,8 @@
           "trace_id": 2,
           "span_id": 3,
           "parent_id": 2,
+          "type": "",
+          "error": 0,
           "meta": {
             "job.id": "13dc2e21-6d00-41e3-95d9-27a56ced8f2f",
             "language": "python"

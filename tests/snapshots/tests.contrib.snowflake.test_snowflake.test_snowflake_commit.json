@@ -6,6 +6,8 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.application": "PythonConnector",
@@ -23,7 +25,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 443,
-      "system.pid": 79541
+      "process_id": 79541
     },
     "duration": 3395000,
     "start": 1634218666469654000

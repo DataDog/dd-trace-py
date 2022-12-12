@@ -35,6 +35,6 @@ with require_modules(required_modules) as missing_modules:
         from .patch import unpatch
 
         __all__ = [
-            patch,
-            unpatch,
+            "patch",
+            "unpatch",
         ]

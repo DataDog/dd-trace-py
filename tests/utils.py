@@ -517,7 +517,7 @@ class TestSpan(Span):
             print('matches')
 
         # Raises an AssertionError
-        span.assert_matches(name='not.my.span', meta={'system.pid': getpid()})
+        span.assert_matches(name='not.my.span', meta={'process_id': getpid()})
     """
 
     def __init__(self, span):
@@ -597,7 +597,7 @@ class TestSpan(Span):
         Example::
 
             span = TestSpan(span)
-            span.meta_matches({'system.pid': getpid()})
+            span.meta_matches({'process_id': getpid()})
 
         :param meta: Property/Value pairs to evaluate on this span
         :type meta: dict
@@ -648,7 +648,7 @@ class TestSpan(Span):
         Example::
 
             span = TestSpan(span)
-            span.assert_meta({'system.pid': getpid()})
+            span.assert_meta({'process_id': getpid()})
 
         :param meta: Property/Value pairs to evaluate on this span
         :type meta: dict
@@ -917,7 +917,7 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
         # Wait for the traces to be available
         if wait_for_num_traces is not None:
             traces = []
-            for i in range(20):
+            for i in range(50):
                 try:
                     conn.request("GET", "/test/session/traces?test_session_token=%s" % token)
                     r = conn.getresponse()
@@ -950,7 +950,9 @@ def snapshot_context(token, ignores=None, tracer=None, async_mode=True, variants
         conn.close()
 
 
-def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None):
+def snapshot(
+    ignores=None, include_tracer=False, variants=None, async_mode=True, token_override=None, wait_for_num_traces=None
+):
     """Performs a snapshot integration test with the testing agent.
 
     All traces sent to the agent will be recorded and compared to a snapshot
@@ -986,7 +988,14 @@ def snapshot(ignores=None, include_tracer=False, variants=None, async_mode=True,
             else token_override
         )
 
-        with snapshot_context(token, ignores=ignores, tracer=tracer, async_mode=async_mode, variants=variants):
+        with snapshot_context(
+            token,
+            ignores=ignores,
+            tracer=tracer,
+            async_mode=async_mode,
+            variants=variants,
+            wait_for_num_traces=wait_for_num_traces,
+        ):
             # Run the test.
             if include_tracer:
                 kwargs["tracer"] = tracer
@@ -1003,6 +1012,11 @@ class AnyStr(object):
 class AnyInt(object):
     def __eq__(self, other):
         return isinstance(other, int)
+
+
+class AnyExc(object):
+    def __eq__(self, other):
+        return isinstance(other, Exception)
 
 
 class AnyFloat(object):

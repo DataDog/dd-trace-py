@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "custom": "tag",
@@ -21,8 +22,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
-      "sql.rows": 1,
-      "system.pid": 88705
+      "process_id": 88705,
+      "sql.rows": 1
     },
     "duration": 3361000,
     "start": 1660069787100011000

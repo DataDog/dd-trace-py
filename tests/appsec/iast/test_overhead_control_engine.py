@@ -44,7 +44,7 @@ def function_with_vulnerabilities_1(tracer):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="digest works only in Python 3")
-def test_oce_max_vulnerabilities_per_request(iast_span):
+def test_oce_max_vulnerabilities_per_request(iast_span_defaults):
     import hashlib
 
     m = hashlib.md5()
@@ -53,13 +53,13 @@ def test_oce_max_vulnerabilities_per_request(iast_span):
     m.digest()
     m.digest()
     m.digest()
-    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span_defaults)
 
     assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="digest works only in Python 3")
-def test_oce_reset_vulnerabilities_report(iast_span):
+def test_oce_reset_vulnerabilities_report(iast_span_defaults):
     import hashlib
 
     m = hashlib.md5()
@@ -70,12 +70,12 @@ def test_oce_reset_vulnerabilities_report(iast_span):
     oce.vulnerabilities_reset_quota()
     m.digest()
 
-    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span)
+    span_report = _context.get_item(IAST_CONTEXT_KEY, span=iast_span_defaults)
 
     assert len(span_report.vulnerabilities) == MAX_VULNERABILITIES_PER_REQUEST + 1
 
 
-def test_oce_max_requests(tracer, iast_span):
+def test_oce_max_requests(tracer, iast_span_defaults):
     import threading
 
     results = []
@@ -100,7 +100,7 @@ def test_oce_max_requests(tracer, iast_span):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 0, 0), reason="concurrent.futures exists in Python 3")
-def test_oce_max_requests_py3(tracer, iast_span):
+def test_oce_max_requests_py3(tracer, iast_span_defaults):
     import concurrent.futures
 
     results = []

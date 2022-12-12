@@ -1,11 +1,13 @@
 [[
   {
     "name": "p",
-    "service": null,
+    "service": "",
     "resource": "p",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 5678,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-1",
       "_dd.p.test": "value",
@@ -17,18 +19,20 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 55659
+      "process_id": 55659
     },
     "duration": 4940000,
     "start": 1655133503444976000
   },
      {
        "name": "c1",
-       "service": null,
+       "service": "",
        "resource": "c1",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "_dd.p.dm": "-1",
          "_dd.p.test": "value",
@@ -44,27 +48,25 @@
      },
      {
        "name": "c2",
-       "service": null,
+       "service": "",
        "resource": "c2",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "meta": {
-         "language": "python"
-       },
+       "type": "",
+       "error": 0,
        "duration": 18000,
        "start": 1655133503445018000
      },
         {
           "name": "gc",
-          "service": null,
+          "service": "",
           "resource": "gc",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 3,
-          "meta": {
-            "language": "python"
-          },
+          "type": "",
+          "error": 0,
           "duration": 4898000,
           "start": 1655133503445029000
         }]]

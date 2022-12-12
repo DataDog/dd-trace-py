@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 1234,
     "type": "web",
+    "error": 0,
     "meta": {
       "http.method": "GET",
       "http.status_code": "200",
@@ -18,7 +19,7 @@
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "system.pid": 44623
+      "process_id": 44623
     },
     "duration": 367000,
     "start": 1665504040160945000
@@ -30,9 +31,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "meta": {
-         "language": "python"
-       },
+       "type": "",
+       "error": 0,
        "duration": 224000,
        "start": 1665504040161019000
      },
@@ -44,6 +44,7 @@
           "span_id": 4,
           "parent_id": 2,
           "type": "web",
+          "error": 0,
           "meta": {
             "http.method": "GET",
             "http.status_code": "200",
@@ -61,9 +62,8 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 4,
-             "meta": {
-               "language": "python"
-             },
+             "type": "",
+             "error": 0,
              "duration": 106000,
              "start": 1665504040161111000
            },
@@ -75,9 +75,7 @@
                 "span_id": 8,
                 "parent_id": 6,
                 "type": "web",
-                "meta": {
-                  "language": "python"
-                },
+                "error": 0,
                 "duration": 70000,
                 "start": 1665504040161140000
               },
@@ -88,6 +86,8 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 4,
+             "type": "",
+             "error": 0,
              "meta": {
                "language": "python",
                "result_class": "list"
@@ -103,9 +103,7 @@
           "span_id": 5,
           "parent_id": 2,
           "type": "web",
-          "meta": {
-            "language": "python"
-          },
+          "error": 0,
           "duration": 34000,
           "start": 1665504040161164000
         },
@@ -116,6 +114,8 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
+       "type": "",
+       "error": 0,
        "meta": {
          "language": "python",
          "result_class": "list_iterator"

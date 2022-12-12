@@ -6,6 +6,8 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -16,7 +18,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 52166
+      "process_id": 52166
     },
     "duration": 81000,
     "start": 1631827407420781000
@@ -28,9 +30,8 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "meta": {
-         "language": "python"
-       },
+       "type": "",
+       "error": 0,
        "duration": 12000,
        "start": 1631827407420838000
      }],
@@ -42,6 +43,8 @@
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "language": "python",
@@ -52,7 +55,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 52166
+      "process_id": 52166
     },
     "duration": 77000,
     "start": 1631827407415915000
@@ -64,9 +67,8 @@
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "meta": {
-         "language": "python"
-       },
+       "type": "",
+       "error": 0,
        "duration": 13000,
        "start": 1631827407415968000
      }]]

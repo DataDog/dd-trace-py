@@ -1,7 +1,16 @@
 name: Build
 
 on:
+  push:
+    branches:
+      - '[0-9].[0-9]*'
+      - '[0-9].x'
   pull_request:
+    paths:
+      - "setup.py"
+      - "**.c"
+      - "**.pyx"
+      - "ddtrace/vendor/**"
   release:
     types:
       - published
@@ -97,7 +106,7 @@ jobs:
           platforms: all
 
       - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@v2.11.2
+        uses: pypa/cibuildwheel@v2.11.3
         env:
           # configure cibuildwheel to build native archs ('auto'), and some
           # emulated ones

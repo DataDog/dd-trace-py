@@ -20,6 +20,7 @@ pip install pip --upgrade
 
 # Install austin
 pushd ${PREFIX}
+    sudo apt update
     sudo apt-get -y install libunwind-dev binutils-dev libiberty-dev
     git clone --depth=1 https://github.com/p403n1x87/austin.git -b devel
     pushd austin

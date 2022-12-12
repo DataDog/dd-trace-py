@@ -158,7 +158,7 @@ class TracerTestCases(TracerTestCase):
                     name="tests.test_tracer.f",
                     error=1,
                     meta={
-                        "error.msg": ex.message,
+                        "error.message": ex.message,
                         "error.type": ex.__class__.__name__,
                     },
                 ),
@@ -1793,10 +1793,10 @@ def test_fork_pid(tracer):
 
 def test_tracer_api_version():
     t = Tracer()
-    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
-
-    t.configure(api_version="v0.5")
     assert isinstance(t._writer._encoder, MsgpackEncoderV05)
+
+    t.configure(api_version="v0.3")
+    assert isinstance(t._writer._encoder, MsgpackEncoderV03)
 
     t.configure(api_version="v0.4")
     assert isinstance(t._writer._encoder, MsgpackEncoderV03)

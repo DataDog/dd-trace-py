@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.application": "PythonConnector",
@@ -27,8 +28,8 @@
       "_sampling_priority_v1": 1,
       "db.rowcount": 1,
       "out.port": 443,
-      "sql.rows": 1,
-      "system.pid": 88705
+      "process_id": 88705,
+      "sql.rows": 1
     },
     "duration": 3520000,
     "start": 1660069790438575000
