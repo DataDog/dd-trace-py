@@ -30,7 +30,9 @@ jobs:
         DOCKER_IMAGE_NAME=dd-lib-python-init
         DOCKER_IMAGE_NAME=$(echo ghcr.io/${GITHUB_REPOSITORY}/${DOCKER_IMAGE_NAME} | tr '[:upper:]' '[:lower:]')
         DOCKER_IMAGE_NAME_WITH_TAG=$(echo ${DOCKER_IMAGE_NAME}:${{ github.sha }} | tr '[:upper:]' '[:lower:]')
-        echo "ANTEST"
+        echo "PRIMERO ES ANTES"
+        echo "ANTEST ${GITHUB_HEAD_REF}"
+        echo "ANTEST222 ${GITHUB_REF##*/}"
         echo $(echo ${GITHUB_HEAD_REF-${GITHUB_REF##*/}} | tr / -) 
         echo "DESPUES"
 
