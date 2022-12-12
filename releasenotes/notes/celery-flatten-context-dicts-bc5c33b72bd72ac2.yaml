@@ -1,3 +1,3 @@
-featuers:
+features:
   - |
     celery: Enhances celery context tags containing dictionaries so that their contents are sent as individual tags (issue #4771)
