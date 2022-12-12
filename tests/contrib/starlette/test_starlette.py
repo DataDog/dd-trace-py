@@ -10,6 +10,7 @@ from starlette.testclient import TestClient
 import ddtrace
 from ddtrace import Pin
 from ddtrace import config
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.sqlalchemy import patch as sql_patch
 from ddtrace.contrib.sqlalchemy import unpatch as sql_unpatch
 from ddtrace.contrib.starlette import patch as starlette_patch
@@ -183,7 +184,7 @@ def test_500error(client, tracer, test_spans):
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/500"
     assert request_span.get_tag("http.status_code") == "500"
-    assert request_span.get_tag("error.msg") == "Server error"
+    assert request_span.get_tag(ERROR_MSG) == "Server error"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert 'raise RuntimeError("Server error")' in request_span.get_tag("error.stack")
 
