@@ -1,0 +1,4 @@
+---
+features:
+  - |
+      profiling: Enables code provenance by default. To keep the feature disabled use ``DD_PROFILING_ENABLE_CODE_PROVENANCE=false``.

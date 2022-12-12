@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "graphql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "bc0efee142884beb96fdb35ca56aa3dc"
@@ -30,6 +31,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
          "graphql.source": "query HELLO { hello }"
        },
@@ -44,6 +46,7 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
          "graphql.source": "query HELLO { hello }"
        },
@@ -58,6 +61,7 @@
        "span_id": 4,
        "parent_id": 1,
        "type": "graphql",
+       "error": 0,
        "meta": {
          "graphql.operation.name": "HELLO",
          "graphql.operation.type": "query",
@@ -74,6 +78,7 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
+          "error": 0,
           "duration": 33000,
           "start": 1658848788503087000
         }]]

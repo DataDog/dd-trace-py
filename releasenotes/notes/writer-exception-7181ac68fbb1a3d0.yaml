@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    tracing: The exception logged for writing errors no longer includes a long,
+    unhelpful stack trace. The message now also includes the number of traces
+    dropped and the number of retries attempted.

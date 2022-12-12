@@ -1,4 +1,5 @@
 from time import sleep
+from uuid import uuid4
 
 import pytest
 
@@ -8,7 +9,7 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import _filter_by_env_and_version
-from ddtrace.internal.compat import PY2
+from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from tests.utils import override_global_config
 
 
@@ -17,7 +18,7 @@ class MockConfig(object):
         self.probes = {}
 
     @_filter_by_env_and_version
-    def get_probes(self, _):
+    def get_probes(self, _id, _conf):
         return list(self.probes.values())
 
     def add_probes(self, probes):
@@ -30,6 +31,10 @@ class MockConfig(object):
                 del self.probes[probe_id]
             except KeyError:
                 pass
+
+
+def config_metadata(config_id=uuid4()):
+    return ConfigMetadata(config_id, product_name="LIVE_DEBUGGING", sha256_hash="hash", length=123, tuf_version=1)
 
 
 @pytest.fixture
@@ -94,12 +99,11 @@ def test_poller_env_version(env, version, expected, mock_config):
             ]
         )
 
-        ProbeRCAdapter(cb)(None, {})
+        ProbeRCAdapter(cb)(config_metadata(), {})
 
         assert set(_.probe_id for _ in probes) == expected
 
 
-@pytest.mark.xfail(PY2, reason="occasionally fails on Python 2")
 def test_poller_events(mock_config):
     events = set()
 
@@ -135,12 +139,13 @@ def test_poller_events(mock_config):
         ]
     )
 
+    metadata = config_metadata()
     old_interval = config.diagnostics_interval
     config.diagnostics_interval = 0.5
     try:
         adapter = ProbeRCAdapter(cb)
 
-        adapter(None, {})
+        adapter(metadata, {})
         mock_config.remove_probes("probe1", "probe2")
         mock_config.add_probes(
             [
@@ -162,11 +167,11 @@ def test_poller_events(mock_config):
                 ),
             ]
         )
-        adapter(None, {})
+        adapter(metadata, {})
 
         # Wait to allow the next call to the adapter to generate a status event
         sleep(0.5)
-        adapter(None, {})
+        adapter(metadata, {})
 
         assert events == {
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe4", "probe1", "probe2", "probe3"])),
@@ -175,5 +180,81 @@ def test_poller_events(mock_config):
             (ProbePollerEvent.NEW_PROBES, frozenset(["probe5"])),
             (ProbePollerEvent.STATUS_UPDATE, frozenset(["probe4", "probe2", "probe3", "probe5"])),
         }
+    finally:
+        config.diagnostics_interval = old_interval
+
+
+def test_multiple_configs():
+    events = set()
+
+    def cb(e, ps):
+        events.add((e, frozenset({p.probe_id if isinstance(p, Probe) else p for p in ps})))
+
+    def validate_events(expected):
+        assert events == expected
+        events.clear()
+
+    old_interval = config.diagnostics_interval
+    config.diagnostics_interval = 0.5
+    try:
+        adapter = ProbeRCAdapter(cb)
+
+        adapter(
+            config_metadata("snapshotProbe_probe1"),
+            {
+                "id": "probe1",
+                "active": True,
+                "tags": ["boo:far"],
+                "where": {"sourceFile": "tests/debugger/submod/stuff.py", "lines": ["36"]},
+            },
+        )
+
+        validate_events(
+            {
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe1"})),
+            }
+        )
+
+        adapter(
+            config_metadata("metricProbe_probe2"),
+            {
+                "id": "probe2",
+                "active": True,
+                "tags": ["foo:bar"],
+                "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+                "metricName": "test.counter",
+                "kind": "COUNTER",
+            },
+        )
+
+        validate_events(
+            {
+                (ProbePollerEvent.NEW_PROBES, frozenset({"probe2"})),
+            }
+        )
+
+        sleep(0.5)
+
+        # testing two things:
+        #  1. after sleep 0.5 probe status should report 2 probes
+        #  2. bad config id raises ValueError
+        with pytest.raises(ValueError):
+            adapter(config_metadata("not-supported"), {})
+
+        validate_events(
+            {
+                (ProbePollerEvent.STATUS_UPDATE, frozenset({"probe1", "probe2"})),
+            }
+        )
+
+        # remove configuration
+        adapter(config_metadata("metricProbe_probe2"), None)
+
+        validate_events(
+            {
+                (ProbePollerEvent.DELETED_PROBES, frozenset({"probe2"})),
+            }
+        )
+
     finally:
         config.diagnostics_interval = old_interval

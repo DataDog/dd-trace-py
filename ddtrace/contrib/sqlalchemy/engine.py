@@ -132,11 +132,11 @@ class EngineTracer(object):
 def _set_tags_from_url(span, url):
     """set connection tags from the url. return true if successful."""
     if url.host:
-        span.set_tag(netx.TARGET_HOST, url.host)
+        span.set_tag_str(netx.TARGET_HOST, url.host)
     if url.port:
         span.set_tag(netx.TARGET_PORT, url.port)
     if url.database:
-        span.set_tag(sqlx.DB, url.database)
+        span.set_tag_str(sqlx.DB, url.database)
 
     return bool(span.get_tag(netx.TARGET_HOST))
 

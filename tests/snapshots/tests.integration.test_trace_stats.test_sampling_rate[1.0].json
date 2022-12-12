@@ -1,11 +1,13 @@
 [[
   {
     "name": "operation",
-    "service": null,
+    "service": "",
     "resource": "operation",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "runtime-id": "f0e006790383448bbb59401cb8571391"
@@ -23,11 +25,13 @@
 [
   {
     "name": "operation",
-    "service": null,
+    "service": "",
     "resource": "operation",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "runtime-id": "f0e006790383448bbb59401cb8571391"
@@ -45,11 +49,13 @@
 [
   {
     "name": "operation",
-    "service": null,
+    "service": "",
     "resource": "operation",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "runtime-id": "f0e006790383448bbb59401cb8571391"
@@ -67,11 +73,13 @@
 [
   {
     "name": "operation",
-    "service": null,
+    "service": "",
     "resource": "operation",
     "trace_id": 3,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "runtime-id": "f0e006790383448bbb59401cb8571391"
@@ -89,11 +97,13 @@
 [
   {
     "name": "operation",
-    "service": null,
+    "service": "",
     "resource": "operation",
     "trace_id": 4,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "runtime-id": "f0e006790383448bbb59401cb8571391"
@@ -111,11 +121,13 @@
 [
   {
     "name": "operation",
-    "service": null,
+    "service": "",
     "resource": "operation",
     "trace_id": 5,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "runtime-id": "f0e006790383448bbb59401cb8571391"
@@ -133,11 +145,13 @@
 [
   {
     "name": "operation",
-    "service": null,
+    "service": "",
     "resource": "operation",
     "trace_id": 6,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "runtime-id": "f0e006790383448bbb59401cb8571391"
@@ -155,11 +169,13 @@
 [
   {
     "name": "operation",
-    "service": null,
+    "service": "",
     "resource": "operation",
     "trace_id": 7,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "runtime-id": "f0e006790383448bbb59401cb8571391"
@@ -177,11 +193,13 @@
 [
   {
     "name": "operation",
-    "service": null,
+    "service": "",
     "resource": "operation",
     "trace_id": 8,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "runtime-id": "f0e006790383448bbb59401cb8571391"
@@ -199,11 +217,13 @@
 [
   {
     "name": "operation",
-    "service": null,
+    "service": "",
     "resource": "operation",
     "trace_id": 9,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
       "runtime-id": "f0e006790383448bbb59401cb8571391"
