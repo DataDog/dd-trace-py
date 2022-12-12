@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy.exc import ProgrammingError
 
+from ddtrace.constants import ERROR_MSG
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -51,5 +52,5 @@ class MysqlConnectorTestCase(SQLAlchemyTestMixin, TracerTestCase):
         # check the error
         self.assertEqual(span.error, 1)
         self.assertEqual(span.get_tag("error.type"), "mysql.connector.errors.ProgrammingError")
-        self.assertTrue("Table 'test.a_wrong_table' doesn't exist" in span.get_tag("error.msg"))
+        self.assertTrue("Table 'test.a_wrong_table' doesn't exist" in span.get_tag(ERROR_MSG))
         self.assertTrue("Table 'test.a_wrong_table' doesn't exist" in span.get_tag("error.stack"))

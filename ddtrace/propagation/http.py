@@ -23,6 +23,9 @@ from ..internal.compat import ensure_text
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import W3C_TRACEPARENT_KEY
+from ..internal.constants import W3C_TRACESTATE_KEY
+from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
@@ -32,8 +35,6 @@ from ._utils import get_wsgi_header
 
 log = get_logger(__name__)
 
-_TRACEPARENT_KEY = "traceparent"
-_TRACESTATE_KEY = "tracestate"
 
 # HTTP headers one should set for distributed tracing.
 # These are cross-language (eg: Python, Go and other implementations should honor these)
@@ -550,9 +551,12 @@ class _TraceContext:
         traceparent header.
         """
 
-        version, trace_id_hex, span_id_hex, trace_flags_hex = tp.split("-")
+        version, trace_id_hex, span_id_hex, trace_flags_hex = tp.strip().split("-")
         # check version is a valid hexadecimal, if not it's invalid we will move on to the next prop method
         int(version, 16)
+        # https://www.w3.org/TR/trace-context/#version
+        if version == "ff":
+            raise ValueError("'ff' is an invalid traceparent version")
         # currently 00 is the only version format, but if future versions come up we may need to add changes
         if version != "00":
             log.warning("unsupported traceparent version:%r, still attempting to parse", version)
@@ -582,14 +586,14 @@ class _TraceContext:
     def _get_tracestate_values(ts):
         # type: (str) -> Tuple[Optional[int], Dict[str, str], Optional[str]]
 
-        # tracestate parsing, example: dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE
+        # tracestate parsing, example: dd=s~2;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE
         dd = None
-        ts_l = ts.split(",")
+        ts_l = ts.strip().split(",")
         for list_mem in ts_l:
             if list_mem.startswith("dd="):
                 # cut out dd= before turning into dict
                 list_mem = list_mem[3:]
-                dd = dict(item.split(":") for item in list_mem.split(";"))
+                dd = dict(item.split("~") for item in list_mem.split(";"))
 
         # parse out values
         if dd:
@@ -640,12 +644,16 @@ class _TraceContext:
             if tp is None:
                 log.debug("no traceparent header")
                 return None
+            # uppercase char in tp makes it invalid:
+            # https://www.w3.org/TR/trace-context/#traceparent-header-field-values
+            if not tp.islower():
+                raise ValueError("uppercase characters are not allowed in traceparent")
             trace_id, span_id, sampling_priority = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s ", tp)
             return None
         origin = None
-        meta = {_TRACEPARENT_KEY: tp}  # type: _MetaDictType
+        meta = {W3C_TRACEPARENT_KEY: tp}  # type: _MetaDictType
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         if ts:
@@ -655,7 +663,7 @@ class _TraceContext:
                 log.debug("received invalid tracestate header: %r", ts)
             else:
                 # store tracestate so we keep other vendor data for injection, even if dd ends up being invalid
-                meta[_TRACESTATE_KEY] = ts
+                meta[W3C_TRACESTATE_KEY] = ts
                 try:
                     tracestate_values = _TraceContext._get_tracestate_values(ts)
                 except (TypeError, ValueError):
@@ -678,12 +686,38 @@ class _TraceContext:
             meta=meta,
         )
 
+    @staticmethod
+    def _inject(span_context, headers):
+        # type: (Context, Dict[str, str]) -> None
+        tp = span_context._traceparent
+        if tp:
+            headers[_HTTP_HEADER_TRACEPARENT] = tp
+            # only inject tracestate if traceparent injected: https://www.w3.org/TR/trace-context/#tracestate-header
+            ts = span_context._tracestate
+            if ts:
+                headers[_HTTP_HEADER_TRACESTATE] = ts
+
+
+class _NOP_Propagator:
+    @staticmethod
+    def _extract(headers):
+        # type: (Dict[str, str]) -> None
+        return None
+
+    # this method technically isn't needed with the current way we have HTTPPropagator.inject setup
+    # but if it changes then we might want it
+    @staticmethod
+    def _inject(span_context, headers):
+        # type: (Context , Dict[str, str]) -> Dict[str, str]
+        return headers
+
 
 _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
     PROPAGATION_STYLE_B3: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE_HEADER: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
+    _PROPAGATION_STYLE_NONE: _NOP_Propagator,
 }
 
 
@@ -722,6 +756,8 @@ class HTTPPropagator(object):
             _B3MultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_SINGLE_HEADER in config._propagation_style_inject:
             _B3SingleHeader._inject(span_context, headers)
+        if _PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
+            _TraceContext._inject(span_context, headers)
 
     @staticmethod
     def extract(headers):

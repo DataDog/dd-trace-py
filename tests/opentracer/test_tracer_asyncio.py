@@ -4,6 +4,7 @@ from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 
 import ddtrace
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.asyncio import context_provider
 from ddtrace.internal.compat import CONTEXTVARS_IS_AVAILABLE
 from ddtrace.opentracer.utils import get_context_provider_for_scope_manager
@@ -63,7 +64,7 @@ async def test_exception(ot_tracer, test_spans):
     assert len(spans) == 1
     span = spans[0]
     assert span.error == 1
-    assert span.get_tag("error.msg") == "f1 error"
+    assert span.get_tag(ERROR_MSG) == "f1 error"
     assert "Exception: f1 error" in span.get_tag("error.stack")
 
 
