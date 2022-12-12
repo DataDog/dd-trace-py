@@ -40,14 +40,7 @@ def _url_to_str(url):
     """
     Helper to convert the httpx.URL parts from bytes to a str
     """
-    # httpx==0.23.1 removed URL.raw, must construct it manually
-    if HTTPX_VERSION >= (0, 23, 1):
-        scheme = url.raw_scheme
-        host = url.raw_host
-        port = url.port
-        raw_path = url.raw_path
-    else:
-        scheme, host, port, raw_path = url.raw
+    scheme, host, port, raw_path = url.raw
     url = scheme + b"://" + host
     if port is not None:
         url += b":" + ensure_binary(str(port))
