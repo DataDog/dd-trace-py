@@ -647,9 +647,9 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                 ret = self._pack_meta(span._meta, <char *> dd_origin)
                 if ret != 0: return ret
                 if not has_parent_id:
-                    ret = pack_bytes(span._meta, <char *> b"language", 8)
+                    ret = pack_bytes(&self.pk, <char *> b"language", 8)
                     if ret != 0: return ret
-                    ret = pack_bytes(span._meta, <char *> b"python", 6)
+                    ret = pack_bytes(&self.pk, <char *> b"python", 6)
                     if ret != 0: return ret
 
             if has_metrics:
@@ -724,7 +724,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         _ = span.start_ns
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
-        
+
         _ = span.duration_ns
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
