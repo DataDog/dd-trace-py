@@ -241,10 +241,6 @@ def test_appsec_span_rate_limit(tracer):
 
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_TRACE_RATE_LIMIT="1")):
         _enable_appsec(tracer)
-        # we have 2 spans going through with a rate limit of 1: this is because the first span will update the rate
-        # limiter last update timestamp. In other words, we need a first call to reset the rate limiter's clock
-        # DEV: aligning rate limiter clock with this span (this
-        #      span will go through as it is linked to the init window)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span1:
             set_http_meta(span1, {}, raw_uri="http://example.com/.git", status_code="404")
 
@@ -257,7 +253,7 @@ def test_appsec_span_rate_limit(tracer):
             span2.start_ns = span1.start_ns + 2
 
         assert span1.get_tag(APPSEC_JSON) is not None
-        assert span2.get_tag(APPSEC_JSON) is not None
+        assert span2.get_tag(APPSEC_JSON) is None
         assert span3.get_tag(APPSEC_JSON) is None
 
 
