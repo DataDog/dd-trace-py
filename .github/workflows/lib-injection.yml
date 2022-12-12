@@ -33,11 +33,12 @@ jobs:
         echo "PRIMERO ES ANTES"
         echo "ANTEST ${GITHUB_HEAD_REF}"
         echo "ANTEST222 ${GITHUB_REF##*/}"
+         echo "ANTEST3333333 ${GITHUB_REF}"
         echo $(echo ${GITHUB_HEAD_REF-${GITHUB_REF##*/}} | tr / -) 
         echo "DESPUES"
 
         #If we are building main branch, we also tag as latest_snapshot
-        if [ $(echo ${GITHUB_HEAD_REF-${GITHUB_REF##*/}} | tr / -) == 'robertomonteromiguel-lib_injection_system_tests_integration' ]; then
+        if [ $(echo ${GITHUB_REF} | tr / -) == 'robertomonteromiguel-lib_injection_system_tests_integration' ]; then
           DOCKER_IMAGE_NAME_WITH_TAG=${DOCKER_IMAGE_NAME_WITH_TAG},$(echo ${DOCKER_IMAGE_NAME}:latest_snapshot)
         fi
 
