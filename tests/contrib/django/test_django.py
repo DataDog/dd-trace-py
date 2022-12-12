@@ -846,7 +846,7 @@ def test_cache_incr_1XX(test_spans):
         "language": "python",
     }
 
-    assert_dict_issuperset(span_get.get_tags(), expected_meta)
+    assert_dict_issuperset(span_get.get_tags(), {k: v for k,v in expected_meta.items() if k != "language"})
     assert_dict_issuperset(span_incr.get_tags(), expected_meta)
 
 
@@ -919,8 +919,8 @@ def test_cache_decr_1XX(test_spans):
         "language": "python",
     }
 
-    assert_dict_issuperset(span_get.get_tags(), expected_meta)
-    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
+    assert_dict_issuperset(span_get.get_tags(), {k: v for k,v in expected_meta.items() if k != "language"})
+    assert_dict_issuperset(span_incr.get_tags(), {k: v for k,v in expected_meta.items() if k != "language"})
     assert_dict_issuperset(span_decr.get_tags(), expected_meta)
 
 
@@ -957,7 +957,7 @@ def test_cache_decr_2XX(test_spans):
         "language": "python",
     }
 
-    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr.get_tags(), {k: v for k,v in expected_meta.items() if k != "language"})
     assert_dict_issuperset(span_decr.get_tags(), expected_meta)
 
 
@@ -1110,13 +1110,11 @@ def test_cached_view(client, test_spans):
         "django.cache.key": (
             "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
         ),
-        "language": "python",
     }
 
     expected_meta_header = {
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "views.decorators.cache.cache_header..03cdc1cc4aab71b038a6764e5fcabb82.en-us",
-        "language": "python",
     }
 
     assert span_view.get_tags() == expected_meta_view
@@ -1154,7 +1152,6 @@ def test_cached_template(client, test_spans):
     expected_meta = {
         "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
         "django.cache.key": "template.cache.users_list.d41d8cd98f00b204e9800998ecf8427e",
-        "language": "python",
     }
 
     assert span_template_cache.get_tags() == expected_meta

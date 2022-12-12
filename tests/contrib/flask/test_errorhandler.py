@@ -37,12 +37,14 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertIsNone(dispatch_span.get_tag("error.type"))
 
         # flask.handle_user_exception span
-        self.assertEqual(user_ex_span.get_tags(), {"language": "python"})
+        self.assertEqual(user_ex_span.get_tags(), {})
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
-        self.assertEqual(http_ex_span.get_tags(), {"language": "python"})
+        self.assertEqual(http_ex_span.get_tags(), {})
         self.assertEqual(http_ex_span.error, 0)
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_abort_500(self):
         """
@@ -93,12 +95,14 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertEqual(error_type, "werkzeug.exceptions.InternalServerError")
 
         # flask.handle_user_exception span
-        self.assertEqual(user_ex_span.get_tags(), {"language": "python"})
+        self.assertEqual(user_ex_span.get_tags(), {})
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
-        self.assertEqual(http_ex_span.get_tags(), {"language": "python"})
+        self.assertEqual(http_ex_span.get_tags(), {})
         self.assertEqual(http_ex_span.error, 0)
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_abort_500_custom_handler(self):
         """
@@ -160,12 +164,14 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertIsNone(handler_span.get_tag("error.type"))
 
         # flask.handle_user_exception span
-        self.assertEqual(user_ex_span.get_tags(), {"language": "python"})
+        self.assertEqual(user_ex_span.get_tags(), {})
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
-        self.assertEqual(http_ex_span.get_tags(), {"language": "python"})
+        self.assertEqual(http_ex_span.get_tags(), {})
         self.assertEqual(http_ex_span.error, 0)
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_raise_user_exception(self):
         """
@@ -290,7 +296,9 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.handle_user_exception span
         self.assertEqual(user_ex_span.error, 0)
-        self.assertEqual(user_ex_span.get_tags(), {"language": "python"})
+        self.assertEqual(user_ex_span.get_tags(), {})
 
         # flask.handle_http_exception span
         self.assertIsNone(http_ex_span)
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())

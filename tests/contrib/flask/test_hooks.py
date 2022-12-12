@@ -51,10 +51,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.before_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.before_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_before_request_return(self):
         """
@@ -96,10 +98,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.before_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.before_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_before_first_request(self):
         """
@@ -125,7 +129,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.before_first_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.before_first_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         if flask_version >= (2, 2, 0):
@@ -143,6 +147,8 @@ class FlaskHookTestCase(BaseFlaskTestCase):
 
         span = self.find_span_by_name(spans, "tests.contrib.flask.test_hooks.before_first_request", required=False)
         self.assertIsNone(span)
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_after_request(self):
         """
@@ -168,10 +174,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.after_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.after_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_after_request_change_status(self):
         """
@@ -202,10 +210,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.after_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.after_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_teardown_request(self):
         """
@@ -231,10 +241,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.teardown_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.teardown_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_request")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_teardown_appcontext(self):
         """
@@ -260,10 +272,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.teardown_appcontext")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.teardown_appcontext")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_appcontext")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_bp_before_request(self):
         """
@@ -290,10 +304,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_before_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_before_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_bp_before_app_request(self):
         """
@@ -320,10 +336,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_before_app_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_before_app_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_before_app_first_request(self):
         """
@@ -350,7 +368,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_before_app_first_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_before_app_first_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         if flask_version >= (2, 2, 0):
@@ -372,6 +390,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
             required=False,
         )
         self.assertIsNone(span)
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_bp_after_request(self):
         """
@@ -398,10 +417,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_after_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_after_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_bp_after_app_request(self):
         """
@@ -428,10 +449,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_after_app_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_after_app_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_bp_teardown_request(self):
         """
@@ -458,10 +481,12 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_teardown_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_teardown_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_request")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_bp_teardown_app_request(self):
         """
@@ -488,7 +513,9 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_teardown_app_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_teardown_app_request")
-        self.assertEqual(span.get_tags(), {"language": "python"})
+        self.assertEqual(span.get_tags(), {})
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_request")
+
+        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())

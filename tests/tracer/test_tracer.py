@@ -516,7 +516,6 @@ class TracerTestCases(TracerTestCase):
         assert span.get_tag(user.NAME)
         assert span.get_tag(user.ROLE)
         assert span.get_tag(user.SCOPE)
-        assert span.get_tag("language") == "python"
         assert span.context.dd_user_id is None
 
     def test_tracer_set_user_mandatory(self):
@@ -527,14 +526,13 @@ class TracerTestCases(TracerTestCase):
         )
         span_keys = list(span.get_tags().keys())
         span_keys.sort()
-        assert span_keys == ["language", "runtime-id", "usr.id"]
+        assert span_keys == ["runtime-id", "usr.id"]
         assert span.get_tag(user.ID)
         assert span.get_tag(user.EMAIL) is None
         assert span.get_tag(user.SESSION_ID) is None
         assert span.get_tag(user.NAME) is None
         assert span.get_tag(user.ROLE) is None
         assert span.get_tag(user.SCOPE) is None
-        assert span.get_tag("language") == "python"
         assert span.context.dd_user_id is None
 
     def test_tracer_set_user_warning_no_span(self):

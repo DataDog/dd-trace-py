@@ -129,7 +129,7 @@ class TestRuntimeWorker(TracerTestCase):
                     with self.start_span("child", child_of=root) as child:
                         pass
                 assert root.get_tag("language") == "python"
-                assert child.get_tag("language") == "python"
+                assert child.get_tag("language") is None
 
     def test_span_always_runtime_tags(self):
         with self.start_span("root") as root:
@@ -137,7 +137,7 @@ class TestRuntimeWorker(TracerTestCase):
                 pass
 
         assert root.get_tag("language") == "python"
-        assert child.get_tag("language") == "python"
+        assert child.get_tag("language") is None
 
     def test_only_root_span_runtime_external_span_types(self):
         with runtime_metrics_service(tracer=self.tracer):
@@ -159,7 +159,7 @@ class TestRuntimeWorker(TracerTestCase):
                     with self.start_span("child", child_of=root) as child:
                         pass
                 assert root.get_tag("language") == "python"
-                assert child.get_tag("language") == "python"
+                assert child.get_tag("language") is None
 
 
 def test_fork():

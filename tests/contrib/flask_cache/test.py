@@ -263,7 +263,6 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
-            "language": "python",
         }
 
         assert_dict_issuperset(dd_span.get_tags(), expected_meta)
