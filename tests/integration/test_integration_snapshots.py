@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import multiprocessing
+import os
 
 import mock
 import pytest
@@ -292,3 +293,32 @@ def test_tracetagsprocessor_only_adds_new_tags():
         span.set_metric(SAMPLING_PRIORITY_KEY, USER_KEEP)
 
     tracer.shutdown()
+
+
+# Override the token so that both parameterizations of the test use the same snapshot
+# (The snapshots should be equivalent)
+@snapshot(wait_for_num_traces=1, token_override="tests.integration.test_integration_snapshots.test_env_vars")
+@pytest.mark.parametrize("use_ddtracerun", ["yes", "no"])
+def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess):
+    """Ensure environment variable config is respected by ddtrace-run usages as well as regular."""
+    if use_ddtracerun == "yes":
+        fn = ddtrace_run_python_code_in_subprocess
+    else:
+        fn = run_python_code_in_subprocess
+
+    env = os.environ.copy()
+    env.update(
+        dict(
+            DD_ENV="prod",
+            DD_SERVICE="my-svc",
+            DD_VERSION="1234",
+        )
+    )
+
+    fn(
+        """
+from ddtrace import tracer
+tracer.trace("test-op").finish()
+""",
+        env=env,
+    )
