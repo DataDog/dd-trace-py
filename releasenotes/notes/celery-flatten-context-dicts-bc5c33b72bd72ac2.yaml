@@ -1,3 +1,3 @@
-fixes:
+featuers:
   - |
-    celery: Fixes issue #4771 where context tags containing dictionaries are sent as raw strings instead of being flattened into separate tags.
+    celery: Enhances celery context tags containing dictionaries so that their contents are sent as individual tags (issue #4771)
