@@ -632,8 +632,8 @@ class Tracer(object):
             else:
                 service = config.service
 
-        # DEV: We *MUST* use `mapped_service` from here on
-        mapped_service = config.service_mapping.get(service, service)
+        # Update the service name based on any mapping
+        service = config.service_mapping.get(service, service)
 
         if trace_id:
             # child_of a non-empty context, so either a local child span or from a remote context
@@ -642,7 +642,7 @@ class Tracer(object):
                 context=context,
                 trace_id=trace_id,
                 parent_id=parent_id,
-                service=mapped_service,
+                service=service,
                 resource=resource,
                 span_type=span_type,
                 on_finish=[self._on_span_finish],
@@ -661,7 +661,7 @@ class Tracer(object):
             span = Span(
                 name=name,
                 context=context,
-                service=mapped_service,
+                service=service,
                 resource=resource,
                 span_type=span_type,
                 on_finish=[self._on_span_finish],
@@ -713,8 +713,8 @@ class Tracer(object):
             #     2. the span is not the root, but the root span's service matches the span's service
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
-            if (root_span is None and mapped_service == config.service) or (
-                root_span and root_span.service == mapped_service and root_span.get_tag(VERSION_KEY) is not None
+            if (root_span is None and service == config.service) or (
+                root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
             ):
                 span.set_tag_str(VERSION_KEY, config.version)
 
@@ -722,8 +722,8 @@ class Tracer(object):
             self.context_provider.activate(span)
 
         # update set of services handled by tracer
-        if mapped_service and mapped_service not in self._services and self._is_span_internal(span):
-            self._services.add(mapped_service)
+        if service and service not in self._services and self._is_span_internal(span):
+            self._services.add(service)
 
         # Only call span processors if the tracer is enabled
         if self.enabled:
