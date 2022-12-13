@@ -370,8 +370,8 @@ class RemoteConfigClient(object):
 
             try:
                 callback(config, callback_action)
-            except Exception:
-                log.debug("error while removing product %s config %r", config.product_name, config)
+            except Exception as e:
+                log.debug("error while removing product %s config %r. Error: %s", config.product_name, config, e)
                 continue
 
         # 3. Load new configurations
