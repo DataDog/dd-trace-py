@@ -14,6 +14,8 @@ from ...internal.utils import ArgumentError
 from ...internal.utils import get_argument_value
 from ...internal.utils.formats import deep_getattr
 from ...pin import Pin
+from ..trace_utils import _start_span_internal
+from ..trace_utils import _trace_internal
 from ..trace_utils import unwrap
 
 
@@ -56,9 +58,9 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
         # async read that must be child of the parent span operation
         operation_name = "{}.read".format(self._self_parent_span.name)
 
-        with self._self_pin.tracer.start_span(operation_name, child_of=self._self_parent_span) as span:
-            # set component tag equal to name of integration
-            span.set_tag_str("component", config.aiobotocore.integration_name)
+        with _start_span_internal(
+            self._self_pin.tracer, operation_name, config.aiobotocore, child_of=self._self_parent_span
+        ) as span:
 
             # inherit parent attributes
             span.resource = self._self_parent_span.resource
@@ -93,9 +95,9 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
     service = pin.service if pin.service != "aws" else "{}.{}".format(pin.service, endpoint_name)
-    with pin.tracer.trace("{}.command".format(endpoint_name), service=service, span_type=SpanTypes.HTTP) as span:
-        # set component tag equal to name of integration
-        span.set_tag_str("component", config.aiobotocore.integration_name)
+    with _trace_internal(
+        pin.tracer, "{}.command".format(endpoint_name), config.aiobotocore, service=service, span_type=SpanTypes.HTTP
+    ) as span:
 
         span.set_tag(SPAN_MEASURED_KEY)
 
