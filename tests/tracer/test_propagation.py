@@ -6,6 +6,7 @@ import os
 import pytest
 
 from ddtrace.context import Context
+from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE_HEADER
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
@@ -68,16 +69,17 @@ def test_inject_tags_unicode(tracer):
 def test_inject_tags_bytes(tracer):
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
-    meta = {u"_dd.p.test": b"bytes"}
-    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
-    tracer.context_provider.activate(ctx)
-    with tracer.trace("global_root_span") as span:
-        headers = {}
-        HTTPPropagator.inject(span.context, headers)
+    with override_global_config({"_propagation_style_extract": PROPAGATION_STYLE_ALL}):
+        meta = {u"_dd.p.test": b"bytes"}
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
 
-        # The ordering is non-deterministic, so compare as a list of tags
-        tags = set(headers[_HTTP_HEADER_TAGS].split(","))
-        assert tags == set(["_dd.p.test=bytes"])
+            # The ordering is non-deterministic, so compare as a list of tags
+            tags = set(headers[_HTTP_HEADER_TAGS].split(","))
+            assert tags == set(["_dd.p.test=bytes"])
 
 
 def test_inject_tags_unicode_error(tracer):

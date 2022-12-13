@@ -175,6 +175,16 @@ def w3c_get_dd_list_member(context):
             # we've already added sampling decision and user id
             and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
         ):
+            # Hack: convert byte string to unicode to use the regex below.
+            # 1. decodes byte string to ascii (unsupported characters are converted to `?`)
+            # 2. Converts `?` to `_` to align with DBM spec
+            if isinstance(k, bytes):
+                k = k.decode("ascii", "replace")
+                k = k.replace("?", "_")
+            if isinstance(v, bytes):
+                v = v.decode("ascii", "replace")
+                v = v.replace("?", "_")
+
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
             next_tag = "{}~{}".format(
