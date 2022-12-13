@@ -1,13 +1,16 @@
 import logging
+import os
 import time
 
 import mock
 import pytest
 
 import ddtrace
+from ddtrace.internal import compat
 from ddtrace.profiling import collector
 from ddtrace.profiling import event
 from ddtrace.profiling import exporter
+from ddtrace.profiling import recorder
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
@@ -203,10 +206,10 @@ def test_env_no_agentless(monkeypatch):
 
 def test_url():
     prof = profiler.Profiler(url="https://foobar:123")
-    _check_url(prof, "https://foobar:123")
+    _check_url(prof, "https://foobar:123", os.environ.get("DD_API_KEY"))
 
 
-def _check_url(prof, url, api_key=None, endpoint_path="profiling/v1/input"):
+def _check_url(prof, url, api_key, endpoint_path="profiling/v1/input"):
     for exp in prof._profiler._scheduler.exporters:
         if isinstance(exp, http.PprofHTTPExporter):
             assert exp.api_key == api_key
@@ -221,7 +224,7 @@ def test_default_tracer_and_url():
     try:
         ddtrace.tracer.configure(hostname="foobar")
         prof = profiler.Profiler(url="https://foobaz:123")
-        _check_url(prof, "https://foobaz:123")
+        _check_url(prof, "https://foobaz:123", os.environ.get("DD_API_KEY"))
     finally:
         ddtrace.tracer.configure(hostname="localhost")
 
@@ -230,40 +233,40 @@ def test_tracer_and_url():
     t = ddtrace.Tracer()
     t.configure(hostname="foobar")
     prof = profiler.Profiler(tracer=t, url="https://foobaz:123")
-    _check_url(prof, "https://foobaz:123")
+    _check_url(prof, "https://foobaz:123", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url():
     t = ddtrace.Tracer()
     t.configure(hostname="foobar")
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "http://foobar:8126")
+    _check_url(prof, "http://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url_https():
     t = ddtrace.Tracer()
     t.configure(hostname="foobar", https=True)
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "https://foobar:8126")
+    _check_url(prof, "https://foobar:8126", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url_uds_hostname():
     t = ddtrace.Tracer()
     t.configure(hostname="foobar", uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "unix://foobar/foobar")
+    _check_url(prof, "unix://foobar/foobar", os.environ.get("DD_API_KEY"))
 
 
 def test_tracer_url_uds():
     t = ddtrace.Tracer()
     t.configure(uds_path="/foobar")
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "unix:///foobar")
+    _check_url(prof, "unix:///foobar", os.environ.get("DD_API_KEY"))
 
 
 def test_env_no_api_key():
     prof = profiler.Profiler()
-    _check_url(prof, "http://localhost:8126")
+    _check_url(prof, "http://localhost:8126", os.environ.get("DD_API_KEY"))
 
 
 def test_env_endpoint_url(monkeypatch):
@@ -271,7 +274,7 @@ def test_env_endpoint_url(monkeypatch):
     monkeypatch.setenv("DD_TRACE_AGENT_PORT", "123")
     t = ddtrace.Tracer()
     prof = profiler.Profiler(tracer=t)
-    _check_url(prof, "http://foobar:123")
+    _check_url(prof, "http://foobar:123", os.environ.get("DD_API_KEY"))
 
 
 def test_env_endpoint_url_no_agent(monkeypatch):
@@ -385,5 +388,40 @@ def test_profiler_serverless(monkeypatch):
     # type: (...) -> None
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
+    # simulate set_tags call in datadog-lambda-python wrapper for setting function_arn
+    p.set_tags({"function_arn": "arn:aws:foo:bar:1234:5678"})
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
     assert p.tags["functionname"] == b"foobar"
+    assert p.tags["serverless"] == b"lambda"
+    assert p.tags["function_arn"] == b"arn:aws:foo:bar:1234:5678"
+
+
+def test_serverless_num_invocations(monkeypatch):
+    # type: (...) -> None
+    def force_flush():
+        p._profiler._scheduler._last_export = compat.time_ns() - 65
+        p._profiler._scheduler._profiled_intervals = 65
+        p._profiler._scheduler.periodic()
+
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
+    p = profiler.Profiler()
+    r = recorder.Recorder()
+    p._profiler._scheduler.recorder = r
+    p._profiler._scheduler.exporters = [exporter.NullExporter()]
+
+    # flush in middle of invocation
+    p.invocation_started()
+    p.increment_invocations()
+    force_flush()
+    # starts next profile before invocation ends
+    p.invocation_ended()
+    assert p.tags["serverless_function_calls"] == b"1"
+
+    # flush at end of invocation
+    p.invocation_started()
+    p.increment_invocations()
+    p.invocation_ended()
+    force_flush()
+    # 2 because profile started in middle of previous invocation
+    assert p.tags["serverless_function_calls"] == b"2"
+    assert p._profiler._num_invocations == 0

@@ -57,6 +57,7 @@ class Profiler(object):
         :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
         :param profile_children: Whether to start a profiler in child processes.
         """
+        print("[Amy:dd-trace-py:profiler.py:START] When is this called lol")
 
         if sys.version_info >= (3, 11, 0):
             raise RuntimeError(
@@ -83,12 +84,28 @@ class Profiler(object):
 
         :param flush: Flush last profile.
         """
+        print("[Amy:dd-trace-py:profiler.py:STOP] When is this called lol")
         atexit.unregister(self.stop)
         try:
             self._profiler.stop(flush)
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
+
+    def set_tags(self, tags):
+        self._profiler.add_tags(tags)
+        print("[Amy:dd-trace-py:profiler.py:set_tags] profiler tags updated:", self._profiler.tags)
+
+    def invocation_started(self):
+        self._profiler.middle_of_invocation = True
+        print(f"[Amy:dd-trace-py:invocation_started] middle_of_invocation = {self._profiler.middle_of_invocation}")
+
+    def invocation_ended(self):
+        self._profiler.middle_of_invocation = False
+        print(f"[Amy:dd-trace-py:invocation_ended] middle_of_invocation = {self._profiler.middle_of_invocation}")
+
+    def increment_invocations(self):
+        self._profiler.increment_invocations()
 
     def _restart_on_fork(self):
         # Be sure to stop the parent first, since it might have to e.g. unpatch functions
@@ -145,6 +162,10 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
 
+    # TODO: Check attr.ib was used right
+    _num_invocations = attr.ib(default=0, type=int)
+    middle_of_invocation = attr.ib(default=False, type=bool)
+
     ENDPOINT_TEMPLATE = "https://intake.profile.{}"
 
     def _build_default_exporters(self):
@@ -178,7 +199,12 @@ class _ProfilerInstance(service.Service):
             endpoint_path = "profiling/v1/input"
 
         if self._lambda_function_name is not None:
-            self.tags.update({"functionname": self._lambda_function_name.encode("utf-8")})
+            self.add_tags(
+                {
+                    "functionname": self._lambda_function_name,
+                    "serverless": "lambda",
+                }
+            )
 
         return [
             http.PprofHTTPExporter(
@@ -225,10 +251,13 @@ class _ProfilerInstance(service.Service):
 
         if exporters:
             if self._lambda_function_name is None:
-                scheduler_class = scheduler.Scheduler
+                self._scheduler = scheduler.Scheduler(
+                    recorder=r, exporters=exporters, before_flush=self._collectors_snapshot
+                )
             else:
-                scheduler_class = scheduler.ServerlessScheduler
-            self._scheduler = scheduler_class(recorder=r, exporters=exporters, before_flush=self._collectors_snapshot)
+                self._scheduler = scheduler.ServerlessScheduler(
+                    recorder=r, exporters=exporters, before_flush=self._before_serverless_flush
+                )
 
         self.set_asyncio_event_loop_policy()
 
@@ -255,6 +284,38 @@ class _ProfilerInstance(service.Service):
                 for a in attr.fields(self.__class__)
                 if a.name[0] != "_" and a.name not in self._COPY_IGNORE_ATTRIBUTES
             }
+        )
+
+    def add_tags(
+        self, tags  # type: dict
+    ):
+        tags = {name: str(value).encode("utf-8") for name, value in tags.items()}
+        self.tags.update(tags)
+
+    def increment_invocations(self):
+        self._num_invocations += 1
+        print(
+            "[Amy:dd-trace-py:profiler.py:_ProfilerInstance:increment_invocations] num_invocations:",
+            self._num_invocations,
+        )
+
+    def _before_serverless_flush(self):
+        self._reset_num_invocations()
+        self._collectors_snapshot()
+
+    def _reset_num_invocations(self):
+        print("[Amy:dd-trace-py:profiler.py:_ProfilerInstance:reset_num_invocations] RESETTING NUM INVOCATIONS")
+        self.add_tags({"serverless_function_calls": self._num_invocations})
+        print(f"[Amy:dd-trace-py:profiler.py:_ProfilerInstance:reset_num_invocations] tags: {self.tags}")
+
+        if self.middle_of_invocation:
+            self._num_invocations = 1
+        else:
+            self._num_invocations = 0
+
+        print(
+            "[Amy:dd-trace-py:profiler.py:_ProfilerInstance:reset_num_invocations] num_invocations:",
+            self._num_invocations,
         )
 
     def _start_service(self):
