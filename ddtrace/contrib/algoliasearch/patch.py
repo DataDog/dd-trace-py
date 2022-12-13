@@ -114,7 +114,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
             return func(*wrapt_args, **wrapt_kwargs)
 
         if config.algoliasearch.collect_query_text:
-            span.set_tag("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
+            span.set_tag_str("query.text", wrapt_kwargs.get("query", wrapt_args[0]))
 
         query_args = wrapt_kwargs.get(function_query_arg_name, wrapt_args[1] if len(wrapt_args) > 1 else None)
 
@@ -122,7 +122,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
             for query_arg, tag_name in QUERY_ARGS_DD_TAG_MAP.items():
                 value = query_args.get(query_arg)
                 if value is not None:
-                    span.set_tag("query.args.{}".format(tag_name), value)
+                    span.set_tag_str("query.args.{}".format(tag_name), value)
 
         # Result would look like this
         # {
