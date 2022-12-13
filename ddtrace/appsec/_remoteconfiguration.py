@@ -26,6 +26,8 @@ def enable_appsec_rc(tracer):
     # type: (Tracer) -> None
     if _appsec_rc_features_is_enabled():
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
+
+    if tracer._appsec_enabled:
         RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
 
 
@@ -61,6 +63,8 @@ def appsec_rc_reload_features(tracer):
                     asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
                 ):
                     _appsec_enabled = False
+                else:
+                    RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
 
                 tracer.configure(appsec_enabled=_appsec_enabled)
 
