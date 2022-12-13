@@ -101,7 +101,7 @@ async def on_prepare(request, response):
     if trace_query_string is None:
         trace_query_string = config.http.trace_query_string
     if trace_query_string:
-        request_span.set_tag(http.QUERY_STRING, request.query_string)
+        request_span.set_tag_str(http.QUERY_STRING, request.query_string)
 
     trace_utils.set_http_meta(
         request_span,

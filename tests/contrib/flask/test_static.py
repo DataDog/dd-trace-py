@@ -1,3 +1,4 @@
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from tests.utils import assert_span_http_status_code
@@ -84,7 +85,7 @@ class FlaskStaticFileTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.service, "flask")
         self.assertEqual(handler_span.name, "static")
         self.assertEqual(handler_span.resource, "/static/<path:filename>")
-        self.assertTrue(handler_span.get_tag("error.msg").startswith("404 Not Found"))
+        self.assertTrue(handler_span.get_tag(ERROR_MSG).startswith("404 Not Found"))
         self.assertTrue(handler_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(handler_span.get_tag("error.type"), "werkzeug.exceptions.NotFound")
 
@@ -93,6 +94,6 @@ class FlaskStaticFileTestCase(BaseFlaskTestCase):
         self.assertEqual(send_file_span.service, "flask")
         self.assertEqual(send_file_span.name, "flask.send_static_file")
         self.assertEqual(send_file_span.resource, "flask.send_static_file")
-        self.assertTrue(send_file_span.get_tag("error.msg").startswith("404 Not Found"))
+        self.assertTrue(send_file_span.get_tag(ERROR_MSG).startswith("404 Not Found"))
         self.assertTrue(send_file_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(send_file_span.get_tag("error.type"), "werkzeug.exceptions.NotFound")
