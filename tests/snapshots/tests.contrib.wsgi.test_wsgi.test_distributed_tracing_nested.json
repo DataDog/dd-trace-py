@@ -9,11 +9,11 @@
     "type": "web",
     "error": 0,
     "meta": {
-      "language": "python",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
+      "language": "python",
       "runtime-id": "2aff5fc210494b30af54c7548c3425fa"
     },
     "metrics": {
