@@ -63,7 +63,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Set
     from typing import Union
     from typing import Tuple
-    from .appsec.processor import AppSecSpanProcessor
+    # from .appsec.processor import AppSecSpanProcessor
 
 from typing import Callable
 from typing import TypeVar
@@ -99,7 +99,7 @@ AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
 def _start_appsec_processor():
-    # type: () -> Optional[AppSecSpanProcessor]
+    # type: () -> Optional[Any]
     try:
         from .appsec.processor import AppSecSpanProcessor
 
