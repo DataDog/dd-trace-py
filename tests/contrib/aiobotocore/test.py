@@ -3,6 +3,7 @@ from botocore.errorfactory import ClientError
 import pytest
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.aiobotocore.patch import patch
 from ddtrace.contrib.aiobotocore.patch import unpatch
 from ddtrace.internal.compat import stringify
@@ -116,7 +117,7 @@ async def test_s3_client_error(tracer):
     assert_is_measured(span)
     assert span.resource == "s3.listobjects"
     assert span.error == 1
-    assert "NoSuchBucket" in span.get_tag("error.msg")
+    assert "NoSuchBucket" in span.get_tag(ERROR_MSG)
 
 
 @pytest.mark.asyncio
