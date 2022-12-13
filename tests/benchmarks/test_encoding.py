@@ -19,7 +19,7 @@ class PPMsgpackEncoder(_EncoderBase):
     content_type = "application/msgpack"
 
     def encode_traces(self, traces):
-        normalized_traces = [[self._span_to_dict(span) for span in trace] for trace in traces]
+        normalized_traces = [[self._span_to_dict(trace[i], i) for i in range(len(trace))] for trace in traces]
         return self.encode(normalized_traces)
 
     @staticmethod
