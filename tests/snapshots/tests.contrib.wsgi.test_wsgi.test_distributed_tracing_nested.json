@@ -9,6 +9,7 @@
     "type": "web",
     "error": 0,
     "meta": {
+      "language": "python",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",

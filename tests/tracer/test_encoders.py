@@ -39,6 +39,7 @@ _ORIGIN_KEY = ORIGIN_KEY.encode()
 
 def span_to_tuple(span):
     # type: (Span) -> tuple
+    span_tags = {"language": "python"} if not span.get_tags() else {"language": "python"}.update(span.get_tags())
     return (
         span.service,
         span.name,
@@ -49,7 +50,7 @@ def span_to_tuple(span):
         span.start_ns or 0,
         span.duration_ns or 0,
         int(bool(span.error)),
-        {**(span.get_tags() or {}), **{"language": "python"}},
+        span_tags,
         span.get_metrics() or {},
         span.span_type,
     )
