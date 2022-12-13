@@ -516,6 +516,16 @@ jobs:
           store_coverage: false
           pattern: '^py310-profile'
 
+  profile-windows-311:
+    executor:
+      name: win/default
+      shell: bash.exe
+    steps:
+      - run: choco install -y python --version=3.11.0 --side-by-side
+      - run_tox_scenario:
+          store_coverage: false
+          pattern: '^py311-profile'
+
   profile:
     <<: *contrib_job
     resource_class: large
@@ -1214,6 +1224,7 @@ requires_tests: &requires_tests
     # - profile-windows-38
     # - profile-windows-39
     # - profile-windows-310
+    # - profile-windows-311
 
 workflows:
   version: 2
@@ -1313,16 +1324,6 @@ workflows:
       # - profile-windows-38: *requires_pre_check
       # - profile-windows-39: *requires_pre_check
       # - profile-windows-310: *requires_pre_check
+      # - profile-windows-311: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
-
-  test_nightly:
-    <<: *workflow_test
-    triggers:
-      - schedule:
-          cron: "0 0 * * *"
-          filters:
-            branches:
-              only:
-                - 0.x
-                - 1.x
