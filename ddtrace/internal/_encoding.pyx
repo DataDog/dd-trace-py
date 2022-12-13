@@ -534,8 +534,6 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             L = len(d)
             if dd_origin is not NULL:
                 L += 1
-            if i == 0:
-                L += 1
             if L > ITEM_LIMIT:
                 raise ValueError("dict is too large")
 
@@ -550,11 +548,6 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                     ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
                     if ret == 0:
                         ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
-                if i == 0:
-                    ret = pack_bytes(&self.pk, "language", 8)
-                    if ret != 0: return ret
-                    ret = pack_bytes(&self.pk, "python", 6)
-                    if ret != 0: return ret
             return ret
 
         raise TypeError("Unhandled meta type: %r" % type(meta))

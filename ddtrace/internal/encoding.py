@@ -134,14 +134,12 @@ class JSONEncoderV2(JSONEncoder):
 
     def encode_traces(self, traces):
         # type: (List[List[Span]]) -> str
-        normalized_traces = [
-            [JSONEncoderV2._convert_span(trace[i], i == 0) for i in range(len(trace))] for trace in traces
-        ]
+        normalized_traces = [[JSONEncoderV2._convert_span(trace[i], i) for i in range(len(trace))] for trace in traces]
         return self.encode({"traces": normalized_traces})
 
     @staticmethod
     def _convert_span(span, i):
-        # type: (Span, bool) -> Dict[str, Any]
+        # type: (Span, int) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span, i)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("trace_id"))

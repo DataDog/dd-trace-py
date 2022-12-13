@@ -49,7 +49,7 @@ def span_to_tuple(span):
         span.start_ns or 0,
         span.duration_ns or 0,
         int(bool(span.error)),
-        span.get_tags() or {},
+        {**(span.get_tags() or {}), **{"language": "python"}},
         span.get_metrics() or {},
         span.span_type,
     )
@@ -96,7 +96,7 @@ class RefMsgpackEncoder(_EncoderBase):
         raise NotImplementedError()
 
     def encode_traces(self, traces):
-        normalized_traces = [[self.normalize(span) for span in trace] for trace in traces]
+        normalized_traces = [[self.normalize(trace[i], i) for i in range(len(trace))] for trace in traces]
         return self.encode(normalized_traces)
 
     def encode(self, obj):
@@ -135,7 +135,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
 
         return value
 
-    def normalize(self, span):
+    def normalize(self, span, i):
         return tuple(self._index_or_value(_) for _ in span_to_tuple(span))
 
     def encode(self, obj):
@@ -350,10 +350,15 @@ def test_msgpack_span_property_variations(encoding, span):
 
     # Finish the span to ensure a duration exists.
     span.finish()
-
     trace = [span]
+    print(span._meta)
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
+    ref_encoded_traces = refencoder.encode_traces([trace])
+    ref_decoded_traces = decode(ref_encoded_traces)
+    actual_encoded_traces = encoder.encode()
+    print(actual_encoded_traces)
+    actual_decoded_traces = decode(actual_encoded_traces)
+    assert ref_decoded_traces == actual_decoded_traces
 
 
 class SubString(str):
@@ -393,8 +398,13 @@ def test_span_types(encoding, span, tags):
     span.finish()
 
     trace = [span]
+    print(span._meta)
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode())
+    ref_encoded_traces = refencoder.encode_traces([trace])
+    ref_decoded_traces = decode(ref_encoded_traces)
+    actual_encoded_traces = encoder.encode()
+    actual_decoded_traces = decode(actual_encoded_traces)
+    assert ref_decoded_traces == actual_decoded_traces
 
 
 @pytest.mark.parametrize(
