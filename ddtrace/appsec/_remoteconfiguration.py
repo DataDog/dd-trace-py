@@ -52,7 +52,7 @@ def appsec_rc_reload_features(tracer):
 
         if features is not None:
             log.debug("Reloading appsec RC: %s", features)
-            rules_data = features.get("rules_data", [])
+            rules_data = features.get("rules_data", []) if features else False
             if rules_data and tracer._appsec_processor:
                 tracer._appsec_processor.update_rules(rules_data)
             else:
