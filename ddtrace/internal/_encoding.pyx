@@ -452,6 +452,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         cdef int ret
         cdef Py_ssize_t L
         cdef void * dd_origin = NULL
+        cdef int i
 
         L = len(trace)
         if L > ITEM_LIMIT:
@@ -534,6 +535,8 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             L = len(d)
             if dd_origin is not NULL:
                 L += 1
+            if i == 0:
+                L += 1
             if L > ITEM_LIMIT:
                 raise ValueError("dict is too large")
 
@@ -548,6 +551,11 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                     ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
                     if ret == 0:
                         ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
+                if i == 0:
+                    ret = pack_text(&self.pk, <str> "language")
+                    if ret != 0: return ret
+                    ret = pack_text(&self.pk, <str> "python")
+                    if ret != 0: return ret
             return ret
 
         raise TypeError("Unhandled meta type: %r" % type(meta))
@@ -583,7 +591,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
-        has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL)
+        has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL or i == 0)
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
 

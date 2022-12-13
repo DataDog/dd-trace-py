@@ -398,7 +398,7 @@ def test_span_types(encoding, span, tags):
     span.finish()
 
     trace = [span]
-    print(span._meta)
+    print("401: ", span._meta)
     encoder.put(trace)
     ref_encoded_traces = refencoder.encode_traces([trace])
     ref_decoded_traces = decode(ref_encoded_traces)
