@@ -51,8 +51,8 @@ class _EncoderBase(object):
         raise NotImplementedError()
 
     @staticmethod
-    def _span_to_dict(span):
-        # type: () -> Dict[str, Any]
+    def _span_to_dict(span, first_span_in_payload):
+        # type: (Span, bool) -> Dict[str, Any]
         d = {
             "trace_id": span.trace_id,
             "parent_id": span.parent_id,
@@ -78,8 +78,11 @@ class _EncoderBase(object):
 
         if span._meta:
             d["meta"] = span._meta
-            if not d["parent_id"] or d["parent_id"] == 0:
-                d["meta"]["language"] = "python"
+            if first_span_in_payload:
+                d["meta"] = {"language": "python"}
+        else:
+            if first_span_in_payload:
+                d["meta"] = {"language": "python"}
 
         if span._metrics:
             d["metrics"] = span._metrics
@@ -95,7 +98,11 @@ class JSONEncoder(json.JSONEncoder, _EncoderBase):
 
     def encode_traces(self, traces):
         normalized_traces = [
-            [JSONEncoder._normalize_span(JSONEncoder._span_to_dict(span)) for span in trace] for trace in traces
+            [
+                JSONEncoder._normalize_span(
+                    JSONEncoder._span_to_dict(trace[i], i == 0)
+                ) for i in range(len(trace))
+            ] for trace in traces
         ]
         return self.encode(normalized_traces)
 
@@ -130,13 +137,15 @@ class JSONEncoderV2(JSONEncoder):
 
     def encode_traces(self, traces):
         # type: (List[List[Span]]) -> str
-        normalized_traces = [[JSONEncoderV2._convert_span(span) for span in trace] for trace in traces]
+        normalized_traces = [
+            [JSONEncoderV2._convert_span(trace[i], i == 0) for i in range(len(trace))] for trace in traces
+        ]
         return self.encode({"traces": normalized_traces})
 
     @staticmethod
-    def _convert_span(span):
-        # type: (Span) -> Dict[str, Any]
-        sp = JSONEncoderV2._span_to_dict(span)
+    def _convert_span(span, first_span_in_payload):
+        # type: (Span, bool) -> Dict[str, Any]
+        sp = JSONEncoderV2._span_to_dict(span, first_span_in_payload)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("trace_id"))
         sp["parent_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("parent_id"))
