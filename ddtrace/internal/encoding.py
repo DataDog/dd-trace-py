@@ -98,11 +98,8 @@ class JSONEncoder(json.JSONEncoder, _EncoderBase):
 
     def encode_traces(self, traces):
         normalized_traces = [
-            [
-                JSONEncoder._normalize_span(
-                    JSONEncoder._span_to_dict(trace[i], i == 0)
-                ) for i in range(len(trace))
-            ] for trace in traces
+            [JSONEncoder._normalize_span(JSONEncoder._span_to_dict(trace[i], i == 0)) for i in range(len(trace))]
+            for trace in traces
         ]
         return self.encode(normalized_traces)
 

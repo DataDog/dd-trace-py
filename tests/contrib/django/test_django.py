@@ -846,7 +846,7 @@ def test_cache_incr_1XX(test_spans):
         "language": "python",
     }
 
-    assert_dict_issuperset(span_get.get_tags(), {k: v for k,v in expected_meta.items() if k != "language"})
+    assert_dict_issuperset(span_get.get_tags(), {k: v for k, v in expected_meta.items() if k != "language"})
     assert_dict_issuperset(span_incr.get_tags(), expected_meta)
 
 
@@ -919,8 +919,8 @@ def test_cache_decr_1XX(test_spans):
         "language": "python",
     }
 
-    assert_dict_issuperset(span_get.get_tags(), {k: v for k,v in expected_meta.items() if k != "language"})
-    assert_dict_issuperset(span_incr.get_tags(), {k: v for k,v in expected_meta.items() if k != "language"})
+    assert_dict_issuperset(span_get.get_tags(), {k: v for k, v in expected_meta.items() if k != "language"})
+    assert_dict_issuperset(span_incr.get_tags(), {k: v for k, v in expected_meta.items() if k != "language"})
     assert_dict_issuperset(span_decr.get_tags(), expected_meta)
 
 
@@ -957,7 +957,7 @@ def test_cache_decr_2XX(test_spans):
         "language": "python",
     }
 
-    assert_dict_issuperset(span_incr.get_tags(), {k: v for k,v in expected_meta.items() if k != "language"})
+    assert_dict_issuperset(span_incr.get_tags(), {k: v for k, v in expected_meta.items() if k != "language"})
     assert_dict_issuperset(span_decr.get_tags(), expected_meta)
 
 
