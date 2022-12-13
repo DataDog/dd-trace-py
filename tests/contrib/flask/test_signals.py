@@ -106,7 +106,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
             self.assertEqual(span.service, "flask")
             self.assertEqual(span.name, "tests.contrib.flask.{}".format(signal_name))
             self.assertEqual(span.resource, "tests.contrib.flask.{}".format(signal_name))
-            self.assertEqual(set(span.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm"]))
+            self.assertEqual(set(span.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm", "language"]))
             self.assertEqual(span.get_tag("flask.signal"), signal_name)
 
     def test_signals_multiple(self):
@@ -141,7 +141,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         self.assertEqual(span_a.service, "flask")
         self.assertEqual(span_a.name, "tests.contrib.flask.request_started_a")
         self.assertEqual(span_a.resource, "tests.contrib.flask.request_started_a")
-        self.assertEqual(set(span_a.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm"]))
+        self.assertEqual(set(span_a.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm", "language"]))
         self.assertEqual(span_a.get_tag("flask.signal"), "request_started")
 
         # Assert the span that was created
