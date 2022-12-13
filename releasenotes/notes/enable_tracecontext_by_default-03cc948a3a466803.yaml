@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: Adds support for W3C tracecontext propagation.
+  - |
+    Note - This change adds ``traceparent`` and ``tracestate`` headers to all traced http connections. 
+    To revert to the previous behavior set the following configuration:``DD_TRACE_PROPAGATION_STYLE=datadog``.
