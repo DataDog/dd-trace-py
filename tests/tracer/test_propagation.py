@@ -69,7 +69,10 @@ def test_inject_tags_bytes(tracer):
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
     # FIXME: W3C does not support byte headers
-    overrides = {"_propagation_style_extract": [PROPAGATION_STYLE_DATADOG]}
+    overrides = {
+        "_propagation_style_extract": [PROPAGATION_STYLE_DATADOG],
+        "_propagation_style_inject": [PROPAGATION_STYLE_DATADOG],
+    }
     with override_global_config(overrides):
         meta = {u"_dd.p.test": b"bytes"}
         ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
