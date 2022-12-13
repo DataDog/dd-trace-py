@@ -42,7 +42,6 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
-            "language": "python",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -62,7 +61,6 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
-            "language": "python",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -82,7 +80,6 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": u"á_complex_number",
             "flask_cache.backend": "simple",
-            "language": "python",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -102,7 +99,6 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": u"á_complex_operation",
             "flask_cache.backend": "simple",
-            "language": "python",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -122,7 +118,6 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": "['complex_operation', 'another_complex_op']",
             "flask_cache.backend": "simple",
-            "language": "python",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -141,7 +136,6 @@ class FlaskCacheTest(TracerTestCase):
 
         expected_meta = {
             "flask_cache.backend": "simple",
-            "language": "python",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)
@@ -161,7 +155,6 @@ class FlaskCacheTest(TracerTestCase):
         expected_meta = {
             "flask_cache.key": "['first_complex_op', 'second_complex_op']",
             "flask_cache.backend": "simple",
-            "language": "python",
         }
 
         assert_dict_issuperset(span.get_tags(), expected_meta)

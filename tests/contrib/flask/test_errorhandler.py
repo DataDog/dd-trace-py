@@ -44,8 +44,6 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertEqual(http_ex_span.get_tags(), {})
         self.assertEqual(http_ex_span.error, 0)
 
-        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
-
     def test_abort_500(self):
         """
         When making a 500 request
@@ -101,8 +99,6 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # flask.handle_http_exception span
         self.assertEqual(http_ex_span.get_tags(), {})
         self.assertEqual(http_ex_span.error, 0)
-
-        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_abort_500_custom_handler(self):
         """
@@ -170,8 +166,6 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # flask.handle_http_exception span
         self.assertEqual(http_ex_span.get_tags(), {})
         self.assertEqual(http_ex_span.error, 0)
-
-        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_raise_user_exception(self):
         """
@@ -300,5 +294,3 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
 
         # flask.handle_http_exception span
         self.assertIsNone(http_ex_span)
-
-        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())

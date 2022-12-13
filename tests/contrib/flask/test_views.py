@@ -52,8 +52,6 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.error, 0)
         self.assertEqual(handler_span.get_tags(), {})
 
-        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
-
     def test_view_handler_error(self):
         """
         When using a flask.views.View
@@ -134,8 +132,6 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
         self.assertEqual(handler_span.get_tags(), {})
-
-        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_method_view_handler_error(self):
         """

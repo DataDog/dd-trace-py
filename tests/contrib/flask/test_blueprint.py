@@ -104,7 +104,6 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         self.assertEqual(span.name, "bp.test")
         self.assertEqual(span.resource, "/")
         self.assertEqual(span.get_tags(), {})
-        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_blueprint_request_pin_override(self):
         """
@@ -132,7 +131,6 @@ class FlaskBlueprintTestCase(BaseFlaskTestCase):
         self.assertEqual(span.name, "bp.test")
         self.assertEqual(span.resource, "/")
         self.assertEqual(span.get_tags(), {})
-        self.assertDictContainsSubset({"language": "python"}, self.get_root_span().get_tags())
 
     def test_blueprint_request_pin_disabled(self):
         """
