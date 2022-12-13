@@ -103,7 +103,7 @@ jobs:
 
       - name: Build and push images
         run: |
-          ./lib-injection/run.sh build-and-push-test-app-image  
+          ./lib-injection/execFunction.sh build-and-push-test-app-image  
           ./lib-injection/build.sh
  
       - name: Run lib injection tests
