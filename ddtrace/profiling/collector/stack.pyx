@@ -324,11 +324,6 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
 
         tasks = _task.list_tasks(thread_id)
 
-        # This boolean value is used to know if we injected a sample that accounts for the CPU time.
-        # In the case of a gevent program this can be injected into a task.
-        # In other cases, it's injected in a regular sample.
-        cpu_time_accounted_for = False
-
         # Inject wall time for all running tasks
         for task_id, task_name, task_pyframes in tasks:
 
@@ -352,37 +347,26 @@ cdef stack_collect(ignore_profiler, thread_time, max_nframes, interval, wall_tim
                 sampling_period=int(interval * 1e9),
             )
 
-            # This only works for gevent
-            if task_id == compat.main_thread.ident:
-                event.cpu_time_ns = cpu_time
-                # FIXME: we only trace spans per thread, so we assign the span to the main thread for now
-                # we'd need to leverage the greenlet tracer to also store the active span
-                event.set_trace_info(span, collect_endpoint)
-
-                cpu_time_accounted_for = True
-
             stack_events.append(event)
 
-        # If a thread has no task, we inject the "regular" thread samples
-        if not cpu_time_accounted_for:
-            frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
+        frames, nframes = _traceback.pyframe_to_frames(thread_pyframes, max_nframes)
 
-            event = stack_event.StackSampleEvent(
-                thread_id=thread_id,
-                thread_native_id=thread_native_id,
-                thread_name=thread_name,
-                task_id=thread_task_id,
-                task_name=thread_task_name,
-                nframes=nframes,
-                frames=frames,
-                wall_time_ns=wall_time,
-                cpu_time_ns=cpu_time,
-                sampling_period=int(interval * 1e9),
-            )
+        event = stack_event.StackSampleEvent(
+            thread_id=thread_id,
+            thread_native_id=thread_native_id,
+            thread_name=thread_name,
+            task_id=thread_task_id,
+            task_name=thread_task_name,
+            nframes=nframes,
+            frames=frames,
+            wall_time_ns=wall_time,
+            cpu_time_ns=cpu_time,
+            sampling_period=int(interval * 1e9),
+        )
 
-            event.set_trace_info(span, collect_endpoint)
+        event.set_trace_info(span, collect_endpoint)
 
-            stack_events.append(event)
+        stack_events.append(event)
 
         if exception is not None:
             exc_type, exc_traceback = exception

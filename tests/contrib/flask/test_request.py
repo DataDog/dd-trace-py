@@ -7,6 +7,7 @@ from flask import jsonify
 from flask import make_response
 
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.flask.patch import flask_version
 from ddtrace.ext import http
 from ddtrace.internal.compat import PY2
@@ -576,7 +577,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
         self.assertEqual(dispatch_span.error, 0)
-        self.assertIsNone(dispatch_span.get_tag("error.msg"))
+        self.assertIsNone(dispatch_span.get_tag(ERROR_MSG))
         self.assertIsNone(dispatch_span.get_tag("error.stack"))
         self.assertIsNone(dispatch_span.get_tag("error.type"))
 
@@ -659,7 +660,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
         self.assertEqual(dispatch_span.error, 0)
-        self.assertIsNone(dispatch_span.get_tag("error.msg"))
+        self.assertIsNone(dispatch_span.get_tag(ERROR_MSG))
         self.assertIsNone(dispatch_span.get_tag("error.stack"))
         self.assertIsNone(dispatch_span.get_tag("error.type"))
 
@@ -669,7 +670,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.not_found")
         self.assertEqual(handler_span.resource, "/not-found")
         self.assertEqual(handler_span.error, 1)
-        self.assertTrue(handler_span.get_tag("error.msg").startswith("404 Not Found"))
+        self.assertTrue(handler_span.get_tag(ERROR_MSG).startswith("404 Not Found"))
         self.assertTrue(handler_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(handler_span.get_tag("error.type"), "werkzeug.exceptions.NotFound")
 
@@ -749,7 +750,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
         self.assertEqual(dispatch_span.error, 1)
-        self.assertTrue(dispatch_span.get_tag("error.msg").startswith("500 error"))
+        self.assertTrue(dispatch_span.get_tag(ERROR_MSG).startswith("500 error"))
         self.assertTrue(dispatch_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(dispatch_span.get_tag("error.type"), base_exception_name)
 
@@ -759,7 +760,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.fivehundred")
         self.assertEqual(handler_span.resource, "/500")
         self.assertEqual(handler_span.error, 1)
-        self.assertTrue(handler_span.get_tag("error.msg").startswith("500 error"))
+        self.assertTrue(handler_span.get_tag(ERROR_MSG).startswith("500 error"))
         self.assertTrue(handler_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(handler_span.get_tag("error.type"), base_exception_name)
 
@@ -769,7 +770,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(user_ex_span.name, "flask.handle_user_exception")
         self.assertEqual(user_ex_span.resource, "flask.handle_user_exception")
         self.assertEqual(user_ex_span.error, 1)
-        self.assertTrue(user_ex_span.get_tag("error.msg").startswith("500 error"))
+        self.assertTrue(user_ex_span.get_tag(ERROR_MSG).startswith("500 error"))
         self.assertTrue(user_ex_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(user_ex_span.get_tag("error.type"), base_exception_name)
 
@@ -851,7 +852,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
         self.assertEqual(dispatch_span.error, 1)
-        self.assertTrue(dispatch_span.get_tag("error.msg").startswith("501 Not Implemented"))
+        self.assertTrue(dispatch_span.get_tag(ERROR_MSG).startswith("501 Not Implemented"))
         self.assertTrue(dispatch_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(dispatch_span.get_tag("error.type"), "werkzeug.exceptions.NotImplemented")
 
@@ -861,7 +862,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.fivehundredone")
         self.assertEqual(handler_span.resource, "/501")
         self.assertEqual(handler_span.error, 1)
-        self.assertTrue(handler_span.get_tag("error.msg").startswith("501 Not Implemented"))
+        self.assertTrue(handler_span.get_tag(ERROR_MSG).startswith("501 Not Implemented"))
         self.assertTrue(handler_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(handler_span.get_tag("error.type"), "werkzeug.exceptions.NotImplemented")
 
@@ -979,7 +980,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(dispatch_span.name, "flask.dispatch_request")
         self.assertEqual(dispatch_span.resource, "flask.dispatch_request")
         self.assertEqual(dispatch_span.error, 1)
-        self.assertTrue(dispatch_span.get_tag("error.msg").startswith("500 error"))
+        self.assertTrue(dispatch_span.get_tag(ERROR_MSG).startswith("500 error"))
         self.assertTrue(dispatch_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(dispatch_span.get_tag("error.type"), base_exception_name)
 
@@ -989,7 +990,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.fivehundred")
         self.assertEqual(handler_span.resource, "/500")
         self.assertEqual(handler_span.error, 1)
-        self.assertTrue(handler_span.get_tag("error.msg").startswith("500 error"))
+        self.assertTrue(handler_span.get_tag(ERROR_MSG).startswith("500 error"))
         self.assertTrue(handler_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(handler_span.get_tag("error.type"), base_exception_name)
 
@@ -999,7 +1000,7 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(user_ex_span.name, "flask.handle_user_exception")
         self.assertEqual(user_ex_span.resource, "flask.handle_user_exception")
         self.assertEqual(user_ex_span.error, 1)
-        self.assertTrue(user_ex_span.get_tag("error.msg").startswith("500 error"))
+        self.assertTrue(user_ex_span.get_tag(ERROR_MSG).startswith("500 error"))
         self.assertTrue(user_ex_span.get_tag("error.stack").startswith("Traceback"))
         self.assertEqual(user_ex_span.get_tag("error.type"), base_exception_name)
 

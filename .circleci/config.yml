@@ -1328,13 +1328,6 @@ workflows:
       # Final reports
       - coverage_report: *requires_tests
 
-  test_nightly:
+  test_latest:
     <<: *workflow_test
-    triggers:
-      - schedule:
-          cron: "0 0 * * *"
-          filters:
-            branches:
-              only:
-                - 0.x
-                - 1.x
+
