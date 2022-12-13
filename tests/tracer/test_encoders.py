@@ -96,7 +96,7 @@ class RefMsgpackEncoder(_EncoderBase):
         raise NotImplementedError()
 
     def encode_traces(self, traces):
-        normalized_traces = [[self.normalize(trace[i], i) for i in range(len(trace))] for trace in traces]
+        normalized_traces = [[self.normalize(span) for span in trace] for trace in traces]
         return self.encode(normalized_traces)
 
     def encode(self, obj):

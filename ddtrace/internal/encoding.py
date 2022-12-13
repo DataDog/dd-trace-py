@@ -79,7 +79,7 @@ class _EncoderBase(object):
         if span._meta:
             d["meta"] = span._meta
             if i == 0:
-                d["meta"] = {"language": "python"}
+                d["meta"]["language"] = "python"
         else:
             if i == 0:
                 d["meta"] = {"language": "python"}
