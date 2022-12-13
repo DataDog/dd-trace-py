@@ -39,7 +39,10 @@ _ORIGIN_KEY = ORIGIN_KEY.encode()
 
 def span_to_tuple(span):
     # type: (Span) -> tuple
-    span_tags = {"language": "python"} if not span.get_tags() else {"language": "python"}.update(span.get_tags())
+    span_tags = span.get_tags() or {}
+    print("1", span_tags)
+    span_tags["language"] = "python"
+    print("2", span_tags)
     return (
         span.service,
         span.name,
@@ -399,9 +402,10 @@ def test_span_types(encoding, span, tags):
     span.finish()
 
     trace = [span]
-    print("401: ", span._meta)
+    print("401: ", span_to_tuple(span))
     encoder.put(trace)
     ref_encoded_traces = refencoder.encode_traces([trace])
+    print(ref_encoded_traces)
     ref_decoded_traces = decode(ref_encoded_traces)
     actual_encoded_traces = encoder.encode()
     actual_decoded_traces = decode(actual_encoded_traces)
