@@ -517,15 +517,17 @@ def test_encoder_buffer_item_size_limit_v03():
     span = Span(name="test")
     trace = [span]
 
-    print("encoder:", encoder.size)
     encoder.put(trace)
-    print("max_item_size", max_item_size, "encoder:", encoder.size)
-    trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
-    print("trace", trace_size, "encoder:", encoder.size)
+    encoder_size = encoder.size
+    span_1_size = encoder.size - 1
+    encoder.put(trace * 2)  # Encode another trace with 2 spans since the size of second span in chunk will be smaller
+    span_2_size = encoder.size - encoder_size - span_1_size  # This includes the global msgpack array size prefix
+    print("span_1", span_1_size, "span_2:", span_2_size, "encoder_size:", encoder.size)
 
     with pytest.raises(BufferItemTooLarge):
-        encoder.put([span] * (int(max_item_size / trace_size) + 1))
-        print("encoder_final", encoder.size)
+        print("space_to_fill_after_1st_span:", max_item_size - encoder.size - span_1_size)
+        encoder.put([span] * (int((max_item_size - encoder.size - span_1_size) / span_2_size) + 2))
+        print("encoder:", encoder.size)
 
 
 def test_encoder_buffer_item_size_limit_v05():
@@ -535,20 +537,16 @@ def test_encoder_buffer_item_size_limit_v05():
     span = Span(name="test")
     trace = [span]
 
-    print("max_item_size", max_item_size, "encoder:", encoder.size)
-
     encoder.put(trace)
-    print("encoder:", encoder.size)
     base_size = encoder.size
-    print("base:", base_size, "encoder:", encoder.size)
+    span_1_size = base_size - 15
     encoder.put(trace)
-    print("base:", base_size, "encoder:", encoder.size)
-
-    trace_size = encoder.size - base_size
-    print("trace", trace_size, "encoder:", encoder.size)
+    span_2_size = encoder.size - base_size - span_1_size
+    print("span_1:", span_1_size, "span2:", span_2_size, "encoder:", encoder.size)
 
     with pytest.raises(BufferItemTooLarge):
-        encoder.put([span] * (int(max_item_size / trace_size) + 2))
+        print("space_to_fill_after_1st_span:", max_item_size - encoder.size - span_1_size)
+        encoder.put([span] * (int(max_item_size - encoder.size - span_1_size) + 2))
         print("encoder:", encoder.size)
 
 
