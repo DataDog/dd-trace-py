@@ -34,8 +34,6 @@ APPSEC_WAF_DURATION_EXT = "_dd.appsec.waf.duration_ext"
 APPSEC_WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
 APPSEC_WAF_VERSION = "_dd.appsec.waf.version"
 APPSEC_ORIGIN_VALUE = "appsec"
-# XXX remove once template has been implemented for Django
-APPSEC_IPBLOCK_403_DEFAULT = "Error 403: Forbidden IP"
 
 IAST_ENV = "DD_IAST_ENABLED"
 IAST_JSON = "_dd.iast.json"
@@ -62,7 +60,7 @@ AUTO_KEEP = 1
 USER_KEEP = 2
 
 APPSEC_BLOCKED_RESPONSE_HTML = """
-<!-- Sorry, you’ve been blocked -->
+<!-- Sorry, you've been blocked -->
 <!DOCTYPE html>
 <html lang="en">
 
