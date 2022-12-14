@@ -552,8 +552,10 @@ class _TraceContext:
         """
 
         version, trace_id_hex, span_id_hex, trace_flags_hex = tp.strip().split("-")
-        # check version is a valid hexadecimal, if not it's invalid we will move on to the next prop method
-        int(version, 16)
+        # ensure traceparent values are valid hexadecimals, if not it's invalid we will move on
+        # to the next prop method
+        for val in [version, trace_id_hex, span_id_hex, trace_flags_hex]:
+            int(val, 16)
         # https://www.w3.org/TR/trace-context/#version
         if version == "ff":
             raise ValueError("'ff' is an invalid traceparent version")
