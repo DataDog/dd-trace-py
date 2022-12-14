@@ -64,6 +64,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Set
     from typing import Union
     from typing import Tuple
+
     # from .appsec.processor import AppSecSpanProcessor
 
 from typing import Callable

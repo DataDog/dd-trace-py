@@ -379,7 +379,9 @@ def test_request_ipblock_match_403(client, test_spans, tracer):
 
         result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.4.4", HTTP_ACCEPT="text/html")
         assert result.status_code == 403
-        as_bytes = bytes(constants.APPSEC_BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_HTML
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_HTML, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_HTML
+        )
         assert result.content == as_bytes
         root = test_spans.spans[0]
         assert root.get_tag("actor.ip") == "8.8.4.4"
@@ -410,6 +412,8 @@ def test_request_ipblock_match_403(client, test_spans, tracer):
                 }
             ]
         }
+
+
 def test_request_ipblock_match_403_json(client, test_spans, tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
 
@@ -419,5 +423,7 @@ def test_request_ipblock_match_403_json(client, test_spans, tracer):
 
         result = client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.4.4")
         assert result.status_code == 403
-        as_bytes = bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        as_bytes = (
+            bytes(constants.APPSEC_BLOCKED_RESPONSE_JSON, "utf-8") if PY3 else constants.APPSEC_BLOCKED_RESPONSE_JSON
+        )
         assert result.content == as_bytes

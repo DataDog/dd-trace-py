@@ -34,12 +34,7 @@ class TraceMiddleware(object):
         span.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.falcon.get_analytics_sample_rate(use_global_config=True))
 
         trace_utils.set_http_meta(
-            span,
-            config.falcon,
-            method=req.method,
-            url=req.url,
-            query=req.query_string,
-            request_headers=req.headers
+            span, config.falcon, method=req.method, url=req.url, query=req.query_string, request_headers=req.headers
         )
 
     def process_resource(self, req, resp, resource, params):
