@@ -7,7 +7,7 @@ Installation failure
 
 ``ModuleNotFoundError: No module named 'Cython'``
 
-pip is failing to install `ddtrace` and complaining about a missing module (Cython).
+pip is failing to install ``ddtrace`` and complaining about a missing module (Cython).
 ``pip>=18`` is required to properly install ``ddtrace`` package.
 
 Check which version of pip you are using with ``pip --version``.
