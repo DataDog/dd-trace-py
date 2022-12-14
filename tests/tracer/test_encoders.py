@@ -468,8 +468,11 @@ def test_encoder_buffer_size_limit_v03():
     encoder = MsgpackEncoderV03(buffer_size, buffer_size)
 
     trace = [Span(name="test")]
+    print("encoder:", encoder.size)
     encoder.put(trace)
+    print("buffer", buffer_size, "encoder:", encoder.size)
     trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
+    print("trace", trace_size, "encoder:", encoder.size)
 
     for _ in range(1, int(buffer_size / trace_size)):
         encoder.put(trace)
@@ -486,11 +489,16 @@ def test_encoder_buffer_size_limit_v05():
     encoder = MsgpackEncoderV05(buffer_size, buffer_size)
 
     trace = [Span(name="test")]
+    print("encoder:", encoder.size)
     encoder.put(trace)
+    print("buffer", buffer_size, "encoder:", encoder.size)
     base_size = encoder.size
+    print("base:", base_size, "encoder:", encoder.size)
     encoder.put(trace)
+    print("base:", base_size, "encoder:", encoder.size)
 
     trace_size = encoder.size - base_size
+    print("trace", trace_size, "encoder:", encoder.size)
 
     for _ in range(1, int((buffer_size - base_size) / trace_size)):
         encoder.put(trace)
@@ -508,8 +516,12 @@ def test_encoder_buffer_item_size_limit_v03():
 
     span = Span(name="test")
     trace = [span]
+
+    print("encoder:", encoder.size)
     encoder.put(trace)
+    print("max_item_size", max_item_size, "encoder:", encoder.size)
     trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
+    print("trace", trace_size, "encoder:", encoder.size)
 
     with pytest.raises(BufferItemTooLarge):
         encoder.put([span] * (int(max_item_size / trace_size) + 1))
@@ -521,11 +533,18 @@ def test_encoder_buffer_item_size_limit_v05():
 
     span = Span(name="test")
     trace = [span]
+
+    print("max_item_size", max_item_size, "encoder:", encoder.size)
+
     encoder.put(trace)
+    print("encoder:", encoder.size)
     base_size = encoder.size
+    print("base:", base_size, "encoder:", encoder.size)
     encoder.put(trace)
+    print("base:", base_size, "encoder:", encoder.size)
 
     trace_size = encoder.size - base_size
+    print("trace", trace_size, "encoder:", encoder.size)
 
     with pytest.raises(BufferItemTooLarge):
         encoder.put([span] * (int(max_item_size / trace_size) + 2))
