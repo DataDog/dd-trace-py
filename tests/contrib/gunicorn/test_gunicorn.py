@@ -8,6 +8,7 @@ from typing import NamedTuple
 import pytest
 import tenacity
 
+from ddtrace.internal.compat import stringify
 from tests.webclient import Client
 
 
@@ -78,7 +79,7 @@ wsgi_app = "{wsgi_app}"
         worker_class=gunicorn_server_settings.worker_class,
         wsgi_app=gunicorn_server_settings.app_path,
     )
-    cfg_file.write_text(cfg)
+    cfg_file.write_text(stringify(cfg))
     cmd = []
     if gunicorn_server_settings.use_ddtracerun:
         cmd = ["ddtrace-run"]
