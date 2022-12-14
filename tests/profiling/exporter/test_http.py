@@ -251,7 +251,7 @@ def test_export_tracer_base_path_agent_less(endpoint_test_server):
 
 def _parse_tags(tags):
     tagsMap = {}
-    for tag in six.text_type(tags, "utf-8").split(","):
+    for tag in tags.split(","):
         (key, value) = tag.split(":")
         tagsMap[key] = value
     return tagsMap
@@ -365,7 +365,7 @@ def test_get_tags_override(monkeypatch):
     monkeypatch.setenv("DD_TAGS", "foobar:baz,service:🤣")
     tags = _parse_tags(http.PprofHTTPExporter(endpoint="")._get_tags("foobar"))
     assert len(tags) == 8
-    assert tags["service"] == u"🤣"
+    assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
     assert tags["language"] == "python"
@@ -376,7 +376,7 @@ def test_get_tags_override(monkeypatch):
 
     tags = _parse_tags(http.PprofHTTPExporter(endpoint="", version="123")._get_tags("foobar"))
     assert len(tags) == 9
-    assert tags["service"] == u"🤣"
+    assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
     assert tags["language"] == "python"
@@ -388,7 +388,7 @@ def test_get_tags_override(monkeypatch):
 
     tags = _parse_tags(http.PprofHTTPExporter(endpoint="", version="123", env="prod")._get_tags("foobar"))
     assert len(tags) == 10
-    assert tags["service"] == u"🤣"
+    assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
     assert tags["language"] == "python"
@@ -402,7 +402,7 @@ def test_get_tags_override(monkeypatch):
         http.PprofHTTPExporter(endpoint="", version="123", env="prod", tags={"mytag": "123"})._get_tags("foobar")
     )
     assert len(tags) == 11
-    assert tags["service"] == u"🤣"
+    assert tags["service"] == "🤣"
     assert len(tags["host"])
     assert len(tags["runtime-id"])
     assert tags["language"] == "python"
