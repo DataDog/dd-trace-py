@@ -34,6 +34,7 @@ APPSEC_WAF_DURATION_EXT = "_dd.appsec.waf.duration_ext"
 APPSEC_WAF_TIMEOUTS = "_dd.appsec.waf.timeouts"
 APPSEC_WAF_VERSION = "_dd.appsec.waf.version"
 APPSEC_ORIGIN_VALUE = "appsec"
+# XXX remove once template has been implemented for Django
 APPSEC_IPBLOCK_403_DEFAULT = "Error 403: Forbidden IP"
 
 IAST_ENV = "DD_IAST_ENABLED"
@@ -60,7 +61,6 @@ AUTO_KEEP = 1
 # Use this to explicitly inform the backend that a trace should be kept and stored.
 USER_KEEP = 2
 
-# From: https://github.com/DataDog/asm-blocked-response-template/blob/main/blocked.html
 APPSEC_BLOCKED_RESPONSE_HTML = """
 <!-- Sorry, you’ve been blocked -->
 <!DOCTYPE html>
