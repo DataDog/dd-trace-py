@@ -33,6 +33,8 @@ def chunked_response_generator_error(start_response):
 def application(environ, start_response):
     if environ["PATH_INFO"] == "/error":
         raise Exception("Oops!")
+    elif environ["PATH_INFO"] == "/baseException":
+        raise BaseException("base exception raised in wsgi app")
     elif environ["PATH_INFO"] == "/chunked":
         return chunked_response(start_response)
     elif environ["PATH_INFO"] == "/generatorError":
@@ -255,6 +257,15 @@ def test_500():
     app = TestApp(wsgi.DDWSGIMiddleware(application))
     with pytest.raises(Exception):
         app.get("/error")
+
+
+@snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
+def test_base_exception_in_wsgi_app():
+    # Ensure wsgi.request and wsgi.application spans are closed when
+    # a BaseException is raised.
+    app = TestApp(wsgi.DDWSGIMiddleware(application))
+    with pytest.raises(BaseException):
+        app.get("/baseException")
 
 
 @pytest.mark.snapshot(token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware")

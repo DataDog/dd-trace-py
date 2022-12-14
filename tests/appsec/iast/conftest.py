@@ -1,24 +1,46 @@
 import pytest
 
 from ddtrace.appsec.iast import oce
-from ddtrace.appsec.iast.taint_sinks.weak_hash import patch
-from ddtrace.appsec.iast.taint_sinks.weak_hash import unpatch_iast
+from ddtrace.appsec.iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
+from ddtrace.appsec.iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
+from ddtrace.appsec.iast.taint_sinks.weak_hash import patch as weak_hash_patch
+from ddtrace.appsec.iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
 from tests.utils import override_env
 
 
 def iast_span(tracer, env):
     with override_env(env):
         with tracer.trace("test") as span:
-            patch()
+            weak_hash_patch()
+            weak_cipher_patch()
             oce.acquire_request()
             yield span
             oce.release_request()
-            unpatch_iast()
+            weak_hash_unpatch()
+            weak_cipher_unpatch()
 
 
 @pytest.fixture
 def iast_span_defaults(tracer):
     for t in iast_span(tracer, dict(DD_IAST_ENABLED="true")):
+        yield t
+
+
+@pytest.fixture
+def iast_span_des_rc2_configured(tracer):
+    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_CIPHER_ALGORITHMS="DES, RC2")):
+        yield t
+
+
+@pytest.fixture
+def iast_span_rc4_configured(tracer):
+    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_CIPHER_ALGORITHMS="RC4")):
+        yield t
+
+
+@pytest.fixture
+def iast_span_blowfish_configured(tracer):
+    for t in iast_span(tracer, dict(DD_IAST_ENABLED="true", DD_IAST_WEAK_CIPHER_ALGORITHMS="BLOWFISH, RC2")):
         yield t
 
 

@@ -1,9 +1,54 @@
 # type: ignore
+import json
+import logging
+import os
+import sys
 from typing import List
 from typing import Tuple
+from urllib.error import HTTPError
+from urllib.request import urlopen
 
 from riot import Venv
-from riot import latest
+from riot import latest as latest_riot
+
+
+logger = logging.getLogger(__name__)
+latest = object()  # sentinel value
+
+
+def find_workflow(workflow_id: str) -> str:
+    """Use CircleCI API to retrieve current workflow name"""
+    try:
+        url = f"https://circleci.com/api/v2/workflow/{workflow_id}"
+        res = urlopen(url)
+        body = res.read().decode()
+        return json.loads(body)["name"]
+    except HTTPError:
+        logger.error("Error loading workflow information from CircleC: %s", url)
+        raise
+
+
+# Set up PY_Latest to True if the current workflow is test_latest
+PY_Latest = False
+if "CIRCLE_WORKFLOW_ID" not in os.environ:
+    if "DD_USE_LATEST_VERSION" in os.environ:
+        PY_Latest = True
+    else:
+        logger.warning("not in CircleCI. Use fixed dependencies versions.")
+else:
+    # CircleCI has no environment variable for the workflow name and no possibility
+    # to set it at the workflow level. We use the CircleCI API to do it.
+    PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
+    logger.info("Set latest versions of packages: %s", ["FIXED", "LATEST"][PY_Latest])
+
+# Import fixed version if needed
+if not PY_Latest:
+    try:
+        sys.path.extend([".", ".circleci"])
+        from dependencies import LATEST_VERSIONS
+    except ModuleNotFoundError:
+        logger.error("missing dependencies.py")
+        raise
 
 
 SUPPORTED_PYTHON_VERSIONS = [
@@ -221,6 +266,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/appsec",
             pkgs={
                 "pycryptodome": latest,
+                "cryptography": latest,
             },
         ),
         Venv(
@@ -312,17 +358,20 @@ venv = Venv(
             pkgs={
                 "httpretty": "==0.9.7",
                 "gevent": latest,
-                "packaging": ["==17.1", latest],
             },
             env={
                 "DD_REMOTE_CONFIGURATION_ENABLED": "false",
             },
             venvs=[
-                Venv(pys="2.7"),
+                Venv(pys="2.7", pkgs={"packaging": ["==17.1", latest]}),
                 Venv(
-                    # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
-                    pys=select_pys(min_version="3.5"),
-                    pkgs={"pytest-asyncio": latest},
+                    pys=select_pys(min_version="3.5", max_version="3.6"),
+                    pkgs={"pytest-asyncio": latest, "packaging": ["==17.1", latest]},
+                ),
+                # FIXME[bytecode-3.11]: internal depends on bytecode, which is not python 3.11 compatible.
+                Venv(
+                    pys=select_pys(min_version="3.7"),
+                    pkgs={"pytest-asyncio": latest, "packaging": ["==17.1", "==22.0", latest]},
                 ),
             ],
         ),
@@ -429,6 +478,19 @@ venv = Venv(
             },
         ),
         Venv(
+            name="wait",
+            command="python tests/wait-for-services.py {cmdargs}",
+            # Default Python 3 (3.10) collections package breaks with kombu/vertica, so specify Python 3.9 instead.
+            pys="3.9",
+            pkgs={
+                "cassandra-driver": latest,
+                "psycopg2-binary": latest,
+                "mysql-connector-python": "!=8.0.18",
+                "vertica-python": ">=0.6.0,<0.7.0",
+                "kombu": ">=4.2.0,<4.3.0",
+            },
+        ),
+        Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
             pys=select_pys(),
@@ -475,6 +537,39 @@ venv = Venv(
                             latest,
                         ]
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="bottle",
+            pkgs={"WebTest": latest},
+            venvs=[
+                Venv(
+                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.9"),
+                            pkgs={"bottle": [">=0.11,<0.12", ">=0.12,<0.13", latest]},
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={"bottle": latest},
+                        ),
+                    ],
+                ),
+                Venv(
+                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    env={"DD_SERVICE": "bottle-app"},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.9"),
+                            pkgs={"bottle": [">=0.11,<0.12", ">=0.12,<0.13", latest]},
+                        ),
+                        Venv(
+                            pys=select_pys(min_version="3.10"),
+                            pkgs={"bottle": latest},
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -1814,6 +1909,14 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/cassandra",
         ),
         Venv(
+            name="algoliasearch",
+            pys=select_pys(),
+            command="pytest {cmdargs} tests/contrib/algoliasearch",
+            pkgs={
+                "algoliasearch": [">=1.2,<2", ">=2,<3", latest],
+            },
+        ),
+        Venv(
             name="aiopg",
             venvs=[
                 Venv(
@@ -2379,5 +2482,140 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="kombu",
+            command="pytest {cmdargs} tests/contrib/kombu",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.6"),
+                    pkgs={
+                        "kombu": [
+                            ">=4.0,<4.1",
+                            ">=4.1,<4.2",
+                            ">=4.2,<4.3",
+                            ">=4.3,<4.4",
+                            ">=4.4,<4.5",
+                            ">=4.5,<4.6",
+                            ">=4.6,<4.7",
+                            latest,
+                        ],
+                        # kombu using deprecated shims removed in importlib-metadata 5.0 pre-Python 3.8
+                        "importlib_metadata": "<5.0",
+                    },
+                ),
+                # Kombu>=4.2 only supports Python 3.7+
+                Venv(
+                    pys="3.7",
+                    pkgs={
+                        "kombu": [">=4.2,<4.3", ">=4.3,<4.4", ">=4.4,<4.5", ">=4.5,<4.6", ">=4.6,<4.7", latest],
+                        # kombu using deprecated shims removed in importlib-metadata 5.0 pre-Python 3.8
+                        "importlib_metadata": "<5.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={
+                        "kombu": [">=4.2,<4.3", ">=4.3,<4.4", ">=4.4,<4.5", ">=4.5,<4.6", ">=4.6,<4.7", latest],
+                    },
+                ),
+                Venv(
+                    pys="3.10",
+                    pkgs={
+                        "kombu": [">=4.3,<4.4", ">=4.4,<4.5", ">=4.5,<4.6", ">=4.6,<4.7", latest],
+                    },
+                ),
+                Venv(
+                    pys="3.11",
+                    pkgs={
+                        "kombu": [">=5.0,<5.1", ">=5.1,<5.2", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="tornado",
+            command="python -m pytest {cmdargs} tests/contrib/tornado",
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    pkgs={"tornado": [">=4.4,<4.5", ">=4.5,<4.6"], "futures": ["~=3.0", "~=3.1", "~=3.2", latest]},
+                ),
+                Venv(
+                    pys=select_pys(max_version="3.9"),
+                    pkgs={
+                        "tornado": [">=4.4,<4.5", ">=4.5,<4.6"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.7", max_version="3.9"),
+                    pkgs={
+                        "tornado": [">=5.0,<5.1", ">=5.1,<5.2", ">=6.0,<6.1", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.11"),
+                    pkgs={
+                        "tornado": [">=6.0,<6.1", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="mysqldb",
+            command="pytest {cmdargs} tests/contrib/mysqldb",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.9"),
+                    pkgs={
+                        "mysqlclient": [">=1.3,<1.4", ">=1.4,<1.5", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "mysqlclient": [">=1.4,<1.5", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="molten",
+            command="pytest {cmdargs} tests/contrib/molten",
+            pys=select_pys(min_version="3.6"),
+            pkgs={
+                "molten": [">=0.6,<0.7", ">=0.7,<0.8", ">=1.0,<1.1", latest],
+            },
+        ),
     ],
 )
+
+
+def update_venv(venv: Venv):
+    """Recursively update the venvs by replacing the sentinel object 'latest' with either
+    - constant latest from riot package if PY_Latest
+    - fixed version string from local package dependencies
+    """
+
+    def replace(package):
+        if PY_Latest or "/" in package:  # local package are always using latest
+            return latest_riot
+        else:
+            return "<=" + LATEST_VERSIONS[package.split("[")[0]]
+
+    def update_pkgs(d):
+        for k, v in list(d.items()):
+            if v is latest:
+                d[k] = replace(k)
+            elif isinstance(v, list):
+                for i, e in enumerate(v):
+                    if e is latest:
+                        v[i] = replace(k)
+
+    if hasattr(venv, "pkgs"):
+        update_pkgs(venv.pkgs)
+    if hasattr(venv, "venvs"):
+        for v in venv.venvs:
+            update_venv(v)
+
+
+update_venv(venv)

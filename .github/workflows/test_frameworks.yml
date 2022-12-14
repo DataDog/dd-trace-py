@@ -53,7 +53,7 @@ jobs:
         run: PYTHONPATH=../ddtrace/tests/debugging/exploration/ ddtrace-run pytest test --continue-on-collection-errors -v -k 'not test_simple'
 
   django-testsuite-3_1:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     env:
       DD_PROFILING_ENABLED: true
       DD_TESTING_RAISE: true
@@ -416,3 +416,74 @@ jobs:
           sed -i'' "s/test_langs/langs/g" tests/test_units/test_basic_app.py
       - name: Run tests
         run: nosetests
+
+  gunicorn-testsuite-20_1_0:
+    name: gunicorn 20.1.0
+    runs-on: "ubuntu-latest"
+    env:
+      DD_TESTING_RAISE: true
+      # PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: gunicorn
+    steps:
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: benoitc/gunicorn
+          ref: 20.1.0
+          path: gunicorn
+      - name: Run tests
+        run: |
+          . ../ddtrace/.github/workflows/setup-tox.sh py39
+          
+          pip install -e .
+          pytest -p no:warnings -k "not test_import" tests/
+
+  uwsgi-testsuite-2_0_21:
+    name: uwsgi 2.0.21
+    runs-on: "ubuntu-18.04"
+    env:
+      DD_TESTING_RAISE: true
+      DD_PROFILING_ENABLED: true
+      PYTHONPATH: ../ddtrace/tests/debugging/exploration/
+    defaults:
+      run:
+        working-directory: uwsgi
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - uses: actions/checkout@v2
+        with:
+          path: ddtrace
+      - uses: actions/checkout@v2
+        with:
+          repository: unbit/uwsgi
+          ref: 2.0.21
+          path: uwsgi
+      - name: Install dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt install --no-install-recommends -qqyf python3-dev \
+            libpcre3-dev libjansson-dev libcap2-dev \
+            curl check
+      - name: Install distutils
+        run: sudo apt install --no-install-recommends -qqyf python3-distutils
+      - name: Install ddtrace
+        run: pip install ../ddtrace
+      - name: Build uwsgi binary
+        run: make
+      - name: Build Python plugin
+        run: |
+          python -V
+          python uwsgiconfig.py --plugin plugins/python base python39
+      - name: Run Python tests
+        run: ddtrace-run ./tests/gh-python.sh python39
+      - name: Run deadlock tests
+        run: ddtrace-run ./tests/gh-deadlocks.sh python39

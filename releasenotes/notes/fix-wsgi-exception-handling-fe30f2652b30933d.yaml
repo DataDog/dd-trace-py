@@ -1,0 +1,4 @@
+--- 
+fixes:
+  - |
+    wsgi: This fix resolves an issue where ``BaseException`` raised in a WSGI application caused spans to not be submitted.
