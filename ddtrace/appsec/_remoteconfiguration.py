@@ -66,6 +66,7 @@ def appsec_rc_reload_features(tracer):
                     asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
                 ):
                     _appsec_enabled = False
+                    RemoteConfig.unregister(ASM_DATA_PRODUCT)
                 else:
                     RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
 

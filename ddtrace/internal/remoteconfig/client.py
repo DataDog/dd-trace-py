@@ -260,6 +260,10 @@ class RemoteConfigClient(object):
         else:
             self._products.pop(product_name, None)
 
+    def unregister_product(self, product_name):
+        # type: (str) -> None
+        self._products.pop(product_name, None)
+
     def _send_request(self, payload):
         # type: (str) -> Optional[Mapping[str, Any]]
         try:
@@ -366,17 +370,17 @@ class RemoteConfigClient(object):
                 log.debug("Disable configuration: %s", target)
                 callback_action = False
 
-            callback = self._products[config.product_name]
-
-            try:
-                callback(config, callback_action)
-            except Exception as e:
-                log.debug("error while removing product %s config %r. Error: %s", config.product_name, config, e)
-                continue
+            callback = self._products.get(config.product_name)
+            if callback:
+                try:
+                    callback(config, callback_action)
+                except Exception as e:
+                    log.debug("error while removing product %s config %r. Error: %s", config.product_name, config, e)
+                    continue
 
         # 3. Load new configurations
         for target, config in client_configs.items():
-            callback = self._products[config.product_name]
+            callback = self._products.get(config.product_name)
 
             applied_config = self._applied_configs.get(target)
             if applied_config == config:
@@ -385,15 +389,15 @@ class RemoteConfigClient(object):
             config_content = _extract_target_file(payload, target, config)
             if config_content is None:
                 continue
-
-            try:
-                log.debug("Load new configuration: %s. content %s", target, config_content)
-                callback(config, config_content)
-            except Exception:
-                log.debug("error while loading product %s config %r", config.product_name, config)
-                continue
-            else:
-                applied_configs[target] = config
+            if callback:
+                try:
+                    log.debug("Load new configuration: %s. content %s", target, config_content)
+                    callback(config, config_content)
+                except Exception:
+                    log.debug("error while loading product %s config %r", config.product_name, config)
+                    continue
+                else:
+                    applied_configs[target] = config
 
         self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs
