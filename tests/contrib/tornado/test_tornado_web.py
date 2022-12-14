@@ -3,6 +3,7 @@ import tornado
 
 from ddtrace import config
 from ddtrace.constants import ANALYTICS_SAMPLE_RATE_KEY
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ORIGIN_KEY
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.ext import http
@@ -131,7 +132,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert_span_http_status_code(request_span, 500)
         assert self.get_url("/exception/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "Ouch!" == request_span.get_tag("error.msg")
+        assert "Ouch!" == request_span.get_tag(ERROR_MSG)
         assert "Exception: Ouch!" in request_span.get_tag("error.stack")
         assert request_span.get_tag("component") == "tornado"
 
@@ -154,7 +155,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert_span_http_status_code(request_span, 501)
         assert self.get_url("/http_exception/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "HTTP 501: Not Implemented (unavailable)" == request_span.get_tag("error.msg")
+        assert "HTTP 501: Not Implemented (unavailable)" == request_span.get_tag(ERROR_MSG)
         assert "HTTP 501: Not Implemented (unavailable)" in request_span.get_tag("error.stack")
         assert request_span.get_tag("component") == "tornado"
 
@@ -177,7 +178,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert_span_http_status_code(request_span, 500)
         assert self.get_url("/http_exception_500/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "HTTP 500: Server Error (server error)" == request_span.get_tag("error.msg")
+        assert "HTTP 500: Server Error (server error)" == request_span.get_tag(ERROR_MSG)
         assert "HTTP 500: Server Error (server error)" in request_span.get_tag("error.stack")
         assert request_span.get_tag("component") == "tornado"
 
@@ -221,7 +222,7 @@ class TestTornadoWeb(TornadoTestCase):
         assert_span_http_status_code(request_span, 500)
         assert self.get_url("/sync_exception/") == request_span.get_tag(http.URL)
         assert 1 == request_span.error
-        assert "Ouch!" == request_span.get_tag("error.msg")
+        assert "Ouch!" == request_span.get_tag(ERROR_MSG)
         assert "Exception: Ouch!" in request_span.get_tag("error.stack")
         assert request_span.get_tag("component") == "tornado"
 

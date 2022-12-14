@@ -6,6 +6,7 @@ import mock
 import pytest
 
 from ddtrace import Pin
+from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.contrib.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.pytest.plugin import _extract_repository_name
@@ -614,7 +615,7 @@ class TestPytest(TracerTestCase):
         test_span = spans[0]
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type").endswith("AssertionError") is True
-        assert test_span.get_tag("error.msg") == "assert 2 == 1"
+        assert test_span.get_tag(ERROR_MSG) == "assert 2 == 1"
         assert test_span.get_tag("error.stack") is not None
         assert test_span.get_tag("component") == "pytest"
 
@@ -664,7 +665,7 @@ class TestPytest(TracerTestCase):
 
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type").endswith("Exception") is True
-        assert test_span.get_tag("error.msg") == "will fail in setup"
+        assert test_span.get_tag(ERROR_MSG) == "will fail in setup"
         assert test_span.get_tag("error.stack") is not None
         assert test_span.get_tag("component") == "pytest"
 
@@ -692,7 +693,7 @@ class TestPytest(TracerTestCase):
 
         assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
         assert test_span.get_tag("error.type").endswith("Exception") is True
-        assert test_span.get_tag("error.msg") == "will fail in teardown"
+        assert test_span.get_tag(ERROR_MSG) == "will fail in teardown"
         assert test_span.get_tag("error.stack") is not None
         assert test_span.get_tag("component") == "pytest"
 

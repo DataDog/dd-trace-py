@@ -7,6 +7,7 @@ from asgiref.testing import ApplicationCommunicator
 import httpx
 import pytest
 
+from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.asgi import span_from_scope
 from ddtrace.propagation import http as http_propagation
@@ -262,7 +263,7 @@ async def test_asgi_error(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     assert request_span.error == 1
     assert request_span.get_tag("http.status_code") == "500"
-    assert request_span.get_tag("error.msg") == "Test"
+    assert request_span.get_tag(ERROR_MSG) == "Test"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert request_span.get_tag("component") == "asgi"
     assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
@@ -307,7 +308,7 @@ async def test_asgi_error_custom(scope, tracer, test_spans):
     assert request_span.span_type == "web"
     assert request_span.error == 1
     assert request_span.get_tag("http.status_code") == "501"
-    assert request_span.get_tag("error.msg") == "Test"
+    assert request_span.get_tag(ERROR_MSG) == "Test"
     assert request_span.get_tag("error.type") == "builtins.RuntimeError"
     assert request_span.get_tag("component") == "asgi"
     assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")

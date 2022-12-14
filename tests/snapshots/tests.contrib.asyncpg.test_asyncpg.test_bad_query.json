@@ -42,7 +42,7 @@
       "component": "asyncpg",
       "db.name": "postgres",
       "db.user": "postgres",
-      "error.msg": "syntax error at or near \"malformed\"",
+      "error.message": "syntax error at or near \"malformed\"",
       "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/asyncpg/patch.py\", line 96, in _traced_query\n    return await method(*args, **kwargs)\n  File \"asyncpg/protocol/protocol.pyx\", line 316, in query\nasyncpg.exceptions.PostgresSyntaxError: syntax error at or near \"malformed\"\n",
       "error.type": "asyncpg.exceptions.PostgresSyntaxError",
       "out.host": "127.0.0.1",

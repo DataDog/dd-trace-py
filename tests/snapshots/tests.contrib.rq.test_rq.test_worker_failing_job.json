@@ -63,7 +63,7 @@
           "error": 1,
           "meta": {
             "component": "rq",
-            "error.msg": "error",
+            "error.message": "error",
             "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 206, in traced_job_perform\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_rq~100_click712/lib/python3.8/site-packages/rq/job.py\", line 588, in perform\n    self._result = self._execute()\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_rq~100_click712/lib/python3.8/site-packages/rq/job.py\", line 594, in _execute\n    return self.func(*self.args, **self.kwargs)\n  File \"/root/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\ntests.contrib.rq.jobs.MyException: error\n",
             "error.type": "tests.contrib.rq.jobs.MyException",
             "job.id": "b1183604-ec37-4687-b1bf-300a4e800acc"

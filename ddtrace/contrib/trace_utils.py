@@ -148,7 +148,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         if tag_name is None:
             continue
         # An empty tag defaults to a http.<request or response>.headers.<header name> tag
-        span.set_tag(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
+        span.set_tag_str(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
 def _get_request_header_user_agent(headers, headers_are_case_sensitive=False):
@@ -447,15 +447,15 @@ def set_http_meta(
     if request_headers:
         user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
         if user_agent:
-            span.set_tag(http.USER_AGENT, user_agent)
+            span.set_tag_str(http.USER_AGENT, user_agent)
 
         # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if config._appsec_enabled:
             ip = _get_request_header_client_ip(span, request_headers, peer_ip, headers_are_case_sensitive)
             if ip:
-                span.set_tag(http.CLIENT_IP, ip)
-                span.set_tag("network.client.ip", ip)
+                span.set_tag_str(http.CLIENT_IP, ip)
+                span.set_tag_str("network.client.ip", ip)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and
@@ -582,15 +582,15 @@ def set_user(tracer, user_id, name=None, email=None, scope=None, role=None, sess
 
         # All other fields are optional
         if name:
-            span.set_tag(user.NAME, name)
+            span.set_tag_str(user.NAME, name)
         if email:
-            span.set_tag(user.EMAIL, email)
+            span.set_tag_str(user.EMAIL, email)
         if scope:
-            span.set_tag(user.SCOPE, scope)
+            span.set_tag_str(user.SCOPE, scope)
         if role:
-            span.set_tag(user.ROLE, role)
+            span.set_tag_str(user.ROLE, role)
         if session_id:
-            span.set_tag(user.SESSION_ID, session_id)
+            span.set_tag_str(user.SESSION_ID, session_id)
     else:
         log.warning(
             "No root span in the current execution. Skipping set_user tags. "

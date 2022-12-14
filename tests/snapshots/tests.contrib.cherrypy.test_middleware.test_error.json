@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "cherrypy",
-      "error.msg": "",
+      "error.message": "",
       "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_cherrypy1112_more_itertools8110/lib/python3.8/site-packages/cherrypy/_cprequest.py\", line 634, in respond\n    self._do_respond(path_info)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_cherrypy1112_more_itertools8110/lib/python3.8/site-packages/cherrypy/_cprequest.py\", line 693, in _do_respond\n    response.body = self.handler()\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_cherrypy1112_more_itertools8110/lib/python3.8/site-packages/cherrypy/lib/encoding.py\", line 221, in __call__\n    self.body = self.oldhandler(*args, **kwargs)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/.riot/venv_py3813_cherrypy1112_more_itertools8110/lib/python3.8/site-packages/cherrypy/_cpdispatch.py\", line 60, in __call__\n    return self.callable(*self.args, **self.kwargs)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/cherrypy/web.py\", line 55, in error\n    raise TestError()\ntests.contrib.cherrypy.web.TestError\n",
       "error.type": "<class 'tests.contrib.cherrypy.web.TestError'>",
       "http.method": "GET",

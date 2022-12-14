@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "graphql",
-      "error.msg": "Cannot query field \"invalid_schema\" on type \"RootQueryType\".",
+      "error.message": "Cannot query field \"invalid_schema\" on type \"RootQueryType\".",
       "error.type": "graphql.error.base.GraphQLError",
       "runtime-id": "bc0efee142884beb96fdb35ca56aa3dc"
     },
@@ -53,7 +53,7 @@
        "error": 1,
        "meta": {
          "component": "graphql",
-         "error.msg": "Cannot query field \"invalid_schema\" on type \"RootQueryType\".",
+         "error.message": "Cannot query field \"invalid_schema\" on type \"RootQueryType\".",
          "error.type": "graphql.error.base.GraphQLError",
          "graphql.source": "{ invalid_schema }"
        },

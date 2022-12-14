@@ -314,7 +314,7 @@
                                      "error": 1,
                                      "meta": {
                                        "component": "django",
-                                       "error.msg": "Error 500",
+                                       "error.message": "Error 500",
                                        "error.stack": "Traceback (most recent call last):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/ddtrace/contrib/django/patch.py\", line 229, in wrapped\n    return func(*args, **kwargs)\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/./tests/contrib/django/views.py\", line 68, in error_500\n    raise Exception(\"Error 500\")\nException: Error 500\n",
                                        "error.type": "builtins.Exception"
                                      },

@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy.exc import OperationalError
 
+from ddtrace.constants import ERROR_MSG
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 
@@ -44,6 +45,6 @@ class SQLiteTestCase(SQLAlchemyTestMixin, TracerTestCase):
         self.assertTrue(span.duration > 0)
         # check the error
         self.assertEqual(span.error, 1)
-        self.assertEqual(span.get_tag("error.msg"), "no such table: a_wrong_table")
+        self.assertEqual(span.get_tag(ERROR_MSG), "no such table: a_wrong_table")
         self.assertTrue("OperationalError" in span.get_tag("error.type"))
         self.assertTrue("OperationalError: no such table: a_wrong_table" in span.get_tag("error.stack"))

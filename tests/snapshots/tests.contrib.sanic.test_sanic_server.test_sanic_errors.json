@@ -40,7 +40,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "sanic",
-      "error.msg": "division by zero",
+      "error.message": "division by zero",
       "error.stack": "Traceback (most recent call last):\n  File \"handle_request\", line 83, in handle_request\n    class Sanic(BaseSanic, metaclass=TouchUpMeta):\n  File \"/Users/william.conti/Documents/dd-trace/dd-trace-py/tests/contrib/sanic/run_server.py\", line 38, in internal_error\n    1 / 0\nZeroDivisionError: division by zero\n",
       "error.type": "builtins.ZeroDivisionError",
       "http.method": "GET",

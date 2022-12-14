@@ -4,6 +4,7 @@ import os
 import pytest
 
 from ddtrace import Pin
+from ddtrace.constants import ERROR_MSG
 from ddtrace.ext import test
 from tests.utils import TracerTestCase
 
@@ -184,7 +185,7 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 4
         assert spans[-1].name == "then"
-        assert spans[-1].get_tag("error.msg")
+        assert spans[-1].get_tag(ERROR_MSG)
 
     def test_pytest_bdd_with_missing_step_implementation(self):
         """Test that pytest-bdd captures missing steps."""
@@ -206,4 +207,4 @@ class TestPytest(TracerTestCase):
         spans = self.pop_spans()
 
         assert len(spans) == 1
-        assert spans[0].get_tag("error.msg")
+        assert spans[0].get_tag(ERROR_MSG)

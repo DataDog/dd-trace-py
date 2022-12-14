@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "component": "graphql",
-      "error.msg": "exception was raised in a graphene query",
+      "error.message": "exception was raised in a graphene query",
       "error.type": "graphql.error.base.GraphQLError",
       "runtime-id": "9203e2a344a64d8da2a34d37d8fe3900"
     },
@@ -69,7 +69,7 @@
        "error": 1,
        "meta": {
          "component": "graphql",
-         "error.msg": "exception was raised in a graphene query",
+         "error.message": "exception was raised in a graphene query",
          "error.type": "graphql.error.base.GraphQLError",
          "graphql.operation.type": "query",
          "graphql.source": "{ patron { id name age } }"

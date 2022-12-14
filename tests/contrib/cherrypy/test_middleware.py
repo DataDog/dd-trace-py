@@ -487,7 +487,7 @@ class TestCherrypySnapshot(helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("child")
 
-    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.msg"])
+    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.message"])
     def test_success(self):
         self.getPage("/")
         time.sleep(0.1)
@@ -495,13 +495,13 @@ class TestCherrypySnapshot(helper.CPWebCase):
         self.assertHeader("Content-Type", "text/html;charset=utf-8")
         self.assertBody("Hello world!")
 
-    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.msg"])
+    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.message"])
     def test_error(self):
         self.getPage("/error")
         time.sleep(0.1)
         self.assertErrorPage(500)
 
-    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.msg"])
+    @snapshot(ignores=["meta.error.stack", "meta.error.type", "meta.error.message"])
     def test_fatal(self):
         self.getPage("/fatal")
         time.sleep(0.1)
