@@ -100,6 +100,7 @@ AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 def _start_appsec_processor():
     # type: () -> Optional[Any]
+    # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     try:
         from .appsec.processor import AppSecSpanProcessor
 
@@ -132,7 +133,8 @@ def _default_span_processors_factory(
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
 ):
-    # type: (...) -> Tuple[List[SpanProcessor], Optional[AppSecSpanProcessor]]
+    # type: (...) -> Tuple[List[SpanProcessor], Optional[Any]]
+    # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     """Construct the default list of span processors to use."""
     trace_processors = []  # type: List[TraceProcessor]
     trace_processors += [TraceTagsProcessor()]
