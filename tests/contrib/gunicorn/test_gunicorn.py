@@ -119,11 +119,13 @@ def test_basic(gunicorn_server):
     assert r.content == b"Hello, World!\n"
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.result_class"])
 @pytest.mark.parametrize(
     "gunicorn_server_settings", [_gunicorn_settings_factory(app_path="tests.contrib.gunicorn.wsgi_mw_app:app")]
 )
 def test_traced_basic(gunicorn_server_settings, gunicorn_server):
+    # meta.result_class is listiterator vs list_iterator in PY2 vs PY3.
+    # Ignore this field to avoid having to create mostly duplicate snapshots in Python 2 and 3.
     r = gunicorn_server.get("/")
     assert r.status_code == 200
     assert r.content == b"Hello, World!\n"
