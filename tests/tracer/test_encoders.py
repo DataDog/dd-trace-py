@@ -525,6 +525,7 @@ def test_encoder_buffer_item_size_limit_v03():
 
     with pytest.raises(BufferItemTooLarge):
         encoder.put([span] * (int(max_item_size / trace_size) + 1))
+        print("encoder_final", encoder.size)
 
 
 def test_encoder_buffer_item_size_limit_v05():
@@ -548,6 +549,7 @@ def test_encoder_buffer_item_size_limit_v05():
 
     with pytest.raises(BufferItemTooLarge):
         encoder.put([span] * (int(max_item_size / trace_size) + 2))
+        print("encoder:", encoder.size)
 
 
 def test_custom_msgpack_encode_v05():
@@ -575,8 +577,8 @@ def test_custom_msgpack_encode_v05():
     assert filter_mut(ts) == [
         [
             [2, 3, 4, 0, 0, 0, {5: 6}, {}, 0],
-            [2, 3, 7, 0, 0, 0, {5: 6}, {}, 0],
-            [8, 0, 0, 0, 0, 0, {5: 6}, {}, 0],
+            [2, 3, 7, 0, 0, 0, {}, {}, 0],
+            [8, 0, 0, 0, 0, 0, {}, {}, 0],
         ]
     ]
 
