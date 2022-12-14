@@ -724,8 +724,8 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
         
-        parent = span.parent_id
-        ret = msgpack_pack_uint64(&self.pk, parent if parent is not None else 0)
+        _ = span.parent_id
+        ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
         
         _ = span.start_ns

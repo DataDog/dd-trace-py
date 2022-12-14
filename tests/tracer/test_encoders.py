@@ -354,13 +354,15 @@ def test_msgpack_span_property_variations(encoding, span):
     # Finish the span to ensure a duration exists.
     span.finish()
     trace = [span]
-    print(span._meta)
+
     encoder.put(trace)
+
     ref_encoded_traces = refencoder.encode_traces([trace])
     ref_decoded_traces = decode(ref_encoded_traces)
+
     actual_encoded_traces = encoder.encode()
-    print(actual_encoded_traces)
     actual_decoded_traces = decode(actual_encoded_traces)
+
     assert ref_decoded_traces == actual_decoded_traces
 
 
@@ -401,13 +403,15 @@ def test_span_types(encoding, span, tags):
     span.finish()
 
     trace = [span]
-    print("401: ", span_to_tuple(span, 0))
+
     encoder.put(trace)
+
     ref_encoded_traces = refencoder.encode_traces([trace])
-    print(ref_encoded_traces)
     ref_decoded_traces = decode(ref_encoded_traces)
+
     actual_encoded_traces = encoder.encode()
     actual_decoded_traces = decode(actual_encoded_traces)
+
     assert ref_decoded_traces == actual_decoded_traces
 
 
@@ -467,11 +471,10 @@ def test_encoder_buffer_size_limit_v03():
     encoder = MsgpackEncoderV03(buffer_size, buffer_size)
 
     trace = [Span(name="test")]
-    print("encoder:", encoder.size)
+
     encoder.put(trace)
-    print("buffer", buffer_size, "encoder:", encoder.size)
+
     trace_size = encoder.size - 1  # This includes the global msgpack array size prefix
-    print("trace", trace_size, "encoder:", encoder.size)
 
     for _ in range(1, int(buffer_size / trace_size)):
         encoder.put(trace)
@@ -488,16 +491,14 @@ def test_encoder_buffer_size_limit_v05():
     encoder = MsgpackEncoderV05(buffer_size, buffer_size)
 
     trace = [Span(name="test")]
-    print("encoder:", encoder.size)
+
     encoder.put(trace)
-    print("buffer", buffer_size, "encoder:", encoder.size)
+
     base_size = encoder.size
-    print("base:", base_size, "encoder:", encoder.size)
+
     encoder.put(trace)
-    print("base:", base_size, "encoder:", encoder.size)
 
     trace_size = encoder.size - base_size
-    print("trace", trace_size, "encoder:", encoder.size)
 
     for _ in range(1, int((buffer_size - base_size) / trace_size)):
         encoder.put(trace)
@@ -517,16 +518,16 @@ def test_encoder_buffer_item_size_limit_v03():
     trace = [span]
 
     encoder.put(trace)
+
     encoder_size = encoder.size
-    span_1_size = encoder.size - 1
+    span_1_size = encoder.size - 1  # This includes the global msgpack array size prefix
+
     encoder.put(trace * 2)  # Encode another trace with 2 spans since the size of second span in chunk will be smaller
-    span_2_size = encoder.size - encoder_size - span_1_size  # This includes the global msgpack array size prefix
-    print("span_1", span_1_size, "span_2:", span_2_size, "encoder_size:", encoder.size)
+
+    span_2_size = encoder.size - encoder_size - span_1_size
 
     with pytest.raises(BufferItemTooLarge):
-        print("space_to_fill_after_1st_span:", max_item_size - encoder.size - span_1_size)
         encoder.put([span] * (int((max_item_size - span_1_size) / span_2_size) + 2))
-        print("encoder:", encoder.size)
 
 
 def test_encoder_buffer_item_size_limit_v05():
@@ -537,16 +538,16 @@ def test_encoder_buffer_item_size_limit_v05():
     trace = [span]
 
     encoder.put(trace)
+
     base_size = encoder.size
-    span_1_size = base_size - 15
-    encoder.put(trace * 2)
+    span_1_size = base_size - 15  # 15 represents base encoder size with no traces
+
+    encoder.put(trace * 2)  # Encode another trace with 2 spans since the size of second span in chunk will be smaller
+
     span_2_size = encoder.size - base_size - span_1_size
-    print("span_1:", span_1_size, "span2:", span_2_size, "encoder:", encoder.size)
 
     with pytest.raises(BufferItemTooLarge):
-        print("space_to_fill_after_1st_span:", max_item_size - encoder.size - span_1_size)
         encoder.put([span] * (int((max_item_size - span_1_size) / span_2_size) + 2))
-        print("encoder:", encoder.size)
 
 
 def test_custom_msgpack_encode_v05():

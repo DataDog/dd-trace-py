@@ -50,7 +50,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
-        self.assertEqual(handler_span.get_tags(), {})
+        self.assertEqual(handler_span.get_tags(), dict())
 
     def test_view_handler_error(self):
         """
@@ -131,7 +131,7 @@ class FlaskViewTestCase(BaseFlaskTestCase):
         # tests.contrib.flask.test_views.hello
         # DEV: We do not add any additional metadata to view spans
         self.assertEqual(handler_span.error, 0)
-        self.assertEqual(handler_span.get_tags(), {})
+        self.assertEqual(handler_span.get_tags(), dict())
 
     def test_method_view_handler_error(self):
         """
