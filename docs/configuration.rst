@@ -123,7 +123,8 @@ below:
 
    DD_AGENT_HOST:
      type: String
-     default: ``localhost``
+     default: |
+        ``localhost``
      description: |
          The host name to use to connect the Datadog agent for traces. The host name
          can be IPv4, IPv6, or a domain name. If ``DD_TRACE_AGENT_URL`` is specified, the
