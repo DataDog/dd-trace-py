@@ -37,12 +37,11 @@ from tests.utils import DummyTracer
 _ORIGIN_KEY = ORIGIN_KEY.encode()
 
 
-def span_to_tuple(span):
-    # type: (Span) -> tuple
+def span_to_tuple(span, i):
+    # type: (Span, int) -> tuple
     span_tags = span.get_tags() or {}
-    print("1", span_tags)
-    span_tags["language"] = "python"
-    print("2", span_tags)
+    if i == 0:
+        span_tags["language"] = "python"
     return (
         span.service,
         span.name,
@@ -140,7 +139,7 @@ class RefMsgpackEncoderV05(RefMsgpackEncoder):
         return value
 
     def normalize(self, span, i):
-        return tuple(self._index_or_value(_) for _ in span_to_tuple(span))
+        return tuple(self._index_or_value(_) for _ in span_to_tuple(span, i))
 
     def encode(self, obj):
         try:
@@ -402,7 +401,7 @@ def test_span_types(encoding, span, tags):
     span.finish()
 
     trace = [span]
-    print("401: ", span_to_tuple(span))
+    print("401: ", span_to_tuple(span, 0))
     encoder.put(trace)
     ref_encoded_traces = refencoder.encode_traces([trace])
     print(ref_encoded_traces)
@@ -540,7 +539,7 @@ def test_encoder_buffer_item_size_limit_v05():
     encoder.put(trace)
     base_size = encoder.size
     span_1_size = base_size - 15
-    encoder.put(trace)
+    encoder.put(trace * 2)
     span_2_size = encoder.size - base_size - span_1_size
     print("span_1:", span_1_size, "span2:", span_2_size, "encoder:", encoder.size)
 
