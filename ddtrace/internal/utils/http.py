@@ -13,6 +13,7 @@ import six
 
 from ddtrace.constants import USER_ID_KEY
 from ddtrace.internal import compat
+from ddtrace.internal.compat import ensure_str
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
@@ -175,15 +176,9 @@ def w3c_get_dd_list_member(context):
             # we've already added sampling decision and user id
             and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
         ):
-            # Hack: convert byte string to unicode to use the regex below.
-            # 1. decodes byte string to ascii (unsupported characters are converted to `?`)
-            # 2. Converts `?` to `_` to align with DBM spec
-            if isinstance(k, bytes):
-                k = k.decode("ascii", "replace")
-                k = k.replace("?", "_")
-            if isinstance(v, bytes):
-                v = v.decode("ascii", "replace")
-                v = v.replace("?", "_")
+            # key/values must be unicode to use the regex below.
+            k = ensure_str(k, errors="ignore")
+            v = ensure_str(v, errors="ignore")
 
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
