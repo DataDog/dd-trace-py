@@ -49,7 +49,7 @@ IDENT_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9_]*")
 
 
 def _make_function(ast, args, name):
-    # type: (DDASTType, Tuple[str], str) -> FunctionType
+    # type: (DDASTType, Tuple[str,...], str) -> FunctionType
     compiled = _compile_predicate(ast)
     if compiled is None:
         raise ValueError("Invalid predicate: %r" % ast)
@@ -65,8 +65,8 @@ def _make_function(ast, args, name):
 
 
 def _make_lambda(ast):
-    # type: (DDASTType) -> Callable[[Any], Any]
-    return _make_function(ast, ("_dd_it",), "<lambda>")
+    # type: (DDASTType) -> Callable[[Any, Any], Any]
+    return _make_function(ast, ("_dd_it", "_locals"), "<lambda>")
 
 
 def _compile_direct_predicate(ast):
@@ -133,14 +133,17 @@ def _compile_arg_predicate(ast):
         a, b = args
         f = __builtins__[_type]  # type: ignore[index]
         ca, fb = _compile_predicate(a), _make_lambda(b)
+
         if ca is None:
             raise ValueError("Invalid argument: %r" % a)
+
         return (
-            [Instr("LOAD_CONST", lambda i, c: f(c(_) for _ in i))]
+            [Instr("LOAD_CONST", lambda i, c, _locals: f(c(_, _locals) for _ in i))]
             + ca
             + [
                 Instr("LOAD_CONST", fb),
-                Instr("CALL_FUNCTION", 2),
+                Instr("LOAD_FAST", "_locals"),
+                Instr("CALL_FUNCTION", 3),
             ]
         )
 
@@ -209,14 +212,17 @@ def _compile_arg_operation(ast):
     if _type == "filter":
         a, b = args
         ca, fb = _compile_predicate(a), _make_lambda(b)
+
         if ca is None:
             raise ValueError("Invalid argument: %r" % a)
+
         return (
-            [Instr("LOAD_CONST", lambda i, c: type(i)(_ for _ in i if c(_)))]
+            [Instr("LOAD_CONST", lambda i, c, _locals: type(i)(_ for _ in i if c(_, _locals)))]
             + ca
             + [
                 Instr("LOAD_CONST", fb),
-                Instr("CALL_FUNCTION", 2),
+                Instr("LOAD_FAST", "_locals"),
+                Instr("CALL_FUNCTION", 3),
             ]
         )
 
