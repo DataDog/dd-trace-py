@@ -172,6 +172,7 @@ submodule
 submodules
 substring
 timestamp
+tracecontext
 tweens
 uWSGI
 unbuffered
@@ -189,6 +190,7 @@ username
 uvicorn
 versioned
 vertica
+w3c
 whitelist
 workflow
 wsgi
