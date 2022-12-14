@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    library injection: Pin the library version in the library injection image.
+    Prior, the latest version of ``ddtrace`` would always be installed,
+    regardless of the image version.
