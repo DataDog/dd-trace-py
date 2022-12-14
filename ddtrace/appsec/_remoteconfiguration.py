@@ -9,12 +9,13 @@ from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
-
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
     from typing import Mapping
+    from typing import Literal
     from typing import Optional
+    from typing import Union
 
     from ddtrace import Tracer
     from ddtrace.internal.remoteconfig.client import ConfigMetadata
@@ -29,6 +30,37 @@ def enable_appsec_rc(tracer):
 
     if tracer._appsec_enabled:
         RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
+
+
+def _appsec_rules_data(tracer, features):
+    # type: (Tracer, Union[Literal[False], Mapping[str, Any]]) -> None
+    if features and tracer._appsec_processor:
+        rules_data = features.get("rules_data", [])
+        if rules_data:
+            log.debug("Reloading Appsec rules data: %s", rules_data)
+            tracer._appsec_processor.update_rules(rules_data)
+
+
+def _appsec_1click_actication(tracer, features):
+    # type: (Tracer, Union[Literal[False], Mapping[str, Any]]) -> None
+    if features is False:
+        rc_appsec_enabled = False
+    else:
+        rc_appsec_enabled = features.get("asm", {}).get("enabled")
+
+    if rc_appsec_enabled is not None:
+        log.debug("Reloading Appsec 1-click: %s", rc_appsec_enabled)
+        _appsec_enabled = True
+
+        if not (APPSEC_ENV not in os.environ and rc_appsec_enabled is True) and (
+                asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
+        ):
+            _appsec_enabled = False
+            RemoteConfig.unregister(ASM_DATA_PRODUCT)
+        else:
+            RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
+
+        tracer.configure(appsec_enabled=_appsec_enabled)
 
 
 def appsec_rc_reload_features(tracer):
@@ -50,23 +82,8 @@ def appsec_rc_reload_features(tracer):
         """
 
         if features is not None:
-            log.debug("Reloading appsec RC: %s", features)
-            rules_data = features.get("rules_data", []) if features else False
-            if rules_data and tracer._appsec_processor:
-                tracer._appsec_processor.update_rules(rules_data)
-            else:
-                rc_appsec_enabled = features.get("asm", {}).get("enabled") if features is not False else False
-
-                _appsec_enabled = True
-
-                if not (APPSEC_ENV not in os.environ and rc_appsec_enabled is True) and (
-                    asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
-                ):
-                    _appsec_enabled = False
-                    RemoteConfig.unregister(ASM_DATA_PRODUCT)
-                else:
-                    RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
-
-                tracer.configure(appsec_enabled=_appsec_enabled)
+            log.debug("Updating Appsec Remote Configuration: %s", features)
+            _appsec_rules_data(tracer, features)
+            _appsec_1click_actication(tracer, features)
 
     return _reload_features

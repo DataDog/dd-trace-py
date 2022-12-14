@@ -32,7 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Tuple
     from typing import Union
 
-    ProductCallback = Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]
+    ProductCallback = Optional[Callable[[Optional["ConfigMetadata"], Union[Mapping[str, Any], bool, None]], None]]
 
 
 log = logging.getLogger(__name__)
@@ -235,12 +235,9 @@ class RemoteConfigClient(object):
         self._last_error = None  # type: Optional[str]
         self._backend_state = None  # type: Optional[str]
 
-    def register_product(self, product_name, func=None):
-        # type: (str, Optional[ProductCallback]) -> None
-        if func is not None:
-            self._products[product_name] = func
-        else:
-            self._products.pop(product_name, None)
+    def register_product(self, product_name, func):
+        # type: (str, ProductCallback) -> None
+        self._products[product_name] = func
 
     def unregister_product(self, product_name):
         # type: (str) -> None
@@ -337,7 +334,8 @@ class RemoteConfigClient(object):
         if last_targets_version is None or targets is None:
             log.debug("No targets in configuration payload")
             for callback in self._products.values():
-                callback(None, None)
+                if callback:
+                    callback(None, None)
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
