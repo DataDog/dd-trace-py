@@ -125,16 +125,17 @@ below:
      type: String
      default: ``localhost``
      description: |
-           The host name to use to connect the Datadog agent for traces. The host name
-           can be IPv4, IPv6, or a domain name. If ``DD_TRACE_AGENT_URL`` is specified, the
-           value of ``DD_AGENT_HOST`` is ignored.
+         The host name to use to connect the Datadog agent for traces. The host name
+         can be IPv4, IPv6, or a domain name. If ``DD_TRACE_AGENT_URL`` is specified, the
+         value of ``DD_AGENT_HOST`` is ignored.
 
-           Example for IPv4: ``DD_AGENT_HOST=192.168.10.1``
+         Example for IPv4: ``DD_AGENT_HOST=192.168.10.1``
 
-           Example for IPv6: ``DD_AGENT_HOST=2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF``
+         Example for IPv6: ``DD_AGENT_HOST=2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF``
 
-           Example for domain name: ``DD_AGENT_HOST=host``
+         Example for domain name: ``DD_AGENT_HOST=host``
      version_added:
+        v0.17.0:
         v1.7.0:
 
    DD_TRACE_AGENT_URL:

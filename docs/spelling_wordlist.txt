@@ -86,6 +86,7 @@ greenlet
 greenlets
 grpc
 hostname
+hostnames
 http
 httplib
 https
