@@ -552,12 +552,12 @@ def test_custom_msgpack_encode_v05():
     def filter_mut(ts):
         return [[[s[i] for i in [0, 1, 2, 5, 7, 8, 9, 10, 11]] for s in t] for t in ts]
 
-    assert st == [b"", _ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar"]
+    assert set(st) == set([b"", _ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar", b"language", b"python"])
     assert filter_mut(ts) == [
         [
-            [2, 3, 4, 0, 0, 0, {}, {}, 0],
-            [2, 3, 5, 0, 0, 0, {}, {}, 0],
-            [6, 0, 0, 0, 0, 0, {}, {}, 0],
+            [2, 3, 4, 0, 0, 0, {5: 6}, {}, 0],
+            [2, 3, 7, 0, 0, 0, {5: 6}, {}, 0],
+            [8, 0, 0, 0, 0, 0, {5: 6}, {}, 0],
         ]
     ]
 
