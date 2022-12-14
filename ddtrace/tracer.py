@@ -16,6 +16,7 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
+from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
@@ -498,10 +499,7 @@ class Tracer(object):
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
                     self._log_compat(logging.WARNING, msg)
 
-        # # Workaround for remote-config with gevent
-        # # TODO: Remove when it is fixed
-        if isinstance(self._writer, AgentWriter):
-            self._writer._ensure_running()
+        enable_appsec_rc()
 
     def _child_after_fork(self):
         self._pid = getpid()
