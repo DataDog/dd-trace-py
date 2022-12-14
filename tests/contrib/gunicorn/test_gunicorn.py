@@ -71,19 +71,17 @@ def gunicorn_server(gunicorn_server_settings, tmp_path):
 workers = {num_workers}
 worker_class = "{worker_class}"
 bind = "{bind}"
-wsgi_app = "{wsgi_app}"
 """.format(
         post_worker_init=gunicorn_server_settings.post_worker_init,
         bind=gunicorn_server_settings.bind,
         num_workers=gunicorn_server_settings.num_workers,
         worker_class=gunicorn_server_settings.worker_class,
-        wsgi_app=gunicorn_server_settings.app_path,
     )
     cfg_file.write_text(stringify(cfg))
     cmd = []
     if gunicorn_server_settings.use_ddtracerun:
         cmd = ["ddtrace-run"]
-    cmd += ["gunicorn", "--config", str(cfg_file)]
+    cmd += ["gunicorn", "--config", str(cfg_file), str(gunicorn_server_settings.app_path)]
     print("Running %r with configuration file %s" % (" ".join(cmd), cfg))
     p = subprocess.Popen(
         cmd,
