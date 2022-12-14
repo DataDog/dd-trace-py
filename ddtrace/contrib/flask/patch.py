@@ -6,6 +6,7 @@ import werkzeug
 from werkzeug.exceptions import BadRequest
 import xmltodict
 
+from ...appsec import utils
 from ...internal import _context
 
 
@@ -19,7 +20,6 @@ except ImportError:
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace import constants
 from ddtrace.vendor.wrapt import wrap_function_wrapper as _w
 
 from .. import trace_utils
@@ -120,7 +120,7 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         if config._appsec_enabled and _context.get_item("http.request.blocked", span=req_span):
             request = flask.request
             start_response("403 FORBIDDEN", request.headers)
-            raise IPBlockedException(constants.APPSEC_IPBLOCK_403_DEFAULT)
+            raise IPBlockedException(utils._get_blocked_template(request.headers.get('Accept')))
 
         return start_response(status_code, headers)
 

@@ -281,12 +281,12 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             self._aux_appsec_prepare_tracer()
 
-            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4"})
+            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4", "ACCEPT": "text/html"})
             assert resp.status_code == 403
             if hasattr(resp, "text"):
-                assert resp.text == constants.APPSEC_IPBLOCK_403_DEFAULT
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_HTML
             else:
-                assert resp.data == six.ensure_binary(constants.APPSEC_IPBLOCK_403_DEFAULT)
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_HTML)
 
             root = self.pop_spans()[0]
             assert root.get_tag("actor.ip") == "8.8.4.4"
@@ -317,3 +317,19 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                     }
                 ]
             }
+
+    def test_request_ipblock_match_403_json_response(self):
+        @self.app.route("/")
+        def test_route():
+            return "Ok", 200
+
+        with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_RULES=RULES_GOOD_PATH)):
+
+            self._aux_appsec_prepare_tracer()
+
+            resp = self.client.get("/", headers={"X-REAL-IP": "8.8.4.4"})
+            assert resp.status_code == 403
+            if hasattr(resp, "text"):
+                assert resp.text == constants.APPSEC_BLOCKED_RESPONSE_JSON
+            else:
+                assert resp.data == six.ensure_binary(constants.APPSEC_BLOCKED_RESPONSE_JSON)

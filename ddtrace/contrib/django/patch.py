@@ -16,7 +16,7 @@ from django.http import HttpResponseForbidden
 
 from ddtrace import Pin
 from ddtrace import config
-from ddtrace import constants
+from ddtrace.appsec import utils as appsec_utils
 from ddtrace.constants import SPAN_MEASURED_KEY
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import func_name
@@ -335,6 +335,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     trace_utils.activate_distributed_headers(pin.tracer, int_config=config.django, request_headers=request.META)
+    request_headers = utils._get_request_headers(request)
 
     with pin.tracer.trace(
         "django.request",
@@ -342,7 +343,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         service=trace_utils.int_service(pin, config.django),
         span_type=SpanTypes.WEB,
         peer_ip=request.META.get("REMOTE_ADDR"),
-        headers=utils._get_request_headers(request),
+        headers=request_headers,
         headers_case_sensitive=django.VERSION < (2, 2),
     ) as span:
         # set component tag equal to name of integration
@@ -355,8 +356,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
 
         if _context.get_item("http.request.blocked", span=span):
             func = HttpResponseForbidden
-            args = []
-            kwargs = {"content": constants.APPSEC_IPBLOCK_403_DEFAULT}
+            args = [appsec_utils._get_blocked_template(request_headers.get('Accept'))]
 
         try:
             response = func(*args, **kwargs)
