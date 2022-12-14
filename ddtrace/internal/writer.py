@@ -502,26 +502,30 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 except ValueError:
                     log.error("sample_rate is negative, cannot update the rate samplers")
 
+    def _ensure_running(self):
+        # type: () -> None
+        # Start the AgentWriter on first write.
+        try:
+            if self.status != service.ServiceStatus.RUNNING:
+                self.start()
+                # instrumentation telemetry writer should be enabled/started after the global tracer and configs
+                # are initialized
+                if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
+                    telemetry_writer.enable()
+                # appsec remote config should be enabled/started after the global tracer and configs
+                # are initialized
+                if self._enable_rc:
+                    enable_appsec_rc()
+        except service.ServiceStatusError:
+            pass
+
     def write(self, spans=None):
         # type: (Optional[List[Span]]) -> None
         if spans is None:
             return
 
         if self._sync_mode is False:
-            # Start the AgentWriter on first write.
-            try:
-                if self.status != service.ServiceStatus.RUNNING:
-                    self.start()
-                    # instrumentation telemetry writer should be enabled/started after the global tracer and configs
-                    # are initialized
-                    if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
-                        telemetry_writer.enable()
-                    # appsec remote config should be enabled/started after the global tracer and configs
-                    # are initialized
-                    if self._enable_rc:
-                        enable_appsec_rc()
-            except service.ServiceStatusError:
-                pass
+            self._ensure_running()
 
         self._metrics_dist("writer.accepted.traces")
         self._set_keep_rate(spans)
