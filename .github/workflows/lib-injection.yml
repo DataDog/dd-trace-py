@@ -11,6 +11,17 @@ jobs:
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
 
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    # required for getting the version
+    - run: pip install setuptools-scm
+    - name: Get library version
+      id: get_version
+      run: |
+        DDTRACE_PYTHON_VERSION=$(scripts/get_install_version.py)
+        echo "library_version=$DDTRACE_PYTHON_VERSION" >> $GITHUB_OUTPUT
+
     - name: Set up Docker Buildx
       id: buildx
       uses: docker/setup-buildx-action@v2
@@ -36,6 +47,7 @@ jobs:
         push: true
         tags: ${{ steps.lib-injection-tags.outputs.tag-names }}
         platforms: 'linux/amd64,linux/arm64/v8'
+        build-args: "DDTRACE_PYTHON_VERSION=${{ steps.get_version.outputs.library_version }}"
         context: ./lib-injection
 
   injection-tests:
