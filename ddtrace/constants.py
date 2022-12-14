@@ -163,6 +163,7 @@ APPSEC_BLOCKED_RESPONSE_HTML = """
 </html>
 """
 
+# noqa: E501
 APPSEC_BLOCKED_RESPONSE_JSON = """
 {"errors": [{"title": "You've been blocked", "detail": "Sorry, you cannot access this page. Please contact the customer service team. Security provided by Datadog."}]}
-"""
+"""  # noqa: E501
