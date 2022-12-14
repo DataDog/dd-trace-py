@@ -2,6 +2,14 @@
 Troubleshooting
 ===============
 
+Installation failure
+====================
+
+``ModuleNotFoundError: No module named 'Cython'``
+
+pip is failing to install `dd-trace` and complaining about a missing module (Cython).
+Ensure that pip is installed with version 18 or above. 
+
 Traces not showing up in the app
 ================================
 
