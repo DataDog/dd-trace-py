@@ -526,7 +526,7 @@ def test_encoder_buffer_item_size_limit_v03():
 
     with pytest.raises(BufferItemTooLarge):
         print("space_to_fill_after_1st_span:", max_item_size - encoder.size - span_1_size)
-        encoder.put([span] * (int((max_item_size - encoder.size - span_1_size) / span_2_size) + 2))
+        encoder.put([span] * (int((max_item_size - span_1_size) / span_2_size) + 2))
         print("encoder:", encoder.size)
 
 
@@ -546,7 +546,7 @@ def test_encoder_buffer_item_size_limit_v05():
 
     with pytest.raises(BufferItemTooLarge):
         print("space_to_fill_after_1st_span:", max_item_size - encoder.size - span_1_size)
-        encoder.put([span] * (int(max_item_size - encoder.size - span_1_size) + 2))
+        encoder.put([span] * (int((max_item_size - span_1_size) / span_2_size) + 2))
         print("encoder:", encoder.size)
 
 
