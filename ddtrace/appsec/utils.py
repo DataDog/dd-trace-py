@@ -3,8 +3,8 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-from ddtrace.constants import APPSEC_ENV
 from ddtrace import constants
+from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -70,18 +70,17 @@ def _get_blocked_template(accept_header_value):
 
     need_html_template = False
 
-    if accept_header_value and 'text/html' in accept_header_value.lower():
+    if accept_header_value and "text/html" in accept_header_value.lower():
         need_html_template = True
 
     if need_html_template:
-        template_path = os.getenv('DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML')
+        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML")
     else:
-        template_path = os.getenv('DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON')
+        template_path = os.getenv("DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON")
 
-    if template_path and os.path.exists(template_path) \
-            and os.path.isfile(template_path):
+    if template_path and os.path.exists(template_path) and os.path.isfile(template_path):
         try:
-            with open(template_path, 'r') as template_file:
+            with open(template_path, "r") as template_file:
                 return template_file.read()
         except OSError:
             pass

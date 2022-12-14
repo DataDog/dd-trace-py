@@ -9,11 +9,12 @@ from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
+
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
-    from typing import Mapping
     from typing import Literal
+    from typing import Mapping
     from typing import Optional
     from typing import Union
 
@@ -56,7 +57,7 @@ def _appsec_1click_actication(tracer, features):
         _appsec_enabled = True
 
         if not (APPSEC_ENV not in os.environ and rc_appsec_enabled is True) and (
-                asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
+            asbool(os.environ.get(APPSEC_ENV)) is False or rc_appsec_enabled is False
         ):
             _appsec_enabled = False
             RemoteConfig.unregister(ASM_DATA_PRODUCT)
