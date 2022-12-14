@@ -8,6 +8,9 @@
     "parent_id": 145126210405670540,
     "type": "",
     "error": 0,
+    "meta": {
+      "language": "python"
+    },
     "metrics": {
       "_dd.span_sampling.mechanism": 8,
       "_dd.tracer_kr": 1.0

@@ -149,7 +149,7 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
         self.assertEqual(span_b.service, "flask")
         self.assertEqual(span_b.name, "tests.contrib.flask.request_started_b")
         self.assertEqual(span_b.resource, "tests.contrib.flask.request_started_b")
-        self.assertEqual(set(span_b.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm"]))
+        self.assertEqual(set(span_b.get_tags().keys()), set(["flask.signal", "runtime-id", "_dd.p.dm", "language"]))
         self.assertEqual(span_b.get_tag("flask.signal"), "request_started")
 
     def test_signals_pin_disabled(self):

@@ -40,6 +40,7 @@
          "job.id": "f50905a0-6b45-4942-bf8a-d64291eac28e",
          "job.origin": "q",
          "job.status": "finished",
+         "language": "python",
          "runtime-id": "2fae27a28fd644a6bd2fbbd179813bd4"
        },
        "metrics": {
