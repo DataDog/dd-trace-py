@@ -50,7 +50,7 @@ jobs:
         build-args: "DDTRACE_PYTHON_VERSION=${{ steps.get_version.outputs.library_version }}"
         context: ./lib-injection
 
-  injection-tests:
+  test:
     needs:
       - build-and-publish-init-image
     runs-on: ubuntu-latest
