@@ -74,7 +74,7 @@ _POSSIBLE_HTTP_HEADER_TRACESTATE = _possible_header(_HTTP_HEADER_TRACESTATE)
 
 
 # https://www.w3.org/TR/trace-context/#traceparent-header-field-values
-_TRACEPARENT_HEX_REGEX = "^[a-f0-9]{2}-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$"
+_TRACEPARENT_HEX_REGEX = re.compile("^[a-f0-9]{2}-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$")
 
 
 def _extract_header_value(possible_header_names, headers, default=None):
@@ -555,7 +555,7 @@ class _TraceContext:
         traceparent header.
         """
         tp = tp.strip()
-        if not re.match(_TRACEPARENT_HEX_REGEX, tp) or tp.startswith("ff"):
+        if not _TRACEPARENT_HEX_REGEX.match(tp) or tp.startswith("ff"):
             # ff is an invalid traceparent version: https://www.w3.org/TR/trace-context/#version
             raise ValueError("W3C traceparent hex is invalid: %s" % tp)
 
