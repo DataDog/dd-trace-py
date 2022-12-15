@@ -25,12 +25,7 @@ jobs:
     - name: Set up Docker Buildx
       id: buildx
       uses: docker/setup-buildx-action@v2
-
-    - name: Copy python tracer
-      run: |
-        mkdir lib-injection/dd-trace-py/
-        rsync -a . lib-injection/dd-trace-py/ --exclude lib-injection
-     
+   
     - name: lib-injection-tags
       id: lib-injection-tags
       uses: DataDog/system-tests/lib-injection/docker-tags@robertomonteromiguel/lib_injection_integration_v2

@@ -33,7 +33,7 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
     except ImportError:
         import subprocess
 
-        print("[datadog autoinstrumentation] installing python package ")
+        print("datadog autoinstrumentation: installing python package")
 
         # Set the flag to avoid an infinite loop.
         env = os.environ.copy()
@@ -46,19 +46,12 @@ if "DDTRACE_PYTHON_INSTALL_IN_PROGRESS" not in os.environ:
 
         # Execute the installation with the current interpreter
         try:
-            status = subprocess.call("test -e '{}'".format("/datadog-lib/dd-trace-py"), shell=True)
-            if status == 0:
-                print("[datadog autoinstrumentation] Trying to install tracer from source code.")
-                subprocess.run([sys.executable, "-m", "pip", "install", "/datadog-lib/dd-trace-py"], env=env)
-            else:
-                print("[datadog autoinstrumentation] Trying to install last tracer release.")
-                subprocess.run([sys.executable, "-m", "pip", "install", ddtrace_version], env=env, check=True)
-
+            subprocess.run([sys.executable, "-m", "pip", "install", ddtrace_version], env=env, check=True)
         except Exception:
             print("datadog autoinstrumentation: failed to install python package version %r" % ddtrace_version)
         else:
             print("datadog autoinstrumentation: successfully installed python package version %r" % ddtrace_version)
             _configure_ddtrace()
     else:
-        print("[datadog autoinstrumentation] ddtrace already installed, skipping install")
+        print("datadog autoinstrumentation: ddtrace already installed, skipping install")
         _configure_ddtrace()
