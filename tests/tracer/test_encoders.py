@@ -574,23 +574,23 @@ def test_custom_msgpack_encode_v05():
     assert set(st) == set([b"", _ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar", b"language", b"python"])
     assert filter_mut(ts) == [
         [
-            [2, 3, 4, 0, 0, 0, {5: 6}, {}, 0],
-            [2, 3, 7, 0, 0, 0, {}, {}, 0],
+            [4, 5, 6, 0, 0, 0, {2: 3}, {}, 0],
+            [4, 5, 7, 0, 0, 0, {}, {}, 0],
             [8, 0, 0, 0, 0, 0, {}, {}, 0],
         ]
     ]
 
 
 def string_table_test(t, offset=0):
-    assert len(t) == 1 + offset
+    assert len(t) == 3 + offset
     id1 = t.index("foobar")
-    assert len(t) == 2 + offset
+    assert len(t) == 4 + offset
     assert id1 == t.index("foobar")
-    assert len(t) == 2 + offset
+    assert len(t) == 4 + offset
     id2 = t.index("foobaz")
-    assert len(t) == 3 + offset
+    assert len(t) == 5 + offset
     assert id2 == t.index("foobaz")
-    assert len(t) == 3 + offset
+    assert len(t) == 5 + offset
     assert id1 != id2
 
 
