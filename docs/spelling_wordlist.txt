@@ -24,6 +24,7 @@ asyncpg
 attrs
 autodetected
 autopatching
+aws
 backend
 backends
 bikeshedding
