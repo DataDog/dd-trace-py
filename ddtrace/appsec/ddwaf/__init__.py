@@ -19,7 +19,6 @@ try:
     from .ddwaf_types import ddwaf_object
     from .ddwaf_types import ddwaf_result_free
     from .ddwaf_types import ddwaf_ruleset_info
-    from .ddwaf_types import ddwaf_update_rule_data
     from .ddwaf_types import py_ddwaf_required_addresses
     from .ddwaf_types import py_ddwaf_run
 
@@ -35,14 +34,14 @@ if PY3:
 #
 # Interface as Cython
 #
-DDWafRulesType = Union[None, int, unicode, list, dict]
+
 DEFAULT_DDWAF_TIMEOUT_MS = 20
 
 if _DDWAF_LOADED:
 
     class DDWaf(object):
         def __init__(self, rules, obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp):
-            # type: (DDWaf, DDWafRulesType, unicode, unicode) -> None
+            # type: (DDWaf, Union[None, int, unicode, list[Any], dict[unicode, Any]], unicode, unicode) -> None
             config = ddwaf_config(
                 key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
             )
