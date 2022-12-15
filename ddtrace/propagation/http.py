@@ -74,7 +74,19 @@ _POSSIBLE_HTTP_HEADER_TRACESTATE = _possible_header(_HTTP_HEADER_TRACESTATE)
 
 
 # https://www.w3.org/TR/trace-context/#traceparent-header-field-values
-_TRACEPARENT_HEX_REGEX = re.compile("^[a-f0-9]{2}-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$")
+# Future proofing: The traceparent spec is additive, future traceparent versions may contain more than 4 values
+# The regex below matches the version, trace id, span id, sample flag, and end-string/future values (if version>00)
+_TRACEPARENT_HEX_REGEX = re.compile(
+    r"""
+     ^                  # Start of string
+     ([a-f0-9]{2})-     # 2 character hex version
+     ([a-f0-9]{32})-    # 32 character hex trace id
+     ([a-f0-9]{16})-    # 16 character hex span id
+     ([a-f0-9]{2})      # 2 character hex sample flag
+     ($|-.+)            # end of string or start of an additional value
+     """,
+    re.VERBOSE,
+)
 
 
 def _extract_header_value(possible_header_names, headers, default=None):
@@ -554,15 +566,20 @@ class _TraceContext:
         Otherwise we extract the trace-id, span-id, and sampling priority from the
         traceparent header.
         """
-        tp = tp.strip()
-        if not _TRACEPARENT_HEX_REGEX.match(tp) or tp.startswith("ff"):
-            # ff is an invalid traceparent version: https://www.w3.org/TR/trace-context/#version
+        valid_tp_values = _TRACEPARENT_HEX_REGEX.match(tp.strip())
+        if valid_tp_values is None:
             raise ValueError("Invalid traceparent version: %s" % tp)
 
-        version, trace_id_hex, span_id_hex, trace_flags_hex = tp.strip().split("-")
-        # currently 00 is the only version format, but if future versions come up we may need to add changes
-        if version != "00":
+        version, trace_id_hex, span_id_hex, trace_flags_hex, future_vals = valid_tp_values.groups()
+
+        if version == "ff":
+            # https://www.w3.org/TR/trace-context/#version
+            raise ValueError("ff is an invalid traceparent version: %s" % tp)
+        elif version != "00":
+            # currently 00 is the only version format, but if future versions come up we may need to add changes
             log.warning("unsupported traceparent version:%r, still attempting to parse", version)
+        elif version == "00" and future_vals != "":
+            raise ValueError("Traceparents with the version `00` should contain 4 values delimited by a dash: %s" % tp)
 
         trace_id = _hex_id_to_dd_id(trace_id_hex)
         span_id = _hex_id_to_dd_id(span_id_hex)

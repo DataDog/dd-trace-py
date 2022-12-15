@@ -444,11 +444,18 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             None,
         ),
         (
-            "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-what-the-future-looks-like",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 1),
             ["unsupported traceparent version:'01', still attempting to parse"],
             None,
+        ),
+        (
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-v00-can-not-have-future-values",
+            # tp, trace_id, span_id, sampling_priority
+            (11803532876627986230, 67667974448284343, 1),
+            [],
+            ValueError,
         ),
         (
             "0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
@@ -492,6 +499,7 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
         "invalid_0_value_for_span_id",
         "traceflag_00",
         "unsupported_version",
+        "version_00_with_unsupported_trailing_values",
         "short_version",
         "invalid_version",
         "traceparent_contains_uppercase_chars",
