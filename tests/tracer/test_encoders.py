@@ -607,7 +607,7 @@ def test_msgpack_string_table():
         None,
     ]
 
-    assert len(t) == 2
+    assert len(t) == 4
     assert "foobar" not in t
 
 
