@@ -292,6 +292,13 @@ postgres_server: &postgres_server
     - POSTGRES_DB=postgres
 
 jobs:
+  request_latest: &request_latest
+    <<: *contrib_job_small
+    steps:
+      - run:
+          name: "Noop"
+          command: echo OK
+
   pre_check:
     executor: python310
     steps:
@@ -1130,6 +1137,10 @@ jobs:
       - store_artifacts:
           path: /tmp/docs
 
+requires_latest_approval: &requires_latest_approval
+  requires:
+    - request_latest
+
 requires_pre_check: &requires_pre_check
   requires:
     - pre_check
@@ -1228,14 +1239,15 @@ requires_tests: &requires_tests
 
 workflows:
   version: 2
-  test: &workflow_test
-    jobs:
+  test:
+    jobs: &workflow_test_jobs
       # Pre-checking before running all jobs
-      - pre_check
-      - ccheck
+      - request_latest
+      - pre_check: *requires_latest_approval
+      - ccheck: *requires_latest_approval
 
       # Build necessary base venvs for integration tests
-      - build_base_venvs
+      - build_base_venvs: *requires_latest_approval
 
       # Docs
       - build_docs: *requires_pre_check
@@ -1329,5 +1341,6 @@ workflows:
       - coverage_report: *requires_tests
 
   test_latest:
-    <<: *workflow_test
-
+    - *workflow_test_jobs
+    - request_latest:
+        type: approval
