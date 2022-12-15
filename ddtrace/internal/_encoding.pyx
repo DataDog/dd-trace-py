@@ -514,7 +514,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cpdef flush(self):
         raise NotImplementedError()
 
-    cdef int pack_span(self, object span, void *dd_origin, int i) except? -1:
+    cdef int pack_span(self, object span, void *dd_origin, int index_in_chunk) except? -1:
         raise NotImplementedError()
 
 
@@ -747,7 +747,8 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         ret = msgpack_pack_int32(&self.pk, _ if _ is not None else 0)
         if ret != 0: return ret
 
-        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (i == 0))
+        # Increment length of map if this is a chunk root span needing tracer level global tags and/or dd_origin is set
+        ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (index_in_chunk == 0))
         if ret != 0: return ret
 
         if span._meta:
