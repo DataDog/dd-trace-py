@@ -560,6 +560,7 @@ class _TraceContext:
             raise ValueError("Invalid traceparent version: %s" % tp)
 
         version, trace_id_hex, span_id_hex, trace_flags_hex = tp.strip().split("-")
+        # currently 00 is the only version format, but if future versions come up we may need to add changes
         if version != "00":
             log.warning("unsupported traceparent version:%r, still attempting to parse", version)
 
