@@ -56,7 +56,7 @@ class _APIEndpointRequestHandlerTest(BaseHTTPServer.BaseHTTPRequestHandler):
         )
 
     def _check_event(self, event_json):
-        event = json.loads(event_json)
+        event = json.loads(event_json.decode())
         for key, check in {
             "start": lambda x: x == "1970-01-01T00:00:00Z",
             "end": lambda x: x.startswith("20"),
