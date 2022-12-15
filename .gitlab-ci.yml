@@ -12,7 +12,7 @@ variables:
     value: "dd-trace-py"
     description: "Run a specific relenv-microbenchmarking-platform branch downstream"
 
-    
+
 .common: &common
   tags: [ "runner:main", "size:large" ]
 
