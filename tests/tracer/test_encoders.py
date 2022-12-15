@@ -582,27 +582,30 @@ def test_custom_msgpack_encode_v05():
 
 
 def string_table_test(t, offset=0):
-    assert len(t) == 3 + offset
+    assert len(t) == 1 + offset
     id1 = t.index("foobar")
-    assert len(t) == 4 + offset
+    assert len(t) == 2 + offset
     assert id1 == t.index("foobar")
-    assert len(t) == 4 + offset
+    assert len(t) == 2 + offset
     id2 = t.index("foobaz")
-    assert len(t) == 5 + offset
+    assert len(t) == 3 + offset
     assert id2 == t.index("foobaz")
-    assert len(t) == 5 + offset
+    assert len(t) == 3 + offset
     assert id1 != id2
 
 
 def test_msgpack_string_table():
     t = MsgpackStringTable(1 << 10)
 
-    string_table_test(t, offset=1)
+    string_table_test(t, offset=3)
 
     size = t.size
     encoded = t.flush()
     assert size == len(encoded)
-    assert decode(encoded + b"\xc0", reconstruct=False) == [[b"", _ORIGIN_KEY, b"foobar", b"foobaz"], None]
+    assert decode(encoded + b"\xc0", reconstruct=False) == [
+        [b"", _ORIGIN_KEY, b"language", b"python", b"foobar", b"foobaz"],
+        None,
+    ]
 
     assert len(t) == 2
     assert "foobar" not in t
