@@ -59,7 +59,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        lib-injection-connection: [ 'network','uds']
+        lib-injection-connection: ['network','uds']
         lib-injection-use-admission-controller: ['', 'use-admission-controller']
         weblog-variant: [ 'dd-lib-python-init-test-django','dd-lib-python-init-test-django-gunicorn','dd-lib-python-init-test-django-uvicorn']
       fail-fast: false
