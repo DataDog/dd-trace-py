@@ -563,7 +563,7 @@ class _TraceContext:
         if version != "00":
             log.warning("unsupported traceparent version:%r, still attempting to parse", version)
 
-        if len(trace_id_hex) == 32 and len(span_id_hex) == 16 and len(trace_flags_hex) == 2:
+        if len(version) == 2 and len(trace_id_hex) == 32 and len(span_id_hex) == 16 and len(trace_flags_hex) == 2:
             trace_id = _hex_id_to_dd_id(trace_id_hex)
             span_id = _hex_id_to_dd_id(span_id_hex)
 
