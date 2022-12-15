@@ -69,7 +69,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             s = self._datadog_tracer.trace(cmd, span_type=SpanTypes.CACHE, service=self._datadog_service)
             s.set_tag(SPAN_MEASURED_KEY)
             # set span tags
-            s.set_tag(CACHE_BACKEND, self.config.get("CACHE_TYPE"))
+            s.set_tag_str(CACHE_BACKEND, self.config.get("CACHE_TYPE"))
             s.set_tags(self._datadog_meta)
             # set analytics sample rate
             s.set_tag(ANALYTICS_SAMPLE_RATE_KEY, config.flask_cache.get_analytics_sample_rate())
@@ -90,7 +90,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("GET", self.config)
                 if len(args) > 0:
-                    span.set_tag(COMMAND_KEY, args[0])
+                    span.set_tag_str(COMMAND_KEY, args[0])
                 return super(TracedCache, self).get(*args, **kwargs)
 
         def set(self, *args, **kwargs):
@@ -100,7 +100,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("SET", self.config)
                 if len(args) > 0:
-                    span.set_tag(COMMAND_KEY, args[0])
+                    span.set_tag_str(COMMAND_KEY, args[0])
                 return super(TracedCache, self).set(*args, **kwargs)
 
         def add(self, *args, **kwargs):
@@ -110,7 +110,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("ADD", self.config)
                 if len(args) > 0:
-                    span.set_tag(COMMAND_KEY, args[0])
+                    span.set_tag_str(COMMAND_KEY, args[0])
                 return super(TracedCache, self).add(*args, **kwargs)
 
         def delete(self, *args, **kwargs):
@@ -120,7 +120,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             with self.__trace("flask_cache.cmd") as span:
                 span.resource = _resource_from_cache_prefix("DELETE", self.config)
                 if len(args) > 0:
-                    span.set_tag(COMMAND_KEY, args[0])
+                    span.set_tag_str(COMMAND_KEY, args[0])
                 return super(TracedCache, self).delete(*args, **kwargs)
 
         def delete_many(self, *args, **kwargs):
