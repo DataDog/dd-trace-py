@@ -2,7 +2,11 @@ import ctypes
 import logging
 import time
 from typing import Any
+from typing import TYPE_CHECKING
 from typing import Union
+
+if TYPE_CHECKING:
+    from ddtrace.appsec.ddwaf import DDWafRulesType
 
 from ddtrace.internal.compat import PY3
 
@@ -10,7 +14,7 @@ from ddtrace.internal.compat import PY3
 LOGGER = logging.getLogger(__name__)  # type: logging.Logger
 
 try:
-    from .ddwaf_types import ddwaf_config
+    from .ddwaf_types import ddwaf_config, ddwaf_update_rule_data
     from .ddwaf_types import ddwaf_context_destroy
     from .ddwaf_types import ddwaf_context_init
     from .ddwaf_types import ddwaf_destroy

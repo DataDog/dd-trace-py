@@ -15,8 +15,6 @@ from six import ensure_binary
 from ddtrace import config
 from ddtrace.appsec.ddwaf import DDWaf
 from ddtrace.appsec.ddwaf import version
-from ddtrace.appsec.ddwaf import DDWaf
-from ddtrace.appsec.ddwaf import version
 from ddtrace.constants import APPSEC_ENABLED
 from ddtrace.constants import APPSEC_EVENT_RULE_ERRORS
 from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT

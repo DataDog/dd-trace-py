@@ -13,7 +13,11 @@ from ddtrace.internal.utils.formats import asbool
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any
     from typing import Callable
-    from typing import Literal
+    try:
+        from typing import Literal
+    except ImportError:
+        # Python < 3.8
+        Literal = Any
     from typing import Mapping
     from typing import Optional
     from typing import Union
