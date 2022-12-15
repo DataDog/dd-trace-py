@@ -190,6 +190,7 @@ username
 uvicorn
 versioned
 vertica
+w3c
 whitelist
 workflow
 wsgi
