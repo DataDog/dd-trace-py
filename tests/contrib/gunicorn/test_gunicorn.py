@@ -1,5 +1,4 @@
 import os
-import signal
 import subprocess
 import sys
 from typing import Dict
@@ -109,7 +108,7 @@ bind = "{bind}"
         except Exception:
             pass
     finally:
-        os.killpg(p.pid, signal.SIGKILL)
+        p.terminate()
         p.wait()
 
 
