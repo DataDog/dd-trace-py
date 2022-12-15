@@ -235,6 +235,8 @@ cdef class MsgpackStringTable(StringTable):
         super(MsgpackStringTable, self).__init__()
 
         assert self.index(ORIGIN_KEY) == 1
+        assert self.index("language") == 2
+        assert self.index("python") == 3
         self._reset_size = self.pk.length
 
     def __dealloc__(self):
@@ -303,7 +305,9 @@ cdef class MsgpackStringTable(StringTable):
         assert self._next_id == 1
 
         PyDict_SetItem(self._table, ORIGIN_KEY, 1)
-        self._next_id = 2
+        PyDict_SetItem(self._table, "language", 2)
+        PyDict_SetItem(self._table, "python", 3)
+        self._next_id = 4
         self.pk.length = self._reset_size
         self._sp_len = 0
 
@@ -464,8 +468,8 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         if L > 0 and trace[0].context is not None and trace[0].context.dd_origin is not None:
             dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
 
-        for i in range(len(trace)):
-            ret = self.pack_span(trace[i], dd_origin, i)
+        for index_in_chunk, span in enumerate(trace):
+            ret = self.pack_span(span, dd_origin, index_in_chunk)
             if ret != 0: raise RuntimeError("Couldn't pack span")
 
         return ret
@@ -525,7 +529,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
 
-    cdef inline int _pack_meta(self, object meta, char *dd_origin, int i) except? -1:
+    cdef inline int _pack_meta(self, object meta, char *dd_origin, int index_in_chunk) except? -1:
         cdef Py_ssize_t L
         cdef int ret
         cdef dict d
@@ -535,7 +539,8 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             L = len(d)
             if dd_origin is not NULL:
                 L += 1
-            if i == 0:
+            # increment map length L if chunk root span 
+            if index_in_chunk == 0:
                 L += 1
             if L > ITEM_LIMIT:
                 raise ValueError("dict is too large")
@@ -551,11 +556,11 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
                     ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
                     if ret == 0:
                         ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
-                if i == 0:
-                    ret = pack_text(&self.pk, <str> "language")
-                    if ret != 0: return ret
-                    ret = pack_text(&self.pk, <str> "python")
-                    if ret != 0: return ret
+                # add tracer level global tags to chunk root span
+                if index_in_chunk == 0:
+                    ret = pack_bytes(&self.pk, <char *> "language", 8)
+                    if ret == 0:
+                        ret = pack_bytes(&self.pk, <char *> "python", 6)
             return ret
 
         raise TypeError("Unhandled meta type: %r" % type(meta))
@@ -582,7 +587,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         raise TypeError("Unhandled metrics type: %r" % type(metrics))
 
-    cdef int pack_span(self, object span, void *dd_origin, int i) except? -1:
+    cdef int pack_span(self, object span, void *dd_origin, int index_in_chunk) except? -1:
         cdef int ret
         cdef Py_ssize_t L
         cdef int has_span_type
@@ -591,7 +596,9 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
 
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
-        has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL or i == 0)
+
+        # add two to length of meta if dd_origin is set or if this is the first span in chunk and language tag needs to be set
+        has_meta = <bint> (len(span._meta) > 0 or dd_origin is not NULL or index_in_chunk == 0)
         has_metrics = <bint> (len(span._metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
 
@@ -656,7 +663,7 @@ cdef class MsgpackEncoderV03(MsgpackEncoderBase):
             if has_meta:
                 ret = pack_bytes(&self.pk, <char *> b"meta", 4)
                 if ret != 0: return ret
-                ret = self._pack_meta(span._meta, <char *> dd_origin, i)
+                ret = self._pack_meta(span._meta, <char *> dd_origin, index_in_chunk)
                 if ret != 0: return ret
 
             if has_metrics:
@@ -703,7 +710,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return <void *> PyLong_AsLong(self._st._index(dd_origin))
 
-    cdef int pack_span(self, object span, void *dd_origin, int i) except? -1:
+    cdef int pack_span(self, object span, void *dd_origin, int index_in_chunk) except? -1:
         cdef int ret
 
         ret = msgpack_pack_array(&self.pk, 12)
@@ -743,12 +750,6 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         ret = msgpack_pack_map(&self.pk, len(span._meta) + (dd_origin is not NULL) + (i == 0))
         if ret != 0: return ret
 
-        if i == 0:
-            ret = self._pack_string("language")
-            if ret != 0: return ret
-            ret = self._pack_string("python")
-            if ret != 0: return ret
-
         if span._meta:
             for k, v in span._meta.items():
                 ret = self._pack_string(k)
@@ -759,6 +760,12 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> 1)
             if ret != 0: return ret
             ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
+            if ret != 0: return ret
+        # add tracer level global tags to chunk root span
+        if index_in_chunk == 0:
+            ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> 2)
+            if ret != 0: return ret
+            ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> 3)
             if ret != 0: return ret
         
         ret = msgpack_pack_map(&self.pk, len(span._metrics))
