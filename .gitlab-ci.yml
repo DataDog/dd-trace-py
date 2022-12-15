@@ -41,6 +41,22 @@ trigger_microbenchmarking_platform:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
 
+deploy_to_di_backend:
+  stage: deploy
+  rules:
+    - when: manual
+      allow_failure: true
+  trigger:
+    project: DataDog/debugger-backend
+    branch: main
+  variables:
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME
+    UPSTREAM_COMMIT_SHORT_SHA: $CI_COMMIT_SHORT_SHA
+    UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
+    UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
+    UPSTREAM_PACKAGE_JOB: build
+
 deploy_to_docker_registries:
   stage: deploy
   rules:
