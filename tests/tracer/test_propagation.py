@@ -448,7 +448,14 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             "0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 1),
-            ["unsupported traceparent version:'0', still attempting to parse"],
+            [],
+            ValueError,
+        ),
+        (
+            "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            # tp, trace_id, span_id, sampling_priority
+            (11803532876627986230, 67667974448284343, 1),
+            [],
             ValueError,
         ),
         (
@@ -473,6 +480,7 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
         "traceflag_00",
         "unsupported_version",
         "short_version",
+        "invalid_version",
         "short_trace_id",
         "unknown_trace_flag",
     ],

@@ -73,6 +73,10 @@ _POSSIBLE_HTTP_HEADER_TRACEPARENT = _possible_header(_HTTP_HEADER_TRACEPARENT)
 _POSSIBLE_HTTP_HEADER_TRACESTATE = _possible_header(_HTTP_HEADER_TRACESTATE)
 
 
+# https://www.w3.org/TR/trace-context/#traceparent-header-field-values
+_TRACEPARENT_HEX_REGEX = "^[a-f0-9]{2}-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$"
+
+
 def _extract_header_value(possible_header_names, headers, default=None):
     # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
     for header in possible_header_names:
@@ -550,37 +554,29 @@ class _TraceContext:
         Otherwise we extract the trace-id, span-id, and sampling priority from the
         traceparent header.
         """
+        tp = tp.strip()
+        if not re.match(_TRACEPARENT_HEX_REGEX, tp) or tp.startswith("ff"):
+            # ff is an invalid traceparent version: https://www.w3.org/TR/trace-context/#version
+            raise ValueError("W3C traceparent hex is invalid: %s" % tp)
 
         version, trace_id_hex, span_id_hex, trace_flags_hex = tp.strip().split("-")
-        # ensure traceparent values are valid hexadecimals, if not it's invalid we will move on
-        # to the next prop method
-        for val in [version, trace_id_hex, span_id_hex, trace_flags_hex]:
-            int(val, 16)
-        # https://www.w3.org/TR/trace-context/#version
-        if version == "ff":
-            raise ValueError("'ff' is an invalid traceparent version")
-        # currently 00 is the only version format, but if future versions come up we may need to add changes
         if version != "00":
             log.warning("unsupported traceparent version:%r, still attempting to parse", version)
 
-        if len(version) == 2 and len(trace_id_hex) == 32 and len(span_id_hex) == 16 and len(trace_flags_hex) == 2:
-            trace_id = _hex_id_to_dd_id(trace_id_hex)
-            span_id = _hex_id_to_dd_id(span_id_hex)
+        trace_id = _hex_id_to_dd_id(trace_id_hex)
+        span_id = _hex_id_to_dd_id(span_id_hex)
 
-            # All 0s are invalid values
-            if trace_id == 0:
-                raise ValueError("0 value for trace_id is invalid")
-            if span_id == 0:
-                raise ValueError("0 value for span_id is invalid")
+        # All 0s are invalid values
+        if trace_id == 0:
+            raise ValueError("0 value for trace_id is invalid")
+        if span_id == 0:
+            raise ValueError("0 value for span_id is invalid")
 
-            trace_flags = _hex_id_to_dd_id(trace_flags_hex)
-            # there's currently only one trace flag, which denotes sampling priority
-            # was set to keep "01" or drop "00"
-            # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
-            sampling_priority = trace_flags & 0x1
-
-        else:
-            raise ValueError("W3C traceparent hex length incorrect: %s" % tp)
+        trace_flags = _hex_id_to_dd_id(trace_flags_hex)
+        # there's currently only one trace flag, which denotes sampling priority
+        # was set to keep "01" or drop "00"
+        # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
+        sampling_priority = trace_flags & 0x1
 
         return trace_id, span_id, sampling_priority
 
@@ -646,10 +642,6 @@ class _TraceContext:
             if tp is None:
                 log.debug("no traceparent header")
                 return None
-            # uppercase char in tp makes it invalid:
-            # https://www.w3.org/TR/trace-context/#traceparent-header-field-values
-            if any(x.isupper() for x in tp):
-                raise ValueError("uppercase characters are not allowed in traceparent")
             trace_id, span_id, sampling_priority = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s ", tp)
