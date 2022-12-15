@@ -453,14 +453,21 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
         (
             "0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
-            (11803532876627986230, 67667974448284343, 1),
+            None,
             [],
             ValueError,
         ),
         (
             "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
-            (11803532876627986230, 67667974448284343, 1),
+            None,
+            [],
+            ValueError,
+        ),
+        (
+            "00-4BF92K3577B34dA6C3ce929d0e0e4736-00f067aa0ba902b7-01",
+            # tp, trace_id, span_id, sampling_priority
+            None,
             [],
             ValueError,
         ),
@@ -475,7 +482,7 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-02",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 0),
-            None,
+            [],
             None,
         ),
     ],
@@ -487,6 +494,7 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
         "unsupported_version",
         "short_version",
         "invalid_version",
+        "traceparent_contains_uppercase_chars",
         "short_trace_id",
         "unknown_trace_flag",
     ],
@@ -495,8 +503,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
     with caplog.at_level(logging.DEBUG):
         if expected_exception:
             with pytest.raises(expected_exception):
-                traceparent_values = _TraceContext._get_traceparent_values(headers)
-                assert traceparent_values == expected_tuple
+                _TraceContext._get_traceparent_values(headers)
         else:
             traceparent_values = _TraceContext._get_traceparent_values(headers)
             assert traceparent_values == expected_tuple
