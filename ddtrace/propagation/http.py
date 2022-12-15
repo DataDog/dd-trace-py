@@ -557,7 +557,7 @@ class _TraceContext:
         tp = tp.strip()
         if not _TRACEPARENT_HEX_REGEX.match(tp) or tp.startswith("ff"):
             # ff is an invalid traceparent version: https://www.w3.org/TR/trace-context/#version
-            raise ValueError("W3C traceparent hex is invalid: %s" % tp)
+            raise ValueError("Invalid traceparent version: %s" % tp)
 
         version, trace_id_hex, span_id_hex, trace_flags_hex = tp.strip().split("-")
         if version != "00":
