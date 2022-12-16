@@ -456,7 +456,6 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         cdef int ret
         cdef Py_ssize_t L
         cdef void * dd_origin = NULL
-        cdef int i
 
         L = len(trace)
         if L > ITEM_LIMIT:
