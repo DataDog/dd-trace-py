@@ -56,7 +56,7 @@ def _appsec_rc_capabilities():
     if _appsec_rc_features_is_enabled():
         value |= 1 << 1
         value |= 1 << 2
-        # value |= 1 << 4
+        value |= 1 << 4
 
     result = ""
     if sys.version_info.major < 3:
