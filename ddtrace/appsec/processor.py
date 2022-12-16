@@ -334,7 +334,6 @@ class AppSecSpanProcessor(SpanProcessor):
             info = self._ddwaf.info
             if info["errors"]:
                 span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info["errors"]))
-                print('XXX ddwaf.info errors: %s' % json.dumps(info["errors"])
             span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info["version"])
             span.set_tag_str(APPSEC_WAF_VERSION, version())
 
