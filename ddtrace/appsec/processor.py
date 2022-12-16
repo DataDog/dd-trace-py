@@ -349,7 +349,7 @@ class AppSecSpanProcessor(SpanProcessor):
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
             log.warning("Error executing AppSec In-App WAF metrics report: %s", exc_info=True)
-        if ddwaf_result.data is not None:
+        if ddwaf_result.data is not None or blocked_request:
             # We run the rate limiter only if there is an attack, its goal is to limit the number of collected asm
             # events
             allowed = self._rate_limiter.is_allowed(span.start_ns)
