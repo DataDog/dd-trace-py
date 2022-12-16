@@ -5,6 +5,7 @@ from typing import Any
 from typing import TYPE_CHECKING
 from typing import Union
 
+
 if TYPE_CHECKING:
     from ddtrace.appsec.ddwaf import DDWafRulesType
 
@@ -14,7 +15,7 @@ from ddtrace.internal.compat import PY3
 LOGGER = logging.getLogger(__name__)  # type: logging.Logger
 
 try:
-    from .ddwaf_types import ddwaf_config, ddwaf_update_rule_data
+    from .ddwaf_types import ddwaf_config
     from .ddwaf_types import ddwaf_context_destroy
     from .ddwaf_types import ddwaf_context_init
     from .ddwaf_types import ddwaf_destroy
@@ -23,6 +24,7 @@ try:
     from .ddwaf_types import ddwaf_object
     from .ddwaf_types import ddwaf_result_free
     from .ddwaf_types import ddwaf_ruleset_info
+    from .ddwaf_types import ddwaf_update_rule_data
     from .ddwaf_types import py_ddwaf_required_addresses
     from .ddwaf_types import py_ddwaf_run
 
