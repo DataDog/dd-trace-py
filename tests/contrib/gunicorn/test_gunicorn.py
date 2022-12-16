@@ -95,7 +95,7 @@ bind = "{bind}"
         client = Client("http://%s" % gunicorn_server_settings.bind)
         # Wait for the server to start up
         try:
-            client.wait(max_tries=20)
+            client.wait(max_tries=20, delay=0.5)
         except tenacity.RetryError:
             # if proc.returncode is not None:
             # process failed
@@ -118,7 +118,7 @@ def test_basic(gunicorn_server):
     assert r.content == b"Hello, World!\n"
 
 
-@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.result_class"])
+@pytest.mark.snapshot(ignores=["meta.result_class"])
 @pytest.mark.parametrize(
     "gunicorn_server_settings", [_gunicorn_settings_factory(app_path="tests.contrib.gunicorn.wsgi_mw_app:app")]
 )
