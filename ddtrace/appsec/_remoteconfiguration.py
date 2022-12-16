@@ -7,6 +7,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
+from ddtrace.internal.remoteconfig.constants import ASM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
 
@@ -35,7 +36,8 @@ def enable_appsec_rc(tracer):
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
 
     if tracer._appsec_enabled:
-        RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))
+        RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))  # IP Blocking
+        RemoteConfig.register(ASM_PRODUCT, appsec_rc_reload_features(tracer))  # Exclusion Filters
 
 
 def _appsec_rules_data(tracer, features):
@@ -45,6 +47,10 @@ def _appsec_rules_data(tracer, features):
         if rules_data:
             log.debug("Reloading Appsec rules data: %s", rules_data)
             tracer._appsec_processor.update_rules(rules_data)
+        exclusions = features.get("exclusions", [])
+        if exclusions:
+            log.debug("Reloading Appsec exclusion filters: %s", exclusions)
+            tracer._appsec_processor.update_rules(exclusions)
 
 
 def _appsec_1click_actication(tracer, features):
