@@ -13,7 +13,7 @@ from ddtrace.vendor.debtcollector import deprecate
 
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
-from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
@@ -54,7 +54,7 @@ def _parse_propagation_styles(name, default):
     - "none"
 
 
-    The default value is ``"datadog"``.
+    The default value is ``"tracecontext,datadog"``.
 
 
     Examples::
@@ -222,7 +222,7 @@ class Config(object):
 
         # Propagation styles
         self._propagation_style_extract = self._propagation_style_inject = _parse_propagation_styles(
-            "DD_TRACE_PROPAGATION_STYLE", default=PROPAGATION_STYLE_DATADOG
+            "DD_TRACE_PROPAGATION_STYLE", default=_PROPAGATION_STYLE_DEFAULT
         )
         # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
         #  take precedence over DD_TRACE_PROPAGATION_STYLE
