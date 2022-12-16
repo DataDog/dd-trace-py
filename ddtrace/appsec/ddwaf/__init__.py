@@ -7,7 +7,7 @@ from typing import Union
 
 
 if TYPE_CHECKING:
-    from ddtrace.appsec.ddwaf import DDWafRulesType
+    from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
 
 from ddtrace.internal.compat import PY3
 
