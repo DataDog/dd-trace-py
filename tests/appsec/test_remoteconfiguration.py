@@ -38,31 +38,45 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer):
 
 
 @pytest.mark.parametrize(
-    "appsec_enabled, rc_value, expected",
+    "appsec_enabled, rc_value",
     [
-        ("", None, False),
-        ("", None, False),
-        ("", False, False),
-        ("", True, True),
-        ("false", None, False),
-        ("true", None, True),
-        ("false", False, False),
-        ("false", True, False),
-        ("true", False, False),
-        ("true", True, True),
+        ("", True),
+        ("true", True),
     ],
 )
-def test_rc_activation_states(tracer, appsec_enabled, rc_value, expected):
+def test_rc_activation_states_on(tracer, appsec_enabled, rc_value):
+    tracer.configure(appsec_enabled=False)
     with override_env({APPSEC_ENV: appsec_enabled}):
         if appsec_enabled == "":
             del os.environ[APPSEC_ENV]
 
         appsec_rc_reload_features(tracer)(None, {"asm": {"enabled": rc_value}})
         result = _set_and_get_appsec_tags(tracer)
-        if expected:
-            assert "triggers" in result
-        else:
-            assert result is None
+        assert "triggers" in result
+
+
+@pytest.mark.parametrize(
+    "appsec_enabled, rc_value",
+    [
+        ("", False),
+        ("false", False),
+        ("false", True),
+        ("true", False),
+    ],
+)
+def test_rc_activation_states_off(tracer, appsec_enabled, rc_value):
+    tracer.configure(appsec_enabled=True)
+    with override_env({APPSEC_ENV: appsec_enabled}):
+        if appsec_enabled == "":
+            del os.environ[APPSEC_ENV]
+
+        rc_config = {"asm": {"enabled": True}}
+        if rc_value is False:
+            rc_config = False
+
+        appsec_rc_reload_features(tracer)(None, rc_config)
+        result = _set_and_get_appsec_tags(tracer)
+        assert result is None
 
 
 @pytest.mark.parametrize(
