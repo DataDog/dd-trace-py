@@ -57,7 +57,6 @@ class Profiler(object):
         :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
         :param profile_children: Whether to start a profiler in child processes.
         """
-        print("[Amy:dd-trace-py:profiler.py:START] When is this called lol")
 
         if sys.version_info >= (3, 11, 0):
             raise RuntimeError(
@@ -84,7 +83,6 @@ class Profiler(object):
 
         :param flush: Flush last profile.
         """
-        print("[Amy:dd-trace-py:profiler.py:STOP] When is this called lol")
         atexit.unregister(self.stop)
         try:
             self._profiler.stop(flush)
@@ -94,15 +92,12 @@ class Profiler(object):
 
     def set_tags(self, tags):
         self._profiler.add_tags(tags)
-        print("[Amy:dd-trace-py:profiler.py:set_tags] profiler tags updated:", self._profiler.tags)
 
     def invocation_started(self):
         self._profiler.middle_of_invocation = True
-        print(f"[Amy:dd-trace-py:invocation_started] middle_of_invocation = {self._profiler.middle_of_invocation}")
 
     def invocation_ended(self):
         self._profiler.middle_of_invocation = False
-        print(f"[Amy:dd-trace-py:invocation_ended] middle_of_invocation = {self._profiler.middle_of_invocation}")
 
     def increment_invocations(self):
         self._profiler.increment_invocations()
@@ -294,29 +289,18 @@ class _ProfilerInstance(service.Service):
 
     def increment_invocations(self):
         self._num_invocations += 1
-        print(
-            "[Amy:dd-trace-py:profiler.py:_ProfilerInstance:increment_invocations] num_invocations:",
-            self._num_invocations,
-        )
 
     def _before_serverless_flush(self):
         self._reset_num_invocations()
         self._collectors_snapshot()
 
     def _reset_num_invocations(self):
-        print("[Amy:dd-trace-py:profiler.py:_ProfilerInstance:reset_num_invocations] RESETTING NUM INVOCATIONS")
         self.add_tags({"serverless_function_calls": self._num_invocations})
-        print(f"[Amy:dd-trace-py:profiler.py:_ProfilerInstance:reset_num_invocations] tags: {self.tags}")
 
         if self.middle_of_invocation:
             self._num_invocations = 1
         else:
             self._num_invocations = 0
-
-        print(
-            "[Amy:dd-trace-py:profiler.py:_ProfilerInstance:reset_num_invocations] num_invocations:",
-            self._num_invocations,
-        )
 
     def _start_service(self):
         # type: (...) -> None

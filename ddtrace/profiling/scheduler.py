@@ -90,7 +90,6 @@ class ServerlessScheduler(Scheduler):
             self.FORCED_INTERVAL * self.FLUSH_AFTER_INTERVALS
         ):
             try:
-                print("[Amy:dd-trace-py:scheduler.py:ServerlessScheduler:periodic] FLUSHING PROFILE")
                 super(ServerlessScheduler, self).periodic()
             finally:
                 # Override interval so it's always back to the value we n
@@ -98,4 +97,3 @@ class ServerlessScheduler(Scheduler):
                 self._profiled_intervals = 0
         else:
             self._profiled_intervals += 1
-            print(f"[Amy:ServerlessScheduler:periodic] profiled_intervals: {self._profiled_intervals}")
