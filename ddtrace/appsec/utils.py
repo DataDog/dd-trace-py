@@ -38,6 +38,8 @@ def _appsec_rc_capabilities():
     bit 0: Reserved
     bit 1: ASM 1-click Activation
     bit 2: ASM Ip blocking
+    bit 3: ASM DD Rules
+    bit 4: ASM Exclusions
 
     Int Number  -> binary number    -> bytes representation -> base64 representation
     ASM Activation:
@@ -54,6 +56,7 @@ def _appsec_rc_capabilities():
     if _appsec_rc_features_is_enabled():
         value |= 1 << 1
         value |= 1 << 2
+        # value |= 1 << 4
 
     result = ""
     if sys.version_info.major < 3:
