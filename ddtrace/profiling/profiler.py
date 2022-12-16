@@ -157,7 +157,6 @@ class _ProfilerInstance(service.Service):
         init=False, factory=lambda: os.environ.get("AWS_LAMBDA_FUNCTION_NAME"), type=Optional[str]
     )
 
-    # TODO: Check attr.ib was used right
     _num_invocations = attr.ib(default=0, type=int)
     middle_of_invocation = attr.ib(default=False, type=bool)
 
@@ -298,6 +297,7 @@ class _ProfilerInstance(service.Service):
         self.add_tags({"serverless_function_calls": self._num_invocations})
 
         if self.middle_of_invocation:
+            # include current invocation in invocation count for next profile
             self._num_invocations = 1
         else:
             self._num_invocations = 0
