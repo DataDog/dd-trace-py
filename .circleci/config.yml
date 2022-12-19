@@ -529,7 +529,7 @@ jobs:
   profile:
     <<: *contrib_job
     resource_class: large
-    parallelism: 15
+    parallelism: 18
     steps:
       - run_tox_scenario:
           store_coverage: false
