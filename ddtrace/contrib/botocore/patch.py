@@ -174,7 +174,7 @@ def get_json_from_str(data_str):
 
     if data_str.endswith(LINE_BREAK):
         return LINE_BREAK, data_obj
-    return None, data_obj
+    return "", data_obj
 
 
 def get_kinesis_data_object(data):
