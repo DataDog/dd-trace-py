@@ -1,0 +1,7 @@
+---
+deprecations:
+  - |
+    aws: The boto, botocore and aiobotocore integrations no longer include all API parameters by default. To retain the deprecated behavior, set the environment variable ``DD_AWS_TAG_ALL_PARAMS=1``. The deprecated behavior and environment variable will be removed in v2.0.0.
+fixes:
+  - |
+    aws: We are reducing the number of API parameters that the boto, botocore and aiobotocore integrations collect as span tags by default. This change limits span tags to a narrow set of parameters for specific AWS APIs using standard tag names. To opt out of the new default behavior and collect no API parameters, set the environment variable ``DD_AWS_TAG_NO_PARAMS=1``. To retain the deprecated behavior and collect all API parameters, set the environment variable ``DD_AWS_TAG_ALL_PARAMS=1``.
