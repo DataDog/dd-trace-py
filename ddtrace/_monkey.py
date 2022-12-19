@@ -228,6 +228,7 @@ def patch(raise_errors=True, patch_modules_prefix=DEFAULT_MODULES_PREFIX, **patc
             # manually add module to patched modules
             with _LOCK:
                 _PATCHED_MODULES.add(module)
+                telemetry_writer.add_integration(module, PATCH_MODULES.get(module) is True)
         else:
             _patch_module(module, patch_modules_prefix=patch_modules_prefix, raise_errors=raise_errors)
 
