@@ -232,7 +232,6 @@ def inject_trace_to_kinesis_stream_data(record, span):
     line_break, data_obj = get_kinesis_data_object(data)
     data_obj["_datadog"] = {}
     HTTPPropagator.inject(span.context, data_obj["_datadog"])
-
     data_json = json.dumps(data_obj)
 
     # if original string had a line break, add it back
