@@ -16,7 +16,6 @@ from typing import TypeVar
 from typing import Union
 
 from ddtrace import config
-from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
@@ -498,8 +497,6 @@ class Tracer(object):
                 if agent_error:
                     msg = "- DATADOG TRACER DIAGNOSTIC - %s" % agent_error
                     self._log_compat(logging.WARNING, msg)
-
-        enable_appsec_rc()
 
     def _child_after_fork(self):
         self._pid = getpid()
