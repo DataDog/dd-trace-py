@@ -481,23 +481,56 @@ def mock_metrics():
         _probe_metrics._client = old_client
 
 
-def test_debugger_metric_probe(mock_metrics):
+def create_line_metric_probe(kind, value=None):
+    return MetricProbe(
+        probe_id="metric-probe-test",
+        source_file="tests/submod/stuff.py",
+        line=36,
+        kind=kind,
+        name="test.counter",
+        tags={"foo": "bar"},
+        value=value,
+    )
+
+
+def test_debugger_metric_probe_simple_count(mock_metrics):
     with debugger() as d:
-        d.add_probes(
-            MetricProbe(
-                probe_id="metric-probe-test",
-                source_file="tests/submod/stuff.py",
-                line=36,
-                kind=MetricProbeKind.COUNTER,
-                name="test.counter",
-                tags={"foo": "bar"},
-            ),
-        )
+        d.add_probes(create_line_metric_probe(MetricProbeKind.COUNTER))
         sleep(0.5)
-
         Stuff().instancestuff()
-
         assert call("probe.test.counter", 1.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
+
+
+def test_debugger_metric_probe_count_value(mock_metrics):
+    with debugger() as d:
+        d.add_probes(create_line_metric_probe(MetricProbeKind.COUNTER, dd_compile("#bar")))
+        sleep(0.5)
+        Stuff().instancestuff(40)
+        assert call("probe.test.counter", 40.0, ["foo:bar"]) in mock_metrics.increment.mock_calls
+
+
+def test_debugger_metric_probe_guage_value(mock_metrics):
+    with debugger() as d:
+        d.add_probes(create_line_metric_probe(MetricProbeKind.GAUGE, dd_compile("#bar")))
+        sleep(0.5)
+        Stuff().instancestuff(41)
+        assert call("probe.test.counter", 41.0, ["foo:bar"]) in mock_metrics.gauge.mock_calls
+
+
+def test_debugger_metric_probe_histogram_value(mock_metrics):
+    with debugger() as d:
+        d.add_probes(create_line_metric_probe(MetricProbeKind.HISTOGRAM, dd_compile("#bar")))
+        sleep(0.5)
+        Stuff().instancestuff(42)
+        assert call("probe.test.counter", 42.0, ["foo:bar"]) in mock_metrics.histogram.mock_calls
+
+
+def test_debugger_metric_probe_distribution_value(mock_metrics):
+    with debugger() as d:
+        d.add_probes(create_line_metric_probe(MetricProbeKind.DISTRIBUTION, dd_compile("#bar")))
+        sleep(0.5)
+        Stuff().instancestuff(43)
+        assert call("probe.test.counter", 43.0, ["foo:bar"]) in mock_metrics.distribution.mock_calls
 
 
 def test_debugger_multiple_function_probes_on_same_function():
