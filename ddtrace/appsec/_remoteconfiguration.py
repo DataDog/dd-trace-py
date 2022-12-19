@@ -1,3 +1,4 @@
+import json
 import os
 from typing import TYPE_CHECKING
 
@@ -43,14 +44,17 @@ def enable_appsec_rc(tracer):
 def _appsec_rules_data(tracer, features):
     # type: (Tracer, Union[Literal[False], Mapping[str, Any]]) -> None
     if features and tracer._appsec_processor:
+        rules = []
         rules_data = features.get("rules_data", [])
         if rules_data:
             log.debug("Reloading Appsec rules data: %s", rules_data)
-            tracer._appsec_processor.update_rules(rules_data)
+            rules += json.loads(rules_data)
         exclusions = features.get("exclusions", [])
         if exclusions:
             log.debug("Reloading Appsec exclusion filters: %s", exclusions)
-            tracer._appsec_processor.update_rules(exclusions)
+            rules += json.loads(exclusions)
+        if rules:
+            tracer._appsec_processor.update_rules(json.dumps(rules))
 
 
 def _appsec_1click_actication(tracer, features):
