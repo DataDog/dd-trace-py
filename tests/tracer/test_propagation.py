@@ -68,16 +68,22 @@ def test_inject_tags_unicode(tracer):
 def test_inject_tags_bytes(tracer):
     """We properly encode when the meta key as long as it is just ascii characters"""
     # Context._meta allows str and bytes for keys
-    meta = {u"_dd.p.test": b"bytes"}
-    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
-    tracer.context_provider.activate(ctx)
-    with tracer.trace("global_root_span") as span:
-        headers = {}
-        HTTPPropagator.inject(span.context, headers)
+    # FIXME: W3C does not support byte headers
+    overrides = {
+        "_propagation_style_extract": [PROPAGATION_STYLE_DATADOG],
+        "_propagation_style_inject": [PROPAGATION_STYLE_DATADOG],
+    }
+    with override_global_config(overrides):
+        meta = {u"_dd.p.test": b"bytes"}
+        ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+        tracer.context_provider.activate(ctx)
+        with tracer.trace("global_root_span") as span:
+            headers = {}
+            HTTPPropagator.inject(span.context, headers)
 
-        # The ordering is non-deterministic, so compare as a list of tags
-        tags = set(headers[_HTTP_HEADER_TAGS].split(","))
-        assert tags == set(["_dd.p.test=bytes"])
+            # The ordering is non-deterministic, so compare as a list of tags
+            tags = set(headers[_HTTP_HEADER_TAGS].split(","))
+            assert tags == set(["_dd.p.test=bytes"])
 
 
 def test_inject_tags_unicode_error(tracer):
@@ -1408,6 +1414,8 @@ VALID_DATADOG_CONTEXT = {
     "sampling_priority": 1,
     "dd_origin": "synthetics",
 }
+
+
 VALID_USER_KEEP_CONTEXT = {
     "trace_id": 13088165645273925489,
     "span_id": 8185124618007618416,
@@ -1467,6 +1475,8 @@ INJECT_FIXTURES = [
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             HTTP_HEADER_SAMPLING_PRIORITY: "1",
             HTTP_HEADER_ORIGIN: "synthetics",
+            _HTTP_HEADER_TRACESTATE: "dd=s~1;o~synthetics",
+            _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
         },
     ),
     (
@@ -1477,6 +1487,8 @@ INJECT_FIXTURES = [
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             HTTP_HEADER_SAMPLING_PRIORITY: "2",
+            _HTTP_HEADER_TRACESTATE: "dd=s~2",
+            _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-01",
         },
     ),
     (
@@ -1487,6 +1499,8 @@ INJECT_FIXTURES = [
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
             HTTP_HEADER_PARENT_ID: "8185124618007618416",
             HTTP_HEADER_SAMPLING_PRIORITY: "0",
+            _HTTP_HEADER_TRACESTATE: "dd=s~0",
+            _HTTP_HEADER_TRACEPARENT: "00-0000000000000000b5a2814f70060771-7197677932a62370-00",
         },
     ),
     (
@@ -1502,7 +1516,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_datadog_style_user_keep",
-        None,
+        [PROPAGATION_STYLE_DATADOG],
         VALID_USER_KEEP_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1512,7 +1526,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_datadog_style_auto_reject",
-        None,
+        [PROPAGATION_STYLE_DATADOG],
         VALID_AUTO_REJECT_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -1522,7 +1536,7 @@ INJECT_FIXTURES = [
     ),
     (
         "valid_datadog_style_no_sampling_priority",
-        None,
+        [PROPAGATION_STYLE_DATADOG],
         {
             "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
             "span_id": VALID_DATADOG_CONTEXT["span_id"],

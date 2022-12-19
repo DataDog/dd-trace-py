@@ -17,6 +17,7 @@ import botocore.exceptions
 
 from ddtrace import config
 from ddtrace.settings.config import Config
+from ddtrace.vendor import debtcollector
 from ddtrace.vendor import wrapt
 
 from ...constants import ANALYTICS_SAMPLE_RATE_KEY
@@ -50,6 +51,14 @@ LINE_BREAK = "\n"
 log = get_logger(__name__)
 
 
+if os.getenv("DD_AWS_TAG_ALL_PARAMS") is not None:
+    debtcollector.deprecate(
+        "Using environment variable 'DD_AWS_TAG_ALL_PARAMS' is deprecated",
+        message="The botocore integration no longer includes all API parameters by default.",
+        removal_version="2.0.0",
+    )
+
+
 # Botocore default settings
 config._add(
     "botocore",
@@ -57,6 +66,8 @@ config._add(
         "distributed_tracing": asbool(os.getenv("DD_BOTOCORE_DISTRIBUTED_TRACING", default=True)),
         "invoke_with_legacy_context": asbool(os.getenv("DD_BOTOCORE_INVOKE_WITH_LEGACY_CONTEXT", default=False)),
         "operations": collections.defaultdict(Config._HTTPServerConfig),
+        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_all_params": asbool(os.getenv("DD_AWS_TAG_ALL_PARAMS", default=False)),
     },
 )
 
@@ -343,10 +354,14 @@ def patched_api_call(original_func, instance, args, kwargs):
                 except Exception:
                     log.warning("Unable to inject trace context", exc_info=True)
 
+            if params and not config.botocore["tag_no_params"]:
+                aws._add_api_param_span_tags(span, endpoint_name, params)
+
         else:
             span.resource = endpoint_name
 
-        aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
+        if not config.botocore["tag_no_params"] and config.botocore["tag_all_params"]:
+            aws.add_span_arg_tags(span, endpoint_name, args, ARGS_NAME, TRACED_ARGS)
 
         region_name = deep_getattr(instance, "meta.region_name")
 
