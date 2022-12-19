@@ -83,7 +83,8 @@ _TRACEPARENT_HEX_REGEX = re.compile(
      ([a-f0-9]{32})-    # 32 character hex trace id
      ([a-f0-9]{16})-    # 16 character hex span id
      ([a-f0-9]{2})      # 2 character hex sample flag
-     ($|-.+)            # end of string or start of an additional value
+     (-.+)?             # optional, start of any additional values
+     $                  # end of string
      """,
     re.VERBOSE,
 )
@@ -570,7 +571,13 @@ class _TraceContext:
         if valid_tp_values is None:
             raise ValueError("Invalid traceparent version: %s" % tp)
 
-        version, trace_id_hex, span_id_hex, trace_flags_hex, future_vals = valid_tp_values.groups()
+        (
+            version,
+            trace_id_hex,
+            span_id_hex,
+            trace_flags_hex,
+            future_vals,
+        ) = valid_tp_values.groups()  # type: Tuple[str, str, str, str, Optional[str]]
 
         if version == "ff":
             # https://www.w3.org/TR/trace-context/#version
@@ -578,7 +585,7 @@ class _TraceContext:
         elif version != "00":
             # currently 00 is the only version format, but if future versions come up we may need to add changes
             log.warning("unsupported traceparent version:%r, still attempting to parse", version)
-        elif version == "00" and future_vals != "":
+        elif version == "00" and future_vals is not None:
             raise ValueError("Traceparents with the version `00` should contain 4 values delimited by a dash: %s" % tp)
 
         trace_id = _hex_id_to_dd_id(trace_id_hex)
