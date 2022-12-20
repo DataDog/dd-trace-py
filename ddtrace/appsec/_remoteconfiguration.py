@@ -7,6 +7,7 @@ from ddtrace.constants import APPSEC_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.constants import ASM_DATA_PRODUCT
+from ddtrace.internal.remoteconfig.constants import ASM_DD_PRODUCT
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import ASM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
@@ -38,21 +39,31 @@ def enable_appsec_rc(tracer):
 
     if tracer._appsec_enabled:
         RemoteConfig.register(ASM_DATA_PRODUCT, appsec_rc_reload_features(tracer))  # IP Blocking
-        RemoteConfig.register(ASM_PRODUCT, appsec_rc_reload_features(tracer))  # Exclusion Filters
+        RemoteConfig.register(ASM_PRODUCT, appsec_rc_reload_features(tracer))  # Exclusion Filters & Custom Rules
+        RemoteConfig.register(ASM_DD_PRODUCT, appsec_rc_reload_features(tracer))  # DD Rules
 
 
 def _appsec_rules_data(tracer, features):
     # type: (Tracer, Union[Literal[False], Mapping[str, Any]]) -> None
     if features and tracer._appsec_processor:
         rules = []
-        rules_data = features.get("rules_data", [])
-        if rules_data:
-            log.debug("Reloading Appsec rules data: %s", rules_data)
-            rules += json.loads(rules_data)
-        exclusions = features.get("exclusions", [])
-        if exclusions:
-            log.debug("Reloading Appsec exclusion filters: %s", exclusions)
-            rules += json.loads(exclusions)
+
+        def loading(feature, message):
+            # type: (str, str) -> None
+            rules = features.get(feature, [])
+            if rules:
+                log_message = "Reloading Appsec " + message + ": %s"
+                log.debug(log_message, rules)
+                try:
+                    rules += json.loads(rules)
+                except json.decoder.JSONDecodeError:
+                    log_message = "ERROR Appsec " + message + ": json not parsable"
+                    log.error(log_message)
+
+        loading("rules_data", "rules data")
+        loading("exclusions", "exclusion filters")
+        loading("custom_rules", "custom rules")
+        loading("rules", "Datadog rules")
         if rules:
             tracer._appsec_processor.update_rules(json.dumps(rules))
 
