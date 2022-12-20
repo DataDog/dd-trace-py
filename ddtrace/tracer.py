@@ -120,8 +120,6 @@ def _start_appsec_processor():
             raise
     return None
 
-    return None
-
 
 def _default_span_processors_factory(
     trace_filters,  # type: List[TraceFilter]
