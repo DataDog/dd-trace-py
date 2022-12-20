@@ -44,9 +44,9 @@ def enable_appsec_rc(tracer):
 
 
 def _appsec_rules_data(tracer, features):
-    # type: (Tracer, Union[Literal[False], Mapping[str, Any]]) -> None
+    # type: (Tracer, Mapping[str, Any]) -> None
     if features and tracer._appsec_processor:
-        rules = []
+        rules = []  # type: list[Any]
 
         def loading(feature, message):
             # type: (str, str) -> None
