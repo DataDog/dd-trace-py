@@ -223,6 +223,16 @@ try:
         env_tags = os.getenv("DD_TRACE_GLOBAL_TAGS")
         tracer.set_tags(parse_tags_str(env_tags))
 
+    if sys.version_info >= (3, 7) and asbool(os.getenv("DD_TRACE_OTEL_ENABLED", True)):
+        from opentelemetry.trace import set_tracer_provider
+
+        from ddtrace.opentelemetry.trace import TracerProvider
+
+        set_tracer_provider(TracerProvider())
+        # Replaces the default otel api runtime context with DDRuntimeContext
+        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
+        os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+
     # Check for and import any sitecustomize that would have normally been used
     # had ddtrace-run not been used.
     bootstrap_dir = os.path.dirname(__file__)

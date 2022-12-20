@@ -370,6 +370,7 @@ setup(
         "ipaddress; python_version<'3.7'",
         "envier",
         "pep562; python_version<'3.7'",
+        "opentelemetry-api>=1; python_version>='3.7'",
     ]
     + bytecode,
     extras_require={
