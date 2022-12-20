@@ -478,6 +478,14 @@ venv = Venv(
             },
         ),
         Venv(
+            name="vertica",
+            command="pytest {cmdargs} tests/contrib/vertica/",
+            pys=select_pys(max_version="3.9"),
+            pkgs={
+                "vertica-python": [">=0.6.0,<0.7.0", ">=0.7.0,<0.8.0"],
+            },
+        ),
+        Venv(
             name="wait",
             command="python tests/wait-for-services.py {cmdargs}",
             # Default Python 3 (3.10) collections package breaks with kombu/vertica, so specify Python 3.9 instead.
