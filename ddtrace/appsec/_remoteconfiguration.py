@@ -23,6 +23,7 @@ log = get_logger(__name__)
 
 def enable_appsec_rc():
     # type: () -> None
+    # Import tracer here to avoid a circular import
     from ddtrace import tracer
 
     if _appsec_rc_features_is_enabled():
