@@ -32,6 +32,7 @@ asyncpg
 attrs
 autodetected
 autopatching
+aws
 backend
 backends
 backport
@@ -189,6 +190,7 @@ username
 uvicorn
 versioned
 vertica
+w3c
 whitelist
 workflow
 wsgi
