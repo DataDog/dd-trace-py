@@ -107,3 +107,4 @@ class MetricProbeKind(object):
 class MetricProbe(LineProbe):
     kind = attr.ib(type=Optional[str], default=None)
     name = attr.ib(type=Optional[str], default=None)
+    value = attr.ib(type=Optional[Callable[[Dict[str, Any]], Any]], default=None)

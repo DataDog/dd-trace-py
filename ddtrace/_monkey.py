@@ -110,6 +110,7 @@ _PATCH_ON_IMPORT = {
         "elasticsearch7",
     ),
     "pynamodb": ("pynamodb",),
+    "rq": ("rq",),
 }
 
 IAST_PATCH = {

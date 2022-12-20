@@ -1,9 +1,54 @@
 # type: ignore
+import json
+import logging
+import os
+import sys
 from typing import List
 from typing import Tuple
+from urllib.error import HTTPError
+from urllib.request import urlopen
 
 from riot import Venv
-from riot import latest
+from riot import latest as latest_riot
+
+
+logger = logging.getLogger(__name__)
+latest = object()  # sentinel value
+
+
+def find_workflow(workflow_id: str) -> str:
+    """Use CircleCI API to retrieve current workflow name"""
+    try:
+        url = f"https://circleci.com/api/v2/workflow/{workflow_id}"
+        res = urlopen(url)
+        body = res.read().decode()
+        return json.loads(body)["name"]
+    except HTTPError:
+        logger.error("Error loading workflow information from CircleC: %s", url)
+        raise
+
+
+# Set up PY_Latest to True if the current workflow is test_latest
+PY_Latest = False
+if "CIRCLE_WORKFLOW_ID" not in os.environ:
+    if "DD_USE_LATEST_VERSION" in os.environ:
+        PY_Latest = True
+    else:
+        logger.warning("not in CircleCI. Use fixed dependencies versions.")
+else:
+    # CircleCI has no environment variable for the workflow name and no possibility
+    # to set it at the workflow level. We use the CircleCI API to do it.
+    PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
+    logger.info("Set latest versions of packages: %s", ["FIXED", "LATEST"][PY_Latest])
+
+# Import fixed version if needed
+if not PY_Latest:
+    try:
+        sys.path.extend([".", ".circleci"])
+        from dependencies import LATEST_VERSIONS
+    except ModuleNotFoundError:
+        logger.error("missing dependencies.py")
+        raise
 
 
 SUPPORTED_PYTHON_VERSIONS = [
@@ -430,6 +475,14 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "msgpack": ["~=1.0.0", latest],
+            },
+        ),
+        Venv(
+            name="vertica",
+            command="pytest {cmdargs} tests/contrib/vertica/",
+            pys=select_pys(max_version="3.9"),
+            pkgs={
+                "vertica-python": [">=0.6.0,<0.7.0", ">=0.7.0,<0.8.0"],
             },
         ),
         Venv(
@@ -2541,5 +2594,52 @@ venv = Venv(
                 "molten": [">=0.6,<0.7", ">=0.7,<0.8", ">=1.0,<1.1", latest],
             },
         ),
+        Venv(
+            name="gunicorn",
+            command="pytest {cmdargs} tests/contrib/gunicorn",
+            pkgs={"requests": latest},
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    # Gunicorn ended Python 2 support after 19.10.0
+                    pkgs={"gunicorn": "==19.10.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
+                ),
+            ],
+        ),
     ],
 )
+
+
+def update_venv(venv: Venv):
+    """Recursively update the venvs by replacing the sentinel object 'latest' with either
+    - constant latest from riot package if PY_Latest
+    - fixed version string from local package dependencies
+    """
+
+    def replace(package):
+        if PY_Latest or "/" in package:  # local package are always using latest
+            return latest_riot
+        else:
+            return "<=" + LATEST_VERSIONS[package.split("[")[0]]
+
+    def update_pkgs(d):
+        for k, v in list(d.items()):
+            if v is latest:
+                d[k] = replace(k)
+            elif isinstance(v, list):
+                for i, e in enumerate(v):
+                    if e is latest:
+                        v[i] = replace(k)
+
+    if hasattr(venv, "pkgs"):
+        update_pkgs(venv.pkgs)
+    if hasattr(venv, "venvs"):
+        for v in venv.venvs:
+            update_venv(v)
+
+
+update_venv(venv)

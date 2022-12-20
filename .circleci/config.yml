@@ -191,20 +191,9 @@ commands:
     parameters:
       pattern:
         type: string
-      wait:
-        type: string
-        default: ""
     steps:
       - checkout
       - restore_tox_cache
-      - when:
-          condition:
-            << parameters.wait >>
-          steps:
-            - setup_riot
-            - run:
-                name: "Waiting for << parameters.wait >>"
-                command: riot -v run 'wait' << parameters.wait >>
       - start_docker_services:
           env: SNAPSHOT_CI=1
           services: memcached redis testagent
@@ -220,9 +209,6 @@ commands:
     parameters:
       pattern:
         type: string
-      wait:
-        type: string
-        default: ""
       store_coverage:
         type: boolean
         default: true
@@ -230,14 +216,6 @@ commands:
       - checkout
       - setup_tox
       - restore_tox_cache
-      - when:
-          condition:
-            << parameters.wait >>
-          steps:
-            - setup_riot
-            - run:
-                name: "Waiting for << parameters.wait >>"
-                command: riot -v run 'wait' << parameters.wait >>
       - run:
           name: "Run scripts/run-tox-scenario"
           command: scripts/run-tox-scenario '<< parameters.pattern >>'
@@ -781,6 +759,13 @@ jobs:
           pattern: "grpc"
           snapshot: true
 
+  gunicorn:
+    <<: *machine_executor
+    steps:
+      - run_test:
+          pattern: "gunicorn"
+          snapshot: true
+
   httplib:
     <<: *machine_executor
     steps:
@@ -1069,9 +1054,9 @@ jobs:
           - VP_TEST_PASSWORD=abc123
           - VP_TEST_DATABASE=docker
     steps:
-      - run_tox_scenario:
+      - run_test:
           wait: vertica
-          pattern: '^vertica_contrib-'
+          pattern: 'vertica'
 
   wsgi:
     <<: *machine_executor
@@ -1170,6 +1155,7 @@ requires_tests: &requires_tests
     - gevent
     - graphql
     - grpc
+    - gunicorn
     - httplib
     - httpx
     - integration_agent
@@ -1269,6 +1255,7 @@ workflows:
       - graphene: *requires_base_venvs
       - graphql: *requires_base_venvs
       - grpc: *requires_base_venvs
+      - gunicorn: *requires_base_venvs
       - httplib: *requires_base_venvs
       - httpx: *requires_base_venvs
       - integration_agent: *requires_base_venvs
@@ -1327,3 +1314,7 @@ workflows:
       # - profile-windows-311: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
+
+  test_latest:
+    <<: *workflow_test
+
