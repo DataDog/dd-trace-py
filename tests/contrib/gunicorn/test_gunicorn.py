@@ -3,6 +3,7 @@ import subprocess
 import sys
 from typing import Dict
 from typing import NamedTuple
+from typing import Optional
 
 import pytest
 import tenacity
@@ -41,9 +42,12 @@ def _gunicorn_settings_factory(
     bind="0.0.0.0:8080",  # type: str
     use_ddtracerun=True,  # type: bool
     post_worker_init="",  # type: str
+    gevent_patching=None,  # type: Optional[bool]
 ):
     # type: (...) -> GunicornServerSettings
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
+    if gevent_patching is not None:
+        env["DD_GEVENT_PATCH_ALL"] = str(gevent_patching)
     return GunicornServerSettings(
         env=env,
         directory=directory,
@@ -125,6 +129,77 @@ def test_basic(gunicorn_server):
 def test_traced_basic(gunicorn_server_settings, gunicorn_server):
     # meta.result_class is listiterator vs list_iterator in PY2 vs PY3.
     # Ignore this field to avoid having to create mostly duplicate snapshots in Python 2 and 3.
+    r = gunicorn_server.get("/")
+    assert r.status_code == 200
+    assert r.content == b"Hello, World!\n"
+
+
+@pytest.mark.parametrize(
+    "gunicorn_server_settings",
+    [
+        _gunicorn_settings_factory(
+            app_path="tests.contrib.gunicorn.wsgi_mw_app:app",
+            worker_class="gevent",
+            gevent_patching=None,
+        ),
+        _gunicorn_settings_factory(
+            app_path="tests.contrib.gunicorn.wsgi_mw_app:app",
+            worker_class="gevent",
+            gevent_patching=False,
+        ),
+    ],
+)
+def test_gevent_patch_falsy_should_fail(gunicorn_server_settings, gunicorn_server):
+    # TODO: This test should fail as DD_GEVENT_PATCH_ALL is not set to 1.
+    r = gunicorn_server.get("/")
+    assert r.status_code == 200
+    assert r.content == b"Hello, World!\n"
+
+
+@pytest.mark.parametrize(
+    "gunicorn_server_settings",
+    [
+        _gunicorn_settings_factory(
+            app_path="tests.contrib.gunicorn.wsgi_mw_app:app",
+            worker_class="gevent",
+            gevent_patching=True,
+        )
+    ],
+)
+def test_gevent_patch_set_true_should_succeed(gunicorn_server_settings, gunicorn_server):
+    r = gunicorn_server.get("/")
+    assert r.status_code == 200
+    assert r.content == b"Hello, World!\n"
+
+
+@pytest.mark.parametrize(
+    "gunicorn_server_settings",
+    [
+        _gunicorn_settings_factory(
+            app_path="tests.contrib.gunicorn.gevent_wsgi_mw_app:app",
+            worker_class="gevent",
+            use_ddtracerun=False,
+        )
+    ],
+)
+def test_gevent_sitecustomize_first_import(gunicorn_server_settings, gunicorn_server):
+    r = gunicorn_server.get("/")
+    assert r.status_code == 200
+    assert r.content == b"Hello, World!\n"
+
+
+@pytest.mark.parametrize(
+    "gunicorn_server_settings",
+    [
+        _gunicorn_settings_factory(
+            app_path="tests.contrib.gunicorn.wsgi_mw_app:app",
+            worker_class="gevent",
+            use_ddtracerun=False,
+            post_worker_init=_post_worker_init_ddtrace,
+        )
+    ],
+)
+def test_gevent_post_worker_init_hook(gunicorn_server_settings, gunicorn_server):
     r = gunicorn_server.get("/")
     assert r.status_code == 200
     assert r.content == b"Hello, World!\n"
