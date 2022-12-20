@@ -354,6 +354,7 @@ setup(
         "xmltodict>=0.12",
         "ipaddress; python_version<'3.7'",
         "envier",
+        "opentelemetry-api>=1; python_version>='3.7'",
     ]
     + bytecode,
     extras_require={

@@ -107,6 +107,7 @@ venv = Venv(
         "coverage": latest,
         "pytest-cov": latest,
         "opentracing": latest,
+        **({"opentelemetry-api": latest} if sys.version_info >= (3, 7) else {}),
         "hypothesis": "<6.45.1",
     },
     env={
