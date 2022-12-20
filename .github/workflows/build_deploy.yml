@@ -123,23 +123,6 @@ jobs:
         with:
           path: ./wheelhouse/*.whl
 
-      - name: Build wheels python 3.6 and above
-        uses: pypa/cibuildwheel@v2.11.1
-        env:
-          # configure cibuildwheel to build native archs ('auto'), and some
-          # emulated ones
-          CIBW_ARCHS: ${{ matrix.archs }}
-          CIBW_BUILD: cp3*
-          # Run a smoke test on every supported platform
-          CIBW_TEST_COMMAND: python {project}/tests/smoke_test.py
-          # Testing arm on MacOS is currently not supported by Github
-          CIBW_TEST_SKIP: "*-macosx_universal2:arm64"
-          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=10.9 _PYTHON_HOST_PLATFORM=macosx-10.9-universal2
-
-      - uses: actions/upload-artifact@v3
-        with:
-          path: ./wheelhouse/*.whl
-
   build_sdist:
     name: Build source distribution
     runs-on: ubuntu-latest

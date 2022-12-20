@@ -32,6 +32,7 @@ asyncpg
 attrs
 autodetected
 autopatching
+aws
 backend
 backends
 backport
