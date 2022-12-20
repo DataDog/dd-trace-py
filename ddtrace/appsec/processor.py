@@ -237,9 +237,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 if res:
                     res_dict = json.loads(res)
                     for r in res_dict:
-                        if r.get("rule", {}).get("id") == "blk-001-001" and "block" in r.get("rule", {}).get(
-                            "on_match", {}
-                        ):
+                        if "block" in r.get("rule", {}).get("on_match", {}):
                             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
                             _context.set_items(
                                 {
