@@ -203,6 +203,13 @@ Grpc
 .. automodule:: ddtrace.contrib.grpc
 
 
+.. _gunicorn:
+
+gunicorn
+^^^^^^^^
+.. automodule:: ddtrace.contrib.gunicorn
+
+
 .. _httplib:
 
 httplib

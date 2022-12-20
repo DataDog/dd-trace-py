@@ -2594,6 +2594,22 @@ venv = Venv(
                 "molten": [">=0.6,<0.7", ">=0.7,<0.8", ">=1.0,<1.1", latest],
             },
         ),
+        Venv(
+            name="gunicorn",
+            command="pytest {cmdargs} tests/contrib/gunicorn",
+            pkgs={"requests": latest},
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    # Gunicorn ended Python 2 support after 19.10.0
+                    pkgs={"gunicorn": "==19.10.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
+                ),
+            ],
+        ),
     ],
 )
 
