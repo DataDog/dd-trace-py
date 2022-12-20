@@ -444,34 +444,52 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
             None,
         ),
         (
-            "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-what-the-future-looks-like",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 1),
             ["unsupported traceparent version:'01', still attempting to parse"],
             None,
         ),
         (
-            "0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-v00-can-not-have-future-values",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 1),
-            ["unsupported traceparent version:'0', still attempting to parse"],
+            [],
+            ValueError,
+        ),
+        (
+            "0-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            # tp, trace_id, span_id, sampling_priority
             None,
+            [],
+            ValueError,
+        ),
+        (
+            "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            # tp, trace_id, span_id, sampling_priority
+            None,
+            [],
+            ValueError,
+        ),
+        (
+            "00-4BF92K3577B34dA6C3ce929d0e0e4736-00f067aa0ba902b7-01",
+            # tp, trace_id, span_id, sampling_priority
+            None,
+            [],
+            ValueError,
         ),
         (
             "00-f92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
             # tp, trace_id, span_id, sampling_priority
             None,
-            [
-                "received invalid w3c traceparent: 00-f92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01.",
-                "W3C traceparent hex length incorrect: 00-f92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
-            ],
+            [],
             ValueError,
         ),
         (  # we still parse the trace flag and analyze the it as a bit field
             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-02",
             # tp, trace_id, span_id, sampling_priority
             (11803532876627986230, 67667974448284343, 0),
-            None,
+            [],
             None,
         ),
     ],
@@ -481,7 +499,10 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
         "invalid_0_value_for_span_id",
         "traceflag_00",
         "unsupported_version",
+        "version_00_with_unsupported_trailing_values",
         "short_version",
+        "invalid_version",
+        "traceparent_contains_uppercase_chars",
         "short_trace_id",
         "unknown_trace_flag",
     ],
@@ -490,14 +511,14 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
     with caplog.at_level(logging.DEBUG):
         if expected_exception:
             with pytest.raises(expected_exception):
-                traceparent_values = _TraceContext._get_traceparent_values(headers)
-                assert traceparent_values == expected_tuple
+                _TraceContext._get_traceparent_values(headers)
         else:
             traceparent_values = _TraceContext._get_traceparent_values(headers)
             assert traceparent_values == expected_tuple
-            if caplog.text or expected_logging:
-                for expected_log in expected_logging:
-                    assert expected_log in caplog.text
+
+        if caplog.text or expected_logging:
+            for expected_log in expected_logging:
+                assert expected_log in caplog.text
 
 
 @pytest.mark.parametrize(
