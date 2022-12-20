@@ -69,7 +69,7 @@ def pytest_configure(config):
 # DEV: We can only ignore folders/modules, we cannot ignore individual files
 # DEV: We must wrap with `@pytest.mark.hookwrapper` to inherit from default (e.g. honor `--ignore`)
 #      https://github.com/pytest-dev/pytest/issues/846#issuecomment-122129189
-@pytest.mark.hookwrapper
+@pytest.hookimpl(hookwrapper=True)
 def pytest_ignore_collect(path, config):
     """
     Skip directories defining a required minimum Python version

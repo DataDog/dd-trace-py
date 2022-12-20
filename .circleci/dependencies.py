@@ -68,6 +68,7 @@ LATEST_VERSIONS = {
     "graphene": "3.1.1",
     "graphql-core": "3.2.3",
     "grpcio": "1.51.1",
+    "gunicorn": "20.1.0",
     "httpretty": "1.1.4",
     "httpx": "0.23.1",
     "hypothesis": "6.60.0",
