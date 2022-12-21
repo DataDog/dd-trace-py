@@ -117,7 +117,7 @@ if _DDWAF_LOADED:
                 error, result = py_ddwaf_run(ctx, wrapper, timeout_ms * 1000)
                 return DDWaf_result(
                     result.data.decode("UTF-8") if result.data else None,
-                    [result.actions.array[i] for i in result.actions.size],
+                    [result.actions.array[i].decode("UTF-8") for i in range(result.actions.size)],
                     result.total_runtime / 1e3,
                     (time.time() - start) * 1e6,
                 )
