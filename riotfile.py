@@ -1,12 +1,9 @@
 # type: ignore
-import json
 import logging
 import os
 import sys
 from typing import List
 from typing import Tuple
-from urllib.error import HTTPError
-from urllib.request import urlopen
 
 from riot import Venv
 from riot import latest as latest_riot
@@ -16,32 +13,8 @@ logger = logging.getLogger(__name__)
 latest = object()  # sentinel value
 
 
-def find_workflow(workflow_id: str) -> str:
-    """Use CircleCI API to retrieve current workflow name"""
-    try:
-        url = f"https://circleci.com/api/v2/workflow/{workflow_id}"
-        res = urlopen(url)
-        body = res.read().decode()
-        return json.loads(body)["name"]
-    except HTTPError:
-        logger.error("Error loading workflow information from CircleC: %s", url)
-        raise
-
-
-# Set up PY_Latest to True if the current workflow is test_latest
-PY_Latest = False
-if "CIRCLE_WORKFLOW_ID" not in os.environ:
-    if "DD_USE_LATEST_VERSION" in os.environ:
-        PY_Latest = True
-    else:
-        logger.warning("not in CircleCI. Use fixed dependencies versions.")
-else:
-    # CircleCI has no environment variable for the workflow name and no possibility
-    # to set it at the workflow level. We use the CircleCI API to do it.
-    PY_Latest = find_workflow(os.environ["CIRCLE_WORKFLOW_ID"]) == "test_latest"
-    logger.info("Set latest versions of packages: %s", ["FIXED", "LATEST"][PY_Latest])
-
 # Import fixed version if needed
+PY_Latest = os.environ.get("DD_USE_LATEST_VERSION") == "true"
 if not PY_Latest:
     try:
         sys.path.extend([".", ".circleci"])

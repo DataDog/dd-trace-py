@@ -1795,6 +1795,124 @@ class BotocoreTest(TracerTestCase):
 
         client.delete_stream(StreamName=stream_name)
 
+    @mock_kinesis
+    def test_kinesis_put_records_newline_json_trace_injection(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "test"
+        client.create_stream(StreamName=stream_name, ShardCount=1)
+        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
+        shard_id = stream["Shards"][0]["ShardId"]
+
+        partition_key = "1234"
+        data = [
+            {"Data": json.dumps({"Hello": "World"}) + "\n", "PartitionKey": partition_key},
+            {"Data": json.dumps({"foo": "bar"}) + "\n", "PartitionKey": partition_key},
+        ]
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=data)
+
+        # check if the appropriate span was generated
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "PutRecords"
+        assert span.get_tag("params.MessageBody") is None
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.resource == "kinesis.putrecords"
+        records = span.get_tag("params.Records")
+        assert records is None
+
+        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
+        shard_iterator = resp["ShardIterator"]
+
+        # ensure headers are present in received message
+        resp = client.get_records(ShardIterator=shard_iterator)
+        assert len(resp["Records"]) == 2
+        records = resp["Records"]
+        record = records[0]
+        data_str = record["Data"].decode("ascii")
+        assert data_str.endswith("\n")
+        data = json.loads(data_str)
+        headers = data["_datadog"]
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+        record = records[1]
+        data_str = record["Data"].decode("ascii")
+        assert data_str.endswith("\n")
+        data = json.loads(data_str)
+        assert "_datadog" not in data
+
+        client.delete_stream(StreamName=stream_name)
+
+    @mock_kinesis
+    def test_kinesis_put_records_newline_base64_trace_injection(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+
+        stream_name = "test"
+        client.create_stream(StreamName=stream_name, ShardCount=1)
+        stream = client.describe_stream(StreamName=stream_name)["StreamDescription"]
+        shard_id = stream["Shards"][0]["ShardId"]
+
+        partition_key = "1234"
+        sample_string = json.dumps({"Hello": "World"}) + "\n"
+        sample_string_bytes = sample_string.encode("ascii")
+        base64_bytes = base64.b64encode(sample_string_bytes)
+        data_str = base64_bytes.decode("ascii")
+        data = [
+            {"Data": data_str, "PartitionKey": partition_key},
+            {"Data": data_str, "PartitionKey": partition_key},
+        ]
+
+        Pin(service=self.TEST_SERVICE, tracer=self.tracer).onto(client)
+        client.put_records(StreamName=stream_name, Records=data)
+
+        # check if the appropriate span was generated
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert len(spans) == 1
+        assert span.get_tag("aws.region") == "us-east-1"
+        assert span.get_tag("aws.operation") == "PutRecords"
+        assert span.get_tag("params.MessageBody") is None
+        assert_is_measured(span)
+        assert_span_http_status_code(span, 200)
+        assert span.service == "test-botocore-tracing.kinesis"
+        assert span.resource == "kinesis.putrecords"
+        records = span.get_tag("params.Records")
+        assert records is None
+
+        resp = client.get_shard_iterator(StreamName=stream_name, ShardId=shard_id, ShardIteratorType="TRIM_HORIZON")
+        shard_iterator = resp["ShardIterator"]
+
+        # ensure headers are present in received message
+        resp = client.get_records(ShardIterator=shard_iterator)
+        assert len(resp["Records"]) == 2
+        records = resp["Records"]
+        record = records[0]
+        data_str = record["Data"].decode("ascii")
+        assert data_str.endswith("\n")
+        data = json.loads(data_str)
+        headers = data["_datadog"]
+        assert headers is not None
+        assert headers[HTTP_HEADER_TRACE_ID] == str(span.trace_id)
+        assert headers[HTTP_HEADER_PARENT_ID] == str(span.span_id)
+
+        record = records[1]
+        data_str = base64.b64decode(record["Data"]).decode("ascii")
+        assert data_str.endswith("\n")
+        data = json.loads(data_str)
+        assert "_datadog" not in data
+
+        client.delete_stream(StreamName=stream_name)
+
     @unittest.skipIf(PY2, "Skipping for Python 2.7 since older moto doesn't support secretsmanager")
     def test_secretsmanager(self):
         from moto import mock_secretsmanager
