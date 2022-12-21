@@ -12,7 +12,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v6
+      - uses: actions/stale@v7
         with:
           # Increase the total API operations from 30 to 200
           # DEV: GitHub Actions have an API rate limit of 1000 operations per hour per repository
