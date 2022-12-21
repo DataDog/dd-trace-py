@@ -142,6 +142,10 @@ class LibDDWaf_Download(BuildPyCommand):
                 os.rename(os.path.join(HERE, ddwaf_archive_dir), arch_dir)
                 # cleaning unwanted files
                 tar.close()
+            ori = os.path.join(arch_dir, "lib", "ddwaf.dll")
+            if os.path.exists(ori):
+                dest = os.path.join(arch_dir, "lib", "libddwaf.dll")
+                os.rename(ori, dest)
             os.remove(filename)
 
     def run(self):
@@ -286,7 +290,7 @@ setup(
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
         "ddtrace.appsec.ddwaf": [
-            "libddwaf\\*\\lib\\libddwaf.*" if CURRENT_OS == "Windows" else "libddwaf/*/lib/libddwaf.*"
+            os.path.join("libddwaf", "*", "lib", "libddwaf.*")
         ],
     },
     include_package_data=True,
