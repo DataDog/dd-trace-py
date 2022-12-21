@@ -241,7 +241,6 @@ venv = Venv(
         ),
         Venv(
             name="integration",
-            pys=select_pys(),
             command="pytest --no-cov {cmdargs} tests/integration/",
             pkgs={"msgpack": [latest]},
             venvs=[
@@ -256,6 +255,14 @@ venv = Venv(
                     env={
                         "AGENT_VERSION": "latest",
                     },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.5")),
+                        # DEV: attrs marked Python 3.6 as deprecated in 22.2.0,
+                        #      this logs a warning and causes these tests to fail
+                        # https://www.attrs.org/en/22.2.0/changelog.html#id1
+                        Venv(pys=["3.6"], pkgs={"attrs": "<22.2.0"}),
+                        Venv(pys=select_pys(min_version="3.7")),
+                    ],
                 ),
                 Venv(
                     name="integration-snapshot",
@@ -263,6 +270,14 @@ venv = Venv(
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                     },
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.5")),
+                        # DEV: attrs marked Python 3.6 as deprecated in 22.2.0,
+                        #      this logs a warning and causes these tests to fail
+                        # https://www.attrs.org/en/22.2.0/changelog.html#id1
+                        Venv(pys=["3.6"], pkgs={"attrs": "<22.2.0"}),
+                        Venv(pys=select_pys(min_version="3.7")),
+                    ],
                 ),
             ],
         ),

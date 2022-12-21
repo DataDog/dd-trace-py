@@ -54,9 +54,12 @@ def test_debug_mode():
     assert p.stdout.read() == b""
     assert b"DEBUG:ddtrace" not in p.stderr.read()
 
+    env = os.environ.copy()
+    env.update({"DD_TRACE_DEBUG": "true", "DD_CALL_BASIC_CONFIG": "true"})
+
     p = subprocess.Popen(
         [sys.executable, "-c", "import ddtrace"],
-        env=dict(DD_TRACE_DEBUG="true"),
+        env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -594,15 +597,18 @@ s2.finish()
 """.lstrip()
         % str(patch_logging)
     )
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
+            "DD_TRACE_DEBUG": str(debug_mode).lower(),
+            "DD_CALL_BASIC_CONFIG": "true",
+        }
+    )
+
     p = subprocess.Popen(
-        [sys.executable, "test.py"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=str(tmpdir),
-        env=dict(
-            DD_TRACE_LOGS_INJECTION=str(logs_injection).lower(),
-            DD_TRACE_DEBUG=str(debug_mode).lower(),
-        ),
+        [sys.executable, "test.py"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(tmpdir), env=env
     )
     try:
         p.wait(timeout=2)
