@@ -289,9 +289,7 @@ setup(
     package_data={
         "ddtrace": ["py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec.ddwaf": [
-            os.path.join("libddwaf", "*", "lib", "libddwaf.*")
-        ],
+        "ddtrace.appsec.ddwaf": [os.path.join("libddwaf", "*", "lib", "libddwaf.*")],
     },
     include_package_data=True,
     py_modules=["ddtrace_gevent_check"],
