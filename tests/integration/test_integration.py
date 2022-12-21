@@ -866,6 +866,10 @@ patch_all()
 
 
 def test_no_warnings():
+    import warnings
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+
     env = os.environ.copy()
     # Have to disable sqlite3 as coverage uses it on process shutdown
     # which results in a trace being generated after the tracer shutdown
