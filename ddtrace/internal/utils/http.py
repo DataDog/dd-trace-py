@@ -19,7 +19,7 @@ from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.utils.cache import cached
 
 
-_W3C_TRACESTATE_INVALID_CHARS_REGEX = r",|;|:|[^\x20-\x7E]+"
+_W3C_TRACESTATE_INVALID_CHARS_REGEX = r",|;|[^\x20-\x7E]+"
 
 
 Connector = Callable[[], ContextManager[compat.httplib.HTTPConnection]]
@@ -158,7 +158,12 @@ def w3c_get_dd_list_member(context):
         tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
     if context.dd_origin:
         # the origin value has specific values that are allowed.
-        tags.append("{}:{}".format(W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|=|[^\x20-\x7E]+", "_", context.dd_origin)))
+        tags.append(
+            "{}:{}".format(
+                W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|~|[^\x20-\x7E]+", "_", context.dd_origin).replace("=", "~")
+            )
+        )
+
     sampling_decision = context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if sampling_decision:
         tags.append("t.dm:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
@@ -176,10 +181,11 @@ def w3c_get_dd_list_member(context):
             and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
         ):
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
-            # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E
+            # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
+            # for value also replace = with ~
             next_tag = "{}:{}".format(
                 re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)),
-                re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", v),
+                re.sub(r",|;|~|[^\x20-\x7E]+", "_", v).replace("=", "~"),
             )
             # we need to keep the total length under 256 char
             potential_current_tags_len = current_tags_len + len(next_tag)

@@ -627,8 +627,13 @@ class _TraceContext:
                 sampling_priority_ts_int = None
 
             origin = dd.get("o")
+            if origin:
+                # we encode "=" as "~" in tracestate so need to decode here
+                origin = origin.replace("~", "=")
             # need to convert from t. to _dd.p.
-            other_propagated_tags = {"_dd.p.%s" % k[2:]: v for (k, v) in dd.items() if (k.startswith("t."))}
+            other_propagated_tags = {
+                "_dd.p.%s" % k[2:]: v.replace("~", "=") for (k, v) in dd.items() if (k.startswith("t."))
+            }
 
             return sampling_priority_ts_int, other_propagated_tags, origin
         else:
