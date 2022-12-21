@@ -474,10 +474,10 @@ def test_ddwaf_info():
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
-        assert info["loaded"] == 4
-        assert info["failed"] == 0
-        assert info["errors"] == {}
-        assert info["version"] == ""
+        assert info.loaded == 4
+        assert info.failed == 0
+        assert info.errors == {}
+        assert info.version == ""
 
 
 def test_ddwaf_info_with_2_errors():
