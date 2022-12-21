@@ -5,9 +5,14 @@ from opentelemetry.context import Context as OtelContext
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import Tracer as OtelTracer
 from opentelemetry.trace import TracerProvider as OtelTracerProvider
+from opentelemetry.trace import use_span
+from opentelemetry.trace.propagation import get_current_span
+from opentelemetry.trace.span import INVALID_SPAN
+from opentelemetry.trace.span import Span as OtelSpan
 
-from ddtrace import tracer as ddtracer
+import ddtrace
 from ddtrace.internal.logger import get_logger
+from ddtrace.opentelemetry import _context
 from ddtrace.opentelemetry.span import Span
 
 
@@ -16,9 +21,9 @@ if TYPE_CHECKING:
     from typing import Iterator
     from typing import Optional
     from typing import Sequence
+    from typing import Union
 
     from opentelemetry.trace import Link as OtelLink
-    from opentelemetry.trace import Span as OtelSpan
     from opentelemetry.util.types import AttributeValue as OtelAttributeValue
 
 
@@ -26,6 +31,19 @@ log = get_logger(__name__)
 
 
 class TracerProvider(OtelTracerProvider):
+    """
+    Returns a Tracer, creating one if one with the given name and version is not already created.
+    One TracerProvider should be initialized and set per application.
+    """
+
+    def __init__(self) -> None:
+        self._ddtracer = ddtrace.tracer
+        # The Opentelemetry API allows only one implementation of the otel sdk. We should avoid overriding the
+        # default otel context management unless the ddtrace TracerProvider is initialized and (hopefully) set.
+        # TODO: call _context.wrap_otel_context() when opentelemetry.trace.set_tracer_provider(...) is called.
+        _context.wrap_otel_context()
+        super().__init__()
+
     def get_tracer(
         self,
         instrumenting_module_name,  # type: str
@@ -34,7 +52,8 @@ class TracerProvider(OtelTracerProvider):
     ):
         # type: (...) -> OtelTracer
         """Returns an opentelmetry compatible `Tracer`."""
-        return Tracer(ddtracer)
+        # TODO: Do we need to do anything else with the other arguments?
+        return Tracer(self._ddtracer)
 
 
 class Tracer(OtelTracer):
@@ -70,10 +89,20 @@ class Tracer(OtelTracer):
             record_exception = True
             set_status_on_exception = True
 
-        # TODO: use opentelemetry.trace.get_current_span(context) instead
-        dd_context = self._tracer.context_provider.active()
-        # Create a new Datadog span (not activated), then return an OTel span wrapper
-        dd_span = self._tracer.start_span(name, child_of=dd_context, activate=False)
+        # Get active otel span
+        curr_otel_span = get_current_span(context)
+        # Get either a datadog span or datadog context object from otel span
+        if curr_otel_span is INVALID_SPAN:
+            dd_active = None  # type: Optional[Union[ddtrace.context.Context, ddtrace.Span]]
+        elif isinstance(curr_otel_span, Span):
+            dd_active = curr_otel_span._ddspan
+        elif isinstance(curr_otel_span, OtelSpan):
+            trace_id, span_id, *_ = curr_otel_span.get_span_context()
+            dd_active = ddtrace.context.Context(trace_id, span_id)
+        else:
+            raise ValueError("Active Span is not supported by ddtrace: %s" % curr_otel_span)
+        # Create a new Datadog span (not activated), then return a valid OTel span
+        dd_span = self._tracer.start_span(name, child_of=dd_active, activate=False)
         return Span(
             dd_span,
             kind=kind,
@@ -110,10 +139,10 @@ class Tracer(OtelTracer):
             set_status_on_exception=True,
         )
 
-        # Activate the span in the Datadog context manager
-        # TODO: use opentelemetry.set_span_in_context()
-        self._tracer.context_provider.activate(span._ddspan)
-        yield span
-
-        if end_on_exit:
-            span.end()
+        with use_span(
+            span,
+            end_on_exit=end_on_exit,
+            record_exception=record_exception,
+            set_status_on_exception=set_status_on_exception,
+        ) as span:
+            yield span

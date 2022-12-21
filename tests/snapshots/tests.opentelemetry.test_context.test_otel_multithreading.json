@@ -1,0 +1,196 @@
+[[
+  {
+    "name": "otel-threading-root",
+    "service": "",
+    "resource": "otel-threading-root",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "994ce8cb59b543dabc14335f129a9800"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 66173
+    },
+    "duration": 92403000,
+    "start": 1671993442790593000
+  },
+     {
+       "name": "s1",
+       "service": "",
+       "resource": "s1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "runtime-id": "994ce8cb59b543dabc14335f129a9800"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "process_id": 66173
+       },
+       "duration": 90699000,
+       "start": 1671993442791102000
+     },
+        {
+          "name": "s2",
+          "service": "",
+          "resource": "s2",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "duration": 25098000,
+          "start": 1671993442791183000
+        },
+        {
+          "name": "s3",
+          "service": "",
+          "resource": "s3",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "duration": 65234000,
+          "start": 1671993442816363000
+        },
+     {
+       "name": "s1",
+       "service": "",
+       "resource": "s1",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "runtime-id": "994ce8cb59b543dabc14335f129a9800"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "process_id": 66173
+       },
+       "duration": 90914000,
+       "start": 1671993442791350000
+     },
+        {
+          "name": "s2",
+          "service": "",
+          "resource": "s2",
+          "trace_id": 0,
+          "span_id": 8,
+          "parent_id": 3,
+          "type": "",
+          "error": 0,
+          "duration": 25058000,
+          "start": 1671993442791409000
+        },
+        {
+          "name": "s3",
+          "service": "",
+          "resource": "s3",
+          "trace_id": 0,
+          "span_id": 9,
+          "parent_id": 3,
+          "type": "",
+          "error": 0,
+          "duration": 65639000,
+          "start": 1671993442816530000
+        },
+     {
+       "name": "s1",
+       "service": "",
+       "resource": "s1",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "runtime-id": "994ce8cb59b543dabc14335f129a9800"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "process_id": 66173
+       },
+       "duration": 91268000,
+       "start": 1671993442791532000
+     },
+        {
+          "name": "s2",
+          "service": "",
+          "resource": "s2",
+          "trace_id": 0,
+          "span_id": 10,
+          "parent_id": 4,
+          "type": "",
+          "error": 0,
+          "duration": 24989000,
+          "start": 1671993442791594000
+        },
+        {
+          "name": "s3",
+          "service": "",
+          "resource": "s3",
+          "trace_id": 0,
+          "span_id": 11,
+          "parent_id": 4,
+          "type": "",
+          "error": 0,
+          "duration": 66094000,
+          "start": 1671993442816633000
+        },
+     {
+       "name": "s1",
+       "service": "",
+       "resource": "s1",
+       "trace_id": 0,
+       "span_id": 5,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "runtime-id": "994ce8cb59b543dabc14335f129a9800"
+       },
+       "metrics": {
+         "_dd.top_level": 1,
+         "process_id": 66173
+       },
+       "duration": 90856000,
+       "start": 1671993442791716000
+     },
+        {
+          "name": "s2",
+          "service": "",
+          "resource": "s2",
+          "trace_id": 0,
+          "span_id": 12,
+          "parent_id": 5,
+          "type": "",
+          "error": 0,
+          "duration": 24908000,
+          "start": 1671993442791772000
+        },
+        {
+          "name": "s3",
+          "service": "",
+          "resource": "s3",
+          "trace_id": 0,
+          "span_id": 13,
+          "parent_id": 5,
+          "type": "",
+          "error": 0,
+          "duration": 65767000,
+          "start": 1671993442816725000
+        }]]

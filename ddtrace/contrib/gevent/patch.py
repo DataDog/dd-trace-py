@@ -3,6 +3,7 @@ import gevent.pool
 
 import ddtrace
 
+from ...opentelemetry import _context
 from ...provider import DefaultContextProvider
 from .greenlet import GEVENT_VERSION
 from .greenlet import TracedGreenlet
@@ -31,6 +32,7 @@ def patch():
 
     _replace(TracedGreenlet, TracedIMap, TracedIMapUnordered)
     ddtrace.tracer.configure(context_provider=GeventContextProvider())
+    _context.DD_CONTEXT_PROVIDER = GeventContextProvider()
 
 
 def unpatch():
@@ -45,6 +47,7 @@ def unpatch():
 
     _replace(__Greenlet, __IMap, __IMapUnordered)
     ddtrace.tracer.configure(context_provider=DefaultContextProvider())
+    _context.DD_CONTEXT_PROVIDER = DefaultContextProvider()
 
 
 def _replace(g_class, imap_class, imap_unordered_class):

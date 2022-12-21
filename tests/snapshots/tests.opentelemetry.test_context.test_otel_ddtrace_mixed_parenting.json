@@ -1,0 +1,84 @@
+[[
+  {
+    "name": "otel-top-level",
+    "service": "",
+    "resource": "otel-top-level",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "runtime-id": "54dee5d3e5a046aa9337afbce4b975e4"
+    },
+    "metrics": {
+      "_dd.agent_psr": 1.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 65771
+    },
+    "duration": 118252000,
+    "start": 1671993353324897000
+  },
+     {
+       "name": "ddtrace-top-level",
+       "service": "",
+       "resource": "ddtrace-top-level",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 118127000,
+       "start": 1671993353325004000
+     },
+        {
+          "name": "ddtrace-child",
+          "service": "",
+          "resource": "ddtrace-child",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "duration": 42674000,
+          "start": 1671993353350075000
+        },
+        {
+          "name": "otel-child",
+          "service": "",
+          "resource": "otel-child",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "duration": 50282000,
+          "start": 1671993353392832000
+        },
+           {
+             "name": "ddtrace-grandchild",
+             "service": "",
+             "resource": "ddtrace-grandchild",
+             "trace_id": 0,
+             "span_id": 5,
+             "parent_id": 4,
+             "type": "",
+             "error": 0,
+             "duration": 25182000,
+             "start": 1671993353417911000
+           },
+              {
+                "name": "otel-grandchild",
+                "service": "",
+                "resource": "otel-grandchild",
+                "trace_id": 0,
+                "span_id": 6,
+                "parent_id": 5,
+                "type": "",
+                "error": 0,
+                "duration": 25096000,
+                "start": 1671993353417967000
+              }]]

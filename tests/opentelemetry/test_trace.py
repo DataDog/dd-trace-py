@@ -1,10 +1,15 @@
 import logging
 
 import opentelemetry
+import opentelemetry.version
 import pytest
 
+from ddtrace.internal.utils.version import parse_version
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_env  # noqa:F401 used by flask_client
+
+
+OTEL_VERSION = parse_version(opentelemetry.version.__version__)
 
 
 def test_otel_compatible_tracer_is_returned_by_tracer_provider():
@@ -118,8 +123,9 @@ def test_otel_start_current_span_without_default_args(oteltracer):
             "tests.opentelemetry.flask_app:app",
             "8001",
             ["opentelemetry-instrument", "flask", "run", "-h", "0.0.0.0", "-p", "8001"],
-            marks=pytest.mark.skip(
-                reason="otel instrumentation is not supported",
+            marks=pytest.mark.skipif(
+                OTEL_VERSION < (1, 12),
+                reason="otel flask instrumentation is in beta and is unstable with earlier versions of the api",
             ),
         ),
     ],
