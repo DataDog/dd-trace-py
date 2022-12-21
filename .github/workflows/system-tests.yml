@@ -73,7 +73,6 @@ jobs:
           repository: 'DataDog/system-tests'
           ref: robertomonteromiguel/lib_injection_integration_v2
 
-
       - name: Build
         run: ./lib-injection/build.sh
 
