@@ -203,13 +203,13 @@ def test_traceparent(context, expected_traceparent):
                 span_id=67667974448284343,
                 sampling_priority=1,
                 meta={
-                    "tracestate": "dd=s~1;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE",
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                 },
                 dd_origin="rum",
             ),
-            "dd=s~1;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE",
+            "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
         ),
         (
             Context(
@@ -219,7 +219,7 @@ def test_traceparent(context, expected_traceparent):
                 dd_origin="rum",
                 meta={"tracestate": "congo=t61rcWkgMzE"},
             ),
-            "dd=s~1;o~rum,congo=t61rcWkgMzE",
+            "dd=s:1;o:rum,congo=t61rcWkgMzE",
         ),
         (
             Context(
@@ -227,13 +227,13 @@ def test_traceparent(context, expected_traceparent):
                 span_id=67667974448284343,
                 sampling_priority=2,
                 meta={
-                    "tracestate": "dd=s~1;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE,nr=ok,s=ink",
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,nr=ok,s=ink",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                 },
                 dd_origin="synthetics",
             ),
-            "dd=s~2;o~synthetics;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE,nr=ok,s=ink",
+            "dd=s:2;o:synthetics;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE,nr=ok,s=ink",
         ),
         (
             Context(
@@ -246,7 +246,7 @@ def test_traceparent(context, expected_traceparent):
                 },
                 dd_origin="synthetics",
             ),
-            "dd=s~-1;o~synthetics;t.dm~-4;t.usr.id~baz64",
+            "dd=s:-1;o:synthetics;t.dm:-4;t.usr.id:baz64",
         ),
         (
             Context(
@@ -254,33 +254,33 @@ def test_traceparent(context, expected_traceparent):
                 span_id=67667974448284343,
                 sampling_priority=1,
                 meta={
-                    "tracestate": "dd=s~1;o~rum;t.dm~-4;t.usr.id~baz64,congo=t61rcWkgMzE",
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
                     "_dd.p.dm": "-4",
                     "_dd.p.usr.id": "baz64",
                     "_dd.p.unknown": "unk",
                 },
                 dd_origin="rum",
             ),
-            "dd=s~1;o~rum;t.dm~-4;t.usr.id~baz64;t.unknown~unk,congo=t61rcWkgMzE",
+            "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64;t.unknown:unk,congo=t61rcWkgMzE",
         ),
         (
             Context(),
             "",
         ),
-        (  # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E with _
+        (  # for value replace ",", ";", ":" and characters outside the ASCII range 0x20 to 0x7E with _
             Context(
                 trace_id=11803532876627986230,
                 span_id=67667974448284343,
                 sampling_priority=1,
                 meta={
-                    "tracestate": "dd=s~1;o~rum;t.dm~-4;t.usr.id~baz64",
-                    "_dd.p.dm": ";5~",
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64",
+                    "_dd.p.dm": ";5:",
                     "_dd.p.usr.id": "b,z64,",
                     "_dd.p.unk": ";2",
                 },
                 dd_origin="rum",
             ),
-            "dd=s~1;o~rum;t.dm~_5_;t.usr.id~b_z64_;t.unk~_2",
+            "dd=s:1;o:rum;t.dm:_5_;t.usr.id:b_z64_;t.unk:_2",
         ),
         (  # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E with _
             Context(
@@ -288,14 +288,14 @@ def test_traceparent(context, expected_traceparent):
                 span_id=67667974448284343,
                 sampling_priority=1,
                 meta={
-                    "tracestate": "dd=s~1;o~rum;t.dm~-4;t.usr.id~baz64",
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64",
                     "_dd.p.dm": "5",
                     "_dd.p.usr.id": "bz64",
                     "_dd.p.unk¢": "2",
                 },
                 dd_origin="rum",
             ),
-            "dd=s~1;o~rum;t.dm~5;t.usr.id~bz64;t.unk_~2",
+            "dd=s:1;o:rum;t.dm:5;t.usr.id:bz64;t.unk_:2",
         ),
         (
             Context(
@@ -303,11 +303,11 @@ def test_traceparent(context, expected_traceparent):
                 span_id=67667974448284343,
                 sampling_priority=1,
                 meta={
-                    "tracestate": "dd=s~1;o~rum;t.dm~-4;t.usr.id~baz64",
+                    "tracestate": "dd=s:1;o:rum;t.dm:-4;t.usr.id:baz64",
                 },
                 dd_origin=";r,um=",
             ),
-            "dd=s~1;o~_r_um_",
+            "dd=s:1;o:_r_um_",
         ),
     ],
     ids=[

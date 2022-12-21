@@ -19,6 +19,23 @@ Release Notes
 
 
 .. ddtrace-release-notes::
+    "1.7.0":
+      ignore_notes:
+        - "Fix-version-constraints-for-Py27-e3a0069f43a84c16.yaml"
+        - "PCF-container-UUID-0f65eed47e42f4ad.yaml"
+        - "asm-1-click-activation-with-RCM-6a2431949768b73b.yaml"
+        - "asm-add-http-route-for-flask-8b13c721e2f7543b.yaml"
+        - "asm-fix-ipaddress-backport-lib-4684ce71e63459e7.yaml"
+        - "asm-ipaddress-rfc-part-two-a546e8453cc8163a.yaml"
+        - "asm-tag-http-query-string-c7faba44b1402215.yaml"
+        - "feat-dynamic-instrumentation-4c46bb86482438c1.yaml"
+        - "fix-context-serializable-2c9768cbe4738b73.yaml"
+        - "fix-cors-errors-0fa947a1a583ad0c.yaml"
+        - "iast-weak-hash-2fe50c2c7da2289d.yaml"
+        - "ipaddress-dep-3.7-b2bf42719e5f99ec.yaml"
+        - "python311-tracer-a7077c0e461622d2.yaml"
+        - "remove-deprecated-flask-methods-8d7a4a3d32c3c69d.yaml"
+        - "wsgi-span-parenting-fix-22908787ac7ee6a6.yaml"
     "1.1.0":
       ignore_notes:
         # Ignore 1.0 release notes
