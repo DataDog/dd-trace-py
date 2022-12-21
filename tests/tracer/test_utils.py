@@ -478,10 +478,10 @@ def test_callonce_signature():
                 dd_origin="syn=",
                 meta={
                     "_dd.p.unk": "-4~",
-                    "_dd.p.unknow:n": "baz64",
+                    "_dd.p.unknown": "baz64",
                 },
             ),
-            ["s:2", "o:syn~", "t.unk:-4_", "t.unknow:n:baz64"],
+            ["s:2", "o:syn~", "t.unk:-4_", "t.unknown:baz64"],
         ),
     ],
     ids=[
