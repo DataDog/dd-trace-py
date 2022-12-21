@@ -1,12 +1,12 @@
 import ctypes
 import logging
 import time
-from typing import Any
 from typing import TYPE_CHECKING
-from typing import Union
 
 
 if TYPE_CHECKING:
+    from typing import Any
+    from typing import Union
     from ddtrace.appsec.ddwaf.ddwaf_types import DDWafRulesType
 
 from ddtrace.internal.compat import PY3
@@ -41,7 +41,30 @@ if PY3:
 # Interface as Cython
 #
 
-DEFAULT_DDWAF_TIMEOUT_MS = 20
+DEFAULT_DDWAF_TIMEOUT_MS = 2
+
+
+class DDWaf_result(object):
+    __slots__ = ["data", "actions", "runtime", "total_runtime"]
+
+    def __init__(self, data, actions, runtime, total_runtime):
+        # type: (DDWaf_result, unicode|None, list[unicode], float, float) -> None
+        self.data = data
+        self.actions = actions
+        self.runtime = runtime
+        self.total_runtime = total_runtime
+
+
+class DDWaf_info(object):
+    __slots__ = ["loaded", "failed", "errors", "version"]
+
+    def __init__(self, loaded, failed, errors, version):
+        # type: (DDWaf_info, int, int, dict[unicode, Any], unicode) -> None
+        self.loaded = loaded
+        self.failed = failed
+        self.errors = errors
+        self.version = version
+
 
 if _DDWAF_LOADED:
 
@@ -64,23 +87,13 @@ if _DDWAF_LOADED:
 
         @property
         def info(self):
-            # type: (DDWaf) -> dict[unicode, Any]
+            # type: (DDWaf) -> DDWaf_info
             if self._info.loaded > 0:
                 errors_result = self._info.errors.struct if self._info.failed > 0 else {}
                 version = self._info.version
                 version = "" if version is None else version.decode("UTF-8")
-                return {
-                    "loaded": self._info.loaded,
-                    "failed": self._info.failed,
-                    "errors": errors_result,
-                    "version": version,
-                }
-            return {
-                "loaded": 0,
-                "failed": 0,
-                "errors": {},
-                "version": "",
-            }
+                return DDWaf_info(self._info.loaded, self._info.failed, errors_result, version)
+            return DDWaf_info(0, 0, {}, "")
 
         def update_rules(self, new_rules):
             # type: (DDWafRulesType) -> int
@@ -93,7 +106,7 @@ if _DDWAF_LOADED:
             data,  # type: Union[None, int, unicode, list[Any], dict[unicode, Any]]
             timeout_ms=DEFAULT_DDWAF_TIMEOUT_MS,  # type:int
         ):
-            # type: (...) -> tuple[unicode, float, float]
+            # type: (...) -> DDWaf_result
             start = time.time()
 
             ctx = ddwaf_context_init(self._handle)
@@ -102,8 +115,9 @@ if _DDWAF_LOADED:
             try:
                 wrapper = ddwaf_object(data)
                 error, result = py_ddwaf_run(ctx, wrapper, timeout_ms * 1000)
-                return (
+                return DDWaf_result(
                     result.data.decode("UTF-8") if result.data else None,
+                    result.actions.array,
                     result.total_runtime / 1e3,
                     (time.time() - start) * 1e6,
                 )

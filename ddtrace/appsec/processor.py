@@ -332,13 +332,13 @@ class AppSecSpanProcessor(SpanProcessor):
 
         try:
             info = self._ddwaf.info
-            if info["errors"]:
-                span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info["errors"]))
-            span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info["version"])
+            if info.errors:
+                span.set_tag_str(APPSEC_EVENT_RULE_ERRORS, json.dumps(info.errors))
+            span.set_tag_str(APPSEC_EVENT_RULE_VERSION, info.version)
             span.set_tag_str(APPSEC_WAF_VERSION, version())
 
-            span.set_metric(APPSEC_EVENT_RULE_LOADED, info["loaded"])
-            span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info["failed"])
+            span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
+            span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
             if not blocked_request:
                 span.set_metric(APPSEC_WAF_DURATION, total_runtime)
                 span.set_metric(APPSEC_WAF_DURATION_EXT, total_overall_runtime)
