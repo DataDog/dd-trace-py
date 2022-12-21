@@ -1,8 +1,8 @@
 [[
   {
-    "name": "root-span",
+    "name": "root",
     "service": "",
-    "resource": "root-span",
+    "resource": "root",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -20,22 +20,27 @@
       "_sampling_priority_v1": 1,
       "process_id": 34011
     },
-    "duration": 145000,
-    "start": 1675884560607241000
+    "duration": 312973000,
+    "start": 1675884560029513000
   },
      {
-       "name": "rename-start-span",
+       "name": "task",
        "service": "",
-       "resource": "rename-start-span",
+       "resource": "task",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "",
        "error": 0,
        "meta": {
-         "span.kind": "client",
-         "start_span_tag": "start_span_val"
+         "language": "python",
+         "runtime-id": "d0c70dc4dfb240c78a993aed893ddb46"
        },
-       "duration": 0,
-       "start": 0
+       "metrics": {
+         "_dd.top_level": 1,
+         "_dd.tracer_kr": 1.0,
+         "process_id": 34016
+       },
+       "duration": 21789000,
+       "start": 1675884560245607000
      }]]
