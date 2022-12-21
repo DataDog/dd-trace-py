@@ -261,6 +261,7 @@ setup(
         "tenacity>=5",
         "attrs>=20; python_version>'2.7'",
         "attrs>=20,<22; python_version=='2.7'",
+        "attrs>=22,<22.2; python_version=='3.6'",
         "contextlib2<1.0; python_version=='2.7'",
         "cattrs",
         "six>=1.12.0",
