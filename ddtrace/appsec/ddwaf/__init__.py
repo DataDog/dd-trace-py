@@ -117,7 +117,7 @@ if _DDWAF_LOADED:
                 error, result = py_ddwaf_run(ctx, wrapper, timeout_ms * 1000)
                 return DDWaf_result(
                     result.data.decode("UTF-8") if result.data else None,
-                    result.actions.array,
+                    [result.actions.array[i] for i in result.actions.size],
                     result.total_runtime / 1e3,
                     (time.time() - start) * 1e6,
                 )
@@ -131,7 +131,6 @@ if _DDWAF_LOADED:
     def version():
         # type: () -> unicode
         return ddwaf_get_version().decode("UTF-8")
-
 
 else:
     # Mockup of the DDWaf class doing nothing
