@@ -1314,7 +1314,3 @@ workflows:
       # - profile-windows-311: *requires_pre_check
       # Final reports
       - coverage_report: *requires_tests
-
-  test_latest:
-    <<: *workflow_test
-
