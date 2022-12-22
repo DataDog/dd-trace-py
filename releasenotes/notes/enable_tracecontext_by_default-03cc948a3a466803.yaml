@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: Adds support for W3C Trace Context propagation style for distributed tracing. The ``traceparent`` and ``tracestate`` HTTP headers are enabled by default for all incoming and outgoing HTTP request headers. The Datadog propagation style continue to be enabled by default.
+upgrade:
+  - |
+    The default propagation style configuration changes to ``DD_TRACE_PROPAGATION_STYLE=tracecontext,datadog``. To only support Datadog propagation and retain the existing default behavior, set ``DD_TRACE_PROPAGATION_STYLE=datadog``.

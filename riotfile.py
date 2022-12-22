@@ -478,6 +478,14 @@ venv = Venv(
             },
         ),
         Venv(
+            name="vertica",
+            command="pytest {cmdargs} tests/contrib/vertica/",
+            pys=select_pys(max_version="3.9"),
+            pkgs={
+                "vertica-python": [">=0.6.0,<0.7.0", ">=0.7.0,<0.8.0"],
+            },
+        ),
+        Venv(
             name="wait",
             command="python tests/wait-for-services.py {cmdargs}",
             # Default Python 3 (3.10) collections package breaks with kombu/vertica, so specify Python 3.9 instead.
@@ -2585,6 +2593,22 @@ venv = Venv(
             pkgs={
                 "molten": [">=0.6,<0.7", ">=0.7,<0.8", ">=1.0,<1.1", latest],
             },
+        ),
+        Venv(
+            name="gunicorn",
+            command="pytest {cmdargs} tests/contrib/gunicorn",
+            pkgs={"requests": latest},
+            venvs=[
+                Venv(
+                    pys="2.7",
+                    # Gunicorn ended Python 2 support after 19.10.0
+                    pkgs={"gunicorn": "==19.10.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.5"),
+                    pkgs={"gunicorn": ["==19.10.0", "==20.0.4", latest]},
+                ),
+            ],
         ),
     ],
 )

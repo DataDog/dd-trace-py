@@ -9,7 +9,6 @@ from threading import RLock
 from typing import TYPE_CHECKING
 
 from ddtrace import config
-from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.filters import TraceFilter
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
@@ -261,7 +260,6 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
         )
-        enable_appsec_rc(self)
 
         self._hooks = _hooks.Hooks()
         atexit.register(self._atexit)
@@ -543,7 +541,6 @@ class Tracer(object):
             self._single_span_sampling_rules,
             self._agent_url,
         )
-        enable_appsec_rc(self)
 
         self._new_process = True
 
