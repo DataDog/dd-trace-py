@@ -1,13 +1,11 @@
 [[
   {
     "name": "test-telemetry",
-    "service": "",
+    "service": null,
     "resource": "test-telemetry",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "e5cf6155c18e4846a318aab0dae87c41"

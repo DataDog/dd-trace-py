@@ -33,7 +33,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "graphql.source": "{ patron { id name age } }"
        },
@@ -48,7 +47,6 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "graphql.source": "{ patron { id name age } }"
        },
@@ -81,7 +79,6 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "duration": 48000,
           "start": 1659643443312350000
         }]]

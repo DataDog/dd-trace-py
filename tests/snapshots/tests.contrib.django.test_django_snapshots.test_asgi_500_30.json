@@ -39,8 +39,6 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "duration": 1234944000,
        "start": 1633585400650403000
      },
@@ -51,8 +49,6 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "duration": 83000,
           "start": 1633585400650457000
         },
@@ -63,8 +59,6 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "duration": 1234647000,
           "start": 1633585400650598000
         },
@@ -75,8 +69,6 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 4,
-             "type": "",
-             "error": 0,
              "duration": 138000,
              "start": 1633585400650659000
            },
@@ -87,8 +79,6 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 4,
-             "type": "",
-             "error": 0,
              "duration": 1234298000,
              "start": 1633585400650851000
            },
@@ -99,8 +89,6 @@
                 "trace_id": 0,
                 "span_id": 9,
                 "parent_id": 7,
-                "type": "",
-                "error": 0,
                 "duration": 34000,
                 "start": 1633585400650900000
               },
@@ -111,8 +99,6 @@
                 "trace_id": 0,
                 "span_id": 10,
                 "parent_id": 7,
-                "type": "",
-                "error": 0,
                 "duration": 1234075000,
                 "start": 1633585400650984000
               },
@@ -123,8 +109,6 @@
                    "trace_id": 0,
                    "span_id": 12,
                    "parent_id": 10,
-                   "type": "",
-                   "error": 0,
                    "duration": 37000,
                    "start": 1633585400651031000
                  },
@@ -135,8 +119,6 @@
                    "trace_id": 0,
                    "span_id": 13,
                    "parent_id": 10,
-                   "type": "",
-                   "error": 0,
                    "duration": 1233917000,
                    "start": 1633585400651117000
                  },
@@ -147,8 +129,6 @@
                       "trace_id": 0,
                       "span_id": 14,
                       "parent_id": 13,
-                      "type": "",
-                      "error": 0,
                       "duration": 79000,
                       "start": 1633585400651164000
                     },
@@ -159,8 +139,6 @@
                       "trace_id": 0,
                       "span_id": 15,
                       "parent_id": 13,
-                      "type": "",
-                      "error": 0,
                       "duration": 1233647000,
                       "start": 1633585400651295000
                     },
@@ -171,8 +149,6 @@
                          "trace_id": 0,
                          "span_id": 17,
                          "parent_id": 15,
-                         "type": "",
-                         "error": 0,
                          "duration": 1233493000,
                          "start": 1633585400651351000
                        },
@@ -183,8 +159,6 @@
                             "trace_id": 0,
                             "span_id": 19,
                             "parent_id": 17,
-                            "type": "",
-                            "error": 0,
                             "duration": 31000,
                             "start": 1633585400651398000
                           },
@@ -195,8 +169,6 @@
                             "trace_id": 0,
                             "span_id": 20,
                             "parent_id": 17,
-                            "type": "",
-                            "error": 0,
                             "duration": 1233135000,
                             "start": 1633585400651584000
                           },
@@ -207,8 +179,6 @@
                                "trace_id": 0,
                                "span_id": 22,
                                "parent_id": 20,
-                               "type": "",
-                               "error": 0,
                                "duration": 1233060000,
                                "start": 1633585400651633000
                              },
@@ -219,8 +189,6 @@
                                   "trace_id": 0,
                                   "span_id": 23,
                                   "parent_id": 22,
-                                  "type": "",
-                                  "error": 0,
                                   "duration": 1232880000,
                                   "start": 1633585400651761000
                                 },
@@ -231,8 +199,6 @@
                                      "trace_id": 0,
                                      "span_id": 24,
                                      "parent_id": 23,
-                                     "type": "",
-                                     "error": 0,
                                      "duration": 41000,
                                      "start": 1633585400652774000
                                    },
@@ -243,8 +209,6 @@
                                      "trace_id": 0,
                                      "span_id": 25,
                                      "parent_id": 23,
-                                     "type": "",
-                                     "error": 0,
                                      "duration": 31000,
                                      "start": 1633585400652865000
                                    },
@@ -255,7 +219,6 @@
                                      "trace_id": 0,
                                      "span_id": 26,
                                      "parent_id": 23,
-                                     "type": "",
                                      "error": 1,
                                      "meta": {
                                        "error.message": "Error 500",
@@ -272,8 +235,6 @@
                                      "trace_id": 0,
                                      "span_id": 27,
                                      "parent_id": 23,
-                                     "type": "",
-                                     "error": 0,
                                      "duration": 37000,
                                      "start": 1633585400657574000
                                    },
@@ -284,8 +245,6 @@
                                      "trace_id": 0,
                                      "span_id": 28,
                                      "parent_id": 23,
-                                     "type": "",
-                                     "error": 0,
                                      "duration": 36000,
                                      "start": 1633585400658118000
                                    },
@@ -296,8 +255,6 @@
                                      "trace_id": 0,
                                      "span_id": 29,
                                      "parent_id": 23,
-                                     "type": "",
-                                     "error": 0,
                                      "duration": 30000,
                                      "start": 1633585400658307000
                                    },
@@ -308,8 +265,6 @@
                                      "trace_id": 0,
                                      "span_id": 30,
                                      "parent_id": 23,
-                                     "type": "",
-                                     "error": 0,
                                      "duration": 54000,
                                      "start": 1633585400711086000
                                    },
@@ -321,7 +276,6 @@
                                      "span_id": 31,
                                      "parent_id": 23,
                                      "type": "template",
-                                     "error": 0,
                                      "meta": {
                                        "django.template.engine.class": "django.template.engine.Engine"
                                      },
@@ -335,8 +289,6 @@
                             "trace_id": 0,
                             "span_id": 21,
                             "parent_id": 17,
-                            "type": "",
-                            "error": 0,
                             "duration": 44000,
                             "start": 1633585401884775000
                           },
@@ -347,8 +299,6 @@
                          "trace_id": 0,
                          "span_id": 18,
                          "parent_id": 15,
-                         "type": "",
-                         "error": 0,
                          "duration": 34000,
                          "start": 1633585401884884000
                        },
@@ -359,8 +309,6 @@
                       "trace_id": 0,
                       "span_id": 16,
                       "parent_id": 13,
-                      "type": "",
-                      "error": 0,
                       "duration": 29000,
                       "start": 1633585401884981000
                     },
@@ -371,8 +319,6 @@
                 "trace_id": 0,
                 "span_id": 11,
                 "parent_id": 7,
-                "type": "",
-                "error": 0,
                 "duration": 28000,
                 "start": 1633585401885098000
               },
@@ -383,8 +329,6 @@
              "trace_id": 0,
              "span_id": 8,
              "parent_id": 4,
-             "type": "",
-             "error": 0,
              "duration": 34000,
              "start": 1633585401885188000
            },
@@ -395,8 +339,6 @@
           "trace_id": 0,
           "span_id": 5,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "duration": 39000,
           "start": 1633585401885283000
         }]]

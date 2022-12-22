@@ -1,13 +1,12 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": "",
+    "service": null,
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "GET",
@@ -28,26 +27,23 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": "",
+       "service": null,
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "duration": 26278000,
        "start": 1646794505598411000
      }],
 [
   {
     "name": "aiohttp.request",
-    "service": "",
+    "service": null,
     "resource": "aiohttp.request",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "GET",
@@ -68,26 +64,23 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": "",
+       "service": null,
        "resource": "TCPConnector.connect",
        "trace_id": 1,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "duration": 70000,
        "start": 1646794505627940000
      }],
 [
   {
     "name": "aiohttp.request",
-    "service": "",
+    "service": null,
     "resource": "aiohttp.request",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "GET",
@@ -108,13 +101,11 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": "",
+       "service": null,
        "resource": "TCPConnector.connect",
        "trace_id": 2,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "duration": 136000,
        "start": 1646794505631851000
      }]]

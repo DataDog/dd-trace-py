@@ -1,13 +1,11 @@
 [[
   {
     "name": "p",
-    "service": "",
+    "service": null,
     "resource": "p",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 5678,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-1",
       "_dd.p.test": "value",
@@ -24,37 +22,31 @@
   },
      {
        "name": "c1",
-       "service": "",
+       "service": null,
        "resource": "c1",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "duration": 7000,
        "start": 1655133503389164000
      },
      {
        "name": "c2",
-       "service": "",
+       "service": null,
        "resource": "c2",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "duration": 14000,
        "start": 1655133503389188000
      },
         {
           "name": "gc",
-          "service": "",
+          "service": null,
           "resource": "gc",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 3,
-          "type": "",
-          "error": 0,
           "duration": 24000,
           "start": 1655133503389197000
         }]]

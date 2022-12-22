@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "web",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "GET",
@@ -35,7 +34,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "web",
-       "error": 0,
        "meta": {
          "http.method": "GET",
          "http.status_code": "200",
@@ -53,8 +51,6 @@
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "duration": 30000,
           "start": 1656543965439239000
         }]]

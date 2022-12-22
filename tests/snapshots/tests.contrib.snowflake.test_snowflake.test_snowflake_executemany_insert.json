@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.application": "PythonConnector",

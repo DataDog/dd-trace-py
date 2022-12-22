@@ -1,13 +1,12 @@
 [[
   {
     "name": "aiohttp.request",
-    "service": "",
+    "service": null,
     "resource": "aiohttp.request",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "http",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "http.method": "GET",
@@ -29,13 +28,11 @@
   },
      {
        "name": "TCPConnector.connect",
-       "service": "",
+       "service": null,
        "resource": "TCPConnector.connect",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
-       "error": 0,
        "duration": 1803000,
        "start": 1646853117220225000
      }]]

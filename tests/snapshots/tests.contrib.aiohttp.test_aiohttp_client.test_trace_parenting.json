@@ -1,13 +1,11 @@
 [[
   {
     "name": "parent",
-    "service": "",
+    "service": null,
     "resource": "parent",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "93de13222bfa491d896a7fd6f40622e1"
@@ -24,13 +22,12 @@
   },
      {
        "name": "aiohttp.request",
-       "service": "",
+       "service": null,
        "resource": "aiohttp.request",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
        "type": "http",
-       "error": 0,
        "meta": {
          "http.method": "GET",
          "http.status_code": "200",
@@ -42,13 +39,11 @@
      },
         {
           "name": "TCPConnector.connect",
-          "service": "",
+          "service": null,
           "resource": "TCPConnector.connect",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
-          "type": "",
-          "error": 0,
           "duration": 2464000,
           "start": 1646794413226798000
         }]]

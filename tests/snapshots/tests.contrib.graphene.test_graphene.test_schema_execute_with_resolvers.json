@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "graphql",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "9203e2a344a64d8da2a34d37d8fe3900"
@@ -31,7 +30,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "graphql.source": "{ patron { id name age } }"
        },
@@ -46,7 +44,6 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "graphql.source": "{ patron { id name age } }"
        },
@@ -61,7 +58,6 @@
        "span_id": 4,
        "parent_id": 1,
        "type": "graphql",
-       "error": 0,
        "meta": {
          "graphql.operation.type": "query",
          "graphql.source": "{ patron { id name age } }"
@@ -77,7 +73,6 @@
           "span_id": 5,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "duration": 60000,
           "start": 1659643443278923000
         },
@@ -89,7 +84,6 @@
           "span_id": 6,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "duration": 33000,
           "start": 1659643443279216000
         },
@@ -101,7 +95,6 @@
           "span_id": 7,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "duration": 27000,
           "start": 1659643443279338000
         },
@@ -113,7 +106,6 @@
           "span_id": 8,
           "parent_id": 4,
           "type": "graphql",
-          "error": 0,
           "duration": 27000,
           "start": 1659643443279449000
         }]]

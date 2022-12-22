@@ -1,13 +1,12 @@
 [[
   {
     "name": "mysql.query",
-    "service": "",
+    "service": null,
     "resource": "SELECT 1",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "test",

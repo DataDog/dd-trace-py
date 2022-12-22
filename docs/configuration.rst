@@ -230,14 +230,11 @@ below:
 
    DD_TRACE_API_VERSION:
      default: |
-         ``v0.5`` if priority sampling is enabled, else ``v0.3``
+         ``v0.4`` if priority sampling is enabled, else ``v0.3``
      description: |
          The trace API version to use when sending traces to the Datadog agent.
 
          Currently, the supported versions are: ``v0.3``, ``v0.4`` and ``v0.5``.
-     version_added:
-       v0.56.0:
-       v1.7.0: default changed to ``v0.5``.
 
    DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN:
      default: |

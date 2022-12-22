@@ -7,7 +7,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "postgres",
@@ -29,13 +28,11 @@
 [
   {
     "name": "parent",
-    "service": "",
+    "service": null,
     "resource": "parent",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "b0bde09048cb4673b20dde71719550fc"
@@ -58,7 +55,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
-       "error": 0,
        "meta": {
          "db.name": "postgres",
          "db.user": "postgres",
@@ -75,13 +71,11 @@
 [
   {
     "name": "parent2",
-    "service": "",
+    "service": null,
     "resource": "parent2",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "b0bde09048cb4673b20dde71719550fc"
@@ -105,7 +99,6 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
-    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "postgres",
