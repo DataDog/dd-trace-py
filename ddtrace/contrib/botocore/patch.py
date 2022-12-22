@@ -10,6 +10,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 import botocore.client
 import botocore.exceptions
@@ -44,6 +45,8 @@ TRACED_ARGS = {"params", "path", "verb"}
 
 MAX_KINESIS_DATA_SIZE = 1 << 20  # 1MB
 MAX_EVENTBRIDGE_DETAIL_SIZE = 1 << 18  # 256KB
+
+LINE_BREAK = "\n"
 
 log = get_logger(__name__)
 
@@ -176,8 +179,17 @@ def inject_trace_to_eventbridge_detail(params, span):
         entry["Detail"] = detail_json
 
 
+def get_json_from_str(data_str):
+    # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
+    data_obj = json.loads(data_str)
+
+    if data_str.endswith(LINE_BREAK):
+        return LINE_BREAK, data_obj
+    return "", data_obj
+
+
 def get_kinesis_data_object(data):
-    # type: (str) -> Optional[Dict[str, Any]]
+    # type: (str) -> Tuple[str, Optional[Dict[str, Any]]]
     """
     :data: the data from a kinesis stream
 
@@ -190,13 +202,14 @@ def get_kinesis_data_object(data):
 
     # check if data is a json string
     try:
-        return json.loads(data)
+        return get_json_from_str(data)
     except ValueError:
         pass
 
     # check if data is a base64 encoded json string
     try:
-        return json.loads(base64.b64decode(data).decode("ascii"))
+        data_str = base64.b64decode(data).decode("ascii")
+        return get_json_from_str(data_str)
     except ValueError:
         raise TraceInjectionDecodingError("Unable to parse kinesis streams data string")
 
@@ -216,10 +229,14 @@ def inject_trace_to_kinesis_stream_data(record, span):
         return
 
     data = record["Data"]
-    data_obj = get_kinesis_data_object(data)
+    line_break, data_obj = get_kinesis_data_object(data)
     data_obj["_datadog"] = {}
     HTTPPropagator.inject(span.context, data_obj["_datadog"])
     data_json = json.dumps(data_obj)
+
+    # if original string had a line break, add it back
+    if line_break:
+        data_json += line_break
 
     # check if data size will exceed max size with headers
     data_size = len(data_json)
