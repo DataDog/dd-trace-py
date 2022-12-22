@@ -382,7 +382,7 @@ def test_ddwaf_run():
         res = _ddwaf.run(data, DEFAULT_WAF_TIMEOUT)  # res is a serialized json
         print(res.runtime)
         print(res.total_runtime)
-        assert res.startswith('[{"rule":{"id":"crs-942-100"')
+        assert res.data.startswith('[{"rule":{"id":"crs-942-100"')
         assert res.runtime > 0
         assert res.total_runtime > 0
         assert res.total_runtime > res.runtime
@@ -412,8 +412,8 @@ def test_ddwaf_info_with_2_errors():
         expected_dict = sorted(
             {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}.items()
         )
-        assert sorted(info["errors"].items()) == expected_dict
-        assert info["version"] == "5.5.5"
+        assert sorted(info.errors.items()) == expected_dict
+        assert info.version == "5.5.5"
 
 
 def test_ddwaf_info_with_3_errors():
