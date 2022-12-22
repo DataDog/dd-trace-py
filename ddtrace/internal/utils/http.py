@@ -171,7 +171,7 @@ def w3c_get_dd_list_member(context):
     for k, v in context._meta.items():
         if (
             isinstance(k, six.string_types)
-            and k.startswith("_dd.p")
+            and k.startswith("_dd.p.")
             # we've already added sampling decision and user id
             and k not in [SAMPLING_DECISION_TRACE_TAG_KEY, USER_ID_KEY]
         ):
