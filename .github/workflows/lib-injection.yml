@@ -28,11 +28,10 @@ jobs:
    
     - name: lib-injection-tags
       id: lib-injection-tags
-      uses: DataDog/system-tests/lib-injection/docker-tags@robertomonteromiguel/lib_injection_integration_v2
+      uses: DataDog/system-tests/lib-injection/docker-tags@main
       with:
         init-image-name: 'dd-lib-python-init'
-        # Change me
-        main-branch-name: 'robertomonteromiguel-lib_injection_system_tests_integration'
+        main-branch-name: '1.x'
 
     - name: Login to Docker
       run: docker login -u publisher -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
@@ -70,7 +69,7 @@ jobs:
     
       - name: lib-injection test runner
         id: lib-injection-test-runner
-        uses: DataDog/system-tests/lib-injection/runner@robertomonteromiguel/lib_injection_integration_v2
+        uses: DataDog/system-tests/lib-injection/runner@main
         with:
           docker-registry: ghcr.io
           docker-registry-username: ${{ github.repository_owner }}
