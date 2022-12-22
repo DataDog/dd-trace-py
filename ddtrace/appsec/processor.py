@@ -216,6 +216,9 @@ class AppSecSpanProcessor(SpanProcessor):
         # type: (str) -> bool
         return address in self._addresses_to_keep
 
+    def _run_ddwaf(self, data):
+        return self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+
     def on_span_finish(self, span):
         # type: (Span) -> None
         if span.span_type != SpanTypes.WEB:
@@ -270,7 +273,17 @@ class AppSecSpanProcessor(SpanProcessor):
                 data[_Addresses.SERVER_REQUEST_BODY] = body
 
         log.debug("[DDAS-001-00] Executing AppSec In-App WAF with parameters: %s", data)
-        ddwaf_result = self._ddwaf.run(data, self._waf_timeout)  # res is a serialized json
+        blocked_request = _context.get_item("http.request.blocked", span=span)
+        if not blocked_request:
+            ddwaf_result = self._run_ddwaf(data)
+            res = ddwaf_result.data
+            total_runtime = ddwaf_result.runtime
+            total_overall_runtime = ddwaf_result.total_runtime
+        else:
+            # Blocked requests call ddwaf earlier, so we already have the data
+            total_runtime = _context.get_item("http.request.waf_duration", span=span)
+            total_overall_runtime = _context.get_item("http.request.waf_duration_ext", span=span)
+            res = None
 
         try:
             info = self._ddwaf.info
@@ -281,8 +294,9 @@ class AppSecSpanProcessor(SpanProcessor):
 
             span.set_metric(APPSEC_EVENT_RULE_LOADED, info.loaded)
             span.set_metric(APPSEC_EVENT_RULE_ERROR_COUNT, info.failed)
-            span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
-            span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
+            if not blocked_request:
+                span.set_metric(APPSEC_WAF_DURATION, ddwaf_result.runtime)
+                span.set_metric(APPSEC_WAF_DURATION_EXT, ddwaf_result.total_runtime)
         except (json.decoder.JSONDecodeError, ValueError):
             log.warning("Error parsing data AppSec In-App WAF metrics report")
         except Exception:
