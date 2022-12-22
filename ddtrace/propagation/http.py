@@ -616,7 +616,8 @@ class _TraceContext:
             if list_mem.startswith("dd="):
                 # cut out dd= before turning into dict
                 list_mem = list_mem[3:]
-                dd = dict(item.split(":") for item in list_mem.split(";"))
+                # since tags can have a value with a :, we need to only split on the first instance of :
+                dd = dict(item.split(":", 1) for item in list_mem.split(";"))
 
         # parse out values
         if dd:
