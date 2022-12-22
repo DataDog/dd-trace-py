@@ -4,9 +4,6 @@ from enum import IntEnum
 import os
 from platform import machine
 from platform import system
-from typing import Any
-from typing import Optional
-from typing import Union
 
 from ddtrace.internal.compat import PY3
 from ddtrace.internal.logger import get_logger
@@ -16,6 +13,16 @@ from ddtrace.internal.logger import get_logger
 if PY3:
     unicode = str
     long = int
+
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from typing import Any
+    from typing import Optional
+    from typing import Union
+
+    DDWafRulesType = Union[None, int, unicode, list[Any], dict[unicode, Any]]
 
 
 _DIRNAME = os.path.dirname(__file__)
@@ -83,12 +90,11 @@ class DDWAF_LOG_LEVEL(IntEnum):
 # Objects Definitions
 #
 
-# obj_struct = Union[None, int, unicode, list[Any], dict[unicode, Any]]
+# obj_struct = DDWafRulesType
 
 
 # to allow cyclic references, ddwaf_object fields are defined later
 class ddwaf_object(ctypes.Structure):
-
     # "type" define how to read the "value" union field
     # defined in ddwaf.h
     #  1 is intValue
@@ -99,7 +105,7 @@ class ddwaf_object(ctypes.Structure):
     # 32 is boolean
 
     def __init__(self, struct=None, max_objects=DDWAF_MAX_CONTAINER_SIZE, max_depth=DDWAF_MAX_CONTAINER_DEPTH):
-        # type: (ddwaf_object, Union[None, int, unicode, list[Any], dict[unicode, Any]], int, int) -> None
+        # type: (ddwaf_object, DDWafRulesType|None, int, int) -> None
         if struct is None or max_objects == 0:
             ddwaf_object_invalid(self)
         elif isinstance(struct, (int, long)):
