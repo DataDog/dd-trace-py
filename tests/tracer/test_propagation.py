@@ -653,8 +653,8 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         (  # "ts_string,expected_tuple,expected_logging,expected_exception",
             "dd=foo|bar:hi|l¢¢¢¢¢¢:",
             (None, {}, None),
-            ["received invalid tracestate header: 'dd=foo|bar:hi|l¢¢¢¢¢¢:"],
-            ValueError,
+            None,
+            None,
         ),
         (
             "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz6~~~4",
@@ -671,13 +671,13 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             None,
         ),
         (
-            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz:64",
+            "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz:6:4",
             # sampling_priority_ts, other_propagated_tags, origin
             (
                 2,
                 {
                     "_dd.p.dm": "-4",
-                    "_dd.p.usr.id": "baz6:4",
+                    "_dd.p.usr.id": "baz:6:4",
                 },
                 "rum",
             ),
