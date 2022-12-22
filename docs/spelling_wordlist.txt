@@ -86,6 +86,7 @@ graphene
 greenlet
 greenlets
 grpc
+gunicorn
 hostname
 hostnames
 http
