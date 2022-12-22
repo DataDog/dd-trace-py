@@ -15,7 +15,7 @@
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://0.0.0.0:8080/",
-      "http.useragent": "python-requests/2.25.1",
+      "http.useragent": "python-requests/2.28.1",
       "runtime-id": "b73097ce1a54484f872936703dc77f48"
     },
     "metrics": {
