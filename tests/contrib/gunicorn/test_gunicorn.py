@@ -118,7 +118,7 @@ def test_basic(gunicorn_server):
     assert r.content == b"Hello, World!\n"
 
 
-@pytest.mark.snapshot(ignores=["meta.result_class"])
+@pytest.mark.snapshot(ignores=["meta.result_class", "http.useragent"])
 @pytest.mark.parametrize(
     "gunicorn_server_settings", [_gunicorn_settings_factory(app_path="tests.contrib.gunicorn.wsgi_mw_app:app")]
 )
@@ -128,3 +128,4 @@ def test_traced_basic(gunicorn_server_settings, gunicorn_server):
     r = gunicorn_server.get("/")
     assert r.status_code == 200
     assert r.content == b"Hello, World!\n"
+    assert "http.useragent" in gunicorn_server_settings
