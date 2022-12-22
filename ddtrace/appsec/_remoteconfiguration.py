@@ -46,29 +46,29 @@ def enable_appsec_rc():
         RemoteConfig.register(ASM_DD_PRODUCT, appsec_rc_reload_features(tracer))  # DD Rules
 
 
+def _loading_rules(features, feature, message, rule_list):
+    # type: (Mapping[str, Any], str, str, list[Any]) -> None
+    rules = features.get(feature, [])
+    if rules:
+        log_message = "Reloading Appsec " + message + ": %s"
+        log.debug(log_message, rules)
+        try:
+            rule_list += json.loads(rules)
+        except json.decoder.JSONDecodeError:
+            log_message = "ERROR Appsec " + message + ": json not parsable"
+            log.error(log_message)
+
+
 def _appsec_rules_data(tracer, features):
     # type: (Tracer, Mapping[str, Any]) -> None
     if features and tracer._appsec_processor:
-        rules = []  # type: list[Any]
-
-        def loading(feature, message):
-            # type: (str, str) -> None
-            rules = features.get(feature, [])
-            if rules:
-                log_message = "Reloading Appsec " + message + ": %s"
-                log.debug(log_message, rules)
-                try:
-                    rules += json.loads(rules)
-                except json.decoder.JSONDecodeError:
-                    log_message = "ERROR Appsec " + message + ": json not parsable"
-                    log.error(log_message)
-
-        loading("rules_data", "rules data")
-        loading("exclusions", "exclusion filters")
-        loading("custom_rules", "custom rules")
-        loading("rules", "Datadog rules")
-        if rules:
-            tracer._appsec_processor.update_rules(json.dumps(rules))
+        rule_list = []  # type: list[Any]
+        _loading_rules(features, "rules_data", "rules data", rule_list)
+        _loading_rules(features, "exclusions", "exclusion filters", rule_list)
+        _loading_rules(features, "custom_rules", "custom rules", rule_list)
+        _loading_rules(features, "rules", "Datadog rules", rule_list)
+        if rule_list:
+            tracer._appsec_processor.update_rules(json.dumps(rule_list))
 
 
 def _appsec_1click_actication(tracer, features):
