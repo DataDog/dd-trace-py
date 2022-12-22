@@ -16,6 +16,7 @@ import six
 import tenacity
 
 import ddtrace
+from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
@@ -509,10 +510,14 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             try:
                 if self.status != service.ServiceStatus.RUNNING:
                     self.start()
+
                     # instrumentation telemetry writer should be enabled/started after the global tracer and configs
                     # are initialized
                     if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
                         telemetry_writer.enable()
+                    # appsec remote config should be enabled/started after the global tracer and configs
+                    # are initialized
+                    enable_appsec_rc()
             except service.ServiceStatusError:
                 pass
 
