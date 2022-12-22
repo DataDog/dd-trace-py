@@ -151,7 +151,7 @@ def test_tags_api():
         if isinstance(exp, http.PprofHTTPExporter):
             assert exp.env == "staging"
             assert exp.version == "123"
-            assert exp.tags["foo"] == b"bar"
+            assert exp.tags["foo"] == "bar"
             break
     else:
         pytest.fail("Unable to find HTTP exporter")
@@ -184,7 +184,7 @@ def test_env_agentless(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_AGENTLESS", "true")
     monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/v1/input")
+    _check_url(prof, "https://intake.profile.datadoghq.com", "foobar", endpoint_path="/api/v2/profile")
 
 
 def test_env_agentless_site(monkeypatch):
@@ -192,7 +192,7 @@ def test_env_agentless_site(monkeypatch):
     monkeypatch.setenv("DD_PROFILING_AGENTLESS", "true")
     monkeypatch.setenv("DD_API_KEY", "foobar")
     prof = profiler.Profiler()
-    _check_url(prof, "https://intake.profile.datadoghq.eu", "foobar", endpoint_path="/v1/input")
+    _check_url(prof, "https://intake.profile.datadoghq.eu", "foobar", endpoint_path="/api/v2/profile")
 
 
 def test_env_no_agentless(monkeypatch):
@@ -387,4 +387,4 @@ def test_profiler_serverless(monkeypatch):
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "foobar")
     p = profiler.Profiler()
     assert isinstance(p._scheduler, scheduler.ServerlessScheduler)
-    assert p.tags["functionname"] == b"foobar"
+    assert p.tags["functionname"] == "foobar"
