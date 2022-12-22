@@ -209,8 +209,11 @@ def test_django_request_body_plain_attack(client, test_spans, tracer):
         assert query == "1' or '1' = '1'"
 
 
-def test_django_request_body_json_empty(caplog, client, test_spans, tracer):
-    with caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)), override_env(
+def test_django_request_body_json_bad(caplog, client, test_spans, tracer):
+    # Note: there is some odd interaction between hypotheses or pytest and
+    # caplog where if you set this to WARNING the second test won't get
+    # output unless you set all to DEBUG.
+    with caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
     ):
         payload = '{"attack": "bad_payload",}'
@@ -221,6 +224,23 @@ def test_django_request_body_json_empty(caplog, client, test_spans, tracer):
             tracer,
             payload=payload,
             content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        assert "Failed to parse request body" in caplog.text
+
+
+def test_django_request_body_xml_bad_logs_warning(caplog, client, test_spans, tracer):
+    # see above about caplog
+    with caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)), override_env(
+        dict(DD_APPSEC_RULES=RULES_GOOD_PATH)
+    ):
+        _, response = _aux_appsec_get_root_span(
+            client,
+            test_spans,
+            tracer,
+            payload="bad xml",
+            content_type="application/xml",
         )
 
         assert response.status_code == 200
@@ -248,10 +268,15 @@ def test_django_useragent(client, test_spans, tracer):
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
 
 
-def test_django_client_ip_disabled(client, test_spans, tracer):
-    with override_global_config(dict(_appsec_enabled=True)), override_env(
-        dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="True")
-    ):
+def test_django_client_ip_asm_enabled_reported(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=True)):
+        client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
+        root_span = test_spans.spans[0]
+        assert root_span.get_tag(http.CLIENT_IP)
+
+
+def test_django_client_ip_asm_disabled_not_reported(client, test_spans, tracer):
+    with override_global_config(dict(_appsec_enabled=False)):
         client.get("/?a=1&b&c=d", HTTP_X_REAL_IP="8.8.8.8")
         root_span = test_spans.spans[0]
         assert not root_span.get_tag(http.CLIENT_IP)

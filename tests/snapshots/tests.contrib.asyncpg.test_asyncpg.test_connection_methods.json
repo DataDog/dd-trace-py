@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "postgres",
@@ -20,7 +21,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 48233
+      "process_id": 48233
     },
     "duration": 6413000,
     "start": 1646947004185128000
@@ -34,6 +35,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "postgres",
@@ -48,7 +50,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 48233
+      "process_id": 48233
     },
     "duration": 3970000,
     "start": 1646947004193056000
@@ -62,6 +64,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "postgres",
@@ -76,7 +79,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 48233
+      "process_id": 48233
     },
     "duration": 2545000,
     "start": 1646947004197646000
@@ -90,6 +93,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "postgres",
@@ -104,7 +108,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 48233
+      "process_id": 48233
     },
     "duration": 2735000,
     "start": 1646947004200770000
@@ -118,6 +122,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "postgres",
@@ -132,7 +137,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 48233
+      "process_id": 48233
     },
     "duration": 2635000,
     "start": 1646947004204060000
@@ -146,6 +151,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "postgres",
@@ -160,7 +166,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 48233
+      "process_id": 48233
     },
     "duration": 1256000,
     "start": 1646947004207259000

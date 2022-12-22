@@ -64,21 +64,21 @@ def test_patching():
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_basic_request(redis_client):
     val = await redis_client.get("cheese")
     assert val is None
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_unicode_request(redis_client):
     val = await redis_client.get("😐")
     assert val is None
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=2)
 async def test_decoding_non_utf8_args(redis_client):
     await redis_client.set(b"\x80foo", b"\x80abc")
     val = await redis_client.get(b"\x80foo")
@@ -86,7 +86,7 @@ async def test_decoding_non_utf8_args(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_decoding_non_utf8_pipeline_args(redis_client):
     p = redis_client.pipeline()
     p.set(b"\x80blah", "boo")
@@ -102,7 +102,7 @@ async def test_decoding_non_utf8_pipeline_args(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_long_command(redis_client):
     length = 1000
     val_list = await redis_client.mget(*range(length))
@@ -112,7 +112,7 @@ async def test_long_command(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=3)
 async def test_override_service_name(redis_client):
     with override_config("redis", dict(service_name="myredis")):
         val = await redis_client.get("cheese")
@@ -125,7 +125,7 @@ async def test_override_service_name(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pin(redis_client):
     Pin.override(redis_client, service="my-redis")
     val = await redis_client.get("cheese")
@@ -133,7 +133,7 @@ async def test_pin(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pipeline_traced(redis_client):
     p = redis_client.pipeline(transaction=False)
     p.set("blah", "boo")
@@ -151,7 +151,7 @@ async def test_pipeline_traced(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_pipeline_traced_context_manager_transaction(redis_client):
     """
     Regression test for: https://github.com/DataDog/dd-trace-py/issues/3106
@@ -177,7 +177,7 @@ async def test_pipeline_traced_context_manager_transaction(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
+@pytest.mark.snapshot(wait_for_num_traces=1)
 async def test_two_traced_pipelines(redis_client):
 
     with tracer.trace("web-request", service="test"):
@@ -208,16 +208,16 @@ async def test_two_traced_pipelines(redis_client):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_parenting(redis_client):
-    with tracer.trace("web-request", service="test"):
-        await redis_client.set("blah", "boo")
-        await redis_client.get("blah")
+async def test_parenting(redis_client, snapshot_context):
+    with snapshot_context(wait_for_num_traces=1):
+        with tracer.trace("web-request", service="test"):
+            await redis_client.set("blah", "boo")
+            await redis_client.get("blah")
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot
-async def test_client_name():
-    with tracer.trace("web-request", service="test"):
-        redis_client = get_redis_instance(10, client_name="testing-client-name")
-        await redis_client.get("blah")
+async def test_client_name(snapshot_context):
+    with snapshot_context(wait_for_num_traces=1):
+        with tracer.trace("web-request", service="test"):
+            redis_client = get_redis_instance(10, client_name="testing-client-name")
+            await redis_client.get("blah")

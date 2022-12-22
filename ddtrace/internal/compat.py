@@ -1,3 +1,4 @@
+from inspect import isgeneratorfunction
 import platform
 import random
 import re
@@ -83,6 +84,27 @@ if PYTHON_VERSION_INFO >= (3, 7):
     pattern_type = re.Pattern
 else:
     pattern_type = re._pattern_type  # type: ignore[misc,attr-defined]
+
+try:
+    from inspect import getargspec as getfullargspec
+
+    def is_not_void_function(f, argspec):
+        return argspec.args or argspec.varargs or argspec.keywords or argspec.defaults or isgeneratorfunction(f)
+
+
+except ImportError:
+    from inspect import getfullargspec  # type: ignore[assignment]  # noqa: F401
+
+    def is_not_void_function(f, argspec):
+        return (
+            argspec.args
+            or argspec.varargs
+            or argspec.varkw
+            or argspec.defaults
+            or argspec.kwonlyargs
+            or argspec.kwonlydefaults
+            or isgeneratorfunction(f)
+        )
 
 
 def is_integer(obj):
@@ -252,7 +274,9 @@ def maybe_stringify(obj):
     return None
 
 
-BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, type(None), type, long])
+NoneType = type(None)
+
+BUILTIN_SIMPLE_TYPES = frozenset([int, float, str, bytes, bool, NoneType, type, long])
 BUILTIN_CONTAINER_TYPES = frozenset([list, tuple, dict, set])
 BUILTIN_TYPES = BUILTIN_SIMPLE_TYPES | BUILTIN_CONTAINER_TYPES
 

@@ -19,6 +19,7 @@ from ddtrace.constants import APPSEC_EVENT_RULE_ERROR_COUNT
 from ddtrace.constants import APPSEC_EVENT_RULE_LOADED
 from ddtrace.constants import APPSEC_EVENT_RULE_VERSION
 from ddtrace.constants import APPSEC_JSON
+from ddtrace.constants import APPSEC_ORIGIN_VALUE
 from ddtrace.constants import APPSEC_WAF_DURATION
 from ddtrace.constants import APPSEC_WAF_DURATION_EXT
 from ddtrace.constants import APPSEC_WAF_VERSION
@@ -303,8 +304,15 @@ class AppSecSpanProcessor(SpanProcessor):
             log.debug("[DDAS-011-00] AppSec In-App WAF returned: %s", res)
             span.set_tag_str("appsec.event", "true")
             span.set_tag_str(APPSEC_JSON, '{"triggers":%s}' % (res,))
+
+            remote_ip = _context.get_item("http.request.remote_ip", span=span)
+            if remote_ip:
+                # Note that if the ip collection is disabled by the env var
+                # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
+                span.set_tag_str("actor.ip", remote_ip)
+
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
             span.set_tag(MANUAL_KEEP_KEY)
             if span.get_tag(ORIGIN_KEY) is None:
-                span.set_tag_str(ORIGIN_KEY, "appsec")
+                span.set_tag_str(ORIGIN_KEY, APPSEC_ORIGIN_VALUE)

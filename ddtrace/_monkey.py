@@ -110,11 +110,12 @@ _PATCH_ON_IMPORT = {
         "elasticsearch7",
     ),
     "pynamodb": ("pynamodb",),
+    "rq": ("rq",),
 }
 
 IAST_PATCH = {
     "weak_hash": True,
-    "weak_cipher": False,
+    "weak_cipher": True,
 }
 
 DEFAULT_MODULES_PREFIX = "ddtrace.contrib"

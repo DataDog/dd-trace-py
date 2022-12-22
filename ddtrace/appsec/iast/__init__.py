@@ -7,7 +7,33 @@ Create new file with the same name: `ddtrace/appsec/iast/taint_sinks/[my_new_vul
 
 Then, implement the `patch()` function and its wrappers.
 
-When we detect a vulnerability we should report it with `ddtrace.appsec.iast.reporter.report_vulnerability` to add
-this information to the context and `ddtrace.appsec.iast.processor` will send this information to the backend at
-the end of the request
-"""
+In order to have the better performance, the Overhead control engine (OCE) helps us to control the overhead of our
+wrapped functions. We should create a class that inherit from `ddtrace.appsec.iast.taint_sinks._base.VulnerabilityBase`
+and register with `ddtrace.appsec.iast.oce`.
+
+@oce.register
+class MyVulnerability(VulnerabilityBase):
+    vulnerability_type = "MyVulnerability"
+    evidence_type = "kind_of_Vulnerability"
+
+Before that, we should decorate our wrappers with `wrap` method and
+report the vulnerabilities with `report` method. OCE will manage the number of requests, number of vulnerabilities
+to reduce the overhead.
+
+@WeakHash.wrap
+def wrapped_function(wrapped, instance, args, kwargs):
+    # type: (Callable, str, Any, Any, Any) -> Any
+    WeakHash.report(
+        evidence_value=evidence,
+    )
+    return wrapped(*args, **kwargs)
+"""  # noqa: RST201, RST213, RST210
+from ddtrace.appsec.iast._overhead_control_engine import OverheadControl
+
+
+oce = OverheadControl()
+
+
+__all__ = [
+    "oce",
+]

@@ -1,4 +1,5 @@
 import base64
+import re
 import threading
 from typing import Any
 from typing import Optional
@@ -10,13 +11,26 @@ from .constants import SAMPLING_PRIORITY_KEY
 from .constants import USER_ID_KEY
 from .internal.compat import NumericType
 from .internal.compat import PY2
+from .internal.constants import W3C_TRACEPARENT_KEY
+from .internal.constants import W3C_TRACESTATE_KEY
 from .internal.logger import get_logger
+from .internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import Tuple
+
     from .span import Span
     from .span import _MetaDictType
     from .span import _MetricDictType
+
+    _ContextState = Tuple[
+        Optional[int],  # trace_id
+        Optional[int],  # span_id
+        _MetaDictType,  # _meta
+        _MetricDictType,  # _metrics
+    ]
+
 
 log = get_logger(__name__)
 
@@ -63,6 +77,22 @@ class Context(object):
             # https://github.com/DataDog/dd-trace-py/blob/a1932e8ddb704d259ea8a3188d30bf542f59fd8d/ddtrace/tracer.py#L489-L508
             self._lock = threading.RLock()
 
+    def __getstate__(self):
+        # type: () -> _ContextState
+        return (
+            self.trace_id,
+            self.span_id,
+            self._meta,
+            self._metrics,
+            # Note: self._lock is not serializable
+        )
+
+    def __setstate__(self, state):
+        # type: (_ContextState) -> None
+        self.trace_id, self.span_id, self._meta, self._metrics = state
+        # We cannot serialize and lock, so we must recreate it unless we already have one
+        self._lock = threading.RLock()
+
     def _with_span(self, span):
         # type: (Span) -> Context
         """Return a shallow copy of the context with the given span."""
@@ -93,6 +123,44 @@ class Context(object):
                     del self._metrics[SAMPLING_PRIORITY_KEY]
                 return
             self._metrics[SAMPLING_PRIORITY_KEY] = value
+
+    @property
+    def _traceparent(self):
+        # type: () -> str
+        tp = self._meta.get(W3C_TRACEPARENT_KEY)
+        if self.span_id is None or self.trace_id is None:
+            # if we only have a traceparent then we'll forward it
+            # if we don't have a span id or trace id value we can't build a valid traceparent
+            return tp or ""
+
+        # determine the trace_id value
+        if tp:
+            # grab the original traceparent trace id, not the converted value
+            trace_id = tp.split("-")[1]
+        else:
+            trace_id = "{:032x}".format(self.trace_id)
+
+        sampled = 1 if self.sampling_priority and self.sampling_priority > 0 else 0
+        return "00-{}-{:016x}-{:02x}".format(trace_id, self.span_id, sampled)
+
+    @property
+    def _tracestate(self):
+        # type: () -> str
+        dd_list_member = _w3c_get_dd_list_member(self)
+
+        # if there's a preexisting tracestate we need to update it to preserve other vendor data
+        ts = self._meta.get(W3C_TRACESTATE_KEY, "")
+        if ts and dd_list_member:
+            # cut out the original dd list member from tracestate so we can replace it with the new one we created
+            ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
+            if ts_w_out_dd:
+                ts = "dd={},{}".format(dd_list_member, ts_w_out_dd)
+            else:
+                ts = "dd={}".format(dd_list_member)
+        # if there is no original tracestate value then tracestate is just the dd list member we created
+        elif dd_list_member:
+            ts = "dd={}".format(dd_list_member)
+        return ts
 
     @property
     def dd_origin(self):

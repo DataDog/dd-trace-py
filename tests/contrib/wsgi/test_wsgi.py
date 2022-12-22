@@ -33,6 +33,8 @@ def chunked_response_generator_error(start_response):
 def application(environ, start_response):
     if environ["PATH_INFO"] == "/error":
         raise Exception("Oops!")
+    elif environ["PATH_INFO"] == "/baseException":
+        raise BaseException("base exception raised in wsgi app")
     elif environ["PATH_INFO"] == "/chunked":
         return chunked_response(start_response)
     elif environ["PATH_INFO"] == "/generatorError":
@@ -257,6 +259,15 @@ def test_500():
         app.get("/error")
 
 
+@snapshot(ignores=["meta.error.stack"], variants={"py2": PY2, "py3": PY3})
+def test_base_exception_in_wsgi_app():
+    # Ensure wsgi.request and wsgi.application spans are closed when
+    # a BaseException is raised.
+    app = TestApp(wsgi.DDWSGIMiddleware(application))
+    with pytest.raises(BaseException):
+        app.get("/baseException")
+
+
 @pytest.mark.snapshot(token="tests.contrib.wsgi.test_wsgi.test_wsgi_base_middleware")
 @pytest.mark.parametrize("use_global_tracer", [True])
 def test_wsgi_base_middleware(use_global_tracer, tracer):
@@ -277,14 +288,15 @@ def test_wsgi_base_middleware_500(use_global_tracer, tracer):
         app.get("/error")
 
 
-@snapshot()
+@pytest.mark.snapshot(ignores=["meta.result_class"])
 def test_distributed_tracing_nested():
     app = TestApp(
         wsgi.DDWSGIMiddleware(
             wsgi.DDWSGIMiddleware(application),
         )
     )
-
+    # meta.result_class is listiterator in PY2 and list_iterator in PY3. Ignore this field to
+    # simplify this test. Otherwise we'd need different snapshots for PY2 and PY3.
     resp = app.get("/", headers={"X-Datadog-Parent-Id": "1234", "X-Datadog-Trace-Id": "4321"})
 
     assert config.wsgi.distributed_tracing is True

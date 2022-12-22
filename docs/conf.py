@@ -673,7 +673,60 @@ class DDTraceReleaseNotesDirective(rst.Directive):
         return node.children
 
 
+class DDTraceConfigurationOptionsDirective(rst.Directive):
+    r"""
+    Directive class to handle ``.. ddtrace-configuration-options::`` directive.
+
+    For example::
+
+        .. ddtrace-configuration-options::
+    """
+
+    has_content = True
+
+    def run(self):
+        options = yaml.load("\n".join(self.content), Loader=yaml.CLoader)
+
+        results = statemachine.ViewList()
+        for var_name, value in options.items():
+            skip_label = value.get("skip_label") == "true"
+            var_label = var_name.lower().replace("_", "-")
+            var_description = value["description"]
+            var_type = value.get("type") or "String"
+            var_default = value.get("default") or "(no value)"
+            var_version_added = value.get("version_added")
+
+            if not skip_label:
+                results.append(".. _`{}`:".format(var_label), "", 0)
+                results.append("", "", 0)
+            results.append(".. py:data:: {}".format(var_name), "", 0)
+            results.append("", "", 0)
+            for line in var_description.splitlines():
+                results.append("    " + line.lstrip(), "", 0)
+
+            results.append("", "", 0)
+            results.append("    **Type**: {}".format(var_type), "", 0)
+            results.append("", "", 0)
+            results.append("    **Default**: {}".format(var_default), "", 0)
+            results.append("", "", 0)
+
+            if var_version_added:
+                for version, note in var_version_added.items():
+                    if note:
+                        results.append("    *Changed in version {}*: {}".format(version, note), "", 0)
+                    else:
+                        results.append("    *New in version {}.*".format(version), "", 0)
+                    results.append("", "", 0)
+
+        # Generate the RST nodes to return for rendering
+        node = nodes.section()
+        node.document = self.state.document
+        self.state.nested_parse(results, 0, node)
+        return node.children
+
+
 def setup(app):
     app.add_directive("ddtrace-release-notes", DDTraceReleaseNotesDirective)
+    app.add_directive("ddtrace-configuration-options", DDTraceConfigurationOptionsDirective)
     metadata_dict = {"version": "1.0.0", "parallel_read_safe": True}
     return metadata_dict

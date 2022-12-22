@@ -281,7 +281,7 @@ def test_post_run_module_hook():
 
 
 def test_get_by_origin(module_watchdog):
-    assert module_watchdog.get_by_origin(__file__) is sys.modules[__name__]
+    assert module_watchdog.get_by_origin(__file__.replace(".pyc", ".py")) is sys.modules[__name__]
 
 
 @pytest.mark.subprocess

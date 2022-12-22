@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracer: This fix resolves an issue where the rate limiter used for span and trace sampling rules did not
+    reset the time since last call properly if the rate limiter already had max tokens. This fix resets the time since last call always,
+    which leads to more accurate rate limiting. 

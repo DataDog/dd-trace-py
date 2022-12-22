@@ -1,29 +1,39 @@
 import os
+from typing import TYPE_CHECKING
 
+from ddtrace.appsec.utils import _appsec_rc_features_is_enabled
 from ddtrace.constants import APPSEC_ENV
-from ddtrace.constants import APPSEC_RC_ENABLED_ENV
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RemoteConfig
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 
 
+if TYPE_CHECKING:  # pragma: no cover
+    from typing import Any
+    from typing import Callable
+    from typing import Mapping
+    from typing import Optional
+
+    from ddtrace import Tracer
+    from ddtrace.internal.remoteconfig.client import ConfigMetadata
+
 log = get_logger(__name__)
 
 
-def _appsec_rc_features_is_enabled():
-    return asbool(os.environ.get(APPSEC_RC_ENABLED_ENV)) and (
-        APPSEC_ENV not in os.environ or asbool(os.environ.get(APPSEC_ENV)) is True
-    )
+def enable_appsec_rc():
+    # type: () -> None
+    # Import tracer here to avoid a circular import
+    from ddtrace import tracer
 
-
-def enable_appsec_rc(tracer):
     if _appsec_rc_features_is_enabled():
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
 
 
 def appsec_rc_reload_features(tracer):
+    # type: (Tracer) -> Callable
     def _reload_features(metadata, features):
+        # type: (Optional[ConfigMetadata], Optional[Mapping[str, Any]]) -> None
         """This callback updates appsec enabled in tracer and config instances following this logic:
         ```
         | DD_APPSEC_ENABLED | RC Enabled | Result   |
@@ -33,16 +43,14 @@ def appsec_rc_reload_features(tracer):
         | <not set>         | true       | Enabled  |
         | false             | <not set>  | Disabled |
         | true              | <not set>  | Enabled  |
-        | false             | false      | Disabled |
         | false             | true       | Disabled |
-        | true              | false      | Disabled |
         | true              | true       | Enabled  |
         ```
         """
 
-        if features:
-            log.debug("Reloading tracer features. %r", features)
-            rc_appsec_enabled = features.get("asm", {}).get("enabled")
+        if features is not None:
+            log.debug("Reloading appsec rc: %s", features)
+            rc_appsec_enabled = features.get("asm", {}).get("enabled") if features is not False else False
 
             _appsec_enabled = True
 

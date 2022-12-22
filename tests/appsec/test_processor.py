@@ -111,10 +111,20 @@ def test_valid_json(tracer_appsec):
 def test_header_attack(tracer_appsec):
     tracer = tracer_appsec
 
-    with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-        set_http_meta(span, Config(), request_headers={"User-Agent": "Arachni/v1", "user-agent": "aa"})
+    with override_env(dict(DD_TRACE_CLIENT_IP_HEADER_DISABLED="False")):
+        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+            set_http_meta(
+                span,
+                Config(),
+                request_headers={
+                    "User-Agent": "Arachni/v1",
+                    "user-agent": "aa",
+                    "x-forwarded-for": "8.8.8.8",
+                },
+            )
 
-    assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert "triggers" in json.loads(span.get_tag(APPSEC_JSON))
+        assert span.get_tag("actor.ip") == "8.8.8.8"
 
 
 def test_headers_collection(tracer_appsec):
@@ -231,10 +241,6 @@ def test_appsec_span_rate_limit(tracer):
 
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_TRACE_RATE_LIMIT="1")):
         _enable_appsec(tracer)
-        # we have 2 spans going through with a rate limit of 1: this is because the first span will update the rate
-        # limiter last update timestamp. In other words, we need a first call to reset the rate limiter's clock
-        # DEV: aligning rate limiter clock with this span (this
-        #      span will go through as it is linked to the init window)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span1:
             set_http_meta(span1, {}, raw_uri="http://example.com/.git", status_code="404")
 
@@ -247,7 +253,7 @@ def test_appsec_span_rate_limit(tracer):
             span2.start_ns = span1.start_ns + 2
 
         assert span1.get_tag(APPSEC_JSON) is not None
-        assert span2.get_tag(APPSEC_JSON) is not None
+        assert span2.get_tag(APPSEC_JSON) is None
         assert span3.get_tag(APPSEC_JSON) is None
 
 

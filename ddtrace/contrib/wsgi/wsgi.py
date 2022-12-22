@@ -1,4 +1,5 @@
 import functools
+import sys
 from typing import TYPE_CHECKING
 
 
@@ -23,6 +24,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor import wrapt
 
 from .. import trace_utils
 
@@ -38,6 +40,42 @@ config._add(
         distributed_tracing=True,
     ),
 )
+
+
+class _TracedIterable(wrapt.ObjectProxy):
+    def __init__(self, wrapped, span, parent_span):
+        super(_TracedIterable, self).__init__(wrapped)
+        self._self_span = span
+        self._self_parent_span = parent_span
+        self._self_span_finished = False
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            return next(self.__wrapped__)
+        except StopIteration:
+            self._finish_spans()
+            raise
+        except Exception:
+            self._self_span.set_exc_info(*sys.exc_info())
+            self._finish_spans()
+            raise
+
+    # PY2 Support
+    next = __next__
+
+    def close(self):
+        if getattr(self.__wrapped__, "close", None):
+            self.__wrapped__.close()
+        self._finish_spans()
+
+    def _finish_spans(self):
+        if not self._self_span_finished:
+            self._self_span.finish()
+            self._self_parent_span.finish()
+            self._self_span_finished = True
 
 
 class _DDWSGIMiddlewareBase(object):
@@ -75,36 +113,39 @@ class _DDWSGIMiddlewareBase(object):
         raise NotImplementedError
 
     def __call__(self, environ, start_response):
-        # type: (Iterable, Callable) -> None
+        # type: (Iterable, Callable) -> _TracedIterable
         trace_utils.activate_distributed_headers(self.tracer, int_config=self._config, request_headers=environ)
 
-        with self.tracer.trace(
+        req_span = self.tracer.trace(
             self._request_span_name,
             service=trace_utils.int_service(self._pin, self._config),
             span_type=SpanTypes.WEB,
-        ) as req_span:
-            # This prevents GeneratorExit exceptions from being set on the request span.
-            req_span._ignore_exception(GeneratorExit)
-            self._request_span_modifier(req_span, environ)
+        )
+        self._request_span_modifier(req_span, environ)
 
-            with self.tracer.trace(self._application_span_name) as app_span:
-                intercept_start_response = functools.partial(self._traced_start_response, start_response, req_span)
-                result = self.app(environ, intercept_start_response)
-                self._application_span_modifier(app_span, environ, result)
+        try:
+            app_span = self.tracer.trace(self._application_span_name)
+            intercept_start_response = functools.partial(
+                self._traced_start_response, start_response, req_span, app_span
+            )
+            result = self.app(environ, intercept_start_response)
+            self._application_span_modifier(app_span, environ, result)
+            app_span.finish()
+        except BaseException:
+            req_span.set_exc_info(*sys.exc_info())
+            app_span.set_exc_info(*sys.exc_info())
+            app_span.finish()
+            req_span.finish()
+            raise
+        # start flask.response span. This span will be finished after iter(result) is closed.
+        # start_span(child_of=...) is used to ensure correct parenting.
+        resp_span = self.tracer.start_span(self._response_span_name, child_of=req_span, activate=True)
+        self._response_span_modifier(resp_span, result)
 
-            with self.tracer.trace(self._response_span_name) as resp_span:
-                # This prevents GeneratorExit exceptions from being set on the response span.
-                # This can occur if a streaming response exits abruptly leading to a broken pipe.
-                resp_span._ignore_exception(GeneratorExit)
-                self._response_span_modifier(resp_span, result)
-                for chunk in result:
-                    yield chunk
+        return _TracedIterable(iter(result), resp_span, req_span)
 
-            if hasattr(result, "close"):
-                result.close()
-
-    def _traced_start_response(self, start_response, request_span, status, environ, exc_info=None):
-        # type: (Callable, Span, str, Dict, Any) -> None
+    def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
+        # type: (Callable, Span, Span, str, Dict, Any) -> None
         """sets the status code on a request span when start_response is called"""
         status_code, _ = status.split(" ", 1)
         trace_utils.set_http_meta(request_span, self._config, status_code=status_code)
@@ -185,15 +226,17 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
         super(DDWSGIMiddleware, self).__init__(application, tracer or ddtrace.tracer, config.wsgi, None)
         self.span_modifier = span_modifier
 
-    def _traced_start_response(self, start_response, request_span, status, environ, exc_info=None):
+    def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
         status_code, status_msg = status.split(" ", 1)
-        request_span.set_tag("http.status_msg", status_msg)
+        request_span.set_tag_str("http.status_msg", status_msg)
         trace_utils.set_http_meta(request_span, self._config, status_code=status_code, response_headers=environ)
 
-        with self.tracer.trace(
+        with self.tracer.start_span(
             "wsgi.start_response",
+            child_of=app_span,
             service=trace_utils.int_service(None, self._config),
             span_type=SpanTypes.WEB,
+            activate=True,
         ):
             return start_response(status, environ, exc_info)
 

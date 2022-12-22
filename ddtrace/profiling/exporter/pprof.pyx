@@ -170,7 +170,7 @@ class pprof_ProfileType(object):
     string_table: typing.Dict[int, str]
     mapping: typing.List[pprof_Mapping]
 
-    def SerializeToString(self) -> bytes:
+    def SerializeToString(self) -> bytes:  # type: ignore[empty-body]
         ...
 
 

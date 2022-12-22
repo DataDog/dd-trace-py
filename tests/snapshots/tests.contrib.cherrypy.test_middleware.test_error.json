@@ -10,7 +10,7 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "error.msg": "",
+      "error.message": "",
       "error.stack": "Traceback (most recent call last):\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/_cprequest.py\", line 634, in respond\n    self._do_respond(path_info)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/_cprequest.py\", line 693, in _do_respond\n    response.body = self.handler()\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/lib/encoding.py\", line 221, in __call__\n    self.body = self.oldhandler(*args, **kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/.riot/venv_py395_cherrypy1112/lib/python3.9/site-packages/cherrypy/_cpdispatch.py\", line 60, in __call__\n    return self.callable(*self.args, **self.kwargs)\n  File \"/Users/kyle.verhoog/dev/dd-trace-py/tests/contrib/cherrypy/web.py\", line 55, in error\n    raise TestError()\ntests.contrib.cherrypy.web.TestError\n",
       "error.type": "<class 'tests.contrib.cherrypy.web.TestError'>",
       "http.method": "GET",
@@ -24,7 +24,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 54385
+      "process_id": 54385
     },
     "duration": 1300000,
     "start": 1631828602285325000

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix error in the agent response payload when the user disabled ASM in a dashboard using 1-click Remote Configuration.

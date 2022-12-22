@@ -16,6 +16,7 @@ import six
 import tenacity
 
 import ddtrace
+from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.vendor.dogstatsd import DogStatsd
 
 from . import agent
@@ -279,7 +280,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             self._headers.update(headers)
         self._timeout = timeout
         self._api_version = (
-            api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.4" if priority_sampler is not None else "v0.3")
+            api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.5" if priority_sampler is not None else "v0.3")
         )
         try:
             Encoder = MSGPACK_ENCODERS[self._api_version]
@@ -509,10 +510,14 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             try:
                 if self.status != service.ServiceStatus.RUNNING:
                     self.start()
+
                     # instrumentation telemetry writer should be enabled/started after the global tracer and configs
                     # are initialized
                     if asbool(os.getenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True)):
                         telemetry_writer.enable()
+                    # appsec remote config should be enabled/started after the global tracer and configs
+                    # are initialized
+                    enable_appsec_rc()
             except service.ServiceStatusError:
                 pass
 
@@ -550,8 +555,8 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     def flush_queue(self, raise_exc=False):
         # type: (bool) -> None
         try:
+            n_traces = len(self._encoder)
             try:
-                n_traces = len(self._encoder)
                 encoded = self._encoder.encode()
                 if encoded is None:
                     return
@@ -569,7 +574,13 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
                 if raise_exc:
                     e.reraise()
                 else:
-                    log.error("failed to send traces to Datadog Agent at %s", self._agent_endpoint, exc_info=True)
+                    log.error(
+                        "failed to send, dropping %d traces to Datadog Agent at %s after %d retries (%s)",
+                        n_traces,
+                        self._agent_endpoint,
+                        e.last_attempt.attempt_number,
+                        e.last_attempt.exception(),
+                    )
             finally:
                 if self._report_metrics and self.dogstatsd:
                     # Note that we cannot use the batching functionality of dogstatsd because

@@ -7,6 +7,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "postgres",
@@ -20,7 +21,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 1236
+      "process_id": 1236
     },
     "duration": 3691734,
     "start": 1647014837862826115
@@ -28,11 +29,13 @@
 [
   {
     "name": "parent",
-    "service": null,
+    "service": "",
     "resource": "parent",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "b0bde09048cb4673b20dde71719550fc"
@@ -42,7 +45,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 1236
+      "process_id": 1236
     },
     "duration": 1367354,
     "start": 1647014837868286863
@@ -55,6 +58,7 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "sql",
+       "error": 0,
        "meta": {
          "db.name": "postgres",
          "db.user": "postgres",
@@ -71,11 +75,13 @@
 [
   {
     "name": "parent2",
-    "service": null,
+    "service": "",
     "resource": "parent2",
     "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
+    "type": "",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "runtime-id": "b0bde09048cb4673b20dde71719550fc"
@@ -85,7 +91,7 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "system.pid": 1236
+      "process_id": 1236
     },
     "duration": 48754,
     "start": 1647014837870198127
@@ -99,6 +105,7 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "sql",
+    "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
       "db.name": "postgres",
@@ -113,7 +120,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "out.port": 5432,
-      "system.pid": 1236
+      "process_id": 1236
     },
     "duration": 439994,
     "start": 1647014837870808192

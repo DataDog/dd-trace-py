@@ -126,8 +126,10 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
         assert root_span.get_tag(http.USER_AGENT) == "test/1.2.3"
 
     def test_flask_client_ip_header_set_by_env_var_valid(self):
-        with override_env(dict(DD_TRACE_CLIENT_IP_HEADER="X-Use-This")):
-            self.client.get("/?a=1&b&c=d", headers={"HTTP_CLIENT_IP": "8.8.8.8", "X_USE_THIS": "4.4.4.4"})
+        with override_global_config(dict(_appsec_enabled=True)), override_env(
+            dict(DD_TRACE_CLIENT_IP_HEADER="X-Use-This")
+        ):
+            self.client.get("/?a=1&b&c=d", headers={"HTTP_CLIENT_IP": "8.8.8.8", "X-Use-This": "4.4.4.4"})
             spans = self.pop_spans()
             root_span = spans[0]
             assert root_span.get_tag(http.CLIENT_IP) == "4.4.4.4"
@@ -229,7 +231,25 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert query == {"attack": "1' or '1' = '1'"}
 
     def test_flask_body_json_empty_body_logs_warning(self):
-        with self._caplog.at_level(logging.WARNING), override_global_config(dict(_appsec_enabled=True)):
+        with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
             self._aux_appsec_prepare_tracer()
             self.client.post("/", data="", content_type="application/json")
+            assert "Failed to parse werkzeug request body" in self._caplog.text
+
+    def test_flask_body_json_bad_logs_warning(self):
+        with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
+            self._aux_appsec_prepare_tracer()
+            self.client.post("/", data="not valid json", content_type="application/json")
+            assert "Failed to parse werkzeug request body" in self._caplog.text
+
+    def test_flask_body_xml_bad_logs_warning(self):
+        with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
+            self._aux_appsec_prepare_tracer()
+            self.client.post("/", data="bad xml", content_type="application/xml")
+            assert "Failed to parse werkzeug request body" in self._caplog.text
+
+    def test_flask_body_xml_empty_logs_warning(self):
+        with self._caplog.at_level(logging.DEBUG), override_global_config(dict(_appsec_enabled=True)):
+            self._aux_appsec_prepare_tracer()
+            self.client.post("/", data="", content_type="application/xml")
             assert "Failed to parse werkzeug request body" in self._caplog.text

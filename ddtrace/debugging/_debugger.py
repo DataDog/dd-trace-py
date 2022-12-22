@@ -156,6 +156,12 @@ class Debugger(Service):
         This class method is idempotent. Dynamic instrumentation will be
         disabled automatically at exit.
         """
+        if sys.version_info >= (3, 11, 0):
+            raise RuntimeError(
+                "Dynamic Instrumentation is not yet compatible with Python 3.11. "
+                "See tracking issue for more details: https://github.com/DataDog/dd-trace-py/issues/4149"
+            )
+
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
             return
@@ -257,10 +263,19 @@ class Debugger(Service):
             if isinstance(probe, MetricProbe):
                 # TODO: Handle value expressions
                 assert probe.kind is not None and probe.name is not None
+
+                value = float(probe.value(sys._getframe(1).f_locals)) if probe.value is not None else 1
+
+                # TODO[perf]: We know the tags in advance so we can avoid the
+                # list comprehension.
                 if probe.kind == MetricProbeKind.COUNTER:
-                    # TODO[perf]: We know the tags in advance so we can avoid the
-                    # list comprehension.
-                    self._probe_meter.increment(probe.name, tags=probe.tags)
+                    self._probe_meter.increment(probe.name, value, probe.tags)
+                elif probe.kind == MetricProbeKind.GAUGE:
+                    self._probe_meter.gauge(probe.name, value, probe.tags)
+                elif probe.kind == MetricProbeKind.HISTOGRAM:
+                    self._probe_meter.histogram(probe.name, value, probe.tags)
+                elif probe.kind == MetricProbeKind.DISTRIBUTION:
+                    self._probe_meter.distribution(probe.name, value, probe.tags)
 
                 return
 

@@ -70,6 +70,18 @@ def test_cgroup_info_init():
                 pod_id=None,
             ),
         ),
+        # Valid, PCF
+        (
+            "10:freezer:/garden/6f265890-5165-7fab-6b52-18d1",
+            CGroupInfo(
+                id="10",
+                groups="freezer",
+                controllers=["freezer"],
+                path="/garden/6f265890-5165-7fab-6b52-18d1",
+                container_id="6f265890-5165-7fab-6b52-18d1",
+                pod_id=None,
+            ),
+        ),
         # Invalid container_ids
         (
             # One character too short
@@ -239,6 +251,24 @@ def test_cgroup_info_from_line(line, expected_info):
 1:name=systemd:/ecs/34dc0b5e626f2c5c4c5170e34b10e765-1234567890
             """,
             "34dc0b5e626f2c5c4c5170e34b10e765-1234567890",
+        ),
+        # PCF file
+        (
+            """
+12:rdma:/
+11:net_cls,net_prio:/garden/6f265890-5165-7fab-6b52-18d1
+10:freezer:/garden/6f265890-5165-7fab-6b52-18d1
+9:devices:/system.slice/garden.service/garden/6f265890-5165-7fab-6b52-18d1
+8:blkio:/system.slice/garden.service/garden/6f265890-5165-7fab-6b52-18d1
+7:pids:/system.slice/garden.service/garden/6f265890-5165-7fab-6b52-18d1
+6:memory:/system.slice/garden.service/garden/6f265890-5165-7fab-6b52-18d1
+5:cpuset:/garden/6f265890-5165-7fab-6b52-18d1
+4:cpu,cpuacct:/system.slice/garden.service/garden/6f265890-5165-7fab-6b52-18d1
+3:perf_event:/garden/6f265890-5165-7fab-6b52-18d1
+2:hugetlb:/garden/6f265890-5165-7fab-6b52-18d1
+1:name=systemd:/system.slice/garden.service/garden/6f265890-5165-7fab-6b52-18d1
+            """,
+            "6f265890-5165-7fab-6b52-18d1",
         ),
         # Linux non-containerized file
         (

@@ -1,5 +1,6 @@
 import json
 import sys
+import time
 
 from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
@@ -10,8 +11,8 @@ class DummyProbeStatusLogger(ProbeStatusLogger):
         super(DummyProbeStatusLogger, self).__init__(*args, **kwargs)
         self.queue = []
 
-    def _write(self, *args, **kwargs):
-        payload = self._payload(*args, **kwargs)
+    def _write(self, probe, status, message, exc_info=None):
+        payload = self._payload(probe, status, message, int(time.time() * 1e3), exc_info)
         self.queue.append(json.loads(payload))
 
 

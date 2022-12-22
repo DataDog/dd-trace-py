@@ -11,6 +11,17 @@ jobs:
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
 
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    # required for getting the version
+    - run: pip install setuptools-scm
+    - name: Get library version
+      id: get_version
+      run: |
+        DDTRACE_PYTHON_VERSION=$(scripts/get_install_version.py)
+        echo "library_version=$DDTRACE_PYTHON_VERSION" >> $GITHUB_OUTPUT
+
     - name: Set up Docker Buildx
       id: buildx
       uses: docker/setup-buildx-action@v2
@@ -26,7 +37,7 @@ jobs:
         DOCKER_IMAGE_NAME=$(echo ghcr.io/${GITHUB_REPOSITORY}/${DOCKER_IMAGE_NAME} | tr '[:upper:]' '[:lower:]')
         DOCKER_IMAGE_NAME_WITH_TAG=$(echo ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} | tr '[:upper:]' '[:lower:]')
         echo "Using image name '$DOCKER_IMAGE_NAME_WITH_TAG'"
-        echo "::set-output name=image_name::$DOCKER_IMAGE_NAME_WITH_TAG"
+        echo "image_name=$DOCKER_IMAGE_NAME_WITH_TAG" >> $GITHUB_OUTPUT
     - name: Login to Docker
       run: docker login -u publisher -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
     - name: Docker Build
@@ -35,10 +46,18 @@ jobs:
         push: true
         tags: ${{ steps.set_names.outputs.image_name }}
         platforms: "linux/amd64,linux/arm64/v8"
+        build-args: "DDTRACE_PYTHON_VERSION=${{ steps.get_version.outputs.library_version }}"
         context: ./lib-injection
 
-  build-and-publish-sample-app-image:
+  build-and-publish-sample-app-images:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image-name: [
+          "dd-lib-python-init-test-django",
+          "dd-lib-python-init-test-django-gunicorn",
+          "dd-lib-python-init-test-django-uvicorn",
+        ]
     steps:
       - uses: actions/checkout@v3
 
@@ -56,11 +75,11 @@ jobs:
         id: set_names
         run: |
           DOCKER_IMAGE_TAG=${{ github.sha }}
-          DOCKER_IMAGE_NAME=dd-lib-python-init-test-app
+          DOCKER_IMAGE_NAME=${{ matrix.image-name }}
           DOCKER_IMAGE_NAME=$(echo ghcr.io/${GITHUB_REPOSITORY}/${DOCKER_IMAGE_NAME} | tr '[:upper:]' '[:lower:]')
           DOCKER_IMAGE_NAME_WITH_TAG=$(echo ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} | tr '[:upper:]' '[:lower:]')
           echo "Using image name '$DOCKER_IMAGE_NAME_WITH_TAG'"
-          echo "::set-output name=image_name::$DOCKER_IMAGE_NAME_WITH_TAG"
+          echo "image_name=$DOCKER_IMAGE_NAME_WITH_TAG" >> $GITHUB_OUTPUT
       - name: Login to Docker
         run: docker login -u publisher -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
       - name: Docker Build
@@ -68,5 +87,5 @@ jobs:
         with:
           push: true
           tags: ${{ steps.set_names.outputs.image_name }}
-          platforms: "linux/amd64,linux/arm64/v8"
-          context: ./tests/lib-injection
+          platforms: "linux/amd64"
+          context: ./tests/lib-injection/${{ matrix.image-name }}

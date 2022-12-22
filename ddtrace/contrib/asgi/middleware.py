@@ -177,9 +177,10 @@ class TraceMiddleware:
             else:
                 status_code = None
 
-            if "headers" in message:
-                response_headers = message["headers"]
-            else:
+            try:
+                response_headers = _extract_headers(message)
+            except Exception:
+                log.warning("failed to extract response headers", exc_info=True)
                 response_headers = None
 
             trace_utils.set_http_meta(
