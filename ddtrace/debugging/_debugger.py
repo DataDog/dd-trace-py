@@ -151,12 +151,17 @@ class Debugger(Service):
     @classmethod
     def enable(cls, run_module=False):
         # type: (bool) -> None
-        """Enable the debugger (idempotent)."""
+        """Enable dynamic instrumentation
+
+        This class method is idempotent. Dynamic instrumentation will be
+        disabled automatically at exit.
+        """
         if sys.version_info >= (3, 11, 0):
             raise RuntimeError(
                 "Dynamic Instrumentation is not yet compatible with Python 3.11. "
                 "See tracking issue for more details: https://github.com/DataDog/dd-trace-py/issues/4149"
             )
+
         if cls._instance is not None:
             log.debug("%s already enabled", cls.__name__)
             return
@@ -180,7 +185,11 @@ class Debugger(Service):
     @classmethod
     def disable(cls):
         # type: () -> None
-        """Disable the debugger (idempotent)."""
+        """Disable dynamic instrumentation.
+
+        This class method is idempotent. Called automatically at exit, if
+        dynamic instrumentation was enabled.
+        """
         if cls._instance is None:
             log.debug("%s not enabled", cls.__name__)
             return
@@ -211,7 +220,7 @@ class Debugger(Service):
                 Snapshot: SnapshotJsonEncoder(service_name),
                 str: str,
             },
-            on_full=self.on_encoder_buffer_full,
+            on_full=self._on_encoder_buffer_full,
         )
         self._probe_registry = ProbeRegistry(self.__logger__(service_name, self._encoder))
         self._uploader = self.__uploader__(self._encoder)
@@ -233,7 +242,7 @@ class Debugger(Service):
 
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
 
-    def on_encoder_buffer_full(self, item, encoded):
+    def _on_encoder_buffer_full(self, item, encoded):
         # type (Any, bytes) -> None
         # Send upload request
         self._uploader.upload()
