@@ -309,9 +309,6 @@ jobs:
         run: pip install ../ddtrace
       - name: Install dependencies
         run: scripts/install
-      - name: Pin SQLAlchemy
-        # https://github.com/encode/databases/issues/512
-        run: pip install "SQLAlchemy==1.4.41"
       #Parameters for keyword expression skip 3 failing tests that are expected due to asserting on headers. The errors are because our context propagation headers are being added
       #test_staticfiles_with_invalid_dir_permissions_returns_401 fails with and without ddtrace enabled
       - name: Run tests
