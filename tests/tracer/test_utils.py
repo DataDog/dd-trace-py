@@ -430,7 +430,7 @@ def test_callonce_signature():
                 },
             ),
             ["s:2", "o:synthetics", "t.unknown:baz64"],
-        ), 
+        ),
         (
             Context(
                 trace_id=1234,
