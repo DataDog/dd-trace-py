@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    fastapi: Ensure spans are created for all user middlewares.
+    fastapi: Ensure all fastapi middlewares are captured in the `fastapi.request` span.
