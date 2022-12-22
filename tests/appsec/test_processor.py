@@ -380,8 +380,6 @@ def test_ddwaf_run():
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
         res = _ddwaf.run(data, DEFAULT_WAF_TIMEOUT)  # res is a serialized json
-        print(res.runtime)
-        print(res.total_runtime)
         assert res.data.startswith('[{"rule":{"id":"crs-942-100"')
         assert res.runtime > 0
         assert res.total_runtime > 0
