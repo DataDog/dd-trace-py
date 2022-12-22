@@ -32,8 +32,11 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
-def enable_appsec_rc(tracer):
-    # type: (Tracer) -> None
+def enable_appsec_rc():
+    # type: () -> None
+    # Import tracer here to avoid a circular import
+    from ddtrace import tracer
+
     if _appsec_rc_features_is_enabled():
         RemoteConfig.register(ASM_FEATURES_PRODUCT, appsec_rc_reload_features(tracer))
 
