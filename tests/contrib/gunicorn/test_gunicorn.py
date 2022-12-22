@@ -119,7 +119,7 @@ def test_basic(gunicorn_server):
 
 
 # TODO : fix the http.useragent version check
-@pytest.mark.snapshot(ignores=["meta.result_class", "http.useragent"])
+@pytest.mark.snapshot(ignores=["meta.result_class", "meta.http.useragent"])
 @pytest.mark.parametrize(
     "gunicorn_server_settings", [_gunicorn_settings_factory(app_path="tests.contrib.gunicorn.wsgi_mw_app:app")]
 )
