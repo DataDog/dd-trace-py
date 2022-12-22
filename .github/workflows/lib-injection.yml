@@ -31,6 +31,7 @@ jobs:
       uses: DataDog/system-tests/lib-injection/docker-tags@robertomonteromiguel/lib_injection_integration_v2
       with:
         init-image-name: 'dd-lib-python-init'
+        # Change
         main-branch-name: 'robertomonteromiguel-lib_injection_system_tests_integration'
 
     - name: Login to Docker
