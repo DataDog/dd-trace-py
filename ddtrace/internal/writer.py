@@ -278,9 +278,26 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
         if headers:
             self._headers.update(headers)
         self._timeout = timeout
+
+        # Default to v0.4 if we are on Windows since there is a known compatibility issue
+        # https://github.com/DataDog/dd-trace-py/issues/4829
+        # DEV: sys.platform on windows should be `win32` or `cygwin`, but using `startswith`
+        #      as a safety precaution.
+        #      https://docs.python.org/3/library/sys.html#sys.platform
+        is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
+        default_api_version = "v0.4" if is_windows else "v0.5"
+
         self._api_version = (
-            api_version or os.getenv("DD_TRACE_API_VERSION") or ("v0.5" if priority_sampler is not None else "v0.3")
+            api_version
+            or os.getenv("DD_TRACE_API_VERSION")
+            or (default_api_version if priority_sampler is not None else "v0.3")
         )
+        if is_windows and self._api_version == "v0.5":
+            raise RuntimeError(
+                "There is a known compatibiltiy issue with v0.5 API and Windows, "
+                "please see https://github.com/DataDog/dd-trace-py/issues/4829 for more details."
+            )
+
         try:
             Encoder = MSGPACK_ENCODERS[self._api_version]
         except KeyError:
