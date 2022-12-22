@@ -131,7 +131,6 @@ def test_headers_collection(tracer_appsec):
     tracer = tracer_appsec
 
     with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-
         set_http_meta(
             span,
             Config(),
@@ -238,7 +237,6 @@ def test_appsec_span_tags_snapshot_with_errors(tracer):
 
 
 def test_appsec_span_rate_limit(tracer):
-
     with override_global_config(dict(_appsec_enabled=True)), override_env(dict(DD_APPSEC_TRACE_RATE_LIMIT="1")):
         _enable_appsec(tracer)
         with tracer.trace("test", span_type=SpanTypes.WEB) as span1:
@@ -343,7 +341,6 @@ def test_obfuscation_parameter_value_configured_not_matching(tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")
     ):
-
         _enable_appsec(tracer)
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -360,7 +357,6 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
     with override_global_config(dict(_appsec_enabled=True)), override_env(
         dict(DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP="token")
     ):
-
         _enable_appsec(tracer)
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
@@ -383,13 +379,13 @@ def test_ddwaf_run():
             "server.request.cookies": {"attack": "1' or '1' = '1'"},
             "server.response.headers.no_cookies": {"content-type": "text/html; charset=utf-8", "content-length": "207"},
         }
-        res, total_time, total_overall_runtime = _ddwaf.run(data, DEFAULT_WAF_TIMEOUT)  # res is a serialized json
-        print(total_time)
-        print(total_overall_runtime)
+        res = _ddwaf.run(data, DEFAULT_WAF_TIMEOUT)  # res is a serialized json
+        print(res.runtime)
+        print(res.total_runtime)
         assert res.startswith('[{"rule":{"id":"crs-942-100"')
-        assert total_time > 0
-        assert total_overall_runtime > 0
-        assert total_overall_runtime > total_time
+        assert res.runtime > 0
+        assert res.total_runtime > 0
+        assert res.total_runtime > res.runtime
 
 
 def test_ddwaf_info():
@@ -398,10 +394,10 @@ def test_ddwaf_info():
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
-        assert info["loaded"] == 3
-        assert info["failed"] == 0
-        assert info["errors"] == {}
-        assert info["version"] == ""
+        assert info.loaded == 3
+        assert info.failed == 0
+        assert info.errors == {}
+        assert info.version == ""
 
 
 def test_ddwaf_info_with_2_errors():
@@ -410,8 +406,8 @@ def test_ddwaf_info_with_2_errors():
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
-        assert info["loaded"] == 1
-        assert info["failed"] == 2
+        assert info.loaded == 1
+        assert info.failed == 2
         # Compare dict contents insensitive to ordering
         expected_dict = sorted(
             {"missing key 'conditions'": ["crs-913-110"], "missing key 'tags'": ["crs-942-100"]}.items()
@@ -426,6 +422,6 @@ def test_ddwaf_info_with_3_errors():
         _ddwaf = DDWaf(rules_json, b"", b"")
 
         info = _ddwaf.info
-        assert info["loaded"] == 1
-        assert info["failed"] == 2
-        assert info["errors"] == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
+        assert info.loaded == 1
+        assert info.failed == 2
+        assert info.errors == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
