@@ -424,6 +424,19 @@ def test_callonce_signature():
                 sampling_priority=2,
                 dd_origin="synthetics",
                 meta={
+                    # we should not propagate _dd.propagation_error, since it does not start with _dd.p.
+                    "_dd.propagation_error": "-4",
+                    "_dd.p.unknown": "baz64",
+                },
+            ),
+            ["s:2", "o:synthetics", "t.unknown:baz64"],
+        ), 
+        (
+            Context(
+                trace_id=1234,
+                sampling_priority=2,
+                dd_origin="synthetics",
+                meta={
                     "_dd.p.unk": "-4",
                     "_dd.p.unknown": "baz64",
                     "no_add": "is_not_added",
@@ -473,6 +486,7 @@ def test_callonce_signature():
     ],
     ids=[
         "basic",
+        "does_not_add_propagation_error",
         "does_not_add_non_prefixed_tags",
         "does_not_add_more_than_256_char",
         "char_replacement",
