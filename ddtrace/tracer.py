@@ -17,6 +17,7 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.filters import TraceFilter
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.vendor import debtcollector
@@ -101,6 +102,7 @@ def _default_span_processors_factory(
     compute_stats_enabled,  # type: bool
     single_span_sampling_rules,  # type: List[SpanSamplingRule]
     agent_url,  # type: str
+    profiling_span_processor,  # type: EndpointCallCounterProcessor
 ):
     # type: (...) -> List[SpanProcessor]
     """Construct the default list of span processors to use."""
@@ -144,6 +146,8 @@ def _default_span_processors_factory(
                 agent_url,
             ),
         )
+
+    span_processors.append(profiling_span_processor)
 
     if single_span_sampling_rules:
         span_processors.append(SpanSamplingProcessor(single_span_sampling_rules))
@@ -226,6 +230,8 @@ class Tracer(object):
         self._appsec_enabled = config._appsec_enabled
         self._iast_enabled = config._iast_enabled
 
+        self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
+
         self._span_processors = _default_span_processors_factory(
             self._filters,
             self._writer,
@@ -236,6 +242,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self._endpoint_call_counter_span_processor,
         )
 
         self._hooks = _hooks.Hooks()
@@ -472,6 +479,7 @@ class Tracer(object):
                 self._compute_stats,
                 self._single_span_sampling_rules,
                 self._agent_url,
+                self._endpoint_call_counter_span_processor,
             )
 
         if context_provider is not None:
@@ -517,6 +525,7 @@ class Tracer(object):
             self._compute_stats,
             self._single_span_sampling_rules,
             self._agent_url,
+            self._endpoint_call_counter_span_processor,
         )
 
         self._new_process = True

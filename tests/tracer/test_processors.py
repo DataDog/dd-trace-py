@@ -15,6 +15,8 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.processor.trace import SpanAggregator
 from ddtrace.internal.processor.trace import SpanProcessor
 from ddtrace.internal.processor.trace import SpanSamplingProcessor
@@ -524,3 +526,62 @@ def assert_span_sampling_decision_tags(
 
     if trace_sampling_priority:
         assert span.get_metric(SAMPLING_PRIORITY_KEY) == trace_sampling_priority
+
+
+def test_endpoint_call_counter_processor():
+    """ProfilingSpanProcessor collects information about endpoints for profiling"""
+    spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
+    spanA._local_root = spanA
+    spanB = Span("spanB", resource="b", span_type=SpanTypes.WEB)
+    spanB._local_root = spanB
+    spanNonWeb = Span("spanNonWeb", resource="c", span_type=SpanTypes.WORKER)
+    spanNonLocalRoot = Span("spanNonLocalRoot", resource="d")
+
+    processor = EndpointCallCounterProcessor()
+    processor.enable()
+
+    processor.on_span_finish(spanA)
+    processor.on_span_finish(spanA)
+    processor.on_span_finish(spanB)
+    processor.on_span_finish(spanNonWeb)
+    processor.on_span_finish(spanNonLocalRoot)
+
+    assert processor.reset() == {"a": 2, "b": 1}
+    # Make sure data has been cleared
+    assert processor.reset() == {}
+
+
+def test_endpoint_call_counter_processor_disabled():
+    """ProfilingSpanProcessor is disabled by default"""
+    spanA = Span("spanA", resource="a", span_type=SpanTypes.WEB)
+    spanA._local_root = spanA
+
+    processor = EndpointCallCounterProcessor()
+
+    processor.on_span_finish(spanA)
+
+    assert processor.reset() == {}
+
+
+def test_endpoint_call_counter_processor_real_tracer():
+    tracer = Tracer()
+    tracer._endpoint_call_counter_span_processor.enable()
+    tracer.configure(writer=DummyWriter())
+
+    with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
+        with tracer.trace("child", service="top_level_test_service2"):
+            # Non root spans are ignores
+            with tracer.trace("parent", service="top_level_test_service", resource="ignored", span_type=SpanTypes.WEB):
+                pass
+
+    with tracer.trace("parent", service="top_level_test_service", resource="a", span_type=SpanTypes.WEB):
+        pass
+
+    with tracer.trace("parent", service="top_level_test_service", resource="b", span_type=SpanTypes.WEB):
+        pass
+
+    # Non web spans are ignored
+    with tracer.trace("parent", service="top_level_test_service", resource="ignored", span_type=SpanTypes.HTTP):
+        pass
+
+    assert tracer._endpoint_call_counter_span_processor.reset() == {"a": 2, "b": 1}
