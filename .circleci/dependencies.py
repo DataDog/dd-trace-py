@@ -140,6 +140,7 @@ LATEST_VERSIONS = {
     "structlog": "22.3.0",
     "tornado": "6.2",
     "types-attrs": "19.1.0",
+    "types-chardet": "5.0.4.1",
     "types-docutils": "0.19.1.1",
     "types-protobuf": "3.20.4.5",
     "types-PyYAML": "6.0.12.2",
