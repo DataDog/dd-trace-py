@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    fastapi: Ensure all fastapi middlewares are captured in the `fastapi.request` span.
+    fastapi: Previously, custom fastapi middlewares configured after application startup were not traced. This fix ensures that all fastapi middlewares are captured in the `fastapi.request` span.
