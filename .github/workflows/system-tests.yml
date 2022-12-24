@@ -19,36 +19,26 @@ jobs:
     env:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      DD_API_KEY: ${{ secrets.DD_API_KEY }}
     steps:
       - name: Checkout system tests
         uses: actions/checkout@v3
         with:
           repository: 'DataDog/system-tests'
+          ref: robertomonteromiguel/simplify_ci_workflow
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@v3
         with:
           path: 'binaries/dd-trace-py'
 
-      - name: Build
-        run: ./build.sh
-
-      - name: Run
-        run: ./run.sh
-
-      # even on failures, we want to have artifact to be able to investigate
-      # The compress step speed up a lot the upload artifact process
-      - name: Compress artifact
-        if: ${{ always() }}  
-        run: tar -czvf artifact.tar.gz $(ls | grep logs)
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        if: ${{ always() }}
+      - uses: ./.github/actions/runner
         with:
-          name: logs_${{ matrix.weblog-variant }}
-          path: artifact.tar.gz
+              version: 'dev'
+              library: 'python' 
+              scenarios: "['DEFAULT']" 
+              DD_API_KEY: ${{ secrets.DD_API_KEY }}
+              archive_logs: true
+              ci_visiblity: false
 
   lib-injection:
     runs-on: ubuntu-latest
