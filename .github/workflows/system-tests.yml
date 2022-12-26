@@ -35,6 +35,7 @@ jobs:
         with:
               version: 'dev'
               library: 'python' 
+              weblog: ${{ matrix.weblog-variant }} 
               scenarios: "['DEFAULT']" 
               DD_API_KEY: ${{ secrets.DD_API_KEY }}
               archive_logs: true
