@@ -39,8 +39,7 @@ jobs:
               scenarios: "['DEFAULT']" 
               DD_API_KEY: ${{ secrets.DD_API_KEY }}
               archive_logs: true
-              ci_visiblity: false
-              
+              ci_visiblity: false            
 
   lib-injection:
     runs-on: ubuntu-latest
