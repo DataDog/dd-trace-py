@@ -1,5 +1,6 @@
 import os
 import typing
+
 from ddtrace.internal.utils import formats
 
 

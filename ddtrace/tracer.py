@@ -30,7 +30,6 @@ from .internal import atexit
 from .internal import compat
 from .internal import debug
 from .internal import forksafe
-from .internal import gitmetadata
 from .internal import hostname
 from .internal.dogstatsd import get_dogstatsd_client
 from .internal.logger import get_logger

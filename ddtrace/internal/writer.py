@@ -387,7 +387,6 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _set_git_metadata(self, trace):
-        # get traser metadata
         if trace:
             for k, v in get_tracer_tags().items():
                 trace[0].set_metric(k, v)
