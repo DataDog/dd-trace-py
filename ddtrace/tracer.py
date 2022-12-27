@@ -217,9 +217,6 @@ class Tracer(object):
         # globally set tags
         self._tags = config.tags.copy()
 
-        # update git metadata tags
-        self._tags.update(gitmetadata.get_tags())
-
         # a buffer for service info so we don't perpetually send the same things
         self._services = set()  # type: Set[str]
 
