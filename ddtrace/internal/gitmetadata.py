@@ -116,8 +116,8 @@ def clean_tags(tags):
     """
     Cleanup tags from git metadata
     """
-    del tags[TAG_REPOSITORY_URL]
-    del tags[TAG_COMMIT_SHA]
+    tags.pop(TAG_REPOSITORY_URL, None)
+    tags.pop(TAG_COMMIT_SHA, None)
 
     return tags
 
