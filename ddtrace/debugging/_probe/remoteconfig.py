@@ -25,8 +25,8 @@ log = get_logger(__name__)
 _EXPRESSION_CACHE = LFUCache()
 
 
-def _invalid_condition(_):
-    """Forces probes with invalid conditions to never trigger.
+def _invalid_expression(_):
+    """Forces probes with invalid expression/conditions to never trigger.
 
     Any signs of invalid conditions in logs is an indication of a problem with
     the expression compiler.
@@ -34,12 +34,12 @@ def _invalid_condition(_):
     return False
 
 
-INVALID_CONDITION = _invalid_condition
+INVALID_EXPRESSION = _invalid_expression
 
 
-def _compile_condition(when):
+def _compile_expression(when):
     # type: (Optional[Dict[str, Any]]) -> Optional[Callable[[Dict[str, Any]], Any]]
-    global _EXPRESSION_CACHE, INVALID_CONDITION
+    global _EXPRESSION_CACHE, INVALID_EXPRESSION
 
     if when is None:
         return None
@@ -52,13 +52,13 @@ def _compile_condition(when):
             return dd_compile(ast)
         except Exception:
             log.error("Cannot compile expression: %s", expr, exc_info=True)
-            return INVALID_CONDITION
+            return INVALID_EXPRESSION
 
     expr = when["dsl"]
 
     compiled = _EXPRESSION_CACHE.get(expr, compile_or_invalid)  # type: Callable[[Dict[str, Any]], Any]
 
-    if compiled is INVALID_CONDITION:
+    if compiled is INVALID_EXPRESSION:
         log.error("Cannot compile expression: %s", expr, exc_info=True)
 
     return compiled
@@ -91,7 +91,7 @@ def probe(_id, _type, attribs):
     if _type == "snapshotProbes":
         args = dict(
             probe_id=_id,
-            condition=_compile_condition(attribs.get("when")),
+            condition=_compile_expression(attribs.get("when")),
             active=attribs["active"],
             tags=dict(_.split(":", 1) for _ in attribs.get("tags", [])),
         )
@@ -116,6 +116,7 @@ def probe(_id, _type, attribs):
             line=int(attribs["where"]["lines"][0]),
             name=attribs["metricName"],
             kind=attribs["kind"],
+            value=_compile_expression(attribs.get("value")),
         )
 
     raise ValueError("Unknown probe type: %s" % _type)
