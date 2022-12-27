@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    sci: Add git metadata from tags and from package support
