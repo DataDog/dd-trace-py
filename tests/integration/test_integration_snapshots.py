@@ -297,11 +297,11 @@ def test_tracetagsprocessor_only_adds_new_tags():
 
 # Override the token so that both parameterizations of the test use the same snapshot
 # (The snapshots should be equivalent)
-@snapshot(wait_for_num_traces=1, token_override="tests.integration.test_integration_snapshots.test_env_vars")
-@pytest.mark.parametrize("use_ddtracerun", ["yes", "no"])
+@snapshot(token_override="tests.integration.test_integration_snapshots.test_env_vars")
+@pytest.mark.parametrize("use_ddtracerun", [True, False])
 def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_python_code_in_subprocess):
     """Ensure environment variable config is respected by ddtrace-run usages as well as regular."""
-    if use_ddtracerun == "yes":
+    if use_ddtracerun:
         fn = ddtrace_run_python_code_in_subprocess
     else:
         fn = run_python_code_in_subprocess
