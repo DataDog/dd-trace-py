@@ -50,7 +50,7 @@ def __find_package():
     module = inspect.getmodule(frm[0])
     if module is None:
         return ""
-    path = module.__file__
+    path = str(module.__file__)
     package = ""
     while len(path) > 1:
         path, end = os.path.split(path)
@@ -129,8 +129,8 @@ def update_profiler_tags(tags):
     Update profiler tags with git metadata
     """
     tracer_tags = get_tracer_tags()
-
-    tags[TAG_REPOSITORY_URL] = tracer_tags[TRACE_TAG_REPOSITORY_URL]
-    tags[TAG_COMMIT_SHA] = tracer_tags[TRACE_TAG_COMMIT_SHA]
+    if TRACE_TAG_REPOSITORY_URL in tracer_tags and TRACE_TAG_COMMIT_SHA in tracer_tags:
+        tags[TAG_REPOSITORY_URL] = tracer_tags[TRACE_TAG_REPOSITORY_URL]
+        tags[TAG_COMMIT_SHA] = tracer_tags[TRACE_TAG_COMMIT_SHA]
 
     return tags
