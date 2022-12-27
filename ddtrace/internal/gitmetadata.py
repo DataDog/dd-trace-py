@@ -1,3 +1,4 @@
+import os
 import typing
 from ddtrace.internal.utils import formats
 
@@ -42,7 +43,6 @@ def __find_package():
     Find package name in curent stack trace
     """
 
-    import os
     import inspect
 
     frm = inspect.stack()[-1]

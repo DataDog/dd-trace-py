@@ -78,7 +78,8 @@ debug_mode = asbool(os.getenv("DD_TRACE_DEBUG", default=False))
 call_basic_config = asbool(os.environ.get("DD_CALL_BASIC_CONFIG", "false"))
 
 DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] {}- %(message)s".format(
-    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s" " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
+    "[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s"
+    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] "
 )
 if debug_mode and not hasHandlers(log) and call_basic_config:
     debtcollector.deprecate(
@@ -1029,7 +1030,11 @@ class Tracer(object):
         The LogWriter required by default in AWS Lambdas when the Datadog Agent extension
         is not available in the Lambda.
         """
-        if environ.get("DD_AGENT_HOST") or environ.get("DATADOG_TRACE_AGENT_HOSTNAME") or environ.get("DD_TRACE_AGENT_URL"):
+        if (
+            environ.get("DD_AGENT_HOST")
+            or environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
+            or environ.get("DD_TRACE_AGENT_URL")
+        ):
             # If one of these variables are set, we definitely have an agent
             return False
         elif in_aws_lambda() and has_aws_lambda_agent_extension():

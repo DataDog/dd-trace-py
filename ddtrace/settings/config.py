@@ -14,10 +14,10 @@ from ddtrace.vendor.debtcollector import deprecate
 from ..internal.constants import PROPAGATION_STYLE_ALL
 from ..internal.constants import PROPAGATION_STYLE_B3
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
+from ..internal.gitmetadata import clean_tags
 from ..internal.logger import get_logger
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
-from ..internal.gitmetadata import clean_tags
 from ..pin import Pin
 from .http import HttpConfig
 from .integration import IntegrationConfig
