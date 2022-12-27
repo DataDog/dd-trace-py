@@ -158,11 +158,9 @@ def w3c_get_dd_list_member(context):
         tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
     if context.dd_origin:
         # the origin value has specific values that are allowed.
-        tags.append(
-            "{}:{}".format(
-                W3C_TRACESTATE_ORIGIN_KEY, re.sub(r",|;|~|[^\x20-\x7E]+", "_", context.dd_origin).replace("=", "~")
-            )
-        )
+        tag_val = re.sub(r",|;|~|[^\x20-\x7E]+", "_", context.dd_origin)
+        tag_val = w3c_encode_equals(tag_val)
+        tags.append("{}:{}".format(W3C_TRACESTATE_ORIGIN_KEY, tag_val))
 
     sampling_decision = context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if sampling_decision:
@@ -183,10 +181,9 @@ def w3c_get_dd_list_member(context):
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
             # for value also replace = with ~
-            next_tag = "{}:{}".format(
-                re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)),
-                re.sub(r",|;|~|[^\x20-\x7E]+", "_", v).replace("=", "~"),
-            )
+            tag_val = re.sub(r",|;|~|[^\x20-\x7E]+", "_", v)
+            tag_val = w3c_encode_equals(tag_val)
+            next_tag = "{}:{}".format(re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)), tag_val)
             # we need to keep the total length under 256 char
             potential_current_tags_len = current_tags_len + len(next_tag)
             if not potential_current_tags_len > 256:
@@ -196,3 +193,8 @@ def w3c_get_dd_list_member(context):
                 log.debug("tracestate would exceed 256 char limit with tag: %s. Tag will not be added.", next_tag)
 
     return ";".join(tags)
+
+
+def w3c_encode_equals(tag_value):
+    # type: (str) -> str
+    return tag_value.replace("=", "~")
