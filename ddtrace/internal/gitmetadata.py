@@ -67,9 +67,9 @@ def __get_tags_from_package():
     e.g: Project-URL: source_code_link, https://github.com/user/repo#gitcommitsha&someoptions
     """
     package = os.getenv(ENV_MAIN_PACKAGE, "")
-    if package is "":
+    if package == "":
         package = __find_package()
-    if package is "":
+    if package == "":
         return {}
     try:
         try:
@@ -113,7 +113,7 @@ def get_tracer_tags():
 
 
 def clean_tags(tags):
-    # type: typing.Dict[str, str] -> typing.Dict[str, str]
+    # type: (typing.Dict[str, str]) -> typing.Dict[str, str]
     """
     Cleanup tags from git metadata
     """
@@ -131,6 +131,6 @@ def update_profiler_tags(tags):
     tracer_tags = get_tracer_tags()
 
     tags[TAG_REPOSITORY_URL] = tracer_tags[TRACE_TAG_REPOSITORY_URL]
-    tags[TAG_COMMIT_SHA] = tracer_tag[TRACE_TAG_COMMIT_SHA]
+    tags[TAG_COMMIT_SHA] = tracer_tags[TRACE_TAG_COMMIT_SHA]
 
     return tags
