@@ -388,8 +388,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
     def _set_git_metadata(self, trace):
         if trace:
-            for k, v in get_tracer_tags().items():
-                trace[0].set_metric(k, v)
+            trace[0].set_tags(get_tracer_tags())
 
     def recreate(self):
         # type: () -> AgentWriter
