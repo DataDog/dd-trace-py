@@ -79,7 +79,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         tags = {
             k: six.ensure_str(v, "utf-8")
             for k, v in itertools.chain(
-                update_profiler_tags(parse_tags_str(os.environ.get("DD_TAGS")).items()),
+                update_profiler_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
                 parse_tags_str(os.environ.get("DD_PROFILING_TAGS")).items(),
             )
         }

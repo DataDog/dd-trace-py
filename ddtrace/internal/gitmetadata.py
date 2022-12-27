@@ -41,7 +41,7 @@ def __get_tags_from_env():
 def __find_package():
     # type: () -> str
     """
-    Find package name in curent stack trace
+    Find package name in current stack trace
     """
 
     import inspect
