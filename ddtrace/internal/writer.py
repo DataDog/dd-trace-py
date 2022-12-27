@@ -27,6 +27,7 @@ from . import service
 from ..constants import KEEP_SPANS_RATE_KEY
 from ..internal.telemetry import telemetry_metrics_writer
 from ..internal.telemetry import telemetry_writer
+from ..internal.gitmetadata import get_tracer_tags
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
 from ..internal.utils.time import StopWatch
@@ -341,7 +342,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
             # Retry RETRY_ATTEMPTS times within the first half of the processing
             # interval, using a Fibonacci policy with jitter
             wait=tenacity.wait_random_exponential(
-                multiplier=0.618 * self.interval / (1.618 ** self.RETRY_ATTEMPTS) / 2, exp_base=1.618
+                multiplier=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2, exp_base=1.618
             ),
             stop=tenacity.stop_after_attempt(self.RETRY_ATTEMPTS),
             retry=tenacity.retry_if_exception_type((compat.httplib.HTTPException, OSError, IOError)),
@@ -383,6 +384,12 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
     def _set_keep_rate(self, trace):
         if trace:
             trace[0].set_metric(KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
+
+    def _set_git_metadata(self, trace):
+        # get traser metadata
+        if trace:
+            for k, v in get_tracer_tags().items():
+                trace[0].set_metric(k, v)
 
     def recreate(self):
         # type: () -> AgentWriter
@@ -546,6 +553,7 @@ class AgentWriter(periodic.PeriodicService, TraceWriter):
 
         self._metrics_dist("writer.accepted.traces")
         self._set_keep_rate(spans)
+        self._set_git_metadata(spans)
 
         try:
             self._encoder.put(spans)

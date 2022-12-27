@@ -19,6 +19,7 @@ import ddtrace
 from ddtrace.internal import agent
 from ddtrace.internal import runtime
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
+from ddtrace.internal.gitmetadata import update_profiler_tags
 from ddtrace.internal.runtime import container
 from ddtrace.internal.utils import attr as attr_utils
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -78,7 +79,7 @@ class PprofHTTPExporter(pprof.PprofExporter):
         tags = {
             k: six.ensure_str(v, "utf-8")
             for k, v in itertools.chain(
-                parse_tags_str(os.environ.get("DD_TAGS")).items(),
+                update_profiler_tags(parse_tags_str(os.environ.get("DD_TAGS")).items()),
                 parse_tags_str(os.environ.get("DD_PROFILING_TAGS")).items(),
             )
         }

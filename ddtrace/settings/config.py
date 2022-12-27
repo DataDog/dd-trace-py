@@ -17,6 +17,7 @@ from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.logger import get_logger
 from ..internal.utils.formats import asbool
 from ..internal.utils.formats import parse_tags_str
+from ..internal.gitmetadata import clean_tags
 from ..pin import Pin
 from .http import HttpConfig
 from .integration import IntegrationConfig
@@ -198,7 +199,7 @@ class Config(object):
         self.client_ip_header = os.getenv("DD_TRACE_CLIENT_IP_HEADER")
         self.retrieve_client_ip = asbool(os.getenv("DD_TRACE_CLIENT_IP_ENABLED", default=False))
 
-        self.tags = parse_tags_str(os.getenv("DD_TAGS") or "")
+        self.tags = clean_tags(parse_tags_str(os.getenv("DD_TAGS") or ""))
 
         self.env = os.getenv("DD_ENV") or self.tags.get("env")
         self.service = os.getenv("DD_SERVICE", default=self.tags.get("service"))
