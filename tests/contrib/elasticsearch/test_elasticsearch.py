@@ -81,8 +81,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
-        args = {"index": self.ES_INDEX, "doc_type": self.ES_TYPE}
-        args["doc_type"] = self.ES_TYPE
+        args = self._get_index_args()
         es.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
         es.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
         es.index(id=12, body={"name": "twelve", "created": datetime.date(2016, 3, 1)}, **args)
@@ -115,7 +114,6 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.get_tag("elasticsearch.url") == "/%s/_refresh" % self.ES_INDEX
 
         # search data
-        args = {"index": self.ES_INDEX, "doc_type": self.ES_TYPE}
         with self.override_http_config("elasticsearch", dict(trace_query_string=True)):
             es.index(id=10, body={"name": "ten", "created": datetime.date(2016, 1, 1)}, **args)
             es.index(id=11, body={"name": "eleven", "created": datetime.date(2016, 2, 1)}, **args)
@@ -268,3 +266,6 @@ class ElasticsearchPatchTest(TracerTestCase):
 
     def _get_es(self):
         return elasticsearch.Elasticsearch(port=ELASTICSEARCH_CONFIG["port"])
+
+    def _get_index_args(self):
+        return {"index": self.ES_INDEX, "doc_type": self.ES_TYPE}
