@@ -561,6 +561,11 @@ class _TraceContext:
     """
 
     @staticmethod
+    def decode_tag_val(tag_val):
+        # type str -> str
+        return tag_val.replace("~", "=")
+
+    @staticmethod
     def _get_traceparent_values(tp):
         # type: (str) -> Tuple[int, int, int]
         """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
@@ -630,10 +635,10 @@ class _TraceContext:
             origin = dd.get("o")
             if origin:
                 # we encode "=" as "~" in tracestate so need to decode here
-                origin = origin.replace("~", "=")
+                origin = _TraceContext.decode_tag_val(origin)
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
-                "_dd.p.%s" % k[2:]: v.replace("~", "=") for (k, v) in dd.items() if (k.startswith("t."))
+                "_dd.p.%s" % k[2:]: _TraceContext.decode_tag_val(v) for (k, v) in dd.items() if (k.startswith("t."))
             }
 
             return sampling_priority_ts_int, other_propagated_tags, origin

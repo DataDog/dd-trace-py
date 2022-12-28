@@ -158,17 +158,17 @@ def w3c_get_dd_list_member(context):
         tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
     if context.dd_origin:
         # the origin value has specific values that are allowed.
-        tag_val = re.sub(r",|;|~|[^\x20-\x7E]+", "_", context.dd_origin)
-        tag_val = w3c_encode_equals(tag_val)
-        tags.append("{}:{}".format(W3C_TRACESTATE_ORIGIN_KEY, tag_val))
+        tags.append(
+            "{}:{}".format(W3C_TRACESTATE_ORIGIN_KEY, w3c_encode_tag(r",|;|~|[^\x20-\x7E]+", "_", context.dd_origin))
+        )
 
     sampling_decision = context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if sampling_decision:
-        tags.append("t.dm:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
+        tags.append("t.dm:{}".format(w3c_encode_tag(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", sampling_decision)))
     # since this can change, we need to grab the value off the current span
     usr_id_key = context._meta.get(USER_ID_KEY)
     if usr_id_key:
-        tags.append("t.usr.id:{}".format(re.sub(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key)))
+        tags.append("t.usr.id:{}".format(w3c_encode_tag(_W3C_TRACESTATE_INVALID_CHARS_REGEX, "_", usr_id_key)))
 
     current_tags_len = sum(len(i) for i in tags)
     for k, v in context._meta.items():
@@ -180,10 +180,10 @@ def w3c_get_dd_list_member(context):
         ):
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
-            # for value also replace = with ~
-            tag_val = re.sub(r",|;|~|[^\x20-\x7E]+", "_", v)
-            tag_val = w3c_encode_equals(tag_val)
-            next_tag = "{}:{}".format(re.sub("_dd.p.", "t.", re.sub(r",| |=|[^\x20-\x7E]+", "_", k)), tag_val)
+            next_tag = "{}:{}".format(
+                w3c_encode_tag("_dd.p.", "t.", w3c_encode_tag(r",| |=|[^\x20-\x7E]+", "_", k)),
+                w3c_encode_tag(r",|;|~|[^\x20-\x7E]+", "_", v),
+            )
             # we need to keep the total length under 256 char
             potential_current_tags_len = current_tags_len + len(next_tag)
             if not potential_current_tags_len > 256:
@@ -195,6 +195,9 @@ def w3c_get_dd_list_member(context):
     return ";".join(tags)
 
 
-def w3c_encode_equals(tag_value):
-    # type: (str) -> str
-    return tag_value.replace("=", "~")
+def w3c_encode_tag(regex, replacement, tag_val):
+    # type: (str, str, str) -> str
+    if regex:
+        tag_val = re.sub(regex, replacement, tag_val)
+    # replace = with ~ if it wasn't already replaced by the regex
+    return tag_val.replace("=", "~")
