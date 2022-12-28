@@ -180,8 +180,9 @@ def w3c_get_dd_list_member(context):
         ):
             # for key replace ",", "=", and characters outside the ASCII range 0x20 to 0x7E
             # for value replace ",", ";", "~" and characters outside the ASCII range 0x20 to 0x7E
+            k = k.replace("_dd.p.", "t.")
             next_tag = "{}:{}".format(
-                w3c_encode_tag("_dd.p.", "t.", w3c_encode_tag(r",| |=|[^\x20-\x7E]+", "_", k)),
+                w3c_encode_tag(r",| |=|[^\x20-\x7E]+", "_", k),
                 w3c_encode_tag(r",|;|~|[^\x20-\x7E]+", "_", v),
             )
             # we need to keep the total length under 256 char
