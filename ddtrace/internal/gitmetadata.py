@@ -38,28 +38,6 @@ def __get_tags_from_env():
     return {TRACE_TAG_REPOSITORY_URL: repository_url, TRACE_TAG_COMMIT_SHA: commit_sha}
 
 
-def __find_package():
-    # type: () -> str
-    """
-    Find package name in current stack trace
-    """
-
-    import inspect
-
-    frm = inspect.stack()[-1]
-    module = inspect.getmodule(frm[0])
-    if module is None:
-        return ""
-    path = str(module.__file__)
-    package = ""
-    while len(path) > 1:
-        path, end = os.path.split(path)
-        if end in ("site-packages", "dist-packages"):
-            break
-        package = end
-    return package.split("-")[0]
-
-
 def __get_tags_from_package():
     # type: () -> typing.Dict[str, str]
     """
@@ -67,8 +45,6 @@ def __get_tags_from_package():
     e.g: Project-URL: source_code_link, https://github.com/user/repo#gitcommitsha&someoptions
     """
     package = os.getenv(ENV_MAIN_PACKAGE, "")
-    if package == "":
-        package = __find_package()
     if package == "":
         return {}
     try:
