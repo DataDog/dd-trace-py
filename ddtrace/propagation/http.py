@@ -638,7 +638,7 @@ class _TraceContext:
                 origin = _TraceContext.decode_tag_val(origin)
             # need to convert from t. to _dd.p.
             other_propagated_tags = {
-                "_dd.p.%s" % k[2:]: _TraceContext.decode_tag_val(v) for (k, v) in dd.items() if (k.startswith("t."))
+                "_dd.p.%s" % k[2:]: _TraceContext.decode_tag_val(v) for (k, v) in dd.items() if k.startswith("t.")
             }
 
             return sampling_priority_ts_int, other_propagated_tags, origin
